@@ -28,12 +28,14 @@ struct Config{
     using EMBEDDING_LAYER_TEMPLATE = rlt::nn::layers::embedding::BindSpecification<EMBEDDING_LAYER_SPEC>;
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::EMBEDDING_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, rlt::TensorDynamicTag, true>;
     using GRU_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU_SPEC>;
+    using GRU2_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::HIDDEN_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, rlt::TensorDynamicTag, true>;
+    using GRU2_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU2_SPEC>;
     using DOWN_PROJECTION_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMS::HIDDEN_DIM, PARAMS::EMBEDDING_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::MatrixDynamicTag, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, PARAMS::SEQUENCE_LENGTH>>;
     using DOWN_PROJECTION_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DOWN_PROJECTION_LAYER_SPEC>;
     using DENSE_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMS::EMBEDDING_DIM, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::MatrixDynamicTag, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, PARAMS::SEQUENCE_LENGTH>>;
     using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER_SPEC>;
     using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>;
-    using MODEL = typename IF::template Module<EMBEDDING_LAYER_TEMPLATE::template Layer, typename IF::template Module<GRU_TEMPLATE:: template Layer, typename IF::template Module<DOWN_PROJECTION_LAYER_TEMPLATE::template Layer, typename IF::template Module<DENSE_LAYER_TEMPLATE::template Layer>>>>;
+    using MODEL = typename IF::template Module<EMBEDDING_LAYER_TEMPLATE::template Layer, typename IF::template Module<GRU_TEMPLATE:: template Layer, typename IF::template Module<GRU2_TEMPLATE:: template Layer, typename IF::template Module<DOWN_PROJECTION_LAYER_TEMPLATE::template Layer, typename IF::template Module<DENSE_LAYER_TEMPLATE::template Layer>>>>>;
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, PARAMS::OUTPUT_DIM>;
     using OUTPUT_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>;
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;

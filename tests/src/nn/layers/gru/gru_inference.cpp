@@ -67,7 +67,7 @@ int main() {
         }
 
         rlt::forward(device, model, input, buffer, rng);
-        auto output_matrix = rlt::output(model);
+        auto output_matrix = rlt::output(device, model);
         output._data = output_matrix._data;
         auto sequence_step = rlt::view(device, output, input_string.size()-1);
         auto logits = rlt::view(device, sequence_step, 0);

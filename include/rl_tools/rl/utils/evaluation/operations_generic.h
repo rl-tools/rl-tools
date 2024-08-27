@@ -57,8 +57,8 @@ namespace rl_tools{
             data.terminated[episode_i][step_i] = terminated;
         }
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, template <typename> typename DATA, typename POLICY_EVALUATION_BUFFERS>
-    void evaluate(DEVICE& device, ENVIRONMENT&, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, template <typename> typename DATA, typename POLICY_EVALUATION_BUFFERS, typename MODE>
+    void evaluate(DEVICE& device, ENVIRONMENT&, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, const nn::Mode<MODE>& mode, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         constexpr TI INPUT_DIM = get_last(typename POLICY::INPUT_SHAPE{});
@@ -101,8 +101,8 @@ namespace rl_tools{
             }
             rl::utils::evaluation::set_parameters(data, env_i, current_parameters);
         }
-        for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++) {
-            for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+        for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
+            for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
                 auto observation = row(device, observations, env_i);
                 auto& state = states[env_i];
                 auto& env_parameters = parameters[env_i];
@@ -112,32 +112,30 @@ namespace rl_tools{
             }
             constexpr TI BATCH_SIZE = POLICY_EVALUATION_BUFFERS::BATCH_SIZE;
             constexpr TI NUM_FORWARD_PASSES = SPEC::N_EPISODES / BATCH_SIZE;
+            auto mode_copy = mode;
+            mode_copy.reset = step_i == 0;
             if constexpr(NUM_FORWARD_PASSES > 0){
                 for(TI forward_pass_i = 0; forward_pass_i < NUM_FORWARD_PASSES; forward_pass_i++){
                     auto observations_chunk = view(device, observations, matrix::ViewSpec<BATCH_SIZE, ENVIRONMENT::Observation::DIM>{}, forward_pass_i*BATCH_SIZE, 0);
                     auto actions_buffer_chunk = view(device, actions_buffer_full, matrix::ViewSpec<BATCH_SIZE, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>{}, forward_pass_i*BATCH_SIZE, 0);
 //                    sample(device, policy_evaluation_buffers, rng);
-                    nn::Mode<nn::layers::gru::StepByStepMode<nn::mode::Inference>> mode;
-                    mode.reset = step_i == 0;
                     auto input_tensor = to_tensor(device, observations_chunk);
                     auto output_tensor = to_tensor(device, actions_buffer_chunk);
                     auto unsqueezed_input_tensor = unsqueeze(device, input_tensor);
                     auto unsqueezed_output_tensor = unsqueeze(device, output_tensor);
-                    static_assert(utils::typing::remove_reference<decltype(policy_evaluation_buffers.content_buffer.buffer)>::type::BATCH_SIZE == 1);
-                    evaluate(device, policy, unsqueezed_input_tensor, unsqueezed_output_tensor, policy_evaluation_buffers, rng, mode);
+//                    static_assert(utils::typing::remove_reference<decltype(policy_evaluation_buffers.content_buffer.buffer)>::type::BATCH_SIZE == 1);
+                    evaluate(device, policy, unsqueezed_input_tensor, unsqueezed_output_tensor, policy_evaluation_buffers, rng, mode_copy);
                 }
             }
             if constexpr(SPEC::N_EPISODES % BATCH_SIZE != 0){
                 auto observations_chunk = view(device, observations, matrix::ViewSpec<SPEC::N_EPISODES % BATCH_SIZE, ENVIRONMENT::Observation::DIM>{}, NUM_FORWARD_PASSES*BATCH_SIZE, 0);
                 auto actions_buffer_chunk = view(device, actions_buffer_full, matrix::ViewSpec<SPEC::N_EPISODES % BATCH_SIZE, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>{}, NUM_FORWARD_PASSES*BATCH_SIZE, 0);
 //                sample(device, policy_evaluation_buffers, rng);
-                nn::Mode<nn::layers::gru::StepByStepMode<nn::mode::Inference>> mode;
-                mode.reset = step_i == 0;
                 auto input_tensor = to_tensor(device, observations_chunk);
                 auto output_tensor = to_tensor(device, actions_buffer_chunk);
                 auto unsqueezed_input_tensor = unsqueeze(device, input_tensor);
                 auto unsqueezed_output_tensor = unsqueeze(device, output_tensor);
-                evaluate(device, policy, unsqueezed_input_tensor, unsqueezed_output_tensor, policy_evaluation_buffers, rng, mode);
+                evaluate(device, policy, unsqueezed_input_tensor, unsqueezed_output_tensor, policy_evaluation_buffers, rng, mode_copy);
             }
             if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
                 for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
@@ -197,10 +195,10 @@ namespace rl_tools{
         free(device, actions_buffer_full);
         free(device, observations);
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
-    void evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS, typename MODE>
+    void evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, const nn::Mode<MODE>& mode, bool deterministic = false){
         rl::utils::evaluation::NoData<SPEC> data;
-        evaluate(device, env, ui, policy, results, data, policy_evaluation_buffers, rng, deterministic);
+        evaluate(device, env, ui, policy, results, data, policy_evaluation_buffers, rng, mode, deterministic);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

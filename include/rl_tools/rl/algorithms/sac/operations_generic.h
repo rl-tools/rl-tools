@@ -199,8 +199,6 @@ namespace rl_tools{
         T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, 0.5);
         add_scalar(device, device.logger, "critic_loss", loss);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
-//        set_all(device, critic.content.weights_hidden.gradient, 0);
-//        set_all(device, critic.content.biases_hidden.gradient, 0);
         step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename RNG>
@@ -297,8 +295,6 @@ namespace rl_tools{
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
         min_value_d_output(device, actor_critic, training_buffers);
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers, reset_mode_sas);
-//        set_all(device, actor_critic.actor.content.weights_hidden.gradient, 0);
-//        set_all(device, actor_critic.actor.content.biases_hidden.gradient, 0);
         step(device, optimizer, actor_critic.actor);
 //        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
     }
@@ -329,6 +325,7 @@ namespace rl_tools{
             rl_tools::utils::polyak::update(device, source.biases_input.parameters, target.biases_input.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.weights_hidden.parameters, target.weights_hidden.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.biases_hidden.parameters, target.biases_hidden.parameters, polyak);
+            rl_tools::utils::polyak::update(device, source.initial_hidden_state.parameters, target.initial_hidden_state.parameters, polyak);
         }
         template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         void update_target_module(DEVICE& device, const  nn_models::mlp::NeuralNetworkForward<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>& target, T polyak) {

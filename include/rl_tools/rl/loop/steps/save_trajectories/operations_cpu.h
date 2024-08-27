@@ -98,7 +98,7 @@ namespace rl_tools{
                         std::cout << "UI written to: " << ts.extrack_seed_path / "ui.esm.js" << std::endl;
                     }
                 }
-                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_evaluation_buffers, ts.rng_save_trajectories, false);
+                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_evaluation_buffers, ts.rng_save_trajectories, ts.evaluation_mode, false);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 

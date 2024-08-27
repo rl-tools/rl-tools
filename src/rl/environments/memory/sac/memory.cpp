@@ -1,4 +1,4 @@
-
+#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #ifdef RL_TOOLS_ENABLE_TRACY
 #include "Tracy.hpp"
 #endif
@@ -49,7 +49,7 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 64;
+constexpr TI BATCH_SIZE = 256;
 
 struct ENVIRONMENT_PARAMETERS{
     constexpr static TI HORIZON = 10;
@@ -73,12 +73,15 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_NUM_LAYERS = 2;
-    static constexpr TI CRITIC_HIDDEN_DIM = 128;
+    static constexpr TI CRITIC_HIDDEN_DIM = 64;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
-    static constexpr T ALPHA = 1.0;
+//    static constexpr T ALPHA = 1.0;
     static constexpr bool SHARED_BATCH = false;
-    struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-        static constexpr T ALPHA = 1e-3;
+//    struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+//        static constexpr T ALPHA = 1e-3;
+//    };
+    struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>{
+//        static constexpr T ALPHA = 1e-3;
     };
 };
 #ifdef BENCHMARK
@@ -109,10 +112,12 @@ using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
+
 int main(){
-    TI seed = 0;
+    TI seed = 1;
     DEVICE device;
     LOOP_STATE ts;
+    static_assert(decltype(ts.off_policy_runner)::REPLAY_BUFFER_TYPE::SPEC::CAPACITY == 100000);
     ts.extrack_name = "sequential";
     ts.extrack_population_variates = "algorithm_environment";
     ts.extrack_population_values = "sac_memory";

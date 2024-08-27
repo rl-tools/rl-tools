@@ -192,8 +192,8 @@ namespace rl_tools{
 //        }
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename PREVIOUS_OUTPUT_SCRATCH, typename RNG, typename MODE = nn::mode::Default>
-    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output, Tensor<PREVIOUS_OUTPUT_SCRATCH>& previous_output_scratch, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename PREVIOUS_OUTPUT_SCRATCH, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output, Tensor<PREVIOUS_OUTPUT_SCRATCH>& previous_output_scratch, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename INPUT_SPEC::SHAPE{});
@@ -228,10 +228,17 @@ namespace rl_tools{
             auto z_post_activation  = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
             auto n_post_activation  = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
+            if(STEP_BY_STEP && !reset_full_batch && buffers.steps_since_reset_set && buffers.steps_since_reset >= LAYER_SPEC::SEQUENCE_LENGTH){
+                reset_full_batch = true;
+            }
+
             if(reset_full_batch){
+                buffers.steps_since_reset = 0;
+                buffers.steps_since_reset_set = true;
                 nn::layers::gru::helper::matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, post_activation_step);
             }
             else{
+                utils::assert_exit(device, false, "");
                 if constexpr(CAN_RESET_SAMPLE){
                     for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
                         auto target = view(device, previous_output_scratch, sample_i);
@@ -283,6 +290,7 @@ namespace rl_tools{
                 multiply_broadcast_accumulate(device, z_post_activation, layer.initial_hidden_state.parameters, output_step);
             }
             else{
+                utils::assert_exit(device, false, "");
                 if constexpr(CAN_RESET_SAMPLE) {
                     // we don't need to assemble previous_output_scratch again because we know that we assembled it before already
                     multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
@@ -292,23 +300,26 @@ namespace rl_tools{
                     multiply_accumulate(device, z_post_activation, output_previous_step, output_step);
                 }
             }
+            if constexpr(STEP_BY_STEP){
+                buffers.steps_since_reset += 1;
+            }
         }
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         constexpr bool STEP_BY_STEP = nn::layers::gru::mode::step_by_step_mode(decltype(mode){});
         if constexpr(STEP_BY_STEP){
-            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, buffers.step_by_step_output, buffers.previous_output_scratch, rng, mode);
+            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, buffers.step_by_step_output, buffers.previous_output_scratch, buffers, rng, mode);
             copy(device, device, buffers.step_by_step_output, output);
         }
         else{
-            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, buffers.previous_output_scratch, rng, mode);
+            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, buffers.previous_output_scratch, buffers, rng, mode);
         }
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn::layers::gru::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        evaluate(device, layer, input, layer.post_activation, layer.n_pre_pre_activation, layer.output, buffers.previous_output_scratch, rng, mode);
+        evaluate(device, layer, input, layer.post_activation, layer.n_pre_pre_activation, layer.output, buffers.previous_output_scratch, buffers, rng, mode);
     }
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_subtract_broadcast(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output) {
@@ -348,7 +359,6 @@ namespace rl_tools{
 #endif
         ternary_operation(device, tensor::Operation<tensor::ternary_operations::multiply_subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, factor, t1, t2, result);
     }
-#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply_broadcast_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -394,7 +404,6 @@ namespace rl_tools{
             }
         }
     }
-#endif
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_accumulate_reduce(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
 #ifdef RL_TOOLS_ENABLE_TRACY
