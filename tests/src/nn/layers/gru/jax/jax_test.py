@@ -34,18 +34,22 @@ feature_dim = 2
 
 
 
-def store_weights(weights, group):
+def store_weights(weights, group, gradient=False):
     for cluster in ["h", "i"]:
         for name in ["r", "z", "n"]:
             current = cluster + name
             group.create_dataset(f"W_{current}", data=np.array(weights[current]["kernel"]))
-            if current == "hn":
+            if cluster == "i" or name == "n":
                 group.create_dataset(f"b_{current}", data=np.array(weights[current]["bias"]))
+            elif gradient:
+                group.create_dataset(f"b_{current}", data=np.array(weights["i" + name]["bias"]))
             else:
                 group.create_dataset(f"b_{current}", data=np.zeros((hidden_size,)))
 
 
-with h5py.File("jax_gru_trace.h5", "w") as f:
+
+
+with h5py.File("tests/data/gru_training_trace_jax.h5", "w") as f:
     epoch_group = f.create_group(str(0))
     n_batches = 10
     for batch_i in range(n_batches):
@@ -118,10 +122,10 @@ with h5py.File("jax_gru_trace.h5", "w") as f:
         backward_group = batch_group.create_group("backward")
         for step_i, d_variables_step in enumerate(d_variables_cumsum):
             step_group = backward_group.create_group(str(step_i))
-            store_weights(d_variables_step["params"]["GRUCell_0"], step_group)
+            store_weights(d_variables_step["params"]["GRUCell_0"], step_group, gradient=True)
                 
         d_weights_group = batch_group.create_group("gradient")
-        store_weights(d_variables_combined["params"]["GRUCell_0"], d_weights_group)
+        store_weights(d_variables_combined["params"]["GRUCell_0"], d_weights_group, gradient=True)
 
 
         diff = jnp.abs(sequence_gru_outputs - outputs).sum()/jnp.array(outputs.shape).prod()
