@@ -85,11 +85,12 @@ namespace rl_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
     void backward_pre_activations(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activations, nn::layers::dense::Buffer&) {
         // calculating pre-activation
+        using LAYER = nn::layers::dense::LayerBackward<LAYER_SPEC>;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         static_assert(D_OUTPUT_SPEC::COLS == OUTPUT_DIM);
         static_assert(D_PRE_ACTIVATIONS_SPEC::COLS == OUTPUT_DIM);
-        static_assert(LAYER_SPEC::BATCH_SIZE == D_OUTPUT_SPEC::ROWS);
-        static_assert(LAYER_SPEC::BATCH_SIZE == D_PRE_ACTIVATIONS_SPEC::ROWS);
+        static_assert(LAYER::ACTUAL_BATCH_SIZE == D_OUTPUT_SPEC::ROWS);
+        static_assert(LAYER::ACTUAL_BATCH_SIZE == D_PRE_ACTIVATIONS_SPEC::ROWS);
         constexpr auto BATCH_SIZE = D_PRE_ACTIVATIONS_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;

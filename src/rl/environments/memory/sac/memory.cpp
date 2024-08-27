@@ -17,7 +17,7 @@
 #endif
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
-#include <rl_tools/rl/environments/memory/operations_generic.h>
+#include <rl_tools/rl/environments/memory/operations_cpu.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential_v2/operations_generic.h>
@@ -47,19 +47,19 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
-constexpr TI SEQUENCE_LENGTH = 1;
+constexpr TI SEQUENCE_LENGTH = 2;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 256;
+constexpr TI BATCH_SIZE = 32;
 
 struct ENVIRONMENT_PARAMETERS{
-    constexpr static TI HORIZON = 10;
-    constexpr static T INPUT_PROBABILITY = (T)5/(T)HORIZON;
-    constexpr static rlt::rl::environments::memory::Mode MODE = rlt::rl::environments::memory::Mode::COUNT_STEPS_SINCE_LAST_INPUT;
+    constexpr static TI HORIZON = 1;
+    constexpr static T INPUT_PROBABILITY = 0.5;
+    constexpr static rlt::rl::environments::memory::Mode MODE = rlt::rl::environments::memory::Mode::COUNT_INPUT;
 };
-//using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
-//using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
-using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
-using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
+using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
+using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
+//using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+//using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
         static constexpr T GAMMA = 0.99;
@@ -67,7 +67,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI CRITIC_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI SEQUENCE_LENGTH = SEQUENCE_LENGTH_PROXY;
     };
-    static constexpr TI STEP_LIMIT = 100000;
+    static constexpr TI STEP_LIMIT = 10000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 2;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
@@ -95,7 +95,9 @@ using ConfigApproximatorsSequentialBoundSequenceLength = ConfigApproximatorsSequ
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsSequentialBoundSequenceLength>;
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
+    static constexpr TI EVALUATION_INTERVAL = 1000;
     static constexpr TI NUM_EVALUATION_EPISODES = 100;
+    static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS>;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_EVAL_CONFIG>;
@@ -117,7 +119,6 @@ int main(){
     TI seed = 1;
     DEVICE device;
     LOOP_STATE ts;
-    static_assert(decltype(ts.off_policy_runner)::REPLAY_BUFFER_TYPE::SPEC::CAPACITY == 100000);
     ts.extrack_name = "sequential";
     ts.extrack_population_variates = "algorithm_environment";
     ts.extrack_population_values = "sac_memory";

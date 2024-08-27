@@ -9,8 +9,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::memory {
     enum class Mode{
-        COUNT_INPUT,
-        COUNT_STEPS_SINCE_LAST_INPUT
+        COUNT_INPUT = 0,
+        COUNT_STEPS_SINCE_LAST_INPUT = 1
     };
     template <typename T, typename TI>
     struct DefaultParameters {

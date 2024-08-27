@@ -36,7 +36,6 @@ namespace rl_tools{
         using namespace rl::environments::memory;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        T u_normalised = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
         for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON - 1; step_i++){
             next_state.history[step_i] = state.history[step_i + 1];
         }
@@ -48,6 +47,7 @@ namespace rl_tools{
         using namespace rl::environments::memory;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        T u_normalised = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
         if constexpr (SPEC::PARAMETERS::MODE == rl::environments::memory::Mode::COUNT_INPUT){
             T count = 0;
             for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
@@ -56,7 +56,7 @@ namespace rl_tools{
                 }
             }
             T target = count / (SPEC::PARAMETERS::HORIZON * SPEC::PARAMETERS::INPUT_PROBABILITY) / 5.0;
-            T diff = get(action, 0, 0) - target;
+            T diff = u_normalised - target;
             return -diff * diff * 10;
         }
         else{
@@ -72,7 +72,7 @@ namespace rl_tools{
                     }
                 }
                 T target = count / SPEC::PARAMETERS::HORIZON;
-                T diff = get(action, 0, 0) - target;
+                T diff = u_normalised - target;
                 return - diff * diff;
             }
             else{

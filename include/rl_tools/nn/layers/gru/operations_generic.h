@@ -238,7 +238,6 @@ namespace rl_tools{
                 nn::layers::gru::helper::matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, post_activation_step);
             }
             else{
-                utils::assert_exit(device, false, "");
                 if constexpr(CAN_RESET_SAMPLE){
                     for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
                         auto target = view(device, previous_output_scratch, sample_i);
@@ -290,7 +289,6 @@ namespace rl_tools{
                 multiply_broadcast_accumulate(device, z_post_activation, layer.initial_hidden_state.parameters, output_step);
             }
             else{
-                utils::assert_exit(device, false, "");
                 if constexpr(CAN_RESET_SAMPLE) {
                     // we don't need to assemble previous_output_scratch again because we know that we assembled it before already
                     multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
