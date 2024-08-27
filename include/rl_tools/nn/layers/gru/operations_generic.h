@@ -33,7 +33,6 @@ namespace rl_tools{
         layer.b_hn = view_range(device, layer.biases_hidden.parameters, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
 
         malloc(device, layer.initial_hidden_state);
-        set_all(device, layer.initial_hidden_state.parameters, 0);
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer){
@@ -89,6 +88,7 @@ namespace rl_tools{
         rand(device, l.weights_input.parameters, rng, -scale, scale);
         rand(device, l.biases_hidden.parameters, rng, -scale, scale);
         rand(device, l.biases_input.parameters, rng, -scale, scale);
+        set_all(device, l.initial_hidden_state.parameters, 0);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_broadcast_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){

@@ -90,6 +90,15 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "tests/src/nn/layers/gru/jax/jax_test.py",
+            "type": "python",
+            "request": "launch",
+            "program": "tests/src/nn/layers/gru/jax/jax_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }

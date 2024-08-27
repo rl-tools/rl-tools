@@ -147,7 +147,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, output_target, batch_group, "output");
             rlt::load(device, gru_output, batch_group, "gru_output");
             auto weight_group = batch_group.getGroup("weights");
-            auto gradient_group = batch_group.getGroup("gradient");
             rlt::load(device, gru.W_ir, weight_group, "W_ir");
             rlt::load(device, gru.W_iz, weight_group, "W_iz");
             rlt::load(device, gru.W_in, weight_group, "W_in");
