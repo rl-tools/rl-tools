@@ -77,14 +77,14 @@ void test_loading(std::string DATA_FILE_NAME){
     using TI = DEVICE::index_t;
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
-    constexpr T EPSILON = 1e-6;
+    constexpr T EPSILON = 1e-10;
     constexpr TI SEQUENCE_LENGTH = 50;
     constexpr TI BATCH_SIZE = 128;
     constexpr TI INPUT_DIM = 1;
     constexpr TI OUTPUT_DIM = 1;
     constexpr TI HIDDEN_DIM = 16;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input, dinput;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input, dinput, dinput_real;
     using GRU_OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE>> gru_output, dloss_dgru_output;
     using GRU_OUTPUT_STEP_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, HIDDEN_DIM>;
@@ -107,6 +107,7 @@ void test_loading(std::string DATA_FILE_NAME){
 
     rlt::malloc(device, input);
     rlt::malloc(device, dinput);
+    rlt::malloc(device, dinput_real);
     rlt::malloc(device, gru_output);
     rlt::malloc(device, dloss_dgru_output);
     rlt::malloc(device, grad_W_ir);
@@ -135,6 +136,11 @@ void test_loading(std::string DATA_FILE_NAME){
         for(auto batch_group_name: epoch_group.listObjectNames()){
             auto batch_group = epoch_group.getGroup(batch_group_name);
             rlt::load(device, input, batch_group, "input");
+            bool d_input_set = false;
+            if(batch_group.exist("d_input")){
+                rlt::load(device, dinput_real, batch_group, "d_input");
+                d_input_set = true;
+            }
             rlt::load(device, gru_output, batch_group, "gru_output");
             auto weight_group = batch_group.getGroup("weights");
             rlt::load(device, gru.W_ir, weight_group, "W_ir");
@@ -183,6 +189,15 @@ void test_loading(std::string DATA_FILE_NAME){
 
 
                 std::cout << "Step: " << step << std::endl;
+
+                T abs_diff_d_input = 0;
+                if(d_input_set){
+                    auto d_input_step_view = rlt::view(device, dinput, step);
+                    auto d_input_real_step_view = rlt::view(device, dinput_real, step);
+                    abs_diff_d_input = rlt::abs_diff(device, d_input_step_view, d_input_real_step_view);
+                    std::cout << "abs_diff_d_input: " << abs_diff_d_input << std::endl;
+                }
+
                 auto grad_W_hr_view = rlt::view_range(device, gru.weights_hidden.gradient, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
                 T abs_diff_W_hr = rlt::abs_diff(device, grad_W_hr_view, grad_W_hr)/decltype(grad_W_hr)::SPEC::SIZE;
                 std::cout << "abs_diff_W_hr: " << abs_diff_W_hr << std::endl;
@@ -232,6 +247,9 @@ void test_loading(std::string DATA_FILE_NAME){
                 std::cout << "abs_diff_b_in: " << abs_diff_b_in << std::endl;
 
 
+                if(d_input_set){
+                    ASSERT_LT(abs_diff_d_input, EPSILON);
+                }
                 ASSERT_LT(abs_diff_W_hr, EPSILON);
                 ASSERT_LT(abs_diff_b_hr, EPSILON);
                 ASSERT_LT(abs_diff_W_hz, EPSILON);

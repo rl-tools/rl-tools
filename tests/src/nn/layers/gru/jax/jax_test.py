@@ -31,6 +31,7 @@ sequence_gru = SequenceGRU(hidden_size=hidden_size)
 batch_size = 128
 sequence_length = 50
 feature_dim = 1
+n_batches = 1
 
 
 
@@ -51,7 +52,6 @@ def store_weights(weights, group, gradient=False):
 
 with h5py.File("tests/data/gru_training_trace_jax.h5", "w") as f:
     epoch_group = f.create_group(str(0))
-    n_batches = 10
     for batch_i in range(n_batches):
         print(f"Batch {batch_i}/{n_batches}")
         batch_group = epoch_group.create_group(str(batch_i))
@@ -105,6 +105,8 @@ with h5py.File("tests/data/gru_training_trace_jax.h5", "w") as f:
             current_d_carry = vjpure(lambda carry: single_step_gru.apply(single_step_gru_variables, carry, x[i]), carry)((current_d_carry, d_outputs[i]))[0]
             d_carries.append(current_d_carry)
 
+        d_inputs = jnp.stack(d_inputs[::-1])
+
         sequence_gru_outputs = sequence_gru.apply(sequence_gru_variables, x)
 
         d_output = grad(lambda output: output_fn(output, actual_output))(sequence_gru_outputs)
@@ -131,6 +133,7 @@ with h5py.File("tests/data/gru_training_trace_jax.h5", "w") as f:
         diff = jnp.abs(sequence_gru_outputs - outputs).sum()/jnp.array(outputs.shape).prod()
 
         batch_group.create_dataset("input", data=x)
+        batch_group.create_dataset("d_input", data=d_inputs)
         batch_group.create_dataset("gru_output", data=outputs)
         batch_group.create_dataset("d_loss_d_y_pred_gru", data=d_outputs)
 
