@@ -29,7 +29,7 @@ namespace rl_tools::nn{
         struct Forward{
             static constexpr LayerCapability TAG = LayerCapability::Forward;
             using PARAMETER_TYPE = nn::parameters::Plain;
-            static constexpr auto BATCH_SIZE = 0;
+            static constexpr auto BATCH_SIZE = 1;
             template <auto T_NEW_BATCH_SIZE>
             using CHANGE_BATCH_SIZE = Forward;
         };

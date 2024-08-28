@@ -52,18 +52,16 @@ namespace rl_tools::nn::layers::gru{
             using STEP_BY_STEP_OUTPUT_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<STEP_BY_STEP_OUTPUT_SPEC>;
             STEP_BY_STEP_OUTPUT_TYPE step_by_step_output;
 
-            // for the step by step evaluation
-            TI steps_since_reset = 0;
-            bool steps_since_reset_set = false;
             using PREVIOUS_OUTPUT_SCRATCH_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::HIDDEN_DIM>>;
             using PREVIOUS_OUTPUT_SCRATCH = typename SPEC::CONTAINER_TYPE_TAG::template type<PREVIOUS_OUTPUT_SCRATCH_SPEC>;
             PREVIOUS_OUTPUT_SCRATCH previous_output_scratch;
         };
     }
 
-    template <typename BASE>
+    template <typename TI, typename BASE>
     struct StepByStepMode: BASE{
         bool reset = false;
+        TI step = 0;
     };
 
     template <typename T_BASE, typename T_RESET_CONTAINER_TYPE>

@@ -167,8 +167,10 @@ namespace rl_tools{
             auto observation_view_tensor_unsqueezed = unsqueeze(device, observation_view_tensor);
             auto action_view_tensor = to_tensor(device, action_view);
             auto action_view_tensor_unsqueezed = unsqueeze(device, action_view_tensor);
-            nn::Mode<nn::layers::gru::StepByStepMode<MODE>> step_by_step_mode;
+            nn::Mode<nn::layers::gru::StepByStepMode<TI, MODE>> step_by_step_mode;
             step_by_step_mode.reset = get(runner.truncated, 0, 0);
+            step_by_step_mode.step = get(runner.episode_step, 0, 0);
+            static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
             evaluate(device, policy, observation_view_tensor_unsqueezed, action_view_tensor_unsqueezed, policy_eval_buffers, rng, step_by_step_mode);
         }
 

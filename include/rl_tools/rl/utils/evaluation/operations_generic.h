@@ -114,6 +114,8 @@ namespace rl_tools{
             constexpr TI NUM_FORWARD_PASSES = SPEC::N_EPISODES / BATCH_SIZE;
             auto mode_copy = mode;
             mode_copy.reset = step_i == 0;
+            mode_copy.step = step_i;
+            static_assert(NUM_FORWARD_PASSES == 1);
             if constexpr(NUM_FORWARD_PASSES > 0){
                 for(TI forward_pass_i = 0; forward_pass_i < NUM_FORWARD_PASSES; forward_pass_i++){
                     auto observations_chunk = view(device, observations, matrix::ViewSpec<BATCH_SIZE, ENVIRONMENT::Observation::DIM>{}, forward_pass_i*BATCH_SIZE, 0);
@@ -127,6 +129,7 @@ namespace rl_tools{
                     evaluate(device, policy, unsqueezed_input_tensor, unsqueezed_output_tensor, policy_evaluation_buffers, rng, mode_copy);
                 }
             }
+            static_assert(SPEC::N_EPISODES % BATCH_SIZE == 0); // gru relies on the buffer for state hence can't mix for now
             if constexpr(SPEC::N_EPISODES % BATCH_SIZE != 0){
                 auto observations_chunk = view(device, observations, matrix::ViewSpec<SPEC::N_EPISODES % BATCH_SIZE, ENVIRONMENT::Observation::DIM>{}, NUM_FORWARD_PASSES*BATCH_SIZE, 0);
                 auto actions_buffer_chunk = view(device, actions_buffer_full, matrix::ViewSpec<SPEC::N_EPISODES % BATCH_SIZE, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>{}, NUM_FORWARD_PASSES*BATCH_SIZE, 0);

@@ -32,7 +32,6 @@ namespace rl_tools{
         malloc(device, ts.actor_buffers_eval);
         malloc(device, ts.actor_buffers[0]);
         malloc(device, ts.actor_buffers[1]);
-        malloc(device, ts.actor_deterministic_evaluation_buffers);
         for(auto& env: ts.envs){
             rl_tools::malloc(device, env);
         }
@@ -71,7 +70,6 @@ namespace rl_tools{
         copy(device_source, device_target, source.actor_buffers_eval, target.actor_buffers_eval);
         copy(device_source, device_target, source.actor_buffers[0], target.actor_buffers[0]);
         copy(device_source, device_target, source.actor_buffers[1], target.actor_buffers[1]);
-        copy(device_source, device_target, source.actor_deterministic_evaluation_buffers, target.actor_deterministic_evaluation_buffers);
 //        target.rng = source.rng;
         target.off_policy_runner.parameters.exploration_noise = source.off_policy_runner.parameters.exploration_noise;
         target.step = source.step;
@@ -93,7 +91,6 @@ namespace rl_tools{
         free(device, ts.actor_buffers_eval);
         free(device, ts.actor_buffers[0]);
         free(device, ts.actor_buffers[1]);
-        free(device, ts.actor_deterministic_evaluation_buffers);
         for(auto& env: ts.envs){
             rl_tools::free(device, env);
         }

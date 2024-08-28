@@ -24,6 +24,7 @@ namespace rl_tools{
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         malloc(device, ts.env_save_trajectories);
         ts.save_trajectories_buffer = new typename STATE::template DATA_TYPE<typename T_CONFIG::SAVE_TRAJECTORIES_SPEC>;
+        malloc(device, ts.actor_deterministic_evaluation_buffers);
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
@@ -40,6 +41,7 @@ namespace rl_tools{
     void free(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         delete ts.save_trajectories_buffer;
+        free(device, ts.actor_deterministic_evaluation_buffers);
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
 

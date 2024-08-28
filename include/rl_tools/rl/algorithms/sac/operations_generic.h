@@ -118,7 +118,7 @@ namespace rl_tools{
         copy(device, device, actor_critic.critic_2, actor_critic.critic_target_2);
     }
     template <typename DEVICE, typename BATCH_SPEC, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER, typename TI_SAMPLE>
-    RL_TOOLS_FUNCTION_PLACEMENT void target_actions_per_sample(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER alpha, TI_SAMPLE batch_step_i){
+    RL_TOOLS_FUNCTION_PLACEMENT void target_action_values_per_sample(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER alpha, TI_SAMPLE batch_step_i){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
@@ -143,7 +143,7 @@ namespace rl_tools{
         set(target_action_value_matrix_view, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
     }
     template <typename DEVICE, typename BATCH_SPEC, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER>
-    void target_actions(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER& log_alpha) {
+    void target_action_values(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER& log_alpha) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
@@ -153,7 +153,7 @@ namespace rl_tools{
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(log_alpha.parameters, 0, 0));
         for(TI batch_step_i = 0; batch_step_i < SEQUENCE_LENGTH * BATCH_SIZE; batch_step_i++){
-            target_actions_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
+            target_action_values_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
         }
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC, typename RNG>
@@ -190,7 +190,7 @@ namespace rl_tools{
 
         auto last_layer = get_last_layer(actor_critic.actor);
         auto next_action_log_probs = view_transpose(device, last_layer.log_probabilities);
-        target_actions(device, batch, training_buffers, next_action_log_probs, sample_and_squash_layer.log_alpha);
+        target_action_values(device, batch, training_buffers, next_action_log_probs, sample_and_squash_layer.log_alpha);
         forward(device, critic, batch.observations_and_actions, critic_buffers, rng, reset_mode);
         auto output_matrix_view = matrix_view(device, output(device, critic));
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);

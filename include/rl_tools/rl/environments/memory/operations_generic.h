@@ -55,7 +55,7 @@ namespace rl_tools{
                     count++;
                 }
             }
-            T target = count / (SPEC::PARAMETERS::HORIZON * SPEC::PARAMETERS::INPUT_PROBABILITY) / 5.0;
+            T target = count / 10; //(SPEC::PARAMETERS::HORIZON * SPEC::PARAMETERS::INPUT_PROBABILITY) / 5.0;
             T diff = u_normalised - target;
             return -diff * diff * 10;
         }

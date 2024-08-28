@@ -12,7 +12,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::loop::steps::extrack::utils{
-        static std::string get_timestamp_string(){
+        std::string get_timestamp_string(){
             auto now = std::chrono::system_clock::now();
             std::time_t now_c = std::chrono::system_clock::to_time_t(now);
             std::tm now_local;

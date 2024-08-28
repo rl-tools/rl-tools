@@ -1,20 +1,6 @@
-#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
-#ifdef RL_TOOLS_ENABLE_TRACY
-#include "Tracy.hpp"
-#endif
-
-#define MUX
-#ifdef MUX
-#include <rl_tools/operations/cpu_mux.h>
-#else
 #include <rl_tools/operations/cpu.h>
-#endif
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
-#ifdef MUX
-#include <rl_tools/nn/operations_cpu_mux.h>
-#else
 #include <rl_tools/nn/operations_cpu.h>
-#endif
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/rl/environments/memory/operations_cpu.h>
@@ -48,40 +34,46 @@ namespace rlt = rl_tools;
 
 #include "approximators.h"
 
-
-#ifdef MUX
-using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-#else
 using DEVICE = rlt::devices::DefaultCPU;
-#endif
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
 #include "parameters.h"
 
-
-using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
-
-
 int main(){
-    TI seed = 1;
     DEVICE device;
-    LOOP_STATE ts;
-    ts.extrack_name = "sequential";
-    ts.extrack_population_variates = "algorithm_environment";
-    ts.extrack_population_values = "sac_memory";
-    rlt::malloc(device);
-    rlt::init(device);
-    rlt::malloc(device, ts);
-    rlt::init(device, ts, seed);
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
-    rlt::init(device, device.logger, ts.extrack_seed_path);
-#endif
-    while(!rlt::step(device, ts)){
-#ifdef RL_TOOLS_ENABLE_TRACY
-        FrameMark;
-#endif
+    auto rng = rlt::random::default_engine(device.random, 0);
+    std::string checkpoint = "experiments/2024-08-28_11-19-30/e64577b_sequential_algorithm_environment/sac_memory/0001/steps/000000000010000/checkpoint.h5";
+    using CONFIG = ConfigApproximatorsSequential<T, TI, SEQUENCE_LENGTH, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::TensorDynamicTag>;
+    using CAPABILITY = rlt::nn::layer_capability::Forward;
+    using ACTOR = CONFIG::Actor<CAPABILITY>::MODEL;
+    ACTOR actor;
+    ACTOR::Buffer<1> actor_buffer;
+    rlt::malloc(device, actor);
+    rlt::malloc(device, actor_buffer);
+
+    auto actor_file = HighFive::File(checkpoint, HighFive::File::ReadOnly);
+    rlt::load(device, actor, actor_file.getGroup("actor"));
+
+    for(TI repeat_i = 0; repeat_i < 2; repeat_i++){
+        rlt::nn::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::nn::mode::Inference>> mode;
+        mode.reset = true;
+        mode.step = 0;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, 1>>> input, output;
+        rlt::malloc(device, input);
+        rlt::malloc(device, output);
+
+
+        std::vector<T> input_values = {1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, };
+        for(T input_value : input_values){
+            rlt::set(device, input, input_value, 0, 0, 0);
+            rlt::evaluate(device, actor, input, output, actor_buffer, rng, mode);
+            std::cout << mode.step << ": " << input_value << " => " << rlt::get(device, output, 0, 0, 0) << std::endl;
+            mode.reset = false;
+            mode.step++;
+        }
     }
+
     return 0;
 }
