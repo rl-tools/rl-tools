@@ -136,9 +136,14 @@ namespace rl_tools{
         auto terminated_matrix_view = matrix_view(device, batch.terminated);
         bool terminated = get(terminated_matrix_view, batch_step_i, 0);
         T entropy_bonus = -alpha * get(next_action_log_probs, batch_step_i, 0);
-        T min_next_state_action_value_entropy_bonus = min_next_state_action_value + entropy_bonus;
-        T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value_entropy_bonus : 0;
+        if constexpr(SPEC::PARAMETERS::ENTROPY_BONUS_NEXT_STEP){
+            min_next_state_action_value += entropy_bonus;
+        }
+        T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
         T current_target_action_value = reward + future_value;
+        if constexpr(!SPEC::PARAMETERS::ENTROPY_BONUS_NEXT_STEP){
+            current_target_action_value += entropy_bonus;
+        }
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
         set(target_action_value_matrix_view, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
     }
@@ -175,6 +180,7 @@ namespace rl_tools{
         auto sample_and_squash_buffer = get_last_buffer(actor_buffers);
         copy(device, device, action_noise, sample_and_squash_buffer.noise);
         using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
+//        nn::Mode<SAMPLE_AND_SQUASH_MODE> reset_mode, reset_mode_sas;
         using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<SAMPLE_AND_SQUASH_MODE, decltype(batch.reset)>;
         using RESET_MODE_SAS = nn::layers::gru::ResetMode<RESET_MODE_SAS_SPEC>;
         using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<nn::mode::Default, decltype(batch.reset)>;
@@ -275,6 +281,7 @@ namespace rl_tools{
         zero_gradient(device, actor_critic.actor);
         copy(device, device, action_noise, sample_and_squashing_buffer.noise);
         using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
+//        nn::Mode<SAMPLE_AND_SQUASH_MODE> reset_mode, reset_mode_sas;
         using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<SAMPLE_AND_SQUASH_MODE, decltype(batch.reset)>;
         using RESET_MODE_SAS = nn::layers::gru::ResetMode<RESET_MODE_SAS_SPEC>;
         using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<nn::mode::Default, decltype(batch.reset)>;

@@ -36,8 +36,10 @@ namespace rl_tools{
         using namespace rl::environments::memory;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON - 1; step_i++){
-            next_state.history[step_i] = state.history[step_i + 1];
+        if constexpr(SPEC::PARAMETERS::HORIZON > 1){
+            for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON - 2; step_i++){
+                next_state.history[step_i] = state.history[step_i + 1];
+            }
         }
         next_state.history[SPEC::PARAMETERS::HORIZON - 1] = random::uniform_real_distribution(device.random, (T)0, (T)1.0, rng) < SPEC::PARAMETERS::INPUT_PROBABILITY ? 1 : 0;
         return 0;
@@ -48,37 +50,15 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         T u_normalised = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
-        if constexpr (SPEC::PARAMETERS::MODE == rl::environments::memory::Mode::COUNT_INPUT){
-            T count = 0;
-            for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
-                if(state.history[step_i] == 1){
-                    count++;
-                }
-            }
-            T target = count / 10; //(SPEC::PARAMETERS::HORIZON * SPEC::PARAMETERS::INPUT_PROBABILITY) / 5.0;
-            T diff = u_normalised - target;
-            return -diff * diff * 10;
-        }
-        else{
-            if constexpr(SPEC::PARAMETERS::MODE == rl::environments::memory::Mode::COUNT_STEPS_SINCE_LAST_INPUT){
-                T count = 0;
-                for(TI step_i = SPEC::PARAMETERS::HORIZON - 1; step_i >= 0; step_i--){
-                    if(state.history[step_i] == 1){
-                        break;
-                    }
-                    count++;
-                    if(step_i == 0){
-                        break;
-                    }
-                }
-                T target = count / SPEC::PARAMETERS::HORIZON;
-                T diff = u_normalised - target;
-                return - diff * diff;
-            }
-            else{
-                return 0;
+        T count = 0;
+        for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
+            if(state.history[step_i] == 1){
+                count++;
             }
         }
+        T target = count / 10; //(SPEC::PARAMETERS::HORIZON * SPEC::PARAMETERS::INPUT_PROBABILITY) / 5.0;
+        T diff = u_normalised - target;
+        return - math::abs(device.math, diff) * 10;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>

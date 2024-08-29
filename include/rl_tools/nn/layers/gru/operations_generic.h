@@ -83,11 +83,12 @@ namespace rl_tools{
         // same as in PyTorch
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        T scale = 1.0 / math::sqrt(device.math, (T)SPEC::HIDDEN_DIM);
-        rand(device, l.weights_hidden.parameters, rng, -scale, scale);
-        rand(device, l.weights_input.parameters, rng, -scale, scale);
-        rand(device, l.biases_hidden.parameters, rng, -scale, scale);
-        rand(device, l.biases_input.parameters, rng, -scale, scale);
+        T scale_input = 1 / math::sqrt(device.math, (T)SPEC::INPUT_DIM);
+        T scale_hidden = 1 / math::sqrt(device.math, (T)SPEC::HIDDEN_DIM);
+        rand(device, l.weights_hidden.parameters, rng, -scale_hidden, scale_hidden);
+        rand(device, l.weights_input.parameters, rng, -scale_input, scale_input);
+        rand(device, l.biases_hidden.parameters, rng, -scale_hidden, scale_hidden);
+        rand(device, l.biases_input.parameters, rng, -scale_input, scale_input);
         set_all(device, l.initial_hidden_state.parameters, 0);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
@@ -215,6 +216,9 @@ namespace rl_tools{
         constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(decltype(mode){});
         for(TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
             bool reset_full_batch = nn::layers::gru::mode::reset_full_batch<LAYER_SPEC>(mode) || (!STEP_BY_STEP && step_i == 0);
+            if(STEP_BY_STEP){
+//                std::cout << "Reset: " << reset_full_batch << std::endl;
+            }
 #ifdef RL_TOOLS_ENABLE_TRACY
             ZoneScopedN("gru::evaluate_step");
 #endif
@@ -534,7 +538,7 @@ namespace rl_tools{
                         copy(device, device, source, target);
 
                         // also propagate the d_output to the initial state
-                        if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+                        if constexpr(CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
                             auto d_output_previous_step_sample = layer.initial_hidden_state.gradient;
                             multiply_accumulate(device, d_output_step_sample, z_post_activation_sample, d_output_previous_step_sample);
                         }
@@ -594,7 +598,7 @@ namespace rl_tools{
                     matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
                 }
                 auto d_output_previous_step = view(device, d_output, step_i-1);
-                if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+                if constexpr(CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
                     copy(device, device, buffers.buffer, buffers.buffer2);
                 }
                 for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
@@ -604,7 +608,7 @@ namespace rl_tools{
                         set_all(device, buffer_sample, 0);
                     }
                     else{
-                        if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+                        if constexpr(CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
                             auto buffer2_sample = view(device, buffers.buffer2, sample_i);
                             set_all(device, buffer2_sample, 0);
                         }
