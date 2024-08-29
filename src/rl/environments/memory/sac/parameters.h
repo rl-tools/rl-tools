@@ -1,4 +1,4 @@
-constexpr TI SEQUENCE_LENGTH = 2;
+constexpr TI SEQUENCE_LENGTH = 10;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 32;
 constexpr TI NUM_CHECKPOINTS = 10;
@@ -38,7 +38,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
         static constexpr T ALPHA = 1e-3;
         static constexpr bool ENABLE_BIAS_LR_FACTOR = true;
-        static constexpr T BIAS_LR_FACTOR = 10;
+        static constexpr T BIAS_LR_FACTOR = 2;
     };
 //    struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>{
 ////        static constexpr T ALPHA = 1e-3;
