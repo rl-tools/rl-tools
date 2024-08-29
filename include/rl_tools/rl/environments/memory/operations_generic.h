@@ -37,7 +37,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         if constexpr(SPEC::PARAMETERS::HORIZON > 1){
-            for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON - 2; step_i++){
+            for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON - 1; step_i++){
                 next_state.history[step_i] = state.history[step_i + 1];
             }
         }
