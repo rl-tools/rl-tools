@@ -216,9 +216,6 @@ namespace rl_tools{
         constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(decltype(mode){});
         for(TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
             bool reset_full_batch = nn::layers::gru::mode::reset_full_batch<LAYER_SPEC>(mode) || (!STEP_BY_STEP && step_i == 0);
-            if(STEP_BY_STEP){
-//                std::cout << "Reset: " << reset_full_batch << std::endl;
-            }
 #ifdef RL_TOOLS_ENABLE_TRACY
             ZoneScopedN("gru::evaluate_step");
 #endif

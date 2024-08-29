@@ -24,7 +24,6 @@ namespace rl_tools::rl::components::off_policy_runner{
                 if(next_episode_i > 0){
                     TI episode_i = next_episode_i - 1;
                     set(episode_stats.returns, episode_i, 0, get(runner.episode_return, 0, env_i));
-//                    std::cout  << "Episode return: " << get(runner.episode_return, 0, env_i) << std::endl;
                     set(episode_stats.steps  , episode_i, 0, get(runner.episode_step  , 0, env_i));
                     episode_i = (episode_i + 1) % SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
                     next_episode_i = episode_i + 1;
@@ -71,8 +70,6 @@ namespace rl_tools::rl::components::off_policy_runner{
         if constexpr(SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS) {
             observe(device, env, parameters, next_state, typename ENVIRONMENT::ObservationPrivileged{}, next_observation_privileged, rng);
         }
-
-//        std::cout << "step: " <<  get(runner.episode_step, 0, 0) << " obs: " << get(observation, 0, 0) << " action: " << get(action, 0, 0) << std::endl;
 
         bool terminated_flag = terminated(device, env, parameters, next_state, rng);
         increment(runner.episode_step, 0, env_i, 1);
