@@ -741,6 +741,7 @@ namespace rl_tools{
     }
 
 
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
@@ -781,6 +782,7 @@ namespace rl_tools{
             }
         }
     }
+#endif
 //    template<typename DEVICE, typename SPEC, typename = utils::typing::enable_if_t<length(typename SPEC::SHAPE{}) == 2, typename SPEC::TI>>
 //    auto matrix_view(DEVICE& device, Tensor<SPEC>& t){
 //        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());

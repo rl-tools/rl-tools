@@ -355,6 +355,8 @@ namespace rl_tools{
 #endif
         ternary_operation(device, tensor::Operation<tensor::ternary_operations::multiply_subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, factor, t1, t2, result);
     }
+
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply_broadcast_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -400,6 +402,7 @@ namespace rl_tools{
             }
         }
     }
+#endif
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_accumulate_reduce(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -580,12 +583,9 @@ namespace rl_tools{
         multiply(device, r_post_activation, buffers.buffer_n);
 
         if(reset_full_batch){
-            if constexpr(CALCULATE_D_PARAMETERS){
+            if constexpr(CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
                 matrix_multiply_broadcast_accumulate(device, buffer_transpose, layer.initial_hidden_state.parameters, layer.weights_hidden.gradient);
-                if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
-                    auto d_output_previous_step = layer.initial_hidden_state.gradient;
-                    matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
-                }
+                matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, layer.initial_hidden_state.gradient);
             }
         }
         else{
