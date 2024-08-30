@@ -17,7 +17,7 @@
 #ifdef RL_TOOLS_ENABLE_HDF5
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
-#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/sequential_v2/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #endif
 

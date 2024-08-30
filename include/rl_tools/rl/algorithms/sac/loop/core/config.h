@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_CONFIG_H
 
-#include "../../../../../nn_models/sequential/model.h"
+#include "../../../../../nn_models/sequential_v2/model.h"
 #include "../../../../../nn_models/mlp/network.h"
 #include "../../../../../nn_models/random_uniform/model.h"
 #include "../../../../../rl/algorithms/sac/sac.h"
@@ -53,9 +53,9 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     struct ConfigApproximatorsSequential{
         template <typename CAPABILITY>
         struct Actor{
-            using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER, CONTAINER_TYPE_TAG>;
+            using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER, CONTAINER_TYPE_TAG, nn::layers::dense::SequenceInputShapeFactory<TI, 1>>;
             using ACTOR_TYPE = nn_models::mlp::BindSpecification<ACTOR_SPEC>;
-            using IF = nn_models::sequential::Interface<CAPABILITY>;
+            using IF = nn_models::sequential_v2::Interface<CAPABILITY>;
             struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
                 static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
                 static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
@@ -64,7 +64,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
                 static constexpr T ALPHA = PARAMETERS::ALPHA;
                 static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
             };
-            using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
+            using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS, CONTAINER_TYPE_TAG, nn::layers::dense::SequenceInputShapeFactory<TI, 1>>;
             using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
             using SAMPLE_AND_SQUASH_MODULE = typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>;
             using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork, SAMPLE_AND_SQUASH_MODULE>;
@@ -72,9 +72,9 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         template <typename CAPABILITY>
         struct Critic{
             static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
-            using SPEC = nn_models::mlp::Specification<T, TI, INPUT_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER, CONTAINER_TYPE_TAG>;
+            using SPEC = nn_models::mlp::Specification<T, TI, INPUT_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER, CONTAINER_TYPE_TAG, nn::layers::dense::SequenceInputShapeFactory<TI, 1>>;
             using TYPE = nn_models::mlp::BindSpecification<SPEC>;
-            using IF = nn_models::sequential::Interface<CAPABILITY>;
+            using IF = nn_models::sequential_v2::Interface<CAPABILITY>;
             using MODEL = typename IF::template Module<TYPE::template NeuralNetwork>;
         };
 
