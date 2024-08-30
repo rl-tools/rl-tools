@@ -58,20 +58,28 @@ namespace rl_tools::nn::layers::gru{
         };
     }
 
-    template <typename TI, typename BASE>
-    struct StepByStepMode: BASE{
+    template <typename T_TI>
+    struct StepByStepModeSpecification{
+        using TI = T_TI;
+    };
+    template <typename T_BASE, typename T_SPEC>
+    struct StepByStepMode: T_BASE{
+        using BASE = T_BASE;
+        using SPEC = T_SPEC;
+        using TI = typename SPEC::TI;
         bool reset = false;
         TI step = 0;
     };
 
-    template <typename T_BASE, typename T_RESET_CONTAINER_TYPE>
+    template <typename T_TI, typename T_RESET_CONTAINER_TYPE>
     struct ResetModeSpecification{
-        using BASE = T_BASE;
+        using TI = T_TI;
         using RESET_CONTAINER_TYPE = T_RESET_CONTAINER_TYPE;
     };
-    template <typename T_SPEC>
-    struct ResetMode: T_SPEC::BASE{
+    template <typename T_BASE, typename T_SPEC>
+    struct ResetMode: T_BASE{
         using SPEC = T_SPEC;
+        using BASE = T_BASE;
         typename SPEC::RESET_CONTAINER_TYPE reset_container;
     };
 

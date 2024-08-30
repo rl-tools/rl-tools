@@ -12,24 +12,6 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    namespace nn::layers::sample_and_squash{
-        template <typename MODE>
-        constexpr bool is_mode_external_noise(const MODE& mode){
-            return false;
-        }
-        template <typename BASE_MODE>
-        constexpr bool is_mode_external_noise(const mode::ExternalNoise<BASE_MODE> & mode){
-            return true;
-        }
-        template <typename MODE>
-        constexpr bool is_mode_sample(const MODE& mode){
-            return false;
-        }
-        template <typename BASE_MODE>
-        constexpr bool is_mode_sample(const mode::Sample<BASE_MODE> & mode){
-            return true;
-        }
-    }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer){ }
     template <typename DEVICE, typename SPEC>
@@ -123,8 +105,8 @@ namespace rl_tools{
     void sample(DEVICE& device, nn::layers::sample_and_squash::Buffer<SPEC>& buffer, RNG& rng) {
         randn(device, buffer.noise, rng);
     }
-    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_per_sample(const DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_per_sample(DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         using PARAMETERS = typename SPEC::PARAMETERS;
@@ -134,12 +116,14 @@ namespace rl_tools{
             T log_std = get(input, row_i, SPEC::DIM + col_i);
             T log_std_clipped = math::clamp(device.math, log_std, (T)PARAMETERS::LOG_STD_LOWER_BOUND, (T)PARAMETERS::LOG_STD_UPPER_BOUND);
             T std = math::exp(device.math, log_std_clipped);
+            add_scalar(device, device.logger, "actor_eval_std", std, 100);
+            add_scalar(device, device.logger, "actor_eval_mean", mean, 100);
             T noise;
-            if constexpr(nn::layers::sample_and_squash::is_mode_external_noise(MODE())){
+            if constexpr(nn::mode::is<MODE, nn::layers::sample_and_squash::mode::ExternalNoise>){
                 noise = get(buffer.noise, row_i, col_i);
             }
             else{
-                if constexpr(nn::layers::sample_and_squash::is_mode_sample(MODE())){
+                if constexpr(nn::mode::is<MODE, nn::layers::sample_and_squash::mode::Sample>){
                     noise = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
                 }
                 else{
@@ -148,7 +132,7 @@ namespace rl_tools{
             }
 //                set(layer.noise, row_i, col_i, noise);
             T sample;
-            if constexpr(utils::typing::is_base_of_v<nn::mode::Inference, MODE>){
+            if constexpr(nn::mode::is<MODE, nn::mode::Inference>){
                 sample = mean;
             }
             else{
@@ -156,6 +140,7 @@ namespace rl_tools{
             }
 //                set(layer.pre_squashing, row_i, col_i, sample);
             T squashed = math::tanh(device.math, sample);
+            add_scalar(device, device.logger, "actor_eval_action_squashed", squashed, 100);
 
             set(output, row_i, col_i, squashed);
 //                set(layer.output, row_i, col_i, squashed);
@@ -164,8 +149,8 @@ namespace rl_tools{
         }
 //            set(layer.log_probabilities, 0, row_i, log_prob);
     }
-    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void evaluate(const DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void evaluate(DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         static_assert(INPUT_SPEC::COLS == 2*SPEC::DIM);
         static_assert(OUTPUT_SPEC::COLS == SPEC::DIM);
         static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
@@ -176,12 +161,12 @@ namespace rl_tools{
             evaluate_per_sample(device, layer, input, output, buffer, rng, row_i, mode);
         }
     }
-    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(const DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void forward(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         evaluate(device, layer, input, output, buffer, rng, mode);
     }
-    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    RL_TOOLS_FUNCTION_PLACEMENT void forward_per_sample(const DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         // copy of the evaluate but with the log_probabilities commented in
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
@@ -193,20 +178,24 @@ namespace rl_tools{
             T log_std_clipped = math::clamp(device.math, log_std, (T)PARAMETERS::LOG_STD_LOWER_BOUND, (T)PARAMETERS::LOG_STD_UPPER_BOUND);
             T std = math::exp(device.math, log_std_clipped);
             T noise;
-            if constexpr(nn::layers::sample_and_squash::is_mode_external_noise(MODE())){
+            add_scalar(device, device.logger, "actor_std", std);
+            add_scalar(device, device.logger, "actor_mean", mean, 100);
+            add_scalar(device, device.logger, "actor_abs_mean", math::abs(device.math, mean), 100);
+            if constexpr(nn::mode::is<MODE, nn::layers::sample_and_squash::mode::ExternalNoise>){
                 noise = get(buffer.noise, row_i, col_i);
             }
             else{
-                if constexpr(nn::layers::sample_and_squash::is_mode_sample(MODE())){
+                if constexpr(nn::mode::is<MODE, nn::layers::sample_and_squash::mode::Sample>){
                     noise = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
                 }
                 else{
+                    utils::assert_exit(device.logger, false, "Invalid mode");
                     noise = 0;
                 }
             }
             set(layer.noise, row_i, col_i, noise);
             T sample;
-            if constexpr(utils::typing::is_base_of_v<nn::mode::Inference, MODE>){
+            if constexpr(nn::mode::is<MODE, nn::mode::Inference>){
                 sample = mean;
             }
             else{
@@ -214,6 +203,7 @@ namespace rl_tools{
             }
             set(layer.pre_squashing, row_i, col_i, sample);
             T squashed = math::tanh(device.math, sample);
+            add_scalar(device, device.logger, "actor_action_squashed", squashed, 100);
 
 //            set(output, row_i, col_i, squashed);
             set(layer.output, row_i, col_i, squashed);
@@ -222,8 +212,8 @@ namespace rl_tools{
         }
         set(layer.log_probabilities, 0, row_i, log_prob);
     }
-    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(const DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void forward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         static_assert(INPUT_SPEC::COLS == 2*SPEC::DIM);
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
@@ -232,16 +222,16 @@ namespace rl_tools{
             forward_per_sample(device, layer, input, buffer, rng, row_i, mode);
         }
     }
-    template<typename DEVICE, typename SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    void backward_input(DEVICE& device, const nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template<typename DEVICE, typename SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
+    void backward_input(DEVICE& device, const nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
 
     }
-    template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    void backward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
+    void backward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
 
     }
-    template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
@@ -301,11 +291,12 @@ namespace rl_tools{
             T action_log_prob = random::normal_distribution::log_prob(device.random, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
             entropy += -action_log_prob;
         }
+        add_scalar(device, device.logger, "actor_entropy", entropy, 100);
         d_alpha += entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
         return alpha*d_alpha; // d_log_alpha
     }
-    template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
+    void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
@@ -315,6 +306,7 @@ namespace rl_tools{
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
             d_log_alpha += backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
+        add_scalar(device, device.logger, "actor_alpha", alpha, 100);
         increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
     }
     template<typename DEVICE, typename SPEC>
@@ -327,46 +319,46 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 // Tensor proxies
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void evaluate(DEVICE& device, const nn::layers::sample_and_squash::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void evaluate(DEVICE& device, const nn::layers::sample_and_squash::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
         auto matrix_view_input = matrix_view(device, input);
         auto matrix_view_output = matrix_view(device, output);
         evaluate(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void forward(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         auto matrix_view_input = matrix_view(device, input);
         auto matrix_view_output = matrix_view(device, output);
         forward(device, layer, matrix_view_input, buffer, rng, mode);
         copy(device, device, layer.output, matrix_view_output);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void forward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
         auto matrix_view_input = matrix_view(device, input);
         forward(device, layer, matrix_view_input, buffer, rng, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void forward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
         auto matrix_view_input = matrix_view(device, input);
         auto matrix_view_output = matrix_view(device, output);
         forward(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    void backward_input(DEVICE& device, const nn::layers::sample_and_squash::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
+    void backward_input(DEVICE& device, const nn::layers::sample_and_squash::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         auto matrix_view_d_output = matrix_view(device, d_output);
         auto matrix_view_d_input = matrix_view(device, d_input);
         backward_input(device, layer, matrix_view_d_output, matrix_view_d_input, buffer, mode);
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    void backward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
+    void backward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
         auto matrix_view_input = matrix_view(device, input);
         auto matrix_view_d_output = matrix_view(device, d_output);
         backward(device, layer, matrix_view_input, matrix_view_d_output, buffer, mode);
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
+    void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
         auto matrix_view_input = matrix_view(device, input);
         auto matrix_view_d_output = matrix_view(device, d_output);
         auto matrix_view_d_input = matrix_view(device, d_input);

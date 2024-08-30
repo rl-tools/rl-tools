@@ -12,9 +12,9 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
     __global__
-    void evaluate_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::sample_and_squash::LayerForward<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<OUTPUT_SPEC> output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, RNG rng, const nn::Mode<MODE> mode = nn::Mode<nn::mode::Default>{}) {
+    void evaluate_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::sample_and_squash::LayerForward<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<OUTPUT_SPEC> output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, RNG rng, const nn::Mode<MODE> mode = nn::Mode<nn::mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -26,8 +26,8 @@ namespace rl_tools{
             evaluate_per_sample(device, layer, input, output, buffer, rng, batch_step_i, mode);
         }
     }
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -41,9 +41,9 @@ namespace rl_tools{
         evaluate_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, input, output, buffer, rng, mode);
         check_status(device);
     }
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
     __global__
-    void forward_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, RNG rng, const nn::Mode<MODE> mode = nn::Mode<nn::mode::Default>{}){
+    void forward_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, RNG rng, const nn::Mode<MODE> mode = nn::Mode<nn::mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -58,8 +58,8 @@ namespace rl_tools{
         }
     }
 
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
+    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -73,9 +73,9 @@ namespace rl_tools{
         forward_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, input, buffer, rng, mode);
         check_status(device);
     }
-    template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
+    template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
     __global__
-    void backward_full_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_INPUT_SPEC> d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, const nn::Mode<MODE> mode = nn::Mode<nn::mode::Default>{}) {
+    void backward_full_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_INPUT_SPEC> d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, const nn::Mode<MODE> mode = nn::Mode<nn::mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -90,8 +90,8 @@ namespace rl_tools{
             atomicAdd(layer.log_alpha.gradient._data, d_log_alpha);
         }
     }
-    template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
+    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

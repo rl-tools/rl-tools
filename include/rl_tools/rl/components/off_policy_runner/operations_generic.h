@@ -158,7 +158,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE>
-        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
             using TI = typename DEVICE::index_t;
             constexpr TI BATCH_SIZE = decltype(runner.buffers.actions)::ROWS;
             constexpr TI POLICY_OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
@@ -167,7 +167,7 @@ namespace rl_tools{
             auto observation_view_tensor_unsqueezed = unsqueeze(device, observation_view_tensor);
             auto action_view_tensor = to_tensor(device, action_view);
             auto action_view_tensor_unsqueezed = unsqueeze(device, action_view_tensor);
-            nn::Mode<nn::layers::gru::StepByStepMode<TI, MODE>> step_by_step_mode;
+            nn::Mode<nn::layers::gru::StepByStepMode<MODE, nn::layers::gru::StepByStepModeSpecification<TI>>> step_by_step_mode;
             step_by_step_mode.reset = get(runner.truncated, 0, 0);
             step_by_step_mode.step = get(runner.episode_step, 0, 0);
             static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
@@ -182,8 +182,8 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE = nn::mode::Default>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE = nn::mode::Default<>>
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif

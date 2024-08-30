@@ -1,6 +1,6 @@
-constexpr TI SEQUENCE_LENGTH = 2;
+constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 32;
+constexpr TI BATCH_SIZE = 100;
 constexpr TI NUM_CHECKPOINTS = 100;
 struct ENVIRONMENT_PARAMETERS{
     constexpr static TI HORIZON = 3;
@@ -19,13 +19,13 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI CRITIC_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI SEQUENCE_LENGTH = SEQUENCE_LENGTH_PROXY;
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
-        static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
+        static constexpr TI ACTOR_TRAINING_INTERVAL = 1;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
     };
-    static constexpr TI N_WARMUP_STEPS = 10000;
-    static constexpr TI STEP_LIMIT = 1000000;
+    static constexpr TI N_WARMUP_STEPS = 0;
+    static constexpr TI STEP_LIMIT = 200000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-    static constexpr TI ACTOR_HIDDEN_DIM = 32;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
@@ -34,8 +34,8 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr bool SHARED_BATCH = false;
     struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
         static constexpr T ALPHA = 1e-3;
-        static constexpr bool ENABLE_BIAS_LR_FACTOR = true;
-        static constexpr T BIAS_LR_FACTOR = 10;
+        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+        static constexpr T BIAS_LR_FACTOR = 1;
     };
 //    struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>{
 ////        static constexpr T ALPHA = 1e-3;

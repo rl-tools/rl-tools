@@ -56,7 +56,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
     using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<rlt::nn::mode::Default, decltype(reset)>;
     using RESET_MODE = rlt::nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
     rlt::nn::Mode<RESET_MODE> mode;
-    rlt::nn::Mode<rlt::nn::mode::Default> mode_default;
+    rlt::nn::Mode<rlt::nn::mode::Default<>> mode_default;
 
     rlt::malloc(device, input);
     rlt::malloc(device, input_4x);

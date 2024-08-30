@@ -22,8 +22,8 @@ struct ConfigApproximatorsSequential{
         using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
         using SAMPLE_AND_SQUASH_MODULE = typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>;
         using MODEL_GRU_TWO_LAYER = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<GRU2_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer, SAMPLE_AND_SQUASH_MODULE>>>;
-        using MODEL_GRU = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer, SAMPLE_AND_SQUASH_MODULE>>;
-        using MODEL = MODEL_GRU;
+//        using MODEL_GRU = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer, SAMPLE_AND_SQUASH_MODULE>>;
+        using MODEL = MODEL_GRU_TWO_LAYER;
     };
     template <typename CAPABILITY>
     struct Critic{
@@ -37,7 +37,7 @@ struct ConfigApproximatorsSequential{
         using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>;
         using MODEL_GRU_TWO_LAYER = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<GRU2_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer>>>;
         using MODEL_GRU = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer>>;
-        using MODEL = MODEL_GRU;
+        using MODEL = MODEL_GRU_TWO_LAYER;
     };
 
     using ACTOR_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;

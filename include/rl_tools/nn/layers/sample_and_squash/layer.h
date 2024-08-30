@@ -12,12 +12,16 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace nn::layers::sample_and_squash{
         namespace mode{
-            template <typename BASE_MODE>
-            struct Sample{
+            template <typename T_BASE, typename T_SPEC = bool>
+            struct Sample: T_BASE{
                 // this mode uses the noise from the Buffer for debugging / no-side-effect inference
+                using SPEC = T_SPEC;
+                using BASE = T_BASE;
             };
-            template <typename BASE_MODE>
+            template <typename T_BASE, typename T_SPEC = bool>
             struct ExternalNoise{
+                using SPEC = T_SPEC;
+                using BASE = T_BASE;
                 // this mode uses the noise from the Buffer for debugging / no-side-effect inference
             };
         }

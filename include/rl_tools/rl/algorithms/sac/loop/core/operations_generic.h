@@ -101,7 +101,7 @@ namespace rl_tools{
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;
-        using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::Sample<nn::mode::Default>>;
+        using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::Sample<nn::mode::Default<>>>;
         step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
         // disabling the exploration policy for now because there needs to be a reset of the sequential policy when the policy is switched
 //        if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){

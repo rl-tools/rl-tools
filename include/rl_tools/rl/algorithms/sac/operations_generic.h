@@ -179,12 +179,12 @@ namespace rl_tools{
         auto sample_and_squash_layer = get_last_layer(actor_critic.actor);
         auto sample_and_squash_buffer = get_last_buffer(actor_buffers);
         copy(device, device, action_noise, sample_and_squash_buffer.noise);
-        using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
+        using SAMPLE_AND_SQUASH_MODE = nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default<>>;
 //        nn::Mode<SAMPLE_AND_SQUASH_MODE> reset_mode, reset_mode_sas;
-        using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<SAMPLE_AND_SQUASH_MODE, decltype(batch.reset)>;
-        using RESET_MODE_SAS = nn::layers::gru::ResetMode<RESET_MODE_SAS_SPEC>;
-        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<nn::mode::Default, decltype(batch.reset)>;
-        using RESET_MODE = nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
+        using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
+        using RESET_MODE_SAS = nn::layers::gru::ResetMode<SAMPLE_AND_SQUASH_MODE, RESET_MODE_SAS_SPEC>;
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
+        using RESET_MODE = nn::layers::gru::ResetMode<nn::mode::Default<>, RESET_MODE_SPEC>;
         nn::Mode<RESET_MODE_SAS> reset_mode_sas;
         reset_mode_sas.reset_container = batch.reset;
         nn::Mode<RESET_MODE> reset_mode;
@@ -203,7 +203,8 @@ namespace rl_tools{
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
         nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
         T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, 0.5);
-        add_scalar(device, device.logger, "critic_loss", loss);
+        add_scalar(device, device.logger, "critic_loss", loss, 100);
+        add_scalar(device, device.logger, "critic_value", get(output_matrix_view, 0, 0), 100);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
         step(device, optimizer, critic);
     }
@@ -280,12 +281,12 @@ namespace rl_tools{
 //        utils::assert_exit(device, !is_nan(device, batch.observations), "batch observations nan");
         zero_gradient(device, actor_critic.actor);
         copy(device, device, action_noise, sample_and_squashing_buffer.noise);
-        using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
+        using SAMPLE_AND_SQUASH_MODE = nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default<>>;
 //        nn::Mode<SAMPLE_AND_SQUASH_MODE> reset_mode, reset_mode_sas;
-        using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<SAMPLE_AND_SQUASH_MODE, decltype(batch.reset)>;
-        using RESET_MODE_SAS = nn::layers::gru::ResetMode<RESET_MODE_SAS_SPEC>;
-        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<nn::mode::Default, decltype(batch.reset)>;
-        using RESET_MODE = nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
+        using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
+        using RESET_MODE_SAS = nn::layers::gru::ResetMode<SAMPLE_AND_SQUASH_MODE, RESET_MODE_SAS_SPEC>;
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
+        using RESET_MODE = nn::layers::gru::ResetMode<nn::mode::Default<>, RESET_MODE_SPEC>;
         nn::Mode<RESET_MODE_SAS> reset_mode_sas;
         reset_mode_sas.reset_container = batch.reset;
         nn::Mode<RESET_MODE> reset_mode;
