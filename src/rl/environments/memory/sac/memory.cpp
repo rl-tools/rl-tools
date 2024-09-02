@@ -79,7 +79,8 @@ int main(){
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
-    while(!rlt::step(device, ts)){
+    bool done = false;
+    while(!done){
 #ifdef RL_TOOLS_ENABLE_TRACY
         FrameMark;
 #endif
@@ -94,36 +95,34 @@ int main(){
             constexpr TI TEST_SEQUENCE_LENGTH = SEQUENCE_LENGTH;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 2>>> test_critic_input;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 1>>> test_critic_output;
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 1>>> test_actor_output;
             decltype(ts.actor_critic.critic_1)::Buffer<1> critic_buffer;
             decltype(ts.actor_critic.actor)::Buffer<1> actor_buffer;
             rlt::malloc(device, test_critic_input);
             rlt::malloc(device, test_critic_output);
-            rlt::malloc(device, test_actor_output);
             rlt::malloc(device, actor_buffer);
             rlt::malloc(device, critic_buffer);
             auto test_actor_input = rlt::view_range(device, test_critic_input, 0, rlt::tensor::ViewSpec<2, 1>{});
+            auto test_actor_output = rlt::view_range(device, test_critic_input, 1, rlt::tensor::ViewSpec<2, 1>{});
             constexpr TI N_EXAMPLES = 10;
             TI critic_correct_examples = 0;
             TI actor_correct_examples = 0;
             for(TI example_i = 0; example_i < N_EXAMPLES; example_i++){
+                rlt::nn::Mode<rlt::nn::mode::Default<>> mode;
                 std::vector<TI> values;
                 if(TEST_SEQUENCE_LENGTH >= 2){
                     for(TI seq_i = 0; seq_i < TEST_SEQUENCE_LENGTH-1; seq_i++){
                         TI value = rlt::random::uniform_int_distribution(device.random, 0, 1, myrng) < ENVIRONMENT_PARAMETERS::INPUT_PROBABILITY ? 1 : 0;
-                        T action = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, myrng) / 5;
                         values.push_back(value);
                         while(values.size() > ENVIRONMENT_PARAMETERS::HORIZON){
                             values.erase(values.begin());
                         }
                         rlt::set(device, test_critic_input, (T)value, seq_i, 0, 0);
-                        rlt::set(device, test_critic_input, action, seq_i, 0, 1);
                     }
+                    rlt::evaluate(device, ts.actor_critic.actor, test_actor_input, test_actor_output, actor_buffer, myrng, mode);
                 }
 
 //            rlt::nn::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::nn::mode::Inference>> mode;
 //            mode.reset = true;
-                rlt::nn::Mode<rlt::nn::mode::Default<>> mode;
                 while(values.size() > ENVIRONMENT_PARAMETERS::HORIZON-1){
                     values.erase(values.begin());
                 }
@@ -163,11 +162,10 @@ int main(){
             rlt::add_scalar(device, device.logger, "actor_evaluation_accuracy", actor_correct_examples / ((T)2*N_EXAMPLES));
             rlt::free(device, test_critic_input);
             rlt::free(device, test_critic_output);
-            rlt::free(device, test_actor_output);
             rlt::free(device, actor_buffer);
             rlt::free(device, critic_buffer);
         }
-
+        done = rlt::step(device, ts);
     }
     return 0;
 }

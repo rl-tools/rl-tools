@@ -244,6 +244,7 @@ namespace rl_tools{
                 else{
                     if constexpr(STEP_BY_STEP){
                         auto output_previous_step = view(device, output, 0);
+                        copy(device, device, output_previous_step, previous_output_scratch);
                         nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
                     }
                     else{
@@ -282,8 +283,9 @@ namespace rl_tools{
                 }
                 else{
                     if constexpr(STEP_BY_STEP) {
-                        auto output_previous_step = view(device, output, 0);
-                        multiply_accumulate(device, z_post_activation, output_previous_step, output_step);
+//                        auto output_previous_step = view(device, output, 0);
+                        // this is illegal, the output has already been overwritten
+                        multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
                     }
                     else{
                         auto output_previous_step = view(device, output, step_i-1);
