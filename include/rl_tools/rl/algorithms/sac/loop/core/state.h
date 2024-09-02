@@ -17,7 +17,9 @@ namespace rl_tools{
             using TI = typename CONFIG::TI;
             template<typename SPEC>
             using CONTAINER_TYPE = typename CONFIG::CONTAINER_TYPE_TAG::template type<SPEC>;
-            typename CONFIG::NN::OPTIMIZER actor_optimizer, critic_optimizers[2];
+            typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
+            typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizers[2];
+            typename CONFIG::NN::ALPHA_OPTIMIZER alpha_optimizer;
             typename CONFIG::RNG rng;
             rl::components::OffPolicyRunner<typename CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
             typename CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];

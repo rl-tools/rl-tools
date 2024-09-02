@@ -112,7 +112,7 @@ namespace rl_tools{
             typename CONFIG::EXPLORATION_POLICY::template Buffer<> exploration_policy_buffer;
             step(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng, SAMPLE_AND_SQUASH_MODE{});
         }
-        if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+        if(true || ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             bool train_critic_flag = ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0;
             bool train_actor_flag = ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0;
             if(CONFIG::CORE_PARAMETERS::SHARED_BATCH && (train_critic_flag || train_actor_flag)){

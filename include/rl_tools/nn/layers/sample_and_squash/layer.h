@@ -31,6 +31,7 @@ namespace rl_tools{
             static constexpr T LOG_STD_UPPER_BOUND = 2;
             static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
             static constexpr bool ADAPTIVE_ALPHA = true;
+            static constexpr bool UPDATE_ALPHA_WITH_ACTOR = false;
             static constexpr T ALPHA = 1.0;
             static constexpr T TARGET_ENTROPY = -1;
         };

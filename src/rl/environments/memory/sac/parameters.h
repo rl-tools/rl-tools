@@ -3,8 +3,8 @@ constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 100;
 constexpr TI NUM_CHECKPOINTS = 100;
 struct ENVIRONMENT_PARAMETERS{
-    constexpr static TI HORIZON = 2;
-    constexpr static T INPUT_PROBABILITY = (T)2/HORIZON;
+    constexpr static TI HORIZON = 5;
+    constexpr static T INPUT_PROBABILITY = HORIZON <= 4 ? 0.5 : (T)2/HORIZON;
     constexpr static rlt::rl::environments::memory::Mode MODE = rlt::rl::environments::memory::Mode::COUNT_INPUT;
 };
 using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
@@ -21,9 +21,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
         static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
         static constexpr bool ENTROPY_BONUS = true;
-        static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
+        static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
     };
-    static constexpr TI N_WARMUP_STEPS = 10000;
+    static constexpr TI N_WARMUP_STEPS = 200000;
     static constexpr TI STEP_LIMIT = 200000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_HIDDEN_DIM = 16;
@@ -34,13 +34,20 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr T ALPHA = 1;
     static constexpr bool ADAPTIVE_ALPHA = true;
     static constexpr bool SHARED_BATCH = false;
-    struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-        static constexpr T ALPHA = 1e-3;
-        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
-        static constexpr T BIAS_LR_FACTOR = 1;
-    };
-//    struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>{
-////        static constexpr T ALPHA = 1e-3;
+//    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+//        static constexpr T ALPHA = 1e-3;
+//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+//        static constexpr T BIAS_LR_FACTOR = 1;
+//    };
+//    struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+//        static constexpr T ALPHA = 1e-2;
+//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+//        static constexpr T BIAS_LR_FACTOR = 1;
+//    };
+//    struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+//        static constexpr T ALPHA = 1e-3;
+//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+//        static constexpr T BIAS_LR_FACTOR = 1;
 //    };
 };
 #ifdef BENCHMARK

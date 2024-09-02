@@ -78,13 +78,15 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     void update(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
-        if constexpr(SPEC::PARAMETERS::ADAPTIVE_ALPHA){
+        if constexpr(SPEC::PARAMETERS::ADAPTIVE_ALPHA && SPEC::PARAMETERS::UPDATE_ALPHA_WITH_ACTOR){
             update(device, layer.log_alpha, optimizer);
         }
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     void _reset_optimizer_state(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {
-        _reset_optimizer_state(device, layer.log_alpha, optimizer);
+        if constexpr(SPEC::PARAMETERS::UPDATE_ALPHA_WITH_ACTOR){
+            _reset_optimizer_state(device, layer.log_alpha, optimizer);
+        }
     }
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>

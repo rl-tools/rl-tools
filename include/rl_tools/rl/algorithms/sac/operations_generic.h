@@ -111,6 +111,7 @@ namespace rl_tools{
         reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
         reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
         reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
+        reset_optimizer_state(device, actor_critic.alpha_optimizer, get_last_layer(actor_critic.actor).log_alpha);
 //        set(actor_critic.log_alpha.parameters, 0, 0, math::log(typename DEVICE::SPEC::MATH{}, SPEC::PARAMETERS::ALPHA));
 
 
@@ -304,6 +305,7 @@ namespace rl_tools{
         min_value_d_output(device, actor_critic, training_buffers);
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers, reset_mode_sas);
         step(device, optimizer, actor_critic.actor);
+        step(device, actor_critic.alpha_optimizer, get_last_layer(actor_critic.actor).log_alpha);
 //        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
     }
 

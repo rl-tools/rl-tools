@@ -75,6 +75,7 @@ int main(){
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
+    auto myrng = rlt::random::default_engine(device.random, seed);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
@@ -90,49 +91,81 @@ int main(){
         if(ts.step % 1000 == 0){
 //            rlt::logging::tensorboard::print_topic_frequencies(device, device.logger);
 
-//            constexpr TI TEST_SEQUENCE_LENGTH = SEQUENCE_LENGTH;
-//            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 2>>> test_input;
-//            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 1>>> test_output;
-//            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 1>>> test_actor_output;
-//            decltype(ts.actor_critic.critic_1)::Buffer<1> critic_buffer;
-//            decltype(ts.actor_critic.actor)::Buffer<1> actor_buffer;
-//            rlt::malloc(device, test_input);
-//            rlt::malloc(device, test_output);
-//            rlt::malloc(device, test_actor_output);
-//            rlt::malloc(device, actor_buffer);
-//            rlt::malloc(device, critic_buffer);
-//            auto actor_input = rlt::view_range(device, test_input, 0, rlt::tensor::ViewSpec<2, 1>{});
-//            TI count = 0;
-//            if(TEST_SEQUENCE_LENGTH >= 2){
-//                for(TI seq_i = 0; seq_i < TEST_SEQUENCE_LENGTH-1; seq_i++){
-//                    T value = rlt::random::uniform_int_distribution(device.random, 0, 1, ts.rng);
-//                    T action = rlt::random::uniform_int_distribution(device.random, 0, 1, ts.rng);
-//                    if(value == 1){
-//                        count++;
-//                    }
-//                    rlt::set(device, test_input, value, seq_i, 0, 0);
-//                    rlt::set(device, test_input, action, seq_i, 0, 1);
-//                }
-//            }
-////            rlt::nn::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::nn::mode::Inference>> mode;
-////            mode.reset = true;
-//            rlt::nn::Mode<rlt::nn::mode::Inference<rlt::nn::mode::Default<>>> mode;
-//            for(TI input_i = 0; input_i < SEQUENCE_LENGTH; input_i++){
-//                rlt::set(device, test_input, (T)input_i, TEST_SEQUENCE_LENGTH-1, 0, 0);
-//                // line search
-//                for(TI action_i = 0; action_i < 3; action_i++){
-//                    T action = ((T)action_i)/10;
-//                    rlt::set(device, test_input, action, TEST_SEQUENCE_LENGTH-1, 0, 1);
-//                    rlt::evaluate(device, ts.actor_critic.critic_1, test_input, test_output, critic_buffer, ts.rng, mode);
-//                    std::cout << "Count " << count << " action " << action << " value: " << rlt::get(device, test_output, TEST_SEQUENCE_LENGTH-1, 0, 0) << std::endl;
-//                }
-//                rlt::evaluate(device, ts.actor_critic.actor, actor_input, test_actor_output, actor_buffer, ts.rng, mode);
-//                std::cout << "Input " << input_i << " actor_action " << rlt::get(device, test_actor_output, TEST_SEQUENCE_LENGTH-1, 0, 0) << std::endl;
-//            }
-//            rlt::free(device, test_input);
-//            rlt::free(device, test_output);
-//            rlt::free(device, actor_buffer);
-//            rlt::free(device, critic_buffer);
+            constexpr TI TEST_SEQUENCE_LENGTH = SEQUENCE_LENGTH;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 2>>> test_critic_input;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 1>>> test_critic_output;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 1>>> test_actor_output;
+            decltype(ts.actor_critic.critic_1)::Buffer<1> critic_buffer;
+            decltype(ts.actor_critic.actor)::Buffer<1> actor_buffer;
+            rlt::malloc(device, test_critic_input);
+            rlt::malloc(device, test_critic_output);
+            rlt::malloc(device, test_actor_output);
+            rlt::malloc(device, actor_buffer);
+            rlt::malloc(device, critic_buffer);
+            auto test_actor_input = rlt::view_range(device, test_critic_input, 0, rlt::tensor::ViewSpec<2, 1>{});
+            constexpr TI N_EXAMPLES = 10;
+            TI critic_correct_examples = 0;
+            TI actor_correct_examples = 0;
+            for(TI example_i = 0; example_i < N_EXAMPLES; example_i++){
+                std::vector<TI> values;
+                if(TEST_SEQUENCE_LENGTH >= 2){
+                    for(TI seq_i = 0; seq_i < TEST_SEQUENCE_LENGTH-1; seq_i++){
+                        TI value = rlt::random::uniform_int_distribution(device.random, 0, 1, myrng) < ENVIRONMENT_PARAMETERS::INPUT_PROBABILITY ? 1 : 0;
+                        T action = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, myrng) / 5;
+                        values.push_back(value);
+                        while(values.size() > ENVIRONMENT_PARAMETERS::HORIZON){
+                            values.erase(values.begin());
+                        }
+                        rlt::set(device, test_critic_input, (T)value, seq_i, 0, 0);
+                        rlt::set(device, test_critic_input, action, seq_i, 0, 1);
+                    }
+                }
+
+//            rlt::nn::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::nn::mode::Inference>> mode;
+//            mode.reset = true;
+                rlt::nn::Mode<rlt::nn::mode::Default<>> mode;
+                while(values.size() > ENVIRONMENT_PARAMETERS::HORIZON-1){
+                    values.erase(values.begin());
+                }
+                TI pre_count = std::accumulate(values.begin(), values.end(), 0);
+
+                for(TI input_i = 0; input_i < 2; input_i++){
+//                    TI input_i = real_input_i - 1;
+                    rlt::set(device, test_critic_input, (T)input_i, TEST_SEQUENCE_LENGTH-1, 0, 0);
+                    TI count = pre_count + input_i;
+                    // line search
+                    T max_value;
+                    bool max_value_set = false;
+                    TI max_action;
+                    for(TI action_i = 0; action_i < 5; action_i++){
+                        T action = ((T)action_i)/10;
+                        rlt::set(device, test_critic_input, action, TEST_SEQUENCE_LENGTH-1, 0, 1);
+//                    rlt::utils::assert_exit(device, rlt::get(device, test_critic_input, TEST_SEQUENCE_LENGTH-2, 0, 0) + rlt::get(device, test_critic_input, TEST_SEQUENCE_LENGTH-1, 0, 0) == count, "Count mismatch");
+//                    rlt::print(device, test_critic_input);
+                        rlt::evaluate(device, ts.actor_critic.critic_1, test_critic_input, test_critic_output, critic_buffer, myrng, mode);
+                        T value = rlt::get(device, test_critic_output, TEST_SEQUENCE_LENGTH-1, 0, 0);
+                        if(!max_value_set || value > max_value){
+                            max_value = value;
+                            max_value_set = true;
+                            max_action = action_i;
+                        }
+//                        std::cout << "Count " << count << " action " << action << " value: " << rlt::get(device, test_critic_output, TEST_SEQUENCE_LENGTH-1, 0, 0) << std::endl;
+                    }
+                    critic_correct_examples += max_action == count;
+//                    std::cout << "Input " << input_i << " max_action " << max_action << (max_action == count ? " correct" : " incorrect") << std::endl;
+                    rlt::evaluate(device, ts.actor_critic.actor, test_actor_input, test_actor_output, actor_buffer, myrng, mode);
+                    bool actor_correct = round(rlt::get(device, test_actor_output, TEST_SEQUENCE_LENGTH-1, 0, 0) * 10) == count;
+                    std::cout << "Count " << count << " actor_action " << rlt::get(device, test_actor_output, TEST_SEQUENCE_LENGTH-1, 0, 0) << (actor_correct ? " ✅" : " ❌") << std::endl;
+                    actor_correct_examples += actor_correct;
+                }
+            }
+            rlt::add_scalar(device, device.logger, "critic_evaluation_accuracy", critic_correct_examples / ((T)2*N_EXAMPLES));
+            rlt::add_scalar(device, device.logger, "actor_evaluation_accuracy", actor_correct_examples / ((T)2*N_EXAMPLES));
+            rlt::free(device, test_critic_input);
+            rlt::free(device, test_critic_output);
+            rlt::free(device, test_actor_output);
+            rlt::free(device, actor_buffer);
+            rlt::free(device, critic_buffer);
         }
 
     }
