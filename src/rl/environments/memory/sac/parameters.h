@@ -21,7 +21,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
         static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
         static constexpr bool ENTROPY_BONUS = true;
-        static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
+        static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
     };
     static constexpr TI N_WARMUP_STEPS = 1000;
     static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
