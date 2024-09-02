@@ -30,25 +30,25 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
-    static constexpr T TARGET_ENTROPY = -2;
+    static constexpr T TARGET_ENTROPY = -3;
     static constexpr T ALPHA = 1;
     static constexpr bool ADAPTIVE_ALPHA = true;
     static constexpr bool SHARED_BATCH = false;
-//    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-3;
-//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
-//        static constexpr T BIAS_LR_FACTOR = 1;
-//    };
-//    struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-2;
-//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
-//        static constexpr T BIAS_LR_FACTOR = 1;
-//    };
-//    struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-3;
-//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
-//        static constexpr T BIAS_LR_FACTOR = 1;
-//    };
+    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+        static constexpr T ALPHA = 1e-3;
+        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+        static constexpr T BIAS_LR_FACTOR = 1;
+    };
+    struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+        static constexpr T ALPHA = 1e-3;
+        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+        static constexpr T BIAS_LR_FACTOR = 1;
+    };
+    struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+        static constexpr T ALPHA = 1e-3;
+        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+        static constexpr T BIAS_LR_FACTOR = 1;
+    };
 };
 #ifdef BENCHMARK
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
