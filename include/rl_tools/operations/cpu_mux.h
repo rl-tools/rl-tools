@@ -65,7 +65,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename... ARGS>
-    using LOGGER_FACTORY = devices::logging::CPU_TENSORBOARD<ARGS...>;
+    using LOGGER_FACTORY = devices::logging::CPU_TENSORBOARD<devices::logging::CPU_TENSORBOARD_FREQUENCY_EXTENSION>;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else

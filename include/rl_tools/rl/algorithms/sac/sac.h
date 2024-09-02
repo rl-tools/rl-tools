@@ -19,6 +19,7 @@ namespace rl_tools::rl::algorithms::sac {
         static constexpr T CRITIC_POLYAK = 1.0 - 0.005;
         static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
         static constexpr TI SEQUENCE_LENGTH = 1;
+        static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
     };
 

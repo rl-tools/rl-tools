@@ -136,12 +136,12 @@ namespace rl_tools{
         auto terminated_matrix_view = matrix_view(device, batch.terminated);
         bool terminated = get(terminated_matrix_view, batch_step_i, 0);
         T entropy_bonus = -alpha * get(next_action_log_probs, batch_step_i, 0);
-        if constexpr(SPEC::PARAMETERS::ENTROPY_BONUS_NEXT_STEP){
+        if constexpr(SPEC::PARAMETERS::ENTROPY_BONUS && SPEC::PARAMETERS::ENTROPY_BONUS_NEXT_STEP){
             min_next_state_action_value += entropy_bonus;
         }
         T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
         T current_target_action_value = reward + future_value;
-        if constexpr(!SPEC::PARAMETERS::ENTROPY_BONUS_NEXT_STEP){
+        if constexpr(SPEC::PARAMETERS::ENTROPY_BONUS && !SPEC::PARAMETERS::ENTROPY_BONUS_NEXT_STEP){
             current_target_action_value += entropy_bonus;
         }
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);

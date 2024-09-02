@@ -178,9 +178,11 @@ namespace rl_tools{
             T log_std_clipped = math::clamp(device.math, log_std, (T)PARAMETERS::LOG_STD_LOWER_BOUND, (T)PARAMETERS::LOG_STD_UPPER_BOUND);
             T std = math::exp(device.math, log_std_clipped);
             T noise;
-            add_scalar(device, device.logger, "actor_std", std);
-            add_scalar(device, device.logger, "actor_mean", mean, 100);
-            add_scalar(device, device.logger, "actor_abs_mean", math::abs(device.math, mean), 100);
+            if(row_i == 0){
+                add_scalar(device, device.logger, "actor_std", std, 100);
+                add_scalar(device, device.logger, "actor_mean", mean, 100);
+                add_scalar(device, device.logger, "actor_abs_mean", math::abs(device.math, mean), 100);
+            }
             if constexpr(nn::mode::is<MODE, nn::layers::sample_and_squash::mode::ExternalNoise>){
                 noise = get(buffer.noise, row_i, col_i);
             }
@@ -203,7 +205,9 @@ namespace rl_tools{
             }
             set(layer.pre_squashing, row_i, col_i, sample);
             T squashed = math::tanh(device.math, sample);
-            add_scalar(device, device.logger, "actor_action_squashed", squashed, 100);
+            if(row_i == 0){
+                add_scalar(device, device.logger, "actor_action_squashed", squashed, 100);
+            }
 
 //            set(output, row_i, col_i, squashed);
             set(layer.output, row_i, col_i, squashed);
@@ -291,7 +295,9 @@ namespace rl_tools{
             T action_log_prob = random::normal_distribution::log_prob(device.random, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
             entropy += -action_log_prob;
         }
-        add_scalar(device, device.logger, "actor_entropy", entropy, 100);
+        if(batch_i == 0){
+            add_scalar(device, device.logger, "actor_entropy", entropy, 100);
+        }
         d_alpha += entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
         return alpha*d_alpha; // d_log_alpha
     }

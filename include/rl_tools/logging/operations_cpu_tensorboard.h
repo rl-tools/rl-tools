@@ -24,6 +24,19 @@ namespace rl_tools{
             }
             logger.topic_frequency_dict[key] += 1;
         }
+        template <typename DEVICE>
+        void print_topic_frequencies(DEVICE& device, devices::logging::CPU_TENSORBOARD_FREQUENCY_EXTENSION& logger){
+            std::cout << "Tensorboard Topic Frequencies:" << std::endl;
+            std::vector<std::pair<std::string, int>> vec(logger.topic_frequency_dict.begin(), logger.topic_frequency_dict.end());
+            std::sort(vec.begin(), vec.end(),
+                      [](const std::pair<std::string, int>& a, const std::pair<std::string, int>& b) {
+                          return a.second > b.second; // For descending order
+                      }
+            );
+            for (const auto& [key, val] : vec) {
+                std::cout << key << " => " << val << std::endl;
+            }
+        }
     }
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, std::filesystem::path run_dir){
