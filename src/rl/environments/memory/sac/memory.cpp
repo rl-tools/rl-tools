@@ -111,14 +111,13 @@ int main(){
                 std::vector<TI> values;
                 if(TEST_SEQUENCE_LENGTH >= 2){
                     for(TI seq_i = 0; seq_i < TEST_SEQUENCE_LENGTH-1; seq_i++){
-                        TI value = rlt::random::uniform_int_distribution(device.random, 0, 1, myrng) < ENVIRONMENT_PARAMETERS::INPUT_PROBABILITY ? 1 : 0;
+                        TI value = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, myrng) < ENVIRONMENT_PARAMETERS::INPUT_PROBABILITY ? 1 : 0;
                         values.push_back(value);
                         while(values.size() > ENVIRONMENT_PARAMETERS::HORIZON){
                             values.erase(values.begin());
                         }
                         rlt::set(device, test_critic_input, (T)value, seq_i, 0, 0);
                     }
-                    rlt::evaluate(device, ts.actor_critic.actor, test_actor_input, test_actor_output, actor_buffer, myrng, mode);
                 }
 
 //            rlt::nn::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::nn::mode::Inference>> mode;
@@ -141,6 +140,7 @@ int main(){
                         rlt::set(device, test_critic_input, action, TEST_SEQUENCE_LENGTH-1, 0, 1);
 //                    rlt::utils::assert_exit(device, rlt::get(device, test_critic_input, TEST_SEQUENCE_LENGTH-2, 0, 0) + rlt::get(device, test_critic_input, TEST_SEQUENCE_LENGTH-1, 0, 0) == count, "Count mismatch");
 //                    rlt::print(device, test_critic_input);
+                        rlt::evaluate(device, ts.actor_critic.actor, test_actor_input, test_actor_output, actor_buffer, myrng, mode); // to calculate the missing action
                         rlt::evaluate(device, ts.actor_critic.critic_1, test_critic_input, test_critic_output, critic_buffer, myrng, mode);
                         T value = rlt::get(device, test_critic_output, TEST_SEQUENCE_LENGTH-1, 0, 0);
                         if(!max_value_set || value > max_value){
