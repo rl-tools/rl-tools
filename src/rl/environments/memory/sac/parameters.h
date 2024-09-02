@@ -23,9 +23,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
     };
-    static constexpr TI N_WARMUP_STEPS = 200000;
-    static constexpr TI N_WARMUP_STEPS_CRITIC = 0; // Number of steps before critic training starts
-    static constexpr TI N_WARMUP_STEPS_ACTOR = 0; // Number of steps before actor training starts
+    static constexpr TI N_WARMUP_STEPS = 1000;
+    static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
+    static constexpr TI N_WARMUP_STEPS_ACTOR = 10000;
     static constexpr TI STEP_LIMIT = 200000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_HIDDEN_DIM = 16;
