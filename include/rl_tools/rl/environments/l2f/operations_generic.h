@@ -297,21 +297,25 @@ namespace rl_tools{
 //        }
 
     }
-    template<typename DEVICE, typename T, typename TI, typename SPEC>
-    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StateBase<T, TI>& state){
+    template<typename DEVICE, typename T, typename STATE_TI, typename SPEC>
+    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StateBase<T, STATE_TI>& state){
+        using TI = typename DEVICE::index_t;
         using STATE = typename rl::environments::Multirotor<SPEC>::State;
-        for(typename DEVICE::index_t i = 0; i < 3; i++){
+        for(TI i = 0; i < 3; i++){
             state.position[i] = 0;
         }
         state.orientation[0] = 1;
-        for(typename DEVICE::index_t i = 1; i < 4; i++){
+        for(TI i = 1; i < 4; i++){
             state.orientation[i] = 0;
         }
-        for(typename DEVICE::index_t i = 0; i < 3; i++){
+        for(TI i = 0; i < 3; i++){
             state.linear_velocity[i] = 0;
         }
-        for(typename DEVICE::index_t i = 0; i < 3; i++){
+        for(TI i = 0; i < 3; i++){
             state.angular_velocity[i] = 0;
+        }
+        for(TI i = 0; i < 3; i++){
+            state.linear_acceleration[i] = 0;
         }
     }
     template<typename DEVICE, typename T, typename TI, typename NEXT_COMPONENT, typename SPEC>
@@ -459,6 +463,9 @@ namespace rl_tools{
             for(TI i = 0; i < 3; i++){
                 state.angular_velocity[i] = 0;
             }
+        }
+        for(TI i = 0; i < 3; i++){
+            state.linear_acceleration[i] = 0;
         }
     }
     template<typename DEVICE, typename T_S, typename TI_S, typename SPEC, typename NEXT_COMPONENT, typename RNG>
@@ -778,6 +785,10 @@ namespace rl_tools{
         quaternion_norm = math::sqrt(device.math, quaternion_norm);
         for(TI state_i = 0; state_i < 4; state_i++){
             next_state.orientation[state_i] /= quaternion_norm;
+        }
+
+        for(TI state_i = 0; state_i < 3; state_i++){
+            next_state.linear_acceleration[state_i] = next_state.linear_velocity[state_i] - state.linear_velocity[state_i];
         }
     }
 //    template<typename DEVICE, typename SPEC, typename T, typename TI, typename NEXT_COMPONENT>

@@ -313,6 +313,7 @@ namespace rl_tools::rl::environments::l2f{
         T orientation[4];
         T linear_velocity[3];
         T angular_velocity[3];
+        T linear_acceleration[3]; // this is just to save computation when simulating IMU measurements. Wihtout this we would need to recalculate the acceleration in the observation operation. This is not part of the minimal state in the sense that the transition dynamics are independent of the acceleration given the other parts of the state and the action
     };
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
     struct StatePoseErrorIntegral: T_NEXT_COMPONENT{
