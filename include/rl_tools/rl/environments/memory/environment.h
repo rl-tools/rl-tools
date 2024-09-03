@@ -17,6 +17,7 @@ namespace rl_tools::rl::environments::memory {
         constexpr static TI HORIZON = 10;
         constexpr static T INPUT_PROBABILITY = (T)5/(T)HORIZON;
         constexpr static Mode MODE = Mode::COUNT_INPUT;
+        static constexpr TI EPISODE_STEP_LIMIT = 20;
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T, T_TI>>
     struct Specification{
@@ -52,7 +53,7 @@ namespace rl_tools::rl::environments{
         using ObservationPrivileged = Observation;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 1;
-        static constexpr TI EPISODE_STEP_LIMIT = 20;
+        static constexpr TI EPISODE_STEP_LIMIT = SPEC::PARAMETERS::EPISODE_STEP_LIMIT;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

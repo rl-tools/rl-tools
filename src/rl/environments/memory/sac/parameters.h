@@ -1,10 +1,11 @@
-constexpr TI SEQUENCE_LENGTH = 200;
+constexpr TI SEQUENCE_LENGTH = 400;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 4;
 constexpr TI NUM_CHECKPOINTS = 100;
 struct ENVIRONMENT_PARAMETERS{
-    constexpr static TI HORIZON = 50;
+    constexpr static TI HORIZON = 100;
     constexpr static T INPUT_PROBABILITY = HORIZON <= 4 ? 0.5 : (T)2/HORIZON;
+    static constexpr TI EPISODE_STEP_LIMIT = 2000;
     constexpr static rlt::rl::environments::memory::Mode MODE = rlt::rl::environments::memory::Mode::COUNT_INPUT;
 };
 using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
@@ -28,7 +29,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI N_WARMUP_STEPS_ACTOR = 10000;
     static constexpr TI STEP_LIMIT = 200000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-    static constexpr TI ACTOR_HIDDEN_DIM = 16;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
@@ -37,7 +38,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr bool ADAPTIVE_ALPHA = true;
     static constexpr bool SHARED_BATCH = false;
     struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-        static constexpr T ALPHA = 1e-3;
+        static constexpr T ALPHA = 1e-4;
         static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
         static constexpr T BIAS_LR_FACTOR = 1;
     };

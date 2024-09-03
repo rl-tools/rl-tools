@@ -63,6 +63,7 @@ using TI = typename DEVICE::index_t;
 
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
+static_assert(ENVIRONMENT::EPISODE_STEP_LIMIT >= SEQUENCE_LENGTH, "Environment episode step limit should be greater than or equal to sequence length");
 
 int main(){
     TI seed = 1;
