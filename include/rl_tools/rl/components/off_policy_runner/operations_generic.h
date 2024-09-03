@@ -296,8 +296,8 @@ namespace rl_tools{
             copy(device, device, next_observation_source_tensor_squeezed, next_observation_target);
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
-                auto next_observation_privileged_target_sequence = view<0>(device, batch.next_observations_privileged, batch_step_i);
-                auto next_observation_privileged_target = view<0>(device, next_observation_privileged_target_sequence, seq_step_i);
+                auto next_observation_privileged_target_sequence = view<0>(device, batch.next_observations_privileged, seq_step_i);
+                auto next_observation_privileged_target = view<0>(device, next_observation_privileged_target_sequence, batch_step_i);
                 auto next_observation_privileged_source = row(device, replay_buffer.next_observations_privileged, sample_index);
                 auto next_observation_privileged_source_tensor = to_tensor(device, next_observation_privileged_source);
                 auto next_observation_privileged_source_tensor_squeezed = squeeze(device, next_observation_privileged_source_tensor);
