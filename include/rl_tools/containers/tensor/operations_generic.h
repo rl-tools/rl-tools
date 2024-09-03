@@ -656,6 +656,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("tensor::multiply_accumulate");
+#endif
         ternary_operation(device, tensor::Operation<tensor::ternary_operations::multiply_accumulate<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, t_output);
     }
 

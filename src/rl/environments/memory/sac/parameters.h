@@ -1,6 +1,6 @@
 constexpr TI SEQUENCE_LENGTH = 200;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 100;
+constexpr TI BATCH_SIZE = 4;
 constexpr TI NUM_CHECKPOINTS = 100;
 struct ENVIRONMENT_PARAMETERS{
     constexpr static TI HORIZON = 50;

@@ -226,6 +226,9 @@ namespace rl_tools{
             }
             else{
                 if constexpr(CAN_RESET_SAMPLE){
+                    #ifdef RL_TOOLS_ENABLE_TRACY
+                    ZoneScopedN("gru::evaluate_step::CAN_RESET_SAMPLE_1");
+                    #endif
                     for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
                         auto target = view(device, previous_output_scratch, sample_i);
                         bool reset = nn::layers::gru::mode::reset_sample<LAYER_SPEC>(device, mode, step_i, sample_i);
@@ -262,6 +265,9 @@ namespace rl_tools{
                 fast_sigmoid(device, rz_post_activation);
             }
             else{
+#ifdef RL_TOOLS_ENABLE_TRACY
+                ZoneScopedN("gru::evaluate_step::sigmoid");
+#endif
                 sigmoid(device, rz_post_activation);
             }
             multiply_accumulate(device, n_pre_pre_activation_step, r_post_activation, n_post_activation);
@@ -269,6 +275,9 @@ namespace rl_tools{
                 fast_tanh(device, n_post_activation);
             }
             else{
+#ifdef RL_TOOLS_ENABLE_TRACY
+                ZoneScopedN("gru::evaluate_step::tanh");
+#endif
                 tanh(device, n_post_activation);
             }
             one_minus(device, z_post_activation, output_step);
@@ -278,6 +287,9 @@ namespace rl_tools{
             }
             else{
                 if constexpr(CAN_RESET_SAMPLE) {
+#ifdef RL_TOOLS_ENABLE_TRACY
+                    ZoneScopedN("gru::evaluate_step::CAN_RESET_SAMPLE_2");
+#endif
                     // we don't need to assemble previous_output_scratch again because we know that we assembled it before already
                     multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
                 }
@@ -563,6 +575,9 @@ namespace rl_tools{
         auto buffer_transpose = permute(device, buffers.buffer, tensor::PermutationSpec<1, 0>{});
         static_assert(decltype(buffer_transpose)::SPEC::SIZE == decltype(buffers.buffer)::SPEC::SIZE);
         if constexpr(CALCULATE_D_PARAMETERS){
+#ifdef RL_TOOLS_ENABLE_TRACY
+            ZoneScopedN("gru::CALCULATE_D_PARAMETERS::weights_input");
+#endif
             matrix_multiply_accumulate(device, buffer_transpose, input_step, layer.weights_input.gradient);
             reduce_sum<true>(device, buffer_transpose, layer.biases_input.gradient);
             auto b_irz_grad = view_range(device, layer.biases_input.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
@@ -571,6 +586,9 @@ namespace rl_tools{
         }
 
         if constexpr(CALCULATE_D_INPUT){
+#ifdef RL_TOOLS_ENABLE_TRACY
+            ZoneScopedN("gru::CALCULATE_D_INPUT::d_input");
+#endif
             matrix_multiply(device, buffers.buffer, layer.weights_input.parameters, d_input_step);
         }
 
@@ -585,6 +603,9 @@ namespace rl_tools{
         else{
             if constexpr(CAN_RESET_SAMPLE){
                 if constexpr(CALCULATE_D_PARAMETERS){
+#ifdef RL_TOOLS_ENABLE_TRACY
+                    ZoneScopedN("gru::CAN_RESET_SAMPLE::d_weights_hidden");
+#endif
                     auto output_previous_step = buffers.previous_output_scratch;
                     matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
                 }
@@ -607,6 +628,9 @@ namespace rl_tools{
                 }
                 matrix_multiply_accumulate(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
                 if constexpr(CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+#ifdef RL_TOOLS_ENABLE_TRACY
+                    ZoneScopedN("gru::CAN_RESET_SAMPLE::matrix_multiply_accumulate_reduce");
+#endif
                     matrix_multiply_accumulate_reduce(device, buffers.buffer2, layer.weights_hidden.parameters, layer.initial_hidden_state.gradient);
                 }
             }
@@ -621,6 +645,9 @@ namespace rl_tools{
         }
 
         if constexpr(CALCULATE_D_PARAMETERS){
+#ifdef RL_TOOLS_ENABLE_TRACY
+            ZoneScopedN("gru::CAN_RESET_SAMPLE::d_hn_grad");
+#endif
             auto b_hn_grad = view_range(device, layer.biases_hidden.gradient, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
             auto buffer_n_transpose = permute(device, buffers.buffer_n, tensor::PermutationSpec<1, 0>{});
             reduce_sum<true>(device, buffer_n_transpose, b_hn_grad);
