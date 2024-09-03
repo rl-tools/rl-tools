@@ -300,7 +300,7 @@ namespace rl_tools{
                 auto next_observation_privileged_target = view<0>(device, next_observation_privileged_target_sequence, seq_step_i);
                 auto next_observation_privileged_source = row(device, replay_buffer.next_observations_privileged, sample_index);
                 auto next_observation_privileged_source_tensor = to_tensor(device, next_observation_privileged_source);
-                auto next_observation_privileged_source_tensor_squeezed = squeeze(next_observation_privileged_source_tensor);
+                auto next_observation_privileged_source_tensor_squeezed = squeeze(device, next_observation_privileged_source_tensor);
                 copy(device, device, next_observation_privileged_source_tensor_squeezed, next_observation_privileged_target);
             }
 

@@ -65,6 +65,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
                 static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
                 static constexpr T LOG_PROBABILITY_EPSILON = PARAMETERS::LOG_PROBABILITY_EPSILON;
                 static constexpr bool ADAPTIVE_ALPHA = PARAMETERS::ADAPTIVE_ALPHA;
+                static constexpr bool UPDATE_ALPHA_WITH_ACTOR = false;
                 static constexpr T ALPHA = PARAMETERS::ALPHA;
                 static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
             };
