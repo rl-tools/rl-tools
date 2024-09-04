@@ -1,57 +1,96 @@
-constexpr TI SEQUENCE_LENGTH = 400;
+constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 4;
+constexpr TI BATCH_SIZE = 256;
 constexpr TI NUM_CHECKPOINTS = 100;
-struct ENVIRONMENT_PARAMETERS{
-    constexpr static TI HORIZON = 100;
-    constexpr static T INPUT_PROBABILITY = HORIZON <= 4 ? 0.5 : (T)2/HORIZON;
-    static constexpr TI EPISODE_STEP_LIMIT = 2000;
-    constexpr static rlt::rl::environments::memory::Mode MODE = rlt::rl::environments::memory::Mode::COUNT_INPUT;
-};
-using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
-using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
+//struct ENVIRONMENT_PARAMETERS{
+//    constexpr static TI HORIZON = 100;
+//    constexpr static T INPUT_PROBABILITY = HORIZON <= 4 ? 0.5 : (T)2/HORIZON;
+//    static constexpr TI EPISODE_STEP_LIMIT = 2000;
+//    constexpr static rlt::rl::environments::memory::Mode MODE = rlt::rl::environments::memory::Mode::COUNT_INPUT;
+//};
+
+
+namespace env_param_builder{
+    using namespace rlt::rl::environments::l2f;
+    struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI>{
+        struct ENVIRONMENT_STATIC_PARAMETERS{
+            static constexpr TI ACTION_HISTORY_LENGTH = 16;
+            using STATE_BASE = StateBase<T, TI>;
+            using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
+            using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
+                    observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
+                    observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
+                    observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
+                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
+            using OBSERVATION_TYPE_PRIVILEGED = observation::Position<observation::PositionSpecificationPrivileged<T, TI,
+                    observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
+                    observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
+                    observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
+                    observation::RandomForce<observation::RandomForceSpecification<T, TI,
+                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>
+            >
+            >
+            >>
+            >>
+            >>
+            >>;
+            static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
+            using PARAMETERS = PARAMETERS_TYPE;
+            static constexpr auto PARAMETER_VALUES = parameters;
+        };
+
+        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
+        using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
+    };
+}
+
+using ENVIRONMENT = typename env_param_builder::ENVIRONMENT_PARAMETERS::ENVIRONMENT;
+//using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
+//using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
 //using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 //using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
-        static constexpr T GAMMA = 0.0;
+        static constexpr T GAMMA = 0.99;
         static constexpr TI ACTOR_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI CRITIC_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI SEQUENCE_LENGTH = SEQUENCE_LENGTH_PROXY;
-        static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
-        static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
+        static constexpr TI TRAINING_INTERVAL = 10;
+        static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
+        static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
+        static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
     };
     static constexpr TI N_WARMUP_STEPS = 1000;
     static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
     static constexpr TI N_WARMUP_STEPS_ACTOR = 10000;
-    static constexpr TI STEP_LIMIT = 200000;
+    static constexpr TI STEP_LIMIT = 1000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI ACTOR_HIDDEN_DIM = 32;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
-    static constexpr T TARGET_ENTROPY = -4;
-    static constexpr T ALPHA = 1;
-    static constexpr bool ADAPTIVE_ALPHA = true;
-    static constexpr bool SHARED_BATCH = false;
-    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-        static constexpr T ALPHA = 1e-4;
-        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
-        static constexpr T BIAS_LR_FACTOR = 1;
-    };
-    struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-        static constexpr T ALPHA = 1e-3;
-        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
-        static constexpr T BIAS_LR_FACTOR = 1;
-    };
-    struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-        static constexpr T ALPHA = 1e-3;
-        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
-        static constexpr T BIAS_LR_FACTOR = 1;
-    };
+//    static constexpr T TARGET_ENTROPY = -4;
+//    static constexpr T ALPHA = 0.5;
+//    static constexpr bool ADAPTIVE_ALPHA = true;
+//    static constexpr bool SHARED_BATCH = false;
+//    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+//        static constexpr T ALPHA = 1e-3;
+//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+//        static constexpr T BIAS_LR_FACTOR = 1;
+//    };
+//    struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+//        static constexpr T ALPHA = 1e-3;
+//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+//        static constexpr T BIAS_LR_FACTOR = 1;
+//    };
+//    struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+//        static constexpr T ALPHA = 1e-3;
+//        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
+//        static constexpr T BIAS_LR_FACTOR = 1;
+//    };
 };
 #ifdef BENCHMARK
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
@@ -65,7 +104,7 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsSequentialBoundSequenceLength>;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_EXTRACK_CONFIG>{
-    static constexpr TI EVALUATION_INTERVAL = 1000;
+    static constexpr TI EVALUATION_INTERVAL = 10000;
     static constexpr TI NUM_EVALUATION_EPISODES = 10;
     static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };

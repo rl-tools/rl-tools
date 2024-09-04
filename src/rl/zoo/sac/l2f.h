@@ -26,13 +26,11 @@ namespace rl_tools::rl::zoo::sac::l2f{
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
-                static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2 * TRAINING_INTERVAL;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.9;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.3;
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
-            static constexpr T EXPLORATION_NOISE = 0.3;
             static constexpr TI STEP_LIMIT = 1000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;

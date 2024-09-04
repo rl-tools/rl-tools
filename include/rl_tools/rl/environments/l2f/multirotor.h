@@ -442,6 +442,7 @@ namespace rl_tools::rl::environments{
 //        using REWARD_FUNCTION = typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION;
 //        static constexpr TI STATE_DIM = 13;
         static constexpr TI ACTION_DIM = 4;
+        static constexpr TI EPISODE_STEP_LIMIT = 500;
 
         static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
 
