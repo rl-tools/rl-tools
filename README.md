@@ -102,6 +102,7 @@
 
 ## Projects Based on <span style="color:#7DB9B6">RLtools</span>
 - Learning to Fly in Seconds: [GitHub](https://github.com/arplaboratory/learning-to-fly) / [arXiv](https://arxiv.org/abs/2311.13081) / [YouTube](https://youtu.be/NRD43ZA1D-4) / [IEEE Spectrum](https://spectrum.ieee.org/amp/drone-quadrotor-2667196800)
+- Data-Driven System Identification of Quadrotors Subject to Motor Delays [GitHub](https://github.com/arplaboratory/data-driven-system-identification) / [arXiv](https://arxiv.org/abs/2404.07837) / [YouTube](https://youtu.be/G3WGthRx2KE) / [Project Page](https://sysid.tools)
 
 
 # Getting Started
