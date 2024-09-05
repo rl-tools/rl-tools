@@ -1,4 +1,4 @@
-constexpr bool MEMORY = true;
+constexpr bool MEMORY = false;
 constexpr bool MEMORY_LONG = false;
 
 constexpr TI SEQUENCE_LENGTH = MEMORY ? (MEMORY_LONG ? 500 : 50) : 1;
