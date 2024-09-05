@@ -148,8 +148,8 @@ int main(){
         auto last_print = start_time;
         for(TI sample_i=0; sample_i < CONFIG::PARAMS::DATASET_SIZE; sample_i += CONFIG::PARAMS::BATCH_SIZE){
             synthetic_sample<true>(device, input, output_target, reset, rng);
-            using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<rlt::nn::mode::Default, decltype(reset)>;
-            using RESET_MODE = rlt::nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
+            using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(reset)>;
+            using RESET_MODE = rlt::nn::layers::gru::ResetMode<rlt::nn::mode::Default<>, RESET_MODE_SPEC>;
             rlt::nn::Mode<RESET_MODE> reset_mode;
             reset_mode.reset_container = reset;
             rlt::forward(device, model, input, buffer, rng, reset_mode);
