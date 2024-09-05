@@ -1,21 +1,27 @@
-constexpr TI SEQUENCE_LENGTH = 400;
+constexpr bool MEMORY = true;
+constexpr bool MEMORY_LONG = false;
+
+constexpr TI SEQUENCE_LENGTH = MEMORY ? (MEMORY_LONG ? 500 : 50) : 1;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 4;
+constexpr TI BATCH_SIZE = MEMORY ? 4: 100;
 constexpr TI NUM_CHECKPOINTS = 100;
 struct ENVIRONMENT_PARAMETERS{
-    constexpr static TI HORIZON = 100;
+    constexpr static TI HORIZON = MEMORY_LONG ? 100 : 10;
     constexpr static T INPUT_PROBABILITY = HORIZON <= 4 ? 0.5 : (T)2/HORIZON;
     static constexpr TI EPISODE_STEP_LIMIT = 2000;
     constexpr static rlt::rl::environments::memory::Mode MODE = rlt::rl::environments::memory::Mode::COUNT_INPUT;
 };
-using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
-using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
-//using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
-//using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
+using MEMORY_ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
+using MEMORY_ENVIRONMENT = rlt::rl::environments::Memory<MEMORY_ENVIRONMENT_SPEC>;
+using PENDULUM_ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+using PENDULUM_ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_ENVIRONMENT_SPEC>;
+
+using ENVIRONMENT = rlt::utils::typing::conditional_t<MEMORY, MEMORY_ENVIRONMENT, PENDULUM_ENVIRONMENT>;
+
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
-        static constexpr T GAMMA = 0.0;
+        static constexpr T GAMMA = MEMORY ? 0.0 : 0.99;
         static constexpr TI ACTOR_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI CRITIC_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI SEQUENCE_LENGTH = SEQUENCE_LENGTH_PROXY;
@@ -26,14 +32,14 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     };
     static constexpr TI N_WARMUP_STEPS = 1000;
     static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
-    static constexpr TI N_WARMUP_STEPS_ACTOR = 10000;
+    static constexpr TI N_WARMUP_STEPS_ACTOR = MEMORY ? 10000: 1000;
     static constexpr TI STEP_LIMIT = 200000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI ACTOR_HIDDEN_DIM = MEMORY ? (MEMORY_LONG ? 64 : 16) : 32;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
-    static constexpr T TARGET_ENTROPY = -4;
+    static constexpr T TARGET_ENTROPY = MEMORY ? -4 : -1;
     static constexpr T ALPHA = 1;
     static constexpr bool ADAPTIVE_ALPHA = true;
     static constexpr bool SHARED_BATCH = false;
