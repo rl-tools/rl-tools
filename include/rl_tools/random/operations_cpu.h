@@ -39,7 +39,12 @@ namespace rl_tools::random{
         template<typename T, typename RNG>
         T sample(const devices::random::CPU& dev, T mean, T std, RNG& rng){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
-            return std::normal_distribution<T>(mean, std)(rng);
+            if(std == 0){
+                return mean;
+            }
+            else{
+                return std::normal_distribution<T>(mean, std)(rng);
+            }
         }
     }
 }
