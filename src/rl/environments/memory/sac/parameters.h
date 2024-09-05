@@ -1,7 +1,7 @@
 constexpr bool MEMORY = false;
 constexpr bool MEMORY_LONG = false;
 
-constexpr TI SEQUENCE_LENGTH = MEMORY ? (MEMORY_LONG ? 500 : 50) : 1;
+constexpr TI SEQUENCE_LENGTH = MEMORY ? (MEMORY_LONG ? 500 : 50) : 10;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = MEMORY ? 4: 100;
 constexpr TI NUM_CHECKPOINTS = 100;
