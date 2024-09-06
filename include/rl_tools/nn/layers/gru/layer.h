@@ -2,7 +2,6 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_GRU_LAYER_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_NN_LAYERS_GRU_LAYER_H
-#include "../../../nn/mode.h"
 #include "../../../nn/activation_functions.h"
 #include "../../../nn/parameters/parameters.h"
 #include "../../../nn/capability/capability.h"

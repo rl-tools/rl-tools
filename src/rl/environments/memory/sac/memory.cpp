@@ -108,7 +108,7 @@ int main(){
 //            TI critic_correct_examples = 0;
 //            TI actor_correct_examples = 0;
 //            for(TI example_i = 0; example_i < N_EXAMPLES; example_i++){
-//                rlt::nn::Mode<rlt::nn::mode::Default<>> mode;
+//                rlt::Mode<rlt::mode::Default<>> mode;
 //                std::vector<TI> values;
 //                if(TEST_SEQUENCE_LENGTH >= 2){
 //                    for(TI seq_i = 0; seq_i < TEST_SEQUENCE_LENGTH-1; seq_i++){
@@ -121,7 +121,7 @@ int main(){
 //                    }
 //                }
 //
-////            rlt::nn::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::nn::mode::Inference>> mode;
+////            rlt::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::mode::Inference>> mode;
 ////            mode.reset = true;
 //                while(values.size() > ENVIRONMENT_PARAMETERS::HORIZON-1){
 //                    values.erase(values.begin());

@@ -56,16 +56,19 @@ namespace rl_tools{
         return acc;
     }
 
-    template<typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const nn::parameters::Plain::instance<SPEC>& p){
-        return is_nan(device, p.parameters);
+    template<typename DEVICE, typename SPEC, typename MODE = Mode<mode::Default<>>>
+    bool is_nan(DEVICE& device, const nn::parameters::Plain::instance<SPEC>& p, const Mode<MODE>& mode = {}){
+        return is_nan(device, p.parameters, mode);
     }
 
 
-    template<typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const nn::parameters::Gradient::instance<SPEC>& p){
-        bool param_nan = is_nan(device, (nn::parameters::Plain::instance<SPEC>&) p);
-        return param_nan | is_nan(device, p.gradient);
+    template<typename DEVICE, typename SPEC, typename MODE = Mode<mode::Default<>>>
+    bool is_nan(DEVICE& device, const nn::parameters::Gradient::instance<SPEC>& p, const Mode<MODE>& mode = {}){
+        bool upstream_nan = is_nan(device, static_cast<const nn::parameters::Plain::instance<SPEC>&>(p), mode);
+        if constexpr(mode::is<MODE, mode::is_nan::ParametersOnly>){
+            return upstream_nan;
+        }
+        return upstream_nan || is_nan(device, p.gradient, mode);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

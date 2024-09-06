@@ -6,7 +6,6 @@
 #include "layer.h"
 #include "helper_operations_generic.h"
 #include "../../parameters/operations_generic.h"
-#include "../../mode.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -133,39 +132,39 @@ namespace rl_tools{
         }
         namespace mode{
             template <typename SPEC, typename BASE, typename MODE_SPEC>
-            bool reset_full_batch(const nn::Mode<nn::layers::gru::StepByStepMode<BASE, MODE_SPEC>>& mode){
+            bool reset_full_batch(const Mode<nn::layers::gru::StepByStepMode<BASE, MODE_SPEC>>& mode){
                 return mode.reset || mode.step % SPEC::SEQUENCE_LENGTH == 0;
             }
             template <typename SPEC, typename MODE, typename MODE_SPEC>
-            constexpr bool can_reset_sample(const nn::Mode<nn::layers::gru::StepByStepMode<MODE, MODE_SPEC>>& mode){
+            constexpr bool can_reset_sample(const Mode<nn::layers::gru::StepByStepMode<MODE, MODE_SPEC>>& mode){
                 return false;
             }
             template <typename SPEC, typename MODE, typename MODE_SPEC>
-            bool reset_sample(const nn::Mode<nn::layers::gru::StepByStepMode<MODE, MODE_SPEC>>& mode, typename MODE_SPEC::TI step_i, typename MODE_SPEC::TI batch_sample_i){
+            bool reset_sample(const Mode<nn::layers::gru::StepByStepMode<MODE, MODE_SPEC>>& mode, typename MODE_SPEC::TI step_i, typename MODE_SPEC::TI batch_sample_i){
                 return false;
             }
             template <typename SPEC, typename MODE, typename MODE_SPEC>
-            bool reset_full_batch(const nn::Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode){
+            bool reset_full_batch(const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode){
                 return false;
             }
             template <typename SPEC, typename MODE, typename MODE_SPEC>
-            constexpr bool can_reset_sample(const nn::Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode){
+            constexpr bool can_reset_sample(const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode){
                 return true;
             }
             template <typename SPEC, typename DEVICE, typename MODE, typename MODE_SPEC>
-            bool reset_sample(DEVICE& device, const nn::Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, typename MODE_SPEC::TI step_i, typename MODE_SPEC::TI batch_sample_i){
+            bool reset_sample(DEVICE& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, typename MODE_SPEC::TI step_i, typename MODE_SPEC::TI batch_sample_i){
                 return get(device, mode.reset_container, step_i, batch_sample_i, (typename MODE_SPEC::TI)0);
             }
             template <typename SPEC, typename MODE>
-            bool reset_full_batch(const nn::Mode<MODE>& mode){
+            bool reset_full_batch(const Mode<MODE>& mode){
                 return false;
             }
             template <typename SPEC, typename MODE>
-            constexpr bool can_reset_sample(const nn::Mode<MODE>& mode){
+            constexpr bool can_reset_sample(const Mode<MODE>& mode){
                 return false;
             }
             template <typename SPEC, typename MODE, typename TI>
-            bool reset_sample(const nn::Mode<MODE>& mode, TI step_i, TI batch_sample_i){
+            bool reset_sample(const Mode<MODE>& mode, TI step_i, TI batch_sample_i){
                 return false;
             }
         }
@@ -185,8 +184,8 @@ namespace rl_tools{
 //        }
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename PREVIOUS_OUTPUT_SCRATCH, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
-    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output, Tensor<PREVIOUS_OUTPUT_SCRATCH>& previous_output_scratch, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename PREVIOUS_OUTPUT_SCRATCH, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output, Tensor<PREVIOUS_OUTPUT_SCRATCH>& previous_output_scratch, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename INPUT_SPEC::SHAPE{});
@@ -204,7 +203,7 @@ namespace rl_tools{
         static_assert(get<length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{})-1>(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == LAYER_SPEC::HIDDEN_DIM);
         static_assert(get<length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{})-2>(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == BATCH_SIZE);
 
-        constexpr bool STEP_BY_STEP = nn::mode::is<MODE, nn::layers::gru::StepByStepMode>;
+        constexpr bool STEP_BY_STEP = mode::is<MODE, nn::layers::gru::StepByStepMode>;
         constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(decltype(mode){});
         for(TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
             bool reset_full_batch = nn::layers::gru::mode::reset_full_batch<LAYER_SPEC>(mode) || (!STEP_BY_STEP && step_i == 0);
@@ -307,9 +306,9 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
-    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
-        constexpr bool STEP_BY_STEP = nn::mode::is<MODE, nn::layers::gru::StepByStepMode>;
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        constexpr bool STEP_BY_STEP = mode::is<MODE, nn::layers::gru::StepByStepMode>;
         if constexpr(STEP_BY_STEP){
             evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, buffers.step_by_step_output, buffers.previous_output_scratch, buffers, rng, mode);
             copy(device, device, buffers.step_by_step_output, output);
@@ -319,8 +318,8 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
-    void forward(DEVICE& device, nn::layers::gru::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void forward(DEVICE& device, nn::layers::gru::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         evaluate(device, layer, input, layer.post_activation, layer.n_pre_pre_activation, layer.output, buffers.previous_output_scratch, buffers, rng, mode);
     }
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
@@ -498,8 +497,8 @@ namespace rl_tools{
         binary_operation(device, op, factor, pre_activation, result);
     }
 
-    template<bool CALCULATE_D_INPUT, bool CALCULATE_D_PARAMETERS, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
-    void _backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<bool CALCULATE_D_INPUT, bool CALCULATE_D_PARAMETERS, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void _backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::_backward_step");
 #endif
@@ -523,7 +522,7 @@ namespace rl_tools{
         auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
         constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(decltype(mode){});
-        static_assert(!nn::mode::is<MODE, nn::layers::gru::StepByStepMode>);
+        static_assert(!mode::is<MODE, nn::layers::gru::StepByStepMode>);
         bool reset_full_batch = nn::layers::gru::mode::reset_full_batch<LAYER_SPEC>(mode) || step_i == 0;
         if(reset_full_batch){
             multiply_subtract_broadcast(device, d_output_step, layer.initial_hidden_state.parameters, n_post_activation, buffers.buffer_z);
@@ -653,8 +652,8 @@ namespace rl_tools{
             reduce_sum<true>(device, buffer_n_transpose, b_hn_grad);
         }
     }
-    template<bool CALCULATE_D_INPUT, bool CALCULATE_D_PARAMETERS, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
-    void _backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const nn::Mode<MODE>& mode){
+    template<bool CALCULATE_D_INPUT, bool CALCULATE_D_PARAMETERS, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void _backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const Mode<MODE>& mode){
         using TI = typename DEVICE::index_t;
         for(TI step_i=LAYER_SPEC::SEQUENCE_LENGTH-1; true; step_i--){
             _backward<CALCULATE_D_INPUT, CALCULATE_D_PARAMETERS>(device, layer, input, d_output, d_input, buffers, step_i, mode);
@@ -663,26 +662,26 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
-    void backward_full(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward_full(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         _backward<true, true>(device, layer, input, d_output, d_input, buffers, step_i, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
-    void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
         _backward<false, true>(device, layer, input, d_output, d_input_dummy, buffers, step_i, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
-    void backward_full(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward_full(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::backward_full");
 #endif
         _backward<true, true>(device, layer, input, d_output, d_input, buffers, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
-    void backward_input(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward_input(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::backward_full");
 #endif
@@ -691,8 +690,8 @@ namespace rl_tools{
         Tensor<tensor::Specification<T, TI, typename D_INPUT_SPEC::SHAPE>> input_dummy; // not allocated, pointer should be optimized away because it is not used
         _backward<true, false>(device, layer, input_dummy, d_output, d_input, buffers, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default<>>
-    void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
@@ -752,6 +751,26 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::gru::LayerGradient<SPEC_2>& l2) {
         return abs_diff(device, static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC_2>&>(l2));
+    }
+
+    template <typename DEVICE, typename SPEC, typename MODE>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        bool weights_nan = is_nan(device, l.weights_input, mode) || is_nan(device, l.weights_hidden, mode);
+        bool biases_nan = is_nan(device, l.biases_input, mode) || is_nan(device, l.biases_hidden, mode);
+        bool initial_hidden_state_nan = is_nan(device, l.initial_hidden_state, mode);
+        return weights_nan || biases_nan || initial_hidden_state_nan;
+    }
+    template <typename DEVICE, typename SPEC, typename MODE>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::gru::LayerForward<SPEC>&>(l), mode);
+        if constexpr(mode::is<MODE, mode::is_nan::ParametersOnly>){
+            return upstream_nan;
+        }
+        return upstream_nan || is_nan(device, l.post_activation, mode) || is_nan(device, l.n_pre_pre_activation, mode) || is_nan(device, l.output, mode);
+    }
+    template <typename DEVICE, typename SPEC, typename MODE>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        return is_nan(device, static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC>&>(l), mode);
     }
 
     template <typename DEVICE, typename SPEC>

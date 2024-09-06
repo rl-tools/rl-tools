@@ -8,6 +8,7 @@
 #endif
 
 #include "matrix.h"
+#include "../../mode/mode.h"
 #ifndef RL_TOOLS_FUNCTION_PLACEMENT
     #define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
@@ -457,9 +458,9 @@ namespace rl_tools{
     typename SPEC::T mean_of_squares(DEVICE& device, const Matrix<SPEC>& m){
         return sum_of_squares(device, m) / (SPEC::ROWS * SPEC::COLS);
     }
-    template<typename DEVICE, typename SPEC>
+    template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
 //    [[deprecated("Note: math::isnan might be optimized out by the compiler when using e.g. fast-math")]]
-    bool is_nan(DEVICE& device, const Matrix<SPEC>& m){
+    bool is_nan(DEVICE& device, const Matrix<SPEC>& m, const Mode<MODE>& mode = {}){
         return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_nan<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, false);
     }
     template<typename DEVICE, typename SPEC>

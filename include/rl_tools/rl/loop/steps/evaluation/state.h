@@ -15,7 +15,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using TI = typename CONFIG::TI;
         rl::utils::evaluation::Result<typename CONFIG::EVALUATION_RESULT_SPEC> evaluation_results[CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS];
         typename CONFIG::RNG rng_eval;
-        nn::Mode<nn::layers::gru::StepByStepMode<typename CONFIG::EVALUATION_PARAMETERS::EVALUATION_MODE, nn::layers::gru::StepByStepModeSpecification<TI>>> evaluation_mode;
+        Mode<nn::layers::gru::StepByStepMode<typename CONFIG::EVALUATION_PARAMETERS::EVALUATION_MODE, nn::layers::gru::StepByStepModeSpecification<TI>>> evaluation_mode;
         typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES> actor_deterministic_evaluation_buffers;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_eval;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;

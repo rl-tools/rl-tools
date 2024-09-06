@@ -192,9 +192,9 @@ void test_loading(std::string DATA_FILE_NAME){
 
 
                 if constexpr (USE_RESET_MODE){
-                    using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<rlt::nn::mode::Default, decltype(reset)>;
+                    using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<rlt::mode::Default, decltype(reset)>;
                     using RESET_MODE = rlt::nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
-                    rlt::nn::Mode<RESET_MODE> reset_mode;
+                    rlt::Mode<RESET_MODE> reset_mode;
                     reset_mode.reset_container = reset;
                     rlt::set_all(device, reset, false);
                     auto first_step_reset_view = rlt::view(device, reset, 0);

@@ -7,7 +7,6 @@
 #include "../../../nn/parameters/operations_generic.h"
 
 #include "layer.h"
-#include "../../../nn/mode.h"
 #ifndef RL_TOOLS_FUNCTION_PLACEMENT
 #define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
@@ -62,8 +61,8 @@ namespace rl_tools{
     }
 
 //#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
-    void evaluate(DEVICE& device, const nn::layers::embedding::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer&, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate(DEVICE& device, const nn::layers::embedding::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
 //        static_assert(nn::layers::embedding::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // Warning do not use the same buffer for input and output!
         using TI = typename DEVICE::index_t;
@@ -79,26 +78,26 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
-    void forward(DEVICE& device, nn::layers::embedding::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void forward(DEVICE& device, nn::layers::embedding::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         evaluate(device, static_cast<nn::layers::embedding::LayerForward<LAYER_SPEC>&>(layer), input, output, buffer, rng, mode);
     }
 //#endif
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
-    void forward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::embedding::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void forward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::embedding::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         forward(device, static_cast<nn::layers::embedding::LayerBackward<LAYER_SPEC>&>(layer), input, layer.output, buffer, rng, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default<>>
-    void forward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void forward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         forward(device, layer, input, buffer, rng, mode);
         copy(device, device, layer.output, output);
     }
 
 //#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     // backward_input / backward_full are not supported because the inputs are discrete classes
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default<>>
-    void backward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::embedding::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
+    void backward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::embedding::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -170,17 +169,21 @@ namespace rl_tools{
         reset_forward_state(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l));
         set_all(device, l.output, (typename SPEC::T)0);
     }
-    template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC>& l) {
-        return is_nan(device, l.weights);
+    template <typename DEVICE, typename SPEC, typename MODE>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        return is_nan(device, l.weights, mode);
     }
-    template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerBackward<SPEC>& l) {
-        return is_nan(device, static_cast<rl_tools::nn::layers::embedding::LayerForward<SPEC>&>(l));
+    template <typename DEVICE, typename SPEC, typename MODE>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        return is_nan(device, static_cast<const rl_tools::nn::layers::embedding::LayerForward<SPEC>&>(l), mode);
     }
-    template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerGradient<SPEC>& l) {
-        return is_nan(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l));
+    template <typename DEVICE, typename SPEC, typename MODE>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l), mode);
+        if constexpr(mode::is<MODE, mode::is_nan::ParametersOnly>){
+            return upstream_nan;
+        }
+        return upstream_nan || is_nan(device, l.output, mode);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& l){

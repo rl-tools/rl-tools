@@ -51,7 +51,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH
 
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    auto mode = rlt::nn::Mode<rlt::nn::layers::sample_and_squash::mode::Sample<rlt::nn::mode::Default<>>>{};
+    auto mode = rlt::Mode<rlt::nn::layers::sample_and_squash::mode::Sample<rlt::mode::Default<>>>{};
     rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng, mode);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);

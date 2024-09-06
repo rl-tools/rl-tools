@@ -54,9 +54,9 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
     GRU::Buffer<BATCH_SIZE> buffer, buffer_copy;
     GRU_4X::Buffer<BATCH_SIZE/4> buffer_4x;
     using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(reset)>;
-    using RESET_MODE = rlt::nn::layers::gru::ResetMode<rlt::nn::mode::Default<>, RESET_MODE_SPEC>;
-    rlt::nn::Mode<RESET_MODE> mode;
-    rlt::nn::Mode<rlt::nn::mode::Default<>> mode_default;
+    using RESET_MODE = rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, RESET_MODE_SPEC>;
+    rlt::Mode<RESET_MODE> mode;
+    rlt::Mode<rlt::mode::Default<>> mode_default;
 
     rlt::malloc(device, input);
     rlt::malloc(device, input_4x);
@@ -110,8 +110,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
     }
 
     using RESET_MODE_4X_SPEC = rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(reset_4x)>;
-    using RESET_MODE_4X = rlt::nn::layers::gru::ResetMode<rlt::nn::mode::Default<>, RESET_MODE_4X_SPEC>;
-    rlt::nn::Mode<RESET_MODE_4X> mode_4x;
+    using RESET_MODE_4X = rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, RESET_MODE_4X_SPEC>;
+    rlt::Mode<RESET_MODE_4X> mode_4x;
     rlt::set_all(device, reset_4x, false);
     for(TI seq_i = 0; seq_i < SEQUENCE_LENGTH*4; seq_i += SEQUENCE_LENGTH){
         auto reset_view = rlt::view(device, reset_4x, seq_i);

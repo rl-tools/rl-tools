@@ -4,6 +4,7 @@
 #define RL_TOOLS_CONTAINERS_TENSOR_OPERATIONS_GENERIC_H
 
 #include "tensor.h"
+#include "../../mode/mode.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -594,8 +595,8 @@ namespace rl_tools{
         op.initial_value = 0;
         return unary_associative_reduce(device, op, t);
     }
-    template<typename DEVICE, typename SPEC>
-    typename SPEC::T is_nan(DEVICE& device, const Tensor<SPEC>& t){
+    template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
+    typename SPEC::T is_nan(DEVICE& device, const Tensor<SPEC>& t, const Mode<MODE>& mode = {}){
         tensor::unary_reduce_operations::IsNan<decltype(device.math), typename SPEC::T> op;
         op.initial_value = false;
         return unary_associative_reduce(device, op, t);
