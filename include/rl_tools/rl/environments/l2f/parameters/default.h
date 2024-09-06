@@ -34,6 +34,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
             0.001, // orientation
             0.1, // linear_velocity
             0.2, // angular_velocity
+            0.1
         };
         static constexpr typename PARAMETERS_TYPE::MDP::ActionNoise action_noise = {
             0, // std of additive gaussian noise onto the normalized action (-1, 1)
