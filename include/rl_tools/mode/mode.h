@@ -47,8 +47,11 @@ namespace rl_tools{
         constexpr bool is = _is<INPUT, MODE>();
 
         namespace is_nan{
-            template <typename BASE, typename SPEC = bool>
-            struct ParametersOnly: BASE{};
+            template <typename T_BASE, typename T_SPEC = bool>
+            struct ParametersOnly: T_BASE{
+                using BASE = T_BASE;
+                using SPEC = T_SPEC;
+            };
         }
     }
 

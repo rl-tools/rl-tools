@@ -359,6 +359,10 @@ namespace rl_tools{
                 bool is_nan(DEVICE& device, const PARAMETER& parameter, const bool& accumulator, CURRENT_TYPE current){
                     return accumulator || math::is_nan(device, current);
                 }
+                template <typename DEVICE, typename PARAMETER, typename CURRENT_TYPE>
+                bool is_finite(DEVICE& device, const PARAMETER& parameter, const bool& accumulator, CURRENT_TYPE current){
+                    return accumulator || math::is_finite(device, current);
+                }
                 template <typename DEVICE, typename PARAMETER>
                 bool is_nan_reduce(DEVICE& device, const PARAMETER& parameter, bool a, bool b){
                     return a || b;
@@ -368,6 +372,8 @@ namespace rl_tools{
             using Sum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::sum<DEVICE, OperationEmptyParameter, T, T>>;
             template <typename DEVICE, typename T>
             using IsNan = UnaryReduceOperation<OperationEmptyParameter, bool, T, impl::is_nan<DEVICE, OperationEmptyParameter, T>>;
+            template <typename DEVICE, typename T>
+            using IsFinite = UnaryReduceOperation<OperationEmptyParameter, bool, T, impl::is_finite<DEVICE, OperationEmptyParameter, T>>;
         }
         template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE1, typename T_CURRENT_TYPE2, auto T_OPERATION, auto T_REDUCE_OPERATION>
         struct BinaryReduceOperation{
@@ -598,6 +604,12 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     typename SPEC::T is_nan(DEVICE& device, const Tensor<SPEC>& t, const Mode<MODE>& mode = {}){
         tensor::unary_reduce_operations::IsNan<decltype(device.math), typename SPEC::T> op;
+        op.initial_value = false;
+        return unary_associative_reduce(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T is_finite(DEVICE& device, const Tensor<SPEC>& t){
+        tensor::unary_reduce_operations::IsFinite<decltype(device.math), typename SPEC::T> op;
         op.initial_value = false;
         return unary_associative_reduce(device, op, t);
     }

@@ -1,7 +1,12 @@
 if(RL_TOOLS_ENABLE_ZLIB)
+set(SANITIZER_FLAGS "-fsanitize=undefined -fsanitize=address")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${SANITIZER_FLAGS}")
 add_executable(rl_environments_l2f_sac l2f_sac.cpp)
 target_link_libraries(rl_environments_l2f_sac PRIVATE rl_tools ZLIB::ZLIB)
 target_compile_options(rl_environments_l2f_sac PRIVATE -ftemplate-backtrace-limit=0)
+
 #if(RL_TOOLS_ENABLE_TRACY)
 #    target_link_libraries(rl_environments_memory_sac PRIVATE Tracy::TracyClient)
 #    target_include_directories(rl_environments_memory_sac PRIVATE ${PROJECT_SOURCE_DIR}/external/tracy/public/tracy)

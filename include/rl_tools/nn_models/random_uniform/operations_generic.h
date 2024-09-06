@@ -23,9 +23,9 @@ namespace rl_tools{
             }
         }
     }
-    template <typename DEVICE, typename RNG>
-    void sample(DEVICE& device, nn_models::random_uniform::Buffer& buffers, RNG& rng){
-
+    template<typename DEVICE, typename MODULE_SPEC, typename MODE>
+    bool is_nan(DEVICE& device, nn_models::RandomUniform<MODULE_SPEC>& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
