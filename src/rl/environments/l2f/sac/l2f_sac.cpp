@@ -1,3 +1,4 @@
+
 #define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #ifdef RL_TOOLS_ENABLE_TRACY
 #include "Tracy.hpp"
@@ -65,6 +66,7 @@ int main(){
     TI seed = 1;
     DEVICE device;
     LOOP_STATE ts;
+    std::cout << "Loop state size: " << sizeof(ts) << std::endl;
     ts.extrack_name = "sequential";
     ts.extrack_population_variates = "algorithm_environment";
     ts.extrack_population_values = "sac_l2f";
