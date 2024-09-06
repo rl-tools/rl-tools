@@ -1,4 +1,4 @@
-constexpr TI SEQUENCE_LENGTH = 2;
+constexpr TI SEQUENCE_LENGTH = 3;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 100;
 constexpr TI NUM_CHECKPOINTS = 10;
@@ -63,9 +63,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
     };
-    static constexpr TI N_WARMUP_STEPS = 100;
-    static constexpr TI N_WARMUP_STEPS_CRITIC = 100;
-    static constexpr TI N_WARMUP_STEPS_ACTOR = 100;
+    static constexpr TI N_WARMUP_STEPS = 1000;
+    static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
+    static constexpr TI N_WARMUP_STEPS_ACTOR = 1000;
     static constexpr TI STEP_LIMIT = 1000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_HIDDEN_DIM = 32;
@@ -104,7 +104,7 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsSequentialBoundSequenceLength>;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_EXTRACK_CONFIG>{
-    static constexpr TI EVALUATION_INTERVAL = 10000;
+    static constexpr TI EVALUATION_INTERVAL = 1000;
     static constexpr TI NUM_EVALUATION_EPISODES = 10;
 //    static constexpr TI EPISODE_STEP_LIMIT = 200;
     static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
