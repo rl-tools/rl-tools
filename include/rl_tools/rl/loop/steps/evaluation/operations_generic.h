@@ -19,7 +19,15 @@ namespace rl_tools{
     void malloc(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         malloc(device, ts.env_eval);
+        malloc(device, ts.actor_deterministic_evaluation_buffers);
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
+    }
+    template <typename DEVICE, typename T_CONFIG>
+    void free(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
+        using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
+        free(device, ts.env_eval);
+        free(device, ts.actor_deterministic_evaluation_buffers);
+        free(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
@@ -30,11 +38,6 @@ namespace rl_tools{
         ts.rng_eval = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
     }
 
-    template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
-        using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
-        free(device, static_cast<typename STATE::NEXT&>(ts));
-    }
 
     template <typename DEVICE, typename CONFIG>
     bool step(DEVICE& device, rl::loop::steps::evaluation::State<CONFIG>& ts){
