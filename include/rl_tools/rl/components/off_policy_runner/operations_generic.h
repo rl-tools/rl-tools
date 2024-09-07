@@ -138,8 +138,12 @@ namespace rl_tools{
         free(device, batch.reset);
     }
     template<typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT envs[SPEC::PARAMETERS::N_ENVIRONMENTS], typename SPEC::ENVIRONMENT::Parameters parameters[SPEC::PARAMETERS::N_ENVIRONMENTS]) {
+    void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
         set_all(device, runner.truncated, true);
+    }
+    template<typename DEVICE, typename SPEC>
+    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT envs[SPEC::PARAMETERS::N_ENVIRONMENTS], typename SPEC::ENVIRONMENT::Parameters parameters[SPEC::PARAMETERS::N_ENVIRONMENTS]) {
+        truncate_all(device, runner);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
             init(device, runner.replay_buffers[env_i]);
             runner.envs[env_i] = envs[env_i];
@@ -171,7 +175,9 @@ namespace rl_tools{
             step_by_step_mode.reset = get(runner.truncated, 0, 0);
             step_by_step_mode.step = get(runner.episode_step, 0, 0);
             static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
+            check(device, observation_view_tensor_unsqueezed, "off_policy_runner::observation_view_tensor_unsqueezed");
             evaluate(device, policy, observation_view_tensor_unsqueezed, action_view_tensor_unsqueezed, policy_eval_buffers, rng, step_by_step_mode);
+            check(device, action_view_tensor_unsqueezed, "off_policy_runner::action_view_tensor_unsqueezed");
         }
 
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>

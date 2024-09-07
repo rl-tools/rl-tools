@@ -1,10 +1,20 @@
 
+
 #define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #ifdef RL_TOOLS_ENABLE_TRACY
 #include "Tracy.hpp"
 #endif
 
 #include <rl_tools/operations/cpu_mux.h>
+
+
+template <typename DEVICE, typename OBJECT>
+void check(DEVICE& device, const OBJECT& object, std::string name){
+    rl_tools::utils::assert_exit(device, !is_nan(device, object) && is_finite(device, object), name + " is nan");
+}
+
+
+
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
@@ -63,10 +73,9 @@ using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 static_assert(ENVIRONMENT::EPISODE_STEP_LIMIT >= SEQUENCE_LENGTH, "Environment episode step limit should be greater than or equal to sequence length");
 
 int main(){
-    TI seed = 1;
+    TI seed = 2;
     DEVICE device;
     LOOP_STATE ts;
-    std::cout << "Loop state size: " << sizeof(ts) << std::endl;
     ts.extrack_name = "sequential";
     ts.extrack_population_variates = "algorithm_environment";
     ts.extrack_population_values = "sac_l2f";

@@ -36,6 +36,7 @@ namespace rl_tools{
             typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;
             TI step;
             bool allocated = false;
+            bool warmup_policy_transitioned = false;
         };
     }
     template <typename T_CONFIG>

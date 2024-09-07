@@ -103,8 +103,12 @@ namespace rl_tools{
         bool finished = false;
         using SAMPLE_AND_SQUASH_MODE = Mode<nn::layers::sample_and_squash::mode::Sample<mode::Default<>>>;
 //        step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
-        // disabling the exploration policy for now because there needs to be a reset of the sequential policy when the policy is switched
+//         disabling the exploration policy for now because there needs to be a reset of the sequential policy when the policy is switched
         if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+            if(!ts.warmup_policy_transitioned){
+                ts.warmup_policy_transitioned = true;
+                truncate_all(device, ts.off_policy_runner); // truncating all current episodes signals that e.g. recurrent policies should be reset on the next step, otherwise the recurrent state might be undefined after switching from the warmup policy
+            }
             step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
         }
         else{
