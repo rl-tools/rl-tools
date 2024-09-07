@@ -45,6 +45,12 @@ RL_TOOLS_RL_ZOO_LINK_ZLIB_OR_NOT(rl_zoo_td3_l2f)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_td3_l2f)
 target_compile_definitions(rl_zoo_td3_l2f PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 target_compile_definitions(rl_zoo_td3_l2f PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
+if(MSVC)
+    # The default stack size of MSVC is 1MB. But in learning to fly,
+    # rl::loop::steps::save_trajectories::to_string requires 1869360 bytes
+    set_target_properties(rl_zoo_td3_l2f PROPERTIES LINK_FLAGS /STACK:10000000)
+    set_target_properties(rl_zoo_sac_l2f PROPERTIES LINK_FLAGS /STACK:10000000)
+endif()
 # PPO Pendulum-v1
 add_executable(rl_zoo_ppo_pendulum_v1 zoo_cli.cpp zoo.cpp)
 target_link_libraries(rl_zoo_ppo_pendulum_v1 PRIVATE RLtools::RLtools)
