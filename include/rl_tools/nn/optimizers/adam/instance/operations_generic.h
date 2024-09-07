@@ -87,7 +87,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename MODE = Mode<mode::Default<>>>
     bool is_nan(DEVICE& device, const nn::parameters::Adam::instance<SPEC>& p, const Mode<MODE>& mode = {}){
         bool upstream_nan = is_nan(device, static_cast<const nn::parameters::Gradient::instance<SPEC>&>(p), mode);
-        if constexpr(mode::is<MODE, mode::is_nan::ParametersOnly>){
+        if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return upstream_nan;
         }
         return upstream_nan || is_nan(device, p.gradient_first_order_moment, mode) || is_nan(device, p.gradient_second_order_moment, mode);

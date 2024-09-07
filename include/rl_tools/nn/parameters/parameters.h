@@ -5,6 +5,18 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters{
+    namespace mode{
+        template <typename T_BASE, typename T_SPEC = bool>
+        struct ParametersOnly: T_BASE{
+            using BASE = T_BASE;
+            using SPEC = T_SPEC;
+        };
+        template <typename T_BASE, typename T_SPEC = bool>
+        struct GradientOnly: T_BASE{
+            using BASE = T_BASE;
+            using SPEC = T_SPEC;
+        };
+    }
     namespace groups{
         struct Normal{};
         struct Input{};

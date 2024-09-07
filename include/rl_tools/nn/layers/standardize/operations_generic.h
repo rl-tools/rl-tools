@@ -6,7 +6,6 @@
 #include "../../../containers/matrix/matrix.h"
 
 #include "../../../nn/nn.h"
-#include "../../../nn/mode.h"
 #include "../../../nn/parameters/parameters.h"
 #include "layer.h"
 
@@ -160,7 +159,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename MODE>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::standardize::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        if constexpr(mode::is<MODE, mode::is_nan::ParametersOnly>){
+        if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return false;
         }
         return is_nan(device, l.mean, mode) || is_nan(device, l.precision, mode);
@@ -172,7 +171,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename MODE>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::standardize::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool upstream_nan = is_nan(device, static_cast<rl_tools::nn::layers::standardize::LayerBackward<SPEC>&>(l), mode);
-        if constexpr(mode::is<MODE, mode::is_nan::ParametersOnly>){
+        if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return upstream_nan;
         }
         return upstream_nan || is_nan(device, l.output, mode);

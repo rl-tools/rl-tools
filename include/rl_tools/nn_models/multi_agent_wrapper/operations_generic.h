@@ -5,7 +5,6 @@
 
 #include "model.h"
 #include "../../utils/generic/typing.h"
-#include "../../nn/mode.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename MODULE_SPEC>

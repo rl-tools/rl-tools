@@ -763,7 +763,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename MODE>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::gru::LayerForward<SPEC>&>(l), mode);
-        if constexpr(mode::is<MODE, mode::is_nan::ParametersOnly>){
+        if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return upstream_nan;
         }
         return upstream_nan || is_nan(device, l.post_activation, mode) || is_nan(device, l.n_pre_pre_activation, mode) || is_nan(device, l.output, mode);
