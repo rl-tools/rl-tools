@@ -13,7 +13,8 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using NEXT = T_NEXT;
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
-        rl::utils::evaluation::Result<typename CONFIG::EVALUATION_RESULT_SPEC> evaluation_results[CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS];
+        using RESULT_TYPE = rl::utils::evaluation::Result<typename CONFIG::EVALUATION_RESULT_SPEC>;
+        MatrixDynamic<matrix::Specification<RESULT_TYPE, TI, 1, CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS>> evaluation_results;
         typename CONFIG::RNG rng_eval;
         Mode<nn::layers::gru::StepByStepMode<typename CONFIG::EVALUATION_PARAMETERS::EVALUATION_MODE, nn::layers::gru::StepByStepModeSpecification<TI>>> evaluation_mode;
         typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES> actor_deterministic_evaluation_buffers;

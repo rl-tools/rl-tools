@@ -96,7 +96,7 @@ namespace rl_tools{
             ::free(original_pointer);
     #else
             char* original_pointer = *((char**)original_pointer_storage);
-            delete original_pointer;
+            delete[] original_pointer;
     #endif
 #else
         #ifdef RL_TOOLS_CONTAINERS_USE_MALLOC

@@ -20,6 +20,7 @@ namespace rl_tools{
         using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         malloc(device, ts.env_eval);
         malloc(device, ts.actor_deterministic_evaluation_buffers);
+        malloc(device, ts.evaluation_results);
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
@@ -27,6 +28,7 @@ namespace rl_tools{
         using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         free(device, ts.env_eval);
         free(device, ts.actor_deterministic_evaluation_buffers);
+        free(device, ts.evaluation_results);
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
@@ -48,7 +50,7 @@ namespace rl_tools{
         if constexpr(PARAMETERS::DETERMINISTIC_EVALUATION == true){
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;
             if(ts.step % PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < PARAMETERS::N_EVALUATIONS){
-                auto& result = ts.evaluation_results[evaluation_index];
+                auto& result = get(ts.evaluation_results, 0, evaluation_index);
                 evaluate(device, ts.env_eval, ts.ui, get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, ts.evaluation_mode, false);
                 log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
                 add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
