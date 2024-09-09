@@ -305,7 +305,7 @@ namespace rl_tools{
         // we minimize the negative of the actor loss
         // todo: evaluate only backpropagating the active values
         // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
-        set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
+        set_all(device, training_buffers.d_output, (T)-1/(BATCH_SIZE*SPEC::PARAMETERS::SEQUENCE_LENGTH)); // we take the mean over the batch size and sequence length
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers, reset_mode);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
         min_value_d_output(device, actor_critic, training_buffers);

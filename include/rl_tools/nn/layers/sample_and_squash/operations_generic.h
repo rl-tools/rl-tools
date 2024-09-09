@@ -318,7 +318,7 @@ namespace rl_tools{
             d_log_alpha += backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
         add_scalar(device, device.logger, "actor_alpha", alpha, 100);
-        increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
+        increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/ACTUAL_BATCH_SIZE); // note if changing the BATCH_SIZE to ACTUAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
     }
     template<typename DEVICE, typename SPEC>
     constexpr auto& output(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& l){

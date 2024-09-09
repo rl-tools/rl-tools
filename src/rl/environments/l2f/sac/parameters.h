@@ -77,17 +77,17 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
 //    static constexpr bool ADAPTIVE_ALPHA = true;
 //    static constexpr bool SHARED_BATCH = false;
 //    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-3;
+//        static constexpr T ALPHA = 1e-2;
 //        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
 //        static constexpr T BIAS_LR_FACTOR = 1;
 //    };
 //    struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-3;
+//        static constexpr T ALPHA = 1e-2;
 //        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
 //        static constexpr T BIAS_LR_FACTOR = 1;
 //    };
 //    struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-3;
+//        static constexpr T ALPHA = 1e-2;
 //        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
 //        static constexpr T BIAS_LR_FACTOR = 1;
 //    };
