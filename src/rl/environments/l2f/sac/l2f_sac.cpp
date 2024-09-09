@@ -77,8 +77,8 @@ int main(){
     DEVICE device;
     LOOP_STATE ts;
     ts.extrack_name = "sequential";
-    ts.extrack_population_variates = "algorithm_environment";
-    ts.extrack_population_values = "sac_l2f";
+    ts.extrack_population_variates = "algorithm_environment_seq-len";
+    ts.extrack_population_values = std::string("sac_l2f_") + std::to_string(SEQUENCE_LENGTH);
     rlt::malloc(device);
     rlt::init(device);
     rlt::malloc(device, ts);
