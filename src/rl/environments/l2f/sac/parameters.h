@@ -1,4 +1,4 @@
-constexpr TI SEQUENCE_LENGTH = 8;
+constexpr TI SEQUENCE_LENGTH = 100;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 100;
 constexpr TI NUM_CHECKPOINTS = 10;
@@ -63,9 +63,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
     };
-    static constexpr TI N_WARMUP_STEPS = 50000;
+    static constexpr TI N_WARMUP_STEPS = 1000;
     static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
-    static constexpr TI N_WARMUP_STEPS_ACTOR = 100000;
+    static constexpr TI N_WARMUP_STEPS_ACTOR = 1000;
     static constexpr TI STEP_LIMIT = 1000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_HIDDEN_DIM = 32;
@@ -77,17 +77,17 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
 //    static constexpr bool ADAPTIVE_ALPHA = true;
 //    static constexpr bool SHARED_BATCH = false;
 //    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-2;
+//        static constexpr T ALPHA = 1e-3;
 //        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
 //        static constexpr T BIAS_LR_FACTOR = 1;
 //    };
 //    struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-2;
+//        static constexpr T ALPHA = 1e-3;
 //        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
 //        static constexpr T BIAS_LR_FACTOR = 1;
 //    };
 //    struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-//        static constexpr T ALPHA = 1e-2;
+//        static constexpr T ALPHA = 1e-3;
 //        static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
 //        static constexpr T BIAS_LR_FACTOR = 1;
 //    };
