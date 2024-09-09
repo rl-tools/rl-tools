@@ -240,7 +240,9 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
-        constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
+        using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
+        constexpr TI BATCH_SIZE = LAYER::BATCH_SIZE;
+        constexpr TI ACTUAL_BATCH_SIZE = LAYER::ACTUAL_BATCH_SIZE;
 /*
         Gradient of the loss function:
         mu, std = policy(observation)
@@ -306,11 +308,13 @@ namespace rl_tools{
     void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
+        using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
+        constexpr TI BATCH_SIZE = LAYER::BATCH_SIZE;
+        constexpr TI ACTUAL_BATCH_SIZE = LAYER::ACTUAL_BATCH_SIZE;
         T log_alpha = get(layer.log_alpha.parameters, 0, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
         T d_log_alpha = 0;
-        for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+        for(TI batch_i = 0; batch_i < ACTUAL_BATCH_SIZE; batch_i++){
             d_log_alpha += backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
         add_scalar(device, device.logger, "actor_alpha", alpha, 100);

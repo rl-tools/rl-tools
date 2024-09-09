@@ -71,7 +71,8 @@ namespace rl_tools{
             static constexpr TI DIM = SPEC::DIM;
             static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
-            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
+            static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
+            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, INPUT_DIM>;
             using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
             static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
             template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG>
@@ -79,19 +80,19 @@ namespace rl_tools{
         };
         template<typename SPEC>
         struct LayerBackward: public LayerForward<SPEC> {
-            static constexpr typename SPEC::TI BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
+            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
             // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
-            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BATCH_SIZE, SPEC::DIM>;
+            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, ACTUAL_BATCH_SIZE, SPEC::DIM>;
             using PRE_ACTIVATIONS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
             PRE_ACTIVATIONS_CONTAINER_TYPE pre_squashing, noise;
         };
         template<typename SPEC>
         struct LayerGradient: public LayerBackward<SPEC> {
-            static constexpr typename SPEC::TI BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
-            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, BATCH_SIZE>;
+            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
+            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, ACTUAL_BATCH_SIZE>;
             using LOG_PROBABILITIES_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<LOG_PROBABILITIES_CONTAINER_SPEC>;
             LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
-            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BATCH_SIZE, SPEC::DIM>;
+            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, ACTUAL_BATCH_SIZE, SPEC::DIM>;
             using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
             OUTPUT_CONTAINER_TYPE output;
             using ALPHA_CONTAINER = typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, 1>>;

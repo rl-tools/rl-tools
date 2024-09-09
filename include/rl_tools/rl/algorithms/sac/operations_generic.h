@@ -207,8 +207,8 @@ namespace rl_tools{
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
         nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
         T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, 0.5);
-        add_scalar(device, device.logger, "critic_loss", loss, 100);
-        add_scalar(device, device.logger, "critic_value", get(output_matrix_view, 0, 0), 100);
+        add_scalar(device, device.logger, "critic_loss", loss, 1000);
+        add_scalar(device, device.logger, "critic_value", get(output_matrix_view, 0, 0), 1000);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
         step(device, optimizer, critic);
     }
