@@ -144,6 +144,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> terminated;
         typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> truncated;
         typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> reset;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> final_step_mask;
     };
 
     template<typename SPEC>

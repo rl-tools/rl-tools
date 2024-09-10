@@ -370,6 +370,8 @@ namespace rl_tools{
             }
             template <typename DEVICE, typename T>
             using Sum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::sum<DEVICE, OperationEmptyParameter, T, T>>;
+            template <typename TARGET_TYPE, typename DEVICE, typename T>
+            using CastSum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::sum<DEVICE, OperationEmptyParameter, TARGET_TYPE, TARGET_TYPE>>;
             template <typename DEVICE, typename T>
             using IsNan = UnaryReduceOperation<OperationEmptyParameter, bool, T, impl::is_nan<DEVICE, OperationEmptyParameter, T>>;
             template <typename DEVICE, typename T>
@@ -585,7 +587,7 @@ namespace rl_tools{
         else{
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
                 T t_value = get(device, t, i);
-                accumulator = UNARY_REDUCE_OPERATION(device.math, op.parameter, accumulator, t_value);
+                accumulator = UNARY_REDUCE_OPERATION(device.math, op.parameter, accumulator, static_cast<CURRENT_TYPE>(t_value));
             }
             return accumulator;
         }
@@ -597,7 +599,14 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC>
     typename SPEC::T sum(DEVICE& device, Tensor<SPEC>& t){
+        static_assert(!utils::typing::is_same_v<typename SPEC::T, bool>, "Sum would work like or for boolean tensors");
         tensor::unary_reduce_operations::Sum<decltype(device.math), typename SPEC::T> op;
+        op.initial_value = 0;
+        return unary_associative_reduce(device, op, t);
+    }
+    template<typename TARGET_TYPE, typename DEVICE, typename SPEC>
+    TARGET_TYPE cast_sum(DEVICE& device, Tensor<SPEC>& t){
+        tensor::unary_reduce_operations::CastSum<TARGET_TYPE, decltype(device.math), TARGET_TYPE> op;
         op.initial_value = 0;
         return unary_associative_reduce(device, op, t);
     }

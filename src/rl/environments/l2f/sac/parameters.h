@@ -1,6 +1,6 @@
-constexpr TI SEQUENCE_LENGTH = 100;
+constexpr TI SEQUENCE_LENGTH = 10;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 8;
+constexpr TI BATCH_SIZE = 32;
 constexpr TI NUM_CHECKPOINTS = 10;
 //struct ENVIRONMENT_PARAMETERS{
 //    constexpr static TI HORIZON = 100;
@@ -62,7 +62,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
-        static constexpr bool MASK_NON_TERMINAL = false;
+        static constexpr bool MASK_NON_TERMINAL = true;
     };
     static constexpr TI N_WARMUP_STEPS = 1000;
     static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;

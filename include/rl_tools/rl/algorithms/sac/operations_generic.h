@@ -128,13 +128,6 @@ namespace rl_tools{
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
         auto next_state_action_value_critic_1_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_1);
         auto next_state_action_value_critic_2_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_2);
-        auto reset_matrix = matrix_view(device, batch.reset);
-        bool reset = get(reset_matrix, 0, batch_step_i);
-        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
-            if(!reset){
-                return;
-            }
-        }
         T min_next_state_action_value = math::min(device.math,
                                                   get(next_state_action_value_critic_1_matrix_view, batch_step_i, 0),
                                                   get(next_state_action_value_critic_2_matrix_view, batch_step_i, 0)
@@ -169,8 +162,8 @@ namespace rl_tools{
             target_action_values_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
         }
     }
-    template <typename DEVICE, typename SOURCE_SPEC>
-    void mask_actions(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<SOURCE_SPEC>& target, Tensor<SOURCE_SPEC>& mask, bool invert_mask=false){
+    template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, typename MASK_SPEC>
+    void mask_actions(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
         using T = typename SOURCE_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
@@ -181,7 +174,7 @@ namespace rl_tools{
             for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                 auto source_batch_step_view = view(device, source_seq_step_view, batch_step_i);
                 auto target_batch_step_view = view(device, target_seq_step_view, batch_step_i);
-                bool reset = get(device, mask, seq_step_i, batch_step_i);
+                bool reset = get(device, mask, seq_step_i, batch_step_i, 0);
                 if(invert_mask){
                     reset = !reset;
                 }
@@ -191,8 +184,8 @@ namespace rl_tools{
             }
         }
     }
-    template <typename DEVICE, typename SOURCE_SPEC>
-    void mask_gradient(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<SOURCE_SPEC>& mask, bool invert_mask=false){
+    template <typename DEVICE, typename SOURCE_SPEC, typename MASK_SPEC>
+    void mask_gradient(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
         using T = typename SOURCE_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
@@ -201,7 +194,7 @@ namespace rl_tools{
             auto gradient_seq_step_view = view(device, gradient, seq_step_i);
             for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                 auto gradient_batch_step_view = view(device, gradient_seq_step_view, batch_step_i);
-                bool reset = get(device, mask, seq_step_i, batch_step_i);
+                bool reset = get(device, mask, seq_step_i, batch_step_i, 0);
                 if(invert_mask){
                     reset = !reset;
                 }
@@ -241,7 +234,7 @@ namespace rl_tools{
         forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng, reset_mode_sas); // forward instead of evaluate because we need the log_probabilities later in this operation
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             // using the original next actions for non-terminal steps
-            mask_actions(device, batch.next_actions, training_buffers.next_actions_mean, batch.reset, true);
+            mask_actions(device, batch.next_actions, training_buffers.next_actions_mean, batch.final_step_mask, true);
         }
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
@@ -258,11 +251,24 @@ namespace rl_tools{
         auto output_matrix_view = matrix_view(device, output(device, critic));
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
-        nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
+        T loss_weight = 0.5;
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
-            mask_gradient(device, training_buffers.d_output, batch.reset, true);
+            T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+            utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
+            loss_weight *= SEQUENCE_LENGTH * BATCH_SIZE / num_final_steps; // reweight the loss by the number of non-masked outputs
         }
-        T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, 0.5);
+
+        nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, loss_weight); // SB3/SBX uses 1/2, CleanRL doesn't
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
+            mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
+        }
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
+            // for the loss and average value calculation
+            auto output_temp = output(device, critic);
+            mask_gradient(device, output_temp, batch.final_step_mask, true);
+            mask_gradient(device, training_buffers.target_action_value, batch.final_step_mask, true);
+        }
+        T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, loss_weight);
         add_scalar(device, device.logger, "critic_loss", loss, 1000);
         add_scalar(device, device.logger, "critic_value", get(output_matrix_view, 0, 0), 1000);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
@@ -356,7 +362,7 @@ namespace rl_tools{
         reset_mode.reset_container = batch.reset;
         forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng, reset_mode_sas);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
-            mask_actions(device, batch.actions, training_buffers.actions, batch.reset, true);
+            mask_actions(device, batch.actions, training_buffers.actions, batch.final_step_mask, true);
         }
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
@@ -364,15 +370,22 @@ namespace rl_tools{
         // we minimize the negative of the actor loss
         // todo: evaluate only backpropagating the active values
         // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
-        set_all(device, training_buffers.d_output, (T)-1/(BATCH_SIZE*SPEC::PARAMETERS::SEQUENCE_LENGTH)); // we take the mean over the batch size and sequence length
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
-            mask_gradient(device, training_buffers.d_output, batch.reset, true);
+            T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+            utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
+            set_all(device, training_buffers.d_output, (T)-1/num_final_steps); // we only take the mean over the non-masked outputs
+        }
+        else{
+            set_all(device, training_buffers.d_output, (T)-1/(BATCH_SIZE*SPEC::PARAMETERS::SEQUENCE_LENGTH)); // we take the mean over the batch size and sequence length
+        }
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
+            mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers, reset_mode);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
         min_value_d_output(device, actor_critic, training_buffers);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
-            mask_gradient(device, training_buffers.d_actor_output_squashing, batch.reset, true);
+            mask_gradient(device, training_buffers.d_actor_output_squashing, batch.final_step_mask, true);
         }
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers, reset_mode_sas);
         step(device, optimizer, actor_critic.actor);

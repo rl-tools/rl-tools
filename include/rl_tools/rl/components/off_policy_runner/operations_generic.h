@@ -86,6 +86,7 @@ namespace rl_tools{
         malloc(device, batch.terminated);
         malloc(device, batch.truncated);
         malloc(device, batch.reset);
+        malloc(device, batch.final_step_mask);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
@@ -140,6 +141,7 @@ namespace rl_tools{
         free(device, batch.terminated);
         free(device, batch.truncated);
         free(device, batch.reset);
+        free(device, batch.final_step_mask);
     }
     template<typename DEVICE, typename SPEC>
     void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
@@ -268,6 +270,13 @@ namespace rl_tools{
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTH;
         TI sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
         TI sample_index;
+        constexpr bool RANDOM_SEQ_LENGTH = true;
+
+        TI current_seq_length = SEQUENCE_LENGTH;
+        if(RANDOM_SEQ_LENGTH){
+            current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
+        }
+        TI current_seq_step = 0;
 
         bool previous_step_truncated = true;
         for(typename DEVICE::index_t seq_step_i=0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++) {
@@ -329,11 +338,28 @@ namespace rl_tools{
             set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i, 0);
             set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i, 0);
             set(device, batch.reset, previous_step_truncated, seq_step_i, batch_step_i, 0);
+            if(seq_step_i > 0){
+                set(device, batch.final_step_mask, previous_step_truncated, seq_step_i-1, batch_step_i, 0);
+            }
+            else{
+                // seq_step_i == 0
+                set(device, batch.final_step_mask, true, SEQUENCE_LENGTH-1, batch_step_i, 0);
+            }
             bool truncated = get(replay_buffer.truncated, sample_index, 0);
             set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
             sample_index = sample_index + 1;
             sample_index = sample_index % (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position);
             previous_step_truncated = truncated || sample_index == 0;
+            if constexpr(RANDOM_SEQ_LENGTH) {
+                if (current_seq_step == current_seq_length - 1) {
+                    current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
+                    current_seq_step = 0;
+                    previous_step_truncated = true;
+                }
+                else{
+                    current_seq_step += 1;
+                }
+            }
         }
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
