@@ -263,7 +263,6 @@ namespace rl_tools{
         d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
         d/d_mu action = d/d_action_sample tanh(action_sample) * d/d_mu action_sample
 */
-        T d_alpha = 0;
         T entropy = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T action = get(layer.output, batch_i, action_i); // tanh(action_sample)
@@ -301,7 +300,10 @@ namespace rl_tools{
         if(batch_i == 0){
             add_scalar(device, device.logger, "actor_entropy", entropy, 100);
         }
-        d_alpha += entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
+        T d_alpha = entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
+        if(batch_i == 0){
+            add_scalar(device, device.logger, "actor_d_alpha", d_alpha, 100);
+        }
         return alpha*d_alpha; // d_log_alpha
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
