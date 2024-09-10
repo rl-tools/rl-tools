@@ -137,6 +137,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
         OANO_VIEW<OBSERVATION_DIM> next_observations;
         OANO_VIEW<ACTION_DIM> next_actions;
+        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> next_observations_and_actions;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
 
         typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> rewards;

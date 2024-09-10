@@ -73,13 +73,14 @@ namespace rl_tools{
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         malloc(device, batch.observations_actions_next_observations);
         typename DEVICE::index_t offset = 0;
-        batch.observations                 = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM>{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
-        batch.observations_and_actions     = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>{});
-        batch.observations_privileged      = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
-        batch.actions                      = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
-        batch.next_observations            = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM                               >{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
-        batch.next_observations_privileged = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
-        batch.next_actions                 = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
+        batch.observations                  = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM>{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
+        batch.observations_and_actions      = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>{});
+        batch.observations_privileged       = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
+        batch.actions                       = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
+        batch.next_observations             = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM                               >{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
+        batch.next_observations_and_actions = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>{});
+        batch.next_observations_privileged  = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
+        batch.next_actions                  = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
 
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
@@ -127,13 +128,14 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch){
         free(device, batch.observations_actions_next_observations);
-        batch.observations.                _data = nullptr;
-        batch.observations_privileged.     _data = nullptr;
-        batch.observations_and_actions.    _data = nullptr;
-        batch.actions.                     _data = nullptr;
-        batch.next_observations.           _data = nullptr;
-        batch.next_observations_privileged._data = nullptr;
-        batch.next_actions.                _data = nullptr;
+        batch.observations.                 _data = nullptr;
+        batch.observations_privileged.      _data = nullptr;
+        batch.observations_and_actions.     _data = nullptr;
+        batch.actions.                      _data = nullptr;
+        batch.next_observations.            _data = nullptr;
+        batch.next_observations_privileged ._data = nullptr;
+        batch.next_observations_and_actions._data = nullptr;
+        batch.next_actions.                 _data = nullptr;
         free(device, batch.rewards);
         free(device, batch.terminated);
         free(device, batch.truncated);
@@ -177,9 +179,9 @@ namespace rl_tools{
             step_by_step_mode.reset = get(runner.truncated, 0, 0);
             step_by_step_mode.step = get(runner.episode_step, 0, 0);
             static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
-            check(device, observation_view_tensor_unsqueezed, "off_policy_runner::observation_view_tensor_unsqueezed");
+//            check(device, observation_view_tensor_unsqueezed, "off_policy_runner::observation_view_tensor_unsqueezed");
             evaluate(device, policy, observation_view_tensor_unsqueezed, action_view_tensor_unsqueezed, policy_eval_buffers, rng, step_by_step_mode);
-            check(device, action_view_tensor_unsqueezed, "off_policy_runner::action_view_tensor_unsqueezed");
+//            check(device, action_view_tensor_unsqueezed, "off_policy_runner::action_view_tensor_unsqueezed");
         }
 
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>

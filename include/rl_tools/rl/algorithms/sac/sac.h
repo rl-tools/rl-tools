@@ -21,6 +21,7 @@ namespace rl_tools::rl::algorithms::sac {
         static constexpr TI SEQUENCE_LENGTH = 1;
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
+        static constexpr bool MASK_NON_TERMINAL = false;
     };
 
     template<

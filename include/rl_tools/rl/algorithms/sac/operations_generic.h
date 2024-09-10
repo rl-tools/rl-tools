@@ -128,6 +128,13 @@ namespace rl_tools{
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
         auto next_state_action_value_critic_1_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_1);
         auto next_state_action_value_critic_2_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_2);
+        auto reset_matrix = matrix_view(device, batch.reset);
+        bool reset = get(reset_matrix, 0, batch_step_i);
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
+            if(!reset){
+                return;
+            }
+        }
         T min_next_state_action_value = math::min(device.math,
                                                   get(next_state_action_value_critic_1_matrix_view, batch_step_i, 0),
                                                   get(next_state_action_value_critic_2_matrix_view, batch_step_i, 0)
@@ -162,6 +169,48 @@ namespace rl_tools{
             target_action_values_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
         }
     }
+    template <typename DEVICE, typename SOURCE_SPEC>
+    void mask_actions(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<SOURCE_SPEC>& target, Tensor<SOURCE_SPEC>& mask, bool invert_mask=false){
+        using T = typename SOURCE_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
+        constexpr TI BATCH_SIZE = get<1>(typename SOURCE_SPEC::SHAPE{});
+        for(TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
+            auto source_seq_step_view = view(device, source, seq_step_i);
+            auto target_seq_step_view = view(device, target, seq_step_i);
+            for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
+                auto source_batch_step_view = view(device, source_seq_step_view, batch_step_i);
+                auto target_batch_step_view = view(device, target_seq_step_view, batch_step_i);
+                bool reset = get(device, mask, seq_step_i, batch_step_i);
+                if(invert_mask){
+                    reset = !reset;
+                }
+                if(reset){
+                    copy(device, device, source_batch_step_view, target_batch_step_view);
+                }
+            }
+        }
+    }
+    template <typename DEVICE, typename SOURCE_SPEC>
+    void mask_gradient(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<SOURCE_SPEC>& mask, bool invert_mask=false){
+        using T = typename SOURCE_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
+        constexpr TI BATCH_SIZE = get<1>(typename SOURCE_SPEC::SHAPE{});
+        for(TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
+            auto gradient_seq_step_view = view(device, gradient, seq_step_i);
+            for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
+                auto gradient_batch_step_view = view(device, gradient_seq_step_view, batch_step_i);
+                bool reset = get(device, mask, seq_step_i, batch_step_i);
+                if(invert_mask){
+                    reset = !reset;
+                }
+                if(reset){
+                    set_all(device, gradient_batch_step_view, 0);
+                }
+            }
+        }
+    }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC, typename RNG>
     void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -187,14 +236,18 @@ namespace rl_tools{
 //        Mode<SAMPLE_AND_SQUASH_MODE> reset_mode, reset_mode_sas;
         using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
         using RESET_MODE_SAS = nn::layers::gru::ResetMode<SAMPLE_AND_SQUASH_MODE, RESET_MODE_SAS_SPEC>;
-        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
-        using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
         Mode<RESET_MODE_SAS> reset_mode_sas;
         reset_mode_sas.reset_container = batch.reset;
+        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng, reset_mode_sas); // forward instead of evaluate because we need the log_probabilities later in this operation
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
+            // using the original next actions for non-terminal steps
+            mask_actions(device, batch.next_actions, training_buffers.next_actions_mean, batch.reset, true);
+        }
+        copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
+        using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
         Mode<RESET_MODE> reset_mode;
         reset_mode.reset_container = batch.reset;
-        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng, reset_mode_sas);
-        copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, reset_mode);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, reset_mode);
 
@@ -206,6 +259,9 @@ namespace rl_tools{
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
         nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
+            mask_gradient(device, training_buffers.d_output, batch.reset, true);
+        }
         T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, 0.5);
         add_scalar(device, device.logger, "critic_loss", loss, 1000);
         add_scalar(device, device.logger, "critic_value", get(output_matrix_view, 0, 0), 1000);
@@ -299,6 +355,9 @@ namespace rl_tools{
         Mode<RESET_MODE> reset_mode;
         reset_mode.reset_container = batch.reset;
         forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng, reset_mode_sas);
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
+            mask_actions(device, batch.actions, training_buffers.actions, batch.reset, true);
+        }
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
         forward(device, actor_critic.critic_2, training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
@@ -306,9 +365,15 @@ namespace rl_tools{
         // todo: evaluate only backpropagating the active values
         // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
         set_all(device, training_buffers.d_output, (T)-1/(BATCH_SIZE*SPEC::PARAMETERS::SEQUENCE_LENGTH)); // we take the mean over the batch size and sequence length
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
+            mask_gradient(device, training_buffers.d_output, batch.reset, true);
+        }
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers, reset_mode);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
         min_value_d_output(device, actor_critic, training_buffers);
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
+            mask_gradient(device, training_buffers.d_actor_output_squashing, batch.reset, true);
+        }
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers, reset_mode_sas);
         step(device, optimizer, actor_critic.actor);
         step(device, actor_critic.alpha_optimizer, get_last_layer(actor_critic.actor).log_alpha);
