@@ -271,10 +271,16 @@ namespace rl_tools{
         TI sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
         TI sample_index;
         constexpr bool RANDOM_SEQ_LENGTH = true;
+        constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
 
         TI current_seq_length = SEQUENCE_LENGTH;
-        if(RANDOM_SEQ_LENGTH){
-            current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
+        if constexpr(RANDOM_SEQ_LENGTH){
+            if(random::uniform_real_distribution(device.random, 0.0, 1.0, rng) < NOMINAL_SEQUENCE_LENGTH_PROBABILITY){
+                current_seq_length = SEQUENCE_LENGTH;
+            }
+            else{
+                current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
+            }
         }
         TI current_seq_step = 0;
 
