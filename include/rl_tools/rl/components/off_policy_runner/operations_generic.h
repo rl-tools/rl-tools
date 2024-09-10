@@ -79,6 +79,7 @@ namespace rl_tools{
         batch.actions                      = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
         batch.next_observations            = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM                               >{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
         batch.next_observations_privileged = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
+        batch.next_actions                 = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
 
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
@@ -132,6 +133,7 @@ namespace rl_tools{
         batch.actions.                     _data = nullptr;
         batch.next_observations.           _data = nullptr;
         batch.next_observations_privileged._data = nullptr;
+        batch.next_actions.                _data = nullptr;
         free(device, batch.rewards);
         free(device, batch.terminated);
         free(device, batch.truncated);
@@ -293,6 +295,18 @@ namespace rl_tools{
             auto action_source_tensor = to_tensor(device, action_source);
             auto action_source_tensor_squeezed = squeeze(device, action_source_tensor);
             copy(device, device, action_source_tensor_squeezed, action_target);
+
+            if(seq_step_i >= 1 && !previous_step_truncated){
+                auto next_action_target_sequence = view<0>(device, batch.next_actions, seq_step_i-1); // <<= -1 is important!
+                auto next_action_target = view<0>(device, next_action_target_sequence, batch_step_i);
+                copy(device, device, action_source_tensor_squeezed, next_action_target);
+            }
+            else{
+                TI target_index = seq_step_i == 0 ? SEQUENCE_LENGTH-1 : seq_step_i-1;
+                auto next_action_target_sequence = view<0>(device, batch.next_actions, target_index);
+                auto next_action_target = view<0>(device, next_action_target_sequence, batch_step_i);
+                set_all(device, next_action_target, math::nan<T>(device.math)); // setting the empty slot to nan that is filled by the current actor
+            }
 
             auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i);
             auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);

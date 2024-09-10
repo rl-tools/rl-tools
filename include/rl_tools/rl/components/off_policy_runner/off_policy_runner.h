@@ -125,7 +125,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = SPEC::OBSERVATION_DIM_PRIVILEGED;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM + OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL;
+        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM + OBSERVATION_DIM + ACTION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL;
         typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, DATA_DIM>>> observations_actions_next_observations;
 
         template<typename SPEC::TI DIM>
@@ -136,6 +136,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         OANO_VIEW<ACTION_DIM> actions;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
         OANO_VIEW<OBSERVATION_DIM> next_observations;
+        OANO_VIEW<ACTION_DIM> next_actions;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
 
         typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> rewards;
