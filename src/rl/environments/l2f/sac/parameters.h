@@ -16,24 +16,34 @@ namespace env_param_builder{
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
             using STATE_BASE = StateBase<T, TI>;
-            using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
-            using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
+            using STATE_TYPE_ACTION_HISTORY = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
+            using STATE_TYPE = StateRotors<T, TI, StateRandomForce<T, TI, STATE_BASE>>;
+            using OBSERVATION_TYPE_NORMAL = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
-            using OBSERVATION_TYPE_PRIVILEGED = observation::Position<observation::PositionSpecificationPrivileged<T, TI,
+            using OBSERVATION_TYPE_PRIVILEGED_NORMAL = observation::Position<observation::PositionSpecificationPrivileged<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
                     observation::RandomForce<observation::RandomForceSpecification<T, TI,
-                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>
-            >
-            >
-            >>
-            >>
-            >>
-            >>;
+                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>;
+            using OBSERVATION_TYPE_PARTIALLY_OBSERVED =
+                    observation::Position<observation::PositionSpecification<T, TI,
+                    observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
+                    observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
+                    observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI
+                    >>>>>>>>;
+            using OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED =
+                    observation::Position<observation::PositionSpecificationPrivileged<T, TI,
+                    observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
+                    observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
+                    observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
+                    observation::RandomForce<observation::RandomForceSpecification<T, TI,
+                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>;
+            using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;
+            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = parameters;
@@ -123,6 +133,6 @@ struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectorie
 };
 using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_CHECKPOINT_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_SAVE_TRAJECTORIES_CONFIG>;
-using LOOP_CONFIG = LOOP_TIMING_CONFIG;
-//using LOOP_CONFIG = LOOP_EXTRACK_CONFIG;
+//using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+using LOOP_CONFIG = LOOP_EXTRACK_CONFIG;
 #endif

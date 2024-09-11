@@ -67,6 +67,7 @@ namespace rl_tools::rl::environments::l2f{
                 T orientation;
                 T linear_velocity;
                 T angular_velocity;
+                T imu_acceleration;
             };
             struct ActionNoise{
                 T normalized_rpm; // std of additive gaussian noise onto the normalized action (-1, 1)
@@ -268,26 +269,6 @@ namespace rl_tools::rl::environments::l2f{
         };
         template <typename SPEC>
         struct IMUAccelerometer{
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
-            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
-            static constexpr TI CURRENT_DIM = 3;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
-        };
-        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct IMUGyroscopeSpecification{
-            using T = T_T;
-            using TI = T_TI;
-            using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr bool PRIVILEGED = false;
-        };
-        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct IMUGyroscopeSpecificationPrivileged: IMUGyroscopeSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
-            static constexpr bool PRIVILEGED = true;
-        };
-        template <typename SPEC>
-        struct IMUGyroscope{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
