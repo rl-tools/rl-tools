@@ -1,4 +1,4 @@
-constexpr TI SEQUENCE_LENGTH = 100;
+constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 32;
 constexpr TI NUM_CHECKPOINTS = 10;
@@ -16,8 +16,8 @@ namespace env_param_builder{
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
             using STATE_BASE = StateBase<T, TI>;
-            using STATE_TYPE_ACTION_HISTORY = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
-            using STATE_TYPE = StateRotors<T, TI, StateRandomForce<T, TI, STATE_BASE>>;
+            using STATE_TYPE_NORMAL = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
+            using STATE_TYPE_PARTIAL_OBSERVED = StateRotors<T, TI, StateRandomForce<T, TI, STATE_BASE>>;
             using OBSERVATION_TYPE_NORMAL = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
@@ -42,8 +42,12 @@ namespace env_param_builder{
                     observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
                     observation::RandomForce<observation::RandomForceSpecification<T, TI,
                     observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>;
-            using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;
-            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED;
+//            using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;
+//            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED;
+//            using STATE_TYPE = STATE_TYPE_PARTIAL_OBSERVED;
+            using OBSERVATION_TYPE = OBSERVATION_TYPE_NORMAL;
+            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_NORMAL;
+            using STATE_TYPE = STATE_TYPE_NORMAL;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = parameters;
@@ -133,6 +137,6 @@ struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectorie
 };
 using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_CHECKPOINT_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_SAVE_TRAJECTORIES_CONFIG>;
-//using LOOP_CONFIG = LOOP_TIMING_CONFIG;
-using LOOP_CONFIG = LOOP_EXTRACK_CONFIG;
+using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+//using LOOP_CONFIG = LOOP_EXTRACK_CONFIG;
 #endif
