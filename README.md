@@ -46,12 +46,15 @@
 
 <div align="center">
   <a href="https://github.com/rl-tools/rl-tools/blob/master/src/rl/environments/mujoco/ant/ppo/cpu/training.h">
-    <img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" width='350'/>  
+    <img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" height='200'/>  
+  </a>
+  <a href="https://github.com/rl-tools/rl-tools/blob/master/src/rl/environments/mujoco/ant/ppo/cpu/training.h">
+    <img src="https://github.com/rl-tools/media/blob/master/bottleneck.gif" alt="animated" height='200'/>  
   </a>
 </div>
 
 <div align="center">
-    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> PPO
+    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> PPO/Multi-Agent PPO
 </div>
 </br>
 
