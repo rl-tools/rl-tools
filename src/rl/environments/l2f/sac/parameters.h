@@ -34,8 +34,9 @@ namespace env_param_builder{
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
+                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI,
                     observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI
-                    >>>>>>>>>>;
+                    >>>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED =
                     observation::Position<observation::PositionSpecificationPrivileged<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
@@ -85,11 +86,11 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI N_WARMUP_STEPS_ACTOR = 1000;
     static constexpr TI STEP_LIMIT = 10000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI ACTOR_HIDDEN_DIM = 128;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
-//    static constexpr T TARGET_ENTROPY = -4;
+    static constexpr T TARGET_ENTROPY = -8;
 //    static constexpr T ALPHA = 0.5;
 //    static constexpr bool ADAPTIVE_ALPHA = true;
 //    static constexpr bool SHARED_BATCH = false;

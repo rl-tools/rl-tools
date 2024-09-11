@@ -29,12 +29,19 @@ namespace rl_tools::rl::environments::l2f::parameters {
             0.01 // integration dt
         };
         static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+//        static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
+//            0.05, // position
+//            0.001, // orientation
+//            0.1, // linear_velocity
+//            0.2, // angular_velocity
+//            0.1, // imu acceleration
+//        };
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
-            0.05, // position
-            0.001, // orientation
-            0.1, // linear_velocity
-            0.2, // angular_velocity
-            0.1
+                0.0, // position
+                0.0, // orientation
+                0.0, // linear_velocity
+                0.0, // angular_velocity
+                0.0, // imu acceleration
         };
         static constexpr typename PARAMETERS_TYPE::MDP::ActionNoise action_noise = {
             0, // std of additive gaussian noise onto the normalized action (-1, 1)
