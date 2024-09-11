@@ -468,6 +468,5 @@ namespace rl_tools::rl::environments{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/registry.h"
-#include "parameters/default.h"
 
 #endif

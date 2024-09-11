@@ -676,8 +676,14 @@ namespace rl_tools{
             conjugate_orientation[2] = -state.orientation[2];
             conjugate_orientation[3] = -state.orientation[3];
 
+            T acceleration_observation_global[3];
+
+            acceleration_observation_global[0] = state.linear_acceleration[0] - parameters.dynamics.gravity[0];
+            acceleration_observation_global[1] = state.linear_acceleration[1] - parameters.dynamics.gravity[1];
+            acceleration_observation_global[2] = state.linear_acceleration[2] - parameters.dynamics.gravity[2];
+
             T acceleration_observation[3];
-            rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, state.linear_acceleration, acceleration_observation);
+            rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, acceleration_observation_global, acceleration_observation);
 
             for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
                 if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
@@ -935,5 +941,6 @@ namespace rl_tools{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
+#include "parameters/default.h"
 
 #endif

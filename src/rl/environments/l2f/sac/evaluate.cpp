@@ -187,18 +187,31 @@ int main(){
     rlt::init(device, env, parameters, ui);
     TI step = 0;
     mode.reset = true;
-    rlt::sample_initial_state(device, env, parameters, state, rng);
+    bool truncated = true;
+    T cumulative_rewards = 0;
     while(true){
+        if(truncated){
+            rlt::sample_initial_state(device, env, parameters, state, rng);
+        }
         mode.step = step;
 
         rlt::observe(device, env, parameters, state, ENVIRONMENT::Observation{}, observation_matrix_view, rng);
         rlt::evaluate(device, actor, observation, action, buffer, rng, mode);
         T dt = rlt::step(device, env, parameters, state, action_matrix_view, next_state, rng);
         state = next_state;
+        T reward = rlt::reward(device, env, parameters, state, action_matrix_view, next_state, rng);
+        cumulative_rewards += reward;
 
         rlt::set_state(device, env, parameters, ui, state);
         std::this_thread::sleep_for(std::chrono::milliseconds((TI)(1000 * dt)));
-        mode.reset = false;
+        bool terminated = rlt::terminated(device, env, parameters, state, rng);
+        truncated = terminated || step >= 500;
+        mode.reset = truncated;
+        if(truncated){
+            std::cout << "Episode terminated after " << step << " steps with cumulative rewards: " << cumulative_rewards << std::endl;
+            step = 0;
+            cumulative_rewards = 0;
+        }
         step++;
     }
 
