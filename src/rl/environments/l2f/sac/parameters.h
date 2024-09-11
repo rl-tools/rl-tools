@@ -1,4 +1,4 @@
-constexpr TI SEQUENCE_LENGTH = 1;
+constexpr TI SEQUENCE_LENGTH = 10;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 32;
 constexpr TI NUM_CHECKPOINTS = 100;
@@ -34,9 +34,9 @@ namespace env_param_builder{
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
-                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI,
-                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI
-                    >>>>>>>>>>>>;
+                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI
+//                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI
+                    >>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED =
                     observation::Position<observation::PositionSpecificationPrivileged<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
