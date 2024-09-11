@@ -13,3 +13,6 @@ target_compile_options(rl_environments_l2f_sac PRIVATE -ftemplate-backtrace-limi
 #    target_compile_definitions(rl_environments_l2f_sac PRIVATE RL_TOOLS_ENABLE_TRACY)
 #endif()
 endif()
+
+add_executable(rl_environments_l2f_sac_evaluate evaluate.cpp)
+target_link_libraries(rl_environments_l2f_sac_evaluate PRIVATE rl_tools)

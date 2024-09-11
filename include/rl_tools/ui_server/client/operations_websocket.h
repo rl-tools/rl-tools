@@ -189,7 +189,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename ENVIRONMENT>
     void set_state(DEVICE& dev, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
-        ui_server::client::websocket::send_message(dev, ui, set_state_message(dev, env, ui, state));
+        ui_server::client::websocket::send_message(dev, ui, set_state_message(dev, env, parameters, ui, state));
     }
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
     void set_state(DEVICE& dev, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){

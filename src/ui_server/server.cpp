@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
 
     CLI::App app;
     uint16_t port = 13337; // default is 13337 so it does not clash with other services at e.g. 8000 or 8888
-    std::string ip = "127.0.0.1", static_path_stub = "static/ui_server", simulator = "2d", scenario = "default";
+    std::string ip = "127.0.0.1", static_path_stub = "static/ui_server", simulator = "generic", scenario = "default";
     bool verbose = false;
 #if defined(RL_TOOLS_RELEASE_WINDOWS)
     static_path_stub = "../share/rl_tools/static/ui_server";

@@ -18,6 +18,14 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
     </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./lib/three.module.js",
+                "three-orbitcontrols": "./lib/OrbitControls.js"
+            }
+        }
+    </script>
     <script>
         class Client{
             constructor(restart_callback){
@@ -119,31 +127,60 @@
             onResize();
             window.addEventListener('resize', onResize);
 
-            const ctx = canvas.getContext('2d');
+            let parameters = null
 
-            let render = null;
 
-            let parameters = {}
+            let episode_initialized = false
+            let ui_module = null;
+            let ui_state = null;
+            let state = null;
+
+
+            const renderLoop = async () => {
+                if(ui_module && ui_state && episode_initialized && state){
+                    await ui_module.render(ui_state, parameters, state.state, state.action)
+                }
+                requestAnimationFrame(renderLoop);
+            }
 
             const environmentCallbacks = {
                 setParametersCallback: (new_parameters)=>{
                     console.log('Parameters:', new_parameters);
                     parameters = new_parameters
                 },
-                setStateCallback: (state)=>{
-                    console.log('State:', state);
-                    info_container.textContent = (parseInt(info_container.textContent) + 1).toString()
-                    if(render && state.action){
-                        render(ctx, parameters, state.state, state.action)
+                setStateCallback: async (new_state)=>{
+                    console.log('State:', new_state);
+                    if(ui_module && ui_state){
+                        // render(ctx, parameters, state.state, state.action)
+                        if(!episode_initialized){
+                            episode_initialized = true
+                            if(!parameters){
+                                console.error('Parameters not set')
+                            }
+                            if(ui_module.episode_init){
+                                await ui_module.episode_init(ui_state, parameters)
+                            }
+                        }
+                        state = new_state
                     }
                 },
                 setActionCallback: (action)=>{
                     console.log('Action:', action);
                 },
-                setUICallback: (ui)=>{
+                setUICallback: async (ui)=>{
                     console.log('UI:', ui);
                     if(ui.type === "2d"){
-                        render = new Function("ctx", "parameters", "state", "action", ui.render_function)
+                        if(!ui_module){
+                            const blob = new Blob([ui.render_function], { type: 'application/javascript' });
+                            const url = URL.createObjectURL(blob);
+                            ui_module = await import(url)
+                            URL.revokeObjectURL(url);
+                            ui_state = await ui_module.init(canvas, {devicePixelRatio: window.devicePixelRatio})
+                            if(ui_state.cursor_grab){
+                                this.canvas.style.cursor = "grab"
+                            }
+                            renderLoop()
+                        }
                     }
                     else{
                         console.error('Unknown UI type:', ui.type)

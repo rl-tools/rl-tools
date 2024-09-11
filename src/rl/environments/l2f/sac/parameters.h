@@ -33,21 +33,23 @@ namespace env_param_builder{
                     observation::Position<observation::PositionSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                    observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI
-                    >>>>>>>>;
+                    observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
+                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI
+                    >>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED =
                     observation::Position<observation::PositionSpecificationPrivileged<T, TI,
+                    observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
                     observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
                     observation::RandomForce<observation::RandomForceSpecification<T, TI,
-                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>;
-//            using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;
-//            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED;
-//            using STATE_TYPE = STATE_TYPE_PARTIAL_OBSERVED;
-            using OBSERVATION_TYPE = OBSERVATION_TYPE_NORMAL;
-            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_NORMAL;
-            using STATE_TYPE = STATE_TYPE_NORMAL;
+                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>>>;
+            using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;
+            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED;
+            using STATE_TYPE = STATE_TYPE_PARTIAL_OBSERVED;
+//            using OBSERVATION_TYPE = OBSERVATION_TYPE_NORMAL;
+//            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_NORMAL;
+//            using STATE_TYPE = STATE_TYPE_NORMAL;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = parameters;

@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ENVIRONMENTS_L2F_MULTIROTOR_H
 
-#include <rl_tools/utils/generic/typing.h>
+#include "../../../utils/generic/typing.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
@@ -468,5 +468,6 @@ namespace rl_tools::rl::environments{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/registry.h"
+#include "parameters/default.h"
 
 #endif
