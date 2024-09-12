@@ -15,7 +15,7 @@ namespace env_param_builder{
     struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI>{
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
-            using STATE_BASE = StateBase<T, TI>;
+            using STATE_BASE = StateLinearAcceleration<T, TI, StateBase<T, TI>>;
             using STATE_TYPE_NORMAL = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
             using STATE_TYPE_PARTIAL_OBSERVED = StateRotors<T, TI, StateRandomForce<T, TI, STATE_BASE>>;
             using OBSERVATION_TYPE_NORMAL = observation::Position<observation::PositionSpecification<T, TI,

@@ -314,6 +314,10 @@ namespace rl_tools{
         for(TI i = 0; i < 3; i++){
             state.angular_velocity[i] = 0;
         }
+    }
+    template<typename DEVICE, typename T, typename TI, typename NEXT_COMPONENT, typename SPEC>
+    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StateLinearAcceleration<T, TI, NEXT_COMPONENT>& state){
+        initial_state(device, env, parameters, static_cast<NEXT_COMPONENT&>(state));
         for(TI i = 0; i < 3; i++){
             state.linear_acceleration[i] = 0;
         }
@@ -464,13 +468,18 @@ namespace rl_tools{
                 state.angular_velocity[i] = 0;
             }
         }
+    }
+    template<typename DEVICE, typename T_S, typename TI_S, typename SPEC, typename NEXT_COMPONENT, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StateLinearAcceleration<T_S, TI_S, NEXT_COMPONENT>& state, RNG& rng){
+        using TI = typename DEVICE::index_t;
+        sample_initial_state(device, env, parameters, static_cast<NEXT_COMPONENT&>(state), rng);
         for(TI i = 0; i < 3; i++){
             state.linear_acceleration[i] = 0;
         }
     }
     template<typename DEVICE, typename T_S, typename TI_S, typename SPEC, typename NEXT_COMPONENT, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StatePoseErrorIntegral<T_S, TI_S, NEXT_COMPONENT>& state, RNG& rng){
-        sample_initial_state(device, env, static_cast<NEXT_COMPONENT&>(state), rng);
+        sample_initial_state(device, env, parameters, static_cast<NEXT_COMPONENT&>(state), rng);
         state.position_integral = 0;
         state.orientation_integral = 0;
     }
@@ -862,6 +871,12 @@ namespace rl_tools{
             next_state.orientation[state_i] /= quaternion_norm;
         }
 
+    }
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T_S, typename TI_S, typename NEXT_COMPONENT, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::l2f::StateLinearAcceleration<T_S, TI_S, NEXT_COMPONENT>& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::l2f::StateLinearAcceleration<T_S, TI_S, NEXT_COMPONENT>& next_state, RNG& rng) {
+        using T = T_S;
+        using TI = TI_S;
+        post_integration(device, env, parameters, static_cast<const NEXT_COMPONENT&>(state), action, static_cast<NEXT_COMPONENT&>(next_state), rng);
         for(TI state_i = 0; state_i < 3; state_i++){
             next_state.linear_acceleration[state_i] = (next_state.linear_velocity[state_i] - state.linear_velocity[state_i])/parameters.integration.dt;
         }
