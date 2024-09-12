@@ -17,8 +17,8 @@ namespace rl_tools::rl::environments::l2f::parameters {
         constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
-//        static constexpr auto reward_function = rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T>;
-        static constexpr auto reward_function = rl_tools::rl::environments::l2f::parameters::reward_functions::squared_no_orientation<T>;
+        static constexpr auto reward_function = rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T>;
+//        static constexpr auto reward_function = rl_tools::rl::environments::l2f::parameters::reward_functions::squared_no_orientation<T>;
         using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
@@ -29,13 +29,13 @@ namespace rl_tools::rl::environments::l2f::parameters {
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             0.01 // integration dt
         };
-        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
-//        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
+//        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
-            0.05, // position
+            0.01, // position
             0.001, // orientation
-            0.1, // linear_velocity
-            0.2, // angular_velocity
+            0.01, // linear_velocity
+            0.02, // angular_velocity
             0.1, // imu acceleration
         };
 //        static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {

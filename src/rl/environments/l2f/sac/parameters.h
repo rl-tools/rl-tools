@@ -1,4 +1,4 @@
-constexpr TI SEQUENCE_LENGTH = 50;
+constexpr TI SEQUENCE_LENGTH = 10;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 64;
 constexpr TI NUM_CHECKPOINTS = 100;
@@ -35,10 +35,10 @@ namespace env_param_builder{
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
-                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI
-//                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
+                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI,
+                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
 //                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI
-                    >>>>>>>>>>;
+                    >>>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED =
                     observation::Position<observation::PositionSpecificationPrivileged<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
@@ -49,7 +49,7 @@ namespace env_param_builder{
                     observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>>>;
             using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED;
-            using STATE_TYPE = STATE_TYPE_PARTIAL_OBSERVED;
+            using STATE_TYPE = STATE_TYPE_NORMAL;
 //            using OBSERVATION_TYPE = OBSERVATION_TYPE_NORMAL;
 //            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_NORMAL;
 //            using STATE_TYPE = STATE_TYPE_NORMAL;
@@ -88,7 +88,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI N_WARMUP_STEPS_ACTOR = 1000;
     static constexpr TI STEP_LIMIT = 10000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI ACTOR_HIDDEN_DIM = 32;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;

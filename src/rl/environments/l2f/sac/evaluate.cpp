@@ -31,7 +31,7 @@ namespace rlt = rl_tools;
 #include "approximators.h"
 
 
-constexpr bool ORIGINAL_CONDITIONS = false;
+constexpr bool ORIGINAL_CONDITIONS = true;
 constexpr bool AUTOMATIC_RESET = false;
 
 using DEVICE = rlt::devices::DefaultCPU;
