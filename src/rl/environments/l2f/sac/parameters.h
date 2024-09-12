@@ -1,6 +1,6 @@
 constexpr TI SEQUENCE_LENGTH = 20;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 32;
+constexpr TI BATCH_SIZE = 64;
 constexpr TI NUM_CHECKPOINTS = 100;
 //struct ENVIRONMENT_PARAMETERS{
 //    constexpr static TI HORIZON = 100;
@@ -35,10 +35,10 @@ namespace env_param_builder{
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
-                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI,
-                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
+                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI
+//                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
 //                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI
-                    >>>>>>>>>>>>;
+                    >>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED =
                     observation::Position<observation::PositionSpecificationPrivileged<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
@@ -49,7 +49,7 @@ namespace env_param_builder{
                     observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>>>;
             using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED;
-            using STATE_TYPE = STATE_TYPE_NORMAL;
+            using STATE_TYPE = STATE_TYPE_PARTIAL_OBSERVED;
 //            using OBSERVATION_TYPE = OBSERVATION_TYPE_NORMAL;
 //            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_NORMAL;
 //            using STATE_TYPE = STATE_TYPE_NORMAL;
