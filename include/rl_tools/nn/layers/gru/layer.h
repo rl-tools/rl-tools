@@ -57,9 +57,11 @@ namespace rl_tools::nn::layers::gru{
         };
     }
 
-    template <typename T_TI>
+    template <typename T_TI, bool T_AUTOMATIC_RESET=true>
     struct StepByStepModeSpecification{
         using TI = T_TI;
+        static constexpr bool AUTOMATIC_RESET = T_AUTOMATIC_RESET;
+
     };
     template <typename T_BASE, typename T_SPEC>
     struct StepByStepMode: T_BASE{

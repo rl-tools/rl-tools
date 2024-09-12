@@ -133,7 +133,7 @@ namespace rl_tools{
         namespace mode{
             template <typename SPEC, typename BASE, typename MODE_SPEC>
             bool reset_full_batch(const Mode<nn::layers::gru::StepByStepMode<BASE, MODE_SPEC>>& mode){
-                return mode.reset || mode.step % SPEC::SEQUENCE_LENGTH == 0;
+                return mode.reset || (MODE_SPEC::AUTOMATIC_RESET && mode.step % SPEC::SEQUENCE_LENGTH == 0);
             }
             template <typename SPEC, typename MODE, typename MODE_SPEC>
             constexpr bool can_reset_sample(const Mode<nn::layers::gru::StepByStepMode<MODE, MODE_SPEC>>& mode){

@@ -31,12 +31,16 @@ namespace rlt = rl_tools;
 #include "approximators.h"
 
 
+constexpr bool ORIGINAL_CONDITIONS = false;
+constexpr bool AUTOMATIC_RESET = false;
+
 using DEVICE = rlt::devices::DefaultCPU;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
 #include "parameters.h"
+
 
 
 std::filesystem::path find_latest_checkpoint(std::filesystem::path experiments_path){
@@ -170,7 +174,7 @@ int main(){
     rlt::malloc(device, env);
     rlt::sample_initial_parameters(device, env, parameters, rng);
 
-    using STEP_BY_STEP_MODE = rlt::nn::layers::gru::StepByStepMode<rlt::mode::Default<>, rlt::nn::layers::gru::StepByStepModeSpecification<TI>>;
+    using STEP_BY_STEP_MODE = rlt::nn::layers::gru::StepByStepMode<rlt::mode::Default<>, rlt::nn::layers::gru::StepByStepModeSpecification<TI, ORIGINAL_CONDITIONS || AUTOMATIC_RESET>>;
     rlt::Mode<STEP_BY_STEP_MODE> mode;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, ENVIRONMENT::Observation::DIM>>> observation;
