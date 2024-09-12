@@ -1,7 +1,7 @@
 #include "../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_GRU_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H
+#define RL_TOOLS_NN_LAYERS_GRU_PERSIST_CODE_H
 #include "layer.h"
 #include "../../../containers/matrix/persist_code.h"
 #include <sstream>
@@ -36,7 +36,7 @@ namespace rl_tools {
     }
     namespace nn::layers::dense::persist_code{
         template<typename DEVICE, typename SPEC>
-            rl_tools::persist::Code finish(DEVICE& device, nn::layers::dense::LayerForward<SPEC> &layer, std::string name, rl_tools::persist::Code input, bool const_declaration=false, typename DEVICE::index_t indent=0){
+        rl_tools::persist::Code finish(DEVICE& device, nn::layers::dense::LayerForward<SPEC> &layer, std::string name, rl_tools::persist::Code input, bool const_declaration=false, typename DEVICE::index_t indent=0){
             using TI = typename DEVICE::index_t;
             std::stringstream indent_ss;
             for(TI i=0; i < indent; i++){
@@ -52,18 +52,18 @@ namespace rl_tools {
             std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             ss << ind << "namespace " << name << " {\n";
             ss << ind << "    using SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Specification<"
-                << T_string << ", "
-                << TI_string << ", "
-                << SPEC::INPUT_DIM << ", "
-                << SPEC::OUTPUT_DIM << ", "
-                << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
-                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">, "
-                << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{}) << ", "
-                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
-                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInputShapeFactory" << ", "
-                << "true, "
-                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
-                << ">; \n";
+               << T_string << ", "
+               << TI_string << ", "
+               << SPEC::INPUT_DIM << ", "
+               << SPEC::OUTPUT_DIM << ", "
+               << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
+               << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">, "
+               << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{}) << ", "
+               << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
+               << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInputShapeFactory" << ", "
+               << "true, "
+               << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
+               << ">; \n";
             ss << ind << "    " << "template <typename CAPABILITY>" << "\n";
             ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Layer<CAPABILITY, SPEC>;" << "\n";
             ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
