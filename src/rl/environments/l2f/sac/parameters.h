@@ -1,4 +1,4 @@
-constexpr TI SEQUENCE_LENGTH = 10;
+constexpr TI SEQUENCE_LENGTH = 20;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 32;
 constexpr TI NUM_CHECKPOINTS = 100;
@@ -14,7 +14,7 @@ namespace env_param_builder{
     using namespace rlt::rl::environments::l2f;
     struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI>{
         struct ENVIRONMENT_STATIC_PARAMETERS{
-            static constexpr TI ACTION_HISTORY_LENGTH = 16;
+            static constexpr TI ACTION_HISTORY_LENGTH = 1;
             using STATE_BASE = StateLinearAcceleration<T, TI, StateBase<T, TI>>;
             using STATE_TYPE_NORMAL = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
             using STATE_TYPE_PARTIAL_OBSERVED = StateRotors<T, TI, StateRandomForce<T, TI, STATE_BASE>>;
@@ -31,23 +31,25 @@ namespace env_param_builder{
                     observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>;
             using OBSERVATION_TYPE_PARTIALLY_OBSERVED =
                     observation::Position<observation::PositionSpecification<T, TI,
+//                    observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
-                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI
+                    observation::Magnetometer<observation::MagnetometerSpecification<T, TI,
+                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
 //                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI
-                    >>>>>>>>>>;
+                    >>>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED =
                     observation::Position<observation::PositionSpecificationPrivileged<T, TI,
-                    observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
+                    observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
-                    observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
+                    observation::IMUAccelerometer<observation::IMUAccelerometerSpecificationPrivileged<T, TI,
                     observation::RandomForce<observation::RandomForceSpecification<T, TI,
                     observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>>>;
             using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_PARTIALLY_OBSERVED;
-            using STATE_TYPE = STATE_TYPE_PARTIAL_OBSERVED;
+            using STATE_TYPE = STATE_TYPE_NORMAL;
 //            using OBSERVATION_TYPE = OBSERVATION_TYPE_NORMAL;
 //            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_NORMAL;
 //            using STATE_TYPE = STATE_TYPE_NORMAL;
