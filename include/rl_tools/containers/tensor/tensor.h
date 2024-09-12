@@ -65,6 +65,21 @@ namespace rl_tools{
             return get<TARGET_INDEX_INPUT-1>(NEXT_ELEMENT{});
         }
     }
+    template <typename DEVICE, typename TI, TI VALUE, typename NEXT_ELEMENT>
+    TI get(DEVICE& device, const tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI index){
+        utils::assert_exit(device, index < length(tensor::Element<TI, VALUE, NEXT_ELEMENT>{}), "Index out of bounds");
+        if constexpr (utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
+            return VALUE;
+        }
+        else{
+            if(index == 0){
+                return VALUE;
+            }
+            else{
+                return get(device, NEXT_ELEMENT{}, index-1);
+            }
+        }
+    }
     template <typename TI, TI VALUE, typename NEXT_ELEMENT>
     TI constexpr get_last(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
         constexpr TI TARGET_INDEX = length(tensor::Element<TI, VALUE, NEXT_ELEMENT>{}) - 1;

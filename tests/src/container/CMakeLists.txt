@@ -52,6 +52,30 @@ target_link_libraries(
 gtest_discover_tests(tensor_persist_test)
 endif()
 
+add_executable(test_tensor_persist_code_store
+        tensor_persist_code_store.cpp
+)
+target_link_libraries(
+        test_tensor_persist_code_store
+        PRIVATE
+        RLtools::Minimal
+        RLtools::Test
+        GTest::gtest_main
+)
+gtest_discover_tests(test_tensor_persist_code_store)
+
+add_executable(test_tensor_persist_code_compile
+        tensor_persist_code_compile.cpp
+)
+target_link_libraries(
+        test_tensor_persist_code_compile
+        PRIVATE
+        RLtools::Minimal
+        RLtools::Test
+        GTest::gtest_main
+)
+gtest_discover_tests(test_tensor_persist_code_compile)
+
 add_executable(tensor_sum_test
         tensor_sum.cpp
 )
