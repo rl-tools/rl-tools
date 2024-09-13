@@ -18,11 +18,16 @@
 #include <cstring>
 #endif
 
-#include <rl_tools/containers/matrix/persist_code.h>
-#include <rl_tools/nn/parameters/persist_code.h>
-#include <rl_tools/nn/layers/dense/persist_code.h>
-#include <rl_tools/nn_models/mlp/persist_code.h>
-#include <rl_tools/nn_models/sequential/persist_code.h>
+#include "../../../../containers/matrix/persist_code.h"
+#include "../../../../containers/tensor/persist_code.h"
+#include "../../../../nn/optimizers/adam/instance/persist_code.h"
+#include "../../../../nn/parameters/persist_code.h"
+#include "../../../../nn/layers/dense/persist_code.h"
+#include "../../../../nn/layers/gru/persist_code.h"
+#include "../../../../nn/layers/sample_and_squash/persist_code.h"
+#include "../../../../nn_models/mlp/persist_code.h"
+#include "../../../../nn_models/sequential/persist_code.h"
+#include "../../../../nn_models/sequential_v2/persist_code.h"
 
 #include "../../../../utils/zlib/operations_cpu.h"
 
@@ -46,18 +51,20 @@ namespace rl_tools{
     }
 
     namespace rl::loop::steps::checkpoint{
-            template <typename DEVICE, typename CONFIG, typename ACTOR_TYPE>
+            template <typename DEVICE, typename CONFIG, typename ACTOR_TYPE, bool STORE_UNCOMPRESSED_ANYWAYS=true>
             void save_code(DEVICE& device, rl::loop::steps::checkpoint::State<CONFIG>& ts, std::string step_folder, ACTOR_TYPE& actor_forward){
                 using T = typename CONFIG::T;
                 using TI = typename DEVICE::index_t;
                 typename ACTOR_TYPE::template Buffer<1> actor_buffer;
                 malloc(device, actor_buffer);
-                auto actor_weights = save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
+                auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
                 std::stringstream output_ss;
                 output_ss << actor_weights;
                 {
-                    MatrixStatic<matrix::Specification<T, TI, 1, ACTOR_TYPE::INPUT_DIM>> input;
-                    MatrixStatic<matrix::Specification<T, TI, 1, ACTOR_TYPE::OUTPUT_DIM>> output;
+                    Tensor<tensor::Specification<T, TI, typename ACTOR_TYPE::INPUT_SHAPE>> input;
+                    Tensor<tensor::Specification<T, TI, typename ACTOR_TYPE::OUTPUT_SHAPE>> output;
+                    malloc(device, input);
+                    malloc(device, output);
                     auto rng_copy = ts.rng;
                     randn(device, input, rng_copy);
                     evaluate(device, actor_forward, input, output, actor_buffer, rng_copy);
@@ -66,27 +73,33 @@ namespace rl_tools{
                     free(device, input);
                     free(device, output);
                 }
-#ifndef RL_TOOLS_ENABLE_ZLIB
-                std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h";
-                std::ofstream actor_output_file(checkpoint_code_path);
-                actor_output_file << output_ss.str();
-                actor_output_file.close();
-#else
-                std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h.gz";
-                std::vector<uint8_t> checkpoint_output;
-                if(!compress_zlib(output_ss.str(), checkpoint_output)){
-                    std::cerr << "Error while compressing trajectories." << std::endl;
-                    return;
-                }
-                std::ofstream actor_output_file(checkpoint_code_path, std::ios::binary);
-                actor_output_file.write(reinterpret_cast<const char*>(checkpoint_output.data()), checkpoint_output.size());
-                actor_output_file.close();
+                output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
+                output_ss << "\n" << "   " << "char name[] = \"" << step_folder << "\";";
+                output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
+                output_ss << "\n" << "}";
+                std::string output_string = output_ss.str();
+                bool stored_compressed = false;
+#ifdef RL_TOOLS_ENABLE_ZLIB
+                {
+                    std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h.gz";
+                    std::vector<uint8_t> checkpoint_output;
+                    if(!compress_zlib(output_string, checkpoint_output)){
+                        std::cerr << "Error while compressing trajectories." << std::endl;
+                        return;
+                    }
+                    std::ofstream actor_output_file(checkpoint_code_path, std::ios::binary);
+                    actor_output_file.write(reinterpret_cast<const char*>(checkpoint_output.data()), checkpoint_output.size());
+                    actor_output_file.close();
+                    stored_compressed = true;
+                };
 #endif
+                if(!stored_compressed || STORE_UNCOMPRESSED_ANYWAYS){
+                    std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h";
+                    std::ofstream actor_output_file(checkpoint_code_path);
+                    actor_output_file << output_string;
+                    actor_output_file.close();
+                }
 
-                actor_output_file << "\n" << "namespace rl_tools::checkpoint::meta{";
-                actor_output_file << "\n" << "   " << "char name[] = \"" << step_folder << "\";";
-                actor_output_file << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
-                actor_output_file << "\n" << "}";
                 free(device, actor_buffer);
             }
     }
@@ -119,7 +132,7 @@ namespace rl_tools{
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
 #endif
-//            rl::loop::steps::checkpoint::save_code(device, ts, step_folder.string(), actor_forward);
+            rl::loop::steps::checkpoint::save_code(device, ts, step_folder.string(), actor_forward);
             free(device, actor_forward);
 
         }

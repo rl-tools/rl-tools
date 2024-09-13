@@ -33,6 +33,13 @@ namespace rl_tools {
                 return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::SIGMOID";
             }
         }
+        auto get_shape_factory_string(nn::layers::dense::DefaultInputShapeFactory){
+            return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInputShapeFactory";
+        }
+        template <typename TI, TI SEQUENCE_LENGTH>
+        auto get_shape_factory_string(nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>){
+            return std::string("RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::SequenceInputShapeFactory<") + containers::persist::get_type_string<TI>() + ", " + std::to_string(SEQUENCE_LENGTH) + ">";
+        }
     }
     namespace nn::layers::dense::persist_code{
         template<typename DEVICE, typename SPEC>
@@ -60,7 +67,7 @@ namespace rl_tools {
                 << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">, "
                 << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{}) << ", "
                 << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
-                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInputShapeFactory" << ", "
+                << nn::layers::dense::persist::get_shape_factory_string(typename SPEC::INPUT_SHAPE_FACTORY{}) << ", "
                 << "true, "
                 << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
                 << ">; \n";

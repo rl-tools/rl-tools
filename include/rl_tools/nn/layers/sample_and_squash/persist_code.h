@@ -26,11 +26,25 @@ namespace rl_tools {
             ss_header << "#include <rl_tools/nn/layers/sample_and_squash/layer.h>\n";
             ss << input.body;
             ss << ind << "namespace " << name << " {\n";
-            ss << ind << "    using SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Specification<"
-               << containers::persist::get_type_string<typename SPEC::T>() << ", "
-               << containers::persist::get_type_string<typename SPEC::TI>() << ", "
-               << SPEC::DIM
-               << ">; \n";
+//            template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS = DefaultParameters<T_T>, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, typename T_INPUT_SHAPE_FACTORY = nn::layers::dense::DefaultInputShapeFactory>
+            std::string T_parameter_string = containers::persist::get_type_string<typename SPEC::T>();
+            ss << ind << "    using PARAMETERS = " << "struct PARAMETERS{";
+            ss << ind << "        static constexpr " << T_parameter_string << " LOG_STD_LOWER_BOUND = " << SPEC::PARAMETERS::LOG_STD_LOWER_BOUND << ";\n";
+            ss << ind << "        static constexpr " << T_parameter_string << " LOG_STD_UPPER_BOUND = " << SPEC::PARAMETERS::LOG_STD_UPPER_BOUND << ";\n";
+            ss << ind << "        static constexpr " << T_parameter_string << " LOG_PROBABILITY_EPSILON = " << SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON << ";\n";
+            ss << ind << "        static constexpr bool ADAPTIVE_ALPHA = " << (SPEC::PARAMETERS::ADAPTIVE_ALPHA ? "true" : "false")  << ";\n";
+            ss << ind << "        static constexpr bool UPDATE_ALPHA_WITH_ACTOR = " << (SPEC::PARAMETERS::UPDATE_ALPHA_WITH_ACTOR ? "true" : "false") << ";\n";
+            ss << ind << "        static constexpr " << T_parameter_string << " ALPHA = " << SPEC::PARAMETERS::ALPHA << ";\n";
+            ss << ind << "        static constexpr " << T_parameter_string << " TARGET_ENTROPY = " << SPEC::PARAMETERS::TARGET_ENTROPY << ";\n";
+            ss << ind << "    };\n";
+            ss << ind << "    using SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Specification<";
+            ss << containers::persist::get_type_string<typename SPEC::T>() << ", ";
+            ss << containers::persist::get_type_string<typename SPEC::TI>() << ", ";
+            ss << SPEC::DIM << ", ";
+            ss << "PARAMETERS, ";
+            ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag, ";
+            ss << nn::layers::dense::persist::get_shape_factory_string(typename SPEC::INPUT_SHAPE_FACTORY{});
+            ss << ">; \n";;
             ss << ind << "    " << "template <typename CAPABILITY>" << "\n";
             ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Layer<CAPABILITY, SPEC>;" << "\n";
             ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
