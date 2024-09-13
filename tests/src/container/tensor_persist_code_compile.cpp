@@ -24,11 +24,11 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST_CODE, COMPILE){
     using TI = DEVICE::index_t;
     DEVICE device;
 
-    rlt::Tensor<shape_0::SPEC> tensor_0;
-    rlt::Tensor<shape_1::SPEC> tensor_1;
-    rlt::Tensor<shape_2::SPEC> tensor_2;
-    rlt::Tensor<shape_3::SPEC> tensor_3;
-    rlt::Tensor<shape_4::SPEC> tensor_4;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, shape_0::SHAPE>> tensor_0;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, shape_1::SHAPE>> tensor_1;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, shape_2::SHAPE>> tensor_2;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, shape_3::SHAPE>> tensor_3;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, shape_4::SHAPE>> tensor_4;
     rlt::malloc(device, tensor_0);
     rlt::malloc(device, tensor_1);
     rlt::malloc(device, tensor_2);

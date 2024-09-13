@@ -127,6 +127,19 @@ target_link_libraries(
 )
 gtest_discover_tests(test_nn_layers_gru_persist_code)
 
+add_executable(
+        test_nn_layers_gru_persist_code_compile
+        gru_persist_code_compile.cpp
+)
+target_link_libraries(
+        test_nn_layers_gru_persist_code_compile
+        PRIVATE
+        RLtools::RLtools
+        RLtools::Test
+        GTest::gtest_main
+)
+gtest_discover_tests(test_nn_layers_gru_persist_code_compile)
+
 if(RL_TOOLS_ENABLE_HDF5)
     add_executable(
             test_nn_layers_gru_inference

@@ -54,7 +54,16 @@ namespace rl_tools{
             ss << get(device, typename SPEC::SHAPE{}, dim_i);
         }
         ss << ">;\n";
-        ss << ind << "    using SPEC = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", SHAPE>;\n";
+        ss << ind << "    using SPEC = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Specification<";
+        ss << containers::persist::get_type_string<T>() << ", ";
+        ss << containers::persist::get_type_string<TI>() << ", ";
+        ss << "SHAPE, ";
+        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::RowMajorStride<SHAPE>, ";
+        constexpr bool STATIC = false;
+        ss << (STATIC ? "true" : "false") << ", ";
+        constexpr bool CONST = true;
+        ss << (CONST ? "true" : "false");
+        ss << ">;\n";
         ss << ind << "    using CONTAINER_TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::Tensor<SPEC>;\n";
         ss << ind << "    " << (const_declaration ? "const " : "") << "CONTAINER_TYPE container = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
         ss << ind << "}\n";

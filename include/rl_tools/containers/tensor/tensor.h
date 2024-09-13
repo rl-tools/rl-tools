@@ -281,6 +281,8 @@ namespace rl_tools{
         using T_CV = utils::typing::conditional_t<SPEC::CONST, const T, T>;
         using DATA_TYPE = utils::typing::conditional_t<SPEC::STATIC, T_CV[SPEC::SIZE], T_CV*>;
         DATA_TYPE _data;
+        Tensor(){};
+        Tensor(DATA_TYPE data): _data(data){};
     };
 
     template <typename SPEC>
@@ -298,11 +300,11 @@ namespace rl_tools{
     }
     struct TensorDynamicTag{
         template<typename SPEC>
-        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, false>>;
+        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, false, SPEC::CONST>>;
     };
     struct TensorStaticTag{
         template<typename SPEC>
-        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, true>>;
+        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, true, SPEC::CONST>>;
     };
     template <typename MATRIX_TAG>
     struct MatrixToTensorTypeTag{
