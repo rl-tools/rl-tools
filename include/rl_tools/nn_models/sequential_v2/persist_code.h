@@ -23,7 +23,7 @@ namespace rl_tools{
         std::stringstream ss, ss_header;
         auto layer_output = save_code_split(device, model.content, "layer_" + std::to_string(layer_i), const_declaration, indent+1);
         ss_header << layer_output.header;
-        ss_header << "#include <rl_tools/nn_models/sequential/model.h>\n";
+        ss_header << "#include <rl_tools/nn_models/sequential_v2/model.h>\n";
         if(layer_i == 0){
             ss << ind << "namespace " << name << " {\n";
         }
