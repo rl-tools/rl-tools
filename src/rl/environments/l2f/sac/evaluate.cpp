@@ -33,6 +33,7 @@ namespace rlt = rl_tools;
 
 constexpr bool ORIGINAL_CONDITIONS = true;
 constexpr bool AUTOMATIC_RESET = false;
+constexpr bool ENV_ZERO_ORIENTATION_INIT = false;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
@@ -41,6 +42,11 @@ using TI = typename DEVICE::index_t;
 
 #include "parameters.h"
 
+struct DEFAULT_CONFIG: rl_tools::rl::environments::l2f::parameters::DEFAULT_CONFIG{
+    static constexpr bool ZERO_ORIENTATION_INIT = ORIGINAL_CONDITIONS || ZERO_ORIENTATION_INIT;
+};
+
+using EVALUATION_ENVIRONMENT = typename env_param_builder::ENVIRONMENT_PARAMETERS<DEFAULT_CONFIG>::ENVIRONMENT;
 
 
 std::filesystem::path find_latest_checkpoint(std::filesystem::path experiments_path){
@@ -163,12 +169,12 @@ int main(){
 
     rlt::load(device, actor, file.getGroup("actor"));
 
-    using ENVIRONMENT_UI = rlt::ui_server::client::UIWebSocket<ENVIRONMENT>;
+    using ENVIRONMENT_UI = rlt::ui_server::client::UIWebSocket<EVALUATION_ENVIRONMENT>;
     ENVIRONMENT_UI ui;
 
-    ENVIRONMENT env;
-    ENVIRONMENT::Parameters parameters;
-    ENVIRONMENT::State state, next_state;
+    EVALUATION_ENVIRONMENT env;
+    EVALUATION_ENVIRONMENT::Parameters parameters;
+    EVALUATION_ENVIRONMENT::State state, next_state;
 
 
     rlt::malloc(device, env);
@@ -177,8 +183,8 @@ int main(){
     using STEP_BY_STEP_MODE = rlt::nn::layers::gru::StepByStepMode<rlt::mode::Default<>, rlt::nn::layers::gru::StepByStepModeSpecification<TI, ORIGINAL_CONDITIONS || AUTOMATIC_RESET>>;
     rlt::Mode<STEP_BY_STEP_MODE> mode;
 
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, ENVIRONMENT::Observation::DIM>>> observation;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, ENVIRONMENT::ACTION_DIM>>> action;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, EVALUATION_ENVIRONMENT::Observation::DIM>>> observation;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, EVALUATION_ENVIRONMENT::ACTION_DIM>>> action;
     rlt::malloc(device, observation);
     rlt::malloc(device, action);
 
@@ -199,7 +205,7 @@ int main(){
         }
         mode.step = step;
 
-        rlt::observe(device, env, parameters, state, ENVIRONMENT::Observation{}, observation_matrix_view, rng);
+        rlt::observe(device, env, parameters, state, EVALUATION_ENVIRONMENT::Observation{}, observation_matrix_view, rng);
         rlt::evaluate(device, actor, observation, action, buffer, rng, mode);
         T dt = rlt::step(device, env, parameters, state, action_matrix_view, next_state, rng);
         state = next_state;

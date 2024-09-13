@@ -12,7 +12,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters {
-    template<typename T, typename TI>
+    struct DEFAULT_CONFIG{
+        static constexpr bool ZERO_ORIENTATION_INIT = true;
+    };
+    template<typename T, typename TI, typename CONFIG = DEFAULT_CONFIG>
     struct DefaultParameters{
         constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
@@ -29,8 +32,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             0.01 // integration dt
         };
-//        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
-        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = CONFIG::ZERO_ORIENTATION_INIT ? rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC> : rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
             0.01, // position
             0.001, // orientation
