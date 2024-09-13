@@ -119,7 +119,7 @@ namespace rl_tools{
             std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_path << std::endl;
             auto& actor = get_actor(ts);
             using ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE;
-            using ACTOR_FORWARD_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<nn::layer_capability::Forward>;
+            using ACTOR_FORWARD_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<nn::layer_capability::Forward<>>;
 //            using ACTOR_FORWARD_TYPE = ACTOR_TYPE;
             ACTOR_FORWARD_TYPE actor_forward;
             malloc(device, actor_forward);

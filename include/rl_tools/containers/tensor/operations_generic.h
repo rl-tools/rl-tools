@@ -26,7 +26,7 @@ namespace rl_tools{
     auto view_memory(DEVICE& device, const Tensor<SPEC>& tensor){
         static_assert(product(SHAPE{}) <= SPEC::SIZE);
         static_assert(tensor::dense_row_major_layout<SPEC, true>());
-        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, typename SPEC::STRIDE, false, true>; // note the last boolean signals constness and needs to be flipped for the non-const version of this function
+        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, false, typename SPEC::STRIDE, true>; // note the last boolean signals constness and needs to be flipped for the non-const version of this function
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
         const VIEW_TYPE view{data(tensor)};
         return view;
@@ -38,7 +38,7 @@ namespace rl_tools{
         static_assert(tensor::dense_row_major_layout<SPEC, true>());
         using DENSE_STRIDE = tensor::RowMajorStride<SHAPE>;
         using STRIDE = tensor::Append<tensor::PopBack<DENSE_STRIDE>, get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{})>; // the RELAX_MAJOR in dense_row_major_layout allows for a stride in the last element which is accounted for here;
-        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, STRIDE, false, false>;
+        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, false, STRIDE, false>;
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
         VIEW_TYPE view{data(tensor)};
         return view;
@@ -78,7 +78,7 @@ namespace rl_tools{
     auto view(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM> = {}){
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
-        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE, false, true>;
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, false, NEW_STRIDE, true>;
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
 //        data_reference(view) = ;
         const Tensor<NEW_SPEC> view{data(tensor) + offset};
@@ -89,7 +89,7 @@ namespace rl_tools{
     auto view(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM> = {}){
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
-        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE, false, false>;
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, false, NEW_STRIDE, false>;
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
 //        data_reference(view) = ;
         Tensor<NEW_SPEC> view{data(tensor) + offset};
@@ -116,7 +116,7 @@ namespace rl_tools{
         using STRIDE = typename SPEC::STRIDE;
         using NEW_STRIDE_INTERMEDIATE = tensor::Replace<STRIDE, get<DIM_2>(STRIDE{}), DIM_1>;
         using NEW_STRIDE = tensor::Replace<NEW_STRIDE_INTERMEDIATE, get<DIM_1>(STRIDE{}), DIM_2>;
-        using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, NEW_STRIDE, false, true>; // const here
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, false, NEW_STRIDE, true>; // const here
         const Tensor<NEW_SPEC> view{data(tensor)};
         return view;
     }
@@ -132,7 +132,7 @@ namespace rl_tools{
         using STRIDE = typename SPEC::STRIDE;
         using NEW_STRIDE_INTERMEDIATE = tensor::Replace<STRIDE, get<DIM_2>(STRIDE{}), DIM_1>;
         using NEW_STRIDE = tensor::Replace<NEW_STRIDE_INTERMEDIATE, get<DIM_1>(STRIDE{}), DIM_2>;
-        using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, NEW_STRIDE, false, false>; // non-const here
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, false, NEW_STRIDE, false>; // non-const here
         Tensor<NEW_SPEC> view;
         data_reference(view) = data(tensor);
         return view;
@@ -894,7 +894,7 @@ namespace rl_tools{
         using STRIDE = typename SPEC::STRIDE;
         constexpr TI OLD_LAST_STRIDE = get<length(STRIDE{}) - 1>(STRIDE{});
         using NEW_STRIDE = tensor::PopFront<tensor::CumulativeProduct<tensor::Append<RESHAPE, OLD_LAST_STRIDE>>>;
-        using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, NEW_STRIDE>;
+        using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, false, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(t)};
     }
     template<typename DEVICE, typename SPEC, typename RESHAPE>
@@ -909,7 +909,7 @@ namespace rl_tools{
         using STRIDE = typename SPEC::STRIDE;
         constexpr TI OLD_LAST_STRIDE = get<length(STRIDE{}) - 1>(STRIDE{});
         using NEW_STRIDE = tensor::PopFront<tensor::CumulativeProduct<tensor::Append<RESHAPE, OLD_LAST_STRIDE>>>;
-        using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, NEW_STRIDE>;
+        using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, false, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(t)};
     }
     template <typename DEVICE, typename MATRIX_SPEC>
@@ -920,7 +920,7 @@ namespace rl_tools{
         constexpr TI ROW_PITCH = MATRIX_SPEC::LAYOUT::template ROW_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
         constexpr TI COL_PITCH = MATRIX_SPEC::LAYOUT::template COL_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
         using STRIDE = tensor::Stride<TI, ROW_PITCH, COL_PITCH>;
-        using SPEC = tensor::Specification<T, TI, SHAPE, STRIDE>;
+        using SPEC = tensor::Specification<T, TI, SHAPE, false, STRIDE>;
         return Tensor<SPEC>{m._data};
     }
     template <typename DEVICE, typename MATRIX_SPEC>
@@ -931,7 +931,7 @@ namespace rl_tools{
         constexpr TI ROW_PITCH = MATRIX_SPEC::LAYOUT::template ROW_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
         constexpr TI COL_PITCH = MATRIX_SPEC::LAYOUT::template COL_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
         using STRIDE = tensor::Stride<TI, ROW_PITCH, COL_PITCH>;
-        using SPEC = tensor::Specification<T, TI, SHAPE, STRIDE, false, true>;
+        using SPEC = tensor::Specification<T, TI, SHAPE, false, STRIDE, true>;
         return Tensor<SPEC>{m._data};
     }
     template <typename DEVICE, typename SPEC>
@@ -951,7 +951,7 @@ namespace rl_tools{
         static_assert(get<0>(typename SPEC::SHAPE{}) == 1, "Cannot squeeze a tensor with a dimension size greater than 1");
         using NEW_SHAPE = tensor::PopFront<typename SPEC::SHAPE>;
         using NEW_STRIDE = tensor::PopFront<typename SPEC::STRIDE>;
-        using NEW_SPEC = tensor::Specification<T, TI, NEW_SHAPE, NEW_STRIDE>;
+        using NEW_SPEC = tensor::Specification<T, TI, NEW_SHAPE, false, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(m)};
     }
     template <typename DEVICE, typename SPEC>
@@ -960,7 +960,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using NEW_SHAPE = tensor::Insert<typename SPEC::SHAPE, 1, 0>;
         using NEW_STRIDE = tensor::Insert<typename SPEC::STRIDE, get<0>(typename SPEC::STRIDE{}) * get<0>(typename SPEC::SHAPE{}), 0>;
-        using NEW_SPEC = tensor::Specification<T, TI, NEW_SHAPE, NEW_STRIDE>;
+        using NEW_SPEC = tensor::Specification<T, TI, NEW_SHAPE, false, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(m)};
     }
 }

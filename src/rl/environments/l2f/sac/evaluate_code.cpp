@@ -15,7 +15,7 @@
 #include <rl_tools/ui_server/client/operations_websocket.h>
 
 
-#include "../../../experiments/2024-09-13_14-41-33/953f9d3_sequential_algorithm_environment_seq-len/sac_l2f_10/0003/steps/000000001000000/checkpoint.h"
+#include "../../../experiments/2024-09-13_15-26-30/88728f2_sequential_algorithm_environment_seq-len/sac_l2f_10/0003/steps/000000001000000/checkpoint.h"
 
 namespace rlt = rl_tools;
 
@@ -51,8 +51,8 @@ int main(){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    rl_tools::checkpoint::actor::MODEL::Buffer<1> buffer;
-    rlt::malloc(device, buffer);
+    rl_tools::checkpoint::actor::MODEL::Buffer<1, rlt::MatrixStaticTag> buffer;
+//    rlt::malloc(device, buffer);
 
     {
         // test

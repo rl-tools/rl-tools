@@ -8,8 +8,9 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    std::string to_string(nn::layer_capability::Forward){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Forward";
+    template <bool DYNAMIC_ALLOCATION>
+    std::string to_string(nn::layer_capability::Forward<DYNAMIC_ALLOCATION>){
+        return std::string("RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Forward<") + (DYNAMIC_ALLOCATION ? "true" : "false") + ">";
     }
     template <auto BATCH_SIZE>
     std::string to_string(nn::layer_capability::Backward<BATCH_SIZE>){

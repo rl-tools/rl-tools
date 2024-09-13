@@ -69,7 +69,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
                 static constexpr T ALPHA = PARAMETERS::ALPHA;
                 static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
             };
-            using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS, CONTAINER_TYPE_TAG, nn::layers::dense::SequenceInputShapeFactory<TI, 1>>;
+            using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS, nn::layers::dense::SequenceInputShapeFactory<TI, 1>>;
             using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
             using SAMPLE_AND_SQUASH_MODULE = typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>;
             using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork, SAMPLE_AND_SQUASH_MODULE>;
@@ -93,7 +93,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using CAPABILITY_CRITIC = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
         using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
         using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
-        using CRITIC_TARGET_TYPE = typename Critic<nn::layer_capability::Forward>::MODEL;
+        using CRITIC_TARGET_TYPE = typename Critic<nn::layer_capability::Forward<>>::MODEL;
     };
 
     template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>

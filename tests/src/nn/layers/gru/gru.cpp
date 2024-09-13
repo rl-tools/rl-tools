@@ -27,7 +27,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     using SHAPE_TRANSPOSE = rlt::tensor::Shape<TI, rlt::get<1>(SHAPE{}), rlt::get<0>(SHAPE{})>;
     using STRIDE_TRANSPOSE = rlt::tensor::Stride<TI, rlt::get<1>(STRIDE{}), rlt::get<0>(STRIDE{})>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A, B, C, C_target;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE_TRANSPOSE>> A_T, B_T, C_T, C_target_T;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, false, STRIDE_TRANSPOSE>> A_T, B_T, C_T, C_target_T;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2>>> bias;
     rlt::malloc(device, A);
     rlt::malloc(device, B);
@@ -105,7 +105,7 @@ void test_loading(std::string DATA_FILE_NAME){
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn::layers::gru::Layer<CAPABILITY, GRU_SPEC> gru;
-    decltype(gru)::Buffer<BATCH_SIZE> buffer;
+    decltype(gru)::Buffer<BATCH_SIZE, true> buffer;
     rlt::malloc(device, gru);
     rlt::malloc(device, buffer);
 

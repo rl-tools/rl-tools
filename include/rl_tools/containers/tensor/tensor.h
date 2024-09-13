@@ -175,7 +175,7 @@ namespace rl_tools{
             }
         }
 
-        template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE = RowMajorStride<T_SHAPE>, bool T_STATIC=false, bool T_CONST=false>
+        template <typename T_T, typename T_TI, typename T_SHAPE, bool T_STATIC=false, typename T_STRIDE = RowMajorStride<T_SHAPE>, bool T_CONST=false>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
@@ -257,7 +257,7 @@ namespace rl_tools{
                 template <typename STRIDE, typename VIEW_SPEC>
                 using Stride = STRIDE;
                 template <typename SPEC, typename VIEW_SPEC, bool T_CONST>
-                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, Stride<typename SPEC::STRIDE, VIEW_SPEC>, false, T_CONST>;
+                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, false, Stride<typename SPEC::STRIDE, VIEW_SPEC>, T_CONST>;
             }
             namespace point{
                 template <typename SHAPE, typename VIEW_SPEC>
@@ -265,7 +265,7 @@ namespace rl_tools{
                 template <typename STRIDE, typename VIEW_SPEC>
                 using Stride = tensor::Remove<STRIDE, VIEW_SPEC::DIM>;
                 template <typename SPEC, typename VIEW_SPEC, bool T_CONST>
-                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, Stride<typename SPEC::STRIDE, VIEW_SPEC>, false, T_CONST>;
+                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, false, Stride<typename SPEC::STRIDE, VIEW_SPEC>, T_CONST>;
             }
         }
     }
@@ -300,11 +300,11 @@ namespace rl_tools{
     }
     struct TensorDynamicTag{
         template<typename SPEC>
-        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, false, SPEC::CONST>>;
+        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, false, typename SPEC::STRIDE, SPEC::CONST>>;
     };
     struct TensorStaticTag{
         template<typename SPEC>
-        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, true, SPEC::CONST>>;
+        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, true, typename SPEC::STRIDE, SPEC::CONST>>;
     };
     template <typename MATRIX_TAG>
     struct MatrixToTensorTypeTag{

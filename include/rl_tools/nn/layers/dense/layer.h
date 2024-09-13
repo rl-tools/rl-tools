@@ -18,8 +18,8 @@ namespace rl_tools::nn::layers::dense {
         static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
         //                INPUT_SPEC::ROWS <= OUTPUT_SPEC::ROWS && // todo: could be relaxed to not fill the full output
         static_assert(OUTPUT_SPEC::COLS == LAYER_SPEC::OUTPUT_DIM);
-        static_assert(!LAYER_SPEC::ENFORCE_FLOATING_POINT_TYPE || utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T>);
-        static_assert(!LAYER_SPEC::ENFORCE_FLOATING_POINT_TYPE || utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
         return true;
     }
     template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
@@ -50,7 +50,7 @@ namespace rl_tools::nn::layers::dense {
     };
 
 
-    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, typename T_INITIALIZER = DefaultInitializer<T_T, T_TI>, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, typename T_INPUT_SHAPE_FACTORY = DefaultInputShapeFactory, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, typename T_INITIALIZER = DefaultInitializer<T_T, T_TI>, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_INPUT_SHAPE_FACTORY = DefaultInputShapeFactory>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -60,9 +60,6 @@ namespace rl_tools::nn::layers::dense {
         using INPUT_SHAPE_FACTORY = T_INPUT_SHAPE_FACTORY;
         using INITIALIZER = T_INITIALIZER;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        static constexpr TI ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
-        using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
         // Summary
         static constexpr TI NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
     };
@@ -90,7 +87,7 @@ namespace rl_tools::nn::layers::dense {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
@@ -98,32 +95,34 @@ namespace rl_tools::nn::layers::dense {
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
         using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
         static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
-        using WEIGHTS_CONTAINER_SPEC = matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
-        using WEIGHTS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<WEIGHTS_CONTAINER_SPEC>;
+        using WEIGHTS_CONTAINER_SPEC = matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM>;
+        using WEIGHTS_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<WEIGHTS_CONTAINER_SPEC>;
         using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_PARAMETER_SPEC> weights;
 
-        using BIASES_CONTAINER_SPEC = matrix::Specification<T, TI, 1, OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
-        using BIASES_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<BIASES_CONTAINER_SPEC>;
+        using BIASES_CONTAINER_SPEC = matrix::Specification<T, TI, 1, OUTPUT_DIM>;
+        using BIASES_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<BIASES_CONTAINER_SPEC>;
         using BIASES_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<BIASES_PARAMETER_SPEC> biases;
-        template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+        template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
         using Buffer = dense::Buffer;
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC>{
         static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
         using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, ACTUAL_BATCH_SIZE, SPEC::OUTPUT_DIM>;
-        using PRE_ACTIVATIONS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
+        using PRE_ACTIVATIONS_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
         PRE_ACTIVATIONS_CONTAINER_TYPE pre_activations;
     };
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC>{
         static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, ACTUAL_BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
-        using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
+        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, ACTUAL_BATCH_SIZE, SPEC::OUTPUT_DIM>;
+        using OUTPUT_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
     template<typename CAPABILITY, typename SPEC>
