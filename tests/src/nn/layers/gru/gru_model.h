@@ -26,9 +26,9 @@ struct Config{
     using INPUT_SPEC = rlt::tensor::Specification<unsigned char, TI, INPUT_SHAPE>;
     using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Specification<T, TI, PARAMS::NUM_CLASSES, PARAMS::EMBEDDING_DIM, INPUT_SHAPE_TEMPLATE>;
     using EMBEDDING_LAYER_TEMPLATE = rlt::nn::layers::embedding::BindSpecification<EMBEDDING_LAYER_SPEC>;
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::EMBEDDING_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, rlt::TensorDynamicTag, true>;
+    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::EMBEDDING_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
     using GRU_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU_SPEC>;
-    using GRU2_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::HIDDEN_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, rlt::TensorDynamicTag, true>;
+    using GRU2_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::HIDDEN_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
     using GRU2_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU2_SPEC>;
     using DOWN_PROJECTION_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMS::HIDDEN_DIM, PARAMS::EMBEDDING_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::MatrixDynamicTag, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, PARAMS::SEQUENCE_LENGTH>>;
     using DOWN_PROJECTION_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DOWN_PROJECTION_LAYER_SPEC>;
