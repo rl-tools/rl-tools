@@ -670,7 +670,7 @@ namespace rl_tools{
     void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
-        Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
+        Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE, true>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
         _backward<false, true>(device, layer, input, d_output, d_input_dummy, buffers, step_i, mode);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
@@ -687,14 +687,14 @@ namespace rl_tools{
 #endif
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
-        Tensor<tensor::Specification<T, TI, typename D_INPUT_SPEC::SHAPE>> input_dummy; // not allocated, pointer should be optimized away because it is not used
+        Tensor<tensor::Specification<T, TI, typename D_INPUT_SPEC::SHAPE, true>> input_dummy; // not allocated, pointer should be optimized away because it is not used
         _backward<true, false>(device, layer, input_dummy, d_output, d_input, buffers, mode);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
-        Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
+        Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE, true>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
         _backward<false, true>(device, layer, input, d_output, d_input_dummy, buffers, mode);
     }
 

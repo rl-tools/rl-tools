@@ -9,14 +9,15 @@
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/random_uniform/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #ifdef RL_TOOLS_ENABLE_HDF5
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
+#include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
+#include <rl_tools/nn_models/mlp/persist.h>
 #include <rl_tools/nn_models/sequential_v2/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #endif
@@ -25,8 +26,8 @@
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn/layers/standardize/persist_code.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist_code.h>
-#include <rl_tools/nn_models/mlp_unconditional_stddev/persist_code.h>
-#include <rl_tools/nn_models/sequential/persist_code.h>
+#include <rl_tools/nn_models/mlp/persist_code.h>
+#include <rl_tools/nn_models/sequential_v2/persist_code.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
@@ -126,13 +127,13 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
             return_file << "{";
             return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL *  LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i << ", ";
-            return_file << "\"returns_mean\": " << ts.evaluation_results[evaluation_i].returns_mean << ", ";
-            return_file << "\"returns_std\": " << ts.evaluation_results[evaluation_i].returns_std << ", ";
-            return_file << "\"episode_length_mean\": " << ts.evaluation_results[evaluation_i].episode_length_mean << ", ";
-            return_file << "\"episode_length_std\": " << ts.evaluation_results[evaluation_i].episode_length_std << ", ";
+            return_file << "\"returns_mean\": " << get(ts.evaluation_results, 0, evaluation_i).returns_mean << ", ";
+            return_file << "\"returns_std\": " << get(ts.evaluation_results, 0, evaluation_i).returns_std << ", ";
+            return_file << "\"episode_length_mean\": " << get(ts.evaluation_results, 0, evaluation_i).episode_length_mean << ", ";
+            return_file << "\"episode_length_std\": " << get(ts.evaluation_results, 0, evaluation_i).episode_length_std << ", ";
             return_file << "\"returns\": [";
             for(TI episode_i = 0; episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES; episode_i++){
-                return_file << ts.evaluation_results[evaluation_i].returns[episode_i];
+                return_file << get(ts.evaluation_results, 0, evaluation_i).returns[episode_i];
                 if(episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES - 1){
                     return_file << ", ";
                 }
@@ -154,3 +155,20 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
     }
     return 0;
 }
+
+//int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
+//    using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
+//    DEVICE device;
+//    LOOP_STATE ts;
+//
+//    std::cout << "layer 0 input: " << std::endl;
+//    rlt::print(device, typename decltype(ts.actor_critic.actor.content)::INPUT_SHAPE{});
+//    std::cout << "layer 0 output: " << std::endl;
+//    rlt::print(device, typename decltype(ts.actor_critic.actor.content)::OUTPUT_SHAPE{});
+//    std::cout << "layer 1 input: " << std::endl;
+//    rlt::print(device, typename decltype(ts.actor_critic.actor.next_module.content)::INPUT_SHAPE{});
+//    std::cout << "layer 1 outpu: " << std::endl;
+//    rlt::print(device, typename decltype(ts.actor_critic.actor.next_module.content)::OUTPUT_SHAPE{});
+//    return 0;
+//}
+

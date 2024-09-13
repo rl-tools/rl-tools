@@ -22,8 +22,6 @@ struct Config{
     template <TI T_BATCH_SIZE>
     using INPUT_SHAPE_TEMPLATE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, T_BATCH_SIZE>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMS::BATCH_SIZE>;
-    using INPUT_SHAPE = INPUT_SHAPE_TEMPLATE<PARAMS::BATCH_SIZE>;
-    using INPUT_SPEC = rlt::tensor::Specification<unsigned char, TI, INPUT_SHAPE>;
     using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Specification<T, TI, PARAMS::NUM_CLASSES, PARAMS::EMBEDDING_DIM, INPUT_SHAPE_TEMPLATE>;
     using EMBEDDING_LAYER_TEMPLATE = rlt::nn::layers::embedding::BindSpecification<EMBEDDING_LAYER_SPEC>;
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::EMBEDDING_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
@@ -36,8 +34,6 @@ struct Config{
     using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER_SPEC>;
     using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>;
     using MODEL = typename IF::template Module<EMBEDDING_LAYER_TEMPLATE::template Layer, typename IF::template Module<GRU_TEMPLATE:: template Layer, typename IF::template Module<GRU2_TEMPLATE:: template Layer, typename IF::template Module<DOWN_PROJECTION_LAYER_TEMPLATE::template Layer, typename IF::template Module<DENSE_LAYER_TEMPLATE::template Layer>>>>>;
-    using OUTPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, PARAMS::OUTPUT_DIM>;
-    using OUTPUT_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>;
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
     struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{

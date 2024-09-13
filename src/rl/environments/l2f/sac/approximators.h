@@ -1,4 +1,4 @@
-template<typename T, typename TI, TI SEQUENCE_LENGTH, typename ENVIRONMENT, typename PARAMETERS, typename CONTAINER_TYPE_TAG>
+template<typename T, typename TI, TI SEQUENCE_LENGTH, typename ENVIRONMENT, typename PARAMETERS>
 struct ConfigApproximatorsSequential{
     static constexpr bool USE_GRU = true;
     template <typename CAPABILITY>

@@ -71,7 +71,7 @@ namespace rl_tools::nn::layers::embedding {
         using INPUT_SHAPE = typename SPEC::template INPUT_SHAPE<SPEC::BATCH_SIZE>;
         using OUTPUT_SHAPE = typename SPEC::template OUTPUT_SHAPE<SPEC::BATCH_SIZE>;
         using WEIGHTS_SHAPE = tensor::Shape<TI, NUM_CLASSES, OUTPUT_DIM>;
-        using WEIGHTS_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_SHAPE, !SPEC::DYNAMIC_ALLOCATION>;
+        using WEIGHTS_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
         using WEIGHTS_CONTAINER_TYPE = Tensor<WEIGHTS_CONTAINER_SPEC>;
         using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_PARAMETER_SPEC> weights;
@@ -86,7 +86,7 @@ namespace rl_tools::nn::layers::embedding {
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC>{
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::template OUTPUT_SHAPE<SPEC::BATCH_SIZE>, !SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_CONTAINER_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::template OUTPUT_SHAPE<SPEC::BATCH_SIZE>, SPEC::DYNAMIC_ALLOCATION>;
         using OUTPUT_CONTAINER_TYPE = Tensor<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };

@@ -41,14 +41,14 @@ namespace rl_tools::nn::layers::gru{
             using T = typename SPEC::SPEC::T;
             using TI = typename SPEC::SPEC::TI;
             static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
-            using POST_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::SPEC::HIDDEN_DIM>, !SPEC::DYNAMIC_ALLOCATION>;
+            using POST_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
             Tensor<POST_ACTIVATION_SPEC> post_activation;
-            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, !SPEC::DYNAMIC_ALLOCATION>;
+            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
             Tensor<N_PRE_PRE_ACTIVATION_SPEC> n_pre_pre_activation;
-            using STEP_BY_STEP_OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, !SPEC::DYNAMIC_ALLOCATION>;
+            using STEP_BY_STEP_OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
             Tensor<STEP_BY_STEP_OUTPUT_SPEC> step_by_step_output;
 
-            using PREVIOUS_OUTPUT_SCRATCH_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, !SPEC::DYNAMIC_ALLOCATION>;
+            using PREVIOUS_OUTPUT_SCRATCH_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
             Tensor<PREVIOUS_OUTPUT_SCRATCH_SPEC> previous_output_scratch;
         };
     }
@@ -94,31 +94,31 @@ namespace rl_tools::nn::layers::gru{
         using INPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
         using OUTPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
         using WEIGHTS_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, INPUT_DIM>;
-        using WEIGHTS_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_INPUT_CONTAINER_SHAPE, !SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<WEIGHTS_INPUT_CONTAINER_SHAPE>, SPEC::CONST>;
+        using WEIGHTS_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_INPUT_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<WEIGHTS_INPUT_CONTAINER_SHAPE>, SPEC::CONST>;
         using WEIGHTS_INPUT_CONTAINER_TYPE = Tensor<WEIGHTS_INPUT_CONTAINER_SPEC>;
         using WEIGHTS_INPUT_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_INPUT_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_INPUT_PARAMETER_SPEC> weights_input;
 
         using BIASES_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM>;
-        using BIASES_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, BIASES_INPUT_CONTAINER_SHAPE, !SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<BIASES_INPUT_CONTAINER_SHAPE>, SPEC::CONST>;
+        using BIASES_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, BIASES_INPUT_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<BIASES_INPUT_CONTAINER_SHAPE>, SPEC::CONST>;
         using BIASES_INPUT_CONTAINER_TYPE = Tensor<BIASES_INPUT_CONTAINER_SPEC>;
         using BIASES_INPUT_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_INPUT_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<BIASES_INPUT_PARAMETER_SPEC> biases_input;
 
         using WEIGHTS_HIDDEN_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, HIDDEN_DIM>;
-        using WEIGHTS_HIDDEN_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_HIDDEN_CONTAINER_SHAPE, !SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<WEIGHTS_HIDDEN_CONTAINER_SHAPE>, SPEC::CONST>;
+        using WEIGHTS_HIDDEN_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_HIDDEN_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<WEIGHTS_HIDDEN_CONTAINER_SHAPE>, SPEC::CONST>;
         using WEIGHTS_HIDDEN_CONTAINER_TYPE = Tensor<WEIGHTS_HIDDEN_CONTAINER_SPEC>;
         using WEIGHTS_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_HIDDEN_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_HIDDEN_PARAMETER_SPEC> weights_hidden;
 
         using BIASES_HIDDEN_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM>;
-        using BIASES_HIDDEN_CONTAINER_SPEC = tensor::Specification<T, TI, BIASES_HIDDEN_CONTAINER_SHAPE, !SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<BIASES_HIDDEN_CONTAINER_SHAPE>, SPEC::CONST>;
+        using BIASES_HIDDEN_CONTAINER_SPEC = tensor::Specification<T, TI, BIASES_HIDDEN_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<BIASES_HIDDEN_CONTAINER_SHAPE>, SPEC::CONST>;
         using BIASES_HIDDEN_CONTAINER_TYPE = Tensor<BIASES_HIDDEN_CONTAINER_SPEC>;
         using BIASES_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_HIDDEN_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<BIASES_HIDDEN_PARAMETER_SPEC> biases_hidden;
 
         using INITIAL_HIDDEN_STATE_CONTAINER_SHAPE = tensor::Shape<TI, HIDDEN_DIM>;
-        using INITIAL_HIDDEN_STATE_CONTAINER_SPEC = tensor::Specification<T, TI, INITIAL_HIDDEN_STATE_CONTAINER_SHAPE, !SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<INITIAL_HIDDEN_STATE_CONTAINER_SHAPE>, SPEC::CONST>;
+        using INITIAL_HIDDEN_STATE_CONTAINER_SPEC = tensor::Specification<T, TI, INITIAL_HIDDEN_STATE_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<INITIAL_HIDDEN_STATE_CONTAINER_SHAPE>, SPEC::CONST>;
         using INITIAL_HIDDEN_STATE_CONTAINER_TYPE = Tensor<INITIAL_HIDDEN_STATE_CONTAINER_SPEC>;
         using INITIAL_HIDDEN_STATE_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<INITIAL_HIDDEN_STATE_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
@@ -134,7 +134,7 @@ namespace rl_tools::nn::layers::gru{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
-            using BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::HIDDEN_DIM>, !SPEC::DYNAMIC_ALLOCATION>;
+            using BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
             using BUFFER_TYPE = Tensor<BUFFER_SPEC>;
             BUFFER_TYPE buffer, buffer2;
             typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
@@ -148,14 +148,14 @@ namespace rl_tools::nn::layers::gru{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using FULL_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>;
-        using FULL_HIDDEN_SPEC = tensor::Specification<T, TI, FULL_HIDDEN_SHAPE, !SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<FULL_HIDDEN_SHAPE>, SPEC::CONST>;
+        using FULL_HIDDEN_SPEC = tensor::Specification<T, TI, FULL_HIDDEN_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<FULL_HIDDEN_SHAPE>, SPEC::CONST>;
         using FULL_HIDDEN_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<FULL_HIDDEN_SPEC>;
         FULL_HIDDEN_TYPE post_activation;
         using SINGLE_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>;
-        using HIDDEN_SPEC = tensor::Specification<T, TI, SINGLE_HIDDEN_SHAPE, !SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<SINGLE_HIDDEN_SHAPE>, SPEC::CONST>;
+        using HIDDEN_SPEC = tensor::Specification<T, TI, SINGLE_HIDDEN_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<SINGLE_HIDDEN_SHAPE>, SPEC::CONST>;
         using HIDDEN_TYPE = Tensor<HIDDEN_SPEC>;
         HIDDEN_TYPE n_pre_pre_activation;
-        using OUTPUT_SPEC = tensor::Specification<T, TI, SINGLE_HIDDEN_SHAPE, !SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<SINGLE_HIDDEN_SHAPE>, SPEC::CONST>;
+        using OUTPUT_SPEC = tensor::Specification<T, TI, SINGLE_HIDDEN_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<SINGLE_HIDDEN_SHAPE>, SPEC::CONST>;
         using OUTPUT_TYPE = Tensor<OUTPUT_SPEC>;
         OUTPUT_TYPE output;
     };

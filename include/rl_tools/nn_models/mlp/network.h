@@ -12,7 +12,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp {
-    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, typename T_INPUT_SHAPE_FACTORY = nn::layers::dense::DefaultInputShapeFactory, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>, typename T_INPUT_SHAPE_FACTORY = nn::layers::dense::DefaultInputShapeFactory, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
@@ -25,16 +25,15 @@ namespace rl_tools::nn_models::mlp {
         static constexpr auto HIDDEN_ACTIVATION_FUNCTION = T_HIDDEN_ACTIVATION_FUNCTION;
         static constexpr auto OUTPUT_ACTIVATION_FUNCTION = T_OUTPUT_ACTIVATION_FUNCTION;
 
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
 
         using INPUT_SHAPE_FACTORY = T_INPUT_SHAPE_FACTORY;
         using LAYER_INITIALIZER = T_LAYER_INITIALIZER;
 
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Input , nn::layers::dense::DefaultInputShapeFactory>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Normal, nn::layers::dense::DefaultInputShapeFactory>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, OUTPUT_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Output, nn::layers::dense::DefaultInputShapeFactory>;
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Input , INPUT_SHAPE_FACTORY>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Normal, INPUT_SHAPE_FACTORY>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, OUTPUT_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Output, INPUT_SHAPE_FACTORY>;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
@@ -56,7 +55,7 @@ namespace rl_tools::nn_models::mlp {
     };
 
     // T_LAYER_PROTOTYPE is any of INPUT_LAYER, HIDDEN_LAYER, or OUTPUT_LAYER. It is assumed that the buffer for all of them are the same (likely empty)
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_LAYER_PROTOTYPE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_LAYER_PROTOTYPE>
     struct NeuralNetworkBuffersSpecification{
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
@@ -64,7 +63,6 @@ namespace rl_tools::nn_models::mlp {
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, SPEC::INPUT_DIM>;
         using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, SPEC::OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
         static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI DIM = SPEC::HIDDEN_DIM;
         using LAYER_PROTOTYPE = T_LAYER_PROTOTYPE;
     };
@@ -77,11 +75,12 @@ namespace rl_tools::nn_models::mlp {
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         static constexpr TI ACTUAL_BATCH_SIZE = T_BUFFER_SPEC::ACTUAL_BATCH_SIZE;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, ACTUAL_BATCH_SIZE, BUFFER_SPEC::DIM, typename SPEC::MEMORY_LAYOUT>;
-        using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
+        using TICK_TOCK_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
-        using LayerBuffer = typename BUFFER_SPEC::LAYER_PROTOTYPE::template Buffer<ACTUAL_BATCH_SIZE, typename SPEC::CONTAINER_TYPE_TAG>;
+        using LayerBuffer = typename BUFFER_SPEC::LAYER_PROTOTYPE::template Buffer<ACTUAL_BATCH_SIZE, SPEC::DYNAMIC_ALLOCATION>;
         LayerBuffer layer_buffer;
     };
 
@@ -90,7 +89,7 @@ namespace rl_tools::nn_models::mlp {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         // Could be dependent on the capability but in this case the buffer-requirements of forward and backward are the same
 
         // Convenience
@@ -104,7 +103,7 @@ namespace rl_tools::nn_models::mlp {
         static constexpr TI NUM_WEIGHTS = SPEC::INPUT_LAYER_SPEC::NUM_WEIGHTS + SPEC::HIDDEN_LAYER_SPEC::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER_SPEC::NUM_WEIGHTS;
 
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
-        using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+        using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, 2>;
 
         static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
         struct EXPANDED_BATCH_SIZE_CAPABILITY: SPEC::CAPABILITY{
@@ -118,8 +117,8 @@ namespace rl_tools::nn_models::mlp {
 
         using LAYER_PROTOTYPE = decltype(input_layer);
 
-        template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
-        using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, LAYER_PROTOTYPE, T_CONTAINER_TYPE_TAG>>;
+        template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
+        using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, LAYER_PROTOTYPE>>;
     };
 
     template<typename SPEC>

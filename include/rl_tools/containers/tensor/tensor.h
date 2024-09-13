@@ -175,13 +175,13 @@ namespace rl_tools{
             }
         }
 
-        template <typename T_T, typename T_TI, typename T_SHAPE, bool T_STATIC=false, typename T_STRIDE = RowMajorStride<T_SHAPE>, bool T_CONST=false>
+        template <typename T_T, typename T_TI, typename T_SHAPE, bool T_DYNAMIC_ALLOCATION=true, typename T_STRIDE = RowMajorStride<T_SHAPE>, bool T_CONST=false>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             using SHAPE = T_SHAPE;
             using STRIDE = T_STRIDE;
-            static constexpr bool STATIC = T_STATIC;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static constexpr bool CONST = T_CONST;
             static constexpr TI SIZE = max_span<SHAPE, STRIDE>();
             static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
@@ -257,7 +257,7 @@ namespace rl_tools{
                 template <typename STRIDE, typename VIEW_SPEC>
                 using Stride = STRIDE;
                 template <typename SPEC, typename VIEW_SPEC, bool T_CONST>
-                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, false, Stride<typename SPEC::STRIDE, VIEW_SPEC>, T_CONST>;
+                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, true, Stride<typename SPEC::STRIDE, VIEW_SPEC>, T_CONST>;
             }
             namespace point{
                 template <typename SHAPE, typename VIEW_SPEC>
@@ -265,24 +265,36 @@ namespace rl_tools{
                 template <typename STRIDE, typename VIEW_SPEC>
                 using Stride = tensor::Remove<STRIDE, VIEW_SPEC::DIM>;
                 template <typename SPEC, typename VIEW_SPEC, bool T_CONST>
-                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, false, Stride<typename SPEC::STRIDE, VIEW_SPEC>, T_CONST>;
+                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, true, Stride<typename SPEC::STRIDE, VIEW_SPEC>, T_CONST>;
             }
         }
     }
 
+    namespace tensor{
+        template <typename T, typename TI, TI SIZE>
+        struct TensorStatic{
+            T _data[SIZE];
+        };
+        template <typename T, bool CONST = false>
+        struct TensorDynamic{
+            T* _data;
+        };
+        template <typename T>
+        struct TensorDynamic<T, true>{
+            const T* _data;
+        };
+    }
+
     template <typename T_SPEC>
-    struct Tensor{
+    struct Tensor: utils::typing::conditional_t<T_SPEC::DYNAMIC_ALLOCATION, tensor::TensorDynamic<typename T_SPEC::T, T_SPEC::CONST>, tensor::TensorStatic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE>>{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         template <typename VIEW_SPEC>
         using VIEW_POINT = Tensor<tensor::spec::view::point::Specification<SPEC, VIEW_SPEC, SPEC::CONST>>;
         template <typename VIEW_SPEC>
         using VIEW_RANGE = Tensor<tensor::spec::view::range::Specification<SPEC, VIEW_SPEC, SPEC::CONST>>;
-        using T_CV = utils::typing::conditional_t<SPEC::CONST, const T, T>;
-        using DATA_TYPE = utils::typing::conditional_t<SPEC::STATIC, T_CV[SPEC::SIZE], T_CV*>;
-        DATA_TYPE _data;
         Tensor() = default;
-        Tensor(DATA_TYPE data): _data(data){};
+//        Tensor(DATA_TYPE data): _data(data){};
     };
 
     template <typename SPEC>
@@ -300,11 +312,11 @@ namespace rl_tools{
     }
     struct TensorDynamicTag{
         template<typename SPEC>
-        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, false, typename SPEC::STRIDE, SPEC::CONST>>;
+        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, true, typename SPEC::STRIDE, SPEC::CONST>>;
     };
     struct TensorStaticTag{
         template<typename SPEC>
-        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, true, typename SPEC::STRIDE, SPEC::CONST>>;
+        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, false, typename SPEC::STRIDE, SPEC::CONST>>;
     };
     template <typename MATRIX_TAG>
     struct MatrixToTensorTypeTag{

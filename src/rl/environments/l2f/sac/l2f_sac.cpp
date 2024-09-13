@@ -49,8 +49,8 @@ void check(DEVICE& device, const OBJECT& object, std::string name){
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
-#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
+#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
@@ -83,6 +83,7 @@ int main(){
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
+    std::cout << "Sizeof training state: " << sizeof(ts) << std::endl;
     auto myrng = rlt::random::default_engine(device.random, seed);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_seed_path);
