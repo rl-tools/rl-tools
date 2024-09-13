@@ -15,7 +15,7 @@
 #include <rl_tools/ui_server/client/operations_websocket.h>
 
 
-#include "../../../experiments/2024-09-13_15-02-06/88728f2_sequential_algorithm_environment_seq-len/sac_l2f_10/0003/steps/000000000000000/checkpoint.h"
+#include "../../../experiments/2024-09-13_14-41-33/953f9d3_sequential_algorithm_environment_seq-len/sac_l2f_10/0003/steps/000000001000000/checkpoint.h"
 
 namespace rlt = rl_tools;
 
@@ -27,19 +27,21 @@ namespace rlt = rl_tools;
 #include "approximators.h"
 
 
-constexpr bool ORIGINAL_CONDITIONS = true;
-constexpr bool AUTOMATIC_RESET = false;
-constexpr bool ENV_ZERO_ORIENTATION_INIT = false;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
-using T = double;
+using T = float;
 using TI = typename DEVICE::index_t;
+
+constexpr bool ORIGINAL_CONDITIONS = true;
+constexpr bool AUTOMATIC_RESET = true;
+constexpr bool ENV_ZERO_ORIENTATION_INIT = false;
+constexpr T DT = 0.01;
 
 #include "parameters.h"
 
 struct DEFAULT_CONFIG: rl_tools::rl::environments::l2f::parameters::DEFAULT_CONFIG{
-    static constexpr bool ZERO_ORIENTATION_INIT = ORIGINAL_CONDITIONS || ZERO_ORIENTATION_INIT;
+    static constexpr bool ENV_ZERO_ORIENTATION_INIT = ORIGINAL_CONDITIONS || ZERO_ORIENTATION_INIT;
 };
 
 using EVALUATION_ENVIRONMENT = typename env_param_builder::ENVIRONMENT_PARAMETERS<DEFAULT_CONFIG>::ENVIRONMENT;
@@ -66,7 +68,7 @@ int main(){
         rlt::print(device, last_step_output);
         std::cout << "last_step_expected: " << std::endl;
         rlt::print(device, last_step_expected);
-        
+
         std::cout << "abs_diff to checkpoint example: " << abs_diff << std::endl;
         rlt::free(device, test_buffer);
         rlt::free(device, output);
@@ -82,6 +84,9 @@ int main(){
 
     rlt::malloc(device, env);
     rlt::sample_initial_parameters(device, env, parameters, rng);
+    if(!ORIGINAL_CONDITIONS){
+        parameters.integration.dt = DT;
+    }
 
     using STEP_BY_STEP_MODE = rlt::nn::layers::gru::StepByStepMode<rlt::mode::Default<>, rlt::nn::layers::gru::StepByStepModeSpecification<TI, ORIGINAL_CONDITIONS || AUTOMATIC_RESET>>;
     rlt::Mode<STEP_BY_STEP_MODE> mode;
@@ -118,7 +123,7 @@ int main(){
         rlt::set_state(device, env, parameters, ui, state);
         std::this_thread::sleep_for(std::chrono::milliseconds((TI)(1000 * dt)));
         bool terminated = rlt::terminated(device, env, parameters, state, rng);
-        truncated = terminated || step >= 500;
+        truncated = terminated || step >= 500 * 0.01 / parameters.integration.dt;
         mode.reset = truncated;
         if(truncated){
             std::cout << "Episode terminated after " << step << " steps with cumulative rewards: " << cumulative_rewards << std::endl;
