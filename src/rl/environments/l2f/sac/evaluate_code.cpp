@@ -15,7 +15,7 @@
 #include <rl_tools/ui_server/client/operations_websocket.h>
 
 
-#include "../../../experiments/2024-09-13_14-41-33/953f9d3_sequential_algorithm_environment_seq-len/sac_l2f_10/0003/steps/000000001300000/checkpoint.h"
+#include "../../../experiments/2024-09-13_15-02-06/88728f2_sequential_algorithm_environment_seq-len/sac_l2f_10/0003/steps/000000000000000/checkpoint.h"
 
 namespace rlt = rl_tools;
 
@@ -33,7 +33,7 @@ constexpr bool ENV_ZERO_ORIENTATION_INIT = false;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
-using T = float;
+using T = double;
 using TI = typename DEVICE::index_t;
 
 #include "parameters.h"
@@ -51,6 +51,26 @@ int main(){
 
     rl_tools::checkpoint::actor::MODEL::Buffer<1> buffer;
     rlt::malloc(device, buffer);
+
+    {
+        // test
+        rl_tools::checkpoint::actor::MODEL::Buffer<rlt::get<1>(rl_tools::checkpoint::example::input::SHAPE{})> test_buffer;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools::checkpoint::example::output::SHAPE>> output;
+        rlt::malloc(device, test_buffer);
+        rlt::malloc(device, output);
+        rlt::evaluate(device, rl_tools::checkpoint::actor::module, rl_tools::checkpoint::example::input::container, output, test_buffer, rng);
+        T abs_diff = rlt::abs_diff(device, rl_tools::checkpoint::example::output::container, output) / rl_tools::checkpoint::example::output::SPEC::SIZE;
+        auto last_step_output = rlt::view(device, output, rlt::get<0>(rl_tools::checkpoint::example::output::SHAPE{}) - 1);
+        auto last_step_expected = rlt::view(device, rl_tools::checkpoint::example::output::container, rlt::get<0>(rl_tools::checkpoint::example::output::SHAPE{}) - 1);
+        std::cout << "last_step_output: " << std::endl;
+        rlt::print(device, last_step_output);
+        std::cout << "last_step_expected: " << std::endl;
+        rlt::print(device, last_step_expected);
+        
+        std::cout << "abs_diff to checkpoint example: " << abs_diff << std::endl;
+        rlt::free(device, test_buffer);
+        rlt::free(device, output);
+    }
 
     using ENVIRONMENT_UI = rlt::ui_server::client::UIWebSocket<EVALUATION_ENVIRONMENT>;
     ENVIRONMENT_UI ui;

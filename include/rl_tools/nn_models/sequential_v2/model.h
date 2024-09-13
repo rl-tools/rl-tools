@@ -154,7 +154,7 @@ namespace rl_tools::nn_models::sequential_v2{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM>;
+        using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM * BATCH_SIZE>; // TODO: check if this is overkill
         using TICK_TOCK_CONTAINER_SPEC = tensor::Specification<T, TI, TICK_TOCK_CONTAINER_SHAPE, tensor::RowMajorStride<TICK_TOCK_CONTAINER_SHAPE>>;
         using TICK_TOCK_CONTAINER_TYPE = Tensor<TICK_TOCK_CONTAINER_SPEC>;
 //        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::MAX_HIDDEN_DIM, typename BUFFER_SPEC::MEMORY_LAYOUT>;

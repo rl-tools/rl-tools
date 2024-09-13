@@ -55,14 +55,15 @@ namespace rl_tools{
             void save_code(DEVICE& device, rl::loop::steps::checkpoint::State<CONFIG>& ts, std::string step_folder, ACTOR_TYPE& actor_forward){
                 using T = typename CONFIG::T;
                 using TI = typename DEVICE::index_t;
-                typename ACTOR_TYPE::template Buffer<1> actor_buffer;
+                constexpr TI BATCH_SIZE = 13;
+                typename ACTOR_TYPE::template Buffer<BATCH_SIZE> actor_buffer;
                 malloc(device, actor_buffer);
                 auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
                 std::stringstream output_ss;
                 output_ss << actor_weights;
                 {
-                    Tensor<tensor::Specification<T, TI, typename ACTOR_TYPE::INPUT_SHAPE>> input;
-                    Tensor<tensor::Specification<T, TI, typename ACTOR_TYPE::OUTPUT_SHAPE>> output;
+                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>>> input;
+                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>>> output;
                     malloc(device, input);
                     malloc(device, output);
                     auto rng_copy = ts.rng;
