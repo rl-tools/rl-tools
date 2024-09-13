@@ -281,7 +281,7 @@ namespace rl_tools{
         using T_CV = utils::typing::conditional_t<SPEC::CONST, const T, T>;
         using DATA_TYPE = utils::typing::conditional_t<SPEC::STATIC, T_CV[SPEC::SIZE], T_CV*>;
         DATA_TYPE _data;
-        Tensor(){};
+        Tensor() = default;
         Tensor(DATA_TYPE data): _data(data){};
     };
 
