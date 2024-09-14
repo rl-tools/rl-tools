@@ -154,7 +154,7 @@ int main(){
     }
     std::cout << "Latest checkpoint: " << latest_checkpoint << std::endl;
 
-    using ACTOR = LOOP_CORE_CONFIG::ACTOR_CRITIC_TYPE::SPEC::ACTOR_NETWORK_TYPE::CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward>;
+    using ACTOR = LOOP_CORE_CONFIG::ACTOR_CRITIC_TYPE::SPEC::ACTOR_NETWORK_TYPE::CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward<>>;
     ACTOR actor;
     ACTOR::Buffer<1> buffer;
 
