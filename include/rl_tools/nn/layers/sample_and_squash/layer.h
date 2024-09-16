@@ -41,79 +41,92 @@ namespace rl_tools{
             using SPEC = T_SPEC;
             static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, T_BATCH_SIZE, SPEC::INPUT_DIM>;
-            using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, SPEC::OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
-            static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
         };
 
         template <typename BUFFER_SPEC>
         struct Buffer{
             using SPEC = typename BUFFER_SPEC::SPEC;
             using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-            using NOISE_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BUFFER_SPEC::ACTUAL_BATCH_SIZE, SPEC::DIM>;
+            using NOISE_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BUFFER_SPEC::SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM>;
             using NOISE_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<NOISE_CONTAINER_SPEC>;
             NOISE_CONTAINER_TYPE noise;
         };
-        template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS = DefaultParameters<T_T>, typename T_INPUT_SHAPE_FACTORY = nn::layers::dense::DefaultInputShapeFactory>
-        struct Specification {
+        template<typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
+        struct Configuration {
             using T = T_T;
             using TI = T_TI;
-            static constexpr auto DIM = T_DIM;
-            static constexpr TI INPUT_DIM = 2*DIM; // mean and std
-            static constexpr TI OUTPUT_DIM = DIM;
-            using INPUT_SHAPE_FACTORY = T_INPUT_SHAPE_FACTORY;
             using PARAMETERS = T_PARAMETERS;
         };
-        template <typename SPEC>
+        template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
+        struct Specification: T_CAPABILITY, T_CONFIG{
+            using CONFIG = T_CONFIG;
+            using CAPABILITY = T_CAPABILITY;
+            using INPUT_SHAPE = T_INPUT_SHAPE;
+            using T = typename CONFIG::T;
+            using TI = typename CONFIG::TI;
+            static constexpr TI DIM_2X = get_last(INPUT_SHAPE{});
+            static_assert(DIM_2X % 2 == 0, "Sample and squash layer: The dimension of the input shape must be divisible by 2.");
+            static constexpr TI DIM = DIM_2X/2;
+            static constexpr TI INPUT_DIM = DIM_2X;
+            static constexpr TI OUTPUT_DIM = DIM;
+            using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+            static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
+            static constexpr TI NUM_WEIGHTS = 0;
+        };
+        template <typename T_SPEC>
         struct LayerForward{
+            using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             static constexpr TI DIM = SPEC::DIM;
             static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
-            static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
-            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, INPUT_DIM>;
-            using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
-            static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
+            static constexpr TI INTERNAL_BATCH_SIZE = SPEC::INTERNAL_BATCH_SIZE;
+            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
+            using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
+//            static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
+//            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, INPUT_DIM>;
+//            using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+//            static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
             template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
             using Buffer = sample_and_squash::Buffer<sample_and_squash::BufferSpecification<TI, BUFFER_BATCH_SIZE, SPEC, DYNAMIC_ALLOCATION>>;
         };
         template<typename SPEC>
         struct LayerBackward: public LayerForward<SPEC> {
-            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
+//            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
             // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
             using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, ACTUAL_BATCH_SIZE, SPEC::DIM>;
+            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM>;
             using PRE_ACTIVATIONS_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
             PRE_ACTIVATIONS_CONTAINER_TYPE pre_squashing, noise;
         };
         template<typename SPEC>
         struct LayerGradient: public LayerBackward<SPEC> {
-            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
+//            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
             using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, ACTUAL_BATCH_SIZE>;
+            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::INTERNAL_BATCH_SIZE>;
             using LOG_PROBABILITIES_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<LOG_PROBABILITIES_CONTAINER_SPEC>;
             LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
-            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, ACTUAL_BATCH_SIZE, SPEC::DIM>;
+            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM>;
             using OUTPUT_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
             OUTPUT_CONTAINER_TYPE output;
             using ALPHA_CONTAINER = typename CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, 1>>;
             using ALPHA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<ALPHA_CONTAINER, nn::parameters::categories::Biases, nn::parameters::groups::Normal>;
             typename SPEC::PARAMETER_TYPE::template instance<ALPHA_PARAMETER_SPEC> log_alpha;
         };
-        template<typename CAPABILITY, typename SPEC>
+        template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
         using Layer =
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-                LayerForward<layers::dense::CapabilitySpecification<CAPABILITY, SPEC>>,
+                LayerForward<layers::sample_and_squash::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                LayerBackward<layers::dense::CapabilitySpecification<CAPABILITY, SPEC>>,
+                LayerBackward<layers::sample_and_squash::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                LayerGradient<layers::dense::CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+                LayerGradient<layers::sample_and_squash::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
-        template <typename T_SPEC>
+        template <typename CONFIG>
         struct BindSpecification{
-            template <typename CAPABILITY>
-            using Layer = nn::layers::sample_and_squash::Layer<CAPABILITY, T_SPEC>;
+            template <typename CAPABILITY, typename INPUT_SHAPE>
+            using Layer = nn::layers::sample_and_squash::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
         };
     }
 }

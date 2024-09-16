@@ -8,24 +8,32 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru{
-    template<typename T_T, typename T_TI, T_TI T_SEQUENCE_LENGTH, T_TI T_INPUT_DIM, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = TensorDynamicTag, bool T_FAST_TANH = false, bool T_CONST = false>
-    struct Specification{
+    template<typename T_T, typename T_TI, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, bool T_FAST_TANH = false, bool T_CONST = false>
+    struct Configuration{
         using T = T_T;
         using TI = T_TI;
-        static constexpr T_TI SEQUENCE_LENGTH = T_SEQUENCE_LENGTH;
-        static constexpr T_TI INPUT_DIM = T_INPUT_DIM;
         static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr bool FAST_TANH = T_FAST_TANH;
         static constexpr bool CONST = T_CONST;
         static constexpr bool LEARN_INITIAL_HIDDEN_STATE = false;
         // Summary
 //        static constexpr auto NUM_WEIGHTS = HIDDEN_DIM * INPUT_DIM + HIDDEN_DIM; // todo
     };
-    template <typename T_CAPABILITY, typename T_SPEC>
-    struct CapabilitySpecification: T_CAPABILITY, T_SPEC{
+    template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
+    struct Specification: T_CAPABILITY, T_CONFIG{
+        using CONFIG = T_CONFIG;
         using CAPABILITY = T_CAPABILITY;
+        using INPUT_SHAPE = T_INPUT_SHAPE;
+        using T = typename CONFIG::T;
+        using TI = typename CONFIG::TI;
+        static_assert(length(INPUT_SHAPE{}) == 3, "The input shape of the GRU must be 3 dimensional for now (sequence x batch x features)");
+        static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
+        static constexpr TI SEQUENCE_LENGTH = get<length(INPUT_SHAPE{})-3>(INPUT_SHAPE{});
+        using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, CONFIG::HIDDEN_DIM, length(INPUT_SHAPE{})-1>;
+        static constexpr TI INTERNAL_BATCH_SIZE = get<1>(INPUT_SHAPE{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
+        static constexpr TI NUM_WEIGHTS = CONFIG::HIDDEN_DIM * (INPUT_DIM + 1) * 3 + CONFIG::HIDDEN_DIM * (CONFIG::HIDDEN_DIM+1) * 3;
+        using CONTAINER_TYPE_TAG = TensorDynamicTag;
     };
 
     namespace buffers{
@@ -91,8 +99,8 @@ namespace rl_tools::nn::layers::gru{
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI HIDDEN_DIM = SPEC::HIDDEN_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::HIDDEN_DIM;
-        using INPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-        using OUTPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
+        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
+        using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
         using WEIGHTS_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, INPUT_DIM>;
         using WEIGHTS_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_INPUT_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<WEIGHTS_INPUT_CONTAINER_SHAPE>, SPEC::CONST>;
         using WEIGHTS_INPUT_CONTAINER_TYPE = Tensor<WEIGHTS_INPUT_CONTAINER_SPEC>;
@@ -167,24 +175,28 @@ namespace rl_tools::nn::layers::gru{
     };
 
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    struct assert_input_output{
+        static_assert(length(typename INPUT_SPEC::SHAPE{}) == 3 && length(typename OUTPUT_SPEC::SHAPE{}) == 3);
+        static_assert(get<0>(typename INPUT_SPEC::SHAPE{}) == get<0>(typename OUTPUT_SPEC::SHAPE{}));
+        static_assert(get<1>(typename INPUT_SPEC::SHAPE{}) == get<1>(typename OUTPUT_SPEC::SHAPE{}));
+        static_assert(get<2>(typename INPUT_SPEC::SHAPE{}) == SPEC::INPUT_DIM && get<2>(typename OUTPUT_SPEC::SHAPE{}) == SPEC::HIDDEN_DIM);
+    };
+    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     bool constexpr check_input_output = length(typename INPUT_SPEC::SHAPE{}) == 3 && length(typename OUTPUT_SPEC::SHAPE{}) == 3 &&
             get<0>(typename INPUT_SPEC::SHAPE{}) == get<0>(typename OUTPUT_SPEC::SHAPE{}) &&
             get<1>(typename INPUT_SPEC::SHAPE{}) == get<1>(typename OUTPUT_SPEC::SHAPE{}) &&
             get<2>(typename INPUT_SPEC::SHAPE{}) == SPEC::INPUT_DIM && get<2>(typename OUTPUT_SPEC::SHAPE{}) == SPEC::HIDDEN_DIM;
 
-    template<typename CAPABILITY, typename SPEC>
+    template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
     using Layer =
-            typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-                    LayerForward<CapabilitySpecification<CAPABILITY, SPEC>>,
-    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-            LayerBackward<CapabilitySpecification<CAPABILITY, SPEC>>,
-    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-            LayerGradient<CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward, LayerForward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward, LayerBackward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, LayerGradient<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
-    template <typename T_SPEC>
+    template <typename T_CONFIG>
     struct BindSpecification{
-        template <typename CAPABILITY>
-        using Layer = nn::layers::gru::Layer<CAPABILITY, T_SPEC>;
+        template <typename CAPABILITY, typename INPUT_SHAPE>
+        using Layer = nn::layers::gru::Layer<T_CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 }
 

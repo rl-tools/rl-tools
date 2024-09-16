@@ -3,14 +3,14 @@ struct ConfigApproximatorsSequential{
     static constexpr bool USE_GRU = true;
     template <typename CAPABILITY>
     struct Actor{
-        using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, ENVIRONMENT::Observation::DIM, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
+        using GRU_SPEC = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
         using GRU_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU_SPEC>;
-        using GRU2_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
+        using GRU2_SPEC = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
         using GRU2_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU2_SPEC>;
-        using DENSE_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
-        using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER_SPEC>;
-        using OUTPUT_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, 2*ENVIRONMENT::ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal,rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
-        using OUTPUT_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<OUTPUT_LAYER_SPEC>;
+        using DENSE_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+        using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
+        using OUTPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 2*ENVIRONMENT::ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+        using OUTPUT_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
         struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
             static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
             static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
@@ -20,31 +20,35 @@ struct ConfigApproximatorsSequential{
             static constexpr T ALPHA = PARAMETERS::ALPHA;
             static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
         };
-        using SAMPLE_AND_SQUASH_LAYER_SPEC = rlt::nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
+        using SAMPLE_AND_SQUASH_LAYER_SPEC = rlt::nn::layers::sample_and_squash::Configuration<T, TI, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
         using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
         template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-        using Module = typename rlt::nn_models::sequential_v2::Interface<CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
+        using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
         using SAMPLE_AND_SQUASH_MODULE = Module<SAMPLE_AND_SQUASH_LAYER>;
-        using MODEL_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>>>;
-        using MODEL_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>;
+        using MODULE_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>>>;
+        using MODULE_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>;
+        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+        using MODEL_GRU = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_GRU, INPUT_SHAPE>;
 //        using MODEL = MODEL_GRU_TWO_LAYER;
         using MODEL = MODEL_GRU;
     };
     template <typename CAPABILITY>
     struct Critic{
         static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
-        using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
+        using GRU_SPEC = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
         using GRU_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU_SPEC>;
-        using GRU2_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
+        using GRU2_SPEC = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
         using GRU2_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU2_SPEC>;
-        using DENSE_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal,rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
-        using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER_SPEC>;
-        using OUTPUT_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
-        using OUTPUT_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<OUTPUT_LAYER_SPEC>;
+        using DENSE_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+        using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
+        using OUTPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+        using OUTPUT_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
         template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-        using Module = typename rlt::nn_models::sequential_v2::Interface<CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
+        using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
         using MODEL_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>>>;
-        using MODEL_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>;
+        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
+        using MODULE_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>;
+        using MODEL_GRU = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_GRU, INPUT_SHAPE>;
 //        using MODEL = MODEL_GRU_TWO_LAYER;
         using MODEL = MODEL_GRU;
     };

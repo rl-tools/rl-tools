@@ -241,8 +241,8 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
         using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
-        constexpr TI BATCH_SIZE = LAYER::BATCH_SIZE;
-        constexpr TI ACTUAL_BATCH_SIZE = LAYER::ACTUAL_BATCH_SIZE;
+        constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
+        constexpr TI BATCH_SIZE = LAYER::SPEC::BATCH_SIZE;
 /*
         Gradient of the loss function:
         mu, std = policy(observation)
@@ -318,18 +318,18 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
-        constexpr TI BATCH_SIZE = LAYER::BATCH_SIZE;
-        constexpr TI ACTUAL_BATCH_SIZE = LAYER::ACTUAL_BATCH_SIZE;
+        constexpr TI BATCH_SIZE = LAYER::SPEC::BATCH_SIZE;
+        constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
         T log_alpha = get(layer.log_alpha.parameters, 0, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
         T d_log_alpha = 0;
-        for(TI batch_i = 0; batch_i < ACTUAL_BATCH_SIZE; batch_i++){
+        for(TI batch_i = 0; batch_i < INTERNAL_BATCH_SIZE; batch_i++){
             d_log_alpha += backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
         add_scalar(device, device.logger, "actor_alpha", alpha, 100);
 
-        // TODO: change ACTUAL_BATCH_SIZE to sum(reset) if MASK_NON_TERMINAL is used
-        increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/ACTUAL_BATCH_SIZE); // note if changing the BATCH_SIZE to ACTUAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
+        // TODO: change INTERNAL_BATCH_SIZE to sum(reset) if MASK_NON_TERMINAL is used
+        increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/INTERNAL_BATCH_SIZE); // note if changing the BATCH_SIZE to INTERNAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
     }
     template<typename DEVICE, typename SPEC>
     constexpr auto& output(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& l){

@@ -89,8 +89,8 @@ namespace rl_tools{
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         static_assert(D_OUTPUT_SPEC::COLS == OUTPUT_DIM);
         static_assert(D_PRE_ACTIVATIONS_SPEC::COLS == OUTPUT_DIM);
-        static_assert(LAYER::ACTUAL_BATCH_SIZE == D_OUTPUT_SPEC::ROWS);
-        static_assert(LAYER::ACTUAL_BATCH_SIZE == D_PRE_ACTIVATIONS_SPEC::ROWS);
+        static_assert(LAYER::INTERNAL_BATCH_SIZE == D_OUTPUT_SPEC::ROWS);
+        static_assert(LAYER::INTERNAL_BATCH_SIZE == D_PRE_ACTIVATIONS_SPEC::ROWS);
         constexpr auto BATCH_SIZE = D_PRE_ACTIVATIONS_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;

@@ -55,7 +55,7 @@ namespace rl_tools::nn_models::sequential_v2{
         constexpr TI CONTENT_OUTPUT_DIM = product(typename SPEC::CONTENT::OUTPUT_SHAPE{});
         current_max = current_max > CONTENT_OUTPUT_DIM ? current_max : CONTENT_OUTPUT_DIM;
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
-            return 0;
+            return current_max;
         } else {
             TI max_downstream = find_max_hiddend_dim<TI, typename SPEC::NEXT_MODULE>();
             return max_downstream > current_max ? max_downstream : current_max;
@@ -76,15 +76,16 @@ namespace rl_tools::nn_models::sequential_v2{
     template <typename BUFFER_SPEC, typename MODULE_SPEC>
     constexpr bool buffer_compatible = BUFFER_SPEC::SPEC::MAX_HIDDEN_DIM >= MODULE_SPEC::MAX_HIDDEN_DIM;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
+    template <typename T_ORIGINAL_ROOT, typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
     struct Specification{
+        using ORIGINAL_ROOT = T_ORIGINAL_ROOT; // saving this such that we can reuse ::Build to change capabilities and/or input shapes
         using CONTENT = T_CONTENT;
         using NEXT_MODULE = T_NEXT_MODULE;
         using T = typename CONTENT::T;
         using TI = typename CONTENT::TI;
         using INPUT_SHAPE = typename CONTENT::INPUT_SHAPE;
-        using OUTPUT_SHAPE = decltype(find_output_shape<Specification<T_CONTENT, T_NEXT_MODULE>>());
-        static constexpr TI MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
+        using OUTPUT_SHAPE = decltype(find_output_shape<Specification<T_ORIGINAL_ROOT, T_CONTENT, T_NEXT_MODULE>>());
+        static constexpr TI MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_ORIGINAL_ROOT, T_CONTENT, T_NEXT_MODULE>>();
         static constexpr bool NEXT_IS_OUTPUT = utils::typing::is_same_v<NEXT_MODULE, OutputModule>;
         static_assert(NEXT_IS_OUTPUT || tensor::same_dimensions_shape<typename CONTENT::OUTPUT_SHAPE, utils::typing::conditional_t<NEXT_IS_OUTPUT, typename CONTENT::OUTPUT_SHAPE, typename NEXT_MODULE::CONTENT::INPUT_SHAPE>>());
     };
@@ -140,6 +141,8 @@ namespace rl_tools::nn_models::sequential_v2{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
+        static_assert(SPEC::MAX_HIDDEN_DIM > 0);
+        static_assert(BATCH_SIZE > 0);
         using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM * BATCH_SIZE>; // TODO: check if this is overkill
         using TICK_TOCK_CONTAINER_SPEC = tensor::Specification<T, TI, TICK_TOCK_CONTAINER_SHAPE, BUFFER_SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<TICK_TOCK_CONTAINER_SHAPE>>;
         using TICK_TOCK_CONTAINER_TYPE = Tensor<TICK_TOCK_CONTAINER_SPEC>;
@@ -178,34 +181,59 @@ namespace rl_tools::nn_models::sequential_v2{
         static constexpr TI BATCH_SIZE = T_SPEC::CAPABILITY::BATCH_SIZE;
     };
 
-    template <typename CAPABILITY, typename CONTENT, typename NEXT_MODULE>
-    using _Module =
-        utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-                ModuleForward<CapabilitySpecification<CAPABILITY, Specification<typename CONTENT::template Layer<CAPABILITY>, NEXT_MODULE>>>,
-        utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                ModuleBackward<CapabilitySpecification<CAPABILITY, Specification<typename CONTENT::template Layer<CAPABILITY>, NEXT_MODULE>>>,
-        utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                ModuleGradient<CapabilitySpecification<CAPABILITY, Specification<typename CONTENT::template Layer<CAPABILITY>, NEXT_MODULE>>>, void>>>;
-
-    template <typename T_CAPABILITY, typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-    struct Module: _Module<T_CAPABILITY, T_CONTENT, T_NEXT_MODULE>{
-        template <typename TT_CAPABILITY>
-        using CHANGE_CAPABILITY = Module<TT_CAPABILITY, T_CONTENT, typename T_NEXT_MODULE::template CHANGE_CAPABILITY<TT_CAPABILITY>>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
+    struct Module{
+        using CONTENT = T_CONTENT;
+        using NEXT_CARRIER_MODULE = T_NEXT_MODULE;
     };
 
-    template <typename T_CAPABILITY>
-    struct Interface{
-        template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-        using Module = sequential_v2::Module<T_CAPABILITY, T_CONTENT, T_NEXT_MODULE>;
+    template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE>
+    struct _Chain{
+        using T_CONTENT = typename T_MODULE::CONTENT;
+        using CONTENT = typename T_CONTENT::template Layer<CAPABILITY, INPUT_SHAPE>;
+        using OUTPUT_SHAPE = typename CONTENT::SPEC::OUTPUT_SHAPE;
+        using NEXT_MODULE = utils::typing::conditional_t<utils::typing::is_same_v<typename T_MODULE::NEXT_CARRIER_MODULE, OutputModule>, OutputModule, typename _Chain<CAPABILITY, typename T_MODULE::NEXT_CARRIER_MODULE, OUTPUT_SHAPE>::MODULE>;
+        using MODULE_FORWARD = ModuleForward<CapabilitySpecification<CAPABILITY, Specification<T_MODULE, CONTENT, NEXT_MODULE>>>;
+        using MODULE_BACKWARD = ModuleBackward<CapabilitySpecification<CAPABILITY, Specification<T_MODULE, CONTENT, NEXT_MODULE>>>;
+        using MODULE_GRADIENT = ModuleGradient<CapabilitySpecification<CAPABILITY, Specification<T_MODULE, CONTENT, NEXT_MODULE>>>;
+        using MODULE = utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward, MODULE_FORWARD,
+        utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward, MODULE_BACKWARD,
+        utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, MODULE_GRADIENT, void>>>;
+    };
+    template <typename CAPABILITY, typename INPUT_SHAPE>
+    struct _Chain<CAPABILITY, OutputModule, INPUT_SHAPE>{
+        using MODULE = OutputModule;
     };
 
-    template <typename CAPABILITY>
-    using OutputModuleTemplate = OutputModule;
-    template <typename CONTENT, template <typename> typename NEXT_MODULE = OutputModuleTemplate>
-    struct Bind{
-        template <typename CAPABILITY>
-        using Module = sequential_v2::Module<CAPABILITY, CONTENT, NEXT_MODULE<CAPABILITY>>;
+
+    // The user specifies a sequence of Modules using the Module type and then builds them for a particular capability and input shape
+    // When e.g. saving checkpoints the user can rebuild the model with a different capability (e.g. without gradient and optimizers state) and then save the checkpoint
+    template <typename CAPABILITY, typename MODULE, typename INPUT_SHAPE>
+    using Build = typename _Chain<CAPABILITY, MODULE, INPUT_SHAPE>::MODULE;
+
+//    template <typename T_MODULE, typename T_INPUT_SHAPE>
+//    struct Chain{
+//
+//    };
+
+    template <typename CAPABILITY, typename T_CONTENT, typename INPUT_SHAPE, typename NEXT_MODULE>
+    struct _Module{
+
     };
+
+//    template <typename T_CAPABILITY>
+//    struct Interface{
+//        template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule, typename T_INPUT_SHAPE = void>
+//        using Module = sequential_v2::Module<T_CAPABILITY, T_CONTENT, T_INPUT_SHAPE, T_NEXT_MODULE>;
+//    };
+//
+//    template <typename CAPABILITY>
+//    using OutputModuleTemplate = OutputModule;
+//    template <typename CONTENT, template <typename> typename NEXT_MODULE = OutputModuleTemplate>
+//    struct Bind{
+//        template <typename CAPABILITY>
+//        using Module = sequential_v2::Module<CAPABILITY, CONTENT, NEXT_MODULE<CAPABILITY>>;
+//    };
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

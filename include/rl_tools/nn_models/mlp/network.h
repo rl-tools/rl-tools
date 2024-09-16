@@ -12,11 +12,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp {
-    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>, typename T_INPUT_SHAPE_FACTORY = nn::layers::dense::DefaultInputShapeFactory, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
-    struct Specification{
+    template <typename T_T, typename T_TI, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    struct Configuration{
         using T = T_T;
         using TI = T_TI;
-        static constexpr T_TI INPUT_DIM = T_INPUT_DIM;
         static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr T_TI NUM_LAYERS = T_NUM_LAYERS; // The input and output layers count towards the total number of layers
         static_assert(NUM_LAYERS >= 2); // At least input and output layer are required
@@ -28,13 +27,29 @@ namespace rl_tools::nn_models::mlp {
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
 
-        using INPUT_SHAPE_FACTORY = T_INPUT_SHAPE_FACTORY;
         using LAYER_INITIALIZER = T_LAYER_INITIALIZER;
 
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Input , INPUT_SHAPE_FACTORY>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Normal, INPUT_SHAPE_FACTORY>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, OUTPUT_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Output, INPUT_SHAPE_FACTORY>;
     };
+    template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
+    struct Specification{
+        using CONFIG = T_CONFIG;
+        using CAPABILITY = T_CAPABILITY;
+        using INPUT_SHAPE = T_INPUT_SHAPE;
+        using T = typename CONFIG::T;
+        using TI = typename CONFIG::TI;
+        static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
+        using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, CONFIG::OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
+        static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_DIM * INPUT_DIM + CONFIG::OUTPUT_DIM;
+
+        using INPUT_LAYER_CONFIG  = nn::layers::dense::Configuration<T, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, nn::parameters::groups::Input >;
+        using HIDDEN_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, nn::parameters::groups::Normal>;
+        using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, CONFIG::OUTPUT_DIM, CONFIG::OUTPUT_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, nn::parameters::groups::Output>;
+        using INPUT_LAYER = nn::layers::dense::Layer<INPUT_LAYER_CONFIG, CAPABILITY, INPUT_SHAPE>;
+        using HIDDEN_LAYER = nn::layers::dense::Layer<HIDDEN_LAYER_CONFIG, CAPABILITY, typename INPUT_LAYER::SPEC::OUTPUT_SHAPE>;
+        using OUTPUT_LAYER = nn::layers::dense::Layer<OUTPUT_LAYER_CONFIG, CAPABILITY, typename HIDDEN_LAYER::SPEC::OUTPUT_SHAPE>;
+    };
+
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
             utils::typing::is_same_v<typename SPEC_1::T, typename SPEC_2::T>
@@ -48,11 +63,11 @@ namespace rl_tools::nn_models::mlp {
             && SPEC_1::HIDDEN_ACTIVATION_FUNCTION == SPEC_2::HIDDEN_ACTIVATION_FUNCTION
             && SPEC_1::OUTPUT_ACTIVATION_FUNCTION == SPEC_2::OUTPUT_ACTIVATION_FUNCTION;
 
-    template <typename T_CAPABILITY, typename T_SPEC>
-    struct CapabilitySpecification: T_SPEC, T_CAPABILITY{
-        using CAPABILITY = T_CAPABILITY;
-        using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
-    };
+//    template <typename T_CAPABILITY, typename T_SPEC>
+//    struct CapabilitySpecification: T_SPEC, T_CAPABILITY{
+//        using CAPABILITY = T_CAPABILITY;
+//        using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
+//    };
 
     // T_LAYER_PROTOTYPE is any of INPUT_LAYER, HIDDEN_LAYER, or OUTPUT_LAYER. It is assumed that the buffer for all of them are the same (likely empty)
     template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_LAYER_PROTOTYPE>
@@ -111,9 +126,9 @@ namespace rl_tools::nn_models::mlp {
         };
 
         // Storage
-        typename nn::layers::dense::Layer<EXPANDED_BATCH_SIZE_CAPABILITY, typename SPEC::INPUT_LAYER_SPEC> input_layer;
-        typename nn::layers::dense::Layer<EXPANDED_BATCH_SIZE_CAPABILITY, typename SPEC::HIDDEN_LAYER_SPEC> hidden_layers[NUM_HIDDEN_LAYERS];
-        typename nn::layers::dense::Layer<EXPANDED_BATCH_SIZE_CAPABILITY, typename SPEC::OUTPUT_LAYER_SPEC> output_layer;
+        typename SPEC::INPUT_LAYER input_layer;
+        typename SPEC::HIDDEN_LAYER  hidden_layers[NUM_HIDDEN_LAYERS];
+        typename SPEC::OUTPUT_LAYER  output_layer;
 
         using LAYER_PROTOTYPE = decltype(input_layer);
 
@@ -128,25 +143,16 @@ namespace rl_tools::nn_models::mlp {
     template<typename SPEC>
     struct NeuralNetworkGradient: public NeuralNetworkBackward<SPEC>{};
 
-    template<typename CAPABILITY, typename SPEC>
+    template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
     using _NeuralNetwork =
-        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-                NeuralNetworkForward<CapabilitySpecification<CAPABILITY, SPEC>>,
-        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                NeuralNetworkBackward<CapabilitySpecification<CAPABILITY, SPEC>>,
-        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                NeuralNetworkGradient<CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward, NeuralNetworkForward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward, NeuralNetworkBackward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, NeuralNetworkGradient<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
-    template<typename T_CAPABILITY, typename T_SPEC>
-    struct NeuralNetwork: _NeuralNetwork<T_CAPABILITY, T_SPEC>{
-        template <typename TT_CAPABILITY>
-        using CHANGE_CAPABILITY = NeuralNetwork<TT_CAPABILITY, T_SPEC>;
-    };
-
-    template <typename T_SPEC>
-    struct BindSpecification{
-        template <typename CAPABILITY>
-        using NeuralNetwork = nn_models::mlp::NeuralNetwork<CAPABILITY, T_SPEC>;
+    template <typename T_CONFIG>
+    struct BindConfiguration{
+        template <typename CAPABILITY, typename INPUT_SHAPE>
+        using Layer = nn_models::mlp::_NeuralNetwork<T_CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 
 

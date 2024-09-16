@@ -43,7 +43,7 @@ namespace rl_tools {
             ss << SPEC::DIM << ", ";
             ss << "PARAMETERS, ";
             ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag, ";
-            ss << nn::layers::dense::persist::get_shape_factory_string(typename SPEC::INPUT_SHAPE_FACTORY{});
+//            ss << nn::layers::dense::persist::get_shape_factory_string(typename SPEC::INPUT_SHAPE_FACTORY{});
             ss << ">; \n";;
             ss << ind << "    " << "template <typename CAPABILITY>" << "\n";
             ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Layer<CAPABILITY, SPEC>;" << "\n";
