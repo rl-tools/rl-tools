@@ -41,9 +41,10 @@ struct ConfigApproximatorsSequential{
         using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER_SPEC>;
         using OUTPUT_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
         using OUTPUT_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<OUTPUT_LAYER_SPEC>;
-        using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>;
-        using MODEL_GRU_TWO_LAYER = typename IF::template Module<GRU_TEMPLATE, typename IF::template Module<GRU2_TEMPLATE, typename IF::template Module<DENSE_LAYER_TEMPLATE, typename IF::template Module<OUTPUT_LAYER_TEMPLATE>>>>;
-        using MODEL_GRU = typename IF::template Module<GRU_TEMPLATE, typename IF::template Module<OUTPUT_LAYER_TEMPLATE>>;
+        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+        using Module = typename rlt::nn_models::sequential_v2::Interface<CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
+        using MODEL_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>>>;
+        using MODEL_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>;
 //        using MODEL = MODEL_GRU_TWO_LAYER;
         using MODEL = MODEL_GRU;
     };
