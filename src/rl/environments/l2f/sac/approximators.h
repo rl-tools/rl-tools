@@ -11,7 +11,6 @@ struct ConfigApproximatorsSequential{
         using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER_SPEC>;
         using OUTPUT_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, 2*ENVIRONMENT::ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal,rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
         using OUTPUT_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<OUTPUT_LAYER_SPEC>;
-        using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>;
         struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
             static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
             static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
@@ -23,9 +22,11 @@ struct ConfigApproximatorsSequential{
         };
         using SAMPLE_AND_SQUASH_LAYER_SPEC = rlt::nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
         using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
-        using SAMPLE_AND_SQUASH_MODULE = typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>;
-        using MODEL_GRU_TWO_LAYER = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<GRU2_TEMPLATE::template Layer, typename IF::template Module<DENSE_LAYER_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer, SAMPLE_AND_SQUASH_MODULE>>>>;
-        using MODEL_GRU = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer, SAMPLE_AND_SQUASH_MODULE>>;
+        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+        using Module = typename rlt::nn_models::sequential_v2::Interface<CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
+        using SAMPLE_AND_SQUASH_MODULE = Module<SAMPLE_AND_SQUASH_LAYER>;
+        using MODEL_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>>>;
+        using MODEL_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>;
 //        using MODEL = MODEL_GRU_TWO_LAYER;
         using MODEL = MODEL_GRU;
     };
@@ -41,8 +42,8 @@ struct ConfigApproximatorsSequential{
         using OUTPUT_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
         using OUTPUT_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<OUTPUT_LAYER_SPEC>;
         using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>;
-        using MODEL_GRU_TWO_LAYER = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<GRU2_TEMPLATE::template Layer, typename IF::template Module<DENSE_LAYER_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer>>>>;
-        using MODEL_GRU = typename IF::template Module<GRU_TEMPLATE::template Layer, typename IF::template Module<OUTPUT_LAYER_TEMPLATE ::template Layer>>;
+        using MODEL_GRU_TWO_LAYER = typename IF::template Module<GRU_TEMPLATE, typename IF::template Module<GRU2_TEMPLATE, typename IF::template Module<DENSE_LAYER_TEMPLATE, typename IF::template Module<OUTPUT_LAYER_TEMPLATE>>>>;
+        using MODEL_GRU = typename IF::template Module<GRU_TEMPLATE, typename IF::template Module<OUTPUT_LAYER_TEMPLATE>>;
 //        using MODEL = MODEL_GRU_TWO_LAYER;
         using MODEL = MODEL_GRU;
     };

@@ -73,18 +73,6 @@ namespace rl_tools::nn_models::sequential_v2{
     template <typename MODULE>
     constexpr bool check_batch_size_consistency = check_batch_size_consistency_f<MODULE>();
 
-//    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-//    constexpr bool check_input_output_f(){
-//        static_assert(INPUT_SPEC::COLS == SPEC::CONTENT::INPUT_DIM);
-//        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
-//        static_assert(OUTPUT_SPEC::COLS == find_output_dim<SPEC>());
-//        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
-//        return true;
-//    }
-//    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-//    constexpr bool check_input_output = check_input_output_f<SPEC, INPUT_SPEC, OUTPUT_SPEC>();
-
-
     template <typename BUFFER_SPEC, typename MODULE_SPEC>
     constexpr bool buffer_compatible = BUFFER_SPEC::SPEC::MAX_HIDDEN_DIM >= MODULE_SPEC::MAX_HIDDEN_DIM;
 
@@ -190,16 +178,16 @@ namespace rl_tools::nn_models::sequential_v2{
         static constexpr TI BATCH_SIZE = T_SPEC::CAPABILITY::BATCH_SIZE;
     };
 
-    template <typename CAPABILITY, template <typename> typename CONTENT, typename NEXT_MODULE>
+    template <typename CAPABILITY, typename CONTENT, typename NEXT_MODULE>
     using _Module =
         utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-                ModuleForward<CapabilitySpecification<CAPABILITY, Specification<CONTENT<CAPABILITY>, NEXT_MODULE>>>,
+                ModuleForward<CapabilitySpecification<CAPABILITY, Specification<typename CONTENT::template Layer<CAPABILITY>, NEXT_MODULE>>>,
         utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                ModuleBackward<CapabilitySpecification<CAPABILITY, Specification<CONTENT<CAPABILITY>, NEXT_MODULE>>>,
+                ModuleBackward<CapabilitySpecification<CAPABILITY, Specification<typename CONTENT::template Layer<CAPABILITY>, NEXT_MODULE>>>,
         utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                ModuleGradient<CapabilitySpecification<CAPABILITY, Specification<CONTENT<CAPABILITY>, NEXT_MODULE>>>, void>>>;
+                ModuleGradient<CapabilitySpecification<CAPABILITY, Specification<typename CONTENT::template Layer<CAPABILITY>, NEXT_MODULE>>>, void>>>;
 
-    template <typename T_CAPABILITY, template <typename> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
+    template <typename T_CAPABILITY, typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
     struct Module: _Module<T_CAPABILITY, T_CONTENT, T_NEXT_MODULE>{
         template <typename TT_CAPABILITY>
         using CHANGE_CAPABILITY = Module<TT_CAPABILITY, T_CONTENT, typename T_NEXT_MODULE::template CHANGE_CAPABILITY<TT_CAPABILITY>>;
@@ -207,13 +195,13 @@ namespace rl_tools::nn_models::sequential_v2{
 
     template <typename T_CAPABILITY>
     struct Interface{
-        template <template <typename> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
+        template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
         using Module = sequential_v2::Module<T_CAPABILITY, T_CONTENT, T_NEXT_MODULE>;
     };
 
     template <typename CAPABILITY>
     using OutputModuleTemplate = OutputModule;
-    template <template <typename> typename CONTENT, template <typename> typename NEXT_MODULE = OutputModuleTemplate>
+    template <typename CONTENT, template <typename> typename NEXT_MODULE = OutputModuleTemplate>
     struct Bind{
         template <typename CAPABILITY>
         using Module = sequential_v2::Module<CAPABILITY, CONTENT, NEXT_MODULE<CAPABILITY>>;
