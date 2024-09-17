@@ -42,13 +42,14 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     static constexpr TI BATCH_SIZE = 3;
     static constexpr TI INPUT_DIM = 4;
     static constexpr TI OUTPUT_DIM = 5;
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, OUTPUT_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
-    using GRU_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU_SPEC>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, OUTPUT_DIM, rlt::nn::parameters::groups::Normal, true>;
+    using GRU_TEMPLATE = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
 //    using CAPABILITY = rlt::nn::layer_capability::Forward;
-    using GRU = GRU_TEMPLATE::template Layer<CAPABILITY>;
+    using GRU = GRU_TEMPLATE::template Layer<CAPABILITY, INPUT_SHAPE>;
     GRU gru;
-    typename GRU::Buffer<BATCH_SIZE> buffer;
+    typename GRU::Buffer<BATCH_SIZE, true> buffer;
     using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
     using ADAM = rlt::nn::optimizers::Adam<ADAM_SPEC>;
     ADAM optimizer;

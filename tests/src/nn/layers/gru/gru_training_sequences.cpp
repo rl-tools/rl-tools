@@ -69,7 +69,7 @@ struct Config{
     using RESET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using RESET_TYPE = rlt::tensor::Specification<bool, TI, RESET_SHAPE>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, true>;
-    using GRU = rlt::nn::layers::gru::BindSpecification<GRU_CONFIG>;
+    using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
     using DENSE_LAYER1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
     using DENSE_LAYER1 = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER1_CONFIG>;
     using DENSE_LAYER2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;

@@ -192,7 +192,7 @@ namespace rl_tools::nn::layers::gru{
     typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, LayerGradient<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
     template <typename T_CONFIG>
-    struct BindSpecification{
+    struct BindConfiguration{
         template <typename CAPABILITY, typename INPUT_SHAPE>
         using Layer = nn::layers::gru::Layer<T_CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
