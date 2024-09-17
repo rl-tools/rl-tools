@@ -38,24 +38,30 @@ namespace rl_tools::nn::layers::embedding {
         template <T_TI BATCH_SIZE>
         using SHAPE = tensor::Shape<T_TI, BATCH_SIZE>;
     };
-    template<typename T_T, typename T_TI, T_TI T_NUM_CLASSES, T_TI T_OUTPUT_DIM, template <T_TI> typename T_INPUT_SHAPE = DefaultInputShapeFactory<T_TI>::template SHAPE, typename T_INITIALIZER = DefaultInitializer<T_T, T_TI>, typename T_PARAMETER_GROUP=parameters::groups::Input>
-    struct Specification {
+    template<typename T_T, typename T_TI, T_TI T_NUM_CLASSES, T_TI T_EMBEDDING_DIM, template <T_TI> typename T_INPUT_SHAPE = DefaultInputShapeFactory<T_TI>::template SHAPE, typename T_INITIALIZER = DefaultInitializer<T_T, T_TI>, typename T_PARAMETER_GROUP=parameters::groups::Input>
+    struct Configuration {
         using T = T_T;
         using TI = T_TI;
         static constexpr TI NUM_CLASSES = T_NUM_CLASSES;
-        static constexpr TI OUTPUT_DIM = T_OUTPUT_DIM;
+        static constexpr TI EMBEDDING_DIM = T_EMBEDDING_DIM;
         using INITIALIZER = T_INITIALIZER;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
-        template <TI BATCH_SIZE>
-        using INPUT_SHAPE = T_INPUT_SHAPE<BATCH_SIZE>;
-        template <TI BATCH_SIZE>
-        using OUTPUT_SHAPE = tensor::Append<INPUT_SHAPE<BATCH_SIZE>, OUTPUT_DIM>;
         // Summary
-        static constexpr TI NUM_WEIGHTS = OUTPUT_DIM * NUM_CLASSES;
+        static constexpr TI NUM_WEIGHTS = EMBEDDING_DIM * NUM_CLASSES;
     };
-    template <typename T_CAPABILITY, typename T_SPEC>
-    struct CapabilitySpecification: T_CAPABILITY, T_SPEC{
+
+    template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
+    struct Specification: T_CAPABILITY, T_CONFIG{
+        using CONFIG = T_CONFIG;
         using CAPABILITY = T_CAPABILITY;
+        using INPUT_SHAPE = T_INPUT_SHAPE;
+        using T = typename CONFIG::T;
+        using TI = typename CONFIG::TI;
+        static_assert(length(INPUT_SHAPE{}) == 3, "The input shape of the Embedding layer must be 3 dimensional for now (sequence x batch x 1 (integer ids))");
+        static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
+        static constexpr TI SEQUENCE_LENGTH = get<length(INPUT_SHAPE{})-3>(INPUT_SHAPE{});
+        using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, CONFIG::EMBEDDING_DIM, length(INPUT_SHAPE{})-1>;
+        static constexpr TI INTERNAL_BATCH_SIZE = get<1>(INPUT_SHAPE{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
     };
 
     struct Buffer{};
@@ -66,10 +72,10 @@ namespace rl_tools::nn::layers::embedding {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI NUM_CLASSES = SPEC::NUM_CLASSES;
-        static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
+        static constexpr TI OUTPUT_DIM = SPEC::EMBEDDING_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
-        using INPUT_SHAPE = typename SPEC::template INPUT_SHAPE<SPEC::BATCH_SIZE>;
-        using OUTPUT_SHAPE = typename SPEC::template OUTPUT_SHAPE<SPEC::BATCH_SIZE>;
+        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
+        using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
         using WEIGHTS_SHAPE = tensor::Shape<TI, NUM_CLASSES, OUTPUT_DIM>;
         using WEIGHTS_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
         using WEIGHTS_CONTAINER_TYPE = Tensor<WEIGHTS_CONTAINER_SPEC>;
@@ -86,23 +92,20 @@ namespace rl_tools::nn::layers::embedding {
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC>{
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::template OUTPUT_SHAPE<SPEC::BATCH_SIZE>, SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_CONTAINER_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::OUTPUT_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
         using OUTPUT_CONTAINER_TYPE = Tensor<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
-    template<typename CAPABILITY, typename SPEC>
+    template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
     using Layer =
-            typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-                    LayerForward<CapabilitySpecification<CAPABILITY, SPEC>>,
-                    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                            LayerBackward<CapabilitySpecification<CAPABILITY, SPEC>>,
-                            typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                                    LayerGradient<CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward, LayerForward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward, LayerBackward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, LayerGradient<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
-    template <typename T_SPEC>
+    template <typename CONFIG>
     struct BindSpecification{
-        template <typename CAPABILITY>
-        using Layer = nn::layers::embedding::Layer<CAPABILITY, T_SPEC>;
+        template <typename CAPABILITY, typename INPUT_SHAPE>
+        using Layer = nn::layers::embedding::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

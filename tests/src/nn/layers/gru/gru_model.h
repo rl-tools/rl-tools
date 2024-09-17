@@ -19,21 +19,25 @@ struct Config{
 //    using PARAMS = BASE;
     using PARAMS = USEFUL;
 
-    template <TI T_BATCH_SIZE>
-    using INPUT_SHAPE_TEMPLATE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, T_BATCH_SIZE>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
+    using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Configuration<T, TI, PARAMS::NUM_CLASSES, PARAMS::EMBEDDING_DIM>;
+    using EMBEDDING_LAYER = rlt::nn::layers::embedding::BindSpecification<EMBEDDING_LAYER_SPEC>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
+    using GRU = rlt::nn::layers::gru::BindSpecification<GRU_CONFIG>;
+    using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
+    using GRU2 = rlt::nn::layers::gru::BindSpecification<GRU2_CONFIG>;
+    using DOWN_PROJECTION_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::EMBEDDING_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+    using DOWN_PROJECTION_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DOWN_PROJECTION_LAYER_CONFIG>;
+    using DENSE_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+    using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
+
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+
+    using MODULE_CHAIN = Module<EMBEDDING_LAYER, Module<GRU, Module<GRU2, Module<DOWN_PROJECTION_LAYER_TEMPLATE, Module<DENSE_LAYER_TEMPLATE>>>>>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMS::BATCH_SIZE>;
-    using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Specification<T, TI, PARAMS::NUM_CLASSES, PARAMS::EMBEDDING_DIM, INPUT_SHAPE_TEMPLATE>;
-    using EMBEDDING_LAYER_TEMPLATE = rlt::nn::layers::embedding::BindSpecification<EMBEDDING_LAYER_SPEC>;
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::EMBEDDING_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
-    using GRU_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU_SPEC>;
-    using GRU2_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::HIDDEN_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorDynamicTag, true>;
-    using GRU2_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU2_SPEC>;
-    using DOWN_PROJECTION_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMS::HIDDEN_DIM, PARAMS::EMBEDDING_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, PARAMS::SEQUENCE_LENGTH>>;
-    using DOWN_PROJECTION_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DOWN_PROJECTION_LAYER_SPEC>;
-    using DENSE_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMS::EMBEDDING_DIM, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal,rlt::nn::layers::dense::SequenceInputShapeFactory<TI, PARAMS::SEQUENCE_LENGTH>>;
-    using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER_SPEC>;
-    using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>;
-    using MODEL = typename IF::template Module<EMBEDDING_LAYER_TEMPLATE::template Layer, typename IF::template Module<GRU_TEMPLATE:: template Layer, typename IF::template Module<GRU2_TEMPLATE:: template Layer, typename IF::template Module<DOWN_PROJECTION_LAYER_TEMPLATE::template Layer, typename IF::template Module<DENSE_LAYER_TEMPLATE::template Layer>>>>>;
+    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
     struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{

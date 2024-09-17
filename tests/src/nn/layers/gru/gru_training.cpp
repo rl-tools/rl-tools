@@ -103,6 +103,9 @@ int main(){
     rlt::malloc(device, output_target);
     rlt::init_weights(device, model, rng);
     rlt::reset_optimizer_state(device, optimizer, model);
+    std::cout << "INPUT SHAPE";
+    rlt::print(device, decltype(input)::SPEC::SHAPE{});
+    std::cout << std::endl;
     for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
         std::shuffle(dataset.begin(), dataset.end(), rng);
         auto start_time = std::chrono::high_resolution_clock::now();
@@ -134,7 +137,7 @@ int main(){
 
             for(TI batch_i = 0; batch_i < CONFIG::PARAMS::BATCH_SIZE; batch_i++){
                 for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
-                    rlt::set(device, input, std::get<0>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i);
+                    rlt::set(device, input, std::get<0>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i, 0);
                     rlt::set(device, output_target, std::get<1>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i, 0);
                 }
             }

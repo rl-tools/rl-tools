@@ -49,7 +49,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         for(TI class_i = 0; class_i < SPEC::NUM_CLASSES; class_i++){
-            for(TI dim_i = 0; dim_i < SPEC::OUTPUT_DIM; dim_i++){
+            for(TI dim_i = 0; dim_i < SPEC::EMBEDDING_DIM; dim_i++){
                 T value = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
                 set(device, layer.weights.parameters, value, class_i, dim_i);
             }
@@ -69,7 +69,7 @@ namespace rl_tools{
 //        auto input_flat = reshape
         constexpr TI INPUT_ELEMENTS = get<0>(tensor::CumulativeProduct<typename INPUT_SPEC::SHAPE>{});
         auto input_view = reshape_row_major(device, input, tensor::Shape<TI, INPUT_ELEMENTS>{});
-        auto output_view = reshape_row_major(device, output, tensor::Shape<TI, INPUT_ELEMENTS, LAYER_SPEC::OUTPUT_DIM>{});
+        auto output_view = reshape_row_major(device, output, tensor::Shape<TI, INPUT_ELEMENTS, LAYER_SPEC::EMBEDDING_DIM>{});
         for(TI batch_i=0; batch_i < get<0>(typename decltype(input_view)::SPEC::SHAPE{}); batch_i++){
             auto index = get(device, input_view, batch_i);
             auto embedding = view(device, layer.weights.parameters, index, tensor::ViewSpec<0>{});
@@ -98,16 +98,16 @@ namespace rl_tools{
     // backward_input / backward_full are not supported because the inputs are discrete classes
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
     void backward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::embedding::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
+        constexpr TI EMBEDDING_DIM = LAYER_SPEC::EMBEDDING_DIM;
 
         constexpr TI INPUT_ELEMENTS = get<0>(tensor::CumulativeProduct<typename INPUT_SPEC::SHAPE>{});
         auto input_view = reshape_row_major(device, input, tensor::Shape<TI, INPUT_ELEMENTS>{});
-        auto d_output_view = reshape_row_major(device, d_output, tensor::Shape<TI, INPUT_ELEMENTS, LAYER_SPEC::OUTPUT_DIM>{});
+        auto d_output_view = reshape_row_major(device, d_output, tensor::Shape<TI, INPUT_ELEMENTS, EMBEDDING_DIM>{});
 
         for(TI element_i=0; element_i < INPUT_ELEMENTS; element_i++){
-            for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++){
+            for(TI output_i = 0; output_i < EMBEDDING_DIM; output_i++){
                 typename INPUT_SPEC::T class_id = get(device, input_view, element_i);
                 T d_output_value = get(device, d_output_view, element_i, output_i);
                 T gradient_value = get(device, layer.weights.gradient, (TI)class_id, output_i);
