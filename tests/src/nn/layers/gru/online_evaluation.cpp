@@ -32,16 +32,17 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, ONLINE_EVALUATION){
 int main(){
 #endif
 //    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    using CAPABILITY = rlt::nn::layer_capability::Forward;
+    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
 
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM>;
-    using GRU = rlt::nn::layers::gru::Layer<CAPABILITY, GRU_SPEC>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
+    using GRU = rlt::nn::layers::gru::Layer<GRU_CONFIG, CAPABILITY, INPUT_SHAPE>;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
     GRU gru;
-    GRU::Buffer<BATCH_SIZE> buffer;
-    rlt::Mode<rlt::nn::layers::gru::StepByStepMode<rlt::mode::Default<>>> mode_no_reset, mode_reset;
+    GRU::Buffer<BATCH_SIZE, true> buffer;
+    rlt::Mode<rlt::nn::layers::gru::StepByStepMode<rlt::mode::Default<>, rlt::nn::layers::gru::StepByStepModeSpecification<TI, false>>> mode_no_reset, mode_reset;
     mode_no_reset.reset = false;
     mode_reset.reset = true;
 
