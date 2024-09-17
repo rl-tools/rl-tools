@@ -202,35 +202,18 @@ namespace rl_tools::nn_models::sequential_v2{
         using MODULE = OutputModule;
     };
 
-
     // The user specifies a sequence of Modules using the Module type and then builds them for a particular capability and input shape
     // When e.g. saving checkpoints the user can rebuild the model with a different capability (e.g. without gradient and optimizers state) and then save the checkpoint
     template <typename CAPABILITY, typename MODULE, typename INPUT_SHAPE>
-    using Build = typename _Chain<CAPABILITY, MODULE, INPUT_SHAPE>::MODULE;
-
-//    template <typename T_MODULE, typename T_INPUT_SHAPE>
-//    struct Chain{
-//
-//    };
-
-    template <typename CAPABILITY, typename T_CONTENT, typename INPUT_SHAPE, typename NEXT_MODULE>
-    struct _Module{
-
+    struct Build: _Chain<CAPABILITY, MODULE, INPUT_SHAPE>::MODULE{
+        template <typename TI, TI BATCH_SIZE>
+        struct CHANGE_BATCH_SIZE_IMPL{
+            using NEW_INPUT_SHAPE = tensor::Replace<INPUT_SHAPE, BATCH_SIZE, 1>;
+            using CHANGE_BATCH_SIZE = typename _Chain<CAPABILITY, MODULE, NEW_INPUT_SHAPE>::MODULE;
+        };
+        template <typename TI, TI BATCH_SIZE>
+        using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;
     };
-
-//    template <typename T_CAPABILITY>
-//    struct Interface{
-//        template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule, typename T_INPUT_SHAPE = void>
-//        using Module = sequential_v2::Module<T_CAPABILITY, T_CONTENT, T_INPUT_SHAPE, T_NEXT_MODULE>;
-//    };
-//
-//    template <typename CAPABILITY>
-//    using OutputModuleTemplate = OutputModule;
-//    template <typename CONTENT, template <typename> typename NEXT_MODULE = OutputModuleTemplate>
-//    struct Bind{
-//        template <typename CAPABILITY>
-//        using Module = sequential_v2::Module<CAPABILITY, CONTENT, NEXT_MODULE<CAPABILITY>>;
-//    };
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

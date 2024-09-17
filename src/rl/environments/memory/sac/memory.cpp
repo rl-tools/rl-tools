@@ -96,8 +96,10 @@ int main(){
             constexpr TI TEST_SEQUENCE_LENGTH = SEQUENCE_LENGTH;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 2>>> test_critic_input;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TEST_SEQUENCE_LENGTH, 1, 1>>> test_critic_output;
-            decltype(ts.actor_critic.critic_1)::Buffer<1> critic_buffer;
-            decltype(ts.actor_critic.actor)::Buffer<1> actor_buffer;
+            using EVALUATION_ACTOR = decltype(ts.actor_critic.actor)::CHANGE_BATCH_SIZE<TI, 1>;
+            using EVALUATION_CRITIC = decltype(ts.actor_critic.critic_1)::CHANGE_BATCH_SIZE<TI, 1>;
+            EVALUATION_ACTOR::Buffer<1> actor_buffer;
+            EVALUATION_CRITIC::Buffer<1> critic_buffer;
             rlt::malloc(device, test_critic_input);
             rlt::malloc(device, test_critic_output);
             rlt::malloc(device, actor_buffer);

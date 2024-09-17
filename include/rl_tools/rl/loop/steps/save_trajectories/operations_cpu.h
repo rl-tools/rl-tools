@@ -23,6 +23,7 @@ namespace rl_tools{
     void malloc(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         malloc(device, ts.env_save_trajectories);
+        malloc(device, ts.actor_deterministic_save_trajectories_buffers);
         ts.save_trajectories_buffer = new typename STATE::template DATA_TYPE<typename T_CONFIG::SAVE_TRAJECTORIES_SPEC>;
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
     }
@@ -40,6 +41,7 @@ namespace rl_tools{
     void free(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         delete ts.save_trajectories_buffer;
+        free(device, ts.actor_deterministic_save_trajectories_buffers);
         free(device, ts.actor_deterministic_evaluation_buffers);
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
@@ -99,7 +101,7 @@ namespace rl_tools{
                         std::cout << "UI written to: " << ts.extrack_seed_path / "ui.esm.js" << std::endl;
                     }
                 }
-                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_evaluation_buffers, ts.rng_save_trajectories, ts.evaluation_mode, false);
+                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_save_trajectories_buffers, ts.rng_save_trajectories, ts.evaluation_mode, false);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 

@@ -21,6 +21,9 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         typename CONFIG::RNG rng_save_trajectories;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_save_trajectories;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION::Parameters env_save_trajectories_parameters;
+        using SAVE_TRAJECTORIES_ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, CONFIG::SAVE_TRAJECTORIES_PARAMETERS::NUM_EPISODES>;
+        static_assert(SAVE_TRAJECTORIES_ACTOR_TYPE::CONTENT::SPEC::INTERNAL_BATCH_SIZE == CONFIG::SAVE_TRAJECTORIES_PARAMETERS::NUM_EPISODES);
+        typename SAVE_TRAJECTORIES_ACTOR_TYPE::template Buffer<> actor_deterministic_save_trajectories_buffers;
         typename CONFIG::UI ui_save_trajectories;
         bool save_trajectories_ui_written = false;
     };
