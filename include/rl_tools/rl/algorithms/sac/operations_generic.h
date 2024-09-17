@@ -215,9 +215,9 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static_assert(SPEC::PARAMETERS::SEQUENCE_LENGTH == SEQUENCE_LENGTH, "Specification SEQUENCE_LENGTH should be equal to the batch sequence length");
-        static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
-        static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
-        static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
+//        static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
+//        static_assert(BATCH_SIZE == CRITIC_BUFFERS::INTERNAL_BATCH_SIZE);
+//        static_assert(BATCH_SIZE == ACTOR_BUFFERS::INTERNAL_BATCH_SIZE);
         static_assert(SEQUENCE_LENGTH * BATCH_SIZE == ACTION_NOISE_SPEC::ROWS);
         static_assert(ACTION_DIM == ACTION_NOISE_SPEC::COLS);
 
@@ -340,8 +340,8 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
-        static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
-        static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
+//        static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
+//        static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         constexpr TI ACTOR_OUTPUT_DIM = get_last(typename SPEC::ACTOR_NETWORK_TYPE::OUTPUT_SHAPE{});
         static_assert(ACTOR_OUTPUT_DIM == ACTION_DIM);

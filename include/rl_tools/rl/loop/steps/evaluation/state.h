@@ -17,7 +17,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         MatrixDynamic<matrix::Specification<RESULT_TYPE, TI, 1, CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS>> evaluation_results;
         typename CONFIG::RNG rng_eval;
         Mode<nn::layers::gru::StepByStepMode<typename CONFIG::EVALUATION_PARAMETERS::EVALUATION_MODE, nn::layers::gru::StepByStepModeSpecification<TI>>> evaluation_mode;
-        typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES> actor_deterministic_evaluation_buffers;
+        typename CONFIG::NN::ACTOR_TYPE::template Buffer<> actor_deterministic_evaluation_buffers;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_eval;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
         typename CONFIG::UI ui;

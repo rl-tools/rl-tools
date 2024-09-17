@@ -95,7 +95,7 @@ namespace rl_tools::nn::layers::dense {
         using BIASES_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<BIASES_CONTAINER_SPEC>;
         using BIASES_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<BIASES_PARAMETER_SPEC> biases;
-        template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
+        template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = dense::Buffer;
     };
     template<typename SPEC>

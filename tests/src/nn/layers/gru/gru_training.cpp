@@ -91,7 +91,7 @@ int main(){
     }
 
     typename CONFIG::MODEL model;
-    typename CONFIG::MODEL::Buffer<CONFIG::PARAMS::BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::Buffer<> buffer;
     typename CONFIG::ADAM optimizer;
     rlt::Tensor<rlt::tensor::Specification<T, TI, CONFIG::MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, CONFIG::MODEL::OUTPUT_SHAPE>> d_output;

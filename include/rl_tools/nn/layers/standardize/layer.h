@@ -34,22 +34,26 @@ namespace rl_tools::nn::layers::standardize {
 
     template <typename LAYER_SPEC_1, typename LAYER_SPEC_2>
     constexpr bool check_compatibility = check_compatibility_f<LAYER_SPEC_1, LAYER_SPEC_2>();
-    template<typename T_T, typename T_TI, T_TI T_DIM, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
-    struct Specification {
+    template<typename T_T, typename T_TI>
+    struct Configuration {
         using T = T_T;
         using TI = T_TI;
-        static constexpr auto INPUT_DIM = T_DIM;
-        static constexpr auto OUTPUT_DIM = T_DIM;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
-        using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
         // Summary
         static constexpr auto NUM_WEIGHTS = 0; //zero trainable parameters (the point is to not learn the mean and std by gradient descent, otherwise it would just be a normal layer)
     };
-    template <typename T_CAPABILITY, typename T_SPEC>
-    struct CapabilitySpecification: T_SPEC{
+    template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
+    struct Specification: T_CAPABILITY, T_CONFIG{
+        using CONFIG = T_CONFIG;
+        using T = typename CONFIG::T;
+        using TI = typename CONFIG::TI;
         using CAPABILITY = T_CAPABILITY;
-        using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
+        using INPUT_SHAPE = T_INPUT_SHAPE;
+        static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
+        static constexpr TI OUTPUT_DIM = INPUT_DIM;
+        using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
+        static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_DIM * INPUT_DIM + CONFIG::OUTPUT_DIM;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<CAPABILITY::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
     struct Buffer{};
     template<typename T_SPEC>
@@ -78,19 +82,16 @@ namespace rl_tools::nn::layers::standardize {
         using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
-    template<typename CAPABILITY, typename SPEC>
+    template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
     using Layer =
-        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-            LayerForward<CapabilitySpecification<CAPABILITY, SPEC>>,
-        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-            LayerBackward<CapabilitySpecification<CAPABILITY, SPEC>>,
-        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-            LayerGradient<CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward, LayerForward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward, LayerBackward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, LayerGradient<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
-    template <typename T_SPEC>
-    struct BindSpecification{
-        template <typename CAPABILITY>
-        using Layer = nn::layers::standardize::Layer<CAPABILITY, T_SPEC>;
+    template <typename CONFIG>
+    struct BindConfiguration{
+        template <typename CAPABILITY, typename INPUT_SHAPE>
+        using Layer = nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

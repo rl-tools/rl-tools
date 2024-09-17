@@ -4,9 +4,9 @@ struct ConfigApproximatorsSequential{
     template <typename CAPABILITY>
     struct Actor{
         using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
-        using GRU = rlt::nn::layers::gru::BindSpecification<GRU_CONFIG>;
+        using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
         using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
-        using GRU2 = rlt::nn::layers::gru::BindSpecification<GRU2_CONFIG>;
+        using GRU2 = rlt::nn::layers::gru::BindConfiguration<GRU2_CONFIG>;
         using OUTPUT_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 2*ENVIRONMENT::ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
         using OUTPUT = rlt::nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
         struct SAMPLE_AND_SQUASH_PARAMETERS{
@@ -19,7 +19,7 @@ struct ConfigApproximatorsSequential{
             static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
         };
         using SAMPLE_AND_SQUASH_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<T, TI, SAMPLE_AND_SQUASH_PARAMETERS>;
-        using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_CONFIG>;
+        using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_CONFIG>;
         using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 
         template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
@@ -35,9 +35,9 @@ struct ConfigApproximatorsSequential{
     template <typename CAPABILITY>
     struct Critic{
         using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
-        using GRU = rlt::nn::layers::gru::BindSpecification<GRU_CONFIG>;
+        using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
         using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
-        using GRU2 = rlt::nn::layers::gru::BindSpecification<GRU2_CONFIG>;
+        using GRU2 = rlt::nn::layers::gru::BindConfiguration<GRU2_CONFIG>;
         using OUTPUT_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
         using OUTPUT = rlt::nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
         static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;

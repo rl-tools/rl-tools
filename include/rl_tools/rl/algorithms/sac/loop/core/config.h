@@ -57,8 +57,10 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     struct ConfigApproximatorsSequential{
         template <typename CAPABILITY>
         struct Actor{
-            using CONFIG = nn_models::mlp::Configuration<T, TI, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER>;
-            using MLP = nn_models::mlp::BindConfiguration<CONFIG>;
+
+            using INPUT_SHAPE = tensor::Shape<TI, 1, CAPABILITY::BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+            using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER>;
+            using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
             struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
                 static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
                 static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
@@ -69,19 +71,25 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
                 static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
             };
             using SAMPLE_AND_SQUASH_CONFIG = nn::layers::sample_and_squash::Configuration<T, TI, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
-            using SAMPLE_AND_SQUASH = nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_CONFIG>;
+            using SAMPLE_AND_SQUASH = nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_CONFIG>;
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
             using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
-            using MODEL = Module<MLP, Module<SAMPLE_AND_SQUASH>>;
+            using MODULE_CHAIN = Module<MLP, Module<SAMPLE_AND_SQUASH>>;
+
+            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+
         };
         template <typename CAPABILITY>
         struct Critic{
             static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
-            using CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER>;
-            using MLP = nn_models::mlp::BindConfiguration<CONFIG>;
+            using INPUT_SHAPE = tensor::Shape<TI, 1, CAPABILITY::BATCH_SIZE, INPUT_DIM>;
+            using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER>;
+            using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
             using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
-            using MODEL = Module<MLP>;
+            using MODULE_CHAIN = Module<MLP>;
+
+            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
         using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS>;

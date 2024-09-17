@@ -82,7 +82,7 @@ namespace rl_tools::nn::layers::embedding {
         using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_PARAMETER_SPEC> weights;
 
-        template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
+        template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = embedding::Buffer;
     };
     template<typename SPEC>

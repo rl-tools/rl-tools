@@ -31,7 +31,7 @@ namespace rl_tools::nn_models::mlp {
 
     };
     template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
-    struct Specification{
+    struct Specification: T_CAPABILITY, T_CONFIG{
         using CONFIG = T_CONFIG;
         using CAPABILITY = T_CAPABILITY;
         using INPUT_SHAPE = T_INPUT_SHAPE;
@@ -48,6 +48,7 @@ namespace rl_tools::nn_models::mlp {
         using INPUT_LAYER = nn::layers::dense::Layer<INPUT_LAYER_CONFIG, CAPABILITY, INPUT_SHAPE>;
         using HIDDEN_LAYER = nn::layers::dense::Layer<HIDDEN_LAYER_CONFIG, CAPABILITY, typename INPUT_LAYER::SPEC::OUTPUT_SHAPE>;
         using OUTPUT_LAYER = nn::layers::dense::Layer<OUTPUT_LAYER_CONFIG, CAPABILITY, typename HIDDEN_LAYER::SPEC::OUTPUT_SHAPE>;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<CAPABILITY::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
 
     template<typename SPEC_1, typename SPEC_2>
@@ -70,32 +71,29 @@ namespace rl_tools::nn_models::mlp {
 //    };
 
     // T_LAYER_PROTOTYPE is any of INPUT_LAYER, HIDDEN_LAYER, or OUTPUT_LAYER. It is assumed that the buffer for all of them are the same (likely empty)
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_LAYER_PROTOTYPE>
+    template<typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
     struct NeuralNetworkBuffersSpecification{
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
-        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, SPEC::INPUT_DIM>;
-        using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, SPEC::OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
-        static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+        static constexpr TI INTERNAL_BATCH_SIZE = SPEC::INTERNAL_BATCH_SIZE;
         static constexpr TI DIM = SPEC::HIDDEN_DIM;
-        using LAYER_PROTOTYPE = T_LAYER_PROTOTYPE;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
 
     template<typename T_BUFFER_SPEC>
     struct NeuralNetworkBuffers{
         using BUFFER_SPEC = T_BUFFER_SPEC;
-        using SPEC = typename BUFFER_SPEC::SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
+        using MLP_SPEC = typename BUFFER_SPEC::SPEC;
+        using T = typename MLP_SPEC::T;
+        using TI = typename MLP_SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        static constexpr TI ACTUAL_BATCH_SIZE = T_BUFFER_SPEC::ACTUAL_BATCH_SIZE;
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, ACTUAL_BATCH_SIZE, BUFFER_SPEC::DIM, typename SPEC::MEMORY_LAYOUT>;
-        using TICK_TOCK_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
+        static constexpr TI INTERNAL_BATCH_SIZE = T_BUFFER_SPEC::INTERNAL_BATCH_SIZE;
+        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, INTERNAL_BATCH_SIZE, BUFFER_SPEC::DIM>;
+        using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
-        using LayerBuffer = typename BUFFER_SPEC::LAYER_PROTOTYPE::template Buffer<ACTUAL_BATCH_SIZE, SPEC::DYNAMIC_ALLOCATION>;
+        using LayerBuffer = typename MLP_SPEC::INPUT_LAYER::template Buffer<BUFFER_SPEC::DYNAMIC_ALLOCATION>;
         LayerBuffer layer_buffer;
     };
 
@@ -104,7 +102,6 @@ namespace rl_tools::nn_models::mlp {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         // Could be dependent on the capability but in this case the buffer-requirements of forward and backward are the same
 
         // Convenience
@@ -117,23 +114,16 @@ namespace rl_tools::nn_models::mlp {
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_LAYER_SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::INPUT_LAYER_SPEC::NUM_WEIGHTS + SPEC::HIDDEN_LAYER_SPEC::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER_SPEC::NUM_WEIGHTS;
 
-        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
-        using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, 2>;
-
-        static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
-        struct EXPANDED_BATCH_SIZE_CAPABILITY: SPEC::CAPABILITY{
-            static constexpr TI BATCH_SIZE = ACTUAL_BATCH_SIZE;
-        };
+        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
+        using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
         // Storage
         typename SPEC::INPUT_LAYER input_layer;
         typename SPEC::HIDDEN_LAYER  hidden_layers[NUM_HIDDEN_LAYERS];
         typename SPEC::OUTPUT_LAYER  output_layer;
 
-        using LAYER_PROTOTYPE = decltype(input_layer);
-
-        template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
-        using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, LAYER_PROTOTYPE>>;
+        template<bool DYNAMIC_ALLOCATION=true>
+        using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, DYNAMIC_ALLOCATION>>;
     };
 
     template<typename SPEC>
@@ -144,7 +134,7 @@ namespace rl_tools::nn_models::mlp {
     struct NeuralNetworkGradient: public NeuralNetworkBackward<SPEC>{};
 
     template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
-    using _NeuralNetwork =
+    using NeuralNetwork =
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward, NeuralNetworkForward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward, NeuralNetworkBackward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, NeuralNetworkGradient<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
@@ -152,7 +142,7 @@ namespace rl_tools::nn_models::mlp {
     template <typename T_CONFIG>
     struct BindConfiguration{
         template <typename CAPABILITY, typename INPUT_SHAPE>
-        using Layer = nn_models::mlp::_NeuralNetwork<T_CONFIG, CAPABILITY, INPUT_SHAPE>;
+        using Layer = nn_models::mlp::NeuralNetwork<T_CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 
 

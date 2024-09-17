@@ -12,24 +12,9 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& layer){
         malloc(device, layer.weights_input);
-        using VIEW_SPEC = tensor::ViewSpec<0, SPEC::HIDDEN_DIM>;
-//        layer.W_ir = view_range(device, layer.weights_input.parameters, 0*SPEC::HIDDEN_DIM, VIEW_SPEC{});
-//        layer.W_iz = view_range(device, layer.weights_input.parameters, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
-//        layer.W_in = view_range(device, layer.weights_input.parameters, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         malloc(device, layer.biases_input);
-//        layer.b_ir = view_range(device, layer.biases_input.parameters, 0*SPEC::HIDDEN_DIM, VIEW_SPEC{});
-//        layer.b_iz = view_range(device, layer.biases_input.parameters, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
-//        layer.b_in = view_range(device, layer.biases_input.parameters, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         malloc(device, layer.weights_hidden);
-        using VIEW_SPEC_DOUBLE = tensor::ViewSpec<0, 2*SPEC::HIDDEN_DIM>;
-//        layer.W_hrz = view_range(device, layer.weights_hidden.parameters, 0*SPEC::HIDDEN_DIM, VIEW_SPEC_DOUBLE{});
-//        layer.W_hr = view_range(device, layer.weights_hidden.parameters, 0*SPEC::HIDDEN_DIM, VIEW_SPEC{});
-//        layer.W_hz = view_range(device, layer.weights_hidden.parameters, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
-//        layer.W_hn = view_range(device, layer.weights_hidden.parameters, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         malloc(device, layer.biases_hidden);
-//        layer.b_hr = view_range(device, layer.biases_hidden.parameters, 0*SPEC::HIDDEN_DIM, VIEW_SPEC{});
-//        layer.b_hz = view_range(device, layer.biases_hidden.parameters, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
-//        layer.b_hn = view_range(device, layer.biases_hidden.parameters, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
 
         malloc(device, layer.initial_hidden_state);
     }
@@ -121,13 +106,15 @@ namespace rl_tools{
             struct dimension_tag{
                 using type = typename utils::typing::conditional_t<length(typename SPEC::SHAPE{})==3, three_dimensional_tag, two_dimensional_tag>;
             };
-            template <typename DEVICE, typename SPEC>
+            template <auto BATCH_SIZE, typename DEVICE, typename SPEC>
             auto impl(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i, three_dimensional_tag){
-                return view(device, tensor, step_i);
+                auto post_activation = view_range(device, tensor, 0, tensor::ViewSpec<1, BATCH_SIZE>{});
+                return view(device, post_activation, step_i);
             }
-            template <typename DEVICE, typename SPEC>
+            template <auto BATCH_SIZE, typename DEVICE, typename SPEC>
             auto impl(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i, two_dimensional_tag){
-                return tensor;
+                auto post_activation = view_range(device, tensor, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
+                return post_activation;
             }
         }
         namespace mode{
@@ -169,9 +156,9 @@ namespace rl_tools{
             }
         }
 
-        template <typename DEVICE, typename SPEC>
+        template <auto BATCH_SIZE, typename DEVICE, typename SPEC>
         auto multi_step_intermediates(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i) {
-            return multi_step_intermediates_tag_dispatch::impl(device, tensor, step_i, typename multi_step_intermediates_tag_dispatch::dimension_tag<SPEC>::type{});
+            return multi_step_intermediates_tag_dispatch::impl<BATCH_SIZE>(device, tensor, step_i, typename multi_step_intermediates_tag_dispatch::dimension_tag<SPEC>::type{});
         }
 
 //        template <typename DEVICE, typename SPEC, typename utils::typing::enable_if<length(typename SPEC::SHAPE{}) == 3, int>::type = 0>
@@ -185,7 +172,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename PREVIOUS_OUTPUT_SCRATCH, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output, Tensor<PREVIOUS_OUTPUT_SCRATCH>& previous_output_scratch, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation_full, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation_full, Tensor<OUTPUT_SPEC>& output_full, Tensor<PREVIOUS_OUTPUT_SCRATCH>& previous_output_scratch_full, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename INPUT_SPEC::SHAPE{});
@@ -196,12 +183,16 @@ namespace rl_tools{
         static_assert(length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == 3 || length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == 2);
         constexpr bool MULTI_STEP_INTERMEDIATES = length(typename POST_ACTIVATION_SPEC::SHAPE{}) == 3;
         constexpr TI BUFFER_BATCH_SIZE = get<length(typename POST_ACTIVATION_SPEC::SHAPE{})-2>(typename POST_ACTIVATION_SPEC::SHAPE{});
-        static_assert(BATCH_SIZE == BUFFER_BATCH_SIZE);
+        static_assert(BATCH_SIZE <= BUFFER_BATCH_SIZE);
         static_assert(MULTI_STEP_INTERMEDIATES == (length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == 3), "N_PRE_PRE_ACTIVATION_SPEC must have the same number of dimensions as POST_ACTIVATION_SPEC");
         static_assert(get<length(typename POST_ACTIVATION_SPEC::SHAPE{})-1>(typename POST_ACTIVATION_SPEC::SHAPE{}) == 3*LAYER_SPEC::HIDDEN_DIM);
-        static_assert(get<length(typename POST_ACTIVATION_SPEC::SHAPE{})-2>(typename POST_ACTIVATION_SPEC::SHAPE{}) == BATCH_SIZE);
+        static_assert(get<length(typename POST_ACTIVATION_SPEC::SHAPE{})-2>(typename POST_ACTIVATION_SPEC::SHAPE{}) >= BATCH_SIZE);
         static_assert(get<length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{})-1>(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == LAYER_SPEC::HIDDEN_DIM);
-        static_assert(get<length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{})-2>(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == BATCH_SIZE);
+        static_assert(get<length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{})-2>(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) >= BATCH_SIZE);
+
+        auto previous_output_scratch = view_range(device, previous_output_scratch_full, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
+        auto output = view_range(device, output_full, 0, tensor::ViewSpec<1, BATCH_SIZE>{});
+
 
         constexpr bool STEP_BY_STEP = mode::is<MODE, nn::layers::gru::StepByStepMode>;
         constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(decltype(mode){});
@@ -211,8 +202,8 @@ namespace rl_tools{
             ZoneScopedN("gru::evaluate_step");
 #endif
             auto input_step = view(device, input, step_i);
-            auto post_activation_step = nn::layers::gru::multi_step_intermediates(device, post_activation, step_i);
-            auto n_pre_pre_activation_step = nn::layers::gru::multi_step_intermediates(device, n_pre_pre_activation, step_i);
+            auto post_activation_step = nn::layers::gru::multi_step_intermediates<BATCH_SIZE>(device, post_activation_full, step_i);
+            auto n_pre_pre_activation_step = nn::layers::gru::multi_step_intermediates<BATCH_SIZE>(device, n_pre_pre_activation_full, step_i);
             auto output_step = view(device, output, step_i);
 
             auto rz_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
@@ -308,10 +299,13 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = get<1>(typename INPUT_SPEC::SHAPE{});
         constexpr bool STEP_BY_STEP = mode::is<MODE, nn::layers::gru::StepByStepMode>;
         if constexpr(STEP_BY_STEP){
             evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, buffers.step_by_step_output, buffers.previous_output_scratch, buffers, rng, mode);
-            copy(device, device, buffers.step_by_step_output, output);
+            auto step_by_step_output_view = view_range(device, buffers.step_by_step_output, 0, tensor::ViewSpec<1, BATCH_SIZE>{});
+            copy(device, device, step_by_step_output_view, output);
         }
         else{
             evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, buffers.previous_output_scratch, buffers, rng, mode);

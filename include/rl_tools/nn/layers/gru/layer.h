@@ -36,26 +36,26 @@ namespace rl_tools::nn::layers::gru{
     };
 
     namespace buffers{
-        template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION>
+        template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
         struct Specification{
             using SPEC = T_SPEC;
-            static constexpr typename T_SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         };
         template <typename T_SPEC>
         struct Evaluation{
-            using SPEC = T_SPEC;
-            using T = typename SPEC::SPEC::T;
-            using TI = typename SPEC::SPEC::TI;
-            static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
-            using POST_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
+            using BUFFER_SPEC = T_SPEC;
+            using GRU_SPEC = typename BUFFER_SPEC::SPEC;
+            using T = typename GRU_SPEC::T;
+            using TI = typename GRU_SPEC::TI;
+            static constexpr TI BATCH_SIZE = GRU_SPEC::INTERNAL_BATCH_SIZE;
+            using POST_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<POST_ACTIVATION_SPEC> post_activation;
-            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
+            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<N_PRE_PRE_ACTIVATION_SPEC> n_pre_pre_activation;
-            using STEP_BY_STEP_OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
+            using STEP_BY_STEP_OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<STEP_BY_STEP_OUTPUT_SPEC> step_by_step_output;
 
-            using PREVIOUS_OUTPUT_SCRATCH_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
+            using PREVIOUS_OUTPUT_SCRATCH_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<PREVIOUS_OUTPUT_SCRATCH_SPEC> previous_output_scratch;
         };
     }
@@ -129,22 +129,23 @@ namespace rl_tools::nn::layers::gru{
         using INITIAL_HIDDEN_STATE_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<INITIAL_HIDDEN_STATE_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
 
-        template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
-        using Buffer = buffers::Evaluation<buffers::Specification<SPEC, BUFFER_BATCH_SIZE, DYNAMIC_ALLOCATION>>;
+        template<bool DYNAMIC_ALLOCATION=true>
+        using Buffer = buffers::Evaluation<buffers::Specification<SPEC, DYNAMIC_ALLOCATION>>;
     };
 
     namespace buffers{
         template <typename T_SPEC>
         struct Backward: Evaluation<T_SPEC>{
-            using SPEC = typename T_SPEC::SPEC;
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
-            using BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::HIDDEN_DIM>, SPEC::DYNAMIC_ALLOCATION>;
-            using BUFFER_TYPE = Tensor<BUFFER_SPEC>;
+            using BUFFER_SPEC = T_SPEC;
+            using LAYER_SPEC = typename T_SPEC::SPEC;
+            using T = typename LAYER_SPEC::T;
+            using TI = typename LAYER_SPEC::TI;
+            static constexpr TI INTERNAL_BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+            using TENSOR_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, INTERNAL_BATCH_SIZE, 3*LAYER_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using BUFFER_TYPE = Tensor<TENSOR_SPEC>;
             BUFFER_TYPE buffer, buffer2;
-            typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
-            typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, SPEC::HIDDEN_DIM>> buffer_r, buffer_z, buffer_n;
+            typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>> buffer_rz;
+            typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>> buffer_r, buffer_z, buffer_n;
         };
     }
 
@@ -168,8 +169,8 @@ namespace rl_tools::nn::layers::gru{
     template<typename T_SPEC>
     struct LayerGradient: LayerBackward<T_SPEC>{
         using TI = typename T_SPEC::TI;
-        template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
-        using Buffer = buffers::Backward<buffers::Specification<T_SPEC, BUFFER_BATCH_SIZE, DYNAMIC_ALLOCATION>>;
+        template<bool DYNAMIC_ALLOCATION=true>
+        using Buffer = buffers::Backward<buffers::Specification<T_SPEC, DYNAMIC_ALLOCATION>>;
     };
 
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
@@ -181,8 +182,8 @@ namespace rl_tools::nn::layers::gru{
     };
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     bool constexpr check_input_output = length(typename INPUT_SPEC::SHAPE{}) == 3 && length(typename OUTPUT_SPEC::SHAPE{}) == 3 &&
-            get<0>(typename INPUT_SPEC::SHAPE{}) == get<0>(typename OUTPUT_SPEC::SHAPE{}) &&
-            get<1>(typename INPUT_SPEC::SHAPE{}) == get<1>(typename OUTPUT_SPEC::SHAPE{}) &&
+            get<0>(typename INPUT_SPEC::SHAPE{}) <= get<0>(typename OUTPUT_SPEC::SHAPE{}) &&
+            get<1>(typename INPUT_SPEC::SHAPE{}) <= get<1>(typename OUTPUT_SPEC::SHAPE{}) &&
             get<2>(typename INPUT_SPEC::SHAPE{}) == SPEC::INPUT_DIM && get<2>(typename OUTPUT_SPEC::SHAPE{}) == SPEC::HIDDEN_DIM;
 
     template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>

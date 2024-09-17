@@ -51,12 +51,11 @@ namespace rl_tools{
     }
 
     namespace rl::loop::steps::checkpoint{
-            template <typename DEVICE, typename CONFIG, typename ACTOR_TYPE, bool STORE_UNCOMPRESSED_ANYWAYS=true>
+            template <auto BATCH_SIZE, typename DEVICE, typename CONFIG, typename ACTOR_TYPE, bool STORE_UNCOMPRESSED_ANYWAYS=true>
             void save_code(DEVICE& device, rl::loop::steps::checkpoint::State<CONFIG>& ts, std::string step_folder, ACTOR_TYPE& actor_forward){
                 using T = typename CONFIG::T;
                 using TI = typename DEVICE::index_t;
-                constexpr TI BATCH_SIZE = 13;
-                typename ACTOR_TYPE::template Buffer<BATCH_SIZE> actor_buffer;
+                typename ACTOR_TYPE::template Buffer<> actor_buffer;
                 malloc(device, actor_buffer);
                 auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
                 std::stringstream output_ss;
@@ -119,7 +118,9 @@ namespace rl_tools{
             std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_path << std::endl;
             auto& actor = get_actor(ts);
             using ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE;
-            using ACTOR_FORWARD_TYPE = nn_models::sequential_v2::Build<nn::layer_capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, typename ACTOR_TYPE::INPUT_SHAPE>;
+            static constexpr TI BATCH_SIZE = 13;
+            using INPUT_SHAPE = tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>;
+            using ACTOR_FORWARD_TYPE = nn_models::sequential_v2::Build<nn::layer_capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, INPUT_SHAPE>;
 //            using ACTOR_FORWARD_TYPE = ACTOR_TYPE;
             ACTOR_FORWARD_TYPE actor_forward;
             malloc(device, actor_forward);
@@ -133,7 +134,7 @@ namespace rl_tools{
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
 #endif
-            rl::loop::steps::checkpoint::save_code(device, ts, step_folder.string(), actor_forward);
+            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, ts, step_folder.string(), actor_forward);
             free(device, actor_forward);
 
         }

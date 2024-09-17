@@ -35,19 +35,18 @@ namespace rl_tools{
             static constexpr T ALPHA = 1.0;
             static constexpr T TARGET_ENTROPY = -1;
         };
-        template <typename T_TI, T_TI T_BATCH_SIZE, typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+        template <typename T_TI, typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
         struct BufferSpecification {
             using TI = T_TI;
             using SPEC = T_SPEC;
-            static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         };
 
         template <typename BUFFER_SPEC>
         struct Buffer{
-            using SPEC = typename BUFFER_SPEC::SPEC;
-            using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-            using NOISE_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BUFFER_SPEC::SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM>;
+            using LAYER_SPEC = typename BUFFER_SPEC::SPEC;
+            using CONTAINER_TYPE_TAG = utils::typing::conditional_t<BUFFER_SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
+            using NOISE_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM>;
             using NOISE_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<NOISE_CONTAINER_SPEC>;
             NOISE_CONTAINER_TYPE noise;
         };
@@ -88,8 +87,8 @@ namespace rl_tools{
 //            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, INPUT_DIM>;
 //            using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
 //            static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
-            template<TI BUFFER_BATCH_SIZE, bool DYNAMIC_ALLOCATION>
-            using Buffer = sample_and_squash::Buffer<sample_and_squash::BufferSpecification<TI, BUFFER_BATCH_SIZE, SPEC, DYNAMIC_ALLOCATION>>;
+            template<bool DYNAMIC_ALLOCATION=true>
+            using Buffer = sample_and_squash::Buffer<sample_and_squash::BufferSpecification<TI, SPEC, DYNAMIC_ALLOCATION>>;
         };
         template<typename SPEC>
         struct LayerBackward: public LayerForward<SPEC> {
@@ -124,7 +123,7 @@ namespace rl_tools{
                 LayerGradient<layers::sample_and_squash::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
         template <typename CONFIG>
-        struct BindSpecification{
+        struct BindConfiguration{
             template <typename CAPABILITY, typename INPUT_SHAPE>
             using Layer = nn::layers::sample_and_squash::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
         };

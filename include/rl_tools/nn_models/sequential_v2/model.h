@@ -97,19 +97,18 @@ namespace rl_tools::nn_models::sequential_v2{
     };
     template <typename T_SPEC>
     struct ModuleForward;
-    template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION>
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
     struct ContentBufferSpecification {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
         using CONTENT = typename SPEC::CONTENT;
-        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-        using CONTENT_BUFFER = typename CONTENT::template Buffer<BATCH_SIZE, DYNAMIC_ALLOCATION>;
+        using CONTENT_BUFFER = typename CONTENT::template Buffer<DYNAMIC_ALLOCATION>;
         static constexpr bool IS_FINAL = utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>;
         using NEXT_MODULE = utils::typing::conditional_t<!IS_FINAL, typename SPEC::NEXT_MODULE, ModuleForward<SPEC>>;
         using NEXT_SPEC = utils::typing::conditional_t<
                 !IS_FINAL,
-                ContentBufferSpecification<typename NEXT_MODULE::SPEC, BATCH_SIZE, DYNAMIC_ALLOCATION>,
+                ContentBufferSpecification<typename NEXT_MODULE::SPEC, DYNAMIC_ALLOCATION>,
                 OutputModule
         >;
     };
@@ -125,14 +124,13 @@ namespace rl_tools::nn_models::sequential_v2{
         NEXT_CONTENT_BUFFER next_content_buffer;
     };
 
-    template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION = true>
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION = true>
     struct ModuleBufferSpecification {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
         using CONTENT = typename SPEC::CONTENT;
-        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-        using CONTENT_BUFFER_SPEC = ContentBufferSpecification<SPEC, BATCH_SIZE, DYNAMIC_ALLOCATION>;
+        using CONTENT_BUFFER_SPEC = ContentBufferSpecification<SPEC, DYNAMIC_ALLOCATION>;
     };
     template <typename T_BUFFER_SPEC>
     struct ModuleBuffer{
@@ -140,10 +138,8 @@ namespace rl_tools::nn_models::sequential_v2{
         using SPEC = typename BUFFER_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         static_assert(SPEC::MAX_HIDDEN_DIM > 0);
-        static_assert(BATCH_SIZE > 0);
-        using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM * BATCH_SIZE>; // TODO: check if this is overkill
+        using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM>; // TODO: check if this is overkill
         using TICK_TOCK_CONTAINER_SPEC = tensor::Specification<T, TI, TICK_TOCK_CONTAINER_SHAPE, BUFFER_SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<TICK_TOCK_CONTAINER_SHAPE>>;
         using TICK_TOCK_CONTAINER_TYPE = Tensor<TICK_TOCK_CONTAINER_SPEC>;
 //        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::MAX_HIDDEN_DIM, typename BUFFER_SPEC::MEMORY_LAYOUT>;
@@ -158,6 +154,7 @@ namespace rl_tools::nn_models::sequential_v2{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        using ORIGINAL_ROOT = typename SPEC::ORIGINAL_ROOT;
         using CONTENT = typename SPEC::CONTENT;
         using NEXT_MODULE = typename SPEC::NEXT_MODULE;
         CONTENT content;
@@ -169,8 +166,8 @@ namespace rl_tools::nn_models::sequential_v2{
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
         // We have one module Buffer for the whole module and possible ContentBuffers for the intermediate steps (that are unwrapped recursively in tandem with the module/content)
-        template <typename SPEC::TI BATCH_SIZE, bool DYNAMIC_ALLOCATION=true>
-        using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, BATCH_SIZE, DYNAMIC_ALLOCATION>>;
+        template <bool DYNAMIC_ALLOCATION=true>
+        using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC,  DYNAMIC_ALLOCATION>>;
     };
 
     template <typename T_SPEC>
