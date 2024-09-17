@@ -64,23 +64,22 @@ struct Config{
     using PARAMS = BASE;
 //    using PARAMS = USEFUL;
 
-    template <TI T_BATCH_SIZE>
-    using INPUT_SHAPE_TEMPLATE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, T_BATCH_SIZE, 1>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, PARAMS::INPUT_DIM>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMS::BATCH_SIZE>;
-    using INPUT_SHAPE = INPUT_SHAPE_TEMPLATE<PARAMS::BATCH_SIZE>;
     using RESET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using RESET_TYPE = rlt::tensor::Specification<bool, TI, RESET_SHAPE>;
-    using INPUT_SPEC = rlt::tensor::Specification<T, TI, INPUT_SHAPE>;
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::INPUT_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, rlt::TensorDynamicTag, true>;
-    using GRU_TEMPLATE = rlt::nn::layers::gru::BindSpecification<GRU_SPEC>;
-    using DENSE_LAYER1_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMS::HIDDEN_DIM, PARAMS::HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::MatrixDynamicTag, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, PARAMS::SEQUENCE_LENGTH>>;
-    using DENSE_LAYER1_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER1_SPEC>;
-    using DENSE_LAYER2_SPEC = rlt::nn::layers::dense::Specification<T, TI, PARAMS::HIDDEN_DIM, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::MatrixDynamicTag, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, PARAMS::SEQUENCE_LENGTH>>;
-    using DENSE_LAYER2_TEMPLATE = rlt::nn::layers::dense::BindSpecification<DENSE_LAYER2_SPEC>;
-    using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>;
-    using MODEL = typename IF::template Module<GRU_TEMPLATE:: template Layer, typename IF::template Module<DENSE_LAYER1_TEMPLATE::template Layer, typename IF::template Module<DENSE_LAYER2_TEMPLATE::template Layer>>>;
-    using OUTPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, PARAMS::OUTPUT_DIM>;
-    using OUTPUT_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, true>;
+    using GRU = rlt::nn::layers::gru::BindSpecification<GRU_CONFIG>;
+    using DENSE_LAYER1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+    using DENSE_LAYER1 = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER1_CONFIG>;
+    using DENSE_LAYER2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+    using DENSE_LAYER2 = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER2_CONFIG>;
+
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+
+    using MODULE_CHAIN = Module<GRU, Module<DENSE_LAYER1, Module<DENSE_LAYER2>>>;
+    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
     struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
@@ -131,9 +130,9 @@ int main(){
     typename CONFIG::MODEL model;
     typename CONFIG::MODEL::Buffer<CONFIG::PARAMS::BATCH_SIZE> buffer;
     typename CONFIG::ADAM optimizer;
-    rlt::Tensor<typename CONFIG::INPUT_SPEC> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<typename CONFIG::RESET_TYPE> reset;
-    rlt::Tensor<typename CONFIG::OUTPUT_SPEC> d_output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::OUTPUT_SHAPE>> d_output;
     rlt::Tensor<typename CONFIG::OUTPUT_TARGET_SPEC> output_target;
     rlt::malloc(device, model);
     rlt::malloc(device, buffer);
