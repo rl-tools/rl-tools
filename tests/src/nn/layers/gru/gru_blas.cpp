@@ -20,11 +20,12 @@ constexpr TI BATCH_SIZE = 15;
 
 TEST(RL_TOOLS_NN_LAYERS_GRU, BLAS){
 
-    using SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
+    using CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    using GRU = rlt::nn::layers::gru::Layer<CAPABILITY, SPEC>;
+    using GRU = rlt::nn::layers::gru::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
     GRU gru_generic, gru_blas;
-    typename GRU::template Buffer<BATCH_SIZE> buffer;
+    typename GRU::template Buffer<BATCH_SIZE, true> buffer;
 
     DEVICE_GENERIC device_generic;
     DEVICE_BLAS device_blas;
@@ -54,7 +55,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, BLAS){
     rlt::forward(device_generic, gru_generic, input, buffer, rng);
     rlt::forward(device_blas, gru_blas, input, buffer, rng);
 
-    T forward_diff = rlt::abs_diff(device_generic, rlt::output(gru_generic), rlt::output(gru_blas));
+    T forward_diff = rlt::abs_diff(device_generic, rlt::output(device_generic, gru_generic), rlt::output(device_blas, gru_blas));
     std::cout << "Forward diff: " << forward_diff << std::endl;
     EXPECT_NEAR(forward_diff, 0, 1e-10);
 
