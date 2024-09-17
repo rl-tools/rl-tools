@@ -27,7 +27,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     using SHAPE_TRANSPOSE = rlt::tensor::Shape<TI, rlt::get<1>(SHAPE{}), rlt::get<0>(SHAPE{})>;
     using STRIDE_TRANSPOSE = rlt::tensor::Stride<TI, rlt::get<1>(STRIDE{}), rlt::get<0>(STRIDE{})>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A, B, C, C_target;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, false, STRIDE_TRANSPOSE>> A_T, B_T, C_T, C_target_T;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE_TRANSPOSE>> A_T, B_T, C_T, C_target_T;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2>>> bias;
     rlt::malloc(device, A);
     rlt::malloc(device, B);
@@ -102,9 +102,10 @@ void test_loading(std::string DATA_FILE_NAME){
     using GRU_HIDDEN_BIAS_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_HIDDEN_BIAS_SHAPE>> grad_b_hr, grad_b_hz, grad_b_hn;
 
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM, rlt::nn::parameters::Gradient>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    rlt::nn::layers::gru::Layer<CAPABILITY, GRU_SPEC> gru;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
+    rlt::nn::layers::gru::Layer<GRU_CONFIG, CAPABILITY, INPUT_SHAPE> gru;
     decltype(gru)::Buffer<BATCH_SIZE, true> buffer;
     rlt::malloc(device, gru);
     rlt::malloc(device, buffer);
@@ -148,21 +149,21 @@ void test_loading(std::string DATA_FILE_NAME){
             }
             rlt::load(device, gru_output, batch_group, "gru_output");
             auto weight_group = batch_group.getGroup("weights");
-            using VIEW_SPEC = rlt::tensor::ViewSpec<0, GRU_SPEC::HIDDEN_DIM>;
-            auto W_ir = view_range(device, gru.weights_input.parameters, 0*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto W_iz = view_range(device, gru.weights_input.parameters, 1*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto W_in = view_range(device, gru.weights_input.parameters, 2*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto b_ir = view_range(device, gru.biases_input.parameters, 0*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto b_iz = view_range(device, gru.biases_input.parameters, 1*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto b_in = view_range(device, gru.biases_input.parameters, 2*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            using VIEW_SPEC_DOUBLE = rlt::tensor::ViewSpec<0, 2*GRU_SPEC::HIDDEN_DIM>;
-            auto W_hrz = view_range(device, gru.weights_hidden.parameters, 0*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC_DOUBLE{});
-            auto W_hr = view_range(device, gru.weights_hidden.parameters, 0*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto W_hz = view_range(device, gru.weights_hidden.parameters, 1*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto W_hn = view_range(device, gru.weights_hidden.parameters, 2*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto b_hr = view_range(device, gru.biases_hidden.parameters, 0*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto b_hz = view_range(device, gru.biases_hidden.parameters, 1*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
-            auto b_hn = view_range(device, gru.biases_hidden.parameters, 2*GRU_SPEC::HIDDEN_DIM, VIEW_SPEC{});
+            using VIEW_SPEC = rlt::tensor::ViewSpec<0, GRU_CONFIG::HIDDEN_DIM>;
+            auto W_ir = view_range(device, gru.weights_input.parameters, 0*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto W_iz = view_range(device, gru.weights_input.parameters, 1*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto W_in = view_range(device, gru.weights_input.parameters, 2*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto b_ir = view_range(device, gru.biases_input.parameters, 0*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto b_iz = view_range(device, gru.biases_input.parameters, 1*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto b_in = view_range(device, gru.biases_input.parameters, 2*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            using VIEW_SPEC_DOUBLE = rlt::tensor::ViewSpec<0, 2*GRU_CONFIG::HIDDEN_DIM>;
+            auto W_hrz = view_range(device, gru.weights_hidden.parameters, 0*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC_DOUBLE{});
+            auto W_hr = view_range(device, gru.weights_hidden.parameters, 0*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto W_hz = view_range(device, gru.weights_hidden.parameters, 1*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto W_hn = view_range(device, gru.weights_hidden.parameters, 2*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto b_hr = view_range(device, gru.biases_hidden.parameters, 0*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto b_hz = view_range(device, gru.biases_hidden.parameters, 1*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
+            auto b_hn = view_range(device, gru.biases_hidden.parameters, 2*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
             rlt::load(device, W_ir, weight_group, "W_ir");
             rlt::load(device, W_iz, weight_group, "W_iz");
             rlt::load(device, W_in, weight_group, "W_in");

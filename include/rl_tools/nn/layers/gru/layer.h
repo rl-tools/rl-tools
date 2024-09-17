@@ -33,7 +33,6 @@ namespace rl_tools::nn::layers::gru{
         using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, CONFIG::HIDDEN_DIM, length(INPUT_SHAPE{})-1>;
         static constexpr TI INTERNAL_BATCH_SIZE = get<1>(INPUT_SHAPE{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
         static constexpr TI NUM_WEIGHTS = CONFIG::HIDDEN_DIM * (INPUT_DIM + 1) * 3 + CONFIG::HIDDEN_DIM * (CONFIG::HIDDEN_DIM+1) * 3;
-        using CONTAINER_TYPE_TAG = TensorDynamicTag;
     };
 
     namespace buffers{
@@ -93,7 +92,6 @@ namespace rl_tools::nn::layers::gru{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
         static constexpr TI SEQUENCE_LENGTH = SPEC::SEQUENCE_LENGTH;
         static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
@@ -157,7 +155,7 @@ namespace rl_tools::nn::layers::gru{
         using TI = typename SPEC::TI;
         using FULL_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>;
         using FULL_HIDDEN_SPEC = tensor::Specification<T, TI, FULL_HIDDEN_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<FULL_HIDDEN_SHAPE>, SPEC::CONST>;
-        using FULL_HIDDEN_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<FULL_HIDDEN_SPEC>;
+        using FULL_HIDDEN_TYPE = Tensor<FULL_HIDDEN_SPEC>;
         FULL_HIDDEN_TYPE post_activation;
         using SINGLE_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>;
         using HIDDEN_SPEC = tensor::Specification<T, TI, SINGLE_HIDDEN_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<SINGLE_HIDDEN_SHAPE>, SPEC::CONST>;
