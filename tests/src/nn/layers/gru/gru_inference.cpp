@@ -36,8 +36,8 @@ int main() {
 
     typename CONFIG::MODEL model;
     typename CONFIG::MODEL::Buffer<CONFIG::PARAMS::BATCH_SIZE> buffer;
-    rlt::Tensor<typename CONFIG::INPUT_SPEC> input;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::OUTPUT_SHAPE>> output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::OUTPUT_SHAPE>> output;
 
     rlt::malloc(device, model);
     rlt::malloc(device, buffer);
@@ -61,7 +61,7 @@ int main() {
         for(TI batch_i = 0; batch_i < CONFIG::PARAMS::BATCH_SIZE; batch_i++){
             for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
                 if(sequence_i < input_string.size()) {
-                    rlt::set(device, input, input_string[sequence_i], sequence_i, batch_i);
+                    rlt::set(device, input, input_string[sequence_i], sequence_i, batch_i, 0);
                 }
             }
         }
