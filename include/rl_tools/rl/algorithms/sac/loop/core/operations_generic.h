@@ -109,12 +109,12 @@ namespace rl_tools{
                 ts.warmup_policy_transitioned = true;
                 truncate_all(device, ts.off_policy_runner); // truncating all current episodes signals that e.g. recurrent policies should be reset on the next step, otherwise the recurrent state might be undefined after switching from the warmup policy
             }
-            step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
+            step<1>(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
         }
         else{
             typename CONFIG::EXPLORATION_POLICY exploration_policy;
             typename CONFIG::EXPLORATION_POLICY::template Buffer<> exploration_policy_buffer;
-            step(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng, SAMPLE_AND_SQUASH_MODE{});
+            step<0>(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng, SAMPLE_AND_SQUASH_MODE{});
         }
         bool train_critic_flag = ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS_CRITIC && ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0;
         bool update_critic_targets_flag = ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS_CRITIC && ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0;
