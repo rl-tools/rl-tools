@@ -169,27 +169,21 @@ namespace rl_tools{
                 prologue_per_env(device, runner, rng, env_i);
             }
         }
-        template<auto POLICY_INDEX, typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE>
-        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        template<auto POLICY_INDEX, typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
+        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng){
             using TI = typename DEVICE::index_t;
             constexpr TI BATCH_SIZE = decltype(runner.buffers.actions)::ROWS;
             constexpr TI POLICY_OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
             auto action_view = view(device, runner.buffers.actions, matrix::ViewSpec<BATCH_SIZE, POLICY_OUTPUT_DIM>{});
             auto observation_view_tensor = to_tensor(device, runner.buffers.observations);
-            auto observation_view_tensor_unsqueezed = unsqueeze(device, observation_view_tensor);
             auto action_view_tensor = to_tensor(device, action_view);
-            auto action_view_tensor_unsqueezed = unsqueeze(device, action_view_tensor);
-//            Mode<nn::layers::gru::StepByStepMode<MODE, nn::layers::gru::StepByStepModeSpecification<TI>>> step_by_step_mode;
-//            step_by_step_mode.reset = get(runner.truncated, 0, 0);
-//            step_by_step_mode.step = get(runner.episode_step, 0, 0);
             static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
-//            check(device, observation_view_tensor_unsqueezed, "off_policy_runner::observation_view_tensor_unsqueezed");
             auto policy_state = get<POLICY_INDEX>(runner.policy_states);
             if(get(runner.truncated, 0, 0)){
                 reset(device, policy, policy_state, rng);
             }
+            Mode<mode::Default<>> mode; // we want stochasticity for exploration
             evaluate_step(device, policy, observation_view_tensor, policy_state, action_view_tensor, policy_eval_buffers, rng, mode);
-//            check(device, action_view_tensor_unsqueezed, "off_policy_runner::action_view_tensor_unsqueezed");
         }
 
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
@@ -200,8 +194,8 @@ namespace rl_tools{
             }
         }
     }
-    template<auto POLICY_INDEX, typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE = mode::Default<>>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<auto POLICY_INDEX, typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng){
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif
@@ -216,7 +210,7 @@ namespace rl_tools{
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
 
         rl::components::off_policy_runner::prologue(device, runner, rng);
-        rl::components::off_policy_runner::interlude<POLICY_INDEX>(device, runner, policy, policy_eval_buffers, rng, mode);
+        rl::components::off_policy_runner::interlude<POLICY_INDEX>(device, runner, policy, policy_eval_buffers, rng);
         rl::components::off_policy_runner::epilogue(device, runner, policy, rng);
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>

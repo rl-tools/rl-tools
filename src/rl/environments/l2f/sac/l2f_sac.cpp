@@ -94,7 +94,6 @@ int main(){
 #ifdef RL_TOOLS_ENABLE_TRACY
         FrameMark;
 #endif
-
         done = rlt::step(device, ts);
     }
     return 0;

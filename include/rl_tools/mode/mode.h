@@ -18,11 +18,13 @@ namespace rl_tools{
             using SPEC = bool;
             using BASE = Final;
         };
-        template <typename T_BASE, typename T_SPEC = bool>
+        template <typename T_BASE = Final, typename T_SPEC = bool>
         struct Inference: T_BASE{
+            // this is what is passed by rl::utils::evaluation
+            // semantics: no randomness
             using SPEC = T_SPEC;
             using BASE = T_BASE;
-        }; // this is what is passed by rl::utils::evaluation
+        };
         template <typename MODE>
         constexpr bool _check_carrier(MODE){
             return false;
@@ -36,7 +38,7 @@ namespace rl_tools{
         constexpr bool _is(){
             static_assert(!_check_carrier(INPUT{}), "You should only check the unwrapped mode => execute mode::is<MODE> if you have a Mode<MODE>");
             if constexpr (utils::typing::is_same_v<typename INPUT::BASE, Final>){
-                return utils::typing::is_same_v<MODE<Final, bool>, Default<>>;
+                return utils::typing::is_same_v<INPUT, MODE<Final, bool>>;
             }
             else{
                 return utils::typing::is_same_v<MODE<typename INPUT::BASE, typename INPUT::SPEC>, INPUT> || _is<typename INPUT::BASE, MODE>();

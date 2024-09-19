@@ -130,11 +130,17 @@ namespace rl_tools{
                 noise = get(buffer.noise, row_i, col_i);
             }
             else{
-                if constexpr(mode::is<MODE, nn::layers::sample_and_squash::mode::Sample>){
+                if constexpr(mode::is<MODE, mode::Default> || mode::is<MODE, nn::layers::sample_and_squash::mode::Sample>){
                     noise = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
                 }
                 else{
-                    noise = 0;
+                    if constexpr(mode::is<MODE, mode::Inference>){
+                        noise = 0;
+                    }
+                    else{
+                        noise = 0;
+                        utils::assert_exit(device.logger, false, "Invalid mode");
+                    }
                 }
             }
 //                set(layer.noise, row_i, col_i, noise);
@@ -194,12 +200,17 @@ namespace rl_tools{
                 noise = get(buffer.noise, row_i, col_i);
             }
             else{
-                if constexpr(mode::is<MODE, nn::layers::sample_and_squash::mode::Sample>){
+                if constexpr(mode::is<MODE, mode::Default> || mode::is<MODE, nn::layers::sample_and_squash::mode::Sample>){
                     noise = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
                 }
                 else{
-                    utils::assert_exit(device.logger, false, "Invalid mode");
-                    noise = 0;
+                    if constexpr(mode::is<MODE, mode::Inference>){
+                        noise = 0;
+                    }
+                    else{
+                        noise = 0;
+                        utils::assert_exit(device.logger, false, "Invalid mode");
+                    }
                 }
             }
             set(layer.noise, row_i, col_i, noise);
