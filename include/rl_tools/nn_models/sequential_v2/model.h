@@ -97,6 +97,52 @@ namespace rl_tools::nn_models::sequential_v2{
     };
     template <typename T_SPEC>
     struct ModuleForward;
+
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+    struct ContentStateSpecification {
+        using SPEC = T_SPEC;
+        using TI = typename SPEC::TI;
+        using CONTENT = typename SPEC::CONTENT;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+        using CONTENT_STATE = typename CONTENT::template State<DYNAMIC_ALLOCATION>;
+        static constexpr bool IS_FINAL = utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>;
+        using NEXT_MODULE = utils::typing::conditional_t<!IS_FINAL, typename SPEC::NEXT_MODULE, ModuleForward<SPEC>>;
+        using NEXT_SPEC = utils::typing::conditional_t<
+                !IS_FINAL,
+                ContentStateSpecification<typename NEXT_MODULE::SPEC, DYNAMIC_ALLOCATION>,
+                OutputModule
+        >;
+    };
+    template <typename T_SPEC>
+    struct ContentState{
+        using SPEC = T_SPEC;
+        using CONTENT_STATE = typename SPEC::CONTENT_STATE;
+        using NEXT_SPEC = typename SPEC::NEXT_SPEC;
+        CONTENT_STATE state;
+        using NEXT_CONTENT_STATE = utils::typing::conditional_t<utils::typing::is_same_v<NEXT_SPEC, OutputModule>,
+                OutputModule,
+                ContentState<NEXT_SPEC>>;
+        NEXT_CONTENT_STATE next_content_state;
+    };
+
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION = true>
+    struct ModuleStateSpecification {
+        using SPEC = T_SPEC;
+        using TI = typename SPEC::TI;
+        using CONTENT = typename SPEC::CONTENT;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+        using CONTENT_BUFFER_SPEC = ContentStateSpecification<SPEC, DYNAMIC_ALLOCATION>;
+    };
+    template <typename T_BUFFER_SPEC>
+    struct ModuleState{
+        using BUFFER_SPEC = T_BUFFER_SPEC;
+        using SPEC = typename BUFFER_SPEC::SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using CONTENT_STATE = ContentState<typename BUFFER_SPEC::CONTENT_BUFFER_SPEC>;
+        CONTENT_STATE content_state;
+    };
+
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
     struct ContentBufferSpecification {
         using SPEC = T_SPEC;
@@ -165,6 +211,8 @@ namespace rl_tools::nn_models::sequential_v2{
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
+        template <bool DYNAMIC_ALLOCATION=true>
+        using State = ModuleState<ModuleStateSpecification<SPEC,  DYNAMIC_ALLOCATION>>;
         // We have one module Buffer for the whole module and possible ContentBuffers for the intermediate steps (that are unwrapped recursively in tandem with the module/content)
         template <bool DYNAMIC_ALLOCATION=true>
         using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC,  DYNAMIC_ALLOCATION>>;
@@ -213,6 +261,9 @@ namespace rl_tools::nn_models::sequential_v2{
         };
         template <typename TI, TI BATCH_SIZE>
         using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;
+        template <typename NEW_CAPABILITY>
+        using CHANGE_CAPABILITY = typename _Chain<NEW_CAPABILITY, MODULE, INPUT_SHAPE>::MODULE;
+
     };
 
 }

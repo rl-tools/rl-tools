@@ -25,25 +25,16 @@ namespace rl_tools::nn_models::mlp_unconditional_stddev {
     template <typename SPEC, template <typename> typename BASE = nn_models::mlp::NeuralNetworkGradient>
     struct NeuralNetworkGradient: NeuralNetworkBackward<SPEC, BASE>{};
 
-    template<typename CAPABILITY, typename SPEC>
-    using _NeuralNetwork =
-    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-            NeuralNetworkForward<nn_models::mlp::CapabilitySpecification<CAPABILITY, SPEC>>,
-    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-            NeuralNetworkBackward<nn_models::mlp::CapabilitySpecification<CAPABILITY, SPEC>>,
-    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-            NeuralNetworkGradient<nn_models::mlp::CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+    template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
+    using NeuralNetwork =
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward, NeuralNetworkForward<nn_models::mlp::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward, NeuralNetworkBackward<nn_models::mlp::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, NeuralNetworkGradient<nn_models::mlp::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
-    template<typename T_CAPABILITY, typename T_SPEC>
-    struct NeuralNetwork: _NeuralNetwork<T_CAPABILITY, T_SPEC>{
-        template <typename TT_CAPABILITY>
-        using CHANGE_CAPABILITY = NeuralNetwork<TT_CAPABILITY, T_SPEC>;
-    };
-
-    template <typename T_SPEC>
-    struct BindSpecification{
-        template <typename CAPABILITY>
-        using NeuralNetwork = nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY, T_SPEC>;
+    template <typename CONFIG>
+    struct BindConfiguration{
+        template <typename CAPABILITY, typename INPUT_SHAPE>
+        using NeuralNetwork = nn_models::mlp_unconditional_stddev::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 
 

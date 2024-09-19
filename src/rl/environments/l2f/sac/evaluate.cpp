@@ -156,7 +156,8 @@ int main(){
 
     using ACTOR = LOOP_CORE_CONFIG::ACTOR_CRITIC_TYPE::SPEC::ACTOR_NETWORK_TYPE::CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward<>>;
     ACTOR actor;
-    ACTOR::Buffer<1> buffer;
+    ACTOR::Buffer<> buffer;
+    ACTOR::State<> actor_state;
 
 
     DEVICE device;

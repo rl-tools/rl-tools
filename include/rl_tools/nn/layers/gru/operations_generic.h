@@ -62,6 +62,14 @@ namespace rl_tools{
         free(device, buffer.buffer);
         free(device, buffer.buffer2);
     }
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, nn::layers::gru::State<SPEC>& state){
+        malloc(device, state.state);
+    }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn::layers::gru::State<SPEC>& state){
+        free(device, state.state);
+    }
     template <typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& l, RNG& rng){
         // same as in PyTorch
@@ -310,6 +318,10 @@ namespace rl_tools{
         else{
             evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, buffers.previous_output_scratch, buffers, rng, mode);
         }
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename STATE_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate_step(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, typename nn::layers::gru::LayerForward<LAYER_SPEC>::template State<STATE_SPEC>& state, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename BUFFER_SPEC, typename MODE = mode::Default<>>

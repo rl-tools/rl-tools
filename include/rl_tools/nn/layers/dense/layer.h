@@ -70,6 +70,7 @@ namespace rl_tools::nn::layers::dense {
         check_spec_memory<SPEC_1, SPEC_2>
         && SPEC_1::ACTIVATION_FUNCTION == SPEC_2::ACTIVATION_FUNCTION;
 
+    struct State{};
     struct Buffer{};
 
     template<typename T_SPEC>
@@ -97,6 +98,8 @@ namespace rl_tools::nn::layers::dense {
         typename SPEC::PARAMETER_TYPE::template instance<BIASES_PARAMETER_SPEC> biases;
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = dense::Buffer;
+        template<bool DYNAMIC_ALLOCATION=true>
+        using State = dense::State;
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC>{

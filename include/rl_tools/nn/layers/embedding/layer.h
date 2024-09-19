@@ -64,6 +64,7 @@ namespace rl_tools::nn::layers::embedding {
         static constexpr TI INTERNAL_BATCH_SIZE = get<1>(INPUT_SHAPE{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
     };
 
+    struct State{};
     struct Buffer{};
 
     template<typename T_SPEC>
@@ -82,6 +83,8 @@ namespace rl_tools::nn::layers::embedding {
         using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_PARAMETER_SPEC> weights;
 
+        template<bool DYNAMIC_ALLOCATION=true>
+        using State = embedding::State;
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = embedding::Buffer;
     };

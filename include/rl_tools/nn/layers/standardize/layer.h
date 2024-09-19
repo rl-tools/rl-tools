@@ -55,6 +55,7 @@ namespace rl_tools::nn::layers::standardize {
         static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_DIM * INPUT_DIM + CONFIG::OUTPUT_DIM;
         using CONTAINER_TYPE_TAG = utils::typing::conditional_t<CAPABILITY::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
+    struct State{};
     struct Buffer{};
     template<typename T_SPEC>
     struct LayerForward {
@@ -69,7 +70,10 @@ namespace rl_tools::nn::layers::standardize {
         using STATISTICS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<STATISTICS_CONTAINER_SPEC>;
         using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::spec<STATISTICS_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant>; // Constant from the view of a forward or backward pass
         typename nn::parameters::Plain::template instance<STATISTICS_PARAMETER_SPEC> mean, precision; // precision = 1/std
-        template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+
+        template<bool DYNAMIC_ALLOCATION=true>
+        using State = standardize::State;
+        template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = standardize::Buffer;
     };
     template<typename SPEC>

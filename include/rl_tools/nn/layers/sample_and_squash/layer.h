@@ -35,6 +35,9 @@ namespace rl_tools{
             static constexpr T ALPHA = 1.0;
             static constexpr T TARGET_ENTROPY = -1;
         };
+
+        struct State{};
+
         template <typename T_TI, typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
         struct BufferSpecification {
             using TI = T_TI;
@@ -87,6 +90,8 @@ namespace rl_tools{
 //            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, INPUT_DIM>;
 //            using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
 //            static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
+            template<bool DYNAMIC_ALLOCATION=true>
+            using State = sample_and_squash::State;
             template<bool DYNAMIC_ALLOCATION=true>
             using Buffer = sample_and_squash::Buffer<sample_and_squash::BufferSpecification<TI, SPEC, DYNAMIC_ALLOCATION>>;
         };

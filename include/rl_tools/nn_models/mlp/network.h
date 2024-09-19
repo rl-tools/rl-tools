@@ -69,6 +69,7 @@ namespace rl_tools::nn_models::mlp {
 //        using CAPABILITY = T_CAPABILITY;
 //        using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
 //    };
+    struct State{};
 
     // T_LAYER_PROTOTYPE is any of INPUT_LAYER, HIDDEN_LAYER, or OUTPUT_LAYER. It is assumed that the buffer for all of them are the same (likely empty)
     template<typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
@@ -122,6 +123,8 @@ namespace rl_tools::nn_models::mlp {
         typename SPEC::HIDDEN_LAYER  hidden_layers[NUM_HIDDEN_LAYERS];
         typename SPEC::OUTPUT_LAYER  output_layer;
 
+        template<bool DYNAMIC_ALLOCATION=true>
+        using State = mlp::State;
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, DYNAMIC_ALLOCATION>>;
     };

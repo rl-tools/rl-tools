@@ -87,6 +87,24 @@ namespace rl_tools::nn::layers::gru{
         typename SPEC::RESET_CONTAINER_TYPE reset_container;
     };
 
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+    struct StateSpecification{
+        using SPEC = T_SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+    };
+    template <typename T_SPEC>
+    struct State{
+        using STATE_SPEC = T_SPEC;
+        using SPEC = typename STATE_SPEC::SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+
+        using STATE_SHAPE = tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>;
+        using STATE_CONTAINER_SPEC = tensor::Specification<T, TI, STATE_SHAPE, STATE_SPEC::DYNAMIC_ALLOCATION>;
+        using STATE_CONTAINER_TYPE = Tensor<STATE_CONTAINER_SPEC>;
+        STATE_CONTAINER_TYPE state;
+    };
+
     template<typename T_SPEC>
     struct LayerForward{
         using SPEC = T_SPEC;
@@ -129,6 +147,8 @@ namespace rl_tools::nn::layers::gru{
         using INITIAL_HIDDEN_STATE_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<INITIAL_HIDDEN_STATE_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
 
+        template<bool DYNAMIC_ALLOCATION=true>
+        using State = State<StateSpecification<SPEC, DYNAMIC_ALLOCATION>>;
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = buffers::Evaluation<buffers::Specification<SPEC, DYNAMIC_ALLOCATION>>;
     };
