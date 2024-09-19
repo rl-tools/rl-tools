@@ -44,6 +44,12 @@ namespace rl_tools{
         free(device, layer.output);
     }
     template<typename DEVICE>
+    void malloc(DEVICE& device, nn::layers::dense::State& state) { } // no-op
+    template<typename SPEC, typename DEVICE, typename RNG, typename MODE>
+    void reset(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, nn::layers::dense::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
+    template<typename DEVICE>
+    void free(DEVICE& device, nn::layers::dense::State& state) { } // no-op
+    template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
     template<typename DEVICE>
     void free(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
@@ -331,6 +337,12 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(DEVICE& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        auto matrix_view_input = matrix_view(device, input);
+        auto matrix_view_output = matrix_view(device, output);
+        evaluate(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate_step(DEVICE& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::dense::State& state, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         auto matrix_view_input = matrix_view(device, input);
         auto matrix_view_output = matrix_view(device, output);
         evaluate(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);

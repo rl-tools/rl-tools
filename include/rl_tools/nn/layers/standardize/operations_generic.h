@@ -31,6 +31,12 @@ namespace rl_tools{
         free(device, static_cast<nn::layers::standardize::LayerForward<SPEC>&>(layer));
         free(device, layer.output);
     }
+    template<typename DEVICE>
+    void malloc(DEVICE& device, nn::layers::standardize::State& state) { } // no-op
+    template<typename DEVICE, typename SPEC, typename RNG, typename MODE>
+    void reset(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, nn::layers::standardize::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
+    template<typename DEVICE>
+    void free(DEVICE& device, nn::layers::standardize::State& state) { } // no-op
     template <typename DEVICE>
     void malloc(DEVICE& device, nn::layers::standardize::Buffer& buffer){ }
     template <typename DEVICE>

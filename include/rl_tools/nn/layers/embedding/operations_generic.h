@@ -40,6 +40,12 @@ namespace rl_tools{
         free(device, layer.output);
     }
     template<typename DEVICE>
+    void malloc(DEVICE& device, nn::layers::embedding::State& state) { } // no-op
+    template<typename DEVICE, typename SPEC, typename RNG, typename MODE>
+    void reset(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, nn::layers::embedding::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
+    template<typename DEVICE>
+    void free(DEVICE& device, nn::layers::embedding::State& state) { } // no-op
+    template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::embedding::Buffer& buffer) { } // no-op
     template<typename DEVICE>
     void free(DEVICE& device, nn::layers::embedding::Buffer& buffer) { } // no-op
@@ -76,6 +82,10 @@ namespace rl_tools{
             auto output_row = view(device, output_view, batch_i, tensor::ViewSpec<0>{});
             copy(device, device, embedding, output_row);
         }
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate_step(DEVICE& device, const nn::layers::embedding::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::embedding::State& state, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        evaluate(device, layer, input, output, buffer, rng, mode);
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>

@@ -164,6 +164,7 @@ int main(){
     auto rng = rlt::random::default_engine(device.random, 0);
 
     rlt::malloc(device, actor);
+    rlt::malloc(device, actor_state);
     rlt::malloc(device, buffer);
 
     HighFive::File file(latest_checkpoint, HighFive::File::ReadOnly);
@@ -181,9 +182,6 @@ int main(){
     rlt::malloc(device, env);
     rlt::sample_initial_parameters(device, env, parameters, rng);
 
-    using STEP_BY_STEP_MODE = rlt::nn::layers::gru::StepByStepMode<rlt::mode::Default<>, rlt::nn::layers::gru::StepByStepModeSpecification<TI, ORIGINAL_CONDITIONS || AUTOMATIC_RESET>>;
-    rlt::Mode<STEP_BY_STEP_MODE> mode;
-
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, EVALUATION_ENVIRONMENT::Observation::DIM>>> observation;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, EVALUATION_ENVIRONMENT::ACTION_DIM>>> action;
     rlt::malloc(device, observation);
@@ -197,17 +195,18 @@ int main(){
 
     rlt::init(device, env, parameters, ui);
     TI step = 0;
-    mode.reset = true;
     bool truncated = true;
     T cumulative_rewards = 0;
     while(true){
         if(truncated){
             rlt::sample_initial_state(device, env, parameters, state, rng);
         }
-        mode.step = step;
 
         rlt::observe(device, env, parameters, state, EVALUATION_ENVIRONMENT::Observation{}, observation_matrix_view, rng);
-        rlt::evaluate(device, actor, observation, action, buffer, rng, mode);
+        if(truncated || step % SEQUENCE_LENGTH == 0){
+            rlt::reset(device, actor, actor_state, rng);
+        }
+        rlt::evaluate_step(device, actor, observation, actor_state, action, buffer, rng);
         T dt = rlt::step(device, env, parameters, state, action_matrix_view, next_state, rng);
         state = next_state;
         T reward = rlt::reward(device, env, parameters, state, action_matrix_view, next_state, rng);
@@ -217,7 +216,6 @@ int main(){
         std::this_thread::sleep_for(std::chrono::milliseconds((TI)(1000 * dt)));
         bool terminated = rlt::terminated(device, env, parameters, state, rng);
         truncated = terminated || step >= 500;
-        mode.reset = truncated;
         if(truncated){
             std::cout << "Episode terminated after " << step << " steps with cumulative rewards: " << cumulative_rewards << std::endl;
             step = 0;

@@ -23,6 +23,50 @@ namespace rl_tools{
             free(device, module.next_module);
         }
     }
+    template <typename DEVICE, typename STATE_SPEC>
+    void malloc(DEVICE& device, nn_models::sequential_v2::ContentState<STATE_SPEC>& content_state){
+        using namespace nn_models::sequential_v2;
+        malloc(device, content_state.state);
+        if constexpr(!utils::typing::is_same_v<typename STATE_SPEC::NEXT_SPEC, OutputModule>){
+            malloc(device, content_state.next_content_state);
+        }
+    }
+    template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE>
+    void reset(DEVICE& device, nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, nn_models::sequential_v2::ContentState<STATE_SPEC>& content_state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using namespace nn_models::sequential_v2;
+        reset(device, model.content, content_state.state, rng, mode);
+        if constexpr(!utils::typing::is_same_v<typename STATE_SPEC::NEXT_SPEC, OutputModule>){
+            reset(device, model.next_module, content_state.next_content_state, rng, mode);
+        }
+    }
+    template <typename DEVICE, typename STATE_SPEC>
+    void free(DEVICE& device, nn_models::sequential_v2::ContentState<STATE_SPEC>& content_state){
+        using namespace nn_models::sequential_v2;
+        free(device, content_state.state);
+        if constexpr(!utils::typing::is_same_v<typename STATE_SPEC::NEXT_SPEC, OutputModule>){
+            free(device, content_state.next_content_state);
+        }
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_STATE_SPEC, typename TARGET_STATE_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential_v2::ContentState<SOURCE_STATE_SPEC>& source, nn_models::sequential_v2::ContentState<TARGET_STATE_SPEC>& target){
+        using namespace nn_models::sequential_v2;
+        copy(source_device, target_device, source.state, target.state);
+        if constexpr(!utils::typing::is_same_v<typename TARGET_STATE_SPEC::NEXT_SPEC, OutputModule>){
+            copy(source_device, target_device, source.next_content_state, target.next_content_state);
+        }
+    }
+    template <typename DEVICE, typename STATE_SPEC>
+    void malloc(DEVICE& device, nn_models::sequential_v2::ModuleState<STATE_SPEC>& state){
+        malloc(device, state.content_state);
+    }
+    template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void reset(DEVICE& device, nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, nn_models::sequential_v2::ModuleState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        reset(device, model, state.content_state, rng, mode);
+    }
+    template <typename DEVICE, typename STATE_SPEC>
+    void free(DEVICE& device, nn_models::sequential_v2::ModuleState<STATE_SPEC>& state){
+        free(device, state.content_state);
+    }
     template <typename DEVICE, typename BUFFER_SPEC>
     void malloc(DEVICE& device, nn_models::sequential_v2::ContentBuffer<BUFFER_SPEC>& content_buffer){
         using namespace nn_models::sequential_v2;
@@ -258,7 +302,7 @@ namespace rl_tools{
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
-            evaluate(device, model.content, input, output, content_buffer.buffer, rng, mode);
+            evaluate_step(device, model.content, input, content_state.state, output, content_buffer.buffer, rng, mode);
         }
         else{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
@@ -268,8 +312,8 @@ namespace rl_tools{
             using BATCH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE, BATCH_SIZE, 1>;
             using SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<BATCH_ADJUSTED_OUTPUT_SHAPE, get<0>(typename INPUT::SPEC::SHAPE{}), 0>;
             auto output_buffer_view = view_memory<SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE>(device, output_buffer);
-            evaluate(device, model.content, input, output_buffer_view, content_buffer.buffer, rng, mode);
-            _evaluate_step<!TICK>(device, model.next_module, output_buffer_view, state, content_buffer.next_content_state, output, buffers, content_buffer.next_content_buffer, rng, mode);
+            evaluate_step(device, model.content, input, content_state.state, output_buffer_view, content_buffer.buffer, rng, mode);
+            _evaluate_step<!TICK>(device, model.next_module, output_buffer_view, state, content_state.next_content_state, output, buffers, content_buffer.next_content_buffer, rng, mode);
         }
     }
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename STATE_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>

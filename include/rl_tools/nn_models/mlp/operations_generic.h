@@ -17,11 +17,6 @@ namespace rl_tools {
         }
         malloc(device, network.output_layer);
     }
-    template<typename DEVICE, typename BUFFER_SPEC>
-    void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers) {
-        malloc(device, buffers.tick);
-        malloc(device, buffers.tock);
-    }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network) {
         free(device, network.input_layer);
@@ -29,6 +24,17 @@ namespace rl_tools {
             free(device, network.hidden_layers[layer_i]);
         }
         free(device, network.output_layer);
+    }
+    template<typename DEVICE>
+    void malloc(DEVICE& device, nn_models::mlp::State& state) { } // no-op
+    template<typename DEVICE, typename SPEC, typename RNG, typename MODE>
+    void reset(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& layer, nn_models::mlp::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
+    template<typename DEVICE>
+    void free(DEVICE& device, nn_models::mlp::State& state) { } // no-op
+    template<typename DEVICE, typename BUFFER_SPEC>
+    void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers) {
+        malloc(device, buffers.tick);
+        malloc(device, buffers.tock);
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC>& buffers) {
