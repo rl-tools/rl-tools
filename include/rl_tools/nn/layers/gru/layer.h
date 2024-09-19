@@ -105,6 +105,10 @@ namespace rl_tools::nn::layers::gru{
         using STATE_CONTAINER_SPEC = tensor::Specification<T, TI, STATE_SHAPE, STATE_SPEC::DYNAMIC_ALLOCATION>;
         using STATE_CONTAINER_TYPE = Tensor<STATE_CONTAINER_SPEC>;
         STATE_CONTAINER_TYPE state;
+        using STEP_SHAPE = tensor::Shape<TI, SPEC::BATCH_SIZE>;
+        using STEP_CONTAINER_SPEC = tensor::Specification<TI, TI, STEP_SHAPE, STATE_SPEC::DYNAMIC_ALLOCATION>;
+        using STEP_CONTAINER_TYPE = Tensor<STEP_CONTAINER_SPEC>;
+        STEP_CONTAINER_TYPE step;
     };
 
     template<typename T_SPEC>

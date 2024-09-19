@@ -21,25 +21,6 @@ namespace rl_tools {
             Head content;
         };
 
-        template<typename TI>
-        constexpr TI length(Tuple<TI> &tuple) {
-            return 1;
-        }
-
-        template<typename TI, typename CURRENT_TYPE, typename... Types>
-        constexpr TI length(Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
-            return 1 + length(static_cast<Tuple<TI, Types...> &>(tuple));
-        }
-
-        template<auto INDEX, typename TI, typename... Types>
-        auto &get(Tuple<TI, Types...> &tuple) {
-            if constexpr (INDEX == 0) {
-                return tuple.content;
-            } else {
-                return get<INDEX - 1>(static_cast<Tuple<TI, Types...> &>(tuple));
-            }
-        }
-
         template<typename TUPLE, template<typename> typename F>
         struct MapTuple;
 
@@ -55,6 +36,34 @@ namespace rl_tools {
             CONTENT content;
         };
     }
+    template<typename TI>
+    constexpr TI length(utils::Tuple<TI> &tuple) {
+        return 1;
+    }
+
+    template<typename TI, typename CURRENT_TYPE, typename... Types>
+    constexpr TI length(utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
+        return 1 + length(static_cast<utils::Tuple<TI, Types...> &>(tuple));
+    }
+
+    template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types>
+    auto &get(utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
+        if constexpr (INDEX == 0) {
+            return tuple.content;
+        } else {
+            return get<INDEX - 1>(static_cast<utils::Tuple<TI, Types...> &>(tuple));
+        }
+    }
+
+    template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types, template <typename> typename F>
+    auto &get(utils::MapTuple<utils::Tuple<TI, CURRENT_TYPE, Types...>, F> &tuple) {
+        if constexpr (INDEX == 0) {
+            return tuple.content;
+        } else {
+            return get<INDEX - 1>(static_cast<utils::MapTuple<utils::Tuple<TI, Types...>, F> &>(tuple));
+        }
+    }
+
 
     template <typename DEVICE, typename T_TI>
     void malloc(DEVICE& device, utils::Tuple<T_TI>& tuple){ }

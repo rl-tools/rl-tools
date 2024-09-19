@@ -65,6 +65,19 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::gru::State<SPEC>& state){
         malloc(device, state.state);
+        malloc(device, state.step);
+    }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC>
+    void reset_truncate(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            if(get(device, state.step, batch_i) >= SPEC::SEQUENCE_LENGTH){
+                auto row = view(device, state.state, batch_i);
+                copy(device, device, layer.initial_hidden_state.parameters, row);
+                set(device, state.step, 0, batch_i);
+            }
+        }
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG, typename MODE>
     void reset(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) {
@@ -74,10 +87,17 @@ namespace rl_tools{
             auto row = view(device, state.state, batch_i);
             copy(device, device, layer.initial_hidden_state.parameters, row);
         }
+        if constexpr(mode::is<MODE, mode::Default>){
+            set_all(device, state.step, 0);
+        }
+        else{
+            utils::assert_exit(device, false, "Unsupported mode");
+        }
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::gru::State<SPEC>& state){
         free(device, state.state);
+        free(device, state.step);
     }
     template <typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& l, RNG& rng){
@@ -336,11 +356,14 @@ namespace rl_tools{
         static_assert(length(typename OUTPUT_SPEC::SHAPE{}) == 2);
         constexpr TI BATCH_SIZE = get<0>(typename INPUT_SPEC::SHAPE{});
         auto previous_output_scratch = view_range(device, buffers.previous_output_scratch, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
+        auto relevant_state = view_range(device, state.state, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::evaluate_step");
 #endif
         auto input_step = input;
         auto output_step = output;
+
+        reset_truncate(device, layer, state);
 
         auto post_activation_batch = view_range(device, buffers.post_activation, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
         auto n_pre_pre_activation_batch = view_range(device, buffers.n_pre_pre_activation, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
@@ -350,8 +373,8 @@ namespace rl_tools{
         auto z_post_activation  = view_range(device, post_activation_batch, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
         auto n_post_activation  = view_range(device, post_activation_batch, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
-        copy(device, device, state.state, previous_output_scratch);
-        nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, state.state, layer.biases_hidden.parameters, post_activation_batch);
+        copy(device, device, relevant_state, previous_output_scratch);
+        nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, relevant_state, layer.biases_hidden.parameters, post_activation_batch);
 
         copy(device, device, n_post_activation, n_pre_pre_activation_batch);
         set_all(device, n_post_activation, 0);
@@ -383,7 +406,10 @@ namespace rl_tools{
         static_assert(get<1>(typename decltype(z_post_activation)::SPEC::SHAPE{}) == get<1>(typename decltype(output_step)::SPEC::SHAPE{}));
         multiply(device, n_post_activation, output_step);
         multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
-        copy(device, device, output_step, state.state);
+        copy(device, device, output_step, relevant_state);
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            set(device, state.step, get(device, state.step, batch_i) + 1, batch_i);
+        }
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename BUFFER_SPEC, typename MODE = mode::Default<>>
