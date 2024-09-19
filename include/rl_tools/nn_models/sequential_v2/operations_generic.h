@@ -250,6 +250,32 @@ namespace rl_tools{
     void evaluate(DEVICE& device, const nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, const INPUT& input, OUTPUT& output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         _evaluate<TICK>(device, model, input, output, buffers, buffers.content_buffer, rng, mode);
     }
+    // Evaluate is like a forward pass but without saving intermediate activations (so a backward pass is not possible). Hence we can reuse the memory of the intermediate outputs and just require a double buffer where each buffer has to be able to contain the maximum hidden dimension of the module
+    template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename STATE_SPEC, typename CONTENT_STATE_SPEC, typename BUFFER_SPEC, typename CONTENT_BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void _evaluate_step(DEVICE& device, const nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, const INPUT& input, nn_models::sequential_v2::ModuleState<STATE_SPEC>& state, nn_models::sequential_v2::ContentState<CONTENT_STATE_SPEC>& content_state, OUTPUT& output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, nn_models::sequential_v2::ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+//        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+        using TI = typename DEVICE::index_t;
+        using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
+
+        if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
+            evaluate(device, model.content, input, output, content_buffer.buffer, rng, mode);
+        }
+        else{
+            DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
+//            auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
+            constexpr TI BATCH_SIZE = get<1>(typename INPUT::SPEC::SHAPE{});
+            // todo: this is hard-coded, we need some mechanism to communicate the desired sequence length
+            using BATCH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE, BATCH_SIZE, 1>;
+            using SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<BATCH_ADJUSTED_OUTPUT_SHAPE, get<0>(typename INPUT::SPEC::SHAPE{}), 0>;
+            auto output_buffer_view = view_memory<SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE>(device, output_buffer);
+            evaluate(device, model.content, input, output_buffer_view, content_buffer.buffer, rng, mode);
+            _evaluate_step<!TICK>(device, model.next_module, output_buffer_view, state, content_buffer.next_content_state, output, buffers, content_buffer.next_content_buffer, rng, mode);
+        }
+    }
+    template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename STATE_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate_step(DEVICE& device, const nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, const INPUT& input, nn_models::sequential_v2::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        _evaluate_step<TICK>(device, model, input, state, state.content_state, output, buffers, buffers.content_buffer, rng, mode);
+    }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void _forward(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::sequential_v2::ContentBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         forward(device, module.content, input, buffer.buffer, rng, mode);
