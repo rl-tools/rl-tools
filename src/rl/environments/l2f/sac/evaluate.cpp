@@ -182,8 +182,8 @@ int main(){
     rlt::malloc(device, env);
     rlt::sample_initial_parameters(device, env, parameters, rng);
 
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, EVALUATION_ENVIRONMENT::Observation::DIM>>> observation;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, EVALUATION_ENVIRONMENT::ACTION_DIM>>> action;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, EVALUATION_ENVIRONMENT::Observation::DIM>>> observation;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, EVALUATION_ENVIRONMENT::ACTION_DIM>>> action;
     rlt::malloc(device, observation);
     rlt::malloc(device, action);
 

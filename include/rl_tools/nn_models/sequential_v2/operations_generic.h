@@ -282,10 +282,9 @@ namespace rl_tools{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
 //            auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             constexpr TI BATCH_SIZE = get<1>(typename INPUT::SPEC::SHAPE{});
-            // todo: this is hard-coded, we need some mechanism to communicate the desired sequence length
-            using BATCH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE, BATCH_SIZE, 1>;
-            using SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<BATCH_ADJUSTED_OUTPUT_SHAPE, get<0>(typename INPUT::SPEC::SHAPE{}), 0>;
-            auto output_buffer_view = view_memory<SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE>(device, output_buffer);
+//            // todo: this is hard-coded, we need some mechanism to communicate the desired sequence length
+            using OUTPUT_SHAPE = typename MODULE_SPEC::CONTENT::template OUTPUT_SHAPE_FACTORY<typename INPUT::SPEC::SHAPE>;
+            auto output_buffer_view = view_memory<OUTPUT_SHAPE>(device, output_buffer);
             evaluate(device, model.content, input, output_buffer_view, content_buffer.buffer, rng, mode);
             _evaluate<!TICK>(device, model.next_module, output_buffer_view, output, buffers, content_buffer.next_content_buffer, rng, mode);
         }
@@ -306,18 +305,18 @@ namespace rl_tools{
         }
         else{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
-//            auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            constexpr TI BATCH_SIZE = get<1>(typename INPUT::SPEC::SHAPE{});
-            // todo: this is hard-coded, we need some mechanism to communicate the desired sequence length
-            using BATCH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE, BATCH_SIZE, 1>;
-            using SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<BATCH_ADJUSTED_OUTPUT_SHAPE, get<0>(typename INPUT::SPEC::SHAPE{}), 0>;
-            auto output_buffer_view = view_memory<SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE>(device, output_buffer);
+            using OUTPUT_SHAPE = typename MODULE_SPEC::CONTENT::template OUTPUT_SHAPE_FACTORY<typename INPUT::SPEC::SHAPE>;
+            static_assert(length(typename INPUT::SPEC::SHAPE{}) == 2);
+            static_assert(length(OUTPUT_SHAPE{}) == 2);
+            auto output_buffer_view = view_memory<OUTPUT_SHAPE>(device, output_buffer);
             evaluate_step(device, model.content, input, content_state.state, output_buffer_view, content_buffer.buffer, rng, mode);
             _evaluate_step<!TICK>(device, model.next_module, output_buffer_view, state, content_state.next_content_state, output, buffers, content_buffer.next_content_buffer, rng, mode);
         }
     }
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename STATE_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate_step(DEVICE& device, const nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, const INPUT& input, nn_models::sequential_v2::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename DEVICE::index_t;
+        static_assert(length(typename INPUT::SPEC::SHAPE{}) == 2, "evaluate_step does not have a squence dimension (only batch_size x input_dim)");
         _evaluate_step<TICK>(device, model, input, state, state.content_state, output, buffers, buffers.content_buffer, rng, mode);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>

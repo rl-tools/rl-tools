@@ -38,7 +38,9 @@ namespace rl_tools::nn_models::mlp {
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
         static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
-        using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, CONFIG::OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+        template <typename NEW_INPUT_SHAPE>
+        using OUTPUT_SHAPE_FACTORY = tensor::Replace<NEW_INPUT_SHAPE, CONFIG::OUTPUT_DIM, length(NEW_INPUT_SHAPE{})-1>;
+        using OUTPUT_SHAPE = OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>;
         static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
         static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_DIM * INPUT_DIM + CONFIG::OUTPUT_DIM;
 
@@ -117,6 +119,8 @@ namespace rl_tools::nn_models::mlp {
 
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
+        template <typename NEW_INPUT_SHAPE>
+        using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
 
         // Storage
         typename SPEC::INPUT_LAYER input_layer;

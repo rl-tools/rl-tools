@@ -71,7 +71,9 @@ namespace rl_tools{
             static constexpr TI DIM = DIM_2X/2;
             static constexpr TI INPUT_DIM = DIM_2X;
             static constexpr TI OUTPUT_DIM = DIM;
-            using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+            template <typename NEW_INPUT_SHAPE>
+            using OUTPUT_SHAPE_FACTORY = tensor::Replace<NEW_INPUT_SHAPE, OUTPUT_DIM, length(NEW_INPUT_SHAPE{})-1>;
+            using OUTPUT_SHAPE = OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>;
             static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
             static constexpr TI NUM_WEIGHTS = 0;
         };
@@ -86,6 +88,8 @@ namespace rl_tools{
             static constexpr TI INTERNAL_BATCH_SIZE = SPEC::INTERNAL_BATCH_SIZE;
             using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
             using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
+            template <typename NEW_INPUT_SHAPE>
+            using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
 //            static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
 //            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, INPUT_DIM>;
 //            using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;

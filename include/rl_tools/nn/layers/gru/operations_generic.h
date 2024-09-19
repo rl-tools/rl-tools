@@ -332,32 +332,31 @@ namespace rl_tools{
     void evaluate_step(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, typename nn::layers::gru::State<STATE_SPEC>& state, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
-        constexpr TI SEQUENCE_LENGTH = get<0>(typename INPUT_SPEC::SHAPE{});
-        constexpr TI BATCH_SIZE = get<1>(typename INPUT_SPEC::SHAPE{});
-        static_assert(SEQUENCE_LENGTH == 1, "GRU evaluate_step is made for step by step evaluation (using the state parameter) and hence only supports SEQUENCE_LENGTH == 1");
-        static_assert(BATCH_SIZE == 1, "GRU evaluate_step only supports BATCH_SIZE == 1 for now because if BATCH_SIZE > 1 there needs to be complicated, independent reset logic");
+        static_assert(length(typename INPUT_SPEC::SHAPE{}) == 2, "evaluate_step does not have a squence dimension (only batch_size x input_dim)");
+        static_assert(length(typename OUTPUT_SPEC::SHAPE{}) == 2);
+        constexpr TI BATCH_SIZE = get<0>(typename INPUT_SPEC::SHAPE{});
         auto previous_output_scratch = view_range(device, buffers.previous_output_scratch, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::evaluate_step");
 #endif
-        auto input_step = view(device, input, 0);
-        auto output_step = view(device, output, 0);
+        auto input_step = input;
+        auto output_step = output;
 
-        auto post_activation_step = nn::layers::gru::multi_step_intermediates<BATCH_SIZE>(device, buffers.post_activation, 0);
-        auto n_pre_pre_activation_step = nn::layers::gru::multi_step_intermediates<BATCH_SIZE>(device, buffers.n_pre_pre_activation, 0);
+        auto post_activation_batch = view_range(device, buffers.post_activation, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
+        auto n_pre_pre_activation_batch = view_range(device, buffers.n_pre_pre_activation, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
 
-        auto rz_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
-        auto r_post_activation  = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-        auto z_post_activation  = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-        auto n_post_activation  = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+        auto rz_post_activation = view_range(device, post_activation_batch, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
+        auto r_post_activation  = view_range(device, post_activation_batch, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+        auto z_post_activation  = view_range(device, post_activation_batch, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+        auto n_post_activation  = view_range(device, post_activation_batch, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
         copy(device, device, state.state, previous_output_scratch);
-        nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, state.state, layer.biases_hidden.parameters, post_activation_step);
+        nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, state.state, layer.biases_hidden.parameters, post_activation_batch);
 
-        copy(device, device, n_post_activation, n_pre_pre_activation_step);
+        copy(device, device, n_post_activation, n_pre_pre_activation_batch);
         set_all(device, n_post_activation, 0);
 
-        nn::layers::gru::helper::matrix_multiply_transpose_bias_accumulate(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, post_activation_step);
+        nn::layers::gru::helper::matrix_multiply_transpose_bias_accumulate(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, post_activation_batch);
         if(LAYER_SPEC::FAST_TANH){
             fast_sigmoid(device, rz_post_activation);
         }
@@ -367,7 +366,7 @@ namespace rl_tools{
 #endif
             sigmoid(device, rz_post_activation);
         }
-        multiply_accumulate(device, n_pre_pre_activation_step, r_post_activation, n_post_activation);
+        multiply_accumulate(device, n_pre_pre_activation_batch, r_post_activation, n_post_activation);
         if constexpr(LAYER_SPEC::FAST_TANH){
             fast_tanh(device, n_post_activation);
         }
@@ -378,6 +377,10 @@ namespace rl_tools{
             tanh(device, n_post_activation);
         }
         one_minus(device, z_post_activation, output_step);
+        static_assert(length(typename decltype(z_post_activation)::SPEC::SHAPE{}) == 2);
+        static_assert(length(typename decltype(output_step)::SPEC::SHAPE{}) == 2);
+        static_assert(get<0>(typename decltype(z_post_activation)::SPEC::SHAPE{}) == get<0>(typename decltype(output_step)::SPEC::SHAPE{}));
+        static_assert(get<1>(typename decltype(z_post_activation)::SPEC::SHAPE{}) == get<1>(typename decltype(output_step)::SPEC::SHAPE{}));
         multiply(device, n_post_activation, output_step);
         multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
         copy(device, device, output_step, state.state);

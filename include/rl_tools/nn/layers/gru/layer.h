@@ -30,7 +30,9 @@ namespace rl_tools::nn::layers::gru{
         static_assert(length(INPUT_SHAPE{}) == 3, "The input shape of the GRU must be 3 dimensional for now (sequence x batch x features)");
         static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
         static constexpr TI SEQUENCE_LENGTH = get<length(INPUT_SHAPE{})-3>(INPUT_SHAPE{});
-        using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, CONFIG::HIDDEN_DIM, length(INPUT_SHAPE{})-1>;
+        template <typename NEW_INPUT_SHAPE>
+        using OUTPUT_SHAPE_FACTORY = tensor::Replace<NEW_INPUT_SHAPE, CONFIG::HIDDEN_DIM, length(NEW_INPUT_SHAPE{})-1>;
+        using OUTPUT_SHAPE = OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>;
         static constexpr TI INTERNAL_BATCH_SIZE = get<1>(INPUT_SHAPE{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
         static constexpr TI NUM_WEIGHTS = CONFIG::HIDDEN_DIM * (INPUT_DIM + 1) * 3 + CONFIG::HIDDEN_DIM * (CONFIG::HIDDEN_DIM+1) * 3;
     };
@@ -117,6 +119,8 @@ namespace rl_tools::nn::layers::gru{
         static constexpr TI OUTPUT_DIM = SPEC::HIDDEN_DIM;
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
+        template <typename NEW_INPUT_SHAPE>
+        using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
         using WEIGHTS_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, INPUT_DIM>;
         using WEIGHTS_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_INPUT_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<WEIGHTS_INPUT_CONTAINER_SHAPE>, SPEC::CONST>;
         using WEIGHTS_INPUT_CONTAINER_TYPE = Tensor<WEIGHTS_INPUT_CONTAINER_SPEC>;

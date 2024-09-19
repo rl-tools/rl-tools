@@ -60,7 +60,9 @@ namespace rl_tools::nn::layers::embedding {
         static_assert(length(INPUT_SHAPE{}) == 3, "The input shape of the Embedding layer must be 3 dimensional for now (sequence x batch x 1 (integer ids))");
         static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
         static constexpr TI SEQUENCE_LENGTH = get<length(INPUT_SHAPE{})-3>(INPUT_SHAPE{});
-        using OUTPUT_SHAPE = tensor::Replace<T_INPUT_SHAPE, CONFIG::EMBEDDING_DIM, length(INPUT_SHAPE{})-1>;
+        template <typename NEW_INPUT_SHAPE>
+        using OUTPUT_SHAPE_FACTORY = tensor::Replace<NEW_INPUT_SHAPE, CONFIG::EMBEDDING_DIM, length(NEW_INPUT_SHAPE{})-1>;
+        using OUTPUT_SHAPE = OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>;
         static constexpr TI INTERNAL_BATCH_SIZE = get<1>(INPUT_SHAPE{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
     };
 
@@ -77,6 +79,8 @@ namespace rl_tools::nn::layers::embedding {
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
+        template <typename NEW_INPUT_SHAPE>
+        using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
         using WEIGHTS_SHAPE = tensor::Shape<TI, NUM_CLASSES, OUTPUT_DIM>;
         using WEIGHTS_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
         using WEIGHTS_CONTAINER_TYPE = Tensor<WEIGHTS_CONTAINER_SPEC>;
