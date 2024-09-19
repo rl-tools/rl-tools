@@ -45,6 +45,7 @@ namespace rl_tools{
             malloc(device, runner.replay_buffers[env_i]);
             malloc(device, runner.episode_stats[env_i]);
         }
+        malloc(device, runner.policy_states);
     }
     template <typename DEVICE, typename BATCH_SPEC>
     void malloc(DEVICE& device, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch) {
@@ -112,6 +113,7 @@ namespace rl_tools{
             free(device, runner.replay_buffers[env_i]);
             free(device, runner.episode_stats[env_i]);
         }
+        free(device, runner.policy_states);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch){

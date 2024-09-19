@@ -5,6 +5,20 @@
 #include "model.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+
+    template <typename DEVICE, typename SPEC>
+    void malloc(const DEVICE& device, nn_models::RandomUniform<SPEC>){ }
+    template <typename DEVICE, typename SPEC>
+    void free(const DEVICE& device, nn_models::RandomUniform<SPEC>){ }
+    template <typename DEVICE>
+    void malloc(const DEVICE& device, nn_models::random_uniform::State){ }
+    template <typename DEVICE>
+    void free(const DEVICE& device, nn_models::random_uniform::State){ }
+    template <typename DEVICE>
+    void malloc(const DEVICE& device, nn_models::random_uniform::Buffer){ }
+    template <typename DEVICE>
+    void free(const DEVICE& device, nn_models::random_uniform::Buffer){ }
+
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(const DEVICE& device, nn_models::RandomUniform<SPEC>, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::random_uniform::Buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(SPEC::OUTPUT_DIM == OUTPUT_SPEC::COLS, "Output dimension mismatch");

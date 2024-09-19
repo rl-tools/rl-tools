@@ -5,6 +5,7 @@
 
 // Please include the file containing the environments operations before including this file
 #include "../../../rl/components/replay_buffer/replay_buffer.h"
+#include "../../../utils/generic/tuple.h"
 
 
 /* requirements
@@ -38,17 +39,18 @@ namespace rl_tools::rl::components::off_policy_runner {
         using T = typename SPEC::T;
         T exploration_noise = SPEC::PARAMETERS::EXPLORATION_NOISE;
     };
-    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, typename T_PARAMETERS, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, typename T_POLICIES, typename T_PARAMETERS, bool T_DYNAMIC_ALLOCATION=true>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
         using ENVIRONMENT =  T_ENVIRONMENT;
+        using POLICIES = T_POLICIES;
         using PARAMETERS = T_PARAMETERS;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         static_assert((PARAMETERS::ASYMMETRIC_OBSERVATIONS && ENVIRONMENT::ObservationPrivileged::DIM > 0) == PARAMETERS::ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS requested but not available in the environment");
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : ENVIRONMENT::Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : 0;
-
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
 
     template<typename SPEC>
@@ -172,6 +174,12 @@ namespace rl_tools::rl::components{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        using POLICIES = typename SPEC::POLICIES;
+        template <typename INPUT>
+        struct GET_STATE{
+            using CONTENT = typename INPUT::template State<SPEC::DYNAMIC_ALLOCATION>;
+        };
+        using POLICY_STATES = utils::MapTuple<POLICIES, GET_STATE>;
         using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::Observation::DIM, ENVIRONMENT::ObservationPrivileged::DIM, SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
         using REPLAY_BUFFER_WITH_STATES_SPEC = replay_buffer::SpecificationWithStates<ENVIRONMENT, REPLAY_BUFFER_SPEC>;
         using REPLAY_BUFFER_TYPE = ReplayBufferWithStates<REPLAY_BUFFER_WITH_STATES_SPEC>;
@@ -188,6 +196,7 @@ namespace rl_tools::rl::components{
 
         // todo: change to "environments"
         ENVIRONMENT envs[N_ENVIRONMENTS];
+        POLICY_STATES policy_states;
         off_policy_runner::EpisodeStats<SPEC> episode_stats[N_ENVIRONMENTS];
         REPLAY_BUFFER_TYPE replay_buffers[N_ENVIRONMENTS];
 
