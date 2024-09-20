@@ -182,14 +182,11 @@ namespace rl_tools{
             auto action_view_tensor = to_tensor(device, action_view);
             static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
             auto policy_state = get<POLICY_INDEX>(runner.policy_states);
-            bool policy_switch = runner.previous_policy_set && (POLICY_INDEX != runner.previous_policy);
-            if(get(runner.truncated, 0, 0) || policy_switch){
+            if(get(runner.truncated, 0, 0)){
                 reset(device, policy, policy_state, rng);
             }
             Mode<mode::Default<>> mode; // we want stochasticity for exploration
             evaluate_step(device, policy, observation_view_tensor, policy_state, action_view_tensor, policy_eval_buffers, rng, mode);
-            runner.previous_policy = POLICY_INDEX;
-            runner.previous_policy_set = true;
         }
 
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
@@ -214,10 +211,17 @@ namespace rl_tools{
         // todo: increase efficiency by removing the double observation of each state
         using T = typename SPEC::T;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        bool policy_switch = runner.previous_policy_set && (POLICY_INDEX != runner.previous_policy);
+        if(policy_switch){
+            truncate_all(device, runner);
+        }
 
         rl::components::off_policy_runner::prologue(device, runner, rng);
         rl::components::off_policy_runner::interlude<POLICY_INDEX>(device, runner, policy, policy_eval_buffers, rng);
         rl::components::off_policy_runner::epilogue(device, runner, policy, rng);
+
+        runner.previous_policy = POLICY_INDEX;
+        runner.previous_policy_set = true;
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
     void gather_batch(DEVICE& device, const rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {

@@ -102,10 +102,6 @@ namespace rl_tools{
         set_step(device, device.logger, ts.step);
         bool finished = false;
         if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            if(!ts.warmup_policy_transitioned){
-                ts.warmup_policy_transitioned = true;
-                truncate_all(device, ts.off_policy_runner); // truncating all current episodes signals that e.g. recurrent policies should be reset on the next step, otherwise the recurrent state might be undefined after switching from the warmup policy
-            }
             step<1>(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng);
         }
         else{
