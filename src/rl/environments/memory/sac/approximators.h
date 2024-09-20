@@ -21,7 +21,7 @@ struct ConfigApproximatorsSequential{
         };
         using SAMPLE_AND_SQUASH_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<T, TI, SAMPLE_AND_SQUASH_PARAMETERS>;
         using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_CONFIG>;
-        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, SAC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 
         template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
         using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
@@ -55,8 +55,8 @@ struct ConfigApproximatorsSequential{
         using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     };
 
-    using CAPABILITY_ACTOR = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
-    using CAPABILITY_CRITIC = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
+    using CAPABILITY_ACTOR = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_CRITIC = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
     using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
     using CRITIC_TARGET_TYPE = typename Critic<rlt::nn::layer_capability::Forward<>>::MODEL;

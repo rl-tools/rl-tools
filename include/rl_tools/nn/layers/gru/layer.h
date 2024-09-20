@@ -167,11 +167,11 @@ namespace rl_tools::nn::layers::gru{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using FULL_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>;
+        using FULL_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::INTERNAL_BATCH_SIZE, 3*SPEC::HIDDEN_DIM>;
         using FULL_HIDDEN_SPEC = tensor::Specification<T, TI, FULL_HIDDEN_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<FULL_HIDDEN_SHAPE>, SPEC::CONST>;
         using FULL_HIDDEN_TYPE = Tensor<FULL_HIDDEN_SPEC>;
         FULL_HIDDEN_TYPE post_activation;
-        using SINGLE_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>;
+        using SINGLE_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::INTERNAL_BATCH_SIZE, SPEC::HIDDEN_DIM>;
         using HIDDEN_SPEC = tensor::Specification<T, TI, SINGLE_HIDDEN_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<SINGLE_HIDDEN_SHAPE>, SPEC::CONST>;
         using HIDDEN_TYPE = Tensor<HIDDEN_SPEC>;
         HIDDEN_TYPE n_pre_pre_activation;

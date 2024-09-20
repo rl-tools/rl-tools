@@ -84,6 +84,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
         static constexpr bool MASK_NON_TERMINAL = true;
+//        static constexpr T ALPHA = 0.01;
+//        static constexpr T TARGET_ENTROPY = -((T)8);
+
     };
     static constexpr TI N_WARMUP_STEPS = 1000;
     static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;

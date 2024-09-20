@@ -11,7 +11,6 @@ namespace rl_tools::nn_models::sequential_v2{
     struct OutputModule{
         struct CONTENT{
             using INPUT_SHAPE = tensor::Shape<decltype(0), 0>;
-            static constexpr auto BATCH_SIZE = 0;
         };
         template <typename>
         using CHANGE_CAPABILITY = OutputModule;
@@ -188,8 +187,6 @@ namespace rl_tools::nn_models::sequential_v2{
         using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM>; // TODO: check if this is overkill
         using TICK_TOCK_CONTAINER_SPEC = tensor::Specification<T, TI, TICK_TOCK_CONTAINER_SHAPE, BUFFER_SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<TICK_TOCK_CONTAINER_SHAPE>>;
         using TICK_TOCK_CONTAINER_TYPE = Tensor<TICK_TOCK_CONTAINER_SPEC>;
-//        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::MAX_HIDDEN_DIM, typename BUFFER_SPEC::MEMORY_LAYOUT>;
-//        using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
         using CONTENT_BUFFER = ContentBuffer<typename BUFFER_SPEC::CONTENT_BUFFER_SPEC>;

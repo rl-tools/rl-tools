@@ -259,7 +259,7 @@ namespace rl_tools{
         constexpr TI ACTION_DIM = SPEC::DIM;
         using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
         constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
-        constexpr TI BATCH_SIZE = LAYER::SPEC::BATCH_SIZE;
+        constexpr TI BATCH_SIZE = LAYER::SPEC::INTERNAL_BATCH_SIZE;
 /*
         Gradient of the loss function:
         mu, std = policy(observation)
@@ -304,7 +304,7 @@ namespace rl_tools{
             T d_log_prob_d_mean = random::normal_distribution::d_log_prob_d_mean(device.random, mu, log_std_clamped, action_sample);
             T d_log_prob_d_sample = random::normal_distribution::d_log_prob_d_sample(device.random, mu, log_std_clamped, action_sample);
             // NOTE: The following needs to be divided by BATCH_SIZE (in contrast to the previous d_mu and d_std). d_mu and d_std are already taking into account the mean prior to the backward call of the critic. Thence the d_critic_X_input is already divided by BATCH_SIZE
-            d_mu += alpha/BATCH_SIZE * (d_log_prob_d_mean + d_log_prob_d_sample + 2*action);
+            d_mu += alpha/INTERNAL_BATCH_SIZE * (d_log_prob_d_mean + d_log_prob_d_sample + 2*action);
 
             T noise = get(layer.noise, batch_i, action_i);
             T d_log_prob_d_log_std = random::normal_distribution::d_log_prob_d_log_std(device.random, mu, log_std_clamped, action_sample);
@@ -335,7 +335,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
-        constexpr TI BATCH_SIZE = LAYER::SPEC::BATCH_SIZE;
+        constexpr TI BATCH_SIZE = LAYER::SPEC::INTERNAL_BATCH_SIZE;
         constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
         T log_alpha = get(layer.log_alpha.parameters, 0, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);

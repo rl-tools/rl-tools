@@ -54,8 +54,8 @@ struct ConfigApproximatorsSequential{
         using MODEL = MODEL_GRU;
     };
 
-    using CAPABILITY_ACTOR = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
-    using CAPABILITY_CRITIC = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
+    using CAPABILITY_ACTOR = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_CRITIC = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
     using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
     using CRITIC_TARGET_TYPE = typename Critic<rlt::nn::layer_capability::Forward<>>::MODEL;
