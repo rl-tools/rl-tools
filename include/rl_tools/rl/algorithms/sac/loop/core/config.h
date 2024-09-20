@@ -37,13 +37,6 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         static constexpr bool SHARED_BATCH = true;
 
-        static constexpr T TARGET_ENTROPY = -((T)ENVIRONMENT::ACTION_DIM);
-        static constexpr T ALPHA = 0.5;
-        static constexpr bool ADAPTIVE_ALPHA = true;
-        static constexpr T LOG_STD_LOWER_BOUND = -20;
-        static constexpr T LOG_STD_UPPER_BOUND = 2;
-        static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
-
         using INITIALIZER = nn::layers::dense::DefaultInitializer<T, TI>;
 
         using ACTOR_OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
@@ -55,20 +48,20 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     // We provide approximators based on the sequential and mlp models. The latter (mlp) allows for a variable number of layers, but is restricted to a uniform hidden layer size while the former allows for arbitrary layers to be combined in a sequential manner. Both support compile-time autodiff
     template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
     struct ConfigApproximatorsSequential{
+        using SAC_PARAMETERS = typename PARAMETERS::SAC_PARAMETERS;
         template <typename CAPABILITY>
         struct Actor{
-
-            using INPUT_SHAPE = tensor::Shape<TI, 1, CAPABILITY::BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+            using INPUT_SHAPE = tensor::Shape<TI, SAC_PARAMETERS::SEQUENCE_LENGTH, SAC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
             using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER>;
             using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
             struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
-                static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
-                static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
-                static constexpr T LOG_PROBABILITY_EPSILON = PARAMETERS::LOG_PROBABILITY_EPSILON;
-                static constexpr bool ADAPTIVE_ALPHA = PARAMETERS::ADAPTIVE_ALPHA;
+                static constexpr T LOG_STD_LOWER_BOUND = SAC_PARAMETERS::LOG_STD_LOWER_BOUND;
+                static constexpr T LOG_STD_UPPER_BOUND = SAC_PARAMETERS::LOG_STD_UPPER_BOUND;
+                static constexpr T LOG_PROBABILITY_EPSILON = SAC_PARAMETERS::LOG_PROBABILITY_EPSILON;
+                static constexpr bool ADAPTIVE_ALPHA = SAC_PARAMETERS::ADAPTIVE_ALPHA;
                 static constexpr bool UPDATE_ALPHA_WITH_ACTOR = false;
-                static constexpr T ALPHA = PARAMETERS::ALPHA;
-                static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
+                static constexpr T ALPHA = SAC_PARAMETERS::ALPHA;
+                static constexpr T TARGET_ENTROPY = SAC_PARAMETERS::TARGET_ENTROPY;
             };
             using SAMPLE_AND_SQUASH_CONFIG = nn::layers::sample_and_squash::Configuration<T, TI, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
             using SAMPLE_AND_SQUASH = nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_CONFIG>;

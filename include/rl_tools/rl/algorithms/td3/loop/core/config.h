@@ -47,7 +47,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         struct ACTOR{
             static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::Observation::DIM, HIDDEN_DIM, ACTIVATION_FUNCTION>;
+            using INPUT_SHAPE = tensor::Shape<TI, ENVIRONMENT::Observation::DIM
+            using LAYER_1_SPEC = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
             using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
             using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION>;
             using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;

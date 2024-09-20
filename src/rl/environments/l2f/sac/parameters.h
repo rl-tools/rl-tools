@@ -94,10 +94,6 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
-    static constexpr T TARGET_ENTROPY = -8;
-//    static constexpr T ALPHA = 0.5;
-//    static constexpr bool ADAPTIVE_ALPHA = true;
-//    static constexpr bool SHARED_BATCH = false;
     struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
         static constexpr T ALPHA = 1e-3;
         static constexpr bool ENABLE_BIAS_LR_FACTOR = false;

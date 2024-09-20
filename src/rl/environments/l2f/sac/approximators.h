@@ -1,6 +1,7 @@
 template<typename T, typename TI, TI SEQUENCE_LENGTH, typename ENVIRONMENT, typename PARAMETERS>
 struct ConfigApproximatorsSequential{
     static constexpr bool USE_GRU = true;
+    using SAC_PARAMETERS = typename PARAMETERS::SAC_PARAMETERS;
     template <typename CAPABILITY>
     struct Actor{
         using GRU_SPEC = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
@@ -12,13 +13,13 @@ struct ConfigApproximatorsSequential{
         using OUTPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 2*ENVIRONMENT::ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
         using OUTPUT_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
         struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
-            static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
-            static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
-            static constexpr T LOG_PROBABILITY_EPSILON = PARAMETERS::LOG_PROBABILITY_EPSILON;
-            static constexpr bool ADAPTIVE_ALPHA = PARAMETERS::ADAPTIVE_ALPHA;
+            static constexpr T LOG_STD_LOWER_BOUND = SAC_PARAMETERS::LOG_STD_LOWER_BOUND;
+            static constexpr T LOG_STD_UPPER_BOUND = SAC_PARAMETERS::LOG_STD_UPPER_BOUND;
+            static constexpr T LOG_PROBABILITY_EPSILON = SAC_PARAMETERS::LOG_PROBABILITY_EPSILON;
+            static constexpr bool ADAPTIVE_ALPHA = SAC_PARAMETERS::ADAPTIVE_ALPHA;
             static constexpr bool UPDATE_ALPHA_WITH_ACTOR = false;
-            static constexpr T ALPHA = PARAMETERS::ALPHA;
-            static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
+            static constexpr T ALPHA = SAC_PARAMETERS::ALPHA;
+            static constexpr T TARGET_ENTROPY = SAC_PARAMETERS::TARGET_ENTROPY;
         };
         using SAMPLE_AND_SQUASH_LAYER_SPEC = rlt::nn::layers::sample_and_squash::Configuration<T, TI, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
         using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_SPEC>;

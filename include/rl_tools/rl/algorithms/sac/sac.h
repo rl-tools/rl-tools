@@ -22,6 +22,14 @@ namespace rl_tools::rl::algorithms::sac {
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
         static constexpr bool MASK_NON_TERMINAL = true;
+
+        static constexpr T TARGET_ENTROPY = -((T)ACTION_DIM);
+        static constexpr T ALPHA = 0.5;
+        static constexpr bool ADAPTIVE_ALPHA = true;
+        static constexpr T LOG_STD_LOWER_BOUND = -20;
+        static constexpr T LOG_STD_UPPER_BOUND = 2;
+        static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
+
     };
 
     template<
