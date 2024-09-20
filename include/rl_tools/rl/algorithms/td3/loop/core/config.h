@@ -43,21 +43,25 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
     // We provide approximators based on the sequential and mlp models. The latter (mlp) allows for a variable number of layers, but is restricted to a uniform hidden layer size while the former allows for arbitrary layers to be combined in a sequential manner. Both support compile-time autodiff
     template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
     struct ConfigApproximatorsSequential{
+        using TD3_PARAMETERS = typename PARAMETERS::TD3_PARAMETERS;
         template <typename CAPABILITY>
         struct ACTOR{
             static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
-            using INPUT_SHAPE = tensor::Shape<TI, ENVIRONMENT::Observation::DIM
-            using LAYER_1_SPEC = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
-            using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION>;
-            using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
+            using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+            using LAYER_1_CONFIG = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
+            using LAYER_1 = nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
+            using LAYER_2_CONFIG = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
+            using LAYER_2 = nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
             static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
-            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::TANH>;
-            using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+            using LAYER_3_CONFIG = nn::layers::dense::Configuration<T, TI, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::TANH>;
+            using LAYER_3 = nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-            using IF = nn_models::sequential::Interface<CAPABILITY>;
-            using MODEL = typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>;
+            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+            using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+
+            using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
         template <typename CAPABILITY>
@@ -65,15 +69,19 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION>;
-            using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION>;
-            using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY>;
-            using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+            using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM + ENVIRONMENT::ACTION_DIM>;
+            using LAYER_1_CONFIG = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
+            using LAYER_1 = nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
+            using LAYER_2_CONFIG = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
+            using LAYER_2 = nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
+            using LAYER_3_CONFIG = nn::layers::dense::Configuration<T, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY>;
+            using LAYER_3 = nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-            using IF = nn_models::sequential::Interface<CAPABILITY>;
-            using MODEL = typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>;
+            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+            using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+
+            using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
         using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
@@ -86,23 +94,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward<>>::MODEL;
     };
 
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
-    struct ConfigApproximatorsMLP{
-        using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::TANH>;
-        using CRITIC_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
-        using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-        using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
-
-        using ACTOR_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using ACTOR_TYPE = nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_SPEC>;
-        using ACTOR_TARGET_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<nn::layer_capability::Forward>; //nn_models::mlp::NeuralNetwork<nn::layer_capability::Forward, ACTOR_SPEC>; // todo: replace with something like: ACTOR_TYPE::CHANGE_CAPABILITY<nn::layer_capability::Forward>
-
-        using CRITIC_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
-        using CRITIC_TYPE = nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
-        using CRITIC_TARGET_TYPE = typename CRITIC_TYPE::template CHANGE_CAPABILITY<nn::layer_capability::Forward>; //nn_models::mlp::NeuralNetwork<nn::layer_capability::Forward, CRITIC_SPEC>;
-    };
-
-    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP>
+    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, bool T_DYNAMIC_ALLOCATION=true>
     struct Config{
         using T = T_T;
         using TI = T_TI;
@@ -112,6 +104,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 //        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
+
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
 
         using CORE_PARAMETERS = T_PARAMETERS;
 
@@ -132,8 +126,9 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = CORE_PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
             static constexpr T EXPLORATION_NOISE = CORE_PARAMETERS::EXPLORATION_NOISE;
         };
+        using POLICIES = utils::Tuple<TI, EXPLORATION_POLICY, typename NN::ACTOR_TYPE>;
 
-        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS>;
+        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         template <typename CONFIG>
         using State = State<CONFIG>;

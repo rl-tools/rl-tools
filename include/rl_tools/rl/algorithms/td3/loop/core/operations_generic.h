@@ -32,6 +32,18 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename T_CONFIG>
+    void free(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+        free(device, ts.critic_batch);
+        free(device, ts.critic_training_buffers);
+        free(device, ts.actor_batch);
+        free(device, ts.actor_training_buffers);
+        free(device, ts.off_policy_runner);
+        free(device, ts.actor_critic);
+        for(auto& env: ts.envs){
+            rl_tools::free(device, env);
+        }
+    }
+    template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
@@ -50,18 +62,6 @@ namespace rl_tools{
         ts.step = 0;
     }
 
-    template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
-        free(device, ts.critic_batch);
-        free(device, ts.critic_training_buffers);
-        free(device, ts.actor_batch);
-        free(device, ts.actor_training_buffers);
-        free(device, ts.off_policy_runner);
-        free(device, ts.actor_critic);
-        for(auto& env: ts.envs){
-            rl_tools::free(device, env);
-        }
-    }
 
     template <typename DEVICE, typename T_CONFIG>
     bool step(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
@@ -69,17 +69,18 @@ namespace rl_tools{
         set_step(device, device.logger, ts.step);
         bool finished = false;
         if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng);
+            step<1>(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng);
         }
         else{
             typename CONFIG::EXPLORATION_POLICY exploration_policy;
             typename CONFIG::EXPLORATION_POLICY::template Buffer<> exploration_policy_buffer;
-            step(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng);
+            step<0>(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng);
         }
         if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH){
                 gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                target_action_noise(device, ts.actor_critic, ts.critic_training_buffers.target_next_action_noise, ts.rng);
+                auto action_noise_matrix_view = matrix_view(device, ts.critic_training_buffers.target_next_action_noise);
+                target_action_noise(device, ts.actor_critic, action_noise_matrix_view, ts.rng);
             }
             if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
                 for(int critic_i = 0; critic_i < 2; critic_i++){

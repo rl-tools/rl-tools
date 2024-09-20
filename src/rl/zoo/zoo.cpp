@@ -40,7 +40,7 @@
 #include "sac/pendulum-v1.h"
 #include "sac/acrobot-swingup-v0.h"
 #include "sac/l2f.h"
-//#include "td3/pendulum-v1.h"
+#include "td3/pendulum-v1.h"
 //#include "td3/l2f.h"
 //#include "ppo/pendulum-v1.h"
 //#include "ppo/bottleneck-v0.h"
@@ -48,7 +48,7 @@
 #include "ppo/ant-v4.h"
 #endif
 
-//#include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
+#include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 //#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
