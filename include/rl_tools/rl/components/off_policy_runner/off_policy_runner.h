@@ -194,6 +194,9 @@ namespace rl_tools::rl::components{
 
         off_policy_runner::Buffers<SPEC> buffers;
 
+        TI previous_policy = 0;
+        bool previous_policy_set = false;
+
         // todo: change to "environments"
         ENVIRONMENT envs[N_ENVIRONMENTS];
         POLICY_STATES policy_states;

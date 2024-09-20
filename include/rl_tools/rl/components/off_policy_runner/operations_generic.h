@@ -158,6 +158,8 @@ namespace rl_tools{
             runner.envs[env_i] = envs[env_i];
             set(runner.env_parameters, 0, env_i, parameters[env_i]);
         }
+        runner.previous_policy_set = false;
+        runner.previous_policy = 0;
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         runner.initialized = true;
 #endif
@@ -180,11 +182,14 @@ namespace rl_tools{
             auto action_view_tensor = to_tensor(device, action_view);
             static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
             auto policy_state = get<POLICY_INDEX>(runner.policy_states);
-            if(get(runner.truncated, 0, 0)){
+            bool policy_switch = runner.previous_policy_set && (POLICY_INDEX != runner.previous_policy);
+            if(get(runner.truncated, 0, 0) || policy_switch){
                 reset(device, policy, policy_state, rng);
             }
             Mode<mode::Default<>> mode; // we want stochasticity for exploration
             evaluate_step(device, policy, observation_view_tensor, policy_state, action_view_tensor, policy_eval_buffers, rng, mode);
+            runner.previous_policy = POLICY_INDEX;
+            runner.previous_policy_set = true;
         }
 
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
