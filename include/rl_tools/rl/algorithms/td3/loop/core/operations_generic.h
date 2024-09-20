@@ -86,7 +86,8 @@ namespace rl_tools{
                 for(int critic_i = 0; critic_i < 2; critic_i++){
                     if constexpr(!CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
                         gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                        target_action_noise(device, ts.actor_critic, ts.critic_training_buffers.target_next_action_noise, ts.rng);
+                        auto action_noise_matrix_view = matrix_view(device, ts.critic_training_buffers.target_next_action_noise);
+                        target_action_noise(device, ts.actor_critic, action_noise_matrix_view, ts.rng);
                     }
                     train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.rng);
                 }
