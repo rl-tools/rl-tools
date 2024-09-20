@@ -819,7 +819,7 @@ namespace rl_tools{
         return upstream_nan || is_nan(device, l.post_activation, mode) || is_nan(device, l.n_pre_pre_activation, mode) || is_nan(device, l.output, mode);
     }
     template <typename DEVICE, typename SPEC, typename MODE>
-    bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         return is_nan(device, static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC>&>(l), mode);
     }
 

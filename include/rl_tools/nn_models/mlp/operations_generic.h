@@ -294,6 +294,12 @@ namespace rl_tools{
         evaluate(device, model, matrix_view_input, matrix_view_output, buffer, rng, mode);
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate_step(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<SPEC>& model, const Tensor<INPUT_SPEC>& input, nn_models::mlp::State, Tensor<OUTPUT_SPEC>& output,nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        auto matrix_view_input = matrix_view(device, input);
+        auto matrix_view_output = matrix_view(device, output);
+        evaluate(device, model, matrix_view_input, matrix_view_output, buffer, rng, mode);
+    }
+    template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG, typename MODE = mode::Default<>>
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& model, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output,nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         auto matrix_view_input = matrix_view(device, input);
         auto matrix_view_output = matrix_view(device, output);

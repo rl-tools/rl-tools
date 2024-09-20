@@ -7,6 +7,7 @@
 #include "off_policy_runner.h"
 
 #include "../../../rl/components/replay_buffer/operations_generic.h"
+#include "../../../utils/generic/tuple.h"
 
 #include "operations_generic_per_env.h"
 

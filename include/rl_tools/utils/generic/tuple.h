@@ -83,6 +83,25 @@ namespace rl_tools {
             malloc(device, static_cast<utils::MapTuple<utils::Tuple<T_TI, Types...>, F>&>(tuple));
         }
     }
+
+    template <typename DEVICE, typename T_TI>
+    void free(DEVICE& device, utils::Tuple<T_TI>& tuple){ }
+    template <typename DEVICE, typename T_TI, typename CURRENT_TYPE, typename... Types>
+    void free(DEVICE& device, utils::Tuple<T_TI, CURRENT_TYPE, Types...>& tuple){
+        free(device, tuple.content);
+        if constexpr(sizeof...(Types) > 0){
+            free(device, static_cast<utils::Tuple<T_TI, Types...>&>(tuple));
+        }
+    }
+    template <typename DEVICE, typename T_TI, template <typename> typename F>
+    void free(DEVICE& device, utils::MapTuple<utils::Tuple<T_TI>, F>& tuple){ }
+    template <typename DEVICE, typename T_TI, template <typename> typename F, typename CURRENT_TYPE, typename... Types>
+    void free(DEVICE& device, utils::MapTuple<utils::Tuple<T_TI, CURRENT_TYPE, Types...>, F>& tuple){
+        free(device, tuple.content);
+        if constexpr(sizeof...(Types) > 0){
+            free(device, static_cast<utils::MapTuple<utils::Tuple<T_TI, Types...>, F>&>(tuple));
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
