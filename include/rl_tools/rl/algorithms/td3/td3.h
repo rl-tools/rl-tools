@@ -21,6 +21,7 @@ namespace rl_tools::rl::algorithms::td3 {
         static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
         static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
         static constexpr TI SEQUENCE_LENGTH = 1;
+        static constexpr bool MASK_NON_TERMINAL = true;
     };
 
     template<
