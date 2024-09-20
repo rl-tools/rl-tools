@@ -239,9 +239,20 @@ namespace rl_tools{
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         auto& critic = actor_critic.critic_1;
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, critic_buffers, rng, reset_mode);
-        set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
+            T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+            utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
+            set_all(device, training_buffers.d_output, (T)-1/num_final_steps); // we only take the mean over the non-masked outputs
+            mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
+        }
+        else{
+            set_all(device, training_buffers.d_output, (T)-1/(BATCH_SIZE*SPEC::PARAMETERS::SEQUENCE_LENGTH)); // we take the mean over the batch size and sequence length
+        }
         backward_input(device, critic, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers, reset_mode);
         auto d_actor_output = view_range(device, training_buffers.d_critic_input, CRITIC_INPUT_DIM - ACTION_DIM, tensor::ViewSpec<2, ACTION_DIM>{});
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
+            mask_gradient(device, d_actor_output, batch.final_step_mask, true);
+        }
 
         zero_gradient(device, actor_critic.actor);
         backward(device, actor_critic.actor, batch.observations, d_actor_output, actor_buffers, reset_mode);

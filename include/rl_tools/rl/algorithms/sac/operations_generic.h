@@ -378,12 +378,10 @@ namespace rl_tools{
             T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
             utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
             set_all(device, training_buffers.d_output, (T)-1/num_final_steps); // we only take the mean over the non-masked outputs
+            mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
         else{
             set_all(device, training_buffers.d_output, (T)-1/(BATCH_SIZE*SPEC::PARAMETERS::SEQUENCE_LENGTH)); // we take the mean over the batch size and sequence length
-        }
-        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
-            mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers, reset_mode);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
