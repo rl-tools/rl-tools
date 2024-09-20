@@ -20,7 +20,7 @@ namespace rl_tools{
     void free(const DEVICE& device, nn_models::random_uniform::Buffer){ }
 
     template <typename DEVICE, typename SPEC, typename RNG, typename MODE = mode::Default<>>
-    void reset(DEVICE& device, nn_models::RandomUniform<SPEC>& model, nn_models::random_uniform::State& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){ }
+    void reset(DEVICE& device, const nn_models::RandomUniform<SPEC>& model, nn_models::random_uniform::State& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){ }
 
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(const DEVICE& device, nn_models::RandomUniform<SPEC>, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::random_uniform::Buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){

@@ -46,7 +46,7 @@ namespace rl_tools{
     template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::dense::State& state) { } // no-op
     template<typename SPEC, typename DEVICE, typename RNG, typename MODE>
-    void reset(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, nn::layers::dense::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
+    void reset(DEVICE& device, const nn::layers::dense::LayerForward<SPEC>& layer, nn::layers::dense::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
     template<typename DEVICE>
     void free(DEVICE& device, nn::layers::dense::State& state) { } // no-op
     template<typename DEVICE>

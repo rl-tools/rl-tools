@@ -32,7 +32,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE>
-    void reset(DEVICE& device, nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, nn_models::sequential_v2::ContentState<STATE_SPEC>& content_state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    void reset(DEVICE& device, const nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, nn_models::sequential_v2::ContentState<STATE_SPEC>& content_state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using namespace nn_models::sequential_v2;
         reset(device, model.content, content_state.state, rng, mode);
         if constexpr(!utils::typing::is_same_v<typename STATE_SPEC::NEXT_SPEC, OutputModule>){
@@ -60,7 +60,7 @@ namespace rl_tools{
         malloc(device, state.content_state);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void reset(DEVICE& device, nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, nn_models::sequential_v2::ModuleState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    void reset(DEVICE& device, const nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, nn_models::sequential_v2::ModuleState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         reset(device, model, state.content_state, rng, mode);
     }
     template <typename DEVICE, typename STATE_SPEC>

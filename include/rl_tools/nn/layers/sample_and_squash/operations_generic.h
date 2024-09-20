@@ -52,7 +52,7 @@ namespace rl_tools{
     template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::sample_and_squash::State& state) { } // no-op
     template<typename DEVICE, typename SPEC, typename RNG, typename MODE>
-    void reset(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, nn::layers::sample_and_squash::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
+    void reset(DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, nn::layers::sample_and_squash::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
     template<typename DEVICE>
     void free(DEVICE& device, nn::layers::sample_and_squash::State& state) { } // no-op
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>

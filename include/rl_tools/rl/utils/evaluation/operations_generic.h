@@ -81,7 +81,11 @@ namespace rl_tools{
         typename ENVIRONMENT::State states[SPEC::N_EPISODES];
         typename ENVIRONMENT::Parameters parameters[SPEC::N_EPISODES];
         bool terminated[SPEC::N_EPISODES];
+        using ADJUSTED_POLICY = typename POLICY::template CHANGE_BATCH_SIZE<TI, SPEC::N_EPISODES>;
+        typename ADJUSTED_POLICY::template State<true> policy_state;
 
+        malloc(device, policy_state);
+        reset(device, policy, policy_state, rng);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
             auto& env = envs[env_i];
             malloc(device, env);
@@ -110,17 +114,12 @@ namespace rl_tools{
                 auto& env = envs[env_i];
                 observe(device, env, env_parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
             }
-            auto mode_copy = mode;
-            mode_copy.reset = step_i == 0;
-            mode_copy.step = step_i;
             auto observations_chunk = view(device, observations, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>{}, 0, 0);
             auto actions_buffer_chunk = view(device, actions_buffer_full, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>{}, 0, 0);
             auto input_tensor = to_tensor(device, observations_chunk);
             auto output_tensor = to_tensor(device, actions_buffer_chunk);
-            auto unsqueezed_input_tensor = unsqueeze(device, input_tensor);
-            auto unsqueezed_output_tensor = unsqueeze(device, output_tensor);
-//                    static_assert(utils::typing::remove_reference<decltype(policy_evaluation_buffers.content_buffer.buffer)>::type::BATCH_SIZE == 1);
-            evaluate(device, policy, unsqueezed_input_tensor, unsqueezed_output_tensor, policy_evaluation_buffers, rng, mode_copy);
+
+            evaluate_step(device, policy, input_tensor, policy_state, output_tensor, policy_evaluation_buffers, rng, mode);
             if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
                 for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
                     for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++) {
@@ -160,6 +159,7 @@ namespace rl_tools{
                 states[env_i] = next_state;
             }
         }
+        free(device, policy_state);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
             auto &env = envs[env_i];
             free(device, env);
