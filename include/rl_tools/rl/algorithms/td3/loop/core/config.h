@@ -88,9 +88,9 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
-        using ACTOR_TYPE = typename ACTOR<nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::TD3_PARAMETERS::ACTOR_BATCH_SIZE>>::MODEL;
+        using ACTOR_TYPE = typename ACTOR<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
         using ACTOR_TARGET_TYPE = typename ACTOR<nn::layer_capability::Forward<>>::MODEL;
-        using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::TD3_PARAMETERS::CRITIC_BATCH_SIZE>>::MODEL;
+        using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
         using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward<>>::MODEL;
     };
 

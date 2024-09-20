@@ -103,10 +103,9 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC, typename RNG>
     void target_action_noise(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC>& target_action_noise, RNG& rng ) {
-        static_assert(OUTPUT_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static_assert(OUTPUT_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
         typedef typename SPEC::T T;
-        for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+        for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < OUTPUT_SPEC::ROWS; batch_sample_i++){
             for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 set(target_action_noise, batch_sample_i, action_i, math::clamp(device.math,
                         random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, actor_critic.target_next_action_noise_std, rng),
