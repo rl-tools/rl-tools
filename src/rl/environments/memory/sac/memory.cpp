@@ -111,7 +111,7 @@ int main(){
             TI critic_correct_examples = 0;
             TI actor_correct_examples = 0;
             for(TI example_i = 0; example_i < N_EXAMPLES; example_i++){
-                rlt::Mode<rlt::mode::Default<>> mode;
+                rlt::Mode<rlt::mode::Inference<>> mode;
                 std::vector<TI> values;
                 if(TEST_SEQUENCE_LENGTH >= 2){
                     for(TI seq_i = 0; seq_i < TEST_SEQUENCE_LENGTH-1; seq_i++){

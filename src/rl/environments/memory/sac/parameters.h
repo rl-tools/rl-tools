@@ -29,6 +29,10 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
+
+        static constexpr T TARGET_ENTROPY = MEMORY ? -4 : -1;
+        static constexpr T ALPHA = 1;
+        static constexpr bool ADAPTIVE_ALPHA = true;
     };
     static constexpr TI N_WARMUP_STEPS = 1000;
     static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
@@ -39,9 +43,6 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
-    static constexpr T TARGET_ENTROPY = MEMORY ? -4 : -1;
-    static constexpr T ALPHA = 1;
-    static constexpr bool ADAPTIVE_ALPHA = true;
     static constexpr bool SHARED_BATCH = false;
     struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
         static constexpr T ALPHA = 1e-4;

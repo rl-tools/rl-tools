@@ -86,11 +86,11 @@ namespace rl_tools::nn::layers::gru{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        using STATE_SHAPE = tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>;
+        using STATE_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::HIDDEN_DIM>;
         using STATE_CONTAINER_SPEC = tensor::Specification<T, TI, STATE_SHAPE, STATE_SPEC::DYNAMIC_ALLOCATION>;
         using STATE_CONTAINER_TYPE = Tensor<STATE_CONTAINER_SPEC>;
         STATE_CONTAINER_TYPE state;
-        using STEP_SHAPE = tensor::Shape<TI, SPEC::BATCH_SIZE>;
+        using STEP_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE>;
         using STEP_CONTAINER_SPEC = tensor::Specification<TI, TI, STEP_SHAPE, STATE_SPEC::DYNAMIC_ALLOCATION>;
         using STEP_CONTAINER_TYPE = Tensor<STEP_CONTAINER_SPEC>;
         STEP_CONTAINER_TYPE step;
