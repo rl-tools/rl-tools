@@ -27,20 +27,29 @@ namespace parameters_0{
             static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
             static constexpr bool IGNORE_TERMINATION = false;
         };
+        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+        using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
 
-        using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
-        using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+        using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+        using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+        using ACTOR_MLP = rlt::nn_models::mlp::BindConfiguration<ACTOR_CONFIG>;
+
+        using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+        using ACTOR_MODULE_CHAIN = Module<ACTOR_MLP>;
+        using ACTOR_TYPE = rlt::nn_models::sequential_v2::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+        using ACTOR_TARGET_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+
+        using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
+        using CRITIC_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 1, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+        using CRITIC_MLP = rlt::nn_models::mlp::BindConfiguration<CRITIC_CONFIG>;
+        using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+
+        using MODULE_CHAIN = Module<CRITIC_MLP>;
+        using CRITIC_TYPE = rlt::nn_models::sequential_v2::Build<CRITIC_CAPABILITY, MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+        using CRITIC_TARGET_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
         using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
-
         using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-        using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_SPEC>;
-        using ACTOR_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, ACTOR_SPEC>;
-
-        using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
-        using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY , CRITIC_SPEC>;
-        using CRITIC_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
 
         using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, ACTOR_CRITIC_PARAMETERS>;
         using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
@@ -56,7 +65,8 @@ namespace parameters_0{
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr T EXPLORATION_NOISE = 0.1;
         };
-        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS>;
+        using POLICIES = rlt::utils::Tuple<TI, ACTOR_TYPE>;
+        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
 
         static constexpr TI N_WARMUP_STEPS_CRITIC = 10000;
         static constexpr TI N_WARMUP_STEPS_ACTOR = 10000;

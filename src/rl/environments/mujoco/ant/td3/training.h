@@ -25,6 +25,8 @@ using TI = typename DEVICE::index_t;
 
 // generic nn_model operations use the specialized layer operations depending on the backend device
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 // simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
 #include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
@@ -34,6 +36,7 @@ using TI = typename DEVICE::index_t;
 // additional includes for the ui and persisting
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn_models/persist.h>
+#include <rl_tools/nn_models/sequential_v2/persist.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
 #endif
 
@@ -181,10 +184,11 @@ void run(){
 
         rlt::init(device, off_policy_runner, envs, env_parameters);
 
-        using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
-        rlt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];
-        rlt::rl::algorithms::td3::CriticTrainingBuffers<parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
-        parameters_rl::CRITIC_TYPE::Buffer<parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+        constexpr TI SEQUENCE_LENGTH = 1;
+        using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, SEQUENCE_LENGTH, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
+        rlt::rl::components::off_policy_runner::SequentialBatch<CRITIC_BATCH_SPEC> critic_batches[2];
+        rlt::rl::algorithms::td3::CriticTrainingBuffers<rlt::rl::algorithms::td3::CriticTrainingBuffersSpecification<parameters_rl::ActorCriticType::SPEC, true>> critic_training_buffers[2];
+        parameters_rl::CRITIC_TYPE::Buffer<true> critic_buffers[2];
         rlt::malloc(device, critic_batches[0]);
         rlt::malloc(device, critic_batches[1]);
         rlt::malloc(device, critic_training_buffers[0]);
@@ -192,12 +196,14 @@ void run(){
         rlt::malloc(device, critic_buffers[0]);
         rlt::malloc(device, critic_buffers[1]);
 
-        using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
-        rlt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
-        rlt::rl::algorithms::td3::ActorTrainingBuffers<parameters_rl::ActorCriticType::SPEC> actor_training_buffers;
-        parameters_rl::ACTOR_TYPE::Buffer<parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-        parameters_rl::ACTOR_TYPE::Buffer<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
-        parameters_rl::ACTOR_TYPE::Buffer<1> actor_buffers_deterministic_eval;
+        using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, SEQUENCE_LENGTH, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
+        rlt::rl::components::off_policy_runner::SequentialBatch<ACTOR_BATCH_SPEC> actor_batch;
+        rlt::rl::algorithms::td3::ActorTrainingBuffers<rlt::rl::algorithms::td3::ActorTrainingBuffersSpecification<parameters_rl::ActorCriticType::SPEC, true>> actor_training_buffers;
+        parameters_rl::ACTOR_TYPE::Buffer<> actor_buffers[2];
+        using ACTOR_EVAL_TYPE = typename parameters_rl::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, decltype(off_policy_runner)::N_ENVIRONMENTS>;
+        ACTOR_EVAL_TYPE::Buffer<> actor_buffers_eval;
+        using ACTOR_DETERMINISTIC_EVAL_TYPE = typename parameters_rl::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, 10>;
+        ACTOR_DETERMINISTIC_EVAL_TYPE::Buffer<> actor_buffers_deterministic_eval;
         rlt::malloc(device, actor_batch);
         rlt::malloc(device, actor_training_buffers);
         rlt::malloc(device, actor_buffers[0]);
@@ -210,7 +216,7 @@ void run(){
         for(TI step_i = 0; step_i < STEP_LIMIT; step_i++){
             auto step_start = std::chrono::high_resolution_clock::now();
             rlt::set_step(device, device.logger, step_i);
-            rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
+            rlt::step<0>(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
             if(step_i % 1000 == 0){
                 std::cout << "run_i: " << run_i << " step_i: " << step_i << std::endl;
             }
@@ -219,7 +225,8 @@ void run(){
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
                         auto train_critic = [&device, &actor_critic, &off_policy_runner](parameters_rl::CRITIC_TYPE& critic, decltype(critic_batches[0])& critic_batch, parameters_rl::OPTIMIZER& optimizer, decltype(actor_buffers[0])& actor_buffers, decltype(critic_buffers[0])& critic_buffers, decltype(critic_training_buffers[0])& critic_training_buffers, decltype(rng)& rng){
                             auto gather_batch_start = std::chrono::high_resolution_clock::now();
-                            rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                            auto target_action_noise_matrix_view = rlt::matrix_view(device, critic_training_buffers.target_next_action_noise);
+                            rlt::target_action_noise(device, actor_critic, target_action_noise_matrix_view, rng);
                             rlt::gather_batch(device, off_policy_runner, critic_batch, rng);
                             auto gather_batch_end = std::chrono::high_resolution_clock::now();
                             rlt::add_scalar(device, device.logger, "performance/gather_batch_duration", std::chrono::duration_cast<std::chrono::microseconds>(gather_batch_end - gather_batch_start).count(), performance_logging_interval);
@@ -263,12 +270,12 @@ void run(){
                 }
                 if(step_i % ACTOR_CRITIC_EVALUATION_SYNC_INTERVAL == 0){
                     rlt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
-                    T critic_1_loss = rlt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng);
-                    rlt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
+//                    T critic_1_loss = rlt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng);
+//                    rlt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
 
-                    rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                    T actor_value = rlt::mean(device, actor_training_buffers.state_action_value);
-                    rlt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
+//                    rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
+//                    T actor_value = rlt::mean(device, actor_training_buffers.state_action_value);
+//                    rlt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
 
                     {
                         typename DEVICE::index_t num_episodes = 0;
@@ -304,7 +311,7 @@ void run(){
             if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, parameters_rl::EPISODE_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-                rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, result, actor_buffers_deterministic_eval, evaluation_rng);
+                rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, result, actor_buffers_deterministic_eval, evaluation_rng, rlt::Mode<rlt::mode::Inference<>>{});
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
