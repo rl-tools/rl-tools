@@ -27,7 +27,7 @@ namespace rl_tools {
     }
     template<typename DEVICE>
     void malloc(DEVICE& device, nn_models::mlp::State& state) { } // no-op
-    template<typename DEVICE, typename SPEC, typename RNG, typename MODE>
+    template<typename DEVICE, typename SPEC, typename RNG, typename MODE = mode::Default<>>
     void reset(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<SPEC>& layer, nn_models::mlp::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
     template<typename DEVICE>
     void free(DEVICE& device, nn_models::mlp::State& state) { } // no-op

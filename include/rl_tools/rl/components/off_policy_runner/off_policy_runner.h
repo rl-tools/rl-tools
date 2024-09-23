@@ -5,7 +5,7 @@
 
 // Please include the file containing the environments operations before including this file
 #include "../../../rl/components/replay_buffer/replay_buffer.h"
-#include "../../../utils/generic/tuple.h"
+#include "../../../utils/generic/tuple/tuple.h"
 
 
 /* requirements

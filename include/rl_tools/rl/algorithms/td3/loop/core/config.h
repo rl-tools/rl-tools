@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_TD3_LOOP_CORE_CONFIG_H
 
-#include "../../../../../nn_models/sequential/model.h"
+#include "../../../../../nn_models/sequential_v2/model.h"
 #include "../../../../../nn_models/mlp/network.h"
 #include "../../../../../nn_models/random_uniform/model.h"
 #include "../../../../../rl/algorithms/td3/td3.h"
@@ -21,7 +21,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         static constexpr TI N_WARMUP_STEPS = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI STEP_LIMIT = 10000;
         static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT; // Note: when inheriting from this class for overwriting the default STEP_LIMIT you need to set the REPLAY_BUFFER_CAP as well otherwise it will be the default step limit
-        static constexpr TI EPISODE_STEP_LIMIT = 200;
+        static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
 
         static constexpr TI ACTOR_HIDDEN_DIM = 64;
         static constexpr TI ACTOR_NUM_LAYERS = 3;

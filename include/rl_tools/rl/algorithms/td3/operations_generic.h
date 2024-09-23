@@ -8,9 +8,11 @@
 #include "../../../rl/components/replay_buffer/replay_buffer.h"
 #include "../../../rl/components/off_policy_runner/off_policy_runner.h"
 #include "../../../nn/nn.h"
+#include "../../../nn_models/sequential_v2/model.h"
 #include "../../../utils/polyak/operations_generic.h"
 #include "../../../math/operations_generic.h"
 #include "../../../utils/generic/memcpy.h"
+#include "../../../rl/algorithms/sac/operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
