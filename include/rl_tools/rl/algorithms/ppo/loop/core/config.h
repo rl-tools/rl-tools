@@ -154,8 +154,8 @@ namespace rl_tools{
             using ACTOR_EVAL_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<>;
             using ACTOR_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<>;
             using CRITIC_BUFFERS = typename NN::CRITIC_TYPE::template Buffer<>;
-            using GAE_CRITIC = typename NN::CRITIC_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
-            using CRITIC_BUFFERS_GAE = typename GAE_CRITIC::template Buffer<>;
+            using CRITIC_GAE = typename NN::CRITIC_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
+            using CRITIC_BUFFERS_GAE = typename CRITIC_GAE::template Buffer<>;
             template <typename CONFIG>
             using State = State<CONFIG>;
         };

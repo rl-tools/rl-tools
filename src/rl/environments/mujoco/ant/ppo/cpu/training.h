@@ -1,9 +1,10 @@
+#define RL_TOOLS_DISABLE_HDF5
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn/layers/standardize/persist.h>
@@ -223,7 +224,7 @@ void run(){
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(evaluation_env), NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-                rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, actor_deterministic_eval_buffers, evaluation_rng);
+                rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, actor_deterministic_eval_buffers, evaluation_rng, rlt::Mode<rlt::mode::Inference<>>{});
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
@@ -269,7 +270,11 @@ void run(){
             rlt::add_scalar(device, device.logger, "opr/action/std", rlt::std(device, on_policy_runner_dataset.actions));
             rlt::add_scalar(device, device.logger, "opr/rewards/mean", rlt::mean(device, on_policy_runner_dataset.rewards));
             rlt::add_scalar(device, device.logger, "opr/rewards/std", rlt::std(device, on_policy_runner_dataset.rewards));
-            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations_privileged, on_policy_runner_dataset.all_values, critic_buffers_gae, rng);
+            auto all_observations_privileged_tensor = to_tensor(device, on_policy_runner_dataset.all_observations_privileged);
+            auto all_observations_privileged_tensor_unsqueezed = unsqueeze(device, all_observations_privileged_tensor);
+            auto all_values_tensor = to_tensor(device, on_policy_runner_dataset.all_values);
+            auto all_values_tensor_unsqueezed = unsqueeze(device, all_values_tensor);
+            evaluate(device, ppo.critic, all_observations_privileged_tensor_unsqueezed, all_values_tensor_unsqueezed, critic_buffers_gae, rng);
             rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
             rlt::train(device, ppo, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
 
