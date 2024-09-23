@@ -46,6 +46,7 @@
 #include "ppo/bottleneck-v0.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ppo/ant-v4.h"
+#include "td3/ant-v4.h"
 #endif
 
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>

@@ -30,6 +30,10 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 using LOOP_CORE_CONFIG = rlt::rl::zoo::td3::l2f::LearningToFly<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::td3::ant_v4::AntV4<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #else
 #error "RLtools Zoo TD3: Environment not defined"
 #endif

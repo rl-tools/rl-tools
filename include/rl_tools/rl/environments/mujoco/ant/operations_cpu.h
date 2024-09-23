@@ -66,10 +66,10 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         mj_resetData(env.model, env.data);
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q; state_i++){
-            state.q    [state_i] = env.init_q    [state_i] + random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::RESET_NOISE_SCALE, SPEC::PARAMETERS::RESET_NOISE_SCALE, rng);
+            state.q    [state_i] = env.init_q    [state_i] + random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -(T)SPEC::PARAMETERS::RESET_NOISE_SCALE, (T)SPEC::PARAMETERS::RESET_NOISE_SCALE, rng);
         }
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q_DOT; state_i++){
-            state.q_dot[state_i] = env.init_q_dot[state_i] + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::RESET_NOISE_SCALE, rng);
+            state.q_dot[state_i] = env.init_q_dot[state_i] + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, (T)SPEC::PARAMETERS::RESET_NOISE_SCALE, rng);
         }
         mj_forward(env.model, env.data);
     }

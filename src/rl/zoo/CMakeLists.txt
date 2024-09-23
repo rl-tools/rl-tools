@@ -45,6 +45,17 @@ RL_TOOLS_RL_ZOO_LINK_ZLIB_OR_NOT(rl_zoo_td3_l2f)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_td3_l2f)
 target_compile_definitions(rl_zoo_td3_l2f PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 target_compile_definitions(rl_zoo_td3_l2f PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
+
+if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
+    # TD3 Ant-v4
+    add_executable(rl_zoo_td3_ant_v4 zoo_cli.cpp zoo.cpp)
+    target_link_libraries(rl_zoo_td3_ant_v4 PRIVATE RLtools::RLtools)
+    RL_TOOLS_RL_ZOO_LINK_ZLIB_OR_NOT(rl_zoo_td3_ant_v4)
+    RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_td3_ant_v4)
+    target_compile_definitions(rl_zoo_td3_ant_v4 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
+    target_compile_definitions(rl_zoo_td3_ant_v4 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
+endif()
+
 # PPO Pendulum-v1
 add_executable(rl_zoo_ppo_pendulum_v1 zoo_cli.cpp zoo.cpp)
 target_link_libraries(rl_zoo_ppo_pendulum_v1 PRIVATE RLtools::RLtools)

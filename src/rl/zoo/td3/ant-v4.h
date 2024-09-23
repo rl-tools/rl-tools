@@ -1,47 +1,45 @@
+#include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
 
-#include <rl_tools/rl/environments/l2f/operations_cpu.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/crazyflie.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/race.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_sim.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_real.h>
-#include <rl_tools/rl/environments/l2f/parameters/init/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/termination/default.h>
+#include <rl_tools/rl/algorithms/td3/loop/core/config.h>
+#include <rl_tools/rl/loop/steps/extrack/config.h>
+#include <rl_tools/rl/loop/steps/checkpoint/config.h>
+#include <rl_tools/rl/loop/steps/evaluation/config.h>
+#include <rl_tools/rl/loop/steps/save_trajectories/config.h>
+#include <rl_tools/rl/loop/steps/timing/config.h>
 
-
-#include <rl_tools/utils/generic/typing.h>
-
-namespace rl_tools::rl::zoo::td3::l2f{
+namespace rl_tools::rl::zoo::td3::ant_v4{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
-    struct LearningToFly{
-        using ENVIRONMENT = typename rl::environments::l2f::parameters::DefaultParameters<T, TI>::ENVIRONMENT;
+    struct AntV4{
+        using ENVIRONMENT_SPEC = rlt::rl::environments::mujoco::ant::Specification<double, TI, rlt::rl::environments::mujoco::ant::DefaultParameters<T, TI>>;
+        using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
+//        using ENVIRONMENT_PARAMETERS = rlt::rl::environments::mujoco::ant::DefaultParameters<T_ENVIRONMENT, TI>;
+//        using ENVIRONMENT_SPEC = rlt::rl::environments::mujoco::ant::Specification<T_ENVIRONMENT, TI, ENVIRONMENT_PARAMETERS>;
+//        using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
+
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
                 static constexpr TI CRITIC_BATCH_SIZE = 256;
-                static constexpr TI TRAINING_INTERVAL = 10;
-                static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
-                static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
-                static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
-                static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2 * TRAINING_INTERVAL;
-                static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.9;
-                static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.3;
-                static constexpr T GAMMA = 0.99;
+                static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
+                static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
+                static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
+                static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2;
+                static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
+                static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
-            static constexpr T EXPLORATION_NOISE = 0.3;
-            static constexpr TI STEP_LIMIT = 3000000;
+
+            static constexpr T EXPLORATION_NOISE = 0.1;
+            static constexpr TI STEP_LIMIT = 1000000;
+            static constexpr TI N_WARMUP_STEPS = 20000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
-            static constexpr TI ACTOR_HIDDEN_DIM = 64;
-            static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr TI ACTOR_HIDDEN_DIM = 256;
+            static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI CRITIC_NUM_LAYERS = 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = 64;
-            static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
-            static constexpr TI EPISODE_STEP_LIMIT = 500;
+            static constexpr TI CRITIC_HIDDEN_DIM = 256;
+            static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
 //            static constexpr bool SHARED_BATCH = false;
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsSequential>;
