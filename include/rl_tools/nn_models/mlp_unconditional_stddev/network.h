@@ -34,7 +34,7 @@ namespace rl_tools::nn_models::mlp_unconditional_stddev {
     template <typename CONFIG>
     struct BindConfiguration{
         template <typename CAPABILITY, typename INPUT_SHAPE>
-        using NeuralNetwork = nn_models::mlp_unconditional_stddev::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
+        using Layer = nn_models::mlp_unconditional_stddev::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 
 

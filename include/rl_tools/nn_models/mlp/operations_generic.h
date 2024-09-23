@@ -152,7 +152,7 @@ namespace rl_tools {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
-        static_assert(BUFFER_MODEL_SPEC::ACTUAL_BATCH_SIZE == BATCH_SIZE);
+        static_assert(BUFFER_MODEL_SPEC::INTERNAL_BATCH_SIZE == BATCH_SIZE);
         static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
 
         auto previous_output = MODEL_SPEC::NUM_HIDDEN_LAYERS > 0 ? network.hidden_layers[MODEL_SPEC::NUM_HIDDEN_LAYERS - 1].output : network.input_layer.output;

@@ -87,8 +87,8 @@ namespace rl_tools{
             }
         }
     }
-    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template Buffer<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template Buffer<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename ACTOR_BUFFER, typename CRITIC_BUFFER, typename RNG>
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, ACTOR_BUFFER& actor_buffers, CRITIC_BUFFER& critic_buffers, RNG& rng){
 #ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
@@ -98,7 +98,7 @@ namespace rl_tools{
         using DATASET = rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>;
         static_assert(DATASET::STEPS_TOTAL > 1);
         constexpr TI N_EPOCHS = PPO_SPEC::PARAMETERS::N_EPOCHS;
-        constexpr TI BATCH_SIZE = PPO_SPEC::BATCH_SIZE;
+        constexpr TI BATCH_SIZE = PPO_SPEC::PARAMETERS::BATCH_SIZE;
         constexpr TI N_BATCHES = DATASET::STEPS_TOTAL/BATCH_SIZE;
         static_assert(N_BATCHES > 0);
         constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
@@ -170,7 +170,11 @@ namespace rl_tools{
 //                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
-                forward(device, ppo.actor, batch_observations, ppo_buffers.current_batch_actions, actor_buffers, rng);
+                auto batch_observations_tensor = to_tensor(device, batch_observations);
+                auto batch_observations_tensor_unsqueezed = unsqueeze(device, batch_observations_tensor);
+                auto current_batch_actions_tensor = to_tensor(device, ppo_buffers.current_batch_actions);
+                auto current_batch_actions_tensor_unsqueezed = unsqueeze(device, current_batch_actions_tensor);
+                forward(device, ppo.actor, batch_observations_tensor_unsqueezed, current_batch_actions_tensor_unsqueezed, actor_buffers, rng);
 //                auto abs_diff = abs_diff(device, batch_actions, dataset.actions);
 
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
@@ -265,14 +269,24 @@ namespace rl_tools{
                         actor_optimizer.parameters.alpha = math::min(device.math, actor_optimizer.parameters.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
                     }
                 }
-                backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, actor_buffers);
+                auto d_action_d_log_prob_action_tensor = to_tensor(device, ppo_buffers.d_action_log_prob_d_action);
+                backward(device, ppo.actor, batch_observations_tensor_unsqueezed, d_action_d_log_prob_action_tensor, actor_buffers);
 //                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
+
+                auto batch_observations_privileged_tensor = to_tensor(device, batch_observations_privileged);
+                auto batch_observations_privileged_tensor_unsqueezed = unsqueeze(device, batch_observations_privileged_tensor);
                 {
-                    forward(device, ppo.critic, batch_observations_privileged, critic_buffers, rng);
-                    nn::loss_functions::mse::gradient(device, output(ppo.critic), batch_target_values, ppo_buffers.d_critic_output, 0.5);
-                    backward(device, ppo.critic, batch_observations_privileged, ppo_buffers.d_critic_output, critic_buffers);
+                    forward(device, ppo.critic, batch_observations_privileged_tensor_unsqueezed, critic_buffers, rng);
+                    auto output_tensor = output(device, ppo.critic);
+                    auto output_matrix_view = matrix_view(device, output_tensor);
+                    nn::loss_functions::mse::gradient(device, output_matrix_view, batch_target_values, ppo_buffers.d_critic_output, 0.5);
+                    auto d_critic_output_tensor = to_tensor(device, ppo_buffers.d_critic_output);
+                    auto d_critic_output_tensor_unsqueezed = unsqueeze(device, d_critic_output_tensor);
+                    backward(device, ppo.critic, batch_observations_privileged_tensor_unsqueezed, d_critic_output_tensor_unsqueezed, critic_buffers);
                 }
-                T critic_loss = nn::loss_functions::mse::evaluate(device, output(ppo.critic), batch_target_values);
+                auto output_tensor = output(device, ppo.critic);
+                auto output_matrix_view = matrix_view(device, output_tensor);
+                T critic_loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, batch_target_values);
                 add_scalar(device, device.logger, "ppo/critic_loss", critic_loss);
                 step(device, actor_optimizer, ppo.actor);
                 step(device, actor_optimizer, ppo.critic); // todo: evaluate switch to critic_optimizer

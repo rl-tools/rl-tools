@@ -4,13 +4,13 @@ struct ConfigApproximatorsSequential{
     using TD3_PARAMETERS = typename PARAMETERS::TD3_PARAMETERS;
     template <typename CAPABILITY>
     struct Actor{
+        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
         using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
         using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
         using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
         using GRU2 = rlt::nn::layers::gru::BindConfiguration<GRU2_CONFIG>;
         using OUTPUT_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
         using OUTPUT = rlt::nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
-        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 
         template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
         using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
@@ -24,6 +24,7 @@ struct ConfigApproximatorsSequential{
     };
     template <typename CAPABILITY>
     struct Critic{
+        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, TD3_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
         using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
         using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
         using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
@@ -31,7 +32,6 @@ struct ConfigApproximatorsSequential{
         using OUTPUT_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
         using OUTPUT = rlt::nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
         static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
-        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, TD3_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
 
         template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
         using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;

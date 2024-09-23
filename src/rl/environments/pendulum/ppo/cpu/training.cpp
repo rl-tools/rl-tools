@@ -9,7 +9,7 @@
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 
@@ -60,13 +60,6 @@ auto constexpr name(MODE mode){
 
 template <BENCHMARK_MODE MODE>
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
-        static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
-        static constexpr TI N_EPOCHS = MODE == BENCHMARK_MODE::LARGE ? 5 : (MODE == BENCHMARK_MODE::TINY ? 1 : 2);
-        static constexpr T GAMMA = 0.9;
-        static constexpr T INITIAL_ACTION_STD = 2.0;
-        static constexpr bool NORMALIZE_OBSERVATIONS = true;
-    };
     static constexpr TI BATCH_SIZE = MODE == BENCHMARK_MODE::LARGE ? 512 : (MODE == BENCHMARK_MODE::MEDIUM ? 256 : (MODE == BENCHMARK_MODE::SMALL ? 64 : (MODE == BENCHMARK_MODE::TINY ? 32 : 64)));
     static constexpr TI ACTOR_HIDDEN_DIM = MODE == BENCHMARK_MODE::LARGE ? 256 : (MODE == BENCHMARK_MODE::MEDIUM ? 64 : (MODE == BENCHMARK_MODE::SMALL ? 32 : (MODE == BENCHMARK_MODE::TINY ? 16 : 64)));
     static constexpr TI CRITIC_HIDDEN_DIM = MODE == BENCHMARK_MODE::LARGE ? 256 : (MODE == BENCHMARK_MODE::MEDIUM ? 64 : (MODE == BENCHMARK_MODE::SMALL ? 32 : (MODE == BENCHMARK_MODE::TINY ? 16 : 64)));
@@ -76,6 +69,13 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
     static constexpr TI EPISODE_STEP_LIMIT = 200;
     using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>;
+    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
+        static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
+        static constexpr TI N_EPOCHS = MODE == BENCHMARK_MODE::LARGE ? 5 : (MODE == BENCHMARK_MODE::TINY ? 1 : 2);
+        static constexpr T GAMMA = 0.9;
+        static constexpr T INITIAL_ACTION_STD = 2.0;
+        static constexpr bool NORMALIZE_OBSERVATIONS = true;
+    };
 };
 template <BENCHMARK_MODE MODE>
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS<MODE>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
@@ -108,10 +108,10 @@ auto run(TI seed, bool verbose){
     }
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-    evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
-    rlt::log(device, device.logger, "Final return: ", result.returns_mean);
-    rlt::log(device, device.logger, "              mean: ", result.returns_mean);
-    rlt::log(device, device.logger, "              std : ", result.returns_std);
+//    evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng, rlt::Mode<rlt::mode::Inference<>>{}, false);
+//    rlt::log(device, device.logger, "Final return: ", result.returns_mean);
+//    rlt::log(device, device.logger, "              mean: ", result.returns_mean);
+//    rlt::log(device, device.logger, "              std : ", result.returns_std);
     return result;
 }
 

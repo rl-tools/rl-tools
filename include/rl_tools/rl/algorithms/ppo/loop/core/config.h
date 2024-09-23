@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_CONFIG_H
 
-#include "../../../../../nn_models/sequential/model.h"
+#include "../../../../../nn_models/sequential_v2/model.h"
 #include "../../../../../nn_models/mlp_unconditional_stddev/network.h"
 #include "../../../../../nn_models/multi_agent_wrapper/model.h"
 #include "../../../../../rl/algorithms/ppo/ppo.h"
@@ -21,7 +21,6 @@ namespace rl_tools{
         template<typename T, typename TI, typename ENVIRONMENT>
         struct DefaultParameters{
             using TAG = ParametersTag;
-            using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI>;
             static constexpr TI STEP_LIMIT = 100;
 
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
@@ -34,43 +33,54 @@ namespace rl_tools{
             static constexpr TI EPISODE_STEP_LIMIT = 1000;
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
-            static constexpr TI BATCH_SIZE = ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS;
+            static constexpr TI DATASET_SIZE = ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS;
+            static constexpr TI BATCH_SIZE = 64 * 8;
 
 
             static constexpr bool NORMALIZE_OBSERVATIONS = false;
             static constexpr bool NORMALIZE_OBSERVATIONS_CONTINUOUSLY = false;
 
             using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
+
+            using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>;
         };
 
         template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
         struct ConfigApproximatorsSequential{
             template <typename CAPABILITY>
             struct Actor{
-                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
-                using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
-                using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using ACTOR_MODULE = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
-                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::Observation::DIM>;
-                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
-                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
+                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+                using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+                using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
+                using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
+
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+
+                using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
+                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
             template <typename CAPABILITY>
             struct Critic{
-                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
-                using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
-                using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
-                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM>;
-                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
-                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
+                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM>;
+                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+                using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+                using CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
+                using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
+
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+
+                using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
+                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
 
             using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
             using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
-            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::BATCH_SIZE>;
+            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam>;
             using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
             using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
         };
@@ -82,26 +92,27 @@ namespace rl_tools{
                 static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
                 static_assert(ENVIRONMENT::Observation::DIM % N_AGENTS == 0);
                 static_assert(ENVIRONMENT::ACTION_DIM % N_AGENTS == 0);
-                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM/N_AGENTS, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
-                using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
-//                using INNER_CAPABILITY = nn_models::multi_agent_wrapper::UpgradeCapabilityBatchSize<CAPABILITY, N_AGENTS>;
-//                using IF = nn_models::sequential::Interface<INNER_CAPABILITY>;
-                using ACTOR_MODULE = nn_models::sequential::Bind<ACTOR_TYPE::template NeuralNetwork>;
-                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::Observation::DIM/N_AGENTS>;
-                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
-                using INNER_MODEL = nn_models::sequential::Bind<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE::template Module>;
-                using WRAPPER_SPEC = nn_models::multi_agent_wrapper::Specification<T, TI, N_AGENTS, INNER_MODEL::template Module>;
-                using MODEL = nn_models::multi_agent_wrapper::Module<CAPABILITY, WRAPPER_SPEC>;
+                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::Observation::DIM/N_AGENTS>;
+                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+                using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+                using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
+                using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
+
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+
+//                using WRAPPER_SPEC = nn_models::multi_agent_wrapper::Specification<T, TI, N_AGENTS, Module<STANDARDIZATION_LAYER, >;
+//                using MODEL = nn_models::multi_agent_wrapper::Module<CAPABILITY, WRAPPER_SPEC>;
             };
             template <typename CAPABILITY>
             struct Critic{
-                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
-                using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
-                using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
-                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM>;
-                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
-                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
+//                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
+//                using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
+//                using IF = nn_models::sequential::Interface<CAPABILITY>;
+//                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
+//                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM>;
+//                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
+//                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
             };
 
             using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
@@ -140,10 +151,11 @@ namespace rl_tools{
             using ON_POLICY_RUNNER_DATASET_TYPE = rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;
 
 
-            using ACTOR_EVAL_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
-            using ACTOR_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<CORE_PARAMETERS::BATCH_SIZE>;
-            using CRITIC_BUFFERS = typename NN::CRITIC_TYPE::template Buffer<CORE_PARAMETERS::BATCH_SIZE>;
-            using CRITIC_BUFFERS_GAE = typename NN::CRITIC_TYPE::template Buffer<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
+            using ACTOR_EVAL_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<>;
+            using ACTOR_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<>;
+            using CRITIC_BUFFERS = typename NN::CRITIC_TYPE::template Buffer<>;
+            using GAE_CRITIC = typename NN::CRITIC_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
+            using CRITIC_BUFFERS_GAE = typename GAE_CRITIC::template Buffer<>;
             template <typename CONFIG>
             using State = State<CONFIG>;
         };

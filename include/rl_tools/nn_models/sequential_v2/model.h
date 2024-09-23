@@ -220,7 +220,6 @@ namespace rl_tools::nn_models::sequential_v2{
     template <typename T_SPEC>
     struct ModuleGradient: public ModuleBackward<T_SPEC>{
         using TI = typename T_SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_SPEC::CAPABILITY::BATCH_SIZE;
     };
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>

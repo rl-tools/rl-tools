@@ -10,7 +10,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms{
     namespace ppo{
-        template<typename T, typename TI>
+        template<typename T, typename TI, TI T_BATCH_SIZE>
         struct DefaultParameters {
             static constexpr T GAMMA = 0.99;
             static constexpr T LAMBDA = 0.95;
@@ -29,6 +29,7 @@ namespace rl_tools::rl::algorithms{
             static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
             static constexpr TI N_EPOCHS = 10;
+            static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
             static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
         };
 
@@ -38,7 +39,7 @@ namespace rl_tools::rl::algorithms{
                 typename T_ENVIRONMENT,
                 typename T_ACTOR_TYPE,
                 typename T_CRITIC_TYPE,
-                typename T_PARAMETERS = DefaultParameters<T_T, T_TI>,
+                typename T_PARAMETERS,
                 typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
         >
         struct Specification {
@@ -47,23 +48,21 @@ namespace rl_tools::rl::algorithms{
             using ENVIRONMENT = T_ENVIRONMENT;
             using ACTOR_TYPE = T_ACTOR_TYPE;
             using CRITIC_TYPE = T_CRITIC_TYPE;
-            static constexpr TI BATCH_SIZE = ACTOR_TYPE::BATCH_SIZE;
             using PARAMETERS = T_PARAMETERS;
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
             static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
 
-//            static_assert(ACTOR_TYPE::BATCH_SIZE == CRITIC_TYPE::BATCH_SIZE);
-            static_assert(ACTOR_TYPE::INPUT_DIM == ENVIRONMENT::Observation::DIM);
-            static_assert(CRITIC_TYPE::INPUT_DIM == ENVIRONMENT::ObservationPrivileged::DIM);
-            static_assert(ACTOR_TYPE::OUTPUT_DIM == ENVIRONMENT::ACTION_DIM);
-            static_assert(CRITIC_TYPE::OUTPUT_DIM == 1);
+            static_assert(get_last(typename ACTOR_TYPE::INPUT_SHAPE{}) == ENVIRONMENT::Observation::DIM);
+            static_assert(get_last(typename CRITIC_TYPE::INPUT_SHAPE{}) == ENVIRONMENT::ObservationPrivileged::DIM);
+            static_assert(get_last(typename ACTOR_TYPE::OUTPUT_SHAPE{}) == ENVIRONMENT::ACTION_DIM);
+            static_assert(get_last(typename CRITIC_TYPE::OUTPUT_SHAPE{}) == 1);
         };
 
         template <typename SPEC>
         struct Buffers{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
+            static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::BATCH_SIZE;
             static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
             static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::Observation::DIM;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> current_batch_actions;
