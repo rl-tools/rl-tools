@@ -41,16 +41,17 @@
 #include "sac/acrobot-swingup-v0.h"
 #include "sac/l2f.h"
 #include "td3/pendulum-v1.h"
-//#include "td3/l2f.h"
-//#include "ppo/pendulum-v1.h"
-//#include "ppo/bottleneck-v0.h"
+#include "td3/l2f.h"
+#include "ppo/pendulum-v1.h"
+#include "ppo/bottleneck-v0.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ppo/ant-v4.h"
 #endif
 
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
-//#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
+#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
@@ -59,10 +60,19 @@
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
-using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using SUPER_DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using TI = typename SUPER_DEVICE::index_t;
+
+namespace execution_hints{
+    struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
+}
+struct DEV_SPEC: rlt::devices::DEVICE_FACTORY<>::SPEC{
+    using EXECUTION_HINTS = execution_hints::HINTS;
+};
+
+using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
-using TI = typename DEVICE::index_t;
 constexpr TI BASE_SEED = 0;
 
 #include "config.h"

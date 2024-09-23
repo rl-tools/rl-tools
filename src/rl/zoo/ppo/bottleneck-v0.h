@@ -29,13 +29,6 @@ namespace rl_tools::rl::zoo::ppo::bottleneck_v0{
         using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
         using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            struct PPO_PARAMETERS: rl::algorithms::ppo::DefaultParameters<T, TI>{
-                static constexpr T GAMMA = 0.98;
-                static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
-                static constexpr TI N_EPOCHS = 2;
-                static constexpr bool IGNORE_TERMINATION = true;
-//                static constexpr bool ADAPTIVE_LEARNING_RATE = true;
-            };
             static constexpr TI STEP_LIMIT = 5000; // 1024 * 4 * 74 ~ 300k steps
 
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
@@ -50,6 +43,13 @@ namespace rl_tools::rl::zoo::ppo::bottleneck_v0{
             static constexpr TI BATCH_SIZE = 1024;
             struct OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr T ALPHA = 0.1e-4;
+            };
+            struct PPO_PARAMETERS: rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
+                static constexpr T GAMMA = 0.98;
+                static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
+                static constexpr TI N_EPOCHS = 2;
+                static constexpr bool IGNORE_TERMINATION = true;
+//                static constexpr bool ADAPTIVE_LEARNING_RATE = true;
             };
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent>;
