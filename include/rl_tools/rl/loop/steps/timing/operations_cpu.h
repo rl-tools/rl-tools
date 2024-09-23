@@ -31,8 +31,8 @@ namespace rl_tools{
         auto now = std::chrono::steady_clock::now();
         if(now - ts.last_steps_per_second_time > std::chrono::seconds(10)){
             TI steps = ts.step - ts.last_steps_per_second_step;
-            T steps_per_second = (T)steps / std::chrono::duration_cast<std::chrono::microseconds>(now - ts.last_steps_per_second_time).count() * 1000000;
-            log(device, device.logger, "Steps per second: ", steps_per_second);
+            T steps_per_second = (T)steps / std::chrono::duration_cast<std::chrono::microseconds>(now - ts.last_steps_per_second_time).count() * 1000000 * CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP;
+            log(device, device.logger, "Loop step: ", ts.step, ", env step: ", ts.step * CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP, ", SPS: ", steps_per_second, " (elapsed: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, " s)");
             add_scalar(device, device.logger, "steps_per_second", steps_per_second);
             ts.last_steps_per_second_time = now;
             ts.last_steps_per_second_step = ts.step;

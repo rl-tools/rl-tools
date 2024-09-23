@@ -19,8 +19,8 @@ namespace rl_tools::rl::zoo::ppo::ant_v4{
         using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-//            static constexpr TI STEP_LIMIT = 600; // ~2.5M env steps
-            static constexpr TI STEP_LIMIT = 200; // ~2.5M env steps
+            static constexpr TI STEP_LIMIT = 60000; // ~2.5M env steps
+//            static constexpr TI STEP_LIMIT = 200; // ~2.5M env steps
 
             static constexpr TI ACTOR_HIDDEN_DIM = 256;
             static constexpr TI CRITIC_HIDDEN_DIM = 256;
@@ -29,7 +29,7 @@ namespace rl_tools::rl::zoo::ppo::ant_v4{
             static constexpr TI BATCH_SIZE = 2048;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
             static constexpr bool NORMALIZE_OBSERVATIONS = true;
-            static constexpr bool NORMALIZE_OBSERVATIONS_CONTINUOUSLY = false;
+            static constexpr bool NORMALIZE_OBSERVATIONS_CONTINUOUSLY = true;
 
             struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
                 static constexpr TI N_EPOCHS = 4;
