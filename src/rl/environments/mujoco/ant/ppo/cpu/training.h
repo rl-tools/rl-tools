@@ -1,4 +1,3 @@
-#define RL_TOOLS_DISABLE_HDF5
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
@@ -9,7 +8,7 @@
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn_models/persist.h>
-#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/sequential_v2/persist.h>
 #endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../parameters.h"

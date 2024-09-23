@@ -5,11 +5,11 @@
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/operations_cpu.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn_models/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
-#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/sequential_v2/persist.h>
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
@@ -131,10 +131,16 @@ int main(int argc, char** argv) {
         rlt::sample_initial_parameters(dev, env, env_parameters, rng);
         rlt::sample_initial_state(dev, env, env_parameters, state, rng);
         T reward_acc = 0;
+        decltype(actor)::State<true> actor_state;
+        rlt::malloc(dev, actor_state);
+        rlt::reset(dev, actor, actor_state, rng);
         for(TI step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             rlt::observe(dev, env, env_parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
-            rlt::evaluate(dev, actor, observation, action, actor_buffer, rng);
+            auto observation_tensor = rlt::to_tensor(dev, observation);
+            auto action_tensor = rlt::to_tensor(dev, action);
+
+            rlt::evaluate_step(dev, actor, observation_tensor, actor_state, action_tensor, actor_buffer, rng, rlt::Mode<rlt::mode::Inference<>>{});
             T dt = rlt::step(dev, env, env_parameters, state, action, next_state, rng);
             bool terminated_flag = rlt::terminated(dev, env, env_parameters, next_state, rng);
             reward_acc += rlt::reward(dev, env, env_parameters, state, action, next_state, rng);
