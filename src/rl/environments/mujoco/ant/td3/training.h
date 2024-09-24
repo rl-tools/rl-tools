@@ -22,6 +22,7 @@ using TI = typename DEVICE::index_t;
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 
 // generic nn_model operations use the specialized layer operations depending on the backend device
 #include <rl_tools/nn_models/operations_generic.h>
@@ -146,7 +147,7 @@ void run(){
         auto& run_eval_step = eval_step.back();
         auto& run_eval_return = eval_return.back();
 
-        auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i);
+        auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i + 1);
         auto evaluation_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i); // separate evaluation rng to make runs reproducible/deterministic even if evaluation is turned on or off
 
         // device
@@ -309,7 +310,7 @@ void run(){
             auto step_end = std::chrono::high_resolution_clock::now();
             rlt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
-                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, parameters_rl::EPISODE_STEP_LIMIT>;
+                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, parameters_environment::ENVIRONMENT::EPISODE_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
                 rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, result, actor_buffers_deterministic_eval, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
