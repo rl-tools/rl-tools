@@ -65,15 +65,17 @@ def render(target, float_type, ptr, shape, stride, title="", use_title=False, ou
 
 
 def pretty_print(valobj, internal_dict, options):
-    # float_ptr = valobj.GetChildMemberWithName("_data")
-    # float_type = float_ptr.GetType().GetPointeeType()
-    float_type = valobj.GetType().GetPointeeType()
-    print(f"Float type: {float_type}")
+    float_ptr = valobj.GetChildMemberWithName("_data")
+    float_type = float_ptr.GetType().GetPointeeType()
+    # float_type = valobj.GetType().GetPointeeType()
+    # print(f"Float type: {float_type}")
     target = valobj.GetTarget()
 
-    tensor = parse_string(valobj.type.name)
+    typename = valobj.GetType().GetCanonicalType().GetName()
+    print(f"Typename is: {typename}")
+    tensor = parse_string(typename)
     if tensor is None:
-        print(f"Parse error on: {valobj.type.name}")
+        print(f"Parse error on: {typename}")
         parse_string(valobj.type.name, verbose=True)
 
     if tensor is None:
@@ -84,12 +86,13 @@ def pretty_print(valobj, internal_dict, options):
 
     print(valobj.type.name)
     # if not valobj.type.name[-1] in [">", "&"]:
-    if not valobj.type.name.endswith("DATA_TYPE"):
-        return str(tensor)
+    # if not valobj.type.name.endswith("DATA_TYPE"):
+    #     return str(tensor)
 
     use_title = True
 
-    return str(tensor) + "\n" + render(target, float_type, valobj, tensor.shape, tensor.stride, use_title=use_title)
+    print(f"Rendering {valobj.GetName()} at address: {hex(float_ptr.GetValueAsUnsigned())}")
+    return str(tensor) + "\n" + render(target, float_type, float_ptr, tensor.shape, tensor.stride, use_title=use_title)
 
 
 

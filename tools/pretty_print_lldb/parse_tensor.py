@@ -1,4 +1,5 @@
-example = "rl_tools::Tensor<rl_tools::tensor::Specification<double, unsigned long, rl_tools::tensor::Replace<rl_tools::tensor::Shape<unsigned long, 20, 30, 40>, 11, 1>, rl_tools::tensor::Append<rl_tools::tensor::PopFront<rl_tools::tensor::CumulativeProduct<rl_tools::tensor::Shape<unsigned long, 20, 30, 40> > >, 1>, false, false> >"
+# example = "rl_tools::Tensor<rl_tools::tensor::Specification<double, unsigned long, rl_tools::tensor::Replace<rl_tools::tensor::Shape<unsigned long, 20, 30, 40>, 11, 1>, rl_tools::tensor::Append<rl_tools::tensor::PopFront<rl_tools::tensor::CumulativeProduct<rl_tools::tensor::Shape<unsigned long, 20, 30, 40> > >, 1>, false, false> >"
+example = "rl_tools::Tensor<rl_tools::tensor::Specification<float, unsigned long, rl_tools::tensor::Replace<rl_tools::tensor::Replace<rl_tools::tensor::Shape<unsigned long, 1, 1, 5>, 10, 2>, 10, 2>, true, rl_tools::tensor::Append<rl_tools::tensor::PopBack<rl_tools::tensor::Append<rl_tools::tensor::PopFront<rl_tools::tensor::CumulativeProduct<rl_tools::tensor::Replace<rl_tools::tensor::Replace<rl_tools::tensor::Shape<unsigned long, 1, 1, 5>, 10, 2>, 10, 2> > >, 1> >, 1>, false> > &"
 
 
 class Node:
@@ -56,14 +57,15 @@ def parse_templates(text, root, verbose=False):
 
 
 class Tensor:
-    def __init__(self, element_type, index_type, shape, stride):
+    def __init__(self, element_type, index_type, shape, dynamic_allocation, stride):
         self.element_type = element_type
         self.index_type = index_type
         self.shape = shape
+        self.dynamic_allocation = dynamic_allocation
         self.stride = stride
     
     def __str__(self):
-        return f"Tensor(shape={self.shape}, stride={self.stride}, element_type={self.element_type}, index_type={self.index_type})"
+        return f"Tensor(shape={self.shape}, stride={self.stride}, element_type={self.element_type}, index_type={self.index_type}, dynamic_allocation={self.dynamic_allocation})"
     
     def __repr__(self):
         return str(self)
@@ -83,7 +85,7 @@ def parse_tuple(tree, verbose=False):
             print(f"Parse Tuple: Expected text node for name, got {name_node.type}")
         return None
     name = name_node.value
-    if name == "rl_tools::tensor::Shape":
+    if name == "rl_tools::tensor::Shape" or name == "rl_tools::tensor::Stride":
         if len(tree.children) < 3:
             if verbose:
                 print(f"Parse Tuple: Expected at least 3 children for Shape, got {len(tree.children)}")
@@ -179,6 +181,24 @@ def parse_tuple(tree, verbose=False):
         if len(operand) == 0:
             if verbose:
                 print(f"Parse Tuple: PopFront on empty tuple")
+            return None
+        return operand[1:]
+    elif name == "rl_tools::tensor::PopBack":
+        if len(tree.children) != 2:
+            if verbose:
+                print(f"Parse Tuple: Expected 2 children for PopBack, got {len(tree.children)}")
+            return None
+        operand_node = tree.children[1]
+        if operand_node.type != "tree":
+            if verbose:
+                print(f"Parse Tuple: Expected tree node for operand, got {operand_node.type}")
+            return None
+        operand = parse_tuple(operand_node, verbose)
+        if operand is None:
+            return None
+        if len(operand) == 0:
+            if verbose:
+                print(f"Parse Tuple: PopBack on empty tuple")
             return None
         return operand[1:]
     elif name == "rl_tools::tensor::CumulativeProduct":
@@ -287,8 +307,15 @@ def parse_tensor(tree, verbose=False):
     shape = parse_tuple(shape_node, verbose)
     if shape is None:
         return None
-    
-    stride_node = spec.children[4]
+
+    dynamic_allocation_node = spec.children[4]
+    if dynamic_allocation_node.type != "text":
+        if verbose:
+            print(f"Parse Tensor: Expected text node for dynamic_allocation flag, got {dynamic_allocation_node.type}")
+        return None
+    dynamic_allocation = dynamic_allocation_node.value
+
+    stride_node = spec.children[5]
     if stride_node.type != "tree":
         if verbose:
             print(f"Parse Tensor: Expected tree node for stride, got {stride_node.type}")
@@ -296,8 +323,8 @@ def parse_tensor(tree, verbose=False):
     stride = parse_tuple(stride_node, verbose)
     if stride is None:
         return None
-    
-    return Tensor(element_type, index_type, shape, stride)
+
+    return Tensor(element_type, index_type, shape, dynamic_allocation, stride)
     
 
 
@@ -312,8 +339,9 @@ def parse_string(text, verbose=False):
 
     
 
-# tensor = parse_string(example, verbose=True)
-# print(tensor)
+if __name__ == "__main__":
+    tensor = parse_string(example, verbose=True)
+    print(tensor)
 
 # with open("lldb_type_dump.txt", "r") as file:
 #     lines = file.readlines()
