@@ -33,8 +33,8 @@ using T = double;
 
 TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE_COMPILE){
     constexpr TI BATCH_SIZE = rlt::get<1>(input::SHAPE{});
-    using GRU = gru::TYPE;
-    typename GRU::Buffer<BATCH_SIZE> buffer;
+    using GRU = gru::MODEL;
+    typename GRU::Buffer<> buffer;
     using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
     using ADAM = rlt::nn::optimizers::Adam<ADAM_SPEC>;
     ADAM optimizer;

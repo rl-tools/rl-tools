@@ -38,8 +38,9 @@ namespace rl_tools{
 //            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential_v2::interface;\n";
 //            std::string capability = "Forward";
             ss << ind << "    " << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
-            ss << ind << "    " << "    " << "using IF = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential_v2::Interface<CAPABILITY>;\n";
-            ss << ind << "    " << "    " << "using MODEL = IF::Module<";
+            ss << ind << "    " << "    " << "template <typename T_CONTENT, typename T_NEXT_MODULE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential_v2::OutputModule>\n";
+            ss << ind << "    " << "    " << "using Module = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;\n";
+            ss << ind << "    " << "    " << "using MODULE_CHAIN = Module<";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "layer_" << layer_i << "::TEMPLATE";
                 if(layer_i < num_layers(model)-1){
@@ -50,6 +51,7 @@ namespace rl_tools{
                 ss << ">";
             }
             ss << ind << ";\n";
+            ss << ind << "    " << "    " << "using MODEL = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, layer_0::INPUT_SHAPE>;\n";
             ss << ind << "    " << "}\n";
             ss << ind << "    " << "using MODEL = model_definition::MODEL;\n";
             ss << ind << "    " << (const_declaration ? "const " : "") << "MODEL module = {";

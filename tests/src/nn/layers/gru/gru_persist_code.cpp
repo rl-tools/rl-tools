@@ -37,6 +37,8 @@ using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using T = double;
 
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
 TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     static constexpr TI SEQUENCE_LENGTH = 2;
     static constexpr TI BATCH_SIZE = 3;
@@ -44,18 +46,20 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     static constexpr TI OUTPUT_DIM = 5;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, OUTPUT_DIM, rlt::nn::parameters::groups::Normal, true>;
-    using GRU_TEMPLATE = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-//    using CAPABILITY = rlt::nn::layer_capability::Forward;
-    using GRU = GRU_TEMPLATE::template Layer<CAPABILITY, INPUT_SHAPE>;
-    GRU gru;
-    typename GRU::Buffer<BATCH_SIZE, true> buffer;
+    using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
+    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+
+    using MODULE_CHAIN = Module<GRU>;
+    using GRU_MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+
+    GRU_MODEL gru;
+    typename GRU_MODEL::Buffer<true> buffer;
     using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
     using ADAM = rlt::nn::optimizers::Adam<ADAM_SPEC>;
     ADAM optimizer;
 
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Replace<GRU::INPUT_SHAPE, BATCH_SIZE, 1>>> input;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Replace<GRU::OUTPUT_SHAPE, BATCH_SIZE, 1>>> output, d_output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Replace<GRU_MODEL::INPUT_SHAPE, BATCH_SIZE, 1>>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Replace<GRU_MODEL::OUTPUT_SHAPE, BATCH_SIZE, 1>>> output, d_output;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);

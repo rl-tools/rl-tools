@@ -58,9 +58,9 @@ namespace rl_tools{
         ss << containers::persist::get_type_string<T>() << ", ";
         ss << containers::persist::get_type_string<TI>() << ", ";
         ss << "SHAPE, ";
+        constexpr bool DYNAMIC_ALLOCATION = true; // it is not dynamically allocated but the statically allocated exported arrays are assigned to the pointer of the tensor. This is easier than initializing a static array inside the tensor directly
+        ss << (DYNAMIC_ALLOCATION ? "true" : "false") << ", ";
         ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::RowMajorStride<SHAPE>, ";
-        constexpr bool STATIC = false;
-        ss << (STATIC ? "true" : "false") << ", ";
         constexpr bool CONST = true;
         ss << (CONST ? "true" : "false");
         ss << ">;\n";
