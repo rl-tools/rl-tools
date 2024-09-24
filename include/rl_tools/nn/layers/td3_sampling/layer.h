@@ -1,7 +1,7 @@
 #include "../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_SAMPLE_AND_SQUASH_LAYER_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_TD3_SAMPLING_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_LAYERS_SAMPLE_AND_SQUASH_LAYER_H
+#define RL_TOOLS_NN_LAYERS_TD3_SAMPLING_H
 #include "../../../nn/activation_functions.h"
 #include "../../../utils/generic/typing.h"
 #include "../../../containers/matrix/matrix.h"
@@ -11,7 +11,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     // This layer performs the sampling and squashing for SAC
-    namespace nn::layers::sample_and_squash{
+    namespace nn::layers::td3_sampling{
         namespace mode{
             template <typename T_BASE, typename T_SPEC = bool>
             struct Sample: T_BASE{
