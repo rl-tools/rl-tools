@@ -52,25 +52,14 @@ namespace rl_tools::nn_models::sequential_v2{
     template <typename TI, typename SPEC>
     constexpr auto find_max_hiddend_dim(TI current_max = 0){
         constexpr TI CONTENT_OUTPUT_DIM = product(typename SPEC::CONTENT::OUTPUT_SHAPE{});
-        current_max = current_max > CONTENT_OUTPUT_DIM ? current_max : CONTENT_OUTPUT_DIM;
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
             return current_max;
         } else {
+            current_max = current_max > CONTENT_OUTPUT_DIM ? current_max : CONTENT_OUTPUT_DIM;
             TI max_downstream = find_max_hiddend_dim<TI, typename SPEC::NEXT_MODULE>();
             return max_downstream > current_max ? max_downstream : current_max;
         }
     }
-    template <typename MODULE>
-    constexpr bool check_batch_size_consistency_f(){
-        if constexpr (utils::typing::is_same_v<typename MODULE::NEXT_MODULE, OutputModule>){
-            return true;
-        } else {
-            return MODULE::CONTENT::BATCH_SIZE == MODULE::NEXT_MODULE::CONTENT::BATCH_SIZE && check_batch_size_consistency_f<typename MODULE::NEXT_MODULE>();
-        }
-    }
-
-    template <typename MODULE>
-    constexpr bool check_batch_size_consistency = check_batch_size_consistency_f<MODULE>();
 
     template <typename BUFFER_SPEC, typename MODULE_SPEC>
     constexpr bool buffer_compatible = BUFFER_SPEC::SPEC::MAX_HIDDEN_DIM >= MODULE_SPEC::MAX_HIDDEN_DIM;
