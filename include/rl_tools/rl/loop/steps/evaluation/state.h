@@ -14,7 +14,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
         using RESULT_TYPE = rl::utils::evaluation::Result<typename CONFIG::EVALUATION_RESULT_SPEC>;
-        MatrixDynamic<matrix::Specification<RESULT_TYPE, TI, 1, CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS>> evaluation_results;
+        Matrix<matrix::Specification<RESULT_TYPE, TI, 1, CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS>> evaluation_results;
         typename CONFIG::RNG rng_eval;
         Mode<typename CONFIG::EVALUATION_PARAMETERS::EVALUATION_MODE> evaluation_mode;
         using EVALUATION_ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES>;

@@ -43,8 +43,7 @@ namespace rl_tools::rl::algorithms::sac {
         typename T_ACTOR_OPTIMIZER,
         typename T_CRITIC_OPTIMIZER,
         typename T_ALPHA_OPTIMIZER,
-        typename T_PARAMETERS,
-        typename T_MATRIX_CONTAINER_TYPE_TAG = MatrixDynamicTag
+        typename T_PARAMETERS
     >
     struct Specification{
         using T = T_T;
@@ -58,8 +57,6 @@ namespace rl_tools::rl::algorithms::sac {
         using CRITIC_OPTIMIZER = T_CRITIC_OPTIMIZER;
         using ALPHA_OPTIMIZER = T_ALPHA_OPTIMIZER;
         using PARAMETERS = T_PARAMETERS;
-        using MATRIX_CONTAINER_TYPE_TAG = T_MATRIX_CONTAINER_TYPE_TAG;
-        using TENSOR_CONTAINER_TYPE_TAG = typename MatrixToTensorTypeTag<MATRIX_CONTAINER_TYPE_TAG>::TAG;
     };
 
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>

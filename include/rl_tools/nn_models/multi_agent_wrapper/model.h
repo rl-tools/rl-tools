@@ -12,14 +12,13 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::multi_agent_wrapper {
-    template <typename T_T, typename T_TI, T_TI T_N_AGENTS, template <typename> typename T_MODULE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template <typename T_T, typename T_TI, T_TI T_N_AGENTS, template <typename> typename T_MODULE>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
         static constexpr TI N_AGENTS = T_N_AGENTS;
         template <typename CAPABILITY>
         using MODULE = T_MODULE<CAPABILITY>;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
     template <typename MODULE>
     struct BindModule{
@@ -27,8 +26,8 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         using Module = MODULE;
     };
 
-    template <typename T_T, typename T_TI, T_TI T_N_AGENTS, typename T_MODULE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
-    using SpecificationFixedModule = Specification<T_T, T_TI, T_N_AGENTS, BindModule<T_MODULE>::template Module, T_CONTAINER_TYPE_TAG>;
+    template <typename T_T, typename T_TI, T_TI T_N_AGENTS, typename T_MODULE>
+    using SpecificationFixedModule = Specification<T_T, T_TI, T_N_AGENTS, BindModule<T_MODULE>::template Module>;
 
     template <typename T_CAPABILITY, typename T_SPEC>
     struct CapabilitySpecification: T_SPEC, T_CAPABILITY{
@@ -37,13 +36,12 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
     };
 
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_MODULE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_MODULE>
     struct ModuleBuffersSpecification{
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using MODULE = T_MODULE;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
 
     template<typename T_BUFFER_SPEC>
@@ -76,7 +74,7 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         static constexpr TI OUTPUT_DIM = MODULE::OUTPUT_DIM * N_AGENTS;
         MODULE content;
         template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
-        using Buffer = ModuleBuffer<ModuleBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, ModuleForward<T_SPEC>, T_CONTAINER_TYPE_TAG>>;
+        using Buffer = ModuleBuffer<ModuleBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, ModuleForward<T_SPEC>>>;
     };
 
     template<typename SPEC>

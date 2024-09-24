@@ -55,7 +55,6 @@ namespace rl_tools::nn::layers::standardize {
         using OUTPUT_SHAPE = OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>;
         static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
         static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_DIM * INPUT_DIM + CONFIG::OUTPUT_DIM;
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<CAPABILITY::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
     struct State{};
     struct Buffer{};

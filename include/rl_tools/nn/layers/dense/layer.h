@@ -80,7 +80,6 @@ namespace rl_tools::nn::layers::dense {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
@@ -91,13 +90,13 @@ namespace rl_tools::nn::layers::dense {
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
 //        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
 //        using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
-        using WEIGHTS_CONTAINER_SPEC = matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM>;
-        using WEIGHTS_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<WEIGHTS_CONTAINER_SPEC>;
+        using WEIGHTS_CONTAINER_SPEC = matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using WEIGHTS_CONTAINER_TYPE = Matrix<WEIGHTS_CONTAINER_SPEC>;
         using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_PARAMETER_SPEC> weights;
 
-        using BIASES_CONTAINER_SPEC = matrix::Specification<T, TI, 1, OUTPUT_DIM>;
-        using BIASES_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<BIASES_CONTAINER_SPEC>;
+        using BIASES_CONTAINER_SPEC = matrix::Specification<T, TI, 1, OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using BIASES_CONTAINER_TYPE = Matrix<BIASES_CONTAINER_SPEC>;
         using BIASES_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<BIASES_PARAMETER_SPEC> biases;
         template<bool DYNAMIC_ALLOCATION=true>
@@ -107,18 +106,16 @@ namespace rl_tools::nn::layers::dense {
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC>{
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
-        using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM>;
-        using PRE_ACTIVATIONS_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
+        using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using PRE_ACTIVATIONS_CONTAINER_TYPE = Matrix<PRE_ACTIVATIONS_CONTAINER_SPEC>;
         PRE_ACTIVATIONS_CONTAINER_TYPE pre_activations;
     };
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC>{
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM>;
-        using OUTPUT_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
+        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
     template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>

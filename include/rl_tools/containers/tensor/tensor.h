@@ -310,19 +310,6 @@ namespace rl_tools{
     constexpr typename SPEC::T*& data_reference(Tensor<SPEC>& tensor){
         return tensor._data;
     }
-    struct TensorDynamicTag{
-        template<typename SPEC>
-        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, true, typename SPEC::STRIDE, SPEC::CONST>>;
-    };
-    struct TensorStaticTag{
-        template<typename SPEC>
-        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, false, typename SPEC::STRIDE, SPEC::CONST>>;
-    };
-    template <typename MATRIX_TAG>
-    struct MatrixToTensorTypeTag{
-        static_assert(utils::typing::is_same_v<MATRIX_TAG, MatrixDynamicTag> || utils::typing::is_same_v<MATRIX_TAG, MatrixStaticTag>);
-        using TAG = utils::typing::conditional_t<utils::typing::is_same_v<MATRIX_TAG, MatrixDynamicTag>, TensorDynamicTag, TensorStaticTag>;
-    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

@@ -50,7 +50,6 @@ namespace rl_tools::rl::components::off_policy_runner {
         static_assert((PARAMETERS::ASYMMETRIC_OBSERVATIONS && ENVIRONMENT::ObservationPrivileged::DIM > 0) == PARAMETERS::ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS requested but not available in the environment");
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : ENVIRONMENT::Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : 0;
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
 
     template<typename SPEC>
@@ -59,20 +58,20 @@ namespace rl_tools::rl::components::off_policy_runner {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>> observations;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> observations_privileged;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>> actions;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>> next_observations;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> next_observations_privileged;
+        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM, SPEC::DYNAMIC_ALLOCATION>> observations;
+        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED, SPEC::DYNAMIC_ALLOCATION>> observations_privileged;
+        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::DYNAMIC_ALLOCATION>> actions;
+        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM, SPEC::DYNAMIC_ALLOCATION>> next_observations;
+        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED, SPEC::DYNAMIC_ALLOCATION>> next_observations_privileged;
     };
 
 
 
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION=true>
     struct BatchSpecification {
         using SPEC = T_SPEC;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
     };
 
     template <typename T_SPEC>
@@ -88,7 +87,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
         static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM + OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, DATA_DIM>> observations_actions_next_observations;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, DATA_DIM, T_SPEC::DYNAMIC_ALLOCATION>> observations_actions_next_observations;
 
         template<typename SPEC::TI DIM>
         using OANO_VIEW = typename decltype(observations_actions_next_observations)::template VIEW<BATCH_SIZE, DIM>;
@@ -100,9 +99,9 @@ namespace rl_tools::rl::components::off_policy_runner {
         OANO_VIEW<OBSERVATION_DIM> next_observations;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
 
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, BATCH_SIZE>> rewards;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<bool, TI, 1, BATCH_SIZE>> terminated;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<bool, TI, 1, BATCH_SIZE>> truncated;
+        Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE, T_SPEC::DYNAMIC_ALLOCATION>> rewards;
+        Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE, T_SPEC::DYNAMIC_ALLOCATION>> terminated;
+        Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE, T_SPEC::DYNAMIC_ALLOCATION>> truncated;
     };
 
     template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION=true>
@@ -155,7 +154,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BUFFER_SIZE = SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BUFFER_SIZE, 2>> data;
+        Matrix<matrix::Specification<T, TI, BUFFER_SIZE, 2, SPEC::DYNAMIC_ALLOCATION>> data;
 
         TI next_episode_i = 0;
         template<typename SPEC::TI DIM>
@@ -180,15 +179,13 @@ namespace rl_tools::rl::components{
             using CONTENT = typename INPUT::template State<SPEC::DYNAMIC_ALLOCATION>;
         };
         using POLICY_STATES = utils::MapTuple<POLICIES, GET_STATE>;
-        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::Observation::DIM, ENVIRONMENT::ObservationPrivileged::DIM, SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
+        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::Observation::DIM, ENVIRONMENT::ObservationPrivileged::DIM, SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY, SPEC::DYNAMIC_ALLOCATION>;
         using REPLAY_BUFFER_WITH_STATES_SPEC = replay_buffer::SpecificationWithStates<ENVIRONMENT, REPLAY_BUFFER_SPEC>;
         using REPLAY_BUFFER_TYPE = ReplayBufferWithStates<REPLAY_BUFFER_WITH_STATES_SPEC>;
         static constexpr TI N_ENVIRONMENTS = SPEC::PARAMETERS::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
         off_policy_runner::ParametersRuntime<SPEC> parameters;
-        template<typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
-        using Batch = off_policy_runner::Batch<typename off_policy_runner::BatchSpecification<SPEC, T_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
         template<typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION>
         using SequentialBatch = off_policy_runner::SequentialBatch<typename off_policy_runner::SequentialBatchSpecification<SPEC, T_SEQUENCE_LENGTH, T_BATCH_SIZE, T_DYNAMIC_ALLOCATION>>;
 
@@ -203,11 +200,11 @@ namespace rl_tools::rl::components{
         off_policy_runner::EpisodeStats<SPEC> episode_stats[N_ENVIRONMENTS];
         REPLAY_BUFFER_TYPE replay_buffers[N_ENVIRONMENTS];
 
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS>> states;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::ENVIRONMENT::Parameters, TI, 1, N_ENVIRONMENTS>> env_parameters;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, N_ENVIRONMENTS>> episode_return;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<TI, TI, 1, N_ENVIRONMENTS>> episode_step;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<bool, TI, 1, N_ENVIRONMENTS>> truncated; // init to true !!
+        Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> states;
+        Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::Parameters, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> env_parameters;
+        Matrix<matrix::Specification<T, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> episode_return;
+        Matrix<matrix::Specification<TI, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> episode_step;
+        Matrix<matrix::Specification<bool, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> truncated; // init to true !!
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         bool initialized = false;
 #endif

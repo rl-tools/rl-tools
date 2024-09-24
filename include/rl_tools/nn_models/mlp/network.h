@@ -50,7 +50,6 @@ namespace rl_tools::nn_models::mlp {
         using INPUT_LAYER = nn::layers::dense::Layer<INPUT_LAYER_CONFIG, CAPABILITY, INPUT_SHAPE>;
         using HIDDEN_LAYER = nn::layers::dense::Layer<HIDDEN_LAYER_CONFIG, CAPABILITY, typename INPUT_LAYER::SPEC::OUTPUT_SHAPE>;
         using OUTPUT_LAYER = nn::layers::dense::Layer<OUTPUT_LAYER_CONFIG, CAPABILITY, typename HIDDEN_LAYER::SPEC::OUTPUT_SHAPE>;
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<CAPABILITY::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
 
     template<typename SPEC_1, typename SPEC_2>
@@ -81,7 +80,6 @@ namespace rl_tools::nn_models::mlp {
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         static constexpr TI INTERNAL_BATCH_SIZE = SPEC::INTERNAL_BATCH_SIZE;
         static constexpr TI DIM = SPEC::HIDDEN_DIM;
-        using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
     };
 
     template<typename T_BUFFER_SPEC>

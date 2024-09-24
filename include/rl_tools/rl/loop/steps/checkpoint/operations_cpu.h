@@ -10,7 +10,7 @@
 #include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
-#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/sequential_v2/persist.h>
 #endif
 
 #ifdef RL_TOOLS_ENABLE_ZLIB
@@ -26,7 +26,6 @@
 #include "../../../../nn/layers/gru/persist_code.h"
 #include "../../../../nn/layers/sample_and_squash/persist_code.h"
 #include "../../../../nn_models/mlp/persist_code.h"
-#include "../../../../nn_models/sequential/persist_code.h"
 #include "../../../../nn_models/sequential_v2/persist_code.h"
 
 #include "../../../../utils/zlib/operations_cpu.h"

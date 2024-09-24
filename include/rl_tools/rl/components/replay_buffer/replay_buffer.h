@@ -4,7 +4,7 @@
 #define RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_REPLAY_BUFFER_H
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components::replay_buffer{
-    template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, bool T_DYNAMIC_ALLOCATION>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
@@ -15,7 +15,7 @@ namespace rl_tools::rl::components::replay_buffer{
         static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = ASYMMETRIC_OBSERVATIONS ? T_OBSERVATION_DIM_PRIVILEGED : 0;
         static constexpr TI ACTION_DIM = T_ACTION_DIM;
         static constexpr TI CAPACITY = T_CAPACITY;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
     };
 
     template<typename T_ENVIRONMENT, typename T_BASE_SPEC>
@@ -38,7 +38,8 @@ namespace rl_tools::rl::components {
         static constexpr TI DATA_COLS = SPEC::OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + 1 + 1;
 
         // mem
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::CAPACITY, DATA_COLS>> data;
+        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, DATA_COLS, SPEC::DYNAMIC_ALLOCATION>> data;
+
         TI position = 0;
         bool full = false;
 
@@ -63,8 +64,8 @@ namespace rl_tools::rl::components {
         using ENVIRONMENT = typename T_SPEC::ENVIRONMENT;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1>> states;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1>> next_states;
+        Matrix<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1, SPEC::DYNAMIC_ALLOCATION>> states;
+        Matrix<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1, SPEC::DYNAMIC_ALLOCATION>> next_states;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
