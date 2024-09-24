@@ -45,7 +45,7 @@ namespace rl_tools{
 
     namespace rl::loop::steps::save_trajectories{
         template <typename DEVICE, typename ENVIRONMENT, typename SPEC>
-        std::string to_string(DEVICE& device, ENVIRONMENT& env, rl::utils::evaluation::Data<SPEC> data){
+        std::string to_string(DEVICE& device, ENVIRONMENT& env, rl::utils::evaluation::Data<SPEC>& data){
             using TI = typename DEVICE::index_t;
             std::string episodes_json = "[";
             for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
