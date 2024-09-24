@@ -41,10 +41,14 @@ TEST(RL_TOOLS_NN_MODE, INHERITANCE_CHAIN) {
     DEFAULT mode;
     SAS<> ext_noise;
     SAS<rlt::mode::Evaluation<DEFAULT>> inf;
-    rlt::nn::layers::sample_and_squash::mode::Sample<SAS<DEFAULT>> sample;
-    static_assert(!rlt::mode::is<decltype(ext_noise), rlt::nn::layers::sample_and_squash::mode::Sample>);
+    rlt::mode::Rollout<SAS<DEFAULT>> rollout;
+    rlt::mode::Evaluation<> evaluation;
+    static_assert(!rlt::mode::is<decltype(ext_noise), rlt::mode::Rollout>);
     static_assert(rlt::mode::is<decltype(ext_noise), rlt::nn::layers::sample_and_squash::mode::ExternalNoise>);
-    static_assert(rlt::mode::is<decltype(sample), rlt::nn::layers::sample_and_squash::mode::ExternalNoise>);
-    static_assert(rlt::mode::is<decltype(sample), rlt::nn::layers::sample_and_squash::mode::Sample>);
-    static_assert(!rlt::mode::is<decltype(sample), rlt::mode::Evaluation>);
+    static_assert(rlt::mode::is<decltype(rollout), rlt::nn::layers::sample_and_squash::mode::ExternalNoise>);
+    static_assert(rlt::mode::is<decltype(rollout), rlt::mode::Rollout>);
+    static_assert(!rlt::mode::is<decltype(rollout), rlt::mode::Evaluation>);
+    static_assert(!rlt::mode::is<decltype(evaluation), rlt::mode::Default>);
+    static_assert(!rlt::mode::is<decltype(evaluation), rlt::mode::Rollout>);
+    static_assert(rlt::mode::is<decltype(evaluation), rlt::mode::Evaluation>);
 }
