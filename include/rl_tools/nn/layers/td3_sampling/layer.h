@@ -14,12 +14,6 @@ namespace rl_tools{
     namespace nn::layers::td3_sampling{
         namespace mode{
             template <typename T_BASE, typename T_SPEC = bool>
-            struct Sample: T_BASE{
-                // this mode uses the noise from the Buffer for debugging / no-side-effect inference
-                using SPEC = T_SPEC;
-                using BASE = T_BASE;
-            };
-            template <typename T_BASE, typename T_SPEC = bool>
             struct ExternalNoise{
                 using SPEC = T_SPEC;
                 using BASE = T_BASE;
@@ -28,13 +22,7 @@ namespace rl_tools{
         }
         template <typename T>
         struct DefaultParameters{
-            static constexpr T LOG_STD_LOWER_BOUND = -20;
-            static constexpr T LOG_STD_UPPER_BOUND = 2;
-            static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
-            static constexpr bool ADAPTIVE_ALPHA = true;
-            static constexpr bool UPDATE_ALPHA_WITH_ACTOR = false;
-            static constexpr T ALPHA = 1.0;
-            static constexpr T TARGET_ENTROPY = -1;
+            static constexpr T STD = 0.1;
         };
 
         struct State{};
@@ -67,10 +55,8 @@ namespace rl_tools{
             using INPUT_SHAPE = T_INPUT_SHAPE;
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
-            static constexpr TI DIM_2X = get_last(INPUT_SHAPE{});
-            static_assert(DIM_2X % 2 == 0, "Sample and squash layer: The dimension of the input shape must be divisible by 2.");
-            static constexpr TI DIM = DIM_2X/2;
-            static constexpr TI INPUT_DIM = DIM_2X;
+            static constexpr TI DIM = get_last(INPUT_SHAPE{});
+            static constexpr TI INPUT_DIM = DIM;
             static constexpr TI OUTPUT_DIM = DIM;
             template <typename NEW_INPUT_SHAPE>
             using OUTPUT_SHAPE_FACTORY = tensor::Replace<NEW_INPUT_SHAPE, OUTPUT_DIM, length(NEW_INPUT_SHAPE{})-1>;
@@ -91,51 +77,42 @@ namespace rl_tools{
             using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
             template <typename NEW_INPUT_SHAPE>
             using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
-//            static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
-//            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, INPUT_DIM>;
-//            using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
-//            static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
+
+            T std = SPEC::PARAMETERS::STD;
+
             template<bool DYNAMIC_ALLOCATION=true>
-            using State = sample_and_squash::State;
+            using State = td3_sampling::State;
             template<bool DYNAMIC_ALLOCATION=true>
-            using Buffer = sample_and_squash::Buffer<sample_and_squash::BufferSpecification<TI, SPEC, DYNAMIC_ALLOCATION>>;
+            using Buffer = td3_sampling::Buffer<td3_sampling::BufferSpecification<TI, SPEC, DYNAMIC_ALLOCATION>>;
         };
         template<typename SPEC>
         struct LayerBackward: public LayerForward<SPEC> {
-//            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
-            // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
             using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
             using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM>;
             using PRE_ACTIVATIONS_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
-            PRE_ACTIVATIONS_CONTAINER_TYPE pre_squashing, noise;
+            PRE_ACTIVATIONS_CONTAINER_TYPE pre_clip;
         };
         template<typename SPEC>
         struct LayerGradient: public LayerBackward<SPEC> {
-//            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
             using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::INTERNAL_BATCH_SIZE>;
-            using LOG_PROBABILITIES_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<LOG_PROBABILITIES_CONTAINER_SPEC>;
-            LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
             using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM>;
             using OUTPUT_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
             OUTPUT_CONTAINER_TYPE output;
-            using ALPHA_CONTAINER = typename CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, 1>>;
-            using ALPHA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<ALPHA_CONTAINER, nn::parameters::categories::Biases, nn::parameters::groups::Normal>;
-            typename SPEC::PARAMETER_TYPE::template instance<ALPHA_PARAMETER_SPEC> log_alpha;
         };
+
         template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
         using Layer =
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-                LayerForward<layers::sample_and_squash::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+                LayerForward<layers::td3_sampling::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                LayerBackward<layers::sample_and_squash::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+                LayerBackward<layers::td3_sampling::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                LayerGradient<layers::sample_and_squash::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
+                LayerGradient<layers::td3_sampling::Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
         template <typename CONFIG>
         struct BindConfiguration{
             template <typename CAPABILITY, typename INPUT_SHAPE>
-            using Layer = nn::layers::sample_and_squash::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
+            using Layer = nn::layers::td3_sampling::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
         };
     }
 }

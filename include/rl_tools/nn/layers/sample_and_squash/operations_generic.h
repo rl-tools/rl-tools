@@ -246,11 +246,11 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward_input(DEVICE& device, const nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-
+        utils::assert_exit(device, false, "Not implemented");
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-
+        utils::assert_exit(device, false, "Not implemented");
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {

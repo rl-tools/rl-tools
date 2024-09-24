@@ -49,11 +49,16 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
             using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction::TANH>;
             using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
+            struct SAMPLING_PARAMETERS: nn::layers::td3_sampling::DefaultParameters<T>{
+                static constexpr T STD = PARAMETERS::EXPLORATION_NOISE;
+            };
+            using SAMPLING_CONFIG = nn::layers::td3_sampling::Configuration<T, TI, SAMPLING_PARAMETERS>;
+            using SAMPLING = nn::layers::td3_sampling::BindConfiguration<SAMPLING_CONFIG>;
 
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
             using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
 
-            using MODULE_CHAIN = Module<MLP>;
+            using MODULE_CHAIN = Module<MLP, Module<SAMPLING>>;
             using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 

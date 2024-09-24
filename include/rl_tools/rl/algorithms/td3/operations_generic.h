@@ -268,6 +268,8 @@ namespace rl_tools{
             rl_tools::utils::polyak::update(device, source.biases.parameters , target.biases.parameters , polyak);
         }
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        void update_target_module(DEVICE& device, const  nn::layers::td3_sampling::LayerForward<SOURCE_SPEC>& source, nn::layers::td3_sampling::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) { }
+        template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
             rl_tools::utils::polyak::update(device, source.weights_input.parameters, target.weights_input.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.biases_input.parameters, target.biases_input.parameters, polyak);
