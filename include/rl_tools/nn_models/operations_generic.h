@@ -3,5 +3,4 @@
 #endif
 
 #include "mlp/operations_generic.h"
-#include "sequential/operations_generic.h"
 
