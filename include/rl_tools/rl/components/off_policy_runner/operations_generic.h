@@ -185,7 +185,7 @@ namespace rl_tools{
             if(get(runner.truncated, 0, 0)){
                 reset(device, policy, policy_state, rng);
             }
-            Mode<mode::Default<>> mode; // we want stochasticity for exploration
+            Mode<mode::Rollout<>> mode; // we want stochasticity for exploration
             evaluate_step(device, policy, observation_view_tensor, policy_state, action_view_tensor, policy_eval_buffers, rng, mode);
         }
 
