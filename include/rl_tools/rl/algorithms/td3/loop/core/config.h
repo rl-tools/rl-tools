@@ -46,21 +46,14 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         using TD3_PARAMETERS = typename PARAMETERS::TD3_PARAMETERS;
         template <typename CAPABILITY>
         struct ACTOR{
-            static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
-            static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
             using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-            using LAYER_1_CONFIG = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
-            using LAYER_1 = nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-            using LAYER_2_CONFIG = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
-            using LAYER_2 = nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
-            static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
-            using LAYER_3_CONFIG = nn::layers::dense::Configuration<T, TI, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::TANH>;
-            using LAYER_3 = nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
+            using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction::TANH>;
+            using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
             using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
 
-            using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+            using MODULE_CHAIN = Module<MLP>;
             using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
@@ -70,17 +63,13 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
             using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM + ENVIRONMENT::ACTION_DIM>;
-            using LAYER_1_CONFIG = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
-            using LAYER_1 = nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-            using LAYER_2_CONFIG = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION>;
-            using LAYER_2 = nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
-            using LAYER_3_CONFIG = nn::layers::dense::Configuration<T, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY>;
-            using LAYER_3 = nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
+            using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction::IDENTITY>;
+            using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
             using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
 
-            using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+            using MODULE_CHAIN = Module<MLP>;
             using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
