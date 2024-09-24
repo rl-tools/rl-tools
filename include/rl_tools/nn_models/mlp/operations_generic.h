@@ -260,7 +260,7 @@ namespace rl_tools {
         acc += abs_diff(device, n1.input_layer, n2.input_layer);
         return acc;
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn_models::mlp::NeuralNetworkForward<SPEC>& n, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         bool found_nan = false;
         found_nan = found_nan || is_nan(device, n.input_layer, mode);

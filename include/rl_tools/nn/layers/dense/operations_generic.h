@@ -303,11 +303,11 @@ namespace rl_tools{
     void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerGradient<SPEC>& l) {
         reset_forward_state(device, &l);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         return is_nan(device, l.weights, mode) || is_nan(device, l.biases, mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::dense::LayerForward<SPEC>&>(l), mode);
         if(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
@@ -315,7 +315,7 @@ namespace rl_tools{
         }
         return  upstream_nan || is_nan(device, l.pre_activations, mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::dense::LayerBackward<SPEC>&>(l), mode);
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){

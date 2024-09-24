@@ -179,15 +179,15 @@ namespace rl_tools{
         reset_forward_state(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l));
         set_all(device, l.output, (typename SPEC::T)0);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         return is_nan(device, l.weights, mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         return is_nan(device, static_cast<const rl_tools::nn::layers::embedding::LayerForward<SPEC>&>(l), mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l), mode);
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){

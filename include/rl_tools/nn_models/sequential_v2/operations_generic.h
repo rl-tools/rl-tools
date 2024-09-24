@@ -31,7 +31,7 @@ namespace rl_tools{
             malloc(device, content_state.next_content_state);
         }
     }
-    template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE>
+    template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
     void reset(DEVICE& device, const nn_models::sequential_v2::ModuleForward<MODULE_SPEC>& model, nn_models::sequential_v2::ContentState<STATE_SPEC>& content_state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using namespace nn_models::sequential_v2;
         reset(device, model.content, content_state.state, rng, mode);

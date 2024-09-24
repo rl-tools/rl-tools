@@ -37,14 +37,13 @@ int main(){
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
     using GRU = rlt::nn::layers::gru::Layer<GRU_CONFIG, CAPABILITY, INPUT_SHAPE>;
+    GRU::State<true> gru_state;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
     GRU gru;
-    GRU::Buffer<BATCH_SIZE, true> buffer;
-    rlt::Mode<rlt::nn::layers::gru::StepByStepMode<rlt::mode::Default<>, rlt::nn::layers::gru::StepByStepModeSpecification<TI, false>>> mode_no_reset, mode_reset;
-    mode_no_reset.reset = false;
-    mode_reset.reset = true;
+    GRU::Buffer<true> buffer;
+    rlt::Mode<rlt::mode::Evaluation<>> mode;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, HIDDEN_DIM>>> output_1, output_2;
@@ -53,6 +52,7 @@ int main(){
     rlt::malloc(device, output_1);
     rlt::malloc(device, output_2);
     rlt::malloc(device, gru);
+    rlt::malloc(device, gru_state);
     rlt::malloc(device, buffer);
     rlt::init_weights(device, gru, rng);
     rlt::randn(device, input, rng);
@@ -61,18 +61,29 @@ int main(){
     rlt::print(device, decltype(buffer.post_activation)::SPEC::SHAPE{});
     std::cout << std::endl;
 
-    rlt::evaluate(device, gru, input, output_1, buffer, rng, mode_reset);
-    rlt::evaluate(device, gru, input, output_2, buffer, rng, mode_reset);
-    T diff_reset = rlt::abs_diff(device, output_1, output_2);
-    std::cout << "Diff reset: " << diff_reset << std::endl;
+    {
+        rlt::evaluate(device, gru, input, output_1, buffer, rng, mode);
+        rlt::evaluate(device, gru, input, output_2, buffer, rng, mode);
+        T diff_reset = rlt::abs_diff(device, output_1, output_2);
+        std::cout << "Diff reset: " << diff_reset << std::endl;
 #ifndef DISABLE_TEST
-    ASSERT_EQ(0, diff_reset);
+        ASSERT_EQ(diff_reset, 0);
 #endif
-    rlt::evaluate(device, gru, input, output_2, buffer, rng, mode_no_reset);
-    T diff_no_reset = rlt::abs_diff(device, output_1, output_2);
-    std::cout << "Diff no reset: " << diff_no_reset << std::endl;
+    }
+
+    {
+        rlt::reset(device, gru, gru_state, rng);
+        auto input_squeezed = rlt::squeeze(device, input);
+        auto output_1_squeezed = rlt::squeeze(device, output_1);
+        auto output_2_squeezed = rlt::squeeze(device, output_2);
+        rlt::evaluate_step(device, gru, input_squeezed, gru_state, output_1_squeezed, buffer, rng, mode);
+        rlt::evaluate_step(device, gru, input_squeezed, gru_state, output_2_squeezed, buffer, rng, mode);
+        T diff_reset = rlt::abs_diff(device, output_1, output_2);
+        std::cout << "Diff reset: " << diff_reset << std::endl;
 #ifndef DISABLE_TEST
-    ASSERT_GT(diff_no_reset, 0);
+        ASSERT_GT(diff_reset, 0);
 #endif
+    }
+
 }
 

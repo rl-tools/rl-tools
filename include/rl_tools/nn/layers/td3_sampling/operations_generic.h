@@ -235,11 +235,11 @@ namespace rl_tools{
         auto matrix_view_d_input = matrix_view(device, d_input);
         backward_full(device, layer, matrix_view_input, matrix_view_d_output, matrix_view_d_input, buffer, mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::td3_sampling::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         return false;
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::td3_sampling::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::td3_sampling::LayerForward<SPEC>&>(l), mode);
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
@@ -247,7 +247,7 @@ namespace rl_tools{
         }
         return upstream_nan || is_nan(device, l.pre_squashing, mode) || is_nan(device, l.noise, mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::td3_sampling::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::td3_sampling::LayerBackward<SPEC>&>(l), mode);
         upstream_nan =  upstream_nan || is_nan(device, l.log_alpha, mode);

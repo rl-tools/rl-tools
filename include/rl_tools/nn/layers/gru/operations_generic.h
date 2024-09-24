@@ -79,7 +79,7 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG, typename MODE>
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
     void reset(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) {
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
@@ -803,14 +803,14 @@ namespace rl_tools{
         return abs_diff(device, static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC_2>&>(l2));
     }
 
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool weights_nan = is_nan(device, l.weights_input, mode) || is_nan(device, l.weights_hidden, mode);
         bool biases_nan = is_nan(device, l.biases_input, mode) || is_nan(device, l.biases_hidden, mode);
         bool initial_hidden_state_nan = is_nan(device, l.initial_hidden_state, mode);
         return weights_nan || biases_nan || initial_hidden_state_nan;
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::gru::LayerForward<SPEC>&>(l), mode);
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
@@ -818,7 +818,7 @@ namespace rl_tools{
         }
         return upstream_nan || is_nan(device, l.post_activation, mode) || is_nan(device, l.n_pre_pre_activation, mode) || is_nan(device, l.output, mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         return is_nan(device, static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC>&>(l), mode);
     }

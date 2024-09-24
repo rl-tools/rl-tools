@@ -163,18 +163,18 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& l){
         return l.output;
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::standardize::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return false;
         }
         return is_nan(device, l.mean, mode) || is_nan(device, l.precision, mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::standardize::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         return is_nan(device, static_cast<rl_tools::nn::layers::standardize::LayerForward<SPEC>&>(l), mode);
     }
-    template <typename DEVICE, typename SPEC, typename MODE>
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::standardize::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         bool upstream_nan = is_nan(device, static_cast<rl_tools::nn::layers::standardize::LayerBackward<SPEC>&>(l), mode);
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
