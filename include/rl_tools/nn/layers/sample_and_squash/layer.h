@@ -10,6 +10,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    // This layer performs the sampling and squashing for SAC
     namespace nn::layers::sample_and_squash{
         namespace mode{
             template <typename T_BASE, typename T_SPEC = bool>

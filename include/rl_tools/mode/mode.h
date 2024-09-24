@@ -5,7 +5,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    // note: please always check for the mode by using utils::typing::is_base_of_v, e.g. `utils::typing::is_base_of_v<mode::Inference, MODE>`. This ensures that when some layers of e.g. an nn_models::Sequential model are using specific modes that there are no side-effects
+    // note: please always check for the mode by using utils::typing::is_base_of_v, e.g. `utils::typing::is_base_of_v<mode::Evaluation, MODE>`. This ensures that when some layers of e.g. an nn_models::Sequential model are using specific modes that there are no side-effects
     // note: please use the same mode for affiliated forward and backward passes
     template <typename T_MODE>
     struct Mode: T_MODE{
@@ -19,7 +19,14 @@ namespace rl_tools{
             using BASE = Final;
         };
         template <typename T_BASE = Final, typename T_SPEC = bool>
-        struct Inference: T_BASE{
+        struct Rollout: T_BASE{
+            // this is what is passed by on/off-policy runners
+            // semantics: randomness for exploration
+            using SPEC = T_SPEC;
+            using BASE = T_BASE;
+        };
+        template <typename T_BASE = Final, typename T_SPEC = bool>
+        struct Evaluation: T_BASE{
             // this is what is passed by rl::utils::evaluation
             // semantics: no randomness
             using SPEC = T_SPEC;

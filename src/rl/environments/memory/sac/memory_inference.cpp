@@ -57,7 +57,7 @@ int main(){
     rlt::load(device, actor, actor_file.getGroup("actor"));
 
     for(TI repeat_i = 0; repeat_i < 2; repeat_i++){
-        rlt::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::mode::Inference>> mode;
+        rlt::Mode<rlt::nn::layers::gru::StepByStepMode<TI, rlt::mode::Evaluation>> mode;
         mode.reset = true;
         mode.step = 0;
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, 1, 1>>> input, output;

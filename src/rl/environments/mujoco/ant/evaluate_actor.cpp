@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
             auto observation_tensor = rlt::to_tensor(dev, observation);
             auto action_tensor = rlt::to_tensor(dev, action);
 
-            rlt::evaluate_step(dev, actor, observation_tensor, actor_state, action_tensor, actor_buffer, rng, rlt::Mode<rlt::mode::Inference<>>{});
+            rlt::evaluate_step(dev, actor, observation_tensor, actor_state, action_tensor, actor_buffer, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
             T dt = rlt::step(dev, env, env_parameters, state, action, next_state, rng);
             bool terminated_flag = rlt::terminated(dev, env, env_parameters, next_state, rng);
             reward_acc += rlt::reward(dev, env, env_parameters, state, action, next_state, rng);

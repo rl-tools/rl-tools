@@ -67,7 +67,7 @@ namespace rl_tools{
                     malloc(device, output);
                     auto rng_copy = ts.rng;
                     randn(device, input, rng_copy);
-                    Mode<mode::Inference<>> mode;
+                    Mode<mode::Evaluation<>> mode;
                     evaluate(device, actor_forward, input, output, actor_buffer, rng_copy, mode);
                     output_ss << "\n" << save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
                     output_ss << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);

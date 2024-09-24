@@ -40,11 +40,11 @@ TEST(RL_TOOLS_NN_MODE, INHERITANCE_CHAIN) {
     using DEFAULT = rlt::mode::Default<>;
     DEFAULT mode;
     SAS<> ext_noise;
-    SAS<rlt::mode::Inference<DEFAULT>> inf;
+    SAS<rlt::mode::Evaluation<DEFAULT>> inf;
     rlt::nn::layers::sample_and_squash::mode::Sample<SAS<DEFAULT>> sample;
     static_assert(!rlt::mode::is<decltype(ext_noise), rlt::nn::layers::sample_and_squash::mode::Sample>);
     static_assert(rlt::mode::is<decltype(ext_noise), rlt::nn::layers::sample_and_squash::mode::ExternalNoise>);
     static_assert(rlt::mode::is<decltype(sample), rlt::nn::layers::sample_and_squash::mode::ExternalNoise>);
     static_assert(rlt::mode::is<decltype(sample), rlt::nn::layers::sample_and_squash::mode::Sample>);
-    static_assert(!rlt::mode::is<decltype(sample), rlt::mode::Inference>);
+    static_assert(!rlt::mode::is<decltype(sample), rlt::mode::Evaluation>);
 }

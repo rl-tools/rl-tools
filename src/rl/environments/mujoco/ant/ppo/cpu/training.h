@@ -223,7 +223,7 @@ void run(){
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(evaluation_env), NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-                rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, actor_deterministic_eval_buffers, evaluation_rng, rlt::Mode<rlt::mode::Inference<>>{});
+                rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, actor_deterministic_eval_buffers, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
