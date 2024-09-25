@@ -44,22 +44,24 @@ namespace rl_tools{
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "layer_" << layer_i << "::TEMPLATE";
                 if(layer_i < num_layers(model)-1){
-                    ss << ", IF::Module<";
+                    ss << ", Module<";
                 }
             }
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << ">";
             }
-            ss << ind << ";\n";
+            ss << ";\n";
             ss << ind << "    " << "    " << "using MODEL = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, layer_0::INPUT_SHAPE>;\n";
             ss << ind << "    " << "}\n";
             ss << ind << "    " << "using MODEL = model_definition::MODEL;\n";
             ss << ind << "    " << (const_declaration ? "const " : "") << "MODEL module = {";
+            std::string model_stub = "MODEL"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
-                ss << "layer_" << layer_i << "::module";
+                ss << "layer_" << layer_i << "::create<" << model_stub << "::CONTENT>()";
                 if(layer_i < num_layers(model)-1){
                     ss << ", {";
                 }
+                model_stub += "::NEXT_MODULE";
             }
             ss << ", {}";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){

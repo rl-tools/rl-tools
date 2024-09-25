@@ -17,7 +17,7 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, COMPILE){
     DEVICE device;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools_export::model::MODEL::OUTPUT_SHAPE>> output;
     rl_tools_export::model::MODEL::Buffer<1> buffer;
 
     rlt::malloc(device, output);
