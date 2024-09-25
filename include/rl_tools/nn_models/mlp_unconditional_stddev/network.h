@@ -13,8 +13,8 @@ namespace rl_tools::nn_models::mlp_unconditional_stddev {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using LOG_STD_CONTAINER_SPEC = matrix::Specification<T, TI, 1, SPEC::OUTPUT_DIM>;
-        using LOG_STD_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<LOG_STD_CONTAINER_SPEC>;
+        using LOG_STD_CONTAINER_SPEC = matrix::Specification<T, TI, 1, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using LOG_STD_CONTAINER_TYPE = Matrix<LOG_STD_CONTAINER_SPEC>;
         using LOG_STD_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<LOG_STD_CONTAINER_TYPE, nn::parameters::groups::Output, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<LOG_STD_PARAMETER_SPEC> log_std;
         template <typename TT_SPEC>

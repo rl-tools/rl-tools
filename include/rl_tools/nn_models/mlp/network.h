@@ -12,7 +12,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp {
-    template <typename T_T, typename T_TI, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template <typename T_T, typename T_TI, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>>
     struct Configuration{
         using T = T_T;
         using TI = T_TI;
@@ -23,9 +23,6 @@ namespace rl_tools::nn_models::mlp {
         static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
         static constexpr auto HIDDEN_ACTIVATION_FUNCTION = T_HIDDEN_ACTIVATION_FUNCTION;
         static constexpr auto OUTPUT_ACTIVATION_FUNCTION = T_OUTPUT_ACTIVATION_FUNCTION;
-
-        static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
-        using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
 
         using LAYER_INITIALIZER = T_LAYER_INITIALIZER;
 
@@ -89,8 +86,8 @@ namespace rl_tools::nn_models::mlp {
         using T = typename MLP_SPEC::T;
         using TI = typename MLP_SPEC::TI;
         static constexpr TI INTERNAL_BATCH_SIZE = T_BUFFER_SPEC::INTERNAL_BATCH_SIZE;
-        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, INTERNAL_BATCH_SIZE, BUFFER_SPEC::DIM>;
-        using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
+        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, INTERNAL_BATCH_SIZE, BUFFER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+        using TICK_TOCK_CONTAINER_TYPE = Matrix<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
         using LayerBuffer = typename MLP_SPEC::INPUT_LAYER::template Buffer<BUFFER_SPEC::DYNAMIC_ALLOCATION>;

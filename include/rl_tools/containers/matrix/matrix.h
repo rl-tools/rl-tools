@@ -61,7 +61,7 @@ namespace rl_tools{
         };
         template <typename T, bool CONST = false>
         struct MatrixDynamic{
-            T* _data;
+            T* _data = nullptr;
         };
         template <typename T>
         struct MatrixDynamic<T, true>{

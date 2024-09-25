@@ -63,8 +63,8 @@ namespace rl_tools {
             static_assert(INPUT_SPEC::COLS == MODEL_SPEC::INPUT_DIM);
             static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
             static_assert(OUTPUT_SPEC::COLS == MODEL_SPEC::OUTPUT_DIM);
-            static_assert(!MODEL_SPEC::ENFORCE_FLOATING_POINT_TYPE || utils::typing::is_same_v<typename MODEL_SPEC::T, typename INPUT_SPEC::T>);
-            static_assert(!MODEL_SPEC::ENFORCE_FLOATING_POINT_TYPE || utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
+            static_assert(utils::typing::is_same_v<typename MODEL_SPEC::T, typename INPUT_SPEC::T>);
+            static_assert(utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
             return true;
         }
         template <typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>

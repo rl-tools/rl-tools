@@ -21,23 +21,21 @@ namespace rl_tools {
             }
             std::string ind = indent_ss.str();
             using TI = typename DEVICE::index_t;
+            std::string T_string = containers::persist::get_type_string<typename SPEC::T>();
+            std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             std::stringstream ss, ss_header;
             ss_header << input.header;
-            ss_header << "#include <rl_tools/nn/layers/dense/layer.h>\n";
+            ss_header << "#include <rl_tools/nn/layers/standardize/layer.h>\n";
             ss << input.body;
             ss << ind << "namespace " << name << " {\n";
-            ss << ind << "    using SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::Specification<"
-               << containers::persist::get_type_string<typename SPEC::T>() << ", "
-               << containers::persist::get_type_string<typename SPEC::TI>() << ", "
-               << SPEC::INPUT_DIM << ", "
-               << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
-               << "true, "
-               << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
+            ss << ind << "    using CONFIG = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::Configuration<"
+               << T_string << ", "
+               << TI_string
                << ">; \n";
-            ss << ind << "    " << "template <typename CAPABILITY>" << "\n";
-            ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::Layer<CAPABILITY, SPEC>;" << "\n";
+            ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::BindConfiguration<CONFIG>;" << "\n";
+            ss << ind << "    " << "using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << get<0>(typename SPEC::INPUT_SHAPE{}) << ", " << get<1>(typename SPEC::INPUT_SHAPE{}) << ", " << get<2>(typename SPEC::INPUT_SHAPE{}) << ">;\n";
             ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
-            ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::Layer<CAPABILITY, SPEC>;" << "\n";
+            ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;" << "\n";
             std::string initializer_list;
             if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
                 initializer_list = "{mean::parameters, precision::parameters}";
@@ -56,6 +54,10 @@ namespace rl_tools {
                 }
             }
             ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << initializer_list << ";\n";
+            ss << ind << "    " << "template <typename MODEL>" << "\n";
+            ss << ind << "    " << "constexpr MODEL create(){" << "\n";
+            ss << ind << "    " << "    return MODEL" << initializer_list << ";" << "\n";
+            ss << ind << "    " << "}" << "\n";
             ss << ind << "}\n";
 
 

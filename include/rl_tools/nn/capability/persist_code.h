@@ -12,13 +12,13 @@ namespace rl_tools{
     std::string to_string(nn::layer_capability::Forward<DYNAMIC_ALLOCATION>){
         return std::string("RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Forward<") + (DYNAMIC_ALLOCATION ? "true" : "false") + ">";
     }
-    template <auto BATCH_SIZE>
-    std::string to_string(nn::layer_capability::Backward<BATCH_SIZE>){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Backward<" + std::to_string(BATCH_SIZE) + ">";
+    template <bool DYNAMIC_ALLOCATION>
+    std::string to_string(nn::layer_capability::Backward<DYNAMIC_ALLOCATION>){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Backward<" + std::string((DYNAMIC_ALLOCATION ? "true" : "false")) + ">";
     }
-    template <typename T_PARAMETER_TYPE, auto BATCH_SIZE>
-    std::string to_string(nn::layer_capability::Gradient<T_PARAMETER_TYPE, BATCH_SIZE>){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Gradient<"+ get_type_string(T_PARAMETER_TYPE{}) + std::string(", ") + std::to_string(BATCH_SIZE) + ">";
+    template <typename T_PARAMETER_TYPE, bool DYNAMIC_ALLOCATION>
+    std::string to_string(nn::layer_capability::Gradient<T_PARAMETER_TYPE, DYNAMIC_ALLOCATION>){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Gradient<"+ get_type_string(T_PARAMETER_TYPE{}) + std::string(", ") + std::string((DYNAMIC_ALLOCATION ? "true" : "false")) + ">";
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

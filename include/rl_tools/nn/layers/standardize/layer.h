@@ -63,7 +63,6 @@ namespace rl_tools::nn::layers::standardize {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
@@ -71,8 +70,8 @@ namespace rl_tools::nn::layers::standardize {
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
         template <typename NEW_INPUT_SHAPE>
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
-        using STATISTICS_CONTAINER_SPEC = matrix::Specification<T, TI, 1, INPUT_DIM>;
-        using STATISTICS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<STATISTICS_CONTAINER_SPEC>;
+        using STATISTICS_CONTAINER_SPEC = matrix::Specification<T, TI, 1, INPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using STATISTICS_CONTAINER_TYPE = Matrix<STATISTICS_CONTAINER_SPEC>;
         using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::spec<STATISTICS_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant>; // Constant from the view of a forward or backward pass
         typename nn::parameters::Plain::template instance<STATISTICS_PARAMETER_SPEC> mean, precision; // precision = 1/std
 
@@ -87,8 +86,8 @@ namespace rl_tools::nn::layers::standardize {
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC> {
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM>;
-        using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
+        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
     template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>

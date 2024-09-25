@@ -37,49 +37,67 @@ namespace rl_tools{
         std::string T_string = containers::persist::get_type_string<T>();
         std::string TI_string = containers::persist::get_type_string<TI>();
         ss << output_layer.body;
-        ss << ind << "    using SPEC = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Specification<";
+        ss << ind << "    using CONFIG = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Configuration<";
         ss << T_string << ", ";
         ss << TI_string << ", ";
-        ss << SPEC::INPUT_DIM << ", " << SPEC::OUTPUT_DIM << ", " << SPEC::NUM_LAYERS << ", " << SPEC::HIDDEN_DIM << ", ";
+        ss << SPEC::OUTPUT_DIM << ", " << SPEC::NUM_LAYERS << ", " << SPEC::HIDDEN_DIM << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
-        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">, ";
-        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag,";
-        ss << "true, ";
-        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
-        ss << ind << "    template <typename CAPABILITY>" << "\n";
-        ss << ind << "    using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CAPABILITY, SPEC>; \n";
-        ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
-        ss << ind << "    using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CAPABILITY, SPEC>; \n";
+        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">";
+        ss << ">; \n";
+        ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::BindConfiguration<CONFIG>;" << "\n";
+        ss << ind << "    " << "using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << get<0>(typename SPEC::INPUT_SHAPE{}) << ", " << get<1>(typename SPEC::INPUT_SHAPE{}) << ", " << get<2>(typename SPEC::INPUT_SHAPE{}) << ">;\n";
+        ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
+        ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;" << "\n";
         std::stringstream ss_initializer_list;
-        ss_initializer_list << "{input_layer::module, ";
-        ss_initializer_list << "{";
-        for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
-            if(hidden_layer_i > 0){
-                ss_initializer_list << ", ";
+        {
+            ss_initializer_list << "{input_layer::create<TYPE::SPEC::INPUT_LAYER>(), ";
+            ss_initializer_list << "{";
+            for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
+                if(hidden_layer_i > 0){
+                    ss_initializer_list << ", ";
+                }
+                ss_initializer_list << "hidden_layer_" << hidden_layer_i << "::create<TYPE::SPEC::HIDDEN_LAYER>()";
             }
-            ss_initializer_list << "hidden_layer_" << hidden_layer_i << "::module";
+            ss_initializer_list << "}, ";
+            ss_initializer_list << "output_layer::create<TYPE::SPEC::OUTPUT_LAYER>()}";
         }
-        ss_initializer_list << "}, ";
-        ss_initializer_list << "output_layer::module}";
+        std::stringstream ss_initializer_list_create;
+        {
+            ss_initializer_list_create << "{input_layer::create<typename MODEL::SPEC::INPUT_LAYER>(), ";
+            ss_initializer_list_create << "{";
+            for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
+                if(hidden_layer_i > 0){
+                    ss_initializer_list_create << ", ";
+                }
+                ss_initializer_list_create << "hidden_layer_" << hidden_layer_i << "::create<typename MODEL::SPEC::HIDDEN_LAYER>()";
+            }
+            ss_initializer_list_create << "}, ";
+            ss_initializer_list_create << "output_layer::create<typename MODEL::SPEC::OUTPUT_LAYER>()}";
+        }
+
         std::string initializer_list;
-        if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
-            initializer_list = "{" + ss_initializer_list.str() + "}";
-        }
-        else{
-            if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Backward){
-                initializer_list = "{{" + ss_initializer_list.str() + "}}";
-            }
-            else{
-                if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Gradient){
-                    initializer_list = "{{{" + ss_initializer_list.str() + "}}}";
-                }
-                else{
-                    utils::assert_exit(device, false, "Unknown capability");
-                }
-            }
-        }
-        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << initializer_list << ";\n";
+//        if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
+//            initializer_list = "{" + ss_initializer_list.str() + "}";
+//        }
+//        else{
+//            if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Backward){
+//                initializer_list = "{{" + ss_initializer_list.str() + "}}";
+//            }
+//            else{
+//                if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Gradient){
+//                    initializer_list = "{{{" + ss_initializer_list.str() + "}}}";
+//                }
+//                else{
+//                    utils::assert_exit(device, false, "Unknown capability");
+//                }
+//            }
+//        }
+        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << ss_initializer_list.str() << ";\n";
+        ss << ind << "    " << "template <typename MODEL>" << "\n";
+        ss << ind << "    " << "constexpr MODEL create(){" << "\n";
+        ss << ind << "    " << "    return MODEL" << ss_initializer_list_create.str() << ";" << "\n";
+        ss << ind << "    " << "}" << "\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }

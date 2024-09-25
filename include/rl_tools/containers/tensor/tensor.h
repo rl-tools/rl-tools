@@ -277,7 +277,7 @@ namespace rl_tools{
         };
         template <typename T, bool CONST = false>
         struct TensorDynamic{
-            T* _data;
+            T* _data = nullptr;
         };
         template <typename T>
         struct TensorDynamic<T, true>{
