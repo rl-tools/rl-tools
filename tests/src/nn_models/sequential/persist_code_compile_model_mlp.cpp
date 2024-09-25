@@ -5,7 +5,7 @@
 #include <rl_tools/nn/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev//operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
@@ -19,7 +19,7 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_MLP){
     DEVICE device;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools_export::model::MODEL::OUTPUT_SHAPE>> output;
     rl_tools_export::model::MODEL::Buffer<1> buffer;
 
     rlt::malloc(device, output);
