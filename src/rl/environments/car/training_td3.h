@@ -8,7 +8,7 @@
 #endif
 #include <rl_tools/rl/environments/car/operations_json.h>
 #include <rl_tools/ui_server/client/operations_cpu.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 
 

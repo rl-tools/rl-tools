@@ -28,10 +28,11 @@ namespace rl_tools{
         {
 
             T *weights_row;
-            T *input_row = input._data;
+            const T *input_row = input._data;
             T *output_row = output._data;
 
-            T *weights_element, *biases_element, *input_element, *output_element;
+            const T *weights_element, *biases_element, *input_element;
+            T *output_element;
 
             T acc;
             TI weights_row_i, batch_i = BATCH_SIZE, input_i;

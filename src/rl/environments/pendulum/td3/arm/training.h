@@ -6,6 +6,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
+#include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 //#include <rl_tools/nn/layers/dense/operations_arm/dsp.h>
 #include <rl_tools/nn/operations_generic.h>
 using DEVICE = rlt::devices::arm::Generic<rlt::devices::DefaultARMSpecification>;
@@ -13,6 +14,7 @@ using TI = typename DEVICE::index_t;
 
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/td3/operations_generic.h>
@@ -24,10 +26,11 @@ using TI = typename DEVICE::index_t;
 #endif
 
 using T = float;
-using CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
-using CONTAINER_TYPE_TAG_CRITIC = rlt::MatrixStaticTag;
-using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = rlt::MatrixStaticTag;
-using CONTAINER_TYPE_TAG_TRAINING_BUFFERS = rlt::MatrixDynamicTag;
+//using CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
+//using CONTAINER_TYPE_TAG_CRITIC = rlt::MatrixStaticTag;
+//using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = rlt::MatrixStaticTag;
+//using CONTAINER_TYPE_TAG_TRAINING_BUFFERS = rlt::MatrixDynamicTag;
+constexpr bool DYNAMIC_ALLOCATION = true;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
@@ -39,21 +42,32 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, DEV
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<T, TI>, CONTAINER_TYPE_TAG>;
-using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY,  rlt::nn::layers::dense::DefaultInitializer<T, TI>,CONTAINER_TYPE_TAG_CRITIC>;
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+
+using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<T, TI>>;
+using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
+using CRITIC_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY,  rlt::nn::layers::dense::DefaultInitializer<T, TI>>;
 
 
 using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY , ACTOR_SPEC>;
-using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY , ACTOR_SPEC>;
+using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+using ACTOR = rlt::nn_models::mlp::BindConfiguration<ACTOR_SPEC>;
 
-using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
-using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
-using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_SPEC>;
+using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+using CRITIC = rlt::nn_models::mlp::BindConfiguration<CRITIC_SPEC>;
 
-using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS, CONTAINER_TYPE_TAG>;
+using ACTOR_MODULE_CHAIN = Module<ACTOR>;
+using CRITIC_MODULE_CHAIN = Module<CRITIC>;
+
+using ACTOR_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using CRITIC_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<CRITIC_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+
+using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -73,13 +87,8 @@ struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::Par
     static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
     static constexpr T EXPLORATION_NOISE = 0.1;
 };
-using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
-        T,
-        DEVICE::index_t,
-        ENVIRONMENT,
-        OFF_POLICY_RUNNER_PARAMETERS,
-        CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER
- >;
+using POLICIES = rl_tools::utils::Tuple<TI, ACTOR_NETWORK_TYPE>;
+using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification< T, DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
 EXTMEM rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 #else
@@ -94,17 +103,18 @@ static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCritic
 ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
 ENVIRONMENT::Parameters env_parameters[decltype(off_policy_runner)::N_ENVIRONMENTS];
 
-rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
-rlt::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-CRITIC_NETWORK_TYPE::Buffer<ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> critic_buffers;
+rlt::rl::components::off_policy_runner::SequentialBatch<rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, 1, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
+rlt::rl::algorithms::td3::CriticTrainingBuffers<rlt::rl::algorithms::td3::CriticTrainingBuffersSpecification<ActorCriticType::SPEC, DYNAMIC_ALLOCATION>> critic_training_buffers;
+CRITIC_NETWORK_TYPE::Buffer<> critic_buffers;
 
-rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
-rlt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
-ACTOR_NETWORK_TYPE::Buffer<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers;
-ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers_eval;
+rlt::rl::components::off_policy_runner::SequentialBatch<rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, 1, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
+rlt::rl::algorithms::td3::ActorTrainingBuffers<rlt::rl::algorithms::td3::ActorTrainingBuffersSpecification<ActorCriticType::SPEC, DYNAMIC_ALLOCATION>> actor_training_buffers;
+ACTOR_NETWORK_TYPE::Buffer<> actor_buffers;
+using ACTOR_EVAL_TYPE = ACTOR_NETWORK_TYPE::template CHANGE_BATCH_SIZE<TI, OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS>;
+ACTOR_EVAL_TYPE::template Buffer<> actor_buffers_eval;
 
-typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::Observation::DIM>> observations_mean;
-typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::Observation::DIM>> observations_std;
+rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::Observation::DIM, false>> observations_mean;
+rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::Observation::DIM, false>> observations_std;
 
 
 void train(){
@@ -126,8 +136,6 @@ void train(){
     rlt::malloc(device, actor_training_buffers);
     rlt::malloc(device, actor_buffers_eval);
     rlt::malloc(device, actor_buffers);
-    rlt::malloc(device, observations_mean);
-    rlt::malloc(device, observations_std);
 
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
@@ -163,7 +171,7 @@ void train(){
 #endif
 
     for(typename DEVICE::index_t step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS){
-        rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
+        rlt::step<0>(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
         if(step_i % 100 == 0){
             Serial.printf("step: %d\n", step_i);
@@ -178,7 +186,8 @@ void train(){
         if(step_i > N_WARMUP_STEPS){
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
-                rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                auto target_next_action_noise_matrix_view = rlt::matrix_view(device, critic_training_buffers.target_next_action_noise);
+                rlt::target_action_noise(device, actor_critic, target_next_action_noise_matrix_view, rng);
                 rlt::gather_batch(device, off_policy_runner, critic_batch, rng);
                 rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, critic_buffers, critic_training_buffers, rng);
             }
@@ -197,7 +206,7 @@ void train(){
         if(step_i % EVALUATION_INTERVAL == 0){
             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device, envs[0], ui, actor_critic.actor, result, actor_buffers, rng);
+            rlt::evaluate(device, envs[0], ui, actor_critic.actor, result, actor_buffers, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }
@@ -225,7 +234,5 @@ void train(){
     rlt::free(device, actor_training_buffers);
     rlt::free(device, actor_buffers_eval);
     rlt::free(device, actor_buffers);
-    rlt::free(device, observations_mean);
-    rlt::free(device, observations_std);
 }
 

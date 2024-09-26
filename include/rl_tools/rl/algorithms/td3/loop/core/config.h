@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_TD3_LOOP_CORE_CONFIG_H
 
+#include "../../../../../nn/layers/td3_sampling/layer.h"
 #include "../../../../../nn_models/sequential_v2/model.h"
 #include "../../../../../nn_models/mlp/network.h"
 #include "../../../../../nn_models/random_uniform/model.h"

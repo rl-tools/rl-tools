@@ -1,11 +1,12 @@
 #include <rl_tools/operations/arm.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 #include <rl_tools/nn/operations_generic.h>
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 
@@ -39,7 +40,7 @@ using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
 int main(int argc, char** argv){
     DEVICE device;
-    TI seed = 0;
+    TI seed = 3;
     if(argc > 1){
         seed = std::atoi(argv[1]);
     }
@@ -50,7 +51,7 @@ int main(int argc, char** argv){
 
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, LOOP_EVAL_CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, LOOP_EVAL_CONFIG::CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-    evaluate(device, ts.env_eval, ts.ui, ts.actor_critic.actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+    rlt::evaluate(device, ts.env_eval, ts.ui, ts.actor_critic.actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{}, false);
     TI return_code = (TI)(-result.returns_mean / 100);
     rlt::free(device, ts);
     return return_code < 4 ? 0 : return_code;

@@ -15,21 +15,26 @@ using TI = typename DEVICE::index_t;
 constexpr TI BATCH_SIZE = 1;
 
 namespace MODEL_FORWARD{
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 15, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 15, 20, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 20, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-    using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Configuration<T, TI, 15, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_SPEC>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Configuration<T, TI, 20, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_SPEC>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<T, TI, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Forward>;
-    using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+
+    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 }
 namespace MODEL_BACKWARD{
-    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Backward<BATCH_SIZE>>;
+    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Backward<>>;
 }
 namespace MODEL_GRADIENT_ADAM{
-    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
+    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
 }
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_forward) {

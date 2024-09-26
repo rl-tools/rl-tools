@@ -9,12 +9,12 @@
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_cuda.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/persist.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn_models/persist.h>
-#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/sequential_v2/persist.h>
 #endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 // --------------- changed for cuda training -----------------

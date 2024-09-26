@@ -128,7 +128,7 @@ int main(){
     std::string dataset_string;
 
     typename CONFIG::MODEL model;
-    typename CONFIG::MODEL::Buffer<CONFIG::PARAMS::BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::Buffer<> buffer;
     typename CONFIG::ADAM optimizer;
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<typename CONFIG::RESET_TYPE> reset;

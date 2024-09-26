@@ -60,6 +60,10 @@ namespace rl_tools {
                 }
             }
             ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << initializer_list << ";\n";
+            ss << ind << "    " << "template <typename MODEL>" << "\n";
+            ss << ind << "    " << "constexpr MODEL create(){" << "\n";
+            ss << ind << "    " << "    return MODEL" << initializer_list << ";" << "\n";
+            ss << ind << "    " << "}" << "\n";
             ss << ind << "}\n";
 
 

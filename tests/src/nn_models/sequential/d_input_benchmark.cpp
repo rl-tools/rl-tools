@@ -22,31 +22,33 @@ namespace config{
     struct CONFIG{
         using T = T_T;
         using TI = T_TI;
+        static constexpr TI SEQUENCE_LENGTH = 3;
         static constexpr TI INPUT_DIM = 4;
         static constexpr TI HIDDEN_DIM = 64;
         static constexpr TI OUTPUT_DIM = 1;
         static constexpr TI BATCH_SIZE = 64;
         static constexpr T THRESHOLD = 1e-5;
 
-        using SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-        using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-        using MODEL = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, SPEC>;
+        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
+        using SPEC = rlt::nn_models::mlp::Configuration<T, TI, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+        using MODEL = rlt::nn_models::mlp::NeuralNetwork<SPEC, CAPABILITY_ADAM, INPUT_SHAPE>;
 
-        using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
-        using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-        using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
-        using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-        using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-        using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+        using LAYER_1_SPEC = rlt::nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_SPEC>;
+        using LAYER_2_SPEC = rlt::nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_SPEC>;
+        using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
         using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI>>;
         using SEQUENTIAL_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI>>;
 
-        using IF = rlt::nn_models::sequential::Interface<CAPABILITY_ADAM>;
-        using MODULE_3 = typename IF::template Module<LAYER_3::template Layer>;
-        using MODULE_2 = typename IF::template Module<LAYER_2::template Layer, MODULE_3>;
-        using MODULE_1 = typename IF::template Module<LAYER_1::template Layer, MODULE_2>;
-        using SEQUENTIAL_MODEL = MODULE_1;
+        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+        using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+        using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+
+        using SEQUENTIAL_MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
     };
 }
 
@@ -56,11 +58,11 @@ namespace config{
 template <typename DEVICE, typename SEQUENTIAL_DEVICE, typename CONFIG>
 void test_correctness(){
     typename CONFIG::MODEL model, model_temp;
-    typename CONFIG::MODEL::template Buffer<CONFIG::BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::template Buffer<> buffer;
     DEVICE device;
     SEQUENTIAL_DEVICE sdevice;
     typename CONFIG::SEQUENTIAL_MODEL sequential_model, sequential_model_temp;
-    typename CONFIG::SEQUENTIAL_MODEL::template Buffer<CONFIG::BATCH_SIZE> sequential_buffer;
+    typename CONFIG::SEQUENTIAL_MODEL::template Buffer<> sequential_buffer;
     typename CONFIG::OPTIMIZER optimizer;
     typename CONFIG::SEQUENTIAL_OPTIMIZER sequential_optimizer;
     using T = typename CONFIG::T;
@@ -68,8 +70,8 @@ void test_correctness(){
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
 
-    rlt::Matrix<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::INPUT_DIM>> input, d_input, d_input_sequential, d_input_only, d_input_sequential_only;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::OUTPUT_DIM>> output, output_eval, d_output, output_sequential, output_sequential_eval;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input, d_input, d_input_sequential, d_input_only, d_input_sequential_only;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::OUTPUT_SHAPE>> output, output_eval, d_output, output_sequential, output_sequential_eval;
 
     rlt::malloc(device, input);
     rlt::malloc(device, d_input);
@@ -241,18 +243,18 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
 template <typename DEVICE, typename CONFIG>
 void test_benchmark(){
     typename CONFIG::MODEL model;
-    typename CONFIG::MODEL::template Buffer<CONFIG::BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::template Buffer<> buffer;
     DEVICE device;
     typename CONFIG::SEQUENTIAL_MODEL sequential_model;
-    typename CONFIG::SEQUENTIAL_MODEL::template Buffer<CONFIG::BATCH_SIZE> sequential_buffer;
+    typename CONFIG::SEQUENTIAL_MODEL::template Buffer<> sequential_buffer;
     using T = typename CONFIG::T;
     using TI = typename CONFIG::TI;
     constexpr TI NUM_ITERATIONS = 1000;
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
 
-    rlt::Matrix<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::INPUT_DIM>> input, d_input;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::OUTPUT_DIM>> output, d_output, output_sequential;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input, d_input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::OUTPUT_SHAPE>> output, d_output, output_sequential;
 
     rlt::malloc(device, input);
     rlt::malloc(device, d_input);

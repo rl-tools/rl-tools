@@ -22,15 +22,19 @@ constexpr TI BATCH_SIZE_OTHER = 30;
 
 template <typename CAPABILITY>
 struct Actor{
-    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
-    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
-    using IF = rlt::nn_models::sequential::Interface<CAPABILITY>;
-    using ACTOR_MODULE = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
-    using STANDARDIZATION_LAYER_SPEC = rlt::nn::layers::standardize::Specification<T, TI, INPUT_DIM>;
-    using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
-    using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
+    using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE_DEFINITION, INPUT_DIM>;
+    using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<T, TI, OUTPUT_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_SPEC>;
+    using STANDARDIZATION_LAYER_SPEC = rlt::nn::layers::standardize::Configuration<T, TI>;
+    using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_SPEC>;
+
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<ACTOR_TYPE>>;
+
+    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 };
-using CAPABILITY = rlt::nn::layer_capability::Forward;
+using CAPABILITY = rlt::nn::layer_capability::Forward<>;
 using ACTOR = Actor<CAPABILITY>::MODEL;
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_COMPOSE, MAIN){
@@ -38,9 +42,10 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_COMPOSE, MAIN){
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});
 
     ACTOR actor;
-    ACTOR::Buffer<BATCH_SIZE_DEFINITION> buffer;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, BATCH_SIZE_OTHER, INPUT_DIM>> input;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, BATCH_SIZE_OTHER, OUTPUT_DIM>> output;
+    using ACTOR_OTHER = ACTOR::CHANGE_BATCH_SIZE<TI, BATCH_SIZE_OTHER>;
+    ACTOR_OTHER::template Buffer<> buffer;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename ACTOR_OTHER::INPUT_SHAPE, false>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename ACTOR_OTHER::OUTPUT_SHAPE, false>> output;
 
     rlt::malloc(device, actor);
     rlt::malloc(device, buffer);
