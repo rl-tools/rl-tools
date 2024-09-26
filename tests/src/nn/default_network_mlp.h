@@ -11,19 +11,20 @@ using DTYPE = double;
 using NN_DEVICE = rlt::devices::DefaultCPU;
 using TI = typename NN_DEVICE::index_t;
 constexpr TI BATCH_SIZE = 1;
-using NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, 17>;
+using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, NN_DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
 using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, typename NN_DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-using NetworkType = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, NETWORK_SPEC>;
+using NetworkType = rlt::nn_models::mlp::NeuralNetwork<NETWORK_CONFIG, CAPABILITY_ADAM, INPUT_SHAPE>;
 
-using NetworkTypeBackwardOnly = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::parameters::Plain, NETWORK_SPEC>;
+using NetworkTypeBackwardOnly = rlt::nn_models::mlp::NeuralNetwork<NETWORK_CONFIG, rlt::nn::layer_capability::Backward<>, INPUT_SHAPE>;
 
-constexpr typename NN_DEVICE::index_t INPUT_DIM = NETWORK_SPEC::INPUT_DIM;
-constexpr typename NN_DEVICE::index_t LAYER_1_DIM = NETWORK_SPEC::HIDDEN_DIM;
-constexpr typename NN_DEVICE::index_t LAYER_2_DIM = NETWORK_SPEC::HIDDEN_DIM;
-constexpr typename NN_DEVICE::index_t OUTPUT_DIM = NETWORK_SPEC::OUTPUT_DIM;
+constexpr typename NN_DEVICE::index_t INPUT_DIM = rlt::get_last(NetworkType::INPUT_SHAPE{});
+constexpr typename NN_DEVICE::index_t LAYER_1_DIM = NetworkType::SPEC::HIDDEN_DIM;
+constexpr typename NN_DEVICE::index_t LAYER_2_DIM = NetworkType::SPEC::HIDDEN_DIM;
+constexpr typename NN_DEVICE::index_t OUTPUT_DIM = rlt::get_last(NetworkType::OUTPUT_SHAPE{});
 
 class NeuralNetworkTest : public ::testing::Test {
 protected:
@@ -55,6 +56,6 @@ protected:
     std::vector<DTYPE> Y_std;
 };
 
-using Specification_3 = rlt::nn_models::mlp::Specification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
+using Specification_3 = rlt::nn_models::mlp::Configuration<DTYPE, NN_DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
-using NetworkType_3 = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, Specification_3>;
+using NetworkType_3 = rlt::nn_models::mlp::NeuralNetwork<Specification_3, CAPABILITY_ADAM, INPUT_SHAPE>;

@@ -288,7 +288,7 @@ TEST(RL_TOOLS_TENSOR_TEST, MALLOC){
     using TI = typename DEVICE::index_t;
     using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
     using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
     DEVICE device;
     rlt::malloc(device, tensor);
 }
@@ -299,7 +299,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SET){
     using TI = typename DEVICE::index_t;
     using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
     using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
     DEVICE device;
     rlt::malloc(device, tensor);
     rlt::set(device, tensor, 1337, 0, 0, 0);
@@ -313,7 +313,7 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW){
     using TI = typename DEVICE::index_t;
     using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
     using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
     DEVICE device;
     rlt::malloc(device, tensor);
     rlt::set(device, tensor, 1337, 0, 0, 0);
@@ -359,7 +359,7 @@ TEST(RL_TOOLS_TENSOR_TEST, RANDN){
     {
         using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         rlt::print(device, tensor);
@@ -368,7 +368,7 @@ TEST(RL_TOOLS_TENSOR_TEST, RANDN){
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
 //        rlt::print(device, tensor);
@@ -411,7 +411,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUM){
     {
         using SHAPE = rlt::tensor::Shape<TI, 2>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::set(device, tensor, 1, 0);
         rlt::set(device, tensor, 2, 1);
@@ -421,7 +421,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUM){
     {
         using SHAPE = rlt::tensor::Shape<TI, 2, 3>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::set(device, tensor, 1, 0, 0);
         rlt::set(device, tensor, 2, 0, 1);
@@ -435,7 +435,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUM){
     {
         using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::set_all(device, tensor, 1337);
         T sum = rlt::sum(device, tensor);
@@ -444,7 +444,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUM){
     {
         using SHAPE = rlt::tensor::Shape<TI, 10, 3, 4>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         T sum = rlt::sum(device, tensor);
@@ -455,7 +455,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUM){
     {
         using SHAPE = rlt::tensor::Shape<TI, 10, 10, 10, 10, 10, 10, 1>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         constexpr TI NUM_ITERATIONS = 100;
@@ -503,7 +503,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SET_ALL) {
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
     using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
     using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
     rlt::malloc(device, tensor);
     rlt::randn(device, tensor, rng);
     rlt::set_all(device, tensor, 1337);
@@ -521,7 +521,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUBTRACT) {
     using TI = typename DEVICE::index_t;
     using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
     using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor, tensor2, diff, abs_diff;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor, tensor2, diff, abs_diff;
     DEVICE device;
     rlt::malloc(device, tensor);
     rlt::malloc(device, tensor2);
@@ -546,7 +546,7 @@ TEST(RL_TOOLS_TENSOR_TEST, COPY){
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor, tensor_target, tensor_target2, diff;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor, tensor_target, tensor_target2, diff;
         rlt::malloc(device, tensor);
         rlt::malloc(device, tensor_target);
         rlt::malloc(device, tensor_target2);
@@ -607,7 +607,7 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         auto view = rlt::view_range(device, tensor, 10, rlt::tensor::ViewSpec<1, 11>{});
@@ -627,7 +627,7 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         auto view = rlt::view_range(device, tensor, 3, rlt::tensor::ViewSpec<0, 11>{});
@@ -647,7 +647,7 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         auto view = rlt::view_range(device, tensor, 29, rlt::tensor::ViewSpec<2, 11>{});
@@ -667,7 +667,7 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
     {
         using SHAPE = rlt::tensor::Shape<TI, 20>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         auto view = rlt::view_range(device, tensor, 1, rlt::tensor::ViewSpec<0, 11>{});
@@ -683,7 +683,7 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
     {
         using SHAPE = rlt::tensor::Shape<TI, 20>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         auto view = rlt::view_range(device, tensor, 0, rlt::tensor::ViewSpec<0, 11>{});
@@ -699,7 +699,7 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
         auto view = rlt::view_range(device, tensor, 29, rlt::tensor::ViewSpec<2, 11>{});
@@ -1049,7 +1049,7 @@ TEST(RL_TOOLS_TENSOR_TEST, RESHAPE){
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
     using SHAPE = rlt::tensor::Shape<TI, 10>;
     using STRIDE = rlt::tensor::Stride<TI, 3>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
     rlt::malloc(device, tensor);
     rlt::randn(device, tensor, rng);
     auto reshaped = rlt::reshape_row_major(device, tensor, rlt::tensor::Shape<TI, 5, 2>{});
