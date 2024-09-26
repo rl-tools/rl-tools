@@ -287,13 +287,6 @@ namespace rl_tools{
             update_target_module(device, source.output_layer, target.output_layer, polyak);
         }
         template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn_models::sequential::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target, T polyak) {
-            update_target_module(device, source.content, target.content, polyak);
-            if constexpr(!rl_tools::utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-                update_target_module(device, source.next_module, target.next_module, polyak);
-            }
-        }
-        template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         void update_target_module(DEVICE& device, const  nn_models::sequential_v2::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential_v2::ModuleForward<TARGET_SPEC>& target, T polyak) {
             update_target_module(device, source.content, target.content, polyak);
             if constexpr(!rl_tools::utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){

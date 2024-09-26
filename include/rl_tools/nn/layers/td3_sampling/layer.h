@@ -37,9 +37,8 @@ namespace rl_tools{
         template <typename BUFFER_SPEC>
         struct Buffer{
             using LAYER_SPEC = typename BUFFER_SPEC::SPEC;
-            using CONTAINER_TYPE_TAG = utils::typing::conditional_t<BUFFER_SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-            using NOISE_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM>;
-            using NOISE_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<NOISE_CONTAINER_SPEC>;
+            using NOISE_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using NOISE_CONTAINER_TYPE = Matrix<NOISE_CONTAINER_SPEC>;
             NOISE_CONTAINER_TYPE noise;
         };
         template<typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
@@ -87,16 +86,14 @@ namespace rl_tools{
         };
         template<typename SPEC>
         struct LayerBackward: public LayerForward<SPEC> {
-            using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM>;
-            using PRE_ACTIVATIONS_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
+            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
+            using PRE_ACTIVATIONS_CONTAINER_TYPE = Matrix<PRE_ACTIVATIONS_CONTAINER_SPEC>;
             PRE_ACTIVATIONS_CONTAINER_TYPE pre_clip;
         };
         template<typename SPEC>
         struct LayerGradient: public LayerBackward<SPEC> {
-            using CONTAINER_TYPE_TAG = utils::typing::conditional_t<SPEC::DYNAMIC_ALLOCATION, MatrixDynamicTag, MatrixStaticTag>;
-            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM>;
-            using OUTPUT_CONTAINER_TYPE = typename CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
+            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
+            using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
             OUTPUT_CONTAINER_TYPE output;
         };
 

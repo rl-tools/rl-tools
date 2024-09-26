@@ -19,7 +19,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, MAIN) {
     auto rng = rlt::random::default_engine(device.random, 0);
     using T = float;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 10, 15>>> tensor;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 10, 15>> matrix;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 10, 15>> matrix;
 
     rlt::malloc(device, tensor);
     rlt::malloc(device, matrix);
@@ -45,7 +45,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, ND_Tensor){
     auto rng = rlt::random::default_engine(device.random, 0);
     using T = float;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2, 10, 15>>> tensor;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 20, 15>> matrix;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 20, 15>> matrix;
 
     rlt::malloc(device, tensor);
     rlt::malloc(device, matrix);
@@ -65,21 +65,24 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, ND_Tensor){
     ASSERT_NEAR(abs_diff, 0, 1e-5);
 }
 
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
 TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
     using T = double;
     constexpr TI INPUT_DIM = 10;
     constexpr TI OUTPUT_DIM = 20;
-    using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    using LAYER = rlt::nn::layers::dense::BindSpecification<LAYER_SPEC>;
     constexpr TI BATCH_SIZE = 5;
-    using CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    using IF = rlt::nn_models::sequential_v2::Interface<CAPA>;
-    using MODEL = IF::template Module<LAYER::Layer>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
+    using LAYER_SPEC = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER = rlt::nn::layers::dense::BindConfiguration<LAYER_SPEC>;
+    using CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 
+    using MODULE_CHAIN = Module<LAYER>;
+    using MODEL = rlt::nn_models::sequential_v2::Build<CAPA, MODULE_CHAIN, INPUT_SHAPE>;
     MODEL model;
-    MODEL::Buffer<BATCH_SIZE> buffer;
+    MODEL::Buffer<> buffer;
 
     constexpr TI FIRST_DIM = 2;
     constexpr TI SECOND_DIM = 2;

@@ -33,8 +33,7 @@ namespace rl_tools::rl::algorithms::td3 {
         typename T_CRITIC_TYPE,
         typename T_CRITIC_TARGET_TYPE,
         typename T_OPTIMIZER,
-        typename T_PARAMETERS,
-        typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
+        typename T_PARAMETERS
     >
     struct Specification {
         using T = T_T;
@@ -46,10 +45,9 @@ namespace rl_tools::rl::algorithms::td3 {
         using CRITIC_TARGET_TYPE = T_CRITIC_TARGET_TYPE;
         using OPTIMIZER = T_OPTIMIZER;
         using PARAMETERS = T_PARAMETERS;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
 
-    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION=true>
     struct ActorTrainingBuffersSpecification{
         using SPEC = T_SPEC;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
@@ -78,7 +76,7 @@ namespace rl_tools::rl::algorithms::td3 {
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ACTION_DIM>>> d_actor_output;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ACTOR_INPUT_DIM>>> d_actor_input;
     };
-    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION=true>
     struct CriticTrainingBuffersSpecification{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
