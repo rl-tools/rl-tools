@@ -24,7 +24,7 @@ struct ConfigApproximatorsSequential{
     };
     template <typename CAPABILITY>
     struct Critic{
-        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, TD3_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
+        using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM + ENVIRONMENT::ACTION_DIM>;
         using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
         using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
         using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;

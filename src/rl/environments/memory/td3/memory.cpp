@@ -15,6 +15,7 @@
 #else
 #include <rl_tools/nn/operations_cpu.h>
 #endif
+#include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/rl/environments/memory/operations_cpu.h>

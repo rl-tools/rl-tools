@@ -150,8 +150,8 @@ namespace rl_tools{
                                                           get(device, training_buffers.next_state_action_value_critic_1, seq_step_i, batch_step_i, 0),
                                                           get(device, training_buffers.next_state_action_value_critic_2, seq_step_i, batch_step_i, 0)
                 );
-                T reward = get(device, batch.rewards, seq_step_i, 0, batch_step_i);
-                bool terminated = get(device, batch.terminated, seq_step_i, 0, batch_step_i);
+                T reward = get(device, batch.rewards, seq_step_i, batch_step_i, 0);
+                bool terminated = get(device, batch.terminated, seq_step_i, batch_step_i, 0);
                 T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? actor_critic.gamma * min_next_state_action_value : 0;
                 T current_target_action_value = reward + future_value;
                 set(device, training_buffers.target_action_value, current_target_action_value, seq_step_i, batch_step_i, 0); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
@@ -232,6 +232,7 @@ namespace rl_tools{
         using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
         using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
         Mode<RESET_MODE> reset_mode;
+        reset_mode.reset_container = batch.reset;
 
         forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng, reset_mode);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
