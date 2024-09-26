@@ -39,13 +39,14 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI BATCH_SIZE = 32;
 constexpr TI INTERNAL_BATCH_SIZE = 1;
-using NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
+using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, 13>; // actual batch size is 1
+using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
 
 using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
-using NetworkType = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, NETWORK_SPEC>;
+using NetworkType = rlt::nn_models::mlp::NeuralNetwork<NETWORK_CONFIG, CAPABILITY_ADAM, INPUT_SHAPE>;
 
 std::vector<std::vector<T>> X_train;
 std::vector<std::vector<T>> Y_train;
@@ -56,8 +57,8 @@ std::vector<T> X_std;
 std::vector<T> Y_mean;
 std::vector<T> Y_std;
 
-constexpr typename DEVICE::index_t INPUT_DIM = NETWORK_SPEC::INPUT_DIM;
-constexpr typename DEVICE::index_t OUTPUT_DIM = NETWORK_SPEC::OUTPUT_DIM;
+constexpr typename DEVICE::index_t INPUT_DIM = rlt::get_last(typename NetworkType::INPUT_SHAPE{});
+constexpr typename DEVICE::index_t OUTPUT_DIM = rlt::get_last(typename NetworkType::OUTPUT_SHAPE{});
 
 TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
@@ -107,14 +108,14 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
                 T output[OUTPUT_DIM];
                 standardise<T, TI, INPUT_DIM>(X_train[batch_i * BATCH_SIZE + sample_i].data(), X_mean.data(), X_std.data(), input);
                 standardise<T, TI,OUTPUT_DIM>(Y_train[batch_i * BATCH_SIZE + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-                rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
+                rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM>> input_matrix;
                 input_matrix._data = input;
-                rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
+                rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
                 output_matrix._data = output;
                 bool rng = false;
                 rlt::forward(device, network, input_matrix, buffers, rng);
                 T d_loss_d_output[OUTPUT_DIM];
-                rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
+                rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
                 rlt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(BATCH_SIZE));
                 loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/T(BATCH_SIZE));
@@ -151,9 +152,9 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
             standardise<T, TI, INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
             standardise<T, TI,OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
 
-            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
+            rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM>> input_matrix;
             input_matrix._data = input;
-            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
+            rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
             output_matrix._data = output;
             bool rng = false;
             rlt::forward(device, network, input_matrix, buffers, rng);

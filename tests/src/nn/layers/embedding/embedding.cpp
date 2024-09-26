@@ -13,15 +13,16 @@ constexpr TI NUM_CLASSES = 2<<8;
 constexpr TI EMBEDDING_DIM = 5;
 constexpr TI BATCH_SIZE = 8;
 constexpr TI SEQ_LEN = 6;
-using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Specification<T, TI, NUM_CLASSES, EMBEDDING_DIM>;
-using CAPABILITY = rlt::nn::layer_capability::Backward<BATCH_SIZE>;
-using EMBEDDING_LAYER = rlt::nn::layers::embedding::Layer<CAPABILITY, EMBEDDING_LAYER_SPEC>;
+using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQ_LEN, BATCH_SIZE, 1>;
+using EMBEDDING_LAYER_CONFIG = rlt::nn::layers::embedding::Configuration<T, TI, NUM_CLASSES, EMBEDDING_DIM>;
+using CAPABILITY = rlt::nn::layer_capability::Backward<>;
+using EMBEDDING_LAYER = rlt::nn::layers::embedding::Layer<EMBEDDING_LAYER_CONFIG, CAPABILITY, INPUT_SHAPE>;
 
 TEST(RL_TOOLS_NN_LAYERS_EMBEDDING, MAIN){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
     EMBEDDING_LAYER layer;
-    EMBEDDING_LAYER::Buffer<BATCH_SIZE> buffer;
+    EMBEDDING_LAYER::Buffer<> buffer;
 
     rlt::malloc(device, layer);
 //    rlt::init_weights(device, layer, rng);
@@ -30,7 +31,6 @@ TEST(RL_TOOLS_NN_LAYERS_EMBEDDING, MAIN){
             rlt::set(device, layer.weights.parameters, class_i * EMBEDDING_DIM + dim_i, class_i, dim_i);
         }
     }
-    using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQ_LEN, BATCH_SIZE>;
     using INPUT_SPEC = rlt::tensor::Specification<TI, TI, INPUT_SHAPE>;
     rlt::Tensor<INPUT_SPEC> input;
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQ_LEN, BATCH_SIZE, EMBEDDING_LAYER::OUTPUT_DIM>;
@@ -39,7 +39,7 @@ TEST(RL_TOOLS_NN_LAYERS_EMBEDDING, MAIN){
     rlt::malloc(device, output);
     for(TI sequence_i = 0; sequence_i < SEQ_LEN; sequence_i++){
         for(TI i = 0; i < BATCH_SIZE; i++){
-            rlt::set(device, input, (sequence_i + i) % NUM_CLASSES, sequence_i, i);
+            rlt::set(device, input, (sequence_i + i) % NUM_CLASSES, sequence_i, i, 0);
         }
     }
     rlt::evaluate(device, layer, input, output, buffer, rng);
