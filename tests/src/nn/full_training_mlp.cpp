@@ -39,7 +39,7 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI BATCH_SIZE = 32;
 constexpr TI INTERNAL_BATCH_SIZE = 1;
-using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, 13>; // actual batch size is 1
+using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, 17>; // actual batch size is 1
 using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
 
@@ -82,7 +82,7 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     using TI = typename DEVICE::index_t;
     OPTIMIZER optimizer;
     NetworkType network;
-    typename NetworkType::Buffer<1> buffers;
+    typename NetworkType::Buffer<> buffers;
     rlt::malloc(device, network);
     rlt::malloc(device, buffers);
     std::vector<T> losses;
