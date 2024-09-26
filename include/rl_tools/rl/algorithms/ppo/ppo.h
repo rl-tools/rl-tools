@@ -39,8 +39,7 @@ namespace rl_tools::rl::algorithms{
                 typename T_ENVIRONMENT,
                 typename T_ACTOR_TYPE,
                 typename T_CRITIC_TYPE,
-                typename T_PARAMETERS,
-                typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
+                typename T_PARAMETERS
         >
         struct Specification {
             using T = T_T;
@@ -49,7 +48,6 @@ namespace rl_tools::rl::algorithms{
             using ACTOR_TYPE = T_ACTOR_TYPE;
             using CRITIC_TYPE = T_CRITIC_TYPE;
             using PARAMETERS = T_PARAMETERS;
-            using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
             static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
 
             static_assert(get_last(typename ACTOR_TYPE::INPUT_SHAPE{}) == ENVIRONMENT::Observation::DIM);

@@ -178,7 +178,7 @@ namespace rl_tools::rl::components{
         struct GET_STATE{
             using CONTENT = typename INPUT::template State<SPEC::DYNAMIC_ALLOCATION>;
         };
-        using POLICY_STATES = utils::MapTuple<POLICIES, GET_STATE>;
+        using POLICY_STATES = rl_tools::utils::MapTuple<POLICIES, GET_STATE>;
         using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::Observation::DIM, ENVIRONMENT::ObservationPrivileged::DIM, SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY, SPEC::DYNAMIC_ALLOCATION>;
         using REPLAY_BUFFER_WITH_STATES_SPEC = replay_buffer::SpecificationWithStates<ENVIRONMENT, REPLAY_BUFFER_SPEC>;
         using REPLAY_BUFFER_TYPE = ReplayBufferWithStates<REPLAY_BUFFER_WITH_STATES_SPEC>;

@@ -279,6 +279,10 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn_models::mlp::NeuralNetworkGradient<SPEC>& nn){
         return nn.output_layer.output;
     }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& nn){
+        return output(device, nn.output_layer);
+    }
     template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
     void sample(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers, RNG& rng){ }
 }
