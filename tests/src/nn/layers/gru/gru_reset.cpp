@@ -31,16 +31,14 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
 #else
     int main(){
 #endif
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    using CAPABILITY_BY_4 = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE/4>;
-//    using CAPABILITY = rlt::nn::layer_capability::Forward;
+    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using INPUT_SHAPE_4X = rlt::tensor::Shape<TI, SEQUENCE_LENGTH*4, BATCH_SIZE/4, INPUT_DIM>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
     using GRU_CONFIG_4X = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
     using GRU = rlt::nn::layers::gru::Layer<GRU_CONFIG, CAPABILITY, INPUT_SHAPE>;
-    using GRU_4X = rlt::nn::layers::gru::Layer<GRU_CONFIG_4X, CAPABILITY_BY_4, INPUT_SHAPE_4X>;
+    using GRU_4X = rlt::nn::layers::gru::Layer<GRU_CONFIG_4X, CAPABILITY, INPUT_SHAPE_4X>;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>>> input, input_back_copy;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH*4, BATCH_SIZE/4, INPUT_DIM>>> input_4x;
@@ -53,8 +51,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
     auto rng = rlt::random::default_engine(device.random, 0);
     GRU gru, gru_copy;
     GRU_4X gru_4x;
-    GRU::Buffer<BATCH_SIZE, true> buffer, buffer_copy;
-    GRU_4X::Buffer<BATCH_SIZE/4, true> buffer_4x;
+    GRU::Buffer<true> buffer, buffer_copy;
+    GRU_4X::Buffer<true> buffer_4x;
     using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(reset)>;
     using RESET_MODE = rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, RESET_MODE_SPEC>;
     rlt::Mode<RESET_MODE> mode;

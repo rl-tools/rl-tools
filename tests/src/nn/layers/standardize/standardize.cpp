@@ -11,12 +11,13 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
     constexpr TI DIM = 10;
-    using SPEC = rlt::nn::layers::standardize::Specification<T, TI, DIM>;
-    using CAPABILITY = rlt::nn::layer_capability::Forward;
-    rlt::nn::layers::standardize::Layer<CAPABILITY, SPEC> layer;
+    using CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
+    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
     constexpr TI BATCH_SIZE = 1;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, DIM>;
+    rlt::nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE> layer;
     typename decltype(layer)::template Buffer<BATCH_SIZE> buffer;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, DIM>> input, output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, DIM, false>> input, output;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});
@@ -34,12 +35,13 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
 TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     constexpr TI DIM = 10;
     constexpr TI BATCH_SIZE = 100000;
-    using SPEC = rlt::nn::layers::standardize::Specification<T, TI, DIM>;
-    using CAPABILITY = rlt::nn::layer_capability::Forward;
-    rlt::nn::layers::standardize::Layer<CAPABILITY, SPEC> layer;
-    typename decltype(layer)::template Buffer<BATCH_SIZE> buffer;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, DIM>> mean, std, bias, variance;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, DIM>> input, output;
+    using CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, DIM>;
+    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+    rlt::nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE> layer;
+    typename decltype(layer)::template Buffer<> buffer;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, DIM>> mean, std, bias, variance;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, DIM>> input, output;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);

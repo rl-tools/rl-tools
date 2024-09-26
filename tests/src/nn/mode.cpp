@@ -19,8 +19,8 @@ TEST(RL_TOOLS_NN_MODE, LAYER) {
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, INPUT_DIM>;
     rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::layer_capability::Forward<>, INPUT_SHAPE> layer;
     decltype(layer)::template Buffer<1> buffer;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, INPUT_DIM>> input;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, OUTPUT_DIM>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, INPUT_DIM, false>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, OUTPUT_DIM, false>> output;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});

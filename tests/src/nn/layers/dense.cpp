@@ -32,8 +32,8 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     rlt::malloc(device, buffer);
     rlt::init_weights(device, layer, rng);
     constexpr TI BATCH_SIZE = 1;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> output;
     rlt::malloc(device, input);
     rlt::malloc(device, output);
     rlt::randn(device, input, rng);
@@ -50,8 +50,8 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
 }
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_TIMING) {
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 100, 100>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 100, 100>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 100, 100>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 100, 100>> output;
     rlt::malloc(device, input);
     rlt::malloc(device, output);
     constexpr TI ITERATIONS = 1000;

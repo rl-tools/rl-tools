@@ -183,12 +183,12 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     rlt::copy(device, device, mlp.hidden_layers[0], sequential.next_module.content);
     rlt::copy(device, device, mlp.output_layer, sequential.next_module.next_module.content);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 10>> hidden_tick;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 10>> hidden_tock;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_mlp;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_chain;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 5>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 10>> hidden_tick;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 10>> hidden_tock;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_mlp;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_chain;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
     rlt::malloc(device, input);
     rlt::malloc(device, hidden_tick);
     rlt::malloc(device, hidden_tock);
@@ -296,9 +296,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     rlt::malloc(device, sequential_buffer);
     rlt::init_weights(device, sequential, rng);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential_evaluate;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 5>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential_evaluate;
     rlt::malloc(device, input);
     rlt::malloc(device, output_sequential);
     rlt::malloc(device, output_sequential_evaluate);
@@ -387,16 +387,16 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     rlt::copy(device, device, mlp.hidden_layers[0], sequential.next_module.content);
     rlt::copy(device, device, mlp.output_layer, sequential.next_module.next_module.content);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> d_input_mlp, d_input_chain, d_input_sequential;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 10>> hidden_tick;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 10>> hidden_tock;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 10>> d_hidden_tick;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 10>> d_hidden_tock;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_mlp;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_chain;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> d_output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 5>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 5>> d_input_mlp, d_input_chain, d_input_sequential;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 10>> hidden_tick;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 10>> hidden_tock;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 10>> d_hidden_tick;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 10>> d_hidden_tock;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_mlp;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_chain;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> d_output;
     rlt::malloc(device, input);
     rlt::malloc(device, d_input_mlp);
     rlt::malloc(device, d_input_chain);
@@ -529,10 +529,10 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD_2){
     rlt::malloc(device, sequential);
     rlt::malloc(device, buffer_sequential);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> d_input_sequential;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> d_output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 5>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 5>> d_input_sequential;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 2>> d_output;
     rlt::malloc(device, input);
     rlt::malloc(device, d_input_sequential);
     rlt::malloc(device, output_sequential);
