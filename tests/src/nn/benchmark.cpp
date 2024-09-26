@@ -60,10 +60,10 @@ constexpr INDEX_TYPE NAIVE_ITERATIONS = 1;
 class RL_TOOLS_NN_DENSE_BENCHMARK : public ::testing::Test
 {
 protected:
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> expected_output_input_layer;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> expected_output_output_layer;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> output_target;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> expected_output_input_layer;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> expected_output_output_layer;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> output_target;
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
@@ -74,8 +74,8 @@ protected:
 
     NetworkType network;
     NetworkType::Buffers<BATCH_SIZE> network_buffers;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> d_input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> d_output;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> d_input;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> d_output;
     NetworkType network_mkl;
     NetworkType::Buffers<BATCH_SIZE> network_mkl_buffers;
     RL_TOOLS_NN_DENSE_BENCHMARK(){
@@ -151,7 +151,7 @@ protected:
 
 
 TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_batch;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_batch;
     rlt::malloc(device, output_batch);
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < NAIVE_ITERATIONS; iteration_i++) {
@@ -189,8 +189,8 @@ TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL) {
 
     constexpr INDEX_TYPE alignment = 64;
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::HIDDEN_DIM>> output_mkl_matrix;
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix;
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::HIDDEN_DIM>> output_mkl_matrix;
     rlt::malloc(device, input_mkl_matrix);
     rlt::malloc(device, output_mkl_matrix);
     rlt::copy(device, device, input, input_mkl_matrix);
@@ -235,7 +235,7 @@ TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER) {
     DEVICE_MKL device_mkl;
     device_mkl.logger = &logger;
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     rlt::malloc(device_mkl, output_matrix);
     rlt::set_all(device_mkl, output_matrix, 0);
 
@@ -264,7 +264,7 @@ TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     DEVICE_MKL device_mkl;
     device_mkl.logger = device.logger;
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     rlt::malloc(device_mkl, output_matrix);
     rlt::set_all(device_mkl, output_matrix, 0);
 
@@ -381,14 +381,14 @@ TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
 //
 //    memcpy(A, network_mkl.input_layer.weights._data, INPUT_LAYER_WEIGHTS_SPEC::SIZE_BYTES);
 //
-//    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix({B});
+//    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix({B});
 //
-//    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
+//    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
 //    rlt::malloc(device, input_lic_matrix);
 //    rlt::copy(device, device, input, input_lic_matrix);
 //    DTYPE input_abs_diff = rlt::abs_diff(device, input_mkl_matrix, input_lic_matrix);
 //
-//    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
+//    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
 //    rlt::malloc(device, input_lic_matrix_transpose);
 //    rlt::transpose(device, input_lic_matrix_transpose, input_lic_matrix);
 //
@@ -413,10 +413,10 @@ TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
 //        }
 //    }
 //
-//    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE>> output_mkl_matrix_transpose;
+//    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE>> output_mkl_matrix_transpose;
 //    output_mkl_matrix_transpose.data = C;
 //
-//    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_mkl_matrix;
+//    rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_mkl_matrix;
 //    rlt::malloc(device, output_mkl_matrix);
 //
 //    rlt::transpose(device, output_mkl_matrix, output_mkl_matrix_transpose);

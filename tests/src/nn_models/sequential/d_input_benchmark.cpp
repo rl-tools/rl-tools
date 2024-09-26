@@ -9,7 +9,7 @@
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <gtest/gtest.h>
@@ -68,8 +68,8 @@ void test_correctness(){
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::INPUT_DIM>> input, d_input, d_input_sequential, d_input_only, d_input_sequential_only;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::OUTPUT_DIM>> output, output_eval, d_output, output_sequential, output_sequential_eval;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::INPUT_DIM>> input, d_input, d_input_sequential, d_input_only, d_input_sequential_only;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::OUTPUT_DIM>> output, output_eval, d_output, output_sequential, output_sequential_eval;
 
     rlt::malloc(device, input);
     rlt::malloc(device, d_input);
@@ -251,8 +251,8 @@ void test_benchmark(){
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::INPUT_DIM>> input, d_input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::OUTPUT_DIM>> output, d_output, output_sequential;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::INPUT_DIM>> input, d_input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, CONFIG::BATCH_SIZE, CONFIG::MODEL::OUTPUT_DIM>> output, d_output, output_sequential;
 
     rlt::malloc(device, input);
     rlt::malloc(device, d_input);

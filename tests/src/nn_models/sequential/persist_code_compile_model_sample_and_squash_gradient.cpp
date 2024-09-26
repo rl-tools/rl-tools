@@ -6,7 +6,7 @@
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev//operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
@@ -20,7 +20,7 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH_GRADIENT){
     DEVICE device;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
     rl_tools_export::model::MODEL::Buffer<1> buffer;
 
     rlt::malloc(device, output);
@@ -43,7 +43,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH_GRADIENT_RESAMPLE){
     DEVICE device;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
     rl_tools_export::model::MODEL::Buffer<1> buffer;
 
     rlt::malloc(device, output);

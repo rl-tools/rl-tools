@@ -1,11 +1,11 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
-#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/sequential_v2/persist.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 

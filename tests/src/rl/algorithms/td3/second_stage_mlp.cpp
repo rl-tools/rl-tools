@@ -363,13 +363,13 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                    rlt::utils::memcpy(input, &rlt::get(replay_buffer.observations, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM);
 //                    rlt::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM], &rlt::get(replay_buffer.actions, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
 //                    using input_layout = rlt::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, 1>;
-//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, layout>> input_matrix = {input};
+//                    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, layout>> input_matrix = {input};
 //                    T current_value;
 //                    using current_value_layout = rlt::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, 1, 1>;
-//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1, current_value_layout>> current_value_matrix = {&current_value};
+//                    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1, current_value_layout>> current_value_matrix = {&current_value};
 //                    rlt::evaluate(device, actor_critic.critic_1, input_matrix, current_value_matrix);
 ////                    T desired_value;
-////                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
+////                    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
 ////                    rlt::evaluate(device, post_critic_1, input_matrix, desired_value_matrix);
 ////                    diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
 //                }
@@ -409,11 +409,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                T diff = 0;
 //                for(TI batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
 //                    T current_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> current_action_matrix = {current_action};
-//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM>> observation_matrix = {&replay_buffer.observations.data[batch_sample_i]};
+//                    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> current_action_matrix = {current_action};
+//                    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM>> observation_matrix = {&replay_buffer.observations.data[batch_sample_i]};
 //                    rlt::evaluate(device, actor_critic.actor, observation_matrix, current_action_matrix);
 //                    T desired_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> desired_action_matrix = {desired_action};
+//                    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> desired_action_matrix = {desired_action};
 //                    rlt::evaluate(device, post_actor, observation_matrix, desired_action_matrix);
 //                    diff += rlt::nn::loss_functions::mse::evaluate(device, current_action_matrix, desired_action_matrix, T(1)/ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
 //                }
@@ -528,12 +528,12 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                            T input[ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
 //                            rlt::utils::memcpy(input, &replay_buffer.observations.data[batch_sample_i*ENVIRONMENT::Observation::DIM], ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM);
 //                            rlt::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM], &replay_buffer.actions.data[batch_sample_i*ENVIRONMENT::ACTION_DIM], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
-//                            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> input_matrix = {input};
+//                            rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> input_matrix = {input};
 //                            T current_value;
-//                            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> current_value_matrix = {&current_value};
+//                            rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> current_value_matrix = {&current_value};
 //                            rlt::evaluate(device, actor_critic.critic_target_1, input_matrix, current_value_matrix);
 //                            T desired_value;
-//                            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
+//                            rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
 //                            rlt::evaluate(device, post_critic_1_target, input_matrix, desired_value_matrix);
 //                            diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
 //                        }

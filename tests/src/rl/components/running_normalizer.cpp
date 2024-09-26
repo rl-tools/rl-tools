@@ -17,7 +17,7 @@ void test(){
     T std_threshold_normalization = 3.0/BATCH_SIZE;
     static_assert((ROWS % BATCH_SIZE) == 0);
     DEVICE device;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, ROWS, COLS>> data;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS>> data;
     rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, COLS>> running_normalizer;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     rlt::malloc(device, data);
@@ -51,7 +51,7 @@ void test(){
         ASSERT_LT(mean_diff, threshold);
         ASSERT_LT(std_diff/std, std_threshold);
     }
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, ROWS, COLS>> data_normalized;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS>> data_normalized;
     rlt::malloc(device, data_normalized);
     rlt::normalize(device, running_normalizer, data, data_normalized);
     for(TI col_i = 0; col_i < COLS; col_i++){

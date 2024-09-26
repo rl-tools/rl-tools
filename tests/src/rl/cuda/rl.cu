@@ -105,8 +105,8 @@ public:
     CRITIC_BUFFERS critic_buffers_cpu;
     CRITIC_BUFFERS critic_buffers_cpu_2;
     CRITIC_BUFFERS critic_buffers_gpu;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, TI, CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE, 1>> d_critic_output_cpu;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, TI, CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE, 1>> d_critic_output_gpu;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, TI, CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE, 1>> d_critic_output_cpu;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, TI, CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE, 1>> d_critic_output_gpu;
 protected:
     void SetUp() override {
         rlt::init(device_gpu);

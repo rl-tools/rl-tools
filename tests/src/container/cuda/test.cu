@@ -8,7 +8,7 @@ namespace rlt = rl_tools;
 
 template <typename DEVICE_CPU, typename DEVICE_GPU, typename T, typename TI, TI ROWS, TI COLS>
 void test(DEVICE_CPU& device_cpu, DEVICE_GPU& device_gpu){
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, ROWS, COLS>> test_cpu, test_gpu;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS>> test_cpu, test_gpu;
     rlt::malloc(device_cpu, test_cpu);
     rlt::malloc(device_gpu, test_gpu);
     auto rng_gpu = rlt::random::default_engine(typename DEVICE_GPU::SPEC::RANDOM{}, 0);

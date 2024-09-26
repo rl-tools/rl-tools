@@ -20,7 +20,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST){
     using DTYPE = float;
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> orig;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> orig;
     rlt::malloc(device, orig);
     rlt::randn(device, orig, rng);
     std::cout << "orig: " << std::endl;
@@ -124,8 +124,8 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     rlt::malloc(device, mlp);
     rlt::init_weights(device, mlp, rng);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_loaded;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_loaded;
     rlt::malloc(device, input);
     rlt::malloc(device, output_orig);
     rlt::malloc(device, output_loaded);

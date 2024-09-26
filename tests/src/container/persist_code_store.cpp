@@ -27,7 +27,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
     using DTYPE = float;
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> m;
+    rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> m;
     rlt::malloc(device, m);
     rlt::randn(device, m, rng);
     rlt::print(device, m);

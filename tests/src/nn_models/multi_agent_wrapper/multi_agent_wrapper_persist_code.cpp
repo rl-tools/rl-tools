@@ -5,7 +5,7 @@
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev//operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 
 #include <rl_tools/rl/environments/multi_agent/bottleneck/operations_cpu.h>
@@ -18,7 +18,7 @@
 #include <rl_tools/nn/layers/sample_and_squash/persist_code.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/persist_code.h>
-#include <rl_tools/nn_models/sequential/persist_code.h>
+#include <rl_tools/nn_models/sequential_v2/persist_code.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
 
 
@@ -68,8 +68,8 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, GRADIENT) {
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
 
     rlt::malloc(device, input);
     rlt::malloc(device, output);
@@ -124,8 +124,8 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, BACKWARD) {
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
 
     rlt::malloc(device, input);
     rlt::malloc(device, output);
@@ -179,8 +179,8 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, FORWARD) {
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
 
     rlt::malloc(device, input);
     rlt::malloc(device, output);

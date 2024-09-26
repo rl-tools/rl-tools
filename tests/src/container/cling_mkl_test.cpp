@@ -24,7 +24,7 @@ using DEVICE_MKL = rlt::devices::DefaultCPU_MKL;
 using T = float;
 using TI = typename DEVICE::index_t;
 
-rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 2, 2>> A, B, C, C_mkl;
+rlt::Matrix<rlt::matrix::Specification<T, TI, 2, 2>> A, B, C, C_mkl;
 DEVICE device;
 DEVICE_MKL device_mkl;
 auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 1);

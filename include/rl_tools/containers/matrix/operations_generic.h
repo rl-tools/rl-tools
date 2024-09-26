@@ -739,7 +739,6 @@ namespace rl_tools{
         Matrix<matrix::Specification<TI, TI, 1, 1, false>> output;
         argmax_row_wise(device, input, output);
         auto result = get(output, 0, 0);
-        free(device, output);
         return result;
     }
 

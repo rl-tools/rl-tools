@@ -8,9 +8,9 @@ namespace rlt = rl_tools;
 
 template <typename DEVICE_CPU, typename DEVICE_GPU, typename T, typename TI, TI M, TI K, TI N>
 void test(DEVICE_CPU& device_cpu, DEVICE_GPU& device_gpu){
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, M, K>> A_cpu, A_gpu;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, K, N>> B_cpu, B_gpu;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, M, N>> C_cpu, C_gpu, C_gpu_cpu;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, M, K>> A_cpu, A_gpu;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, K, N>> B_cpu, B_gpu;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, M, N>> C_cpu, C_gpu, C_gpu_cpu;
     rlt::malloc(device_cpu, A_cpu);
     rlt::malloc(device_gpu, A_gpu);
     rlt::malloc(device_cpu, B_cpu);

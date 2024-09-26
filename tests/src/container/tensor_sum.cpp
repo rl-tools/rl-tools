@@ -13,7 +13,7 @@ DEVICE device;
 int main(){
     using SHAPE = rlt::tensor::Shape<TI, 10, 10, 10, 10>;
     using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
     rlt::malloc(device, tensor);
     rlt::set_all(device, tensor, 1.0);
     T sum = rlt::sum(device, tensor);

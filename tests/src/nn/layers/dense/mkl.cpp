@@ -30,8 +30,8 @@ void test(){
     rlt::malloc(device_generic, layer_buffer);
     rlt::init_weights(device_generic, layer, rng);
 //    constexpr TI BATCH_SIZE = 1;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, OUTPUT_DIM>> output_generic, output_mkl;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, OUTPUT_DIM>> output_generic, output_mkl;
     rlt::malloc(device_generic, input);
     rlt::malloc(device_generic, output_generic);
     rlt::malloc(device_generic, output_mkl);

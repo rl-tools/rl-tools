@@ -48,7 +48,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
         for(TI step_i = 0; step_i < states.size(); step_i++){
             std::cout << "step i: " << step_i << std::endl;
             ENVIRONMENT::State next_state;
-            rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
+            rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
             rlt::malloc(device, action);
             rlt::assign(device, actions[step_i].data(), action);
             rlt::step(device, env, parameters, state, action, next_state, rng);

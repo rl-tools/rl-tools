@@ -68,7 +68,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     rlp::CRITIC_BATCH_TYPE* critic_batch_pointer;
     rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers, critic_training_buffers_init, critic_training_buffers_init2;
     rlp::CRITIC_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2], critic_buffers_init[2];
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, p::env::ENVIRONMENT::ACTION_DIM>> action_noise_critic_init[2], action_noise_critic[2];
+    rlt::Matrix<rlt::matrix::Specification<T, TI, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, p::env::ENVIRONMENT::ACTION_DIM>> action_noise_critic_init[2], action_noise_critic[2];
 
     rlp::ACTOR_BATCH_TYPE actor_batch, actor_batch_init;
     rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
@@ -76,7 +76,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2], actor_buffers_init[2];
     rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;
     rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval_init;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, p::env::ENVIRONMENT::ACTION_DIM>> action_noise_actor_init, action_noise_actor;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, p::env::ENVIRONMENT::ACTION_DIM>> action_noise_actor_init, action_noise_actor;
 
     rlt::init(device);
     rlt::construct(device_init, device_init.logger);

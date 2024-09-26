@@ -8,7 +8,7 @@ using TI = typename DEVICE::index_t;
 int main(){
     DEVICE device;
 
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 10, 10>> A, B, C;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 10, 10, false>> A, B, C;
 //    rlt::malloc(device, A);
 //    rlt::malloc(device, B);
 //    rlt::malloc(device, C);

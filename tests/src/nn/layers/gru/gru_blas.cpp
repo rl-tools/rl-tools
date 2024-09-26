@@ -22,10 +22,10 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, BLAS){
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
     using GRU = rlt::nn::layers::gru::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
     GRU gru_generic, gru_blas;
-    typename GRU::template Buffer<BATCH_SIZE, true> buffer;
+    typename GRU::template Buffer<true> buffer;
 
     DEVICE_GENERIC device_generic;
     DEVICE_BLAS device_blas;

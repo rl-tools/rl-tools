@@ -5,7 +5,7 @@
 #include <rl_tools/nn/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 
 
@@ -20,7 +20,7 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE_COMPILE, GRADIENT){
     DEVICE device;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
     rl_tools_export::model::MODEL::Buffer<1> buffer;
 
     rlt::malloc(device, output);

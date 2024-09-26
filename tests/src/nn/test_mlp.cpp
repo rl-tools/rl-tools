@@ -84,7 +84,7 @@ protected:
 //        rlt::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output.data, output, d_loss_d_output);
         DTYPE d_input[INPUT_DIM];
         rlt::zero_gradient(device, network);
-//        rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix = {d_loss_d_output};
+//        rlt::Matrix<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix = {d_loss_d_output};
         rlt::Matrix<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix;
         d_input_matrix._data = d_input;
         rlt::backward_full(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);

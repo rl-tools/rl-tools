@@ -34,7 +34,7 @@ int main(){
 
     typename ENVIRONMENT::State state, next_state;
     rlt::initial_state(device, env, state);
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::malloc(device, action);
     rlt::set_all(device, action, 1);
     rlt::set_state(device, env, ui, state, action);
