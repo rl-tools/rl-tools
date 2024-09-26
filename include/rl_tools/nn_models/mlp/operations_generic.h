@@ -74,7 +74,7 @@ namespace rl_tools {
     void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        static_assert(BUFFER_MODEL_SPEC::INTERNAL_BATCH_SIZE >= BATCH_SIZE);
+        static_assert(OUTPUT_SPEC::ROWS >= BATCH_SIZE);
         static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
         matrix::ViewSpec<BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM> hidden_vs;
         {
@@ -321,7 +321,7 @@ namespace rl_tools{
         forward(device, model, matrix_view_input, matrix_view_output, buffer, rng, mode);
     }
     template<typename DEVICE, typename SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC, typename MODE = mode::Default<>>
-    void backward_input(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& model, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input,nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    void backward_input(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& model, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input,nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         auto matrix_view_d_output = matrix_view(device, d_output);
         auto matrix_view_d_input = matrix_view(device, d_input);
         backward_input(device, model, matrix_view_d_output, matrix_view_d_input, buffer, mode);

@@ -1,6 +1,6 @@
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/ppo.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 namespace parameters_0{
@@ -16,15 +16,19 @@ namespace parameters_0{
 
         using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, TI>;
         using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-        using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
-        using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+        using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 
         template <typename CAPABILITY>
         struct Actor{
-            using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, nn::activation_functions::IDENTITY>;
-            using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
-            using IF = nn_models::sequential::Interface<CAPABILITY>;
-            using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
+            using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+            using ACTOR_SPEC = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, nn::activation_functions::IDENTITY>;
+            using ACTOR = nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_SPEC>;
+
+            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+            using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+            using MODULE_CHAIN = Module<ACTOR>;
+
+            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
         };
 //        using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
 //        using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
@@ -34,15 +38,22 @@ namespace parameters_0{
         using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
 //        using ACTOR_TYPE_INFERENCE = typename Actor<nn::layer_capability::Forward>::MODEL;
 //        using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
-        using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, 1, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
-        using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_SPEC>;
+        using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+        using CRITIC_SPEC = rlt::nn_models::mlp::Configuration<T, TI, 1, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
+        using CRITIC = rlt::nn_models::mlp::BindConfiguration<CRITIC_SPEC>;
+        template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+        using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+        using MODULE_CHAIN = Module<CRITIC>;
 
-        struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
+        using CRITIC_TYPE = nn_models::sequential_v2::Build<CAPABILITY_ADAM, MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+
+
+        struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
             static constexpr TI N_EPOCHS = 1;
         };
         using PPO_SPEC = rlt::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
         using PPO_TYPE = rlt::rl::algorithms::PPO<PPO_SPEC>;
-        using PPO_BUFFERS_TYPE = rlt::rl::algorithms::ppo::Buffers<PPO_SPEC>;
+        using PPO_BUFFERS_TYPE = rlt::rl::algorithms::ppo::Buffers<rlt::rl::algorithms::ppo::BufferSpecification<PPO_SPEC>>;
 
         static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 200;
         static constexpr TI N_ENVIRONMENTS = 10;
@@ -52,9 +63,11 @@ namespace parameters_0{
         using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;
         using ON_POLICY_RUNNER_DATASET_TYPE = rlt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;
 
-        using ACTOR_EVAL_BUFFERS = typename ACTOR_TYPE::template Buffer<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
-        using ACTOR_BUFFERS = typename ACTOR_TYPE::template Buffer<BATCH_SIZE>;
-        using CRITIC_BUFFERS = typename CRITIC_TYPE::template Buffer<BATCH_SIZE>;
-        using CRITIC_BUFFERS_ALL = typename CRITIC_TYPE::template Buffer<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
+        using ACTOR_EVAL_TYPE = typename ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
+        using ACTOR_EVAL_BUFFERS = typename ACTOR_EVAL_TYPE::template Buffer<>;
+        using ACTOR_BUFFERS = typename ACTOR_TYPE::template Buffer<>;
+        using CRITIC_BUFFERS = typename CRITIC_TYPE::template Buffer<>;
+        using CRITIC_EVAL_TYPE_ALL = typename CRITIC_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
+        using CRITIC_BUFFERS_ALL = typename CRITIC_EVAL_TYPE_ALL::template Buffer<>;
     };
 }

@@ -8,6 +8,7 @@
 #include "../../../rl/components/replay_buffer/replay_buffer.h"
 #include "../../../rl/components/off_policy_runner/off_policy_runner.h"
 #include "../../../nn/nn.h"
+#include "../../../nn/layers/td3_sampling/operations_generic.h"
 #include "../../../nn_models/sequential_v2/model.h"
 #include "../../../utils/polyak/operations_generic.h"
 #include "../../../math/operations_generic.h"

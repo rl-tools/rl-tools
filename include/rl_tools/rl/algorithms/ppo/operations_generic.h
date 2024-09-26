@@ -87,23 +87,24 @@ namespace rl_tools{
             }
         }
     }
-    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename ACTOR_BUFFER, typename CRITIC_BUFFER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, ACTOR_BUFFER& actor_buffers, CRITIC_BUFFER& critic_buffers, RNG& rng){
+    template <typename DEVICE, typename PPO_SPEC, typename DATASET_SPEC, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename BUFFERS_SPEC, typename ACTOR_BUFFER, typename CRITIC_BUFFER, typename RNG>
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<BUFFERS_SPEC>& ppo_buffers, ACTOR_BUFFER& actor_buffers, CRITIC_BUFFER& critic_buffers, RNG& rng){
 #ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
         using T = typename PPO_SPEC::T;
         using TI = typename PPO_SPEC::TI;
-        static_assert(utils::typing::is_same_v<typename PPO_SPEC::ENVIRONMENT, typename OPR_SPEC::ENVIRONMENT>, "environment mismatch");
-        using DATASET = rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>;
+        static_assert(utils::typing::is_same_v<typename PPO_SPEC::ENVIRONMENT, typename DATASET_SPEC::SPEC::ENVIRONMENT>, "environment mismatch");
+        using ENVIRONMENT = typename PPO_SPEC::ENVIRONMENT;
+        using DATASET = rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
         static_assert(DATASET::STEPS_TOTAL > 1);
         constexpr TI N_EPOCHS = PPO_SPEC::PARAMETERS::N_EPOCHS;
         constexpr TI BATCH_SIZE = PPO_SPEC::PARAMETERS::BATCH_SIZE;
         constexpr TI N_BATCHES = DATASET::STEPS_TOTAL/BATCH_SIZE;
         static_assert(N_BATCHES > 0);
-        constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
-        constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::Observation::DIM;
-        constexpr TI OBSERVATION_PRIVILEGED_DIM = OPR_SPEC::ENVIRONMENT::ObservationPrivileged::DIM;
+        constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
+        constexpr TI OBSERVATION_DIM = ENVIRONMENT::Observation::DIM;
+        constexpr TI OBSERVATION_PRIVILEGED_DIM = ENVIRONMENT::ObservationPrivileged::DIM;
         constexpr TI N_AGENTS = PPO_SPEC::ENVIRONMENT::N_AGENTS;
         static_assert(ACTION_DIM % N_AGENTS == 0);
         constexpr TI PER_AGENT_ACTION_DIM = PPO_SPEC::ENVIRONMENT::ACTION_DIM/N_AGENTS;

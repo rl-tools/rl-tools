@@ -250,7 +250,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         static_assert(SPEC::PARAMETERS::ARENA_WIDTH/2 - SPEC::PARAMETERS::AGENT_DIAMETER > SPEC::PARAMETERS::AGENT_DIAMETER, "Arena not wide enough for a single agent");
         static_assert((SPEC::PARAMETERS::ARENA_WIDTH/2 - 2*SPEC::PARAMETERS::AGENT_DIAMETER) * (SPEC::PARAMETERS::ARENA_HEIGHT - 2*SPEC::PARAMETERS::AGENT_DIAMETER) > SPEC::PARAMETERS::N_AGENTS * SPEC::PARAMETERS::AGENT_DIAMETER * SPEC::PARAMETERS::AGENT_DIAMETER/4 * 9, "Arena area not large enough for the number of agents");
-        MatrixStatic<matrix::Specification<bool, TI, 1, SPEC::PARAMETERS::N_AGENTS>> terminated_values;
+        Matrix<matrix::Specification<bool, TI, 1, SPEC::PARAMETERS::N_AGENTS, false>> terminated_values;
         bool successfull = false;
         while(!successfull){
             successfull = true;

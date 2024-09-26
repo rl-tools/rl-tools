@@ -6,7 +6,7 @@
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 
@@ -38,36 +38,39 @@ namespace config{
             static constexpr TI CRITIC_NUM_LAYERS = 3;
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
         };
-        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename CONTAINER_TYPE_TAG>
+        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
         struct ConfigApproximatorsSequential{
             template <typename CAPABILITY>
             struct ACTOR{
                 static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
                 static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
-                using LAYER_0_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::Observation::DIM, CONTAINER_TYPE_TAG>;
-                using LAYER_0 = nn::layers::standardize::BindSpecification<LAYER_0_SPEC>;
-                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::Observation::DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
-                using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-                using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
-                using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
+                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+                using LAYER_0_SPEC = nn::layers::standardize::Configuration<T, TI>;
+                using LAYER_0 = nn::layers::standardize::BindConfiguration<LAYER_0_SPEC>;
+                using LAYER_1_SPEC = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal>;
+                using LAYER_1 = nn::layers::dense::BindConfiguration<LAYER_1_SPEC>;
+                using LAYER_2_SPEC = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal>;
+                using LAYER_2 = nn::layers::dense::BindConfiguration<LAYER_2_SPEC>;
                 static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
-                using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
-                using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
-                struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
-                    static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
-                    static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
-                    static constexpr T LOG_PROBABILITY_EPSILON = PARAMETERS::LOG_PROBABILITY_EPSILON;
-                    static constexpr bool ADAPTIVE_ALPHA = PARAMETERS::ADAPTIVE_ALPHA;
-                    static constexpr T ALPHA = PARAMETERS::ALPHA;
-                    static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
-                };
-                using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
-                using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
-//                using SAMPLE_AND_SQUASH_MODULE = typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>;
+                using LAYER_3_SPEC = nn::layers::dense::Configuration<T, TI, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Output>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
+                using LAYER_3 = nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
+                using SAC_PARAMETERS = typename PARAMETERS::SAC_PARAMETERS;
+//                struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
+//                    static constexpr T LOG_STD_LOWER_BOUND = SAC_PARAMETERS::LOG_STD_LOWER_BOUND;
+//                    static constexpr T LOG_STD_UPPER_BOUND = SAC_PARAMETERS::LOG_STD_UPPER_BOUND;
+//                    static constexpr T LOG_PROBABILITY_EPSILON = SAC_PARAMETERS::LOG_PROBABILITY_EPSILON;
+//                    static constexpr bool ADAPTIVE_ALPHA = SAC_PARAMETERS::ADAPTIVE_ALPHA;
+//                    static constexpr T ALPHA = SAC_PARAMETERS::ALPHA;
+//                    static constexpr T TARGET_ENTROPY = SAC_PARAMETERS::TARGET_ENTROPY;
+//                };
+                using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Configuration<T, TI, nn::layers::sample_and_squash::DefaultParameters<T>>;
+                using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_SPEC>;
 
-//                using MODEL = typename IF::template Module<LAYER_0::template Layer, typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer, SAMPLE_AND_SQUASH_MODULE>>>>;
-                using MODEL = typename IF::template Module<LAYER_0::template Layer, typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer, typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>>>>>;
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+                using MODULE_CHAIN = Module<LAYER_0, Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<SAMPLE_AND_SQUASH_LAYER>>>>>;
+
+                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
 
             template <typename CAPABILITY>
@@ -75,24 +78,32 @@ namespace config{
                 static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
                 static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
-                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
-                using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-                using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
-                using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-                using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>;
-                using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
+                using LAYER_1_SPEC = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Input>;
+                using LAYER_1 = nn::layers::dense::BindConfiguration<LAYER_1_SPEC>;
+                using LAYER_2_SPEC = nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal>;
+                using LAYER_2 = nn::layers::dense::BindConfiguration<LAYER_2_SPEC>;
+                using LAYER_3_SPEC = nn::layers::dense::Configuration<T, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Output>;
+                using LAYER_3 = nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-                using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using MODEL = typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>;
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+                using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+
+                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
 
-            using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS>;
+            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS>;
+            using ALPHA_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ALPHA_OPTIMIZER_PARAMETERS>;
 
-            using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
+            using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
+            using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
+            using ALPHA_OPTIMIZER = nn::optimizers::Adam<ALPHA_OPTIMIZER_SPEC>;
 
-            using ACTOR_TYPE = typename ACTOR<nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>>::MODEL;
-            using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>>::MODEL;
-            using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward>::MODEL;
+            using ACTOR_TYPE = typename ACTOR<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
+            using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
+            using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward<>>::MODEL;
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, T_ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsSequential>;
         struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
@@ -137,7 +148,7 @@ T lifetime_return(){
             }
         }
         for(TI i = 0; i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; i++){
-            acc += ts.evaluation_results[i].returns_mean;
+            acc += rlt::get(ts.evaluation_results, 0, i).returns_mean;
         }
         rlt::free(device);
         rlt::free(device, ts);

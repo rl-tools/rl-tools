@@ -31,7 +31,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
     typename ENVIRONMENT::State state, next_state;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::malloc(dev, action);
     rlt::set_all(dev, action, 1);
     rlt::sample_initial_parameters(dev, env, parameters, rng);
@@ -58,7 +58,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
 
     using STATE = typename ENVIRONMENT::State;
     STATE initial_state, state, next_state_1, next_state_2, next_state_temp;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> initial_action, action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> initial_action, action;
     rlt::malloc(dev, initial_action);
     rlt::malloc(dev, action);
     std::vector<std::vector<T>> states_q;
@@ -147,7 +147,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
 
     using STATE = typename ENVIRONMENT::State;
     STATE state, initial_state, next_state, termination_check_state;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::malloc(dev, action);
     bool load_state = true;
     TI state_age = 0;

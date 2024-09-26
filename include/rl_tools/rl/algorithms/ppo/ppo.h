@@ -56,18 +56,25 @@ namespace rl_tools::rl::algorithms{
             static_assert(get_last(typename CRITIC_TYPE::OUTPUT_SHAPE{}) == 1);
         };
 
-        template <typename SPEC>
+        template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION=true>
+        struct BufferSpecification{
+            using SPEC = T_SPEC;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+        };
+        template <typename T_BUFFER_SPEC>
         struct Buffers{
+            using BUFFER_SPEC = T_BUFFER_SPEC;
+            using SPEC = typename BUFFER_SPEC::SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::BATCH_SIZE;
             static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
             static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::Observation::DIM;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> current_batch_actions;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_critic_output;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action_log_std;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, ACTION_DIM/SPEC::ENVIRONMENT::N_AGENTS>> rollout_log_std;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>> current_batch_actions;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1, BUFFER_SPEC::DYNAMIC_ALLOCATION>> d_critic_output;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>> d_action_log_prob_d_action;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>> d_action_log_prob_d_action_log_std;
+            Matrix<matrix::Specification<T, TI, 1, ACTION_DIM/SPEC::ENVIRONMENT::N_AGENTS, BUFFER_SPEC::DYNAMIC_ALLOCATION>> rollout_log_std;
         };
     }
 

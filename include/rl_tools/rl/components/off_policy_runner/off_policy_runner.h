@@ -186,7 +186,7 @@ namespace rl_tools::rl::components{
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
         off_policy_runner::ParametersRuntime<SPEC> parameters;
-        template<typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION>
+        template<typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION=true>
         using SequentialBatch = off_policy_runner::SequentialBatch<typename off_policy_runner::SequentialBatchSpecification<SPEC, T_SEQUENCE_LENGTH, T_BATCH_SIZE, T_DYNAMIC_ALLOCATION>>;
 
         off_policy_runner::Buffers<SPEC> buffers;

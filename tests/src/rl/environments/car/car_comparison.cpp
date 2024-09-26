@@ -19,7 +19,7 @@ TEST(RL_ENVIRONMENTS_CAR, COMPARISON){
 
     ENVIRONMENT::Parameters parameters;
     ENVIRONMENT::State state, next_state;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> a;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> a;
     rlt::malloc(device, a);
 
     {

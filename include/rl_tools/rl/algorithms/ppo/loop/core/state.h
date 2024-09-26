@@ -28,7 +28,7 @@ namespace rl_tools{
             typename CONFIG::ACTOR_BUFFERS actor_buffers;
             typename CONFIG::CRITIC_BUFFERS critic_buffers;
             typename CONFIG::CRITIC_BUFFERS_GAE critic_buffers_gae;
-            MatrixDynamic<matrix::Specification<T, TI, CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::STEPS_TOTAL, CONFIG::ENVIRONMENT::Observation::DIM>> observations_dense;
+            Matrix<matrix::Specification<T, TI, CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::STEPS_TOTAL, CONFIG::ENVIRONMENT::Observation::DIM>> observations_dense;
             rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<T, TI, CONFIG::ENVIRONMENT::Observation::DIM/CONFIG::ENVIRONMENT::N_AGENTS>> observation_normalizer;
             rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<T, TI, CONFIG::ENVIRONMENT::ObservationPrivileged::DIM>> observation_privileged_normalizer;
             typename CONFIG::ENVIRONMENT envs[CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS];

@@ -2,7 +2,7 @@
 #include <rl_tools/rl/environments/pendulum/pendulum.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/persist.h>
@@ -17,13 +17,18 @@ using T = float;
 using TI = typename DEVICE::index_t;
 using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
+constexpr TI BATCH_SIZE = 1;
 
 template <typename CAPABILITY>
 struct Actor{
-    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
-    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
-    using IF = rlt::nn_models::sequential::Interface<CAPABILITY>;
-    using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
+    using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+    using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_SPEC>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    using MODULE_CHAIN = Module<ACTOR>;
+
+    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 };
 
 TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
@@ -41,12 +46,12 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 199);
     rlt::init(device, runner, envs, parameters, rng);
 
-    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::TANH>;
-    constexpr TI BATCH_SIZE = 1;
-    using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-//    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
+//    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::TANH>;
+    using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+////    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
     using ACTOR_TYPE = typename Actor<ACTOR_CAPABILITY>::MODEL;
-    using ACTOR_BUFFERS = typename ACTOR_TYPE::template Buffer<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
+    using ACTOR_ROLLOUT_TYPE = typename ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
+    using ACTOR_BUFFERS = typename ACTOR_ROLLOUT_TYPE::template Buffer<>;
 
 
     constexpr TI STEPS_PER_ENV = 1000;
@@ -80,7 +85,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             TI pos = step_i * ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS + env_i;
             {
-                rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
+                rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
                 rlt::malloc(device, observation);
                 rlt::observe(device, get(runner.environments, 0, env_i), parameters[env_i], states[env_i], typename ENVIRONMENT::Observation{}, observation, rng);
                 auto observation_runner = rlt::view<DEVICE, decltype(dataset.observations)::SPEC, 1, ENVIRONMENT::Observation::DIM>(device, dataset.observations, pos, 0);

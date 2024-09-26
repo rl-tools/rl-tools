@@ -4,7 +4,7 @@
 #define RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_REPLAY_BUFFER_H
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components::replay_buffer{
-    template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, bool T_DYNAMIC_ALLOCATION>
+    template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, bool T_DYNAMIC_ALLOCATION=true>
     struct Specification{
         using T = T_T;
         using TI = T_TI;

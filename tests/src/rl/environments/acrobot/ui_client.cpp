@@ -33,7 +33,7 @@ int main(){
     rlt::sample_initial_state(device, env, parameters, state, rng);
     state.theta_1_dot = 0;
     state.theta_2_dot = 0;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM, false>> action;
 //    rlt::randn(device, action, rng);
     rlt::set_all(device, action, -1);
     rlt::clamp(device, action, -1, 1);

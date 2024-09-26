@@ -19,21 +19,27 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
+using T = DTYPE;
 using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
-typedef rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, DEVICE::index_t>> OffPolicyRunnerSpec;
-typedef rlt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
+using EXPLORATION_POLICY_SPEC = rlt::nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, rlt::nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+using EXPLORATION_POLICY = rlt::nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
+constexpr TI BATCH_SIZE = 1;
 
-using PendulumStructureSpecification = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
+using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+using MLP_CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
+using MLP = rlt::nn_models::mlp::NeuralNetwork<MLP_CONFIG, rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, INPUT_SHAPE>;
+
+using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY, MLP>;
+typedef rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, POLICIES, rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, DEVICE::index_t>> OffPolicyRunnerSpec;
+typedef rlt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
 
 TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, TI>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-    using SPEC = PendulumStructureSpecification;
     DEVICE device;
     OPTIMIZER optimizer;
-    constexpr TI BATCH_SIZE = 1;
-    rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>, SPEC> policy;
+    MLP policy;
     rlt::malloc(device, policy);
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
     rlt::init_weights(device, policy, rng);
@@ -45,27 +51,22 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     decltype(policy)::Buffer<OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS> policy_buffers;
     rlt::malloc(device, policy_buffers);
     for(int step_i = 0; step_i < 10000; step_i++){
-        rlt::step(device, off_policy_runner, policy, policy_buffers, rng);
+        rlt::step<1>(device, off_policy_runner, policy, policy_buffers, rng);
     }
     rlt::free(device, off_policy_runner);
 }
 
 TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
     DEVICE device;
-    using T = float;
-    using TI = typename DEVICE::index_t;
-    constexpr TI BATCH_SIZE = 1;
-
-    using POLICY_SPEC = rlt::nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, rlt::nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
-    rlt::nn_models::RandomUniform<POLICY_SPEC> policy;
+    EXPLORATION_POLICY policy;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
     OffPolicyRunner off_policy_runner;
     rlt::malloc(device, off_policy_runner);
     ENVIRONMENT envs[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];
     ENVIRONMENT::Parameters env_parameters[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];
     ENVIRONMENT::State state, next_state;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::malloc(device, observation);
     rlt::malloc(device, action);
     rlt::set_all(device, observation, 0);
@@ -90,8 +91,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
     for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         TI previous_number;
         for(TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
-            T reward = rlt::get(device, batch.rewards, seq_step_i, batch_i);
-            bool reset = rlt::get(device, batch.reset, seq_step_i, batch_i);
+            T reward = rlt::get(device, batch.rewards, seq_step_i, batch_i, 0);
+            bool reset = rlt::get(device, batch.reset, seq_step_i, batch_i, 0);
             if(seq_step_i > 0 && !reset){
                 ASSERT_EQ(previous_number+1, (TI)reward);
             }
