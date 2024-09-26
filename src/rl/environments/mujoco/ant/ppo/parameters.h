@@ -73,7 +73,7 @@ namespace parameters_0{
         static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS = PPO_PARAMETERS::NORMALIZE_OBSERVATIONS ? 1 : 0;
         using PPO_SPEC = rlt::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
         using PPO_TYPE = rlt::rl::algorithms::PPO<PPO_SPEC>;
-        using PPO_BUFFERS_TYPE = rlt::rl::algorithms::ppo::Buffers<PPO_SPEC>;
+        using PPO_BUFFERS_TYPE = rlt::rl::algorithms::ppo::Buffers<rlt::rl::algorithms::ppo::BufferSpecification<PPO_SPEC>>;
 
         static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 1000;
         static constexpr TI N_ENVIRONMENTS = 64;

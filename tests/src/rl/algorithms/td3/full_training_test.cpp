@@ -1,10 +1,11 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 
+#include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 
@@ -32,7 +33,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParame
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
 };
 
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;

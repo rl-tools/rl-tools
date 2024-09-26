@@ -34,8 +34,8 @@ int main(){
     ENVIRONMENT::Parameters parameters;
     rlt::sample_initial_parameters(device, env, parameters, rng);
     rlt::sample_initial_state(device, env, parameters, state, rng);
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM, false>> action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM, false>> observation;
 //    rlt::randn(device, action, rng);
     rlt::set_all(device, action, 1);
     rlt::clamp(device, action, -1, 1);

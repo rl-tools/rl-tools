@@ -70,6 +70,7 @@ namespace rl_tools::rl::environments{
         using ObservationPrivileged = Observation;
         static constexpr TI ACTION_DIM = 1;
         acrobot::Parameters<T> parameters;
+        static constexpr TI EPISODE_STEP_LIMIT = 500;
     };
     template <typename T_SPEC>
     struct AcrobotSwingup: Acrobot<T_SPEC>{};

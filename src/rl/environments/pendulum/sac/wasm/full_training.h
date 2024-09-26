@@ -98,11 +98,11 @@
 //    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<1> actor_deterministic_evaluation_buffers;
 //    rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
 //    rlt::rl::algorithms::sac::CriticTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers;
-//    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, TRAINING_CONFIG::SAC_PARAMETERS::CRITIC_BATCH_SIZE, TRAINING_CONFIG::ENVIRONMENT::ACTION_DIM>> action_noise_critic[2];
-//    rlt::MatrixDynamic<rlt::matrix::Specification<typename TRAINING_CONFIG::T, TI, 1, TRAINING_CONFIG::ENVIRONMENT::Observation::DIM>> observations_mean, observations_std;
+//    rlt::Matrix<rlt::matrix::Specification<T, TI, TRAINING_CONFIG::SAC_PARAMETERS::CRITIC_BATCH_SIZE, TRAINING_CONFIG::ENVIRONMENT::ACTION_DIM>> action_noise_critic[2];
+//    rlt::Matrix<rlt::matrix::Specification<typename TRAINING_CONFIG::T, TI, 1, TRAINING_CONFIG::ENVIRONMENT::Observation::DIM>> observations_mean, observations_std;
 //    typename TRAINING_CONFIG::CRITIC_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
 //    rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
-//    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, TRAINING_CONFIG::SAC_PARAMETERS::CRITIC_BATCH_SIZE, TRAINING_CONFIG::ENVIRONMENT::ACTION_DIM>> action_noise_actor;
+//    rlt::Matrix<rlt::matrix::Specification<T, TI, TRAINING_CONFIG::SAC_PARAMETERS::CRITIC_BATCH_SIZE, TRAINING_CONFIG::ENVIRONMENT::ACTION_DIM>> action_noise_actor;
 //    rlt::rl::algorithms::sac::ActorTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
 //    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
 //    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;

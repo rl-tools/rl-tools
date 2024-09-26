@@ -20,7 +20,7 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #endif
 
-#include <rl_tools/rl/algorithms/sac/loop/core/config.h>
+#include <rl_tools/rl/algorithms/td3/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>

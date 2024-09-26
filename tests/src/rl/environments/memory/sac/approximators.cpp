@@ -51,16 +51,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     TI seed = 0;
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
-    using APPROXIMATORS = ConfigApproximatorsSequential<T, TI, SEQUENCE_LENGTH, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::MatrixDynamicTag>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+    using APPROXIMATORS = ConfigApproximatorsSequential<T, TI, SEQUENCE_LENGTH, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
     using CRITIC = APPROXIMATORS::Critic<CAPABILITY>::MODEL;
     ACTOR actor;
-    ACTOR::Buffer<BATCH_SIZE> actor_buffer;
+    ACTOR::Buffer<> actor_buffer;
     CRITIC critic;
-    CRITIC::Buffer<BATCH_SIZE> critic_buffer;
-    CRITIC::CONTENT::Buffer<BATCH_SIZE> critic_gru_buffer;
-    APPROXIMATORS::OPTIMIZER actor_optimizer, critic_optimizer;
+    CRITIC::Buffer<> critic_buffer;
+    CRITIC::CONTENT::Buffer<> critic_gru_buffer;
+    APPROXIMATORS::ACTOR_OPTIMIZER actor_optimizer;
+    APPROXIMATORS::CRITIC_OPTIMIZER critic_optimizer;
 
     std::cout << "Actor input shape: ";
     rlt::print(device, ACTOR::INPUT_SHAPE{});
@@ -99,14 +100,14 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::randn(device, critic_input, rng);
     rlt::randn(device, d_critic_output, rng);
 
-    std::cout << "Actual batch size: " << decltype(actor.next_module.content)::ACTUAL_BATCH_SIZE << std::endl;
-    std::cout << "Actual batch size layer: " << decltype(actor.next_module.content.output_layer)::SPEC::BATCH_SIZE << std::endl;
-    std::cout << "Actual batch size layer: " << decltype(actor.next_module.content.output_layer)::ACTUAL_BATCH_SIZE << std::endl;
-    using MLP_OUTPUT = rlt::utils::typing::remove_reference<decltype(rl_tools::output(actor))>::type;
-    std::cout << "Actual rows sample and squash output layer: " << MLP_OUTPUT::SPEC::ROWS << std::endl;
-    std::cout << "Actual rows mlp output layer: " << decltype(actor.next_module.content.output_layer.output)::ROWS << std::endl;
+//    std::cout << "Actual batch size: " << decltype(actor.next_module.content)::INTERNAL_BATCH_SIZE << std::endl;
+//    std::cout << "Actual batch size layer: " << decltype(actor.next_module.content.output_layer)::SPEC::BATCH_SIZE << std::endl;
+//    std::cout << "Actual batch size layer: " << decltype(actor.next_module.content.output_layer)::ACTUAL_BATCH_SIZE << std::endl;
+//    using MLP_OUTPUT = rlt::utils::typing::remove_reference<decltype(rl_tools::output(device, actor))>::type;
+//    std::cout << "Actual rows sample and squash output layer: " << MLP_OUTPUT::SPEC::ROWS << std::endl;
+//    std::cout << "Actual rows mlp output layer: " << decltype(actor.next_module.content.output_layer.output)::ROWS << std::endl;
 
-    auto output_tensor = to_tensor(device, rl_tools::output(actor));
+    auto output_tensor = to_tensor(device, rl_tools::output(device, actor));
     std::cout << "Output tensor shape: ";
     rlt::print(device, decltype(output_tensor)::SPEC::SHAPE{});
     std::cout << "Critic output shape";

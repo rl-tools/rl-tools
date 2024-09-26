@@ -17,5 +17,5 @@ endif()
 add_executable(rl_environments_l2f_sac_evaluate evaluate.cpp)
 target_link_libraries(rl_environments_l2f_sac_evaluate PRIVATE rl_tools)
 
-add_executable(rl_environments_l2f_sac_evaluate_code evaluate_code.cpp)
-target_link_libraries(rl_environments_l2f_sac_evaluate_code PRIVATE rl_tools)
+#add_executable(rl_environments_l2f_sac_evaluate_code evaluate_code.cpp)
+#target_link_libraries(rl_environments_l2f_sac_evaluate_code PRIVATE rl_tools)

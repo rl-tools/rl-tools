@@ -182,8 +182,8 @@ int main(int argc, char** argv){
         // -------------- added for cuda training ----------------
         ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
         PPO_TRAINING_HYBRID_BUFFER_TYPE ppo_training_hybrid_buffer_cpu, ppo_training_hybrid_buffer_gpu;
-        rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::Observation::DIM>> gae_all_observations;
-        rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, 1>> gae_all_values;
+        rlt::Matrix<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::Observation::DIM>> gae_all_observations;
+        rlt::Matrix<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, 1>> gae_all_values;
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;

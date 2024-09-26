@@ -35,7 +35,7 @@ int main() {
 
 
     typename CONFIG::MODEL model;
-    typename CONFIG::MODEL::Buffer<CONFIG::PARAMS::BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::Buffer<> buffer;
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::OUTPUT_SHAPE>> output;
 

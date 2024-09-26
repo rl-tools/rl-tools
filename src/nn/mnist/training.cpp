@@ -60,13 +60,13 @@ int main(){
     NETWORK_TYPE network;
     typename NETWORK_TYPE::Buffer<INTERNAL_BATCH_SIZE> buffers;
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, DATASET_SIZE_TRAIN, INPUT_DIM>> x_train;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, DATASET_SIZE_VAL, INPUT_DIM>> x_val;
-    rlt::MatrixDynamic<rlt::matrix::Specification<TI, TI, DATASET_SIZE_TRAIN, 1>> y_train;
-    rlt::MatrixDynamic<rlt::matrix::Specification<TI, TI, DATASET_SIZE_VAL, 1>> y_val;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, DATASET_SIZE_TRAIN, INPUT_DIM>> x_train;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, DATASET_SIZE_VAL, INPUT_DIM>> x_val;
+    rlt::Matrix<rlt::matrix::Specification<TI, TI, DATASET_SIZE_TRAIN, 1>> y_train;
+    rlt::Matrix<rlt::matrix::Specification<TI, TI, DATASET_SIZE_VAL, 1>> y_val;
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
 
     rlt::malloc(device, network);
     rlt::malloc(device, buffers);

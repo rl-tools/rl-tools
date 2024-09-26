@@ -10,7 +10,7 @@ target_compile_options(rl_environments_memory_td3 PRIVATE -ftemplate-backtrace-l
 endif()
 
 if(RL_TOOLS_ENABLE_HDF5)
-    add_executable(rl_environments_memory_td3_inference memory_inference.cpp)
-    target_link_libraries(rl_environments_memory_td3_inference PRIVATE rl_tools)
-    target_compile_options(rl_environments_memory_td3_inference PRIVATE -URL_TOOLS_ENABLE_ZLIB)
+#    add_executable(rl_environments_memory_td3_inference memory_inference.cpp)
+#    target_link_libraries(rl_environments_memory_td3_inference PRIVATE rl_tools)
+#    target_compile_options(rl_environments_memory_td3_inference PRIVATE -URL_TOOLS_ENABLE_ZLIB)
 endif()

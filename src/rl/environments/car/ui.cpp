@@ -73,8 +73,8 @@ int main(int argc, char** argv){
     UI ui;
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
     rlt::malloc(device, action);
     rlt::malloc(device, observation);
 
