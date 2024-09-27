@@ -3,6 +3,7 @@
 #include <rl_tools/nn_models/models.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/containers/matrix/persist.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
@@ -33,16 +34,20 @@ using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 
 namespace mnist_model{ // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
 
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-    using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, INPUT_DIM>;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_SPEC>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_SPEC>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
+
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
+    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 
     using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
-    using IF = rlt::nn_models::sequential::Interface<CAPABILITY_ADAM >;
-    using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
+    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 using NETWORK_TYPE = mnist_model::MODEL;
@@ -65,8 +70,8 @@ int main(){
     rlt::Matrix<rlt::matrix::Specification<TI, TI, DATASET_SIZE_TRAIN, 1>> y_train;
     rlt::Matrix<rlt::matrix::Specification<TI, TI, DATASET_SIZE_VAL, 1>> y_val;
 
-    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
-    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
 
     rlt::malloc(device, network);
     rlt::malloc(device, buffers);
@@ -102,14 +107,22 @@ int main(){
             for (TI sample_i=0; sample_i < BATCH_SIZE; sample_i++){
                 auto input = rlt::row(device, x_train, batch_i * BATCH_SIZE + sample_i);
                 auto output = rlt::row(device, y_train, batch_i * BATCH_SIZE + sample_i);
-                auto prediction = rlt::row(device, rlt::output(network), 0);
-                rlt::forward(device, network, input, buffers, rng);
+                auto output_tensor = rlt::output(device, network);
+                auto output_matrix_view = rlt::matrix_view(device, output_tensor);
+                auto prediction = rlt::row(device, output_matrix_view, 0);
+                auto input_tensor = rlt::to_tensor(device, input);
+                auto input_tensor_unsqueezed = rlt::unsqueeze(device, input_tensor);
+                rlt::forward(device, network, input_tensor_unsqueezed, buffers, rng);
                 rlt::nn::loss_functions::categorical_cross_entropy::gradient(device, prediction, output, d_loss_d_output_matrix, T(1)/((T)BATCH_SIZE));
                 loss += rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, prediction, output, T(1)/((T)BATCH_SIZE));
 
                 T d_input[INPUT_DIM];
                 d_input_matrix._data = d_input;
-                rlt::backward_full(device, network, input, d_loss_d_output_matrix, d_input_matrix, buffers);
+                auto d_input_tensor = rlt::to_tensor(device, d_input_matrix);
+                auto d_input_tensor_unsqueezed = rlt::unsqueeze(device, d_input_tensor);
+                auto d_loss_d_output_tensor = rlt::to_tensor(device, d_loss_d_output_matrix);
+                auto d_loss_d_output_tensor_unsqueezed = rlt::unsqueeze(device, d_loss_d_output_tensor);
+                rlt::backward_full(device, network, input_tensor_unsqueezed, d_loss_d_output_tensor_unsqueezed, d_input_tensor_unsqueezed, buffers);
             }
             loss /= BATCH_SIZE;
             epoch_loss += loss;
@@ -131,16 +144,23 @@ int main(){
             auto output = rlt::row(device, y_val, sample_i);
 
             rlt::forward(device, network, input, buffers, rng);
-            val_loss += rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, rlt::output(network), output, T(1)/BATCH_SIZE);
-            TI predicted_label = rlt::argmax_row(device, rlt::output(network));
-            for(TI row_i = 0; row_i < 28; row_i++){
-                for(TI col_i = 0; col_i < 28; col_i++){
-                    T val = rlt::get(input, 0, row_i * 28 + col_i);
-                    std::cout << (val > 0.5 ? (std::string(" ") + std::to_string(predicted_label)) : std::string("  "));
+            auto output_tensor = rlt::output(device, network);
+            auto output_matrix_view = rlt::matrix_view(device, output_tensor);
+            val_loss += rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_matrix_view, output, T(1)/BATCH_SIZE);
+            {
+                auto output_tensor = rlt::output(device, network);
+                auto output_matrix_view = rlt::matrix_view(device, output_tensor);
+                TI predicted_label = rlt::argmax_row(device, output_matrix_view);
+                for(TI row_i = 0; row_i < 28; row_i++){
+                    for(TI col_i = 0; col_i < 28; col_i++){
+                        T val = rlt::get(input, 0, row_i * 28 + col_i);
+                        std::cout << (val > 0.5 ? (std::string(" ") + std::to_string(predicted_label)) : std::string("  "));
+                    }
+                    std::cout << std::endl;
                 }
-                std::cout << std::endl;
+                accuracy += predicted_label == rlt::get(output, 0, 0);
+
             }
-            accuracy += predicted_label == rlt::get(output, 0, 0);
         }
         val_loss /= DATASET_SIZE_VAL;
         accuracy /= VALIDATION_LIMIT;
