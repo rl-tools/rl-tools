@@ -115,8 +115,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::print(device, decltype(critic_output)::SPEC::SHAPE{});
     std::cout << std::endl;
 //    auto output_tensor_reshaped = reshape_row_major(device, output_tensor, typename MODULE::OUTPUT_SHAPE{});
-    rlt::evaluate(device, actor, actor_input, actor_output_evaluate, actor_buffer, rng);
-    rlt::forward(device, actor, actor_input, actor_output, actor_buffer, rng);
+    rlt::Mode<rlt::mode::Evaluation<>> mode;
+    rlt::evaluate(device, actor, actor_input, actor_output_evaluate, actor_buffer, rng, mode);
+    rlt::forward(device, actor, actor_input, actor_output, actor_buffer, rng, mode);
     T eval_forward_diff = rlt::abs_diff(device, actor_output_evaluate, actor_output);
     std::cout << "Evaluate Forward diff: " << eval_forward_diff << std::endl;
     ASSERT_LT(eval_forward_diff, 1e-10);
