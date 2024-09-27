@@ -46,7 +46,7 @@
 #include "td3/pendulum-v1.h"
 #include "td3/l2f.h"
 #include "ppo/pendulum-v1.h"
-//#include "ppo/bottleneck-v0.h"
+#include "ppo/bottleneck-v0.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ppo/ant-v4.h"
 #include "td3/ant-v4.h"
@@ -116,81 +116,67 @@ std::string environment = "l2f";
 int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
     using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
     DEVICE device;
-    rlt::utils::assert_exit(device, num_seeds > 0, "Number of seeds must be greater than 0.");
-    for(TI seed = initial_seed; seed < (TI)num_seeds; seed++){
-        LOOP_STATE ts;
-        ts.extrack_name = "zoo";
-        if(extrack_base_path != ""){
-            ts.extrack_base_path = extrack_base_path;
-        }
-        if(extrack_experiment != ""){
-            ts.extrack_experiment = extrack_experiment;
-        }
-        ts.extrack_population_variates = "algorithm_environment";
-        ts.extrack_population_values = algorithm + "_" + environment;
-        if(extrack_experiment_path != ""){
-            ts.extrack_experiment = extrack_experiment_path;
-        }
-        rlt::malloc(device);
-        rlt::init(device);
-        rlt::malloc(device, ts);
-        rlt::init(device, ts, seed);
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
-        rlt::init(device, device.logger, ts.extrack_seed_path);
-#endif
-        std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
-        std::cout << "Evaluation Interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
-        std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
-        while(!rlt::step(device, ts)){
-        }
-        std::filesystem::create_directories(ts.extrack_seed_path);
-        std::ofstream return_file(ts.extrack_seed_path / "return.json");
-        return_file << "[";
-        for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
-            return_file << "{";
-            return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL *  LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i << ", ";
-            return_file << "\"returns_mean\": " << get(ts.evaluation_results, 0, evaluation_i).returns_mean << ", ";
-            return_file << "\"returns_std\": " << get(ts.evaluation_results, 0, evaluation_i).returns_std << ", ";
-            return_file << "\"episode_length_mean\": " << get(ts.evaluation_results, 0, evaluation_i).episode_length_mean << ", ";
-            return_file << "\"episode_length_std\": " << get(ts.evaluation_results, 0, evaluation_i).episode_length_std << ", ";
-            return_file << "\"returns\": [";
-            for(TI episode_i = 0; episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES; episode_i++){
-                return_file << get(ts.evaluation_results, 0, evaluation_i).returns[episode_i];
-                if(episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES - 1){
-                    return_file << ", ";
-                }
-            }
-            return_file << "]";
-            return_file << "}";
-            if(evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1){
-                return_file << ", ";
-            }
-        }
-        return_file << "]";
-        std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
-        return_file_confirmation.close();
-
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
-        rlt::free(device, device.logger);
-#endif
-        rlt::free(device);
-    }
+    LOOP_STATE test_state;
+//    rlt::utils::assert_exit(device, num_seeds > 0, "Number of seeds must be greater than 0.");
+//    for(TI seed = initial_seed; seed < (TI)num_seeds; seed++){
+//        LOOP_STATE ts;
+//        ts.extrack_name = "zoo";
+//        if(extrack_base_path != ""){
+//            ts.extrack_base_path = extrack_base_path;
+//        }
+//        if(extrack_experiment != ""){
+//            ts.extrack_experiment = extrack_experiment;
+//        }
+//        ts.extrack_population_variates = "algorithm_environment";
+//        ts.extrack_population_values = algorithm + "_" + environment;
+//        if(extrack_experiment_path != ""){
+//            ts.extrack_experiment = extrack_experiment_path;
+//        }
+//        rlt::malloc(device);
+//        rlt::init(device);
+//        rlt::malloc(device, ts);
+//        rlt::init(device, ts, seed);
+//#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+//        rlt::init(device, device.logger, ts.extrack_seed_path);
+//#endif
+//        std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
+//        std::cout << "Evaluation Interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
+//        std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
+//        while(!rlt::step(device, ts)){
+//        }
+//        std::filesystem::create_directories(ts.extrack_seed_path);
+//        std::ofstream return_file(ts.extrack_seed_path / "return.json");
+//        return_file << "[";
+//        for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
+//            return_file << "{";
+//            return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL *  LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i << ", ";
+//            return_file << "\"returns_mean\": " << get(ts.evaluation_results, 0, evaluation_i).returns_mean << ", ";
+//            return_file << "\"returns_std\": " << get(ts.evaluation_results, 0, evaluation_i).returns_std << ", ";
+//            return_file << "\"episode_length_mean\": " << get(ts.evaluation_results, 0, evaluation_i).episode_length_mean << ", ";
+//            return_file << "\"episode_length_std\": " << get(ts.evaluation_results, 0, evaluation_i).episode_length_std << ", ";
+//            return_file << "\"returns\": [";
+//            for(TI episode_i = 0; episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES; episode_i++){
+//                return_file << get(ts.evaluation_results, 0, evaluation_i).returns[episode_i];
+//                if(episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES - 1){
+//                    return_file << ", ";
+//                }
+//            }
+//            return_file << "]";
+//            return_file << "}";
+//            if(evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1){
+//                return_file << ", ";
+//            }
+//        }
+//        return_file << "]";
+//        std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
+//        return_file_confirmation.close();
+//
+//#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+//        rlt::free(device, device.logger);
+//#endif
+//        rlt::free(device);
+//    }
+    std::cout << "Multi agent wrapper module input shape " << std::endl;
+    rlt::print(device, typename decltype(test_state.ppo.actor)::INPUT_SHAPE{});
     return 0;
 }
-
-//int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
-//    using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
-//    DEVICE device;
-//    LOOP_STATE ts;
-//
-//    std::cout << "layer 0 input: " << std::endl;
-//    rlt::print(device, typename decltype(ts.actor_critic.actor.content)::INPUT_SHAPE{});
-//    std::cout << "layer 0 output: " << std::endl;
-//    rlt::print(device, typename decltype(ts.actor_critic.actor.content)::OUTPUT_SHAPE{});
-//    std::cout << "layer 1 input: " << std::endl;
-//    rlt::print(device, typename decltype(ts.actor_critic.actor.next_module.content)::INPUT_SHAPE{});
-//    std::cout << "layer 1 outpu: " << std::endl;
-//    rlt::print(device, typename decltype(ts.actor_critic.actor.next_module.content)::OUTPUT_SHAPE{});
-//    return 0;
-//}
-

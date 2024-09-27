@@ -248,7 +248,6 @@ namespace rl_tools::nn_models::sequential_v2{
         using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;
         template <typename NEW_CAPABILITY>
         using CHANGE_CAPABILITY = typename _Chain<NEW_CAPABILITY, MODULE, INPUT_SHAPE>::MODULE;
-
     };
 
 }

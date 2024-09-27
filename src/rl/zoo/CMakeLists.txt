@@ -65,12 +65,12 @@ target_compile_definitions(rl_zoo_ppo_pendulum_v1 PRIVATE RL_TOOLS_RL_ZOO_ALGORI
 target_compile_definitions(rl_zoo_ppo_pendulum_v1 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 
 ## PPO Bottleneck-v0
-#add_executable(rl_zoo_ppo_bottleneck_v0 zoo_cli.cpp zoo.cpp)
-#target_link_libraries(rl_zoo_ppo_bottleneck_v0 PRIVATE RLtools::RLtools)
-#RL_TOOLS_RL_ZOO_LINK_ZLIB_OR_NOT(rl_zoo_ppo_bottleneck_v0)
-#RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_ppo_bottleneck_v0)
-#target_compile_definitions(rl_zoo_ppo_bottleneck_v0 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
-#target_compile_definitions(rl_zoo_ppo_bottleneck_v0 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_BOTTLENECK_V0)
+add_executable(rl_zoo_ppo_bottleneck_v0 zoo_cli.cpp zoo.cpp)
+target_link_libraries(rl_zoo_ppo_bottleneck_v0 PRIVATE RLtools::RLtools)
+RL_TOOLS_RL_ZOO_LINK_ZLIB_OR_NOT(rl_zoo_ppo_bottleneck_v0)
+RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_ppo_bottleneck_v0)
+target_compile_definitions(rl_zoo_ppo_bottleneck_v0 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
+target_compile_definitions(rl_zoo_ppo_bottleneck_v0 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_BOTTLENECK_V0)
 
 if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     # PPO Ant-v4
