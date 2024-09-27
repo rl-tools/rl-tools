@@ -46,7 +46,7 @@
 #include "td3/pendulum-v1.h"
 #include "td3/l2f.h"
 #include "ppo/pendulum-v1.h"
-#include "ppo/bottleneck-v0.h"
+//#include "ppo/bottleneck-v0.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ppo/ant-v4.h"
 #include "td3/ant-v4.h"

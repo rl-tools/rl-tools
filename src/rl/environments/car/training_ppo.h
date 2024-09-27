@@ -33,14 +33,14 @@ using ENVIRONMENT_EVALUATION = ENVIRONMENT;
 using UI = rlt::ui_server::client::UIBuffered<ENVIRONMENT>;
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
+    static constexpr TI BATCH_SIZE = 256;
+    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.001;
         static constexpr TI N_EPOCHS = 2;
         static constexpr T GAMMA = 0.995;
         static constexpr T LAMBDA = 0.975;
         static constexpr bool ADAPTIVE_LEARNING_RATE = false;
     };
-    static constexpr TI BATCH_SIZE = 256;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
@@ -85,7 +85,7 @@ struct State{
     DEVICE device;
     LOOP_STATE ts;
     bool mode_interactive = false;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> interactive_action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM, false>> interactive_action;
     bool mode_training = false;
     std::chrono::time_point<std::chrono::high_resolution_clock> previous_interactive_step;
     ENVIRONMENT::State interactive_state, interactive_next_state;

@@ -130,8 +130,8 @@ namespace rl_tools{
         static_assert(OBS_SPEC::COLS == ENVIRONMENT::Observation::DIM);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        auto observation_base = view(device, observation, matrix::ViewSpec<1, ENVIRONMENT::Observation::DIM>{});
-        observe(device, (ENVIRONMENT&)env, parameters, (typename ENVIRONMENT::State&)state, typename ENVIRONMENT::Observation{}, observation_base, rng);
+        auto observation_base = view(device, observation, matrix::ViewSpec<1, rl::environments::car::ObservationCar<TI>::DIM>{});
+        observe(device, (ENVIRONMENT&)env, parameters, static_cast<const typename rl::environments::Car<SPEC>::State&>(state), rl::environments::car::ObservationCar<TI>{}, observation_base, rng);
         constexpr TI N_DIRECTIONS = 3;
         constexpr TI NUM_STEPS = 50;
         constexpr T step_size = SPEC::TRACK_SCALE / 2;

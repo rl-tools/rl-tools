@@ -85,44 +85,44 @@ namespace rl_tools{
             using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
         };
 
-        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
-        struct ConfigApproximatorsSequentialMultiAgent{
-            template <typename CAPABILITY>
-            struct Actor{
-                static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
-                static_assert(ENVIRONMENT::Observation::DIM % N_AGENTS == 0);
-                static_assert(ENVIRONMENT::ACTION_DIM % N_AGENTS == 0);
-                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::Observation::DIM/N_AGENTS>;
-                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
-                using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
-                using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
-                using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
-
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
-
-//                using WRAPPER_SPEC = nn_models::multi_agent_wrapper::Specification<T, TI, N_AGENTS, Module<STANDARDIZATION_LAYER, >;
-//                using MODEL = nn_models::multi_agent_wrapper::Module<CAPABILITY, WRAPPER_SPEC>;
-            };
-            template <typename CAPABILITY>
-            struct Critic{
-//                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
-//                using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
-//                using IF = nn_models::sequential::Interface<CAPABILITY>;
-//                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
-//                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM>;
-//                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
-//                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
-            };
-
-            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
-            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
-            using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
-            using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
-            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::BATCH_SIZE>;
-            using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
-            using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
-        };
+//        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+//        struct ConfigApproximatorsSequentialMultiAgent{
+//            template <typename CAPABILITY>
+//            struct Actor{
+//                static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
+//                static_assert(ENVIRONMENT::Observation::DIM % N_AGENTS == 0);
+//                static_assert(ENVIRONMENT::ACTION_DIM % N_AGENTS == 0);
+//                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::Observation::DIM/N_AGENTS>;
+//                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+//                using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+//                using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
+//                using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
+//
+//                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
+//                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+//
+////                using WRAPPER_SPEC = nn_models::multi_agent_wrapper::Specification<T, TI, N_AGENTS, Module<STANDARDIZATION_LAYER, >;
+////                using MODEL = nn_models::multi_agent_wrapper::Module<CAPABILITY, WRAPPER_SPEC>;
+//            };
+//            template <typename CAPABILITY>
+//            struct Critic{
+////                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
+////                using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
+////                using IF = nn_models::sequential::Interface<CAPABILITY>;
+////                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
+////                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM>;
+////                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
+////                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
+//            };
+//
+//            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+//            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+//            using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
+//            using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
+//            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam>;
+//            using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
+//            using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
+//        };
 
         struct ConfigTag{};
         template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential>

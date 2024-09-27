@@ -46,6 +46,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
         malloc(device, runner.environments);
+        malloc(device, runner.env_parameters);
         malloc(device, runner.states);
         malloc(device, runner.episode_step);
         malloc(device, runner.episode_return);
@@ -54,6 +55,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
         free(device, runner.environments);
+        free(device, runner.env_parameters);
         free(device, runner.states);
         free(device, runner.episode_step);
         free(device, runner.episode_return);
