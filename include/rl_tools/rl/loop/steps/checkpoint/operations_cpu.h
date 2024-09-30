@@ -120,22 +120,27 @@ namespace rl_tools{
             using ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE;
             static constexpr TI BATCH_SIZE = 13;
             using INPUT_SHAPE = tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>;
-            using ACTOR_FORWARD_TYPE = nn_models::sequential_v2::Build<nn::layer_capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, INPUT_SHAPE>;
+            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
+            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::layer_capability::Forward<>>;
+            EVALUATION_ACTOR_TYPE evaluation_actor;
+            malloc(device, evaluation_actor);
+            copy(device, device, actor, evaluation_actor);
+//            using ACTOR_FORWARD_TYPE = nn_models::sequential_v2::Build<nn::layer_capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, INPUT_SHAPE>;
 //            using ACTOR_FORWARD_TYPE = ACTOR_TYPE;
-            ACTOR_FORWARD_TYPE actor_forward;
-            malloc(device, actor_forward);
-            copy(device, device, actor, actor_forward);
+//            ACTOR_FORWARD_TYPE actor_forward;
+//            malloc(device, actor_forward);
+//            copy(device, device, actor, actor_forward);
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
             try{
                 auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
-                save(device, actor_forward, actor_file.createGroup("actor"));
+                save(device, evaluation_actor, actor_file.createGroup("actor"));
             }
             catch(HighFive::Exception& e){
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
 #endif
-            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, ts, step_folder.string(), actor_forward);
-            free(device, actor_forward);
+            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, ts, step_folder.string(), evaluation_actor);
+            free(device, evaluation_actor);
 
         }
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));

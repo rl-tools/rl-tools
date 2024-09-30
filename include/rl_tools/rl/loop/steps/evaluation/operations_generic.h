@@ -51,7 +51,12 @@ namespace rl_tools{
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;
             if(ts.step % PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < PARAMETERS::N_EVALUATIONS){
                 auto& result = get(ts.evaluation_results, 0, evaluation_index);
-                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, ts.evaluation_mode, false);
+                typename TS::EVALUATION_ACTOR_TYPE evaluation_actor;
+                malloc(device, evaluation_actor);
+                auto actor = get_actor(ts);
+                copy(device, device, actor, evaluation_actor);
+                evaluate(device, ts.env_eval, ts.ui, evaluation_actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, ts.evaluation_mode, false);
+                free(device, evaluation_actor);
                 log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
                 add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);

@@ -66,6 +66,7 @@ namespace rl_tools::nn_models::sequential_v2{
 
     template <typename T_ORIGINAL_ROOT, typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
     struct Specification{
+        // TODO: remove this
         using ORIGINAL_ROOT = T_ORIGINAL_ROOT; // saving this such that we can reuse ::Build to change capabilities and/or input shapes
         using CONTENT = T_CONTENT;
         using NEXT_MODULE = T_NEXT_MODULE;
@@ -242,12 +243,12 @@ namespace rl_tools::nn_models::sequential_v2{
         template <typename TI, TI BATCH_SIZE>
         struct CHANGE_BATCH_SIZE_IMPL{
             using NEW_INPUT_SHAPE = tensor::Replace<INPUT_SHAPE, BATCH_SIZE, 1>;
-            using CHANGE_BATCH_SIZE = typename _Chain<CAPABILITY, MODULE, NEW_INPUT_SHAPE>::MODULE;
+            using CHANGE_BATCH_SIZE = Build<CAPABILITY, MODULE, NEW_INPUT_SHAPE>;
         };
         template <typename TI, TI BATCH_SIZE>
         using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;
         template <typename NEW_CAPABILITY>
-        using CHANGE_CAPABILITY = typename _Chain<NEW_CAPABILITY, MODULE, INPUT_SHAPE>::MODULE;
+        using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE, INPUT_SHAPE>;
     };
 
 }

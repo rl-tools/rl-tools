@@ -57,8 +57,12 @@ namespace rl_tools::nn::layers::dense {
         using INPUT_SHAPE = T_INPUT_SHAPE;
         static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
         template <typename NEW_INPUT_SHAPE>
-        using OUTPUT_SHAPE_FACTORY = tensor::Replace<NEW_INPUT_SHAPE, CONFIG::OUTPUT_DIM, length(NEW_INPUT_SHAPE{})-1>;
-        using OUTPUT_SHAPE = OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>;
+        struct OUTPUT_SHAPE_FACTORY{
+            static constexpr TI NEW_INPUT_DIM = get_last(NEW_INPUT_SHAPE{});
+            static_assert(NEW_INPUT_DIM == INPUT_DIM);
+            using SHAPE = tensor::Replace<NEW_INPUT_SHAPE, CONFIG::OUTPUT_DIM, length(NEW_INPUT_SHAPE{})-1>;
+        };
+        using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
         static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
         static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_DIM * INPUT_DIM + CONFIG::OUTPUT_DIM;
     };
@@ -85,11 +89,9 @@ namespace rl_tools::nn::layers::dense {
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
         static constexpr TI INTERNAL_BATCH_SIZE = SPEC::INTERNAL_BATCH_SIZE;
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
-        using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
         template <typename NEW_INPUT_SHAPE>
-        using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
-//        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
-//        using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+        using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>::SHAPE;
+        using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
         using WEIGHTS_CONTAINER_SPEC = matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
         using WEIGHTS_CONTAINER_TYPE = Matrix<WEIGHTS_CONTAINER_SPEC>;
         using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;

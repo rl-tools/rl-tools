@@ -101,7 +101,12 @@ namespace rl_tools{
                         std::cout << "UI written to: " << ts.extrack_seed_path / "ui.esm.js" << std::endl;
                     }
                 }
-                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_save_trajectories_buffers, ts.rng_save_trajectories, ts.evaluation_mode, false);
+                typename TS::SAVE_TRAJECTORIES_ACTOR_TYPE evaluation_actor;
+                malloc(device, evaluation_actor);
+                auto actor = get_actor(ts);
+                copy(device, device, actor, evaluation_actor);
+                evaluate(device, ts.env_eval, ts.ui, evaluation_actor, ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_save_trajectories_buffers, ts.rng_save_trajectories, ts.evaluation_mode, false);
+                free(device, evaluation_actor);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 
