@@ -37,12 +37,6 @@ using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt:
 using PRE_ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 using SCALE_OBSERVATIONS_WRAPPER_SPEC = rlt::rl::environment_wrappers::scale_observations::Specification<T, TI>;
 using ENVIRONMENT = rlt::rl::environment_wrappers::ScaleObservations<SCALE_OBSERVATIONS_WRAPPER_SPEC, PRE_ENVIRONMENT>;
-enum class BENCHMARK_MODE: TI{
-    LARGE = 0,
-    MEDIUM = 1,
-    SMALL = 2,
-    TINY = 3,
-};
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     static constexpr TI BATCH_SIZE = 256;
@@ -77,7 +71,7 @@ auto run(TI seed, bool verbose){
     using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS<LOOP_CORE_CONFIG>>;
     using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 #else
-    using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG<MODE>>;
+    using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
 #endif
     if(verbose){
         rlt::log(device, LOOP_TIMING_CONFIG{});
@@ -91,10 +85,20 @@ auto run(TI seed, bool verbose){
     }
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-//    evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{}, false);
-//    rlt::log(device, device.logger, "Final return: ", result.returns_mean);
-//    rlt::log(device, device.logger, "              mean: ", result.returns_mean);
-//    rlt::log(device, device.logger, "              std : ", result.returns_std);
+    auto actor = rlt::get_actor(ts);
+    using EVALUATION_ACTOR_BATCH_SIZE = decltype(actor)::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_FINAL_EVAL>;
+    using EVALUATION_ACTOR = typename EVALUATION_ACTOR_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward<>>;
+    EVALUATION_ACTOR evaluation_actor;
+    typename EVALUATION_ACTOR::template Buffer<> evaluation_buffer;
+    rlt::malloc(device, evaluation_actor);
+    rlt::malloc(device, evaluation_buffer);
+    rlt::copy(device, device, actor, evaluation_actor);
+    evaluate(device, ts.envs[0], ts.ui, evaluation_actor, result, evaluation_buffer, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{}, false);
+    rlt::free(device, evaluation_actor);
+    rlt::free(device, evaluation_buffer);
+    rlt::log(device, device.logger, "Final return: ", result.returns_mean);
+    rlt::log(device, device.logger, "              mean: ", result.returns_mean);
+    rlt::log(device, device.logger, "              std : ", result.returns_std);
     return result;
 }
 
@@ -134,4 +138,5 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-// Should take ~ 0.3s on M3 Pro in BECHMARK mode (tested @ 1118e19f904a26a9619fac7b1680643a0afcb695)
+// Should take ~ 0.3s on M3 Pro in BECHMARK mode
+// - tested @ 1118e19f904a26a9619fac7b1680643a0afcb695)
