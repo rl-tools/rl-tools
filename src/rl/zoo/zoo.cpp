@@ -176,7 +176,5 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #endif
         rlt::free(device);
     }
-    std::cout << "Multi agent wrapper module input shape " << std::endl;
-    rlt::print(device, typename decltype(test_state.ppo.actor)::INPUT_SHAPE{});
     return 0;
 }
