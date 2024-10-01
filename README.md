@@ -46,12 +46,15 @@
 
 <div align="center">
   <a href="https://github.com/rl-tools/rl-tools/blob/master/src/rl/environments/mujoco/ant/ppo/cpu/training.h">
-    <img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" width='350'/>  
+    <img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" height='200'/>  
+  </a>
+  <a href="https://github.com/rl-tools/rl-tools/blob/e033cc1d739f66d18ef685233d8dd84dddb3fe69/src/rl/zoo/ppo/bottleneck-v0.h">
+    <img src="https://github.com/rl-tools/media/blob/master/bottleneck.gif" alt="animated" height='200'/>  
   </a>
 </div>
 
 <div align="center">
-    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> PPO
+    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> PPO/Multi-Agent PPO
 </div>
 </br>
 
@@ -98,10 +101,12 @@
 |-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **TD3**   | [Pendulum](./src/rl/environments/pendulum/td3/cpu/standalone.cpp), [Racing Car](./src/rl/environments/car/car.cpp), [MuJoCo Ant-v4](./src/rl/environments/mujoco/ant/td3/training.h), [Acrobot](./src/rl/environments/acrobot/td3/acrobot.cpp)                                         |
 | **PPO**   | [Pendulum](./src/rl/environments/pendulum/ppo/cpu/training.cpp), [Racing Car](./src/rl/environments/car/training_ppo.h), [MuJoCo Ant-v4 (CPU)](./src/rl/environments/mujoco/ant/ppo/cpu/training.h), [MuJoCo Ant-v4 (CUDA)](./src/rl/environments/mujoco/ant/ppo/cuda/training_ppo.cu) |
+| **Multi-Agent PPO**   | [Bottleneck](./src/rl/zoo/ppo/bottleneck-v0.h) |
 | **SAC**   | [Pendulum (CPU)](./src/rl/environments/pendulum/sac/cpu/training.cpp), [Pendulum (CUDA)](./src/rl/environments/pendulum/sac/cuda/sac.cu), [Acrobot](./src/rl/environments/acrobot/sac/acrobot.cpp)                                                                                     |
 
 ## Projects Based on <span style="color:#7DB9B6">RLtools</span>
 - Learning to Fly in Seconds: [GitHub](https://github.com/arplaboratory/learning-to-fly) / [arXiv](https://arxiv.org/abs/2311.13081) / [YouTube](https://youtu.be/NRD43ZA1D-4) / [IEEE Spectrum](https://spectrum.ieee.org/amp/drone-quadrotor-2667196800)
+- Data-Driven System Identification of Quadrotors Subject to Motor Delays [GitHub](https://github.com/arplaboratory/data-driven-system-identification) / [arXiv](https://arxiv.org/abs/2404.07837) / [YouTube](https://youtu.be/G3WGthRx2KE) / [Project Page](https://sysid.tools)
 
 
 # Getting Started
