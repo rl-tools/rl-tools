@@ -4,7 +4,7 @@
 
 
 <div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/overview.png"/ width=500>  
+<img src="https://github.com/rl-tools/media/blob/master/overview.jpg"/ width=500>  
 </div>
 
 <p align="center">
