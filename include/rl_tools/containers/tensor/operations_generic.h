@@ -73,6 +73,15 @@ namespace rl_tools{
         VIEW_TYPE view{data(tensor) + offset};
         return view;
     }
+    template <typename DEVICE, typename SPEC, auto DIM=0, auto SIZE=0>
+    auto view_range(DEVICE& device, const Tensor<SPEC>& tensor, const tensor::ViewSpec<DIM, SIZE>){
+        return view_range(device, tensor, 0, tensor::ViewSpec<DIM, SIZE>{});
+    }
+
+    template <typename DEVICE, typename SPEC, auto DIM=0, auto SIZE=0>
+    auto view_range(DEVICE& device, Tensor<SPEC>& tensor, const tensor::ViewSpec<DIM, SIZE>){
+        return view_range(device, tensor, 0, tensor::ViewSpec<DIM, SIZE>{});
+    }
 
     template <auto DIM=0, typename DEVICE, typename SPEC>
     auto view(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM> = {}){

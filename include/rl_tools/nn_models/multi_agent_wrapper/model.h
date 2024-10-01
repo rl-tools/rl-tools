@@ -37,14 +37,14 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         static constexpr TI BATCH_SIZE = get<BATCH_AXIS>(T_INPUT_SHAPE{});
         static_assert(INPUT_DIM % CONFIG::N_AGENTS == 0, "The input dimension must be divisible by the number of agents");
         static constexpr TI PER_AGENT_INPUT_DIM = INPUT_DIM / CONFIG::N_AGENTS;
-        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<T_INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
+        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<T_INPUT_SHAPE>>{}) * CONFIG::N_AGENTS; // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
         using INPUT_SHAPE = T_INPUT_SHAPE;
         using INTERNAL_INPUT_SHAPE_TEMP = tensor::Replace<T_INPUT_SHAPE, PER_AGENT_INPUT_DIM, length(T_INPUT_SHAPE{})-1>;
         using INTERNAL_INPUT_SHAPE = tensor::Replace<INTERNAL_INPUT_SHAPE_TEMP, INTERNAL_BATCH_SIZE, BATCH_AXIS>;
         using MODEL = nn_models::sequential_v2::Build<CAPABILITY, typename CONFIG::MODULE, INTERNAL_INPUT_SHAPE>;
         static constexpr TI PER_AGENT_OUTPUT_DIM = get_last(typename MODEL::OUTPUT_SHAPE{});
         static constexpr TI OUTPUT_DIM = PER_AGENT_OUTPUT_DIM * CONFIG::N_AGENTS;
-        using OUTPUT_SHAPE = tensor::Replace<typename MODEL::OUTPUT_SHAPE, OUTPUT_DIM, length(typename MODEL::OUTPUT_SHAPE{})-1>;
+        using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(typename MODEL::INPUT_SHAPE{})-1>;
     };
 
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION=true>
@@ -80,10 +80,10 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         static constexpr TI INNER_BATCH_SIZE = BATCH_SIZE * SPEC::N_AGENTS;
 
-        using INPUT_BUFFER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
-        using INPUT_BUFFER_TYPE = Matrix<INPUT_BUFFER_SPEC>;
-        using OUTPUT_BUFFER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
-        using OUTPUT_BUFFER_TYPE = Matrix<OUTPUT_BUFFER_SPEC>;
+        using INPUT_BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::INPUT_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+        using INPUT_BUFFER_TYPE = Tensor<INPUT_BUFFER_SPEC>;
+        using OUTPUT_BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::OUTPUT_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_BUFFER_TYPE = Tensor<OUTPUT_BUFFER_SPEC>;
         INPUT_BUFFER_TYPE input, d_input;
         OUTPUT_BUFFER_TYPE output;
 

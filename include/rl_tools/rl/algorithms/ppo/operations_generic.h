@@ -175,6 +175,12 @@ namespace rl_tools{
                 auto batch_observations_tensor_unsqueezed = unsqueeze(device, batch_observations_tensor);
                 auto current_batch_actions_tensor = to_tensor(device, ppo_buffers.current_batch_actions);
                 auto current_batch_actions_tensor_unsqueezed = unsqueeze(device, current_batch_actions_tensor);
+                static_assert(decltype(ppo.actor)::OUTPUT_SHAPE::template GET<0> == 1);
+                static_assert(decltype(ppo.actor)::OUTPUT_SHAPE::template GET<1> == 1024);
+                static_assert(decltype(ppo.actor)::OUTPUT_SHAPE::template GET<2> == 10);
+                static_assert(decltype(current_batch_actions_tensor_unsqueezed)::SPEC::SHAPE::template GET<0> == 1);
+                static_assert(decltype(current_batch_actions_tensor_unsqueezed)::SPEC::SHAPE::template GET<1> == 1024);
+                static_assert(decltype(current_batch_actions_tensor_unsqueezed)::SPEC::SHAPE::template GET<2> == 10);
                 forward(device, ppo.actor, batch_observations_tensor_unsqueezed, current_batch_actions_tensor_unsqueezed, actor_buffers, rng);
 //                auto abs_diff = abs_diff(device, batch_actions, dataset.actions);
 
@@ -271,7 +277,8 @@ namespace rl_tools{
                     }
                 }
                 auto d_action_d_log_prob_action_tensor = to_tensor(device, ppo_buffers.d_action_log_prob_d_action);
-                backward(device, ppo.actor, batch_observations_tensor_unsqueezed, d_action_d_log_prob_action_tensor, actor_buffers);
+                auto d_action_d_log_prob_action_tensor_unsqueezed = unsqueeze(device, d_action_d_log_prob_action_tensor);
+                backward(device, ppo.actor, batch_observations_tensor_unsqueezed, d_action_d_log_prob_action_tensor_unsqueezed, actor_buffers);
 //                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
 
                 auto batch_observations_privileged_tensor = to_tensor(device, batch_observations_privileged);

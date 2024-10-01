@@ -6,13 +6,35 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace tensor{
-        struct FinalElement{};
+        struct FinalElement{
+            static constexpr auto LENGTH = 0;
+            template <auto N>
+            struct GET {
+                static_assert(N == 0, "Index out of bounds in FinalElement");
+            };
+        };
         template <typename T_TI, T_TI T_VALUE, typename T_NEXT_ELEMENT>
         struct Element{
             using TI = T_TI;
             static constexpr TI VALUE = T_VALUE;
     //            static constexpr bool FINAL_ELEMENT = utils::typing::is_same_v<T_NEXT_ELEMENT, FinalElement>;
             using NEXT_ELEMENT = T_NEXT_ELEMENT;
+
+            static constexpr bool NEXT_IS_FINAL = utils::typing::is_same_v<T_NEXT_ELEMENT, FinalElement>;
+            static constexpr TI LENGTH = (NEXT_IS_FINAL ? 0 : 1) + NEXT_ELEMENT::LENGTH;
+
+            template <TI N>
+            struct GET_IMPL{
+                static constexpr TI VALUE = NEXT_ELEMENT::template GET_IMPL<N - 1>::VALUE;
+            };
+
+            template <>
+            struct GET_IMPL<0> {
+                static constexpr TI VALUE = T_VALUE;
+            };
+
+            template <TI N>
+            static constexpr TI GET = GET_IMPL<N>::VALUE;
         };
 
 

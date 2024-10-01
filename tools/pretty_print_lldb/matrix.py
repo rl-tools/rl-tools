@@ -15,7 +15,8 @@ import json
 
 def decode_row_major(valobj):
     regex = r"^\s*(?:const|\s*)\s*rl_tools\s*::\s*Matrix\s*<\s*rl_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*rl_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
-    result = re.match(regex, valobj.type.name)
+    typename = valobj.GetType().GetCanonicalType().GetName()
+    result = re.match(regex, typename)
     if result is None:
         return None
     else:
@@ -29,7 +30,8 @@ def decode_row_major(valobj):
 
 def decode_fixed(valobj):
     regex = r"^\s*(?:const|\s*)\s*rl_tools\s*::\s*Matrix\s*<\s*rl_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*rl_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*Fixed\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
-    result = re.match(regex, valobj.type.name)
+    typename = valobj.GetType().GetCanonicalType().GetName()
+    result = re.match(regex, typename)
     if result is None:
         return None
     else:

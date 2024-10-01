@@ -1106,3 +1106,22 @@ TEST(RL_TOOLS_TENSOR_TEST, IS_NAN){
         ASSERT_TRUE(is_nan_now);
     }
 }
+
+TEST(RL_TOOLS_TENSOR_TEST, SHAPE_GETTER){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 5, 3>;
+        ASSERT_EQ(SHAPE::VALUE, 10);
+        ASSERT_EQ(SHAPE::NEXT_ELEMENT::VALUE, 5);
+        ASSERT_EQ(SHAPE::NEXT_ELEMENT::NEXT_ELEMENT::VALUE, 3);
+        ASSERT_EQ(SHAPE::NEXT_ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT::VALUE, 0);
+        ASSERT_EQ(SHAPE::GET<0>, 10);
+        ASSERT_EQ(SHAPE::GET<1>, 5);
+        ASSERT_EQ(SHAPE::GET<2>, 3);
+        ASSERT_EQ(SHAPE::LENGTH, 3);
+    }
+}
