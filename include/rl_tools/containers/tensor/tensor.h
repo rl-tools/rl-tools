@@ -13,6 +13,19 @@ namespace rl_tools{
                 static_assert(N == 0, "Index out of bounds in FinalElement");
             };
         };
+        template <typename TI, typename ELEMENT, TI N>
+        struct GET_IMPL {
+            static constexpr TI VALUE() {
+                if constexpr (N == 0) {
+                    // Base case: when N == 0, return the ELEMENT's VALUE
+                    return ELEMENT::VALUE;
+                } else {
+                    // Recursive case: delegate to NEXT_ELEMENT with N - 1
+                    return GET_IMPL<TI, typename ELEMENT::NEXT_ELEMENT, N - 1>::VALUE();
+                }
+            }
+        };
+
         template <typename T_TI, T_TI T_VALUE, typename T_NEXT_ELEMENT>
         struct Element{
             using TI = T_TI;
@@ -23,18 +36,9 @@ namespace rl_tools{
             static constexpr bool NEXT_IS_FINAL = utils::typing::is_same_v<T_NEXT_ELEMENT, FinalElement>;
             static constexpr TI LENGTH = (NEXT_IS_FINAL ? 0 : 1) + NEXT_ELEMENT::LENGTH;
 
-            template <TI N>
-            struct GET_IMPL{
-                static constexpr TI VALUE = NEXT_ELEMENT::template GET_IMPL<N - 1>::VALUE;
-            };
-
-            template <>
-            struct GET_IMPL<0> {
-                static constexpr TI VALUE = T_VALUE;
-            };
 
             template <TI N>
-            static constexpr TI GET = GET_IMPL<N>::VALUE;
+            static constexpr TI GET = GET_IMPL<TI, Element<T_TI, T_VALUE, T_NEXT_ELEMENT>, N>::VALUE();
         };
 
 

@@ -517,7 +517,7 @@ namespace rl_tools{
     void one_minus(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         using T = typename SPEC::T;
         using PARAMETER = T;
-        tensor::Operation<tensor::unary_operations::one_minus<DEVICE, PARAMETER, T>, PARAMETER> op;
+        tensor::Operation<tensor::unary_operations::one_minus<DEVICE, PARAMETER, T>, PARAMETER> op{};
         unary_operation(device, op, t, output);
     }
 
