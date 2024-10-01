@@ -14,12 +14,12 @@ import json
 
 
 def decode_row_major(valobj):
-    regex = r"^\s*(?:const|\s*)\s*rl_tools\s*::\s*Matrix\s*<\s*rl_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*rl_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
+    regex = r"^\s*(?:const|\s*)\s*rl_tools\s*::\s*Matrix\s*<\s*rl_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*rl_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
     result = re.match(regex, valobj.type.name)
     if result is None:
         return None
     else:
-        meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "ROW_MAJOR_ALIGNMENT", "IS_VIEW"], result.groups()))
+        meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "DYNAMIC_ALLOCATION", "ROW_MAJOR_ALIGNMENT", "CONST"], result.groups()))
         meta["ROWS"] = int(meta["ROWS"])
         meta["COLS"] = int(meta["COLS"])
         meta["ROW_MAJOR_ALIGNMENT"] = int(meta["ROW_MAJOR_ALIGNMENT"])
@@ -28,12 +28,12 @@ def decode_row_major(valobj):
         return meta
 
 def decode_fixed(valobj):
-    regex = r"^\s*(?:const|\s*)\s*rl_tools\s*::\s*Matrix\s*<\s*rl_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*rl_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*Fixed\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
+    regex = r"^\s*(?:const|\s*)\s*rl_tools\s*::\s*Matrix\s*<\s*rl_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*rl_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*Fixed\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
     result = re.match(regex, valobj.type.name)
     if result is None:
         return None
     else:
-        meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "ROW_PITCH", "COL_PITCH", "IS_VIEW"], result.groups()))
+        meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "DYNAMIC_ALLOCATION", "ROW_PITCH", "COL_PITCH", "CONST"], result.groups()))
         meta["ROWS"] = int(meta["ROWS"])
         meta["COLS"] = int(meta["COLS"])
         meta["ROW_PITCH"] = int(meta["ROW_PITCH"])

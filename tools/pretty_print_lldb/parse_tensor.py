@@ -260,6 +260,46 @@ def parse_tuple(tree, verbose=False):
                 print(f"Parse Tuple: Index out of bounds for Replace: {index}")
             return None
         return operand[:index] + [value] + operand[index+1:]
+    elif name == "rl_tools::tensor::Insert":
+        if len(tree.children) != 4:
+            if verbose:
+                print(f"Parse Tuple: Expected 4 children for Insert, got {len(tree.children)}")
+            return None
+        operand_node = tree.children[1]
+        if operand_node.type != "tree":
+            if verbose:
+                print(f"Parse Tuple: Expected tree node for operand, got {operand_node.type}")
+            return None
+        operand = parse_tuple(operand_node, verbose)
+        if operand is None:
+            return None
+        value_node = tree.children[2]
+        if value_node.type != "text":
+            if verbose:
+                print(f"Parse Tuple: Expected text node for value, got {value_node.type}")
+            return None
+        try:
+            value = int(value_node.value)
+        except ValueError:
+            if verbose:
+                print(f"Parse Tuple: Expected integer value for value, got {value_node.value}")
+            return None
+        index_node = tree.children[3]
+        if index_node.type != "text":
+            if verbose:
+                print(f"Parse Tuple: Expected text node for index, got {index_node.type}")
+            return None
+        try:
+            index = int(index_node.value)
+        except ValueError:
+            if verbose:
+                print(f"Parse Tuple: Expected integer value for index, got {index_node.value}")
+            return None
+        if index < 0 or index >= len(operand):
+            if verbose:
+                print(f"Parse Tuple: Index out of bounds for Insert: {index}")
+            return None
+        return operand[:index] + [value] + operand[index:]
     else:
         if verbose:
             print(f"Parse Tuple: Unknown tuple name: {name}")
