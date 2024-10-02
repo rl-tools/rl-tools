@@ -22,7 +22,7 @@ target_link_libraries(
         GTest::gtest_main
 )
 
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+if (NOT WIN32 AND (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU"))
     target_compile_options(test_nn_layers_gru PRIVATE -fsanitize=address -fno-omit-frame-pointer)
     target_link_options(test_nn_layers_gru PRIVATE -fsanitize=address)
 endif()
@@ -42,7 +42,6 @@ target_link_libraries(
         test_nn_layers_gru_training
         PRIVATE
         RLtools::RLtools
-        ZLIB::ZLIB
         cjson
 )
 add_executable(
@@ -53,7 +52,6 @@ target_link_libraries(
         test_nn_layers_gru_training_sequences
         PRIVATE
         RLtools::RLtools
-        ZLIB::ZLIB
         cjson
 )
 if(NOT CMAKE_BUILD_TYPE MATCHES Debug)

@@ -1,4 +1,4 @@
-template <typename DEVICE, typename SPEC, std::enable_if_t<rlt::length(typename SPEC::SHAPE{}) == 1, int> = 0>
+template <typename DEVICE, typename SPEC, std::enable_if_t<SPEC::SHAPE::LENGTH == 1, int> = 0>
 void fill(DEVICE& device, rlt::Tensor<SPEC>& tensor) {
     using T = typename SPEC::T;
     using TI = typename DEVICE::index_t;
@@ -7,7 +7,7 @@ void fill(DEVICE& device, rlt::Tensor<SPEC>& tensor) {
     }
 }
 
-template <typename DEVICE, typename SPEC, std::enable_if_t<rlt::length(typename SPEC::SHAPE{}) == 2, int> = 0>
+template <typename DEVICE, typename SPEC, std::enable_if_t<SPEC::SHAPE::LENGTH == 2, int> = 0>
 void fill(DEVICE& device, rlt::Tensor<SPEC>& tensor) {
     using T = typename SPEC::T;
     using TI = typename DEVICE::index_t;
@@ -18,7 +18,7 @@ void fill(DEVICE& device, rlt::Tensor<SPEC>& tensor) {
     }
 }
 
-template <typename DEVICE, typename SPEC, std::enable_if_t<rlt::length(typename SPEC::SHAPE{}) == 3, int> = 0>
+template <typename DEVICE, typename SPEC, std::enable_if_t<SPEC::SHAPE::LENGTH == 3, int> = 0>
 void fill(DEVICE& device, rlt::Tensor<SPEC>& tensor) {
     using T = typename SPEC::T;
     using TI = typename DEVICE::index_t;

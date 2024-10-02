@@ -165,8 +165,21 @@ set(RL_TOOLS_INSTALL_PREFIX ".")
 
 
 if(RL_TOOLS_ENABLE_ZLIB)
-    find_package(ZLIB REQUIRED)
+#    find_package(ZLIB REQUIRED)
+    set(ZLIB_BUILD_EXAMPLES OFF)
+    set(ZLIB_ENABLE_TESTS OFF)
+    set(ZLIB_COMPAT ON)
+    add_subdirectory(external/zlib)
+    target_link_libraries(rl_tools_minimal INTERFACE zlibstatic)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_ENABLE_ZLIB)
+    install(TARGETS zlib
+            EXPORT RLtoolsTargets
+            LIBRARY DESTINATION lib COMPONENT Runtime
+            ARCHIVE DESTINATION lib COMPONENT Development
+            RUNTIME DESTINATION bin COMPONENT Runtime
+            PUBLIC_HEADER DESTINATION include COMPONENT Development
+            BUNDLE DESTINATION bin COMPONENT Runtime
+    )
 endif()
 
 if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
@@ -291,6 +304,7 @@ if(RL_TOOLS_ENABLE_HDF5)
         find_package(HighFive REQUIRED)
     else()
         set(HIGHFIVE_UNIT_TESTS OFF CACHE BOOL "Disable HighFive unit tests" FORCE)
+        set(HIGHFIVE_USE_BOOST OFF)
         add_subdirectory(external/highfive)
     endif()
 

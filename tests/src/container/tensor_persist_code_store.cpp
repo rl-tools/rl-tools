@@ -15,6 +15,7 @@ constexpr double EPSILON = 1e-8;
 
 #include <filesystem>
 #include <fstream>
+#include <optional>
 
 
 #include "./tensor_persist_code_fill.h"

@@ -76,7 +76,6 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         static constexpr TI ROWS = SPEC::ROWS;
         static constexpr TI COLS = SPEC::COLS;
-        static constexpr bool IS_VIEW = SPEC::IS_VIEW;
         static constexpr TI ROW_PITCH = SPEC::ROW_PITCH;
         static constexpr TI COL_PITCH = SPEC::COL_PITCH;
 

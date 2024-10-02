@@ -107,8 +107,8 @@ namespace rl_tools::nn_models::mlp {
         static_assert(SPEC::NUM_HIDDEN_LAYERS == NUM_HIDDEN_LAYERS);
 
         // Interface
-        static constexpr TI  INPUT_DIM = SPEC::INPUT_LAYER_SPEC::INPUT_DIM;
-        static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_LAYER_SPEC::OUTPUT_DIM;
+        // static constexpr TI  INPUT_DIM = SPEC::INPUT_LAYER_SPEC::INPUT_DIM;
+        // static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_LAYER_SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
 
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;

@@ -94,7 +94,6 @@ namespace rl_tools::nn::layers::embedding {
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC>{
-        static constexpr typename SPEC::TI BATCH_SIZE = SPEC::BATCH_SIZE;
     };
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC>{

@@ -66,6 +66,9 @@
 [submodule "external/tracy"]
 	path = external/tracy
 	url = https://github.com/wolfpld/tracy.git
+[submodule "external/zlib"]
+    path = external/zlib
+    url = https://github.com/zlib-ng/zlib-ng.git
 
 # Test dependencies
 [submodule "tests/lib/matplotlib"]

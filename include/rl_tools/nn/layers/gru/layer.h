@@ -102,7 +102,6 @@ namespace rl_tools::nn::layers::gru{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI SEQUENCE_LENGTH = SPEC::SEQUENCE_LENGTH;
-        static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI HIDDEN_DIM = SPEC::HIDDEN_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::HIDDEN_DIM;

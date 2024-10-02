@@ -113,7 +113,6 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
     template<typename T_SPEC>
     struct ModuleGradient: public ModuleBackward<T_SPEC>{
         using TI = typename T_SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_SPEC::CAPABILITY::BATCH_SIZE/T_SPEC::N_AGENTS;
     };
 
     template <typename T_CAPABILITY, typename T_SPEC>

@@ -16,6 +16,7 @@ namespace rlt = rl_tools;
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 
 std::optional<std::string> get_env_var(const std::string& var) {
     const char* value = std::getenv(var.c_str());
