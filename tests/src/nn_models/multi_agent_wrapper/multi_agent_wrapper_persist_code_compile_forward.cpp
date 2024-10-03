@@ -20,8 +20,8 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE_COMPILE, FORWARD){
     DEVICE device;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
-    rl_tools_export::model::MODEL::Buffer<1> buffer;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools_export::model::MODEL::OUTPUT_SHAPE>> output;
+    rl_tools_export::model::MODEL::Buffer<> buffer;
 
     rlt::malloc(device, output);
     rlt::malloc(device, buffer);

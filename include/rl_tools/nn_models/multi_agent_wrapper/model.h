@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_MODEL_H
 
 #include "../../nn/nn.h"
+#include "../../nn_models/sequential_v2/model.h"
 #include "../../nn/parameters/parameters.h"
 #include "../../nn/optimizers/sgd/sgd.h"
 #include "../../nn/optimizers/adam/adam.h"

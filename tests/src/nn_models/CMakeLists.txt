@@ -1,4 +1,4 @@
 add_subdirectory(sequential)
 add_subdirectory(mlp)
 add_subdirectory(sample_and_squash)
-#add_subdirectory(multi_agent_wrapper)
+add_subdirectory(multi_agent_wrapper)

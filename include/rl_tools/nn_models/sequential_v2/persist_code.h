@@ -53,21 +53,41 @@ namespace rl_tools{
             ss << ";\n";
             ss << ind << "    " << "    " << "using MODEL = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, layer_0::INPUT_SHAPE>;\n";
             ss << ind << "    " << "}\n";
-            ss << ind << "    " << "using MODEL = model_definition::MODEL;\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "MODEL module = {";
-            std::string model_stub = "MODEL"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
-            for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
-                ss << "layer_" << layer_i << "::create<" << model_stub << "::CONTENT>()";
-                if(layer_i < num_layers(model)-1){
-                    ss << ", {";
+            ss << ind << "    " << "using TYPE = model_definition::MODEL;\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = {";
+            std::string model_stub = "TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
+            std::stringstream ss_initializer_list;
+            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
+                ss_initializer_list << "layer_" << inner_layer_i << "::create<" << model_stub << "::CONTENT>()";
+                if(inner_layer_i < num_layers(model)-1){
+                    ss_initializer_list << ", {";
                 }
                 model_stub += "::NEXT_MODULE";
             }
-            ss << ", {}";
-            for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
-                ss << "}";
+            ss_initializer_list << ", {}";
+            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
+                ss_initializer_list << "}";
             }
-            ss << ";\n";
+            ss << ss_initializer_list.str() << ";\n";
+
+            std::stringstream ss_initializer_list_create;
+            std::string model_stub_create = "MODEL"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
+            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
+                ss_initializer_list_create << "layer_" << inner_layer_i << "::create<typename " << model_stub_create << "::CONTENT>()";
+                if(inner_layer_i < num_layers(model)-1){
+                    ss_initializer_list_create << ", {";
+                }
+                model_stub_create += "::NEXT_MODULE";
+            }
+            ss_initializer_list_create << ", {}";
+            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
+                ss_initializer_list_create << "}";
+            }
+
+            ss << ind << "    " << "template <typename MODEL>" << "\n";
+            ss << ind << "    " << "constexpr MODEL create(){" << "\n";
+            ss << ind << "    " << "    return MODEL{" << ss_initializer_list_create.str() << ";" << "\n";
+            ss << ind << "    " << "}" << "\n";
 
 //            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential_v2::Module<" << layer_i << "> module = {layer_0::container, " << get_type_string<typename SPEC::NEXT_MODULE>() << "::module, };\n";
             ss << ind << "}";

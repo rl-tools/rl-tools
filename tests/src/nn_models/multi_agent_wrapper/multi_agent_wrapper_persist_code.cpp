@@ -11,6 +11,7 @@
 #include <rl_tools/rl/environments/multi_agent/bottleneck/operations_cpu.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 
+#include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/parameters/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
@@ -46,11 +47,12 @@ std::optional<std::string> get_env_var(const std::string& var) {
 
 template<typename ENVIRONMENT>
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    static constexpr TI ACTOR_HIDDEN_DIM = 8;
+    static constexpr TI ACTOR_HIDDEN_DIM = 7;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
     static constexpr TI CRITIC_HIDDEN_DIM = 8;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
+    static constexpr TI BATCH_SIZE = 3;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
 };
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, GRADIENT) {
@@ -58,8 +60,7 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, GRADIENT) {
     using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
     using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
-    static constexpr TI BATCH_SIZE = 7;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 
     DEVICE device;
@@ -68,8 +69,8 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, GRADIENT) {
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
 
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
 
     rlt::malloc(device, input);
     rlt::malloc(device, output);
@@ -105,8 +106,6 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, GRADIENT) {
         file << output;
         file.close();
     }
-
-    std::cout << "output dim " << MODEL::OUTPUT_DIM << std::endl;
 }
 
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, BACKWARD) {
@@ -114,8 +113,7 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, BACKWARD) {
     using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
     using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
-    static constexpr TI BATCH_SIZE = 7;
-    using CAPABILITY = rlt::nn::layer_capability::Backward<BATCH_SIZE>;
+    using CAPABILITY = rlt::nn::layer_capability::Backward<>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 
     DEVICE device;
@@ -124,8 +122,8 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, BACKWARD) {
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
 
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
 
     rlt::malloc(device, input);
     rlt::malloc(device, output);
@@ -161,7 +159,6 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, BACKWARD) {
         file << output;
         file.close();
     }
-    std::cout << "output dim " << MODEL::OUTPUT_DIM << std::endl;
 }
 
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, FORWARD) {
@@ -169,8 +166,7 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, FORWARD) {
     using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
     using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
-    static constexpr TI BATCH_SIZE = 7;
-    using CAPABILITY = rlt::nn::layer_capability::Forward;
+    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 
     DEVICE device;
@@ -179,8 +175,8 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, FORWARD) {
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
 
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
 
     rlt::malloc(device, input);
     rlt::malloc(device, output);
@@ -216,5 +212,4 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, FORWARD) {
         file << output;
         file.close();
     }
-    std::cout << "output dim " << MODEL::OUTPUT_DIM << std::endl;
 }
