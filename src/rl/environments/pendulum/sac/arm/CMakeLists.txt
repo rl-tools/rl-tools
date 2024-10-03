@@ -10,7 +10,7 @@ target_link_libraries(
         RLtools::Core
 )
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_compile_options(rl_environments_pendulum_sac_arm_test PRIVATE -Ofast -march=native -mavx2)
+    target_compile_options(rl_environments_pendulum_sac_arm_test PRIVATE -Ofast -march=native)
 endif()
 
 add_executable(
@@ -24,6 +24,6 @@ target_link_libraries(
 )
 target_compile_definitions(rl_environments_pendulum_sac_arm_test_benchmark PRIVATE BENCHMARK)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_compile_options(rl_environments_pendulum_sac_arm_test PRIVATE -Ofast -march=native -mavx2)
+    target_compile_options(rl_environments_pendulum_sac_arm_test PRIVATE -Ofast -march=native)
 endif()
 endif()
