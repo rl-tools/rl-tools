@@ -21,7 +21,7 @@ namespace rl_tools::math {
         uint64_t i;
         double f;
     };
-#ifndef RL_TOOLS_ENABLE_FAST_MATH
+#ifdef RL_TOOLS_DISABLE_FAST_MATH
     template<typename T>
     auto is_nan(const devices::math::CPU&, const T x) {
         return std::isnan(x);

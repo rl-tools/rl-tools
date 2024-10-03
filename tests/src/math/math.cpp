@@ -23,7 +23,7 @@ TEST(RL_TOOLS_MATH, MAIN){
 
     DEVICE device;
 
-#ifndef RL_TOOLS_ENABLE_FAST_MATH
+#ifdef RL_TOOLS_DISABLE_FAST_MATH
     ASSERT_TRUE(rlt::math::is_nan(device.math, nan_0) == std::isnan(nan_0));
     ASSERT_TRUE(rlt::math::is_nan(device.math, nan_1) == std::isnan(nan_1));
     ASSERT_TRUE(rlt::math::is_nan(device.math, nan_2) == std::isnan(nan_2));
