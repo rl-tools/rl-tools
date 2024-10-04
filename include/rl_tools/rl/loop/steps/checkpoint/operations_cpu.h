@@ -95,6 +95,7 @@ namespace rl_tools{
 #endif
                 if(!stored_compressed || STORE_UNCOMPRESSED_ANYWAYS){
                     std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h";
+                    std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_code_path << std::endl;
                     std::ofstream actor_output_file(checkpoint_code_path);
                     actor_output_file << output_string;
                     actor_output_file.close();
@@ -115,7 +116,6 @@ namespace rl_tools{
             std::filesystem::path step_folder = ts.extrack_seed_path / "steps" / step_ss.str();
             std::filesystem::create_directories(step_folder);
             std::filesystem::path checkpoint_path = step_folder / "checkpoint.h5";
-            std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_path << std::endl;
             auto& actor = get_actor(ts);
             using ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE;
             static constexpr TI BATCH_SIZE = 13;
@@ -131,6 +131,7 @@ namespace rl_tools{
 //            malloc(device, actor_forward);
 //            copy(device, device, actor, actor_forward);
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+            std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_path << std::endl;
             try{
                 auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
                 save(device, evaluation_actor, actor_file.createGroup("actor"));
