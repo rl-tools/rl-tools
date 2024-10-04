@@ -8,6 +8,7 @@ Release checks:
   - VScode targets
   - `pytest`
   - Colab
+- L2F Python Interface 
 - Docs
     - Jupyter Notebooks
     - Colab
