@@ -90,8 +90,8 @@ else()
         message(WARNING "test_nn_models_sequential_persist_code_compile_model_mlp_forward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_mlp_forward.h")
 endif()
 
-if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sas_forward.h)
-        add_executable(test_nn_models_sequential_persist_code_compile_model_sas_forward persist_code_compile_model_sas_forward.cpp)
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_forward.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_sas_forward persist_code_compile_model_sample_and_squash_forward.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sas_forward
                 PRIVATE
                 rl_tools
@@ -102,8 +102,8 @@ else()
         message(WARNING "test_nn_models_sequential_persist_code_compile_model_sas_forward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sas_forward.h")
 endif()
 
-if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sas_backward.h)
-        add_executable(test_nn_models_sequential_persist_code_compile_model_sas_backward persist_code_compile_model_sas_backward.cpp)
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_backward.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_sas_backward persist_code_compile_model_sample_and_squash_backward.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sas_backward
                 PRIVATE
                 rl_tools
@@ -114,8 +114,8 @@ else()
         message(WARNING "test_nn_models_sequential_persist_code_compile_model_sas_backward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sas_backward.h")
 endif()
 
-if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sas_gradient.h)
-        add_executable(test_nn_models_sequential_persist_code_compile_model_sas_gradient persist_code_compile_model_sas_gradient.cpp)
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_gradient.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_sas_gradient persist_code_compile_model_sample_and_squash_gradient.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sas_gradient
                 PRIVATE
                 rl_tools

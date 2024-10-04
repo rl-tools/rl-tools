@@ -20,15 +20,17 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH_GRADIENT){
     DEVICE device;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
-    rl_tools_export::model::MODEL::Buffer<1> buffer;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools_export::model::TYPE::OUTPUT_SHAPE>> output;
+    rl_tools_export::model::TYPE::Buffer<> buffer;
 
     rlt::malloc(device, output);
     rlt::malloc(device, buffer);
 
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng);
+    rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
+    rlt::copy(device, device, rl_tools_export::noise::container, buffer.content_buffer.next_content_buffer.buffer.noise);
+    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng, mode);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
 
@@ -43,16 +45,15 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH_GRADIENT_RESAMPLE){
     DEVICE device;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
-    rl_tools_export::model::MODEL::Buffer<1> buffer;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools_export::model::TYPE::OUTPUT_SHAPE>> output;
+    rl_tools_export::model::TYPE::Buffer<> buffer;
 
     rlt::malloc(device, output);
     rlt::malloc(device, buffer);
 
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    auto mode = rlt::Mode<rlt::nn::layers::sample_and_squash::mode::Sample<rlt::mode::Default<>>>{};
-    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng, mode);
+    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
 

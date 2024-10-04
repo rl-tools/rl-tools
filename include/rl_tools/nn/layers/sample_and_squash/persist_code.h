@@ -25,8 +25,9 @@ namespace rl_tools {
             ss_header << input.header;
             ss_header << "#include <rl_tools/nn/layers/sample_and_squash/layer.h>\n";
             ss << input.body;
+            std::string T_string = containers::persist::get_type_string<typename SPEC::T>();
+            std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             ss << ind << "namespace " << name << " {\n";
-//            template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS = DefaultParameters<T_T>, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, typename T_INPUT_SHAPE_FACTORY = nn::layers::dense::DefaultInputShapeFactory>
             std::string T_parameter_string = containers::persist::get_type_string<typename SPEC::T>();
             ss << ind << "    using PARAMETERS = " << "struct PARAMETERS{";
             ss << ind << "        static constexpr " << T_parameter_string << " LOG_STD_LOWER_BOUND = " << SPEC::PARAMETERS::LOG_STD_LOWER_BOUND << ";\n";
@@ -37,18 +38,15 @@ namespace rl_tools {
             ss << ind << "        static constexpr " << T_parameter_string << " ALPHA = " << SPEC::PARAMETERS::ALPHA << ";\n";
             ss << ind << "        static constexpr " << T_parameter_string << " TARGET_ENTROPY = " << SPEC::PARAMETERS::TARGET_ENTROPY << ";\n";
             ss << ind << "    };\n";
-            ss << ind << "    using SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Specification<";
-            ss << containers::persist::get_type_string<typename SPEC::T>() << ", ";
-            ss << containers::persist::get_type_string<typename SPEC::TI>() << ", ";
-            ss << SPEC::DIM << ", ";
-            ss << "PARAMETERS, ";
-            ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag, ";
-//            ss << nn::layers::dense::persist::get_shape_factory_string(typename SPEC::INPUT_SHAPE_FACTORY{});
+            ss << ind << "    using CONFIG = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Configuration<";
+            ss << T_string << ", ";
+            ss << TI_string << ", ";
+            ss << "PARAMETERS";
             ss << ">; \n";;
-            ss << ind << "    " << "template <typename CAPABILITY>" << "\n";
-            ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Layer<CAPABILITY, SPEC>;" << "\n";
+            ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::BindConfiguration<CONFIG>;" << "\n";
+            ss << ind << "    " << "using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << get<0>(typename SPEC::INPUT_SHAPE{}) << ", " << get<1>(typename SPEC::INPUT_SHAPE{}) << ", " << get<2>(typename SPEC::INPUT_SHAPE{}) << ">;\n";
             ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
-            ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Layer<CAPABILITY, SPEC>;" << "\n";
+            ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;" << "\n";
             std::string initializer_list;
             if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
                 initializer_list = "{}";

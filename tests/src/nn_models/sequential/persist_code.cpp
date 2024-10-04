@@ -533,16 +533,19 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
 
-    rlt::evaluate(device, model, input, output, buffer, rng);
+    rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
+    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
 
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
+        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
-        auto header = model_code.header + "\n" + input_code.header + "\n" + output_code.header;
-        auto body = model_code.body + "\n" + input_code.body + "\n" + output_code.body;
+        auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
+        auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;
 
         auto wrapped = rlt::embed_in_namespace(device, {header, body}, "rl_tools_export", 0);
 
@@ -583,16 +586,19 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
 
-    rlt::evaluate(device, model, input, output, buffer, rng);
+    rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
+    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
 
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
+        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
-        auto header = model_code.header + "\n" + input_code.header + "\n" + output_code.header;
-        auto body = model_code.body + "\n" + input_code.body + "\n" + output_code.body;
+        auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
+        auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;
 
         auto wrapped = rlt::embed_in_namespace(device, {header, body}, "rl_tools_export", 0);
 
@@ -632,16 +638,19 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_gradien
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
 
-    rlt::evaluate(device, model, input, output, buffer, rng);
+    rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
+    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
 
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
+        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
-        auto header = model_code.header + "\n" + input_code.header + "\n" + output_code.header;
-        auto body = model_code.body + "\n" + input_code.body + "\n" + output_code.body;
+        auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
+        auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;
 
         auto wrapped = rlt::embed_in_namespace(device, {header, body}, "rl_tools_export", 0);
 
