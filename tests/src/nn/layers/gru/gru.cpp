@@ -306,8 +306,10 @@ void test_loading(std::string DATA_FILE_NAME){
     }
     rlt::free(device, gru);
     rlt::free(device, buffer);
+    rlt::free(device, reset);
     rlt::free(device, input);
     rlt::free(device, dinput);
+    rlt::free(device, dinput_real);
     rlt::free(device, gru_output);
     rlt::free(device, dloss_dgru_output);
     rlt::free(device, grad_W_ir);

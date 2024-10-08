@@ -26,7 +26,7 @@ void test(){
     using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
 
     rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::layer_capability::Forward<>, INPUT_SHAPE> layer;
-    typename decltype(layer)::template Buffer<BATCH_SIZE> layer_buffer;
+    typename decltype(layer)::template Buffer<> layer_buffer;
     rlt::malloc(device_generic, layer);
     rlt::malloc(device_generic, layer_buffer);
     rlt::init_weights(device_generic, layer, rng);
