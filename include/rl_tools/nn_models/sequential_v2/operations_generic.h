@@ -362,7 +362,7 @@ namespace rl_tools{
     }
     // the _xxx are unrolling the content_buffers (which should not be exposed to the user)
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC, typename CONTENT_BUFFER_SPEC, typename MODE = mode::Default<>>
-    void _backward_full(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers, nn_models::sequential_v2::ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    void _backward_full(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, nn_models::sequential_v2::ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         using TI = typename DEVICE::index_t;
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
@@ -381,11 +381,11 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    void backward_full(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    void backward_full(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         _backward_full(device, model, input, d_output, d_input, buffers, buffers.content_buffer, mode);
     }
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC, typename CONTENT_BUFFER_SPEC, typename MODE = mode::Default<>>
-    void _backward_input(DEVICE& device, nn_models::sequential_v2::ModuleBackward<MODULE_SPEC>& model, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers, nn_models::sequential_v2::ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    void _backward_input(DEVICE& device, nn_models::sequential_v2::ModuleBackward<MODULE_SPEC>& model, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, nn_models::sequential_v2::ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         using TI = typename DEVICE::index_t;
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
@@ -402,11 +402,11 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    void backward_input(DEVICE& device, nn_models::sequential_v2::ModuleBackward<MODULE_SPEC>& model, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    void backward_input(DEVICE& device, nn_models::sequential_v2::ModuleBackward<MODULE_SPEC>& model, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         _backward_input(device, model, d_output, d_input, buffers, buffers.content_buffer, mode);
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    void backward(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    void backward(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         constexpr bool NEXT_IS_FINAL = utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>;
         using TI = typename DEVICE::index_t;
         // This backward function is called on the final, complete module, the following are called for each submodule, hence the full backward only for the next module (to save the calc for d_input)

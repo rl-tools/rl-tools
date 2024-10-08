@@ -719,7 +719,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2){
-        tensor::binary_reduce_operations::AbsoluteDifference<DEVICE, typename SPEC_1::T, typename SPEC_2::T> op;
+        tensor::binary_reduce_operations::AbsoluteDifference<DEVICE, typename SPEC_1::T, typename SPEC_2::T> op{};
         op.initial_value = 0;
         return binary_associative_reduce(device, op, t1, t2);
     }

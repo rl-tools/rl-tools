@@ -532,7 +532,7 @@ namespace rl_tools{
     void multiply_one_minus_times_d_tanh_post_activation(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_OM>& one_minus, Tensor<SPEC_TANH>& tanh_post_activation, Tensor<SPEC_RESULT>& result){
         using T = typename SPEC_FACTOR::T;
         using PARAMETER = T;
-        tensor::Operation<tensor::ternary_operations::multiply_one_minus_times_d_tanh_post_activation<T>, PARAMETER> op;
+        tensor::Operation<tensor::ternary_operations::multiply_one_minus_times_d_tanh_post_activation<T>, PARAMETER> op{};
         ternary_operation(device, op, factor, one_minus, tanh_post_activation, result);
     }
     namespace tensor::binary_operations{
@@ -544,7 +544,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_PA, typename SPEC_RESULT>
     void multiply_d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_PA>& pre_activation, Tensor<SPEC_RESULT>& result){
         using T = typename SPEC_FACTOR::T;
-        tensor::Operation<tensor::binary_operations::multiply_d_sigmoid_post_activation<T>, tensor::OperationEmptyParameter> op;
+        tensor::Operation<tensor::binary_operations::multiply_d_sigmoid_post_activation<T>, tensor::OperationEmptyParameter> op{};
         binary_operation(device, op, factor, pre_activation, result);
     }
 

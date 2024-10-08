@@ -22,9 +22,10 @@ void test(){
 //    constexpr TI OUTPUT_DIM = 5;
     constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::RELU;
 
-    using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
+    using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
 
-    rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Forward, LAYER_SPEC> layer;
+    rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::layer_capability::Forward<>, INPUT_SHAPE> layer;
     typename decltype(layer)::template Buffer<BATCH_SIZE> layer_buffer;
     rlt::malloc(device_generic, layer);
     rlt::malloc(device_generic, layer_buffer);
