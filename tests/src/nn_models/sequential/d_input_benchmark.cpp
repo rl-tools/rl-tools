@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <thread>
+#include <chrono>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
@@ -285,27 +286,34 @@ void test_benchmark(){
     T std_factor = 0;
 
     for(TI it=0; it < 100; it++){
-        T time_d_input, time;
+        double time_d_input = 0, time = 0;
         std::this_thread::sleep_for(std::chrono::milliseconds (100));
+        rlt::zero_gradient(device, sequential_model);
         {
+            T sum = 0;
             auto start = std::chrono::high_resolution_clock::now();
             for(TI i = 0; i < NUM_ITERATIONS; i++){
+                rlt::set(device, d_output, i, 0, 0, 0);
                 rlt::backward(device, sequential_model, input, d_output, sequential_buffer);
+                sum+= rlt::get(sequential_model.content.weights.gradient, 0, 0);
             }
             auto end = std::chrono::high_resolution_clock::now();
-            time = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
-//            std::cout << "No d_input: Iterations per second: " << NUM_ITERATIONS / std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count() << std::endl;
+            time = (T)std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+            std::cout << "time: " << time << std::endl;
         }
+
         std::this_thread::sleep_for(std::chrono::milliseconds (100));
         {
             auto start = std::chrono::high_resolution_clock::now();
             for(TI i = 0; i < NUM_ITERATIONS; i++){
+                rlt::set(device, d_output, i, 0, 0, 0);
                 rlt::backward_full(device, sequential_model, input, d_output, d_input, sequential_buffer);
             }
             auto end = std::chrono::high_resolution_clock::now();
-            time_d_input = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+            time_d_input = (T)std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 //            std::cout << "d_input: Iterations per second: " << NUM_ITERATIONS / std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count() << std::endl;
         }
+        std::cout << "time: " << time << " time_d_input: " << time_d_input << std::endl;
         std::cout << "w/o d_input " << time_d_input/time << "x faster" << std::endl;
         mean_factor += time_d_input/time;
         std_factor += (time_d_input/time)*(time_d_input/time);
