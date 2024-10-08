@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+#include "../../../utils/utils.h"
+
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
@@ -20,10 +22,11 @@ constexpr T EPSILON = 1e-6;
 namespace static_parameter_builder{
     // to prevent spamming the global namespace
     using namespace rl_tools::rl::environments::l2f;
+    static constexpr bool CLOSED_FORM = true;
     struct ENVIRONMENT_STATIC_PARAMETERS{
         static constexpr TI ACTION_HISTORY_LENGTH = 16;
         using STATE_BASE = StateBase<T, TI>;
-        using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
+        using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
         using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                 observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                 observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
@@ -79,8 +82,11 @@ ENVIRONMENT::State parse_state(DEVICE& device, ENVIRONMENT& env, ENVIRONMENT::St
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
-    std::string path = "/Users/jonas/git/flightmare/quad_dynamics.json";
-    std::ifstream ifs(path);
+    std::string DATA_FILE_NAME = "quad_dynamics.json";
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
+    std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
+    std::ifstream ifs(DATA_FILE_PATH);
     nlohmann::json j = nlohmann::json::parse(ifs);
     // print
 //    std::cout << j.dump(4) << std::endl;
@@ -92,7 +98,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
     rlt::initial_parameters(device, env, parameters);
     rlt::initial_state(device, env, parameters, state);
 
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM, false>> action;
     parameters.dynamics.mass = j["dynamics"]["mass"];
     T radius = j["dynamics"]["radius"];
     parameters.dynamics.J[0][0] = j["dynamics"]["J"]["data"][0];
@@ -127,18 +133,62 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
             if(step_i < states.size()-1){
                 ENVIRONMENT::State target_next_state = parse_state(device, env, state, parameters, states[step_i+1]);
                 std::cout << "step i: " << step_i << std::endl;
-//                ASSERT_NEAR(target_next_state.position[0], next_state.position[0], EPSILON);
-//                ASSERT_NEAR(target_next_state.position[1], next_state.position[1], EPSILON);
-//                ASSERT_NEAR(target_next_state.position[2], next_state.position[2], EPSILON);
-//                ASSERT_NEAR(target_next_state.orientation[0], next_state.orientation[0], EPSILON);
-//                ASSERT_NEAR(target_next_state.orientation[1], next_state.orientation[1], EPSILON);
-//                ASSERT_NEAR(target_next_state.orientation[2], next_state.orientation[2], EPSILON);
-//                ASSERT_NEAR(target_next_state.orientation[3], next_state.orientation[3], EPSILON);
-//                ASSERT_NEAR(target_next_state.linear_velocity[0], next_state.linear_velocity[0], EPSILON);
-//                ASSERT_NEAR(target_next_state.linear_velocity[1], next_state.linear_velocity[1], EPSILON);
-//                ASSERT_NEAR(target_next_state.linear_velocity[2], next_state.linear_velocity[2], EPSILON);
+                T rpm_diff = 0;
+                for(TI rotor_i = 0; rotor_i < 4; rotor_i++) {
+                    rpm_diff += rlt::math::abs(device.math, (T)(target_next_state.rpm[0] - next_state.rpm[0]));
+                }
+                std::cout << "RPM diff: " << rpm_diff << std::endl;
+                ASSERT_NEAR(target_next_state.rpm[0], next_state.rpm[0], EPSILON);
+                ASSERT_NEAR(target_next_state.rpm[1], next_state.rpm[1], EPSILON);
+                ASSERT_NEAR(target_next_state.rpm[2], next_state.rpm[2], EPSILON);
+
+                T angular_velocity_diff = 0;
+                for(TI i = 0; i < 3; i++) {
+                    angular_velocity_diff += rlt::math::abs(device.math, (T)(target_next_state.angular_velocity[i] - next_state.angular_velocity[i]));
+                }
+                std::cout << "Angular velocity diff: " << angular_velocity_diff << std::endl;
+
+                ASSERT_NEAR(target_next_state.angular_velocity[0], next_state.angular_velocity[0], EPSILON);
+                ASSERT_NEAR(target_next_state.angular_velocity[1], next_state.angular_velocity[1], EPSILON);
+                ASSERT_NEAR(target_next_state.angular_velocity[2], next_state.angular_velocity[2], EPSILON);
+
+                T linear_velocity_diff = 0;
+                for(TI i = 0; i < 3; i++) {
+                    linear_velocity_diff += rlt::math::abs(device.math, (T)(target_next_state.linear_velocity[i] - next_state.linear_velocity[i]));
+                }
+                std::cout << "Linear velocity diff: " << linear_velocity_diff << std::endl;
+
+                std::cout << "linear velocity update: " << state.linear_velocity[0] << " => " << next_state.linear_velocity[0] << " (target: " << target_next_state.linear_velocity[0] << ")" << std::endl;
+
+                ASSERT_NEAR(target_next_state.linear_velocity[0], next_state.linear_velocity[0], EPSILON);
+                ASSERT_NEAR(target_next_state.linear_velocity[1], next_state.linear_velocity[1], EPSILON);
+                ASSERT_NEAR(target_next_state.linear_velocity[2], next_state.linear_velocity[2], EPSILON);
+
+                T orientation_diff = 0;
+                for(TI i = 0; i < 4; i++) {
+                    orientation_diff += rlt::math::abs(device.math, (T)(target_next_state.orientation[i] - next_state.orientation[i]));
+                }
+                std::cout << "Orientation diff: " << orientation_diff << std::endl;
+
+                ASSERT_NEAR(target_next_state.orientation[0], next_state.orientation[0], EPSILON);
+                ASSERT_NEAR(target_next_state.orientation[1], next_state.orientation[1], EPSILON);
+                ASSERT_NEAR(target_next_state.orientation[2], next_state.orientation[2], EPSILON);
+                ASSERT_NEAR(target_next_state.orientation[3], next_state.orientation[3], EPSILON);
+
+                T position_diff = 0;
+                for(TI i = 0; i < 3; i++) {
+                    position_diff += rlt::math::abs(device.math, (T)(target_next_state.position[i] - next_state.position[i]));
+                }
+                std::cout << "Position diff: " << position_diff << std::endl;
+
+                ASSERT_NEAR(target_next_state.position[0], next_state.position[0], EPSILON);
+                ASSERT_NEAR(target_next_state.position[1], next_state.position[1], EPSILON);
+                ASSERT_NEAR(target_next_state.position[2], next_state.position[2], EPSILON);
+
 
             }
+
+            state = next_state;
         }
 
     }

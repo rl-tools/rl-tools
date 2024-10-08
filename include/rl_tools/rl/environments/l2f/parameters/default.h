@@ -78,8 +78,9 @@ namespace rl_tools::rl::environments::l2f::parameters {
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
+            static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = StateBase<T, TI>;
-            using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, StateRandomForce<T, TI, STATE_BASE>>;
+            using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
             using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                             observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
