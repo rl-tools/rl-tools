@@ -13,7 +13,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 #ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEV_SPEC, typename SPEC>
-    void malloc(devices::CUDA<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
+    void malloc(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
         /* for checking the pitch
         {
             size_t pitch;
@@ -35,7 +35,7 @@ namespace rl_tools{
 #endif
     }
     template<typename DEV_SPEC, typename SPEC>
-    void free(devices::CUDA<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
+    void free(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
         cudaFree(matrix._data);
         check_status(device);
     }
@@ -123,7 +123,7 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         if constexpr(!TARGET_SPEC::IS_VIEW){
             // make a temporary copy of the source matrix (with the same layout as the target) and then copy it directly
-            MatrixDynamic<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename TARGET_SPEC::LAYOUT, false>> temp;
+            Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, true, typename TARGET_SPEC::LAYOUT, false>> temp;
             using TEMP_SPEC = typename decltype(temp)::SPEC;
             static_assert(TEMP_SPEC::SIZE_BYTES == TARGET_SPEC::SIZE_BYTES);
             malloc(source_device, temp);
@@ -134,7 +134,7 @@ namespace rl_tools{
             free(source_device, temp);
         }
         else{
-            MatrixDynamic<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename SOURCE_SPEC::LAYOUT, false>> temp;
+            Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, true, typename SOURCE_SPEC::LAYOUT, false>> temp;
             malloc(target_device, temp);
             copy(source_device, target_device, source, temp);
 //            {
@@ -171,7 +171,7 @@ namespace rl_tools{
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        MatrixDynamic<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS>> temp_gpu, temp_cpu;
+        Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, true>> temp_gpu, temp_cpu;
         using TEMP_SPEC = typename decltype(temp_gpu)::SPEC;
         malloc(source_device, temp_gpu);
 //        {

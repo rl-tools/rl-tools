@@ -31,5 +31,6 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_MKL)
             RLtools::Minimal
             GTest::gtest_main
     )
+
     gtest_discover_tests(test_container_cuda_mkl)
 endif()
