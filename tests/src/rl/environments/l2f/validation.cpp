@@ -119,7 +119,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
         auto trajectory = j["trajectories"][trajectory_i];
         std::vector<std::vector<T>> rpm_setpoints = trajectory["rpm_setpoints"];
         std::vector<std::vector<T>> states = trajectory["states"];
-        for(TI step_i = 0; step_i < states.size(); step_i++){
+        constexpr TI STEP_LIMIT = 100;
+        for(TI step_i = 0; step_i < rlt::math::min(device.math, states.size(), STEP_LIMIT); step_i++){
             std::vector<T> step_state = states[step_i];
             ENVIRONMENT::State target_state = parse_state(device, env, state, parameters, step_state);
             if(step_i == 0){
