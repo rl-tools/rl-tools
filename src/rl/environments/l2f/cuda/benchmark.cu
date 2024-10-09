@@ -1,6 +1,9 @@
+#define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
+#define RL_TOOLS_FUNCTION_PLACEMENT __host__ __device__
+
 #include <rl_tools/operations/cpu.h>
 
-//#include <rl_tools/operations/cuda.h>
+#include <rl_tools/operations/cuda.h>
 
 
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
@@ -17,12 +20,12 @@ constexpr size_t N_THREADS = 128;
 constexpr size_t N_THREADS_CPU = 1;
 constexpr size_t N_ITERATIONS = 1000000;
 
-//using DEVICE_GPU = rlt::devices::CUDA<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_GPU = rlt::devices::CUDA<rlt::devices::DefaultCUDASpecification>;
 using DEVICE_CPU = rlt::devices::CPU<rlt::devices::DefaultCPUSpecification>;
 
-//using TI_GPU = DEVICE_CPU::index_t;
+using TI_GPU = DEVICE_CPU::index_t;
 using TI_CPU = DEVICE_CPU::index_t;
-using TI_GPU = TI_CPU;
+// using TI_GPU = TI_CPU;
 
 namespace builder {
     using namespace rlt::rl::environments::l2f;
@@ -87,37 +90,44 @@ void simulate_sequential(DEVICE& device, const ENVIRONMENT* envs, ENVIRONMENT::P
     }
 }
 
-// template <typename DEVICE, typename SPEC, typename SPEC_SIMULATE>
-// __global__ void
-// __launch_bounds__(SPEC_SIMULATE::BLOCK_DIM)//, minBlocksPerMultiprocessor, maxBlocksPerCluster)
-// simulate_parallel(DEVICE& device, const rlt::rl::environments::Multirotor<SPEC>* envs, const typename rlt::rl::environments::Multirotor<SPEC>::State* states_input, typename rlt::rl::environments::Multirotor<SPEC>::State* next_states_output, const SPEC_SIMULATE) {
-//     using ENVIRONMENT = rlt::rl::environments::Multirotor<SPEC>;
-//     using STATE = typename ENVIRONMENT::State;
-//     using TI = typename DEVICE::index_t;
-//     const TI full_id = blockIdx.x * blockDim.x + threadIdx.x;
-//     const TI thread_id = threadIdx.x;
-//     const TI block_id = blockIdx.x;
-//     __shared__ ENVIRONMENT env;
-//     if(thread_id == 0){
-//         env = envs[block_id];
-//     }
-//     __syncthreads();
-//     STATE state;
-//     STATE next_state;
-//     state = states_input[full_id];
-//     for(TI iteration_i=0; iteration_i<SPEC_SIMULATE::N_ITERATIONS; iteration_i++){
-//         T action[ENVIRONMENT::ACTION_DIM];
-// //        evaluate(policy, state, action);
-//         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-//             action[action_i] = 0;
-//         }
-//         rlt::utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, ENVIRONMENT::ACTION_DIM, rlt::rl::environments::multirotor::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, env.parameters, state, action, env.parameters.integration.dt, next_state);
-//         state = next_state;
-//     }
-//     next_states_output[full_id] = state;
-// }
+template <typename DEVICE, typename SPEC_SIMULATE>
+__global__ void
+__launch_bounds__(SPEC_SIMULATE::BLOCK_DIM)//, minBlocksPerMultiprocessor, maxBlocksPerCluster)
+simulate_parallel(DEVICE& device, const ENVIRONMENT* envs, ENVIRONMENT::Parameters* parameters, const typename ENVIRONMENT::State* states_input, typename ENVIRONMENT::State* next_states_output, const SPEC_SIMULATE) {
+    using STATE = typename ENVIRONMENT::State;
+    using TI = typename DEVICE::index_t;
+    const TI full_id = blockIdx.x * blockDim.x + threadIdx.x;
+    const TI thread_id = threadIdx.x;
+    const TI block_id = blockIdx.x;
+    __shared__ ENVIRONMENT this_env;
+    __shared__ ENVIRONMENT::Parameters this_parameters;
+    if(thread_id == 0){
+        this_env = envs[block_id * SPEC_SIMULATE::BLOCK_DIM];
+        this_parameters = parameters[block_id * SPEC_SIMULATE::BLOCK_DIM];
+    }
+    __syncthreads();
+    STATE state;
+    STATE next_state;
+    curandState rng;
+    curand_init(0, full_id, 0, &rng);
+    state = states_input[full_id];
+    for(TI iteration_i=0; iteration_i<SPEC_SIMULATE::N_ITERATIONS; iteration_i++){
+        rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM, false>> action;
+        for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
+            rlt::set(action, 0, 0, 0);
+        }
+        rlt::step(device, this_env, this_parameters, state, action, next_state, rng);
+        state = next_state;
+    }
+    next_states_output[full_id] = state;
+}
 
 int main(void) {
+
+    std::cout << "sizeof(ENVIRONMENT) = " << sizeof(ENVIRONMENT) << std::endl;
+    std::cout << "sizeof(ENVIRONMENT::Parameters) = " << sizeof(ENVIRONMENT::Parameters) << std::endl;
+    std::cout << "sizeof(ENVIRONMENT::State) = " << sizeof(ENVIRONMENT::State) << std::endl;
+
     int nDevices;
 
     cudaGetDeviceCount(&nDevices);
@@ -138,21 +148,20 @@ int main(void) {
 
 
     DEVICE_CPU device_cpu;
-//    DEVICE_GPU device_gpu;
 
     auto rng = rlt::random::default_engine(device_cpu.random, 0);
 
-    ENVIRONMENT::State* initial_states = (ENVIRONMENT::State*)malloc(sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS);
-    // ENVIRONMENT::State* final_states_gpu = (ENVIRONMENT::State*)malloc(sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS);
+    ENVIRONMENT* envs_cpu = (ENVIRONMENT*)malloc(sizeof(ENVIRONMENT) * N_BLOCKS * N_THREADS);
+    ENVIRONMENT::Parameters* parameters_cpu = (ENVIRONMENT::Parameters*)malloc(sizeof(ENVIRONMENT::Parameters) * N_BLOCKS * N_THREADS);
+    ENVIRONMENT::State* initial_states_cpu = (ENVIRONMENT::State*)malloc(sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS);
     ENVIRONMENT::State* final_states_cpu = (ENVIRONMENT::State*)malloc(sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS);
-    ENVIRONMENT::Parameters* parameters = (ENVIRONMENT::Parameters*)malloc(sizeof(ENVIRONMENT::Parameters) * N_BLOCKS * N_THREADS);
-    ENVIRONMENT* envs = (ENVIRONMENT*)malloc(sizeof(ENVIRONMENT) * N_BLOCKS * N_THREADS);
+    ENVIRONMENT::State* final_states_gpu_cpu = (ENVIRONMENT::State*)malloc(sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS);
 
     for(TI_CPU block_i=0; block_i<N_BLOCKS; block_i++){
         for(TI_CPU thread_i=0; thread_i<N_THREADS; thread_i++){
-            auto& this_env = envs[block_i * N_THREADS + thread_i];
-            auto& this_parameters = parameters[block_i * N_THREADS + thread_i];
-            auto& this_initial_state = initial_states[block_i * N_THREADS + thread_i];
+            auto& this_env = envs_cpu[block_i * N_THREADS + thread_i];
+            auto& this_parameters = parameters_cpu[block_i * N_THREADS + thread_i];
+            auto& this_initial_state = initial_states_cpu[block_i * N_THREADS + thread_i];
             rlt::initial_parameters(device_cpu, this_env, this_parameters);
             rlt::initial_state(device_cpu, this_env, this_parameters, this_initial_state);
         }
@@ -160,52 +169,56 @@ int main(void) {
 
     {
         auto start = std::chrono::high_resolution_clock::now();
-        simulate_sequential(device_cpu, envs, parameters, initial_states, final_states_cpu, SimulateParallelSpec<N_BLOCKS_CPU, N_THREADS_CPU, N_ITERATIONS>{}, rng);
+        simulate_sequential(device_cpu, envs_cpu, parameters_cpu, initial_states_cpu, final_states_cpu, SimulateParallelSpec<N_BLOCKS_CPU, N_THREADS_CPU, N_ITERATIONS>{}, rng);
         auto end = std::chrono::high_resolution_clock::now();
 
         double elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
         std::cout << "Simulation time (CPU):  " << elapsedTime << " ms (" << N_BLOCKS_CPU * N_THREADS_CPU * N_ITERATIONS / (elapsedTime / 1000.0) / 1e6 << " Msteps/s)" << std::endl;
     }
-    // {
-    //     ENVIRONMENT *d_envs;
-    //     STATE* d_states;
-    //     STATE* d_next_states;
-    //
-    //     cudaMalloc((void **)&d_envs, N_BLOCKS * sizeof(ENVIRONMENT));
-    //     cudaMemcpy(d_envs, envs, N_BLOCKS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
-    //
-    //     cudaMalloc((void **)&d_states, N_BLOCKS * N_THREADS * sizeof(STATE));
-    //     cudaMemcpy(d_states, &initial_states, N_BLOCKS * N_THREADS * sizeof(STATE), cudaMemcpyHostToDevice);
-    //
-    //     cudaMemcpy(&initial_states, d_states, N_BLOCKS * N_THREADS * sizeof(STATE), cudaMemcpyDeviceToHost);
-    //
-    //     cudaMalloc((void **)&d_next_states, N_BLOCKS * N_THREADS * sizeof(STATE));
-    //
-    //     cudaEvent_t start, stop;
-    //     cudaEventCreate(&start);
-    //     cudaEventCreate(&stop);
-    //     cudaEventRecord(start, 0);
-    //     dim3 grid(N_BLOCKS);
-    //     dim3 threadsPerBlock(N_THREADS);
-    //     simulate_parallel<<<grid, threadsPerBlock>>>(device_gpu, d_envs, d_states, d_next_states, SimulateParallelSpec<N_BLOCKS, N_THREADS, N_ITERATIONS>{});
-    //     cudaEventRecord(stop, 0);
-    //     cudaEventSynchronize(stop);
-    //     auto err = cudaGetLastError();
-    //     if (cudaSuccess != err) {
-    //         fprintf(stderr, "cudaCheckError() failed : %s\n", cudaGetErrorString(err));
-    //     }
-    //     float elapsedTime;
-    //     cudaEventElapsedTime(&elapsedTime, start, stop);
-    //     cudaEventDestroy(start);
-    //     cudaEventDestroy(stop);
-    //     cudaDeviceSynchronize();
-    //     cudaMemcpy(final_states_gpu, d_next_states, N_BLOCKS * N_THREADS * sizeof(STATE), cudaMemcpyDeviceToHost);
-    //     cudaFree(d_envs); cudaFree(d_states); cudaFree(d_next_states);
-    //     cudaDeviceSynchronize();
-    //
-    //     std::cout << "Simulation time (GPU):  " << elapsedTime << " ms (" << N_BLOCKS * N_THREADS * N_ITERATIONS / (elapsedTime / 1000.0) / 1e6 << " Msteps/s, " << N_BLOCKS * N_THREADS * N_ITERATIONS * DT / (elapsedTime / 1000.0) / (365 * 24 * 3600) << " Years/s)" << std::endl;
-    // }
+
+    DEVICE_GPU device_gpu;
+    {
+        ENVIRONMENT* envs_gpu;
+        ENVIRONMENT::Parameters* parameters_gpu;
+        ENVIRONMENT::State *initial_states_gpu, *final_states_gpu;
+
+        cudaMalloc((void **)&envs_gpu, N_BLOCKS * sizeof(ENVIRONMENT));
+        cudaMemcpy(envs_gpu, envs_cpu, N_BLOCKS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
+
+        cudaMalloc((void**)&parameters_gpu, N_BLOCKS * N_THREADS * sizeof(ENVIRONMENT::Parameters));
+        cudaMemcpy(parameters_gpu, parameters_cpu, N_BLOCKS * N_THREADS * sizeof(ENVIRONMENT::Parameters), cudaMemcpyHostToDevice);
+
+        cudaMalloc((void **)&initial_states_gpu, sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS);
+        cudaMemcpy(initial_states_gpu, initial_states_cpu,  sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS, cudaMemcpyHostToDevice);
+
+        cudaMalloc((void **)&final_states_gpu,  sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS);
+
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        cudaEventRecord(start, 0);
+        dim3 grid(N_BLOCKS);
+        dim3 threadsPerBlock(N_THREADS);
+        simulate_parallel<<<grid, threadsPerBlock>>>(device_gpu, envs_gpu, parameters_gpu, initial_states_gpu, final_states_gpu, SimulateParallelSpec<N_BLOCKS, N_THREADS, N_ITERATIONS>{});
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        auto err = cudaGetLastError();
+        if (cudaSuccess != err) {
+            fprintf(stderr, "cudaCheckError() failed : %s\n", cudaGetErrorString(err));
+        }
+        float elapsedTime;
+        cudaEventElapsedTime(&elapsedTime, start, stop);
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+        cudaDeviceSynchronize();
+        cudaMemcpy(final_states_gpu_cpu, final_states_gpu,  sizeof(ENVIRONMENT::State) * N_BLOCKS * N_THREADS, cudaMemcpyDeviceToHost);
+        cudaFree(envs_gpu); cudaFree(parameters_gpu); cudaFree(initial_states_gpu); cudaFree(final_states_gpu);
+        cudaDeviceSynchronize();
+
+        std::cout << "Simluation dt: " << parameters_cpu->integration.dt << std::endl;
+        std::cout << "Simulation time (GPU):  " << elapsedTime << " ms (" << N_BLOCKS * N_THREADS * N_ITERATIONS / (elapsedTime / 1000.0) / 1e6 << " Msteps/s, " << N_BLOCKS * N_THREADS * N_ITERATIONS * parameters_cpu->integration.dt / (elapsedTime / 1000.0) / (365 * 24 * 3600) << " Years/s)" << std::endl;
+    }
 
 
     return 0;
