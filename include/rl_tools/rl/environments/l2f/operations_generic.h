@@ -807,66 +807,6 @@ namespace rl_tools{
         static_assert(OBS_SPEC::ROWS == 1);
         rl::environments::l2f::observations::observe(device, env, parameters, state, observation_type, observation, rng);
     }
-//    template<typename DEVICE, typename SPEC, typename STATE, typename OBS_SPEC, typename RNG>
-//    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const STATE& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-//        using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
-//        static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED);
-//        static_assert(OBS_SPEC::ROWS == 1);
-//        rl::environments::l2f::observe(device, env, parameters, state, typename ENVIRONMENT::ObservationPrivileged{}, observation, rng);
-//    }
-//    template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename RNG>
-//    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::StateLatentEmpty<T, TI>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-//        static_assert(OBS_SPEC::COLS == 0);
-//    }
-//    template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename RNG>
-//    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::StateLatentRandomForce<T, TI>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-//        static_assert(OBS_SPEC::COLS == 6);
-//        for(TI i = 0; i < 3; i++){
-//            set(observation, 0, 0 + i, state.force[i]);
-//            set(observation, 0, 3 + i, state.torque[i]);
-//        }
-//    }
-//    template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename LATENT_STATE, typename RNG>
-//    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::StateBase<T, TI, LATENT_STATE>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-//        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
-//        static_assert(OBS_SPEC::COLS == MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION + MULTIROTOR::OBSERVATION_DIM_PRIVILEGED_LATENT_STATE);
-//        auto base_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION>{}, 0, 0);
-//        observe(device, env, parameters, state, base_observation, rng, true);
-//        auto latent_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_PRIVILEGED_LATENT_STATE>{}, 0, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION);
-//        observe_privileged(device, env, (const LATENT_STATE&)state, latent_observation, rng);
-//    }
-//    template<typename DEVICE, typename T_H, typename TI_H, TI_H HISTORY_LENGTH, typename SPEC, typename OBS_SPEC, typename LATENT_STATE, typename RNG>
-//    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::StateBaseRotorsHistory<T_H, TI_H, HISTORY_LENGTH, LATENT_STATE>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-//        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
-//        static_assert(OBS_SPEC::ROWS == 1);
-//        static_assert(OBS_SPEC::COLS == MULTIROTOR::OBSERVATION_DIM);
-//        using TI = typename DEVICE::index_t;
-//        auto base_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION>{}, 0, 0);
-//        observe(device, env, (rl::environments::l2f::StateBaseRotors<T_H, TI_H, LATENT_STATE>&)state, base_observation, rng);
-//        auto action_history_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_ACTION_HISTORY>{}, 0, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION);
-//        for(TI step_i = 0; step_i < HISTORY_LENGTH; step_i++){
-//            for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-//                set(action_history_observation, 0, step_i*MULTIROTOR::ACTION_DIM + action_i, state.action_history[step_i][action_i]);
-//            }
-//        }
-//    }
-//    template<typename DEVICE, typename T_S, typename TI_S, typename SPEC, typename OBS_SPEC, typename LATENT_STATE, typename RNG>
-//    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::StateBaseRotors<T_S, TI_S, LATENT_STATE>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-//        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
-//        using T = typename SPEC::T;
-//        using TI = typename DEVICE::index_t;
-//        static_assert(OBS_SPEC::ROWS == 1);
-//        static_assert(OBS_SPEC::COLS == MULTIROTOR::OBSERVATION_DIM_PRIVILEGED);
-//        auto base_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_PRIVILEGED - MULTIROTOR::ACTION_DIM>{}, 0, 0);
-//        observe_privileged(device, env, (const rl::environments::l2f::StateBase<T_S, TI_S, LATENT_STATE>&) state, base_observation, rng);
-//        auto rpm_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::ACTION_DIM>{}, 0, MULTIROTOR::OBSERVATION_DIM_PRIVILEGED - MULTIROTOR::ACTION_DIM);
-//        for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-//            T action_value = (state.rpm[action_i] - parameters.dynamics.action_limit.min)/(parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
-//            set(rpm_observation, 0, action_i, action_value);
-//        }
-//    }
-//    template<typename DEVICE, typename SPEC, typename T, typename TI>
-//    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::StateBase<T, TI>& state) {
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T_S, typename TI_S, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::l2f::StateBase<T_S, TI_S>& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::l2f::StateBase<T_S, TI_S>& next_state, RNG& rng) {
         using T = T_S;
