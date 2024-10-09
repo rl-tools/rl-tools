@@ -14,9 +14,9 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <cassert>
 
 using T = float;
-constexpr size_t N_BLOCKS = 64 * 16;
+constexpr size_t N_BLOCKS = 4096;
 constexpr size_t N_BLOCKS_CPU = 1;
-constexpr size_t N_THREADS = 128;
+constexpr size_t N_THREADS = 512;
 constexpr size_t N_THREADS_CPU = 1;
 constexpr size_t N_ITERATIONS = 1000000;
 
@@ -25,8 +25,9 @@ using DEVICE_CPU = rlt::devices::CPU<rlt::devices::DefaultCPUSpecification>;
 
 using TI_GPU = DEVICE_CPU::index_t;
 using TI_CPU = DEVICE_CPU::index_t;
-// using TI_GPU = TI_CPU;
 
+
+// to specify the dynamics of the quadrotor that should be simulated (this includes rotor dynamics)
 namespace builder {
     using namespace rlt::rl::environments::l2f;
     using namespace rlt::rl::environments::l2f::observation;
