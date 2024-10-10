@@ -7,7 +7,7 @@
 #include "../../nn/nn.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::nn_models::sequential_v2{
+namespace rl_tools::nn_models::sequential{
     struct OutputModule{
         struct CONTENT{
             using INPUT_SHAPE = tensor::Shape<decltype(0), 0>;

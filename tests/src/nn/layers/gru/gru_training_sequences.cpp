@@ -17,7 +17,7 @@
 #include <rl_tools/nn/operations_cpu.h>
 #endif
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/containers/tensor/persist.h>
@@ -25,7 +25,7 @@
 #include <rl_tools/nn/layers/embedding/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
-#include <rl_tools/nn_models/sequential_v2/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #include "dataset.h"
 
 namespace rlt = rl_tools;
@@ -75,11 +75,11 @@ struct Config{
     using DENSE_LAYER2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
     using DENSE_LAYER2 = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER2_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
     using MODULE_CHAIN = Module<GRU, Module<DENSE_LAYER1, Module<DENSE_LAYER2>>>;
-    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
     struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{

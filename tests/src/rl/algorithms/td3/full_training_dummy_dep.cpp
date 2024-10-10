@@ -10,7 +10,7 @@
 #include <rl_tools/nn_models/models.h>
 #include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/rl.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
@@ -56,14 +56,14 @@ using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters
 using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, TI>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 using MODULE_CHAIN = Module<ACTOR>;
-using ACTOR_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<ACTOR_CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using ACTOR_NETWORK_TYPE = rlt::nn_models::sequential::Build<ACTOR_CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 //using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPABILITY, ACTOR_INPUT_SHAPE>;
 
 //using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, rlt::nn::layer_capability::Forward<>, ACTOR_INPUT_SHAPE>;
-using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Forward<>, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 
 using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, CRITIC_CAPABILITY, CRITIC_INPUT_SHAPE>;

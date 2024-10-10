@@ -12,15 +12,15 @@ struct ConfigApproximatorsSequential{
         using OUTPUT_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
         using OUTPUT = rlt::nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
 
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-        using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
         using MODULE_CHAIN_GRU_TWO_LAYER = Module<GRU, Module<GRU2, Module<OUTPUT>>>;
         using MODULE_CHAIN_GRU = Module<GRU, Module<OUTPUT>>;
 
         using MODULE_CHAIN = MODULE_CHAIN_GRU_TWO_LAYER;
 //        using MODULE_CHAIN = MODULE_CHAIN_GRU;
-        using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+        using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     };
     template <typename CAPABILITY>
     struct Critic{
@@ -33,15 +33,15 @@ struct ConfigApproximatorsSequential{
         using OUTPUT = rlt::nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
         static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
 
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-        using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
         using MODULE_CHAIN_GRU_TWO_LAYER = Module<GRU, Module<GRU2, Module<OUTPUT>>>;
         using MODULE_CHAIN_GRU = Module<GRU, Module<OUTPUT>>;
         using MODULE_CHAIN = MODULE_CHAIN_GRU_TWO_LAYER;
 //        using MODULE_CHAIN = MODULE_CHAIN_GRU;
 
-        using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+        using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     };
 
     using CAPABILITY_ACTOR = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;

@@ -10,7 +10,7 @@
 #include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
-#include <rl_tools/nn_models/sequential_v2/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #endif
 
 #ifdef RL_TOOLS_ENABLE_ZLIB
@@ -26,7 +26,7 @@
 #include "../../../../nn/layers/gru/persist_code.h"
 #include "../../../../nn/layers/sample_and_squash/persist_code.h"
 #include "../../../../nn_models/mlp/persist_code.h"
-#include "../../../../nn_models/sequential_v2/persist_code.h"
+#include "../../../../nn_models/sequential/persist_code.h"
 
 #include "../../../../utils/zlib/operations_cpu.h"
 
@@ -125,7 +125,7 @@ namespace rl_tools{
             EVALUATION_ACTOR_TYPE evaluation_actor;
             malloc(device, evaluation_actor);
             copy(device, device, actor, evaluation_actor);
-//            using ACTOR_FORWARD_TYPE = nn_models::sequential_v2::Build<nn::layer_capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, INPUT_SHAPE>;
+//            using ACTOR_FORWARD_TYPE = nn_models::sequential::Build<nn::layer_capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, INPUT_SHAPE>;
 //            using ACTOR_FORWARD_TYPE = ACTOR_TYPE;
 //            ACTOR_FORWARD_TYPE actor_forward;
 //            malloc(device, actor_forward);

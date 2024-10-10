@@ -14,7 +14,7 @@ using TI = typename DEVICE::index_t;
 
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/td3/operations_generic.h>
@@ -42,8 +42,8 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, DEV
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<T, TI>>;
@@ -62,10 +62,10 @@ using CRITIC = rlt::nn_models::mlp::BindConfiguration<CRITIC_SPEC>;
 using ACTOR_MODULE_CHAIN = Module<ACTOR>;
 using CRITIC_MODULE_CHAIN = Module<CRITIC>;
 
-using ACTOR_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
-using CRITIC_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<CRITIC_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
-using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
-using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+using ACTOR_NETWORK_TYPE = rlt::nn_models::sequential::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using CRITIC_NETWORK_TYPE = rlt::nn_models::sequential::Build<CRITIC_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Forward<>, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
 using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;

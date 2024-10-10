@@ -2,7 +2,7 @@
 #include <rl_tools/rl/environments/pendulum/pendulum.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/persist.h>
@@ -24,11 +24,11 @@ struct Actor{
     using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
     using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_SPEC>;
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<ACTOR>;
 
-    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 };
 
 TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){

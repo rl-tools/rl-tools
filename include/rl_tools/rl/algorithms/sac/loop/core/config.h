@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_CONFIG_H
 
-#include "../../../../../nn_models/sequential_v2/model.h"
+#include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../nn_models/mlp/network.h"
 #include "../../../../../nn_models/random_uniform/model.h"
 #include "../../../../../rl/algorithms/sac/sac.h"
@@ -65,11 +65,11 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             };
             using SAMPLE_AND_SQUASH_CONFIG = nn::layers::sample_and_squash::Configuration<T, TI, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
             using SAMPLE_AND_SQUASH = nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_CONFIG>;
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-            using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
             using MODULE_CHAIN = Module<MLP, Module<SAMPLE_AND_SQUASH>>;
 
-            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+            using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 
         };
         template <typename CAPABILITY>
@@ -78,11 +78,11 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             using INPUT_SHAPE = tensor::Shape<TI, 1, SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
             using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER>;
             using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-            using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
             using MODULE_CHAIN = Module<MLP>;
 
-            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+            using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
         using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS>;

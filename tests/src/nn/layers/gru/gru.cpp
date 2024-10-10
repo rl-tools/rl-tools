@@ -7,7 +7,7 @@
 
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
 //#include <rl_tools/nn/layers/gru/layer.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>

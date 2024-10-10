@@ -5,7 +5,7 @@
 #include <rl_tools/nn/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 
 

@@ -4,7 +4,7 @@
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/operations_cpu.h>
 #include <rl_tools/nn/loss_functions/categorical_cross_entropy/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/containers/tensor/persist_code.h>
@@ -13,7 +13,7 @@
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/gru/persist_code.h>
-#include <rl_tools/nn_models/sequential_v2/persist_code.h>
+#include <rl_tools/nn_models/sequential/persist_code.h>
 
 #include <highfive/H5File.hpp>
 
@@ -38,8 +38,8 @@ using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using T = double;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     static constexpr TI SEQUENCE_LENGTH = 2;
     static constexpr TI BATCH_SIZE = 3;
@@ -51,7 +51,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 
     using MODULE_CHAIN = Module<GRU>;
-    using GRU_MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+    using GRU_MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 
     GRU_MODEL gru;
     typename GRU_MODEL::Buffer<true> buffer;

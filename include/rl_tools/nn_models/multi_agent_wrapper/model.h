@@ -4,7 +4,7 @@
 #define RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_MODEL_H
 
 #include "../../nn/nn.h"
-#include "../../nn_models/sequential_v2/model.h"
+#include "../../nn_models/sequential/model.h"
 #include "../../nn/parameters/parameters.h"
 #include "../../nn/optimizers/sgd/sgd.h"
 #include "../../nn/optimizers/adam/adam.h"
@@ -42,7 +42,7 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         using INPUT_SHAPE = T_INPUT_SHAPE;
         using INTERNAL_INPUT_SHAPE_TEMP = tensor::Replace<T_INPUT_SHAPE, PER_AGENT_INPUT_DIM, length(T_INPUT_SHAPE{})-1>;
         using INTERNAL_INPUT_SHAPE = tensor::Replace<INTERNAL_INPUT_SHAPE_TEMP, INTERNAL_BATCH_SIZE, BATCH_AXIS>;
-        using MODEL = nn_models::sequential_v2::Build<CAPABILITY, typename CONFIG::MODULE, INTERNAL_INPUT_SHAPE>;
+        using MODEL = nn_models::sequential::Build<CAPABILITY, typename CONFIG::MODULE, INTERNAL_INPUT_SHAPE>;
         static constexpr TI PER_AGENT_OUTPUT_DIM = get_last(typename MODEL::OUTPUT_SHAPE{});
         static constexpr TI OUTPUT_DIM = PER_AGENT_OUTPUT_DIM * CONFIG::N_AGENTS;
         using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(typename MODEL::INPUT_SHAPE{})-1>;

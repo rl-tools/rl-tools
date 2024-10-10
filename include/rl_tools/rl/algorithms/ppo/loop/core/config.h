@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_CONFIG_H
 
-#include "../../../../../nn_models/sequential_v2/model.h"
+#include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../nn_models/mlp_unconditional_stddev/network.h"
 #include "../../../../../nn_models/multi_agent_wrapper/model.h"
 #include "../../../../../rl/algorithms/ppo/ppo.h"
@@ -55,11 +55,11 @@ namespace rl_tools{
                 using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
                 using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
-                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+                using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
             template <typename CAPABILITY>
             struct Critic{
@@ -69,11 +69,11 @@ namespace rl_tools{
                 using CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
                 using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
-                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+                using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
 
             using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
@@ -98,8 +98,8 @@ namespace rl_tools{
                 using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
                 using INNER_MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
                 using WRAPPER_CONFIG = nn_models::multi_agent_wrapper::Configuration<T, TI, N_AGENTS, INNER_MODULE_CHAIN>;
@@ -115,11 +115,11 @@ namespace rl_tools{
                 using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Configuration<T, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_SPEC>;
 //                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
                 using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
-                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+                using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 
 
 //                using WRAPPER_CONFIG = nn_models::multi_agent_wrapper::Configuration<T, TI, N_AGENTS, INNER_MODULE_CHAIN>;

@@ -5,7 +5,7 @@
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev//operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/parameters/persist_code.h>
@@ -15,7 +15,7 @@
 #include <rl_tools/nn/layers/sample_and_squash/persist_code.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/persist_code.h>
-#include <rl_tools/nn_models/sequential_v2/persist_code.h>
+#include <rl_tools/nn_models/sequential/persist_code.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
@@ -50,10 +50,10 @@ namespace MODEL_BENCHMARK{
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T_BENCHMARK, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
-    using MODEL = typename rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 namespace MODEL_1{
@@ -68,10 +68,10 @@ namespace MODEL_1{
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
-    using MODEL = typename rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 namespace MODEL_2{
     using T = double;
@@ -84,10 +84,10 @@ namespace MODEL_2{
     using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<ACTOR_TYPE>>;
-    using MODEL = typename rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 namespace MODEL_MLP{
@@ -99,10 +99,10 @@ namespace MODEL_MLP{
 
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<ACTOR_TYPE>;
-    using MODEL = typename rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 namespace MODEL_SAMPLE_AND_SQUASH{
@@ -115,11 +115,11 @@ namespace MODEL_SAMPLE_AND_SQUASH{
     using SAMPLE_AND_SQUASH_LAYER_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<T, TI>;
     using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<ACTOR_TYPE, Module<SAMPLE_AND_SQUASH_LAYER>>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
-    using MODEL = typename rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {

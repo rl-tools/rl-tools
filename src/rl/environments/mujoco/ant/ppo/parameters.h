@@ -2,7 +2,7 @@
 #include <rl_tools/rl/algorithms/ppo/ppo.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/nn/layers/standardize/layer.h>
-#include <rl_tools/nn_models/sequential_v2/model.h>
+#include <rl_tools/nn_models/sequential/model.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/network.h>
 namespace parameters_0{
     template <typename T, typename TI>
@@ -25,11 +25,11 @@ namespace parameters_0{
             using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
             using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-            using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
             using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
-            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+            using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
         template <typename CAPABILITY>
         struct Critic{
@@ -39,11 +39,11 @@ namespace parameters_0{
             using CONFIG = nn_models::mlp::Configuration<T, TI, 1, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
             using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-            using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
             using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
-            using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+            using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
         using ACTOR_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;

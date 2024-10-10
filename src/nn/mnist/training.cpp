@@ -3,7 +3,7 @@
 #include <rl_tools/nn_models/models.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/containers/matrix/persist.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
@@ -42,12 +42,12 @@ namespace mnist_model{ // to simplify the model definition we import the sequent
     using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 
     using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
-    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 using NETWORK_TYPE = mnist_model::MODEL;

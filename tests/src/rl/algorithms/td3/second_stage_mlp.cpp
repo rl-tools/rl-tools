@@ -4,13 +4,13 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/environments/operations_cpu.h>
 #include <rl_tools/rl/algorithms/td3/operations_cpu.h>
 
 #include <rl_tools/nn_models/persist.h>
-#include <rl_tools/nn_models/sequential_v2/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
 #include <rl_tools/utils/generic/memcpy.h>
 
@@ -52,8 +52,8 @@ struct TD3ParametersCopyTraining: public rlt::rl::algorithms::td3::DefaultParame
     constexpr static typename AC_DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
 
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3ParametersCopyTraining::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
@@ -70,19 +70,19 @@ using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters
 
 //using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPABILITY, ACTOR_INPUT_SHAPE>;
 using ACTOR_MODULE_CHAIN = Module<ACTOR>;
-using ACTOR_TYPE = rlt::nn_models::sequential_v2::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using ACTOR_TYPE = rlt::nn_models::sequential::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 
 //using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, rlt::nn::layer_capability::Forward<>, ACTOR_INPUT_SHAPE>;
-using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 
 
 using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 //using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, CRITIC_CAPABILITY, CRITIC_INPUT_SHAPE>;
 using CRITIC_MODULE_CHAIN = Module<CRITIC>;
-using CRITIC_TYPE = rlt::nn_models::sequential_v2::Build<CRITIC_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+using CRITIC_TYPE = rlt::nn_models::sequential::Build<CRITIC_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
 //using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::layer_capability::Forward<>, CRITIC_INPUT_SHAPE>;
-using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::sequential_v2::Build<rlt::nn::layer_capability::Forward<>, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Forward<>, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
 using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3ParametersCopyTraining>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;

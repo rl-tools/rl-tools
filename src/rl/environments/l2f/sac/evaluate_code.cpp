@@ -2,7 +2,7 @@
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/extrack/config.h>

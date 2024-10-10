@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
@@ -65,8 +65,8 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, ND_Tensor){
     ASSERT_NEAR(abs_diff, 0, 1e-5);
 }
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
@@ -80,7 +80,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     using CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 
     using MODULE_CHAIN = Module<LAYER>;
-    using MODEL = rlt::nn_models::sequential_v2::Build<CAPA, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::sequential::Build<CAPA, MODULE_CHAIN, INPUT_SHAPE>;
     MODEL model;
     MODEL::Buffer<> buffer;
 

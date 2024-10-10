@@ -1,11 +1,11 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
-#include <rl_tools/nn_models/sequential_v2/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 
@@ -23,12 +23,12 @@ namespace MODEL_FORWARD{
     using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<T, TI, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 
     using CAPABILITY = rlt::nn::layer_capability::Forward<>;
-    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 }
 namespace MODEL_BACKWARD{
     using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Backward<>>;

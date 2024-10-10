@@ -3,7 +3,7 @@
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
 namespace rlt = rl_tools;
 
@@ -28,11 +28,11 @@ struct Actor{
     using STANDARDIZATION_LAYER_SPEC = rlt::nn::layers::standardize::Configuration<T, TI>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_SPEC>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-    using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<ACTOR_TYPE>>;
 
-    using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 };
 using CAPABILITY = rlt::nn::layer_capability::Forward<>;
 using ACTOR = Actor<CAPABILITY>::MODEL;

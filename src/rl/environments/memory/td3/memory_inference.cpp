@@ -6,7 +6,7 @@
 #include <rl_tools/rl/environments/memory/operations_cpu.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #ifdef RL_TOOLS_ENABLE_HDF5
@@ -16,7 +16,7 @@
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
-#include <rl_tools/nn_models/sequential_v2/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #endif
 

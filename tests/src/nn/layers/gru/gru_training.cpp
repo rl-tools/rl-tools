@@ -17,7 +17,7 @@
 #include <rl_tools/nn/operations_cpu.h>
 #endif
 #include <rl_tools/nn/loss_functions/categorical_cross_entropy/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/containers/tensor/persist.h>
@@ -25,7 +25,7 @@
 #include <rl_tools/nn/layers/embedding/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
-#include <rl_tools/nn_models/sequential_v2/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #include "dataset.h"
 
 namespace rlt = rl_tools;

@@ -6,7 +6,7 @@
 #include "../../../../../nn/optimizers/adam/instance/operations_generic.h"
 #include "../../../../../nn/layers/standardize/operations_generic.h"
 #include "../../../../../nn_models/mlp_unconditional_stddev/operations_generic.h"
-#include "../../../../../nn_models/sequential_v2/operations_generic.h"
+#include "../../../../../nn_models/sequential/operations_generic.h"
 #include "../../../../../nn/optimizers/adam/operations_generic.h"
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"
 #include "../../../../../rl/components/on_policy_runner/operations_generic.h"

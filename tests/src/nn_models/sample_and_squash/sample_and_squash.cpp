@@ -3,7 +3,7 @@
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
 namespace rlt = rl_tools;
 
@@ -29,11 +29,11 @@ using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindConfiguration<
 //using SAMPLE_AND_SQUASH_MODULE_SPEC = rlt::nn_models::sequential::Specification<SAMPLE_AND_SQUASH>;
 using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 using MODULE_CHAIN = Module<MLP_TYPE, Module<SAMPLE_AND_SQUASH>>;
 
-using ACTOR = rlt::nn_models::sequential_v2::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
+using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
 
 int main(){
     ACTOR actor;

@@ -6,7 +6,7 @@
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev//operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;

@@ -6,7 +6,7 @@
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 
@@ -66,11 +66,11 @@ namespace config{
                 using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Configuration<T, TI, nn::layers::sample_and_squash::DefaultParameters<T>>;
                 using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_SPEC>;
 
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
                 using MODULE_CHAIN = Module<LAYER_0, Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<SAMPLE_AND_SQUASH_LAYER>>>>>;
 
-                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+                using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
 
             template <typename CAPABILITY>
@@ -86,11 +86,11 @@ namespace config{
                 using LAYER_3_SPEC = nn::layers::dense::Configuration<T, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Output>;
                 using LAYER_3 = nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential_v2::OutputModule>
-                using Module = typename nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
                 using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 
-                using MODEL = nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+                using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
 
             using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS>;

@@ -5,7 +5,7 @@
 #include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/rl/algorithms/td3/loop/core/config.h>

@@ -12,7 +12,7 @@
 //#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 //#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 //#include <rl_tools/nn_models/mlp/operations_generic.h>
-//#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+//#include <rl_tools/nn_models/sequential/operations_generic.h>
 //#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
@@ -36,7 +36,7 @@
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
-#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 
@@ -95,11 +95,11 @@ struct APPROXIMATOR_CONFIG{
         using SAMPLE_AND_SQUASH_LAYER_SPEC = rlt::nn::layers::sample_and_squash::Configuration<T, TI, rlt::nn::layers::sample_and_squash::DefaultParameters<T>>;
         using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_SPEC>;
 
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-        using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
         using MODULE_CHAIN = Module<ACTOR_TYPE, Module<SAMPLE_AND_SQUASH_LAYER>>;
 
-        using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+        using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
     };
     template <typename CAPABILITY>
     struct Critic{
@@ -107,10 +107,10 @@ struct APPROXIMATOR_CONFIG{
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
         using SPEC = rlt::nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>>;
         using TYPE = rlt::nn_models::mlp::BindConfiguration<SPEC>;
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential_v2::OutputModule>
-        using Module = typename rlt::nn_models::sequential_v2::Module<T_CONTENT, T_NEXT_MODULE>;
+        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
         using MODULE_CHAIN = Module<TYPE>;
-        using MODEL = rlt::nn_models::sequential_v2::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+        using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     };
 
     using CAPABILITY_ACTOR = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
