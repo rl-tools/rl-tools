@@ -7,7 +7,7 @@
 #include "../../../devices/cuda.h"
 #include "../../../nn/parameters/operations_cuda.h"
 #include "../../../nn/nn.h"
-#include "../../../nn/mode.h"
+#include "../../../mode/mode.h"
 
 #include <cublas_v2.h>
 
