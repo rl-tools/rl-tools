@@ -222,12 +222,12 @@ Usage:
 ```
 from rltools import SAC
 import gymnasium as gym
-from gymnasium.experimental.wrappers import RescaleActionV0
+from gymnasium.wrappers import RescaleAction
 
 seed = 0xf00d
 def env_factory():
     env = gym.make("Pendulum-v1")
-    env = RescaleActionV0(env, -1, 1)
+    env = RescaleAction(env, -1, 1)
     env.reset(seed=seed)
     return env
 
