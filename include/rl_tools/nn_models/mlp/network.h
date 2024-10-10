@@ -146,6 +146,19 @@ namespace rl_tools::nn_models::mlp {
         using Layer = nn_models::mlp::NeuralNetwork<T_CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 
+    template <typename CAPABILITY, typename MODULE, typename INPUT_SHAPE>
+    struct Build: NeuralNetwork<CAPABILITY, MODULE, INPUT_SHAPE>{
+        template <typename TI, TI BATCH_SIZE>
+        struct CHANGE_BATCH_SIZE_IMPL{
+            using NEW_INPUT_SHAPE = tensor::Replace<INPUT_SHAPE, BATCH_SIZE, 1>;
+            using CHANGE_BATCH_SIZE = Build<CAPABILITY, MODULE, NEW_INPUT_SHAPE>;
+        };
+        template <typename TI, TI BATCH_SIZE>
+        using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;
+        template <typename NEW_CAPABILITY>
+        using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE, INPUT_SHAPE>;
+    };
+
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
