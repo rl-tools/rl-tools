@@ -16,10 +16,10 @@ using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, NN_DEVICE::inde
 
 using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, typename NN_DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
 using NetworkType = rlt::nn_models::mlp::NeuralNetwork<NETWORK_CONFIG, CAPABILITY_ADAM, INPUT_SHAPE>;
 
-using NetworkTypeBackwardOnly = rlt::nn_models::mlp::NeuralNetwork<NETWORK_CONFIG, rlt::nn::layer_capability::Backward<>, INPUT_SHAPE>;
+using NetworkTypeBackwardOnly = rlt::nn_models::mlp::NeuralNetwork<NETWORK_CONFIG, rlt::nn::capability::Backward<>, INPUT_SHAPE>;
 
 constexpr typename NN_DEVICE::index_t INPUT_DIM = rlt::get_last(NetworkType::INPUT_SHAPE{});
 constexpr typename NN_DEVICE::index_t LAYER_1_DIM = NetworkType::SPEC::HIDDEN_DIM;

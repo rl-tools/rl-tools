@@ -31,7 +31,7 @@ void test_mlp_evaluate() {
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     using INPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, INPUT_DIM>;
     using CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;
-    using MLP = rlt::nn_models::mlp::NeuralNetwork<CONFIG, rlt::nn::layer_capability::Forward<>, INPUT_SHAPE>;
+    using MLP = rlt::nn_models::mlp::NeuralNetwork<CONFIG, rlt::nn::capability::Forward<>, INPUT_SHAPE>;
     MLP mlp;
     typename MLP::template Buffer<BATCH_SIZE> buffers;
 
@@ -77,7 +77,7 @@ void test_mlp_forward() {
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     using INPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, INPUT_DIM>;
     using CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;
-    using TYPE = rlt::nn_models::mlp::NeuralNetwork<CONFIG, rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, INPUT_SHAPE>;
+    using TYPE = rlt::nn_models::mlp::NeuralNetwork<CONFIG, rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, INPUT_SHAPE>;
     using FORWARD_BACKWARD_BUFFERS = typename TYPE::template Buffer<BATCH_SIZE>;
     TYPE mlp_cpu, mlp_arm;
     FORWARD_BACKWARD_BUFFERS buffers;

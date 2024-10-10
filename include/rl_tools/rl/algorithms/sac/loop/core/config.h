@@ -91,11 +91,11 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
         using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
         using ALPHA_OPTIMIZER = nn::optimizers::Adam<ALPHA_OPTIMIZER_SPEC>;
-        using CAPABILITY_ACTOR = nn::layer_capability::Gradient<nn::parameters::Adam>;
-        using CAPABILITY_CRITIC = nn::layer_capability::Gradient<nn::parameters::Adam>;
+        using CAPABILITY_ACTOR = nn::capability::Gradient<nn::parameters::Adam>;
+        using CAPABILITY_CRITIC = nn::capability::Gradient<nn::parameters::Adam>;
         using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
         using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
-        using CRITIC_TARGET_TYPE = typename Critic<nn::layer_capability::Forward<>>::MODEL;
+        using CRITIC_TARGET_TYPE = typename Critic<nn::capability::Forward<>>::MODEL;
     };
 
     template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, bool T_DYNAMIC_ALLOCATION=true>

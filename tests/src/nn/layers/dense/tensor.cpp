@@ -77,7 +77,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
     using LAYER_SPEC = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER = rlt::nn::layers::dense::BindConfiguration<LAYER_SPEC>;
-    using CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
     using MODULE_CHAIN = Module<LAYER>;
     using MODEL = rlt::nn_models::sequential::Build<CAPA, MODULE_CHAIN, INPUT_SHAPE>;

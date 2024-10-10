@@ -25,7 +25,7 @@ namespace rl_tools::nn{
      The PARAMETER_TYPE determines the type of the parameters (e.g. adam requries first and second order moments in addition to the gradient)
      This Capability system allows the switching of models for e.g. checkpointing: We are training a full model with gradients, and optimizers state then convert it to a forward only model (just the parameters) and save it as a checkpoint.
     */
-    namespace layer_capability{
+    namespace capability{
         template <bool T_DYNAMIC_ALLOCATION=true>
         struct Forward{
             static constexpr LayerCapability TAG = LayerCapability::Forward;

@@ -60,7 +60,7 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, GRADIENT) {
     using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
     using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 
     DEVICE device;
@@ -113,7 +113,7 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, BACKWARD) {
     using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
     using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
-    using CAPABILITY = rlt::nn::layer_capability::Backward<>;
+    using CAPABILITY = rlt::nn::capability::Backward<>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 
     DEVICE device;
@@ -166,7 +166,7 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, FORWARD) {
     using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
     using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
-    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+    using CAPABILITY = rlt::nn::capability::Forward<>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 
     DEVICE device;

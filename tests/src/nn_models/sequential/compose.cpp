@@ -34,7 +34,7 @@ struct Actor{
 
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 };
-using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+using CAPABILITY = rlt::nn::capability::Forward<>;
 using ACTOR = Actor<CAPABILITY>::MODEL;
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_COMPOSE, MAIN){

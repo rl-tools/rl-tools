@@ -80,7 +80,7 @@ namespace rl_tools{
             using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
-            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam>;
+            using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam>;
             using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
             using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
         };
@@ -132,7 +132,7 @@ namespace rl_tools{
             using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
-            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam>;
+            using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam>;
             using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
             using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
         };

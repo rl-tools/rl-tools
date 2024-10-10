@@ -87,7 +87,7 @@ auto run(TI seed, bool verbose){
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
     auto actor = rlt::get_actor(ts);
     using EVALUATION_ACTOR_BATCH_SIZE = decltype(actor)::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_FINAL_EVAL>;
-    using EVALUATION_ACTOR = typename EVALUATION_ACTOR_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward<>>;
+    using EVALUATION_ACTOR = typename EVALUATION_ACTOR_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
     EVALUATION_ACTOR evaluation_actor;
     typename EVALUATION_ACTOR::template Buffer<> evaluation_buffer;
     rlt::malloc(device, evaluation_actor);

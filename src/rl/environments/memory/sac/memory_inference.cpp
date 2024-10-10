@@ -46,7 +46,7 @@ int main(){
     auto rng = rlt::random::default_engine(device.random, 0);
     std::string checkpoint = "experiments/2024-08-28_11-19-30/e64577b_sequential_algorithm_environment/sac_memory/0001/steps/000000000010000/checkpoint.h5";
     using CONFIG = ConfigApproximatorsSequential<T, TI, SEQUENCE_LENGTH, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
-    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+    using CAPABILITY = rlt::nn::capability::Forward<>;
     using ACTOR = CONFIG::Actor<CAPABILITY>::MODEL;
     ACTOR actor;
     ACTOR::Buffer<1> actor_buffer;

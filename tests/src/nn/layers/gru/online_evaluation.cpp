@@ -31,8 +31,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, ONLINE_EVALUATION){
 #else
 int main(){
 #endif
-//    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+//    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+    using CAPABILITY = rlt::nn::capability::Forward<>;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;

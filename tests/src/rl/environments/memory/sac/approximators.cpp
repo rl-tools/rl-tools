@@ -52,7 +52,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
     using APPROXIMATORS = ConfigApproximatorsSequential<T, TI, SEQUENCE_LENGTH, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
     using CRITIC = APPROXIMATORS::Critic<CAPABILITY>::MODEL;
     ACTOR actor;

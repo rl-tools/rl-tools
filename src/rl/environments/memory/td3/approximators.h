@@ -44,12 +44,12 @@ struct ConfigApproximatorsSequential{
         using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     };
 
-    using CAPABILITY_ACTOR = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
-    using CAPABILITY_CRITIC = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_ACTOR = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_CRITIC = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
     using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
-    using CRITIC_TARGET_TYPE = typename Critic<rlt::nn::layer_capability::Forward<>>::MODEL;
-    using ACTOR_TARGET_TYPE = typename Actor<rlt::nn::layer_capability::Forward<>>::MODEL;
+    using CRITIC_TARGET_TYPE = typename Critic<rlt::nn::capability::Forward<>>::MODEL;
+    using ACTOR_TARGET_TYPE = typename Actor<rlt::nn::capability::Forward<>>::MODEL;
     using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 

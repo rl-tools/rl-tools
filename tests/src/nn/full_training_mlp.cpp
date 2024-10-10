@@ -45,7 +45,7 @@ using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, 13
 
 using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
+using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
 using NetworkType = rlt::nn_models::mlp::NeuralNetwork<NETWORK_CONFIG, CAPABILITY_ADAM, INPUT_SHAPE>;
 
 std::vector<std::vector<T>> X_train;

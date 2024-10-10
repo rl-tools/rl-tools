@@ -15,7 +15,7 @@ constexpr TI BATCH_SIZE = 8;
 constexpr TI SEQ_LEN = 6;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQ_LEN, BATCH_SIZE, 1>;
 using EMBEDDING_LAYER_CONFIG = rlt::nn::layers::embedding::Configuration<T, TI, NUM_CLASSES, EMBEDDING_DIM>;
-using CAPABILITY = rlt::nn::layer_capability::Backward<>;
+using CAPABILITY = rlt::nn::capability::Backward<>;
 using EMBEDDING_LAYER = rlt::nn::layers::embedding::Layer<EMBEDDING_LAYER_CONFIG, CAPABILITY, INPUT_SHAPE>;
 
 TEST(RL_TOOLS_NN_LAYERS_EMBEDDING, MAIN){

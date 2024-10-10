@@ -109,7 +109,7 @@ int main(int argc, char** argv){
     }
     std::cerr << "Checkpoint: " << checkpoint_path << std::endl;
 //    using ACTOR = rlt::utils::typing::remove_reference<decltype(rlt::get_actor(std::declval<std::add_lvalue_reference_t<LOOP_STATE>>()))>;
-    using ACTOR = LOOP_CONFIG::NN::ACTOR_TYPE::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward>;
+    using ACTOR = LOOP_CONFIG::NN::ACTOR_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward>;
     ACTOR actor;
     ACTOR::template Buffer<1> actor_buffer;
     rlt::malloc(device, actor);

@@ -28,7 +28,7 @@ int main(){
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE, false, rlt::tensor::RowMajorStride<GRU_OUTPUT_SHAPE>>> dloss_dgru_output;
 
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     rlt::nn::layers::gru::Layer<GRU_CONFIG, CAPABILITY, INPUT_SHAPE> gru;
     decltype(gru)::Buffer<false> buffers;

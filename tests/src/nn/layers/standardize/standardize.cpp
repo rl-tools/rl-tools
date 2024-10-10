@@ -12,7 +12,7 @@ using TI = typename DEVICE::index_t;
 TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
     constexpr TI DIM = 10;
     using CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
-    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+    using CAPABILITY = rlt::nn::capability::Forward<>;
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, DIM>;
     rlt::nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE> layer;
@@ -37,7 +37,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     constexpr TI BATCH_SIZE = 100000;
     using CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, DIM>;
-    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+    using CAPABILITY = rlt::nn::capability::Forward<>;
     rlt::nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE> layer;
     typename decltype(layer)::template Buffer<> buffer;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, DIM>> mean, std, bias, variance;

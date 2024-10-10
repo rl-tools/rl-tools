@@ -54,7 +54,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 3>;
     using LAYER_SPEC = rlt::nn::layers::dense::Configuration<DTYPE, typename DEVICE::index_t, 3, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     rlt::nn::layers::dense::Layer<LAYER_SPEC, CAPABILITY_ADAM, INPUT_SHAPE> layer;
     rlt::malloc(device, layer);
     rlt::init_weights(device, layer, rng);
@@ -87,7 +87,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
     using SPEC = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+    using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn_models::mlp::NeuralNetwork<SPEC, CAPABILITY_ADAM, INPUT_SHAPE> mlp;
     rlt::malloc(device, mlp);
     rlt::init_weights(device, mlp, rng);

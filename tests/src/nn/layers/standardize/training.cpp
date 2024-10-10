@@ -101,9 +101,9 @@ namespace config{
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
             using ALPHA_OPTIMIZER = nn::optimizers::Adam<ALPHA_OPTIMIZER_SPEC>;
 
-            using ACTOR_TYPE = typename ACTOR<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
-            using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
-            using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward<>>::MODEL;
+            using ACTOR_TYPE = typename ACTOR<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
+            using CRITIC_TYPE = typename CRITIC<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
+            using CRITIC_TARGET_TYPE = typename CRITIC<nn::capability::Forward<>>::MODEL;
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, T_ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsSequential>;
         struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{

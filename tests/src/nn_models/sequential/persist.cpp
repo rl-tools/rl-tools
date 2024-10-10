@@ -27,14 +27,14 @@ namespace MODEL_FORWARD{
     using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 
-    using CAPABILITY = rlt::nn::layer_capability::Forward<>;
+    using CAPABILITY = rlt::nn::capability::Forward<>;
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 }
 namespace MODEL_BACKWARD{
-    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Backward<>>;
+    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::capability::Backward<>>;
 }
 namespace MODEL_GRADIENT_ADAM{
-    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>>;
 }
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_forward) {

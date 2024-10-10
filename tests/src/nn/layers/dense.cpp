@@ -26,7 +26,7 @@ using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, AC
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
 
-    rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::layer_capability::Forward<>, INPUT_SHAPE> layer;
+    rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::capability::Forward<>, INPUT_SHAPE> layer;
     decltype(layer)::template Buffer<1> buffer;
     rlt::malloc(device, layer);
     rlt::malloc(device, buffer);
@@ -41,7 +41,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     rlt::evaluate(device, layer, input, output, buffer, rng);
     using PARAMETER_TYPE_2 = rlt::nn::parameters::Gradient;
     using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
-    rlt::nn::layers::dense::Layer<LAYER_2_CONFIG, rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient>, INPUT_SHAPE> layer_2;
+    rlt::nn::layers::dense::Layer<LAYER_2_CONFIG, rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>, INPUT_SHAPE> layer_2;
     rlt::malloc(device, layer_2);
     rlt::copy(device, device, layer, layer_2);
     rlt::zero_gradient(device, layer_2);

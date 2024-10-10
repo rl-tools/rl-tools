@@ -118,17 +118,17 @@ namespace first_stage_first_stage{
     using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
     using NN_DEVICE = rlt::devices::DefaultCPU;
-    using ACTOR_CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, ACTOR_BATCH_SIZE>;
-    using CRITIC_CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, CRITIC_BATCH_SIZE>;
+    using ACTOR_CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, ACTOR_BATCH_SIZE>;
+    using CRITIC_CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, CRITIC_BATCH_SIZE>;
     using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<DTYPE>>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPA, ACTOR_INPUT_SHAPE>;
 
-    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, rlt::nn::layer_capability::Forward<>, ACTOR_INPUT_SHAPE>;
+    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, rlt::nn::capability::Forward<>, ACTOR_INPUT_SHAPE>;
 
     using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, CRITIC_CAPA, CRITIC_INPUT_SHAPE>;
 
-    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::layer_capability::Forward<>, CRITIC_INPUT_SHAPE>;
+    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::capability::Forward<>, CRITIC_INPUT_SHAPE>;
 
 
     using TD3_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
@@ -286,17 +286,17 @@ namespace first_stage_second_stage{
     using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
     using NN_DEVICE = rlt::devices::DefaultCPU;
-    using ACTOR_CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
-    using CRITIC_CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using ACTOR_CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+    using CRITIC_CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<DTYPE>>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPA, ACTOR_INPUT_SHAPE>;
 
-    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, rlt::nn::layer_capability::Forward<>, ACTOR_INPUT_SHAPE>;
+    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, rlt::nn::capability::Forward<>, ACTOR_INPUT_SHAPE>;
 
     using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, CRITIC_CAPA, CRITIC_INPUT_SHAPE>;
 
-    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::layer_capability::Forward<>, CRITIC_INPUT_SHAPE>;
+    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::capability::Forward<>, CRITIC_INPUT_SHAPE>;
 
 //    using ActorStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
 //    using CriticStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;

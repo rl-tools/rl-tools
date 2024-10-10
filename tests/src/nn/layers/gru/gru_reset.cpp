@@ -31,7 +31,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
 #else
     int main(){
 #endif
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using INPUT_SHAPE_4X = rlt::tensor::Shape<TI, SEQUENCE_LENGTH*4, BATCH_SIZE/4, INPUT_DIM>;

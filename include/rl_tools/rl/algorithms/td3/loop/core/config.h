@@ -83,10 +83,10 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
-        using ACTOR_TYPE = typename ACTOR<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
-        using ACTOR_TARGET_TYPE = typename ACTOR<nn::layer_capability::Forward<>>::MODEL;
-        using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
-        using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward<>>::MODEL;
+        using ACTOR_TYPE = typename ACTOR<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
+        using ACTOR_TARGET_TYPE = typename ACTOR<nn::capability::Forward<>>::MODEL;
+        using CRITIC_TYPE = typename CRITIC<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
+        using CRITIC_TARGET_TYPE = typename CRITIC<nn::capability::Forward<>>::MODEL;
     };
 
     template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, bool T_DYNAMIC_ALLOCATION=true>

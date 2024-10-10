@@ -17,7 +17,7 @@ TEST(RL_TOOLS_NN_MODE, LAYER) {
     using PARAMETER_TYPE = rlt::nn::parameters::Plain;
     using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, INPUT_DIM>;
-    rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::layer_capability::Forward<>, INPUT_SHAPE> layer;
+    rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::capability::Forward<>, INPUT_SHAPE> layer;
     decltype(layer)::template Buffer<1> buffer;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, INPUT_DIM, false>> input;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, OUTPUT_DIM, false>> output;

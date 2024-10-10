@@ -28,7 +28,7 @@ constexpr TI BATCH_SIZE = 1;
 
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 using MLP_CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
-using MLP = rlt::nn_models::mlp::NeuralNetwork<MLP_CONFIG, rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, INPUT_SHAPE>;
+using MLP = rlt::nn_models::mlp::NeuralNetwork<MLP_CONFIG, rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, INPUT_SHAPE>;
 
 using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY, MLP>;
 typedef rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, POLICIES, rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, DEVICE::index_t>> OffPolicyRunnerSpec;

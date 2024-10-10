@@ -72,12 +72,12 @@ public:
     using CRITIC_SPEC = rlt::nn_models::mlp::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
     using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, NN_DEVICE::index_t>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-    using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
+    using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
     using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_SPEC>;
-    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, ACTOR_SPEC>;
-    using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
+    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::capability::Forward, ACTOR_SPEC>;
+    using CRITIC_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
     using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
-    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_SPEC>;
+    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::capability::Forward, CRITIC_SPEC>;
     using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ACTOR_CRITIC_TYPE = rlt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
     using ACTOR_BUFFERS = ACTOR_NETWORK_TYPE::template Buffer<ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>; //rlt::nn_models::mlp::NeuralNetworkBuffers<rlt::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;

@@ -20,7 +20,7 @@ typename SPEC::T abs_diff_grad(DEVICE& device, const rlt::nn_models::mlp::Neural
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
 //    constexpr typename DEVICE::index_t BATCH_SIZE = 1;
-    using GradNetworkType = rlt::nn_models::mlp::NeuralNetwork<SPEC, rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient>, typename SPEC::INPUT_SHAPE>;
+    using GradNetworkType = rlt::nn_models::mlp::NeuralNetwork<SPEC, rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>, typename SPEC::INPUT_SHAPE>;
     GradNetworkType n1g;
     rlt::malloc(device, n1g);
     rlt::copy(device, device, n1, n1g);

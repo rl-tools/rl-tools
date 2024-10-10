@@ -16,7 +16,7 @@ namespace parameters_0{
 
         using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, TI>;
         using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-        using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+        using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
         template <typename CAPABILITY>
         struct Actor{
@@ -36,7 +36,7 @@ namespace parameters_0{
 //        using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
 
         using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
-//        using ACTOR_TYPE_INFERENCE = typename Actor<nn::layer_capability::Forward>::MODEL;
+//        using ACTOR_TYPE_INFERENCE = typename Actor<nn::capability::Forward>::MODEL;
 //        using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
         using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
         using CRITIC_SPEC = rlt::nn_models::mlp::Configuration<T, TI, 1, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;

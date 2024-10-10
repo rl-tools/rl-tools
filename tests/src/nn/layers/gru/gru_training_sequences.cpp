@@ -65,7 +65,7 @@ struct Config{
 //    using PARAMS = USEFUL;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, PARAMS::INPUT_DIM>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using RESET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using RESET_TYPE = rlt::tensor::Specification<bool, TI, RESET_SHAPE>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, true>;

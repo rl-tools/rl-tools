@@ -27,13 +27,13 @@ struct parameters_pendulum_0{
 
         using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, TI>;
         using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-        using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
+        using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
         using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_SPEC>;
-        using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, ACTOR_SPEC>;
+        using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::capability::Forward, ACTOR_SPEC>;
 
-        using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
+        using CRITIC_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
         using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
-        using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_SPEC>;
+        using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::capability::Forward, CRITIC_SPEC>;
 
 
         using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, ACTOR_CRITIC_PARAMETERS>;

@@ -48,7 +48,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, OUTPUT_DIM, rlt::nn::parameters::groups::Normal, true>;
     using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
     using MODULE_CHAIN = Module<GRU>;
     using GRU_MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;

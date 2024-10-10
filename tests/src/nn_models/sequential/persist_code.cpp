@@ -53,7 +53,7 @@ namespace MODEL_BENCHMARK{
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
     using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
-    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 namespace MODEL_1{
@@ -71,7 +71,7 @@ namespace MODEL_1{
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
     using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
-    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 namespace MODEL_2{
     using T = double;
@@ -79,7 +79,7 @@ namespace MODEL_2{
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
     using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_CONFIG>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
     using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
@@ -87,7 +87,7 @@ namespace MODEL_2{
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
     using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<ACTOR_TYPE>>;
-    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 namespace MODEL_MLP{
@@ -97,12 +97,12 @@ namespace MODEL_MLP{
     using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp::BindConfiguration<ACTOR_CONFIG>;
 
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
     using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<ACTOR_TYPE>;
-    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
 namespace MODEL_SAMPLE_AND_SQUASH{
@@ -118,7 +118,7 @@ namespace MODEL_SAMPLE_AND_SQUASH{
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
     using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<ACTOR_TYPE, Module<SAMPLE_AND_SQUASH_LAYER>>;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using MODEL = typename rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
@@ -290,7 +290,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
     using T = typename MODEL::T;
 
     DEVICE device;
-    using CAPABILITY_FORWARD = rlt::nn::layer_capability::Forward<>;
+    using CAPABILITY_FORWARD = rlt::nn::capability::Forward<>;
     MODEL::template CHANGE_CAPABILITY<CAPABILITY_FORWARD> model;
     MODEL::Buffer<MODEL_2::BATCH_SIZE> buffer;
 
@@ -352,7 +352,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
     using T = typename MODEL::T;
 
     DEVICE device;
-    using CAPABILITY_BACKWARD = rlt::nn::layer_capability::Backward<1>;
+    using CAPABILITY_BACKWARD = rlt::nn::capability::Backward<1>;
     MODEL::template CHANGE_CAPABILITY<CAPABILITY_BACKWARD> model;
     MODEL::Buffer<MODEL_2::BATCH_SIZE> buffer;
 
@@ -415,7 +415,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp){
     using T = typename MODEL::T;
 
     DEVICE device;
-//    using CAPABILITY_BACKWARD = rlt::nn::layer_capability::Backward<1>;
+//    using CAPABILITY_BACKWARD = rlt::nn::capability::Backward<1>;
 //    MODEL::template CHANGE_CAPABILITY<CAPABILITY_BACKWARD> model;
     MODEL model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
@@ -466,7 +466,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp_forward){
     using T = typename MODEL::T;
 
     DEVICE device;
-    using CAPABILITY_FORWARD = rlt::nn::layer_capability::Forward<>;
+    using CAPABILITY_FORWARD = rlt::nn::capability::Forward<>;
     MODEL::template CHANGE_CAPABILITY<CAPABILITY_FORWARD> model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 
@@ -516,7 +516,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
     using T = typename MODEL::T;
 
     DEVICE device;
-    using CAPABILITY_FORWARD = rlt::nn::layer_capability::Forward<>;
+    using CAPABILITY_FORWARD = rlt::nn::capability::Forward<>;
     MODEL::template CHANGE_CAPABILITY<CAPABILITY_FORWARD> model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 
@@ -569,7 +569,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
     using T = typename MODEL::T;
 
     DEVICE device;
-    using CAPABILITY = rlt::nn::layer_capability::Backward<>;
+    using CAPABILITY = rlt::nn::capability::Backward<>;
     MODEL::template CHANGE_CAPABILITY<CAPABILITY> model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 
@@ -621,7 +621,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_gradien
     using T = typename MODEL::T;
 
     DEVICE device;
-    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     MODEL::template CHANGE_CAPABILITY<CAPABILITY> model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 

@@ -34,19 +34,19 @@ namespace parameters_0{
         using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
         using ACTOR_MLP = rlt::nn_models::mlp::BindConfiguration<ACTOR_CONFIG>;
 
-        using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+        using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
         using ACTOR_MODULE_CHAIN = Module<ACTOR_MLP>;
         using ACTOR_TYPE = rlt::nn_models::sequential::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
-        using ACTOR_TARGET_TYPE = rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+        using ACTOR_TARGET_TYPE = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 
         using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
         using CRITIC_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 1, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
         using CRITIC_MLP = rlt::nn_models::mlp::BindConfiguration<CRITIC_CONFIG>;
-        using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+        using CRITIC_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
         using MODULE_CHAIN = Module<CRITIC_MLP>;
         using CRITIC_TYPE = rlt::nn_models::sequential::Build<CRITIC_CAPABILITY, MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
-        using CRITIC_TARGET_TYPE = rlt::nn_models::sequential::Build<rlt::nn::layer_capability::Forward<>, MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+        using CRITIC_TARGET_TYPE = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
         using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
         using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;

@@ -121,11 +121,11 @@ namespace rl_tools{
             static constexpr TI BATCH_SIZE = 13;
             using INPUT_SHAPE = tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>;
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
-            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::layer_capability::Forward<>>;
+            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<>>;
             EVALUATION_ACTOR_TYPE evaluation_actor;
             malloc(device, evaluation_actor);
             copy(device, device, actor, evaluation_actor);
-//            using ACTOR_FORWARD_TYPE = nn_models::sequential::Build<nn::layer_capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, INPUT_SHAPE>;
+//            using ACTOR_FORWARD_TYPE = nn_models::sequential::Build<nn::capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, INPUT_SHAPE>;
 //            using ACTOR_FORWARD_TYPE = ACTOR_TYPE;
 //            ACTOR_FORWARD_TYPE actor_forward;
 //            malloc(device, actor_forward);
