@@ -79,39 +79,39 @@ namespace rl_tools {
         matrix::ViewSpec<BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM> hidden_vs;
         {
             auto output_buffer_view = view(device, buffers.tick, matrix::ViewSpec<BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>{});
-            evaluate(device, network.input_layer, input, output_buffer_view, buffers.layer_buffer, rng);
+            evaluate(device, network.input_layer, input, output_buffer_view, buffers.layer_buffer, rng, mode);
         }
         for (typename DEVICE::index_t layer_i = 0; layer_i < MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             auto& input_buffer = (layer_i % 2 == 0) ? buffers.tick : buffers.tock;
             auto input_buffer_view = view(device, input_buffer, hidden_vs);
             auto& output_buffer = (layer_i % 2 == 0) ? buffers.tock : buffers.tick;
             auto output_buffer_view = view(device, output_buffer, hidden_vs);
-            evaluate(device, network.hidden_layers[layer_i], input_buffer_view, output_buffer_view, buffers.layer_buffer, rng);
+            evaluate(device, network.hidden_layers[layer_i], input_buffer_view, output_buffer_view, buffers.layer_buffer, rng, mode);
         }
         if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
             auto input_buffer_view = view(device, buffers.tick, hidden_vs);
-            evaluate(device, network.output_layer, input_buffer_view, output, buffers.layer_buffer, rng);
+            evaluate(device, network.output_layer, input_buffer_view, output, buffers.layer_buffer, rng, mode);
         } else {
             auto input_buffer_view = view(device, buffers.tock, hidden_vs);
-            evaluate(device, network.output_layer, input_buffer_view, output, buffers.layer_buffer, rng);
+            evaluate(device, network.output_layer, input_buffer_view, output, buffers.layer_buffer, rng, mode);
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         nn::layers::dense::Buffer layer_buffer;
-        forward(device, network.input_layer, input, layer_buffer, rng);
+        forward(device, network.input_layer, input, layer_buffer, rng, mode);
 
         auto current_output = network.input_layer.output;
         for (typename DEVICE::index_t layer_i = 0; layer_i < MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
-            forward(device, network.hidden_layers[layer_i], current_output, layer_buffer, rng);
+            forward(device, network.hidden_layers[layer_i], current_output, layer_buffer, rng, mode);
             current_output = network.hidden_layers[layer_i].output;
         }
-        forward(device, network.output_layer, current_output, layer_buffer, rng);
+        forward(device, network.output_layer, current_output, layer_buffer, rng, mode);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        forward(device, network, input, buffers, rng);
+        forward(device, network, input, buffers, rng, mode);
         copy(device, device, network.output_layer.output, output);
     }
 
@@ -133,17 +133,17 @@ namespace rl_tools {
         using T = typename MODEL_SPEC::T;
         using TI = typename DEVICE::index_t;
 
-        backward_input(device, network.output_layer, d_output, buffer.tick, buffer.layer_buffer);
+        backward_input(device, network.output_layer, d_output, buffer.tick, buffer.layer_buffer, mode);
         for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
             typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
             if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
-                backward_input(device, network.hidden_layers[layer_i], buffer.tick, buffer.tock, buffer.layer_buffer);
+                backward_input(device, network.hidden_layers[layer_i], buffer.tick, buffer.tock, buffer.layer_buffer, mode);
             } else {
-                backward_input(device, network.hidden_layers[layer_i], buffer.tock, buffer.tick, buffer.layer_buffer);
+                backward_input(device, network.hidden_layers[layer_i], buffer.tock, buffer.tick, buffer.layer_buffer, mode);
             }
         }
         auto& target_d_output_buffer = (MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0) ? buffer.tick : buffer.tock;
-        backward_input(device, network.input_layer, target_d_output_buffer, d_input, buffer.layer_buffer);
+        backward_input(device, network.input_layer, target_d_output_buffer, d_input, buffer.layer_buffer, mode);
     }
 
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
@@ -156,20 +156,20 @@ namespace rl_tools {
         static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
 
         auto previous_output = MODEL_SPEC::NUM_HIDDEN_LAYERS > 0 ? network.hidden_layers[MODEL_SPEC::NUM_HIDDEN_LAYERS - 1].output : network.input_layer.output;
-        backward_full(device, network.output_layer, previous_output, d_output, buffer.tick, buffer.layer_buffer);
+        backward_full(device, network.output_layer, previous_output, d_output, buffer.tick, buffer.layer_buffer, mode);
         for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
             typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
             previous_output = layer_i > 0 ? network.hidden_layers[layer_i - 1].output : network.input_layer.output;
             if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
-                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tick, buffer.tock, buffer.layer_buffer);
+                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tick, buffer.tock, buffer.layer_buffer, mode);
             } else {
-                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tock, buffer.tick, buffer.layer_buffer);
+                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tock, buffer.tick, buffer.layer_buffer, mode);
             }
         }
         if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
-            backward_full(device, network.input_layer, input, buffer.tick, d_input, buffer.layer_buffer);
+            backward_full(device, network.input_layer, input, buffer.tick, d_input, buffer.layer_buffer, mode);
         } else {
-            backward_full(device, network.input_layer, input, buffer.tock, d_input, buffer.layer_buffer);
+            backward_full(device, network.input_layer, input, buffer.tock, d_input, buffer.layer_buffer, mode);
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename MODE = mode::Default<>>
@@ -181,20 +181,20 @@ namespace rl_tools {
         static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
 
         auto previous_output = MODEL_SPEC::NUM_HIDDEN_LAYERS > 0 ? network.hidden_layers[MODEL_SPEC::NUM_HIDDEN_LAYERS - 1].output : network.input_layer.output;
-        backward_full(device, network.output_layer, previous_output, d_output, buffer.tick, buffer.layer_buffer);
+        backward_full(device, network.output_layer, previous_output, d_output, buffer.tick, buffer.layer_buffer, mode);
         for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
             typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
             previous_output = layer_i > 0 ? network.hidden_layers[layer_i - 1].output : network.input_layer.output;
             if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
-                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tick, buffer.tock, buffer.layer_buffer);
+                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tick, buffer.tock, buffer.layer_buffer, mode);
             } else {
-                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tock, buffer.tick, buffer.layer_buffer);
+                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tock, buffer.tick, buffer.layer_buffer, mode);
             }
         }
         if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
-            backward(device, network.input_layer, input, buffer.tick, buffer.layer_buffer);
+            backward(device, network.input_layer, input, buffer.tick, buffer.layer_buffer, mode);
         } else {
-            backward(device, network.input_layer, input, buffer.tock, buffer.layer_buffer);
+            backward(device, network.input_layer, input, buffer.tock, buffer.layer_buffer, mode);
         }
     }
 //    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>
@@ -312,7 +312,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG, typename MODE = mode::Default<>>
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& model, const Tensor<INPUT_SPEC>& input,nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         auto matrix_view_input = matrix_view(device, input);
-        forward(device, model, matrix_view_input, buffer, rng);
+        forward(device, model, matrix_view_input, buffer, rng, mode);
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG, typename MODE = mode::Default<>>
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& model, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output,nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
