@@ -59,18 +59,18 @@ namespace rl_tools{
         struct MatrixStatic{
             T _data[SIZE];
         };
-        template <typename T, bool CONST = false>
+        template <typename T, typename TI, TI SIZE_BYTES, bool CONST = false>
         struct MatrixDynamic{
             T* _data = nullptr;
         };
-        template <typename T>
-        struct MatrixDynamic<T, true>{
+        template <typename T, typename TI, TI SIZE_BYTES>
+        struct MatrixDynamic<T, TI, SIZE_BYTES, true>{
             const T* _data;
         };
     }
 
     template <typename T_SPEC>
-    struct Matrix: utils::typing::conditional_t<T_SPEC::DYNAMIC_ALLOCATION, matrix::MatrixDynamic<typename T_SPEC::T, T_SPEC::CONST>, matrix::MatrixStatic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE>>{
+    struct Matrix: utils::typing::conditional_t<T_SPEC::DYNAMIC_ALLOCATION, matrix::MatrixDynamic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE_BYTES, T_SPEC::CONST>, matrix::MatrixStatic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE>>{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
