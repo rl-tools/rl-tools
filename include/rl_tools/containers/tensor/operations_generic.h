@@ -8,17 +8,27 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, Tensor<SPEC>& tensor){
-        data_reference(tensor) = (typename SPEC::T*) new typename SPEC::T[SPEC::SIZE];
+    template<typename DEVICE, typename T, typename T_TI, T_TI SIZE>
+    void malloc(DEVICE& device, tensor::TensorStatic<T, T_TI, SIZE>& tensor) {
+        // no-op
+    }
+    template<typename DEVICE, typename T, typename T_TI, T_TI SIZE>
+    void free(DEVICE& device, tensor::TensorStatic<T, T_TI, SIZE>& tensor) {
+        // no-op
+    }
+
+    template<typename DEVICE, typename T, typename T_TI, T_TI SIZE, bool CONST>
+    void malloc(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
+        T* temp = (T*) new T[SIZE];
+        *data_pointer(tensor) = temp;
 #if RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
-        for(typename DEVICE::index_t i=0; i < SPEC::SIZE; i++){
-            data(tensor)[i] = math::nan<typename SPEC::T>(device.math);
+        for(typename DEVICE::index_t i=0; i < SIZE; i++){
+            data(tensor)[i] = math::nan<T>(device.math);
         }
 #endif
     }
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, Tensor<SPEC>& tensor){
+    template <typename DEVICE, typename T, typename T_TI, T_TI SIZE, bool CONST>
+    void free(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
         delete[] data(tensor);
     }
 
@@ -143,7 +153,7 @@ namespace rl_tools{
         using NEW_STRIDE = tensor::Replace<NEW_STRIDE_INTERMEDIATE, get<DIM_1>(STRIDE{}), DIM_2>;
         using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, true, NEW_STRIDE, false>; // non-const here
         Tensor<NEW_SPEC> view;
-        data_reference(view) = data(tensor);
+        *data_pointer(view) = data(tensor);
         return view;
     }
 

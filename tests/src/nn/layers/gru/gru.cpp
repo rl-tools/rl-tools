@@ -37,10 +37,10 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     rlt::set_all(device, bias, 0);
     rlt::set(device, bias, 1, 0);
     rlt::set(device, bias, 3, 1);
-    rlt::data_reference(A_T) = rlt::data(A);
-    rlt::data_reference(B_T) = rlt::data(B);
-    rlt::data_reference(C_T) = rlt::data(C);
-    rlt::data_reference(C_target_T) = rlt::data(C_target);
+    *rlt::data_pointer(A_T) = rlt::data(A);
+    *rlt::data_pointer(B_T) = rlt::data(B);
+    *rlt::data_pointer(C_T) = rlt::data(C);
+    *rlt::data_pointer(C_target_T) = rlt::data(C_target);
 
     rlt::set(device, A, -0.259093, 0, 0);
     rlt::set(device, A, -1.498961, 0, 1);

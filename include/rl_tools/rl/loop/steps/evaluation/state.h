@@ -18,7 +18,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         typename CONFIG::RNG rng_eval;
         Mode<typename CONFIG::EVALUATION_PARAMETERS::EVALUATION_MODE> evaluation_mode;
         using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES>;
-        using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<>>;
+        using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<NEXT::CONFIG::DYNAMIC_ALLOCATION>>;
         typename EVALUATION_ACTOR_TYPE::template Buffer<> actor_deterministic_evaluation_buffers;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_eval;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;

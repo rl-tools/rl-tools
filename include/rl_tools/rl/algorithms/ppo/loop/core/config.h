@@ -138,7 +138,7 @@ namespace rl_tools{
         };
 
         struct ConfigTag{};
-        template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential>
+        template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, bool T_DYNAMIC_ALLOCATION=true>
         struct Config: rl::loop::Config{
             using TAG = ConfigTag;
             using T = T_T;
@@ -147,6 +147,7 @@ namespace rl_tools{
             using ENVIRONMENT = T_ENVIRONMENT;
             using ENVIRONMENT_EVALUATION = T_ENVIRONMENT;
             using CORE_PARAMETERS = T_PARAMETERS;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
 
             static constexpr TI ENVIRONMENT_STEPS_PER_LOOP_STEP = CORE_PARAMETERS::N_ENVIRONMENTS * CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV;
 

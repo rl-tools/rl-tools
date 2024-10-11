@@ -26,7 +26,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, MAIN) {
     rlt::randn(device, matrix, rng);
 
 
-    rlt::data_reference(tensor) = matrix._data;
+    *rlt::data_pointer(tensor) = matrix._data;
 
     auto matrix_view = rlt::matrix_view(device, tensor);
 
@@ -52,7 +52,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, ND_Tensor){
     rlt::randn(device, matrix, rng);
 
 
-    rlt::data_reference(tensor) = matrix._data;
+    *rlt::data_pointer(tensor) = matrix._data;
 
     auto matrix_view = rlt::matrix_view(device, tensor);
 

@@ -301,18 +301,18 @@ namespace rl_tools{
         struct TensorStatic{
             T _data[SIZE];
         };
-        template <typename T, bool CONST = false>
+        template <typename T, typename TI, TI SIZE, bool CONST = false>
         struct TensorDynamic{
             T* _data = nullptr;
         };
-        template <typename T>
-        struct TensorDynamic<T, true>{
+        template <typename T, typename TI, TI SIZE>
+        struct TensorDynamic<T, TI, SIZE, true>{
             const T* _data;
         };
     }
 
     template <typename T_SPEC>
-    struct Tensor: utils::typing::conditional_t<T_SPEC::DYNAMIC_ALLOCATION, tensor::TensorDynamic<typename T_SPEC::T, T_SPEC::CONST>, tensor::TensorStatic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE>>{
+    struct Tensor: utils::typing::conditional_t<T_SPEC::DYNAMIC_ALLOCATION, tensor::TensorDynamic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE, T_SPEC::CONST>, tensor::TensorStatic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE>>{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         template <typename VIEW_SPEC>
@@ -323,18 +323,27 @@ namespace rl_tools{
 //        Tensor(DATA_TYPE data): _data(data){};
     };
 
-    template <typename SPEC>
-    constexpr auto data(Tensor<SPEC>& tensor){
+    template <typename T, typename TI, TI SIZE>
+    constexpr auto data(tensor::TensorStatic<T, TI, SIZE>& tensor){
         return tensor._data;
     }
-
-    template <typename SPEC>
-    constexpr auto data(const Tensor<SPEC>& tensor){
+    template <typename T, typename TI, TI SIZE>
+    constexpr auto data(const tensor::TensorStatic<T, TI, SIZE>& tensor){
         return &tensor._data[0];
     }
-    template <typename SPEC>
-    constexpr typename SPEC::T*& data_reference(Tensor<SPEC>& tensor){
+
+    template <typename T, typename TI, TI SIZE, bool CONST>
+    constexpr auto data(tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
         return tensor._data;
+    }
+    template <typename T, typename TI, TI SIZE, bool CONST>
+    constexpr auto data(const tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
+        return &tensor._data[0];
+    }
+
+    template <typename T, typename TI, TI SIZE, bool CONST>
+    constexpr T** data_pointer(tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
+        return &tensor._data;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

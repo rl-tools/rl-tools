@@ -40,6 +40,14 @@ namespace rl_tools{
 //        // free is a no-op for statically allocated matrices
 //    }
 //
+template<typename DEVICE, typename T, typename TI, TI SIZE>
+void malloc(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
+    // no-op
+}
+template<typename DEVICE, typename T, typename TI, TI SIZE>
+void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
+    // no-op
+}
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE_BYTES, bool T_CONST>
     void malloc(DEVICE& device, matrix::MatrixDynamic<T, T_TI, SIZE_BYTES, T_CONST>& matrix){
@@ -801,11 +809,13 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC>
     auto matrix_view(DEVICE& device, Matrix<SPEC>& m){
-        return m;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true>> out{m._data};
+        return out;
     }
     template<typename DEVICE, typename SPEC>
     auto matrix_view(DEVICE& device, const Matrix<SPEC>& m){
-        return m;
+        const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true>> out{m._data};
+        return out;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
