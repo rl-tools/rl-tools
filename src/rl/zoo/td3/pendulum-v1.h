@@ -11,9 +11,7 @@ namespace rl_tools::rl::zoo::td3::pendulum_v1{
         using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
         using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            struct TD3_PARAMETERS: rl::algorithms::td3::DefaultParameters<T, TI>{
-                static constexpr TI SEQUENCE_LENGTH = 2;
-            };
+            struct TD3_PARAMETERS: rl::algorithms::td3::DefaultParameters<T, TI>{};
             static constexpr TI STEP_LIMIT = 20000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
