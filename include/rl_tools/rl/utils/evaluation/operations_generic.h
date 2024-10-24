@@ -71,8 +71,8 @@ namespace rl_tools{
         results.episode_length_mean = 0;
         results.episode_length_std = 0;
 
-        Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> actions_buffer_full;
-        Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>> observations;
+        Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1), false>> actions_buffer_full;
+        Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM, false>> observations;
         malloc(device, actions_buffer_full);
         malloc(device, observations);
         auto actions_buffer = view(device, actions_buffer_full, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{});
