@@ -289,7 +289,9 @@ namespace rl_tools{
                 current_seq_length = SEQUENCE_LENGTH;
             }
             else{
-                current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
+                if constexpr(SEQUENCE_LENGTH > 1) {
+                    current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
+                }
             }
         }
         TI current_seq_step = 0;
@@ -368,7 +370,12 @@ namespace rl_tools{
             previous_step_truncated = truncated || sample_index == 0;
             if constexpr(RANDOM_SEQ_LENGTH) {
                 if (current_seq_step == current_seq_length - 1) {
-                    current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
+                    if(SEQUENCE_LENGTH > 1){
+                        current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
+                    }
+                    else{
+                        current_seq_length = SEQUENCE_LENGTH;
+                    }
                     current_seq_step = 0;
                     previous_step_truncated = true;
                 }

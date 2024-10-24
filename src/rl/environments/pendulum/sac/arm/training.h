@@ -74,8 +74,8 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
-constexpr bool DYNAMIC_ALLOCATION_ACTOR = true;
-constexpr bool DYNAMIC_ALLOCATION_CRITIC = true;
+constexpr bool DYNAMIC_ALLOCATION_ACTOR = false;
+constexpr bool DYNAMIC_ALLOCATION_CRITIC = false;
 constexpr bool DYNAMIC_ALLOCATION_LOOP_STATE = false;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;

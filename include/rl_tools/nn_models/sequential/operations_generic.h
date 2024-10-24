@@ -445,7 +445,7 @@ namespace rl_tools{
     }
 
 
-    template<typename DEVICE, typename MODULE_SPEC, typename MODE>
+    template<typename DEVICE, typename MODULE_SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         bool current_module_nan = is_nan(device, model.content, mode);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
