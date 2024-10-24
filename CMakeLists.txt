@@ -351,7 +351,16 @@ if(RL_TOOLS_ENABLE_CJSON)
     set(ENABLE_CJSON_TEST OFF)
     add_subdirectory(external/cjson)
 #    find_package(cJSON REQUIRED)
+    add_library(rl_tools_cjson INTERFACE external/cjson/cJSON.c)
+    target_include_directories(rl_tools_cjson INTERFACE
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/external/cjson>
+            $<INSTALL_INTERFACE:include/cjson>
+    )
+    target_link_libraries(rl_tools_minimal INTERFACE rl_tools_cjson)
     target_compile_definitions(rl_tools_minimal INTERFACE RL_TOOLS_ENABLE_CJSON)
+    install(TARGETS rl_tools_cjson
+            EXPORT RLtoolsTargets
+            DESTINATION lib)
 endif()
 if(RL_TOOLS_ENABLE_BOOST_BEAST)
 find_package(Boost REQUIRED COMPONENTS system filesystem)

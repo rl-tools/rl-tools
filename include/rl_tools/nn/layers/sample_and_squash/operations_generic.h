@@ -349,8 +349,11 @@ namespace rl_tools{
         increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/INTERNAL_BATCH_SIZE); // note if changing the BATCH_SIZE to INTERNAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
     }
     template<typename DEVICE, typename SPEC>
-    constexpr auto& output(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& l){
-        return l.output;
+    constexpr auto output(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& l){
+        // return view(device, l.output);
+        auto tensor_flat = to_tensor(device, l.output);
+        auto tensor = view_memory<typename SPEC::OUTPUT_SHAPE>(device, tensor_flat);
+        return tensor;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

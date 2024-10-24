@@ -63,7 +63,12 @@ int main(){
         data_path = "/Users/jonas/Downloads/" + file_name;
     }
     else{
-        data_path = "/home/jonas/Downloads/" + file_name;
+        if(std::filesystem::exists("/mnt/c/Users")) {
+            data_path = "/mnt/c/Users/Jonas/Downloads/" + file_name;
+        }
+        else {
+            data_path = "/home/jonas/Downloads/" + file_name;
+        }
     }
     if(!std::filesystem::exists(data_path)){
         std::cerr << "Data path does not exist: " << data_path << std::endl;

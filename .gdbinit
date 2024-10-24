@@ -27,18 +27,31 @@ print(f"RLtools Tensor renderer inner limit: {render_inner_limit}")
 def pad_number(number, length):
     return str(number).rjust(length)
 
+
+def get_val(target, offset, float_type):
+    memory = target.read_memory(offset, float_type.sizeof)
+    if float_type.code == gdb.TYPE_CODE_FLT:
+        if float_type.sizeof == 4:
+            val = struct.unpack('f', memory)[0]
+        elif float_type.sizeof == 8:
+            val = struct.unpack('d', memory)[0]
+        else:
+            val = f"Unsupported float size: {float_type.sizeof}"
+    elif float_type.code == gdb.TYPE_CODE_BOOL:
+        val = struct.unpack('?', memory)[0]
+    else:
+        val = f"Unsupported type: {str(float_type)}"
+    return val
+
 def render_tensor(target, float_type, ptr, shape, stride, title="", use_title=False, outer_limit=render_outer_limit, inner_limit=render_inner_limit, base_offset=0):
     if len(shape) == 1:
         output = "["
         for element_i in range(shape[0]):
             pos = element_i * stride[0]
-            offset = int(ptr) + base_offset + pos * float_type.size
+            offset = int(ptr) + base_offset + pos * float_type.sizeof
             print(f"pointer: {int(ptr)}, base_offset: {base_offset}, pos: {pos} offset: {offset} type size: {float_type.sizeof}")
 
-            memory = inferior.read_memory(offset, float_type.sizeof)
-
-            dtype = 'f' if float_type.code == gdb.TYPE_CODE_FLT and float_type.name == "float" else 'd'
-            val = struct.unpack(dtype, memory)[0]
+            val = get_val(target, offset, float_type)
             output += str(val) + ", "
         if shape[0] > 0:
             output = output[:-2]
@@ -56,10 +69,7 @@ def render_tensor(target, float_type, ptr, shape, stride, title="", use_title=Fa
                     continue
                 pos = row_i * stride[0] + col_i * stride[1]
                 offset = int(ptr) + base_offset + pos * float_type.sizeof
-                print(f"pointer: {int(ptr)}, base_offset: {base_offset}, pos: {pos} offset: {offset} type size: {float_type.sizeof}")
-                memory = target.read_memory(offset, float_type.sizeof)
-                dtype = 'f' if float_type.code == gdb.TYPE_CODE_FLT and float_type.name == "float" else 'd'
-                val = struct.unpack(dtype, memory)[0]
+                val = get_val(target, offset, float_type)
                 output += str(val) + ", "
             if shape[1] > 0:
                 output = output[:-2]
@@ -112,14 +122,13 @@ import re
 import struct
 import json
 
-def decode_row_major(valobj):
+def decode_row_major(typename):
     regex = r"^\s*(?:const|\s*)\s*rl_tools\s*::\s*Matrix\s*<\s*rl_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*rl_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
-    typename = str(valobj.type)
     result = re.match(regex, typename)
     if result is None:
         return None
     else:
-        meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "DYNAMIC_ALLOCATION", "ROW_MAJOR_ALIGNMENT", "CONST"], result.groups()))
+        meta = dict(zip(["T", "TI", "ROWS", "COLS", "DYNAMIC_ALLOCATION", "TI2", "ROW_MAJOR_ALIGNMENT", "CONST"], result.groups()))
         meta["ROWS"] = int(meta["ROWS"])
         meta["COLS"] = int(meta["COLS"])
         meta["ROW_MAJOR_ALIGNMENT"] = int(meta["ROW_MAJOR_ALIGNMENT"])
@@ -127,14 +136,13 @@ def decode_row_major(valobj):
         meta["ROW_PITCH"] = ((meta["COLS"] + ALIGNMENT - 1) // ALIGNMENT) * ALIGNMENT
         return meta
 
-def decode_fixed(valobj):
+def decode_fixed(typename):
     regex = r"^\s*(?:const|\s*)\s*rl_tools\s*::\s*Matrix\s*<\s*rl_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*rl_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*Fixed\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
-    typename = str(valobj.type)
     result = re.match(regex, typename)
     if result is None:
         return None
     else:
-        meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "DYNAMIC_ALLOCATION", "ROW_PITCH", "COL_PITCH", "CONST"], result.groups()))
+        meta = dict(zip(["T", "TI", "ROWS", "COLS", "DYNAMIC_ALLOCATION", "TI2", "ROW_PITCH", "COL_PITCH", "CONST"], result.groups()))
         meta["ROWS"] = int(meta["ROWS"])
         meta["COLS"] = int(meta["COLS"])
         meta["ROW_PITCH"] = int(meta["ROW_PITCH"])
@@ -154,9 +162,7 @@ def render_matrix(target, float_type, ptr, meta, layout):
                 continue
 
             offset = int(ptr) + pos * float_type.sizeof
-            memory = target.read_memory(offset, float_type.sizeof)
-            dtype = 'f' if float_type.code == gdb.TYPE_CODE_FLT and float_type.name == "float" else 'd'
-            val = struct.unpack(dtype, memory)[0]
+            val = get_val(target, offset, float_type)
             current_row.append(val)
         all_data["data"].append(current_row)
     return json.dumps(all_data)
@@ -170,25 +176,36 @@ class MatrixPrinter:
 
     def to_string(self):
         typename = str(gdb.types.get_basic_type(self.val.type))
-        float_ptr = self.val["_data"]
+        _data = self.val["_data"]
+
+        data_type_code = _data.type.code
+        if data_type_code == gdb.TYPE_CODE_PTR:
+            float_ptr = _data
+        elif data_type_code == gdb.TYPE_CODE_ARRAY:
+            float_ptr = _data[0].address
+        else:
+            raise ValueError(f"Unexpected _data type: {_data.type}")
+
         float_type = float_ptr.type.target()
         target = gdb.selected_inferior()
 
         # Determine the matrix layout and decode metadata
         if "RowMajorAlignment" in typename:
-            meta = decode_row_major(self.val)
+            meta = decode_row_major(typename)
             layout = "row_major"
         elif "Fixed" in typename:
-            meta = decode_fixed(self.val)
+            meta = decode_fixed(typename)
             layout = "fixed"
         else:
             return f"Unsupported matrix type: {typename}"
 
         # If metadata could not be parsed, return an error message
         if meta is None:
+            print(f"Meta could not be parsed for: {typename}")
             return f"Matrix type could not be parsed: {typename}"
 
         # Render the matrix and return the result as a string
+        print(f"Rendering matrix with meta: {meta} type {float_type} ptr {float_ptr}")
         return render_matrix(target, float_type, float_ptr, meta, layout)
 
 

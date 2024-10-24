@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 #include <zlib.h>
-#include <cjson/cJSON.h>
+#include <cJSON.h>
 
 bool decompressFile(const std::string& source, std::vector<char>& outBuffer) {
     gzFile gzFile = gzopen(source.c_str(), "rb");
