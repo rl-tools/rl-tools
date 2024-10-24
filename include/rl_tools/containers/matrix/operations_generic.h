@@ -82,9 +82,9 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         count_malloc(device, SIZE_BYTES);
 
 #ifdef RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
-        for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
-            if constexpr(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>){
-                matrix._data[i] = math::nan<typename SPEC::T>(device.math);
+        for(T_TI i = 0; i < SIZE_BYTES/sizeof(T); i++){
+            if constexpr(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>){
+                matrix._data[i] = math::nan<T>(device.math);
             }
         }
 #endif
