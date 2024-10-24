@@ -6,7 +6,7 @@
 #include "devices.h"
 #include "cpu.h"
 
-#include <tensorboard_logger.h>
+#include <tensorboard_logger/tensorboard_logger.h>
 #include <mutex>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
