@@ -939,7 +939,7 @@ namespace rl_tools{
         constexpr TI ROW_PITCH = MATRIX_SPEC::LAYOUT::template ROW_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
         constexpr TI COL_PITCH = MATRIX_SPEC::LAYOUT::template COL_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
         using STRIDE = tensor::Stride<TI, ROW_PITCH, COL_PITCH>;
-        using SPEC = tensor::Specification<T, TI, SHAPE, true, STRIDE>;
+        using SPEC = tensor::Specification<T, TI, SHAPE, true, STRIDE, false>;
         return Tensor<SPEC>{m._data};
     }
     template <typename DEVICE, typename MATRIX_SPEC>

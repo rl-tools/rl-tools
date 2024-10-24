@@ -527,7 +527,16 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, const Matrix<SPEC>& m){
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true, ViewLayout, true>> out;
+        const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true, ViewLayout, true>> out;
+        out._data = m._data;
+        return out;
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, Matrix<SPEC>& m){
+        static_assert(SPEC::ROWS >= ROWS);
+        static_assert(SPEC::COLS >= COLS);
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, true, ViewLayout, false>> out;
         out._data = m._data;
         return out;
     }
@@ -536,8 +545,17 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, true, ViewLayout>> out;
+        const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, true, ViewLayout, true>> out;
         out._data = m._data;
+        return out;
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
+    RL_TOOLS_FUNCTION_PLACEMENT auto _view(DEVICE& device, Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+        static_assert(SPEC::ROWS >= ROWS);
+        static_assert(SPEC::COLS >= COLS);
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, true, ViewLayout, false>> out;
+        out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
         return out;
     }
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
@@ -545,17 +563,29 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, true, ViewLayout>> out;
+        const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, true, ViewLayout, true>> out;
         out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
         return out;
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
+    RL_TOOLS_FUNCTION_PLACEMENT auto view(DEVICE& device, Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+        return _view<DEVICE, SPEC, ROWS, COLS>(device, m, row, col); // so that the CPU implementation can reuse _view while doing runtime bounds checking if wished for
     }
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
     RL_TOOLS_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         return _view<DEVICE, SPEC, ROWS, COLS>(device, m, row, col); // so that the CPU implementation can reuse _view while doing runtime bounds checking if wished for
     }
     template<typename DEVICE, typename SPEC, typename ViewSpec>
+    RL_TOOLS_FUNCTION_PLACEMENT auto view(DEVICE& device, Matrix<SPEC>& m, const ViewSpec& vs, typename SPEC::TI row, typename SPEC::TI col){
+        return view<DEVICE, SPEC, ViewSpec::ROWS, ViewSpec::COLS>(device, m, row, col);
+    }
+    template<typename DEVICE, typename SPEC, typename ViewSpec>
     RL_TOOLS_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, const ViewSpec& vs, typename SPEC::TI row, typename SPEC::TI col){
         return view<DEVICE, SPEC, ViewSpec::ROWS, ViewSpec::COLS>(device, m, row, col);
+    }
+    template<typename DEVICE, typename SPEC, typename ViewSpec>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, Matrix<SPEC>& m, const ViewSpec& vs){
+        return view<DEVICE, SPEC, ViewSpec::ROWS, ViewSpec::COLS>(device, m);
     }
     template<typename DEVICE, typename SPEC, typename ViewSpec>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, const Matrix<SPEC>& m, const ViewSpec& vs){
@@ -563,17 +593,24 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
 
     template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT auto row(DEVICE& device, Matrix<SPEC>& m, typename SPEC::TI row){
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::COLS, true, ViewLayout, false>> out;
+        out._data = m._data + row * row_pitch(m);
+        return out;
+    }
+
+    template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto row(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row){
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::COLS, true, ViewLayout>> out;
-        out._data = m._data + row * row_pitch(m);
+        const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::COLS, true, ViewLayout, true>> out{m._data + row * row_pitch(m)};
         return out;
     }
 
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto col(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI col){
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, 1, true, ViewLayout>> out;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, 1, true, ViewLayout, true>> out;
         out._data = m._data + col * col_pitch(m);
         return out;
     }
