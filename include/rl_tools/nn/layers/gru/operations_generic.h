@@ -840,7 +840,9 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     auto output(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer){
-        return layer.output;
+        auto tensor_flat = to_tensor(device, layer.output);
+        auto tensor = view_memory<typename SPEC::OUTPUT_SHAPE>(device, tensor_flat);
+        return tensor;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

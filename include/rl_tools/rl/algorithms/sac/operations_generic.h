@@ -224,8 +224,8 @@ namespace rl_tools{
         zero_gradient(device, critic);
 
 
-        auto sample_and_squash_layer = get_last_layer(actor_critic.actor);
-        auto sample_and_squash_buffer = get_last_buffer(actor_buffers);
+        auto& sample_and_squash_layer = get_last_layer(actor_critic.actor);
+        auto& sample_and_squash_buffer = get_last_buffer(actor_buffers);
         copy(device, device, action_noise, sample_and_squash_buffer.noise);
         using SAMPLE_AND_SQUASH_MODE = nn::layers::sample_and_squash::mode::ExternalNoise<mode::Default<>>;
 //        Mode<SAMPLE_AND_SQUASH_MODE> reset_mode, reset_mode_sas;
@@ -348,7 +348,7 @@ namespace rl_tools{
         constexpr TI ACTOR_OUTPUT_DIM = get_last(typename SPEC::ACTOR_NETWORK_TYPE::OUTPUT_SHAPE{});
         static_assert(ACTOR_OUTPUT_DIM == ACTION_DIM);
 
-        auto sample_and_squashing_buffer = get_last_buffer(actor_buffers);
+        auto& sample_and_squashing_buffer = get_last_buffer(actor_buffers);
 
 //        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
 //        utils::assert_exit(device, !is_nan(device, batch.observations), "batch observations nan");

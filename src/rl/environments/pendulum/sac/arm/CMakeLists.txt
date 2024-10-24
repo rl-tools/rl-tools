@@ -9,7 +9,7 @@ target_link_libraries(
         PRIVATE
         RLtools::Core
 )
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_compile_options(rl_environments_pendulum_sac_arm_test PRIVATE -Ofast -march=native)
 endif()
 
@@ -23,7 +23,7 @@ target_link_libraries(
         RLtools::Core
 )
 target_compile_definitions(rl_environments_pendulum_sac_arm_test_benchmark PRIVATE BENCHMARK)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_compile_options(rl_environments_pendulum_sac_arm_test PRIVATE -Ofast -march=native)
 endif()
 endif()

@@ -161,7 +161,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& l){
-        return l.output;
+        auto tensor_flat = to_tensor(device, l.output);
+        auto tensor = view_memory<typename SPEC::OUTPUT_SHAPE>(device, tensor_flat);
+        return tensor;
     }
     template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::standardize::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
@@ -172,11 +174,11 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::standardize::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        return is_nan(device, static_cast<rl_tools::nn::layers::standardize::LayerForward<SPEC>&>(l), mode);
+        return is_nan(device, static_cast<const rl_tools::nn::layers::standardize::LayerForward<SPEC>&>(l), mode);
     }
     template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::standardize::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        bool upstream_nan = is_nan(device, static_cast<rl_tools::nn::layers::standardize::LayerBackward<SPEC>&>(l), mode);
+        bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::standardize::LayerBackward<SPEC>&>(l), mode);
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return upstream_nan;
         }

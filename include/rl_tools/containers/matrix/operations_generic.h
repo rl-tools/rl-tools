@@ -517,6 +517,20 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
             }
         }
     }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, Matrix<SPEC>& m){
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true, ViewLayout, false>> out;
+        out._data = m._data;
+        return out;
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, const Matrix<SPEC>& m){
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true, ViewLayout, true>> out;
+        out._data = m._data;
+        return out;
+    }
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, const Matrix<SPEC>& m){
         static_assert(SPEC::ROWS >= ROWS);
