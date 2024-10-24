@@ -180,6 +180,7 @@ void print_sizes(DEVICE& device, LOOP_STATE& ts){
 void train(){
     DEVICE device;
     LOOP_STATE ts;
+    std::cout << "sizeof(LOOP_STATE): " << sizeof(ts) << std::endl;
     rlt::malloc(device, ts);
     rlt::init(device, ts, 0);
     print_sizes(device, ts);
