@@ -160,7 +160,7 @@ namespace rl_tools{
         return acc;
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& l){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& l){
         auto tensor_flat = to_tensor(device, l.output);
         auto tensor = view_memory<typename SPEC::OUTPUT_SHAPE>(device, tensor_flat);
         return tensor;

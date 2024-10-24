@@ -51,8 +51,10 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    constexpr auto& output(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& m){
-        return m.output_layer.output;
+    constexpr auto output(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& m){
+        auto tensor_flat = to_tensor(device, m.output_layer.output);
+        auto tensor = view_memory<typename SPEC::OUTPUT_SHAPE>(device, tensor_flat);
+        return tensor;
     }
 
     // evaluate does not set intermediate outputs and hence can also be called from stateless layers, for register efficiency use forward when working with "Backward" compatible layers
