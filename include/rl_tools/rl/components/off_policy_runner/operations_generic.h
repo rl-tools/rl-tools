@@ -24,8 +24,8 @@ namespace rl_tools{
             malloc(device, buffers.next_observations_privileged);
         }
         else{
-            buffers.observations_privileged = buffers.observations;
-            buffers.next_observations_privileged = buffers.next_observations;
+            buffers.observations_privileged = view(device, buffers.observations);
+            buffers.next_observations_privileged = view(device, buffers.next_observations);
         }
     }
     template <typename DEVICE, typename SPEC>

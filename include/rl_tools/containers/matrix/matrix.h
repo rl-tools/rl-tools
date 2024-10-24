@@ -81,7 +81,7 @@ namespace rl_tools{
 
         using VIEW_LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
 
-        template<typename SPEC::TI ROWS, typename SPEC::TI COLS>
+        template<typename SPEC::TI ROWS = SPEC::ROWS, typename SPEC::TI COLS = SPEC::COLS>
         using VIEW = Matrix<matrix::Specification<T, TI, ROWS, COLS, true, VIEW_LAYOUT>>;
 //        virtual void _abstract_tag(){};
 //        // pure virtual function to make this class abstract (should be instantiated by either the MatrixStatic or MatrixDynamic subclasses class)

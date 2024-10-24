@@ -52,17 +52,20 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : 0;
     };
 
-    template<typename SPEC>
+    template<typename SPEC, bool DYNAMIC_ALLOCATION = SPEC::DYNAMIC_ALLOCATION>
     struct Buffers{
         // todo: make the buffer exploit the observation = observation_priviliged to save memory in the case of symmetric observations
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM, SPEC::DYNAMIC_ALLOCATION>> observations;
-        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED, SPEC::DYNAMIC_ALLOCATION>> observations_privileged;
-        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::DYNAMIC_ALLOCATION>> actions;
-        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM, SPEC::DYNAMIC_ALLOCATION>> next_observations;
-        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED, SPEC::DYNAMIC_ALLOCATION>> next_observations_privileged;
+        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM, DYNAMIC_ALLOCATION>> observations;
+        using OBSERVATIONS_PRIVILEGED_STANDALONE = Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED, DYNAMIC_ALLOCATION>>;
+        using OBSERVATIONS_PRIVILEGED_VIEW = typename decltype(observations)::template VIEW<>;
+        using OBSERVATIONS_PRIVILEGED_TYPE = utils::typing::conditional_t<SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS, OBSERVATIONS_PRIVILEGED_STANDALONE, OBSERVATIONS_PRIVILEGED_VIEW>;
+        OBSERVATIONS_PRIVILEGED_TYPE observations_privileged;
+        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM, DYNAMIC_ALLOCATION>> actions;
+        Matrix<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM, DYNAMIC_ALLOCATION>> next_observations;
+        OBSERVATIONS_PRIVILEGED_TYPE next_observations_privileged;
     };
 
 

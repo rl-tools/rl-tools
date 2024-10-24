@@ -1,5 +1,5 @@
 
-//#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+// #define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
 //#include <rl_tools/operations/arm.h>
 //#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
 //#include <rl_tools/logging/operations_arduino.h>
