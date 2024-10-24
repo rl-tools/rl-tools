@@ -17,6 +17,7 @@ namespace rl_tools{
         // no-op
     }
 
+#if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE, bool CONST>
     void malloc(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
         T* temp = (T*) new T[SIZE];
@@ -31,6 +32,7 @@ namespace rl_tools{
     void free(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
         delete[] data(tensor);
     }
+#endif
 
     template <typename SHAPE, typename DEVICE, typename SPEC>
     auto view_memory(DEVICE& device, const Tensor<SPEC>& tensor){
