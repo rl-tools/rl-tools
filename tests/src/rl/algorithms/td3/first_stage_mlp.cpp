@@ -365,7 +365,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 //    using ReplayBufferType = rlt::rl::components::ReplayBuffer<ReplayBufferSpec>;
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     rlt::malloc(device, off_policy_runner);
-    auto& replay_buffer = off_policy_runner.replay_buffers[0];
+    auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
     load_dataset(device, data_file.getGroup("batch"), replay_buffer);
     if(rlt::is_nan(device, replay_buffer.observations) ||rlt::is_nan(device, replay_buffer.actions) ||rlt::is_nan(device, replay_buffer.next_observations) ||rlt::is_nan(device, replay_buffer.rewards)){
         assert(false);
@@ -545,7 +545,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     rlt::malloc(device, off_policy_runner);
-    auto& replay_buffer = off_policy_runner.replay_buffers[0];
+    auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
     load_dataset(device, data_file.getGroup("batch"), replay_buffer);
     static_assert(first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE == first_stage_second_stage::TD3_PARAMETERS::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE;

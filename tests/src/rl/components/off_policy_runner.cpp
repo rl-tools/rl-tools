@@ -47,7 +47,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     rlt::malloc(device, off_policy_runner);
     ENVIRONMENT envs[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];
     ENVIRONMENT::Parameters env_parameters[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];
-    rlt::init(device, off_policy_runner, envs, env_parameters);
+    rlt::init(device, off_policy_runner);
     decltype(policy)::Buffer<OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS> policy_buffers;
     rlt::malloc(device, policy_buffers);
     for(int step_i = 0; step_i < 10000; step_i++){
@@ -71,7 +71,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
     rlt::malloc(device, action);
     rlt::set_all(device, observation, 0);
     rlt::set_all(device, action, 0);
-    rlt::init(device, off_policy_runner, envs, env_parameters);
+    rlt::init(device, off_policy_runner);
     decltype(policy)::Buffer<OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS> policy_buffers;
     for(int step_i = 0; step_i < 10000; step_i++){
 //        rlt::step(device, off_policy_runner, policy, policy_buffers, rng);
@@ -80,7 +80,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
         bool truncated = step_i % 7 == 0;
         rlt::set_all(device, observation, step_i);
         rlt::set_all(device, action, step_i);
-        rlt::add(device, off_policy_runner.replay_buffers[0], state, observation, observation, action, reward, next_state, observation, observation, terminated, truncated);
+        auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
+        rlt::add(device, replay_buffer, state, observation, observation, action, reward, next_state, observation, observation, terminated, truncated);
     }
     constexpr TI SEQUENCE_LENGTH = 10;
     OffPolicyRunner::SequentialBatch<SEQUENCE_LENGTH, BATCH_SIZE> batch;

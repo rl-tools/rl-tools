@@ -152,12 +152,19 @@ namespace rl_tools::rl::components::off_policy_runner {
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> final_step_mask;
     };
 
-    template<typename SPEC>
+    template <typename T_OPR_SPEC, bool T_DYNAMIC_ALLOCATION=true>
+    struct EpisodeStatsSpecification {
+        using OPR_SPEC = T_OPR_SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+    };
+
+    template<typename T_SPEC>
     struct EpisodeStats{
+        using SPEC = typename T_SPEC::OPR_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BUFFER_SIZE = SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
-        Matrix<matrix::Specification<T, TI, BUFFER_SIZE, 2, SPEC::DYNAMIC_ALLOCATION>> data;
+        Matrix<matrix::Specification<T, TI, BUFFER_SIZE, 2, T_SPEC::DYNAMIC_ALLOCATION>> data;
 
         TI next_episode_i = 0;
         template<typename SPEC::TI DIM>
@@ -198,10 +205,10 @@ namespace rl_tools::rl::components{
         bool previous_policy_set = false;
 
         // todo: change to "environments"
-        Matrix<matrix::Specification<ENVIRONMENT, TI, 1, N_ENVIRONMENTS>> envs;
+        Matrix<matrix::Specification<ENVIRONMENT, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> envs;
         POLICY_STATES policy_states;
-        Matrix<matrix::Specification<off_policy_runner::EpisodeStats<SPEC>, TI, 1, N_ENVIRONMENTS>> episode_stats;
-        Matrix<matrix::Specification<REPLAY_BUFFER_TYPE, TI, 1, N_ENVIRONMENTS>> replay_buffers;
+        Matrix<matrix::Specification<off_policy_runner::EpisodeStats<off_policy_runner::EpisodeStatsSpecification<SPEC, SPEC::DYNAMIC_ALLOCATION>>, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> episode_stats;
+        Matrix<matrix::Specification<REPLAY_BUFFER_TYPE, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> replay_buffers;
 
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> states;
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::Parameters, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> env_parameters;

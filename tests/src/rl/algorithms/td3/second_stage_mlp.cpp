@@ -271,7 +271,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 rlt::load(device, target_next_action_noise_matrix_view, step_group, "target_next_action_noise");
             }
 
-            load(device, off_policy_runner.replay_buffers[0], batch);
+            auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
+            load(device, replay_buffer, batch);
 //            if (step_i == 0 && step_group.exist("pre_critic1")){
 //                decltype(actor_critic.critic_1) pre_critic_1_step;
 //                rlt::malloc(device, pre_critic_1_step);
@@ -382,7 +383,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             std::vector<std::vector<T>> batch;
             step_group.getDataSet("actor_batch").read(batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
-            load(device, off_policy_runner.replay_buffers[0], batch);
+            auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
+            load(device, replay_buffer, batch);
 
             decltype(actor_critic.actor) post_actor;
             rlt::malloc(device, post_actor);

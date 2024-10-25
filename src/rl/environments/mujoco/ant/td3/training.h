@@ -183,7 +183,7 @@ void run(){
         }
         rlt::malloc(device, evaluation_env);
 
-        rlt::init(device, off_policy_runner, envs, env_parameters);
+        rlt::init(device, off_policy_runner);
 
         constexpr TI SEQUENCE_LENGTH = 1;
         using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, SEQUENCE_LENGTH, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
@@ -284,7 +284,7 @@ void run(){
                         T mean_steps = 0;
 
                         for(typename DEVICE::index_t env_i = 0; env_i < parameters_rl::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
-                            auto& episode_stats = off_policy_runner.episode_stats[env_i];
+                            auto& episode_stats = get(off_policy_runner.episode_stats, 0, env_i);
                             if(episode_stats.next_episode_i > 0){
                                 for(typename DEVICE::index_t episode_i = 0; episode_i < episode_stats.next_episode_i - 1; episode_i++){
                                     mean_return += get(episode_stats.returns, episode_i, 0);

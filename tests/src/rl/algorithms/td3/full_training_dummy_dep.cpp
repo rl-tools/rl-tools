@@ -123,7 +123,7 @@ int main() {
 
 
 
-    rlt::init(device, off_policy_runner, envs, env_parameters);
+    rlt::init(device, off_policy_runner);
 
     for(int step_i = 0; step_i < 15000; step_i++){
         rlt::step<0>(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);

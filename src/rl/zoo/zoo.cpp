@@ -116,6 +116,7 @@ std::string environment = "l2f";
 int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
     using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
     DEVICE device;
+    static_assert(sizeof(LOOP_STATE) < 100000000);
     LOOP_STATE test_state;
 //    rlt::utils::assert_exit(device, num_seeds > 0, "Number of seeds must be greater than 0.");
     for(TI seed = initial_seed; seed < (TI)num_seeds; seed++){

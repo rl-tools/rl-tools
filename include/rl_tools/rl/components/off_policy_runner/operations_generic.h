@@ -28,8 +28,9 @@ namespace rl_tools{
             buffers.next_observations_privileged = view(device, buffers.next_observations);
         }
     }
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<SPEC>& episode_stats) {
+    template <typename DEVICE, typename T_SPEC>
+    void malloc(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
+        using SPEC = typename T_SPEC::OPR_SPEC;
         malloc(device, episode_stats.data);
         episode_stats.returns = view<DEVICE, typename decltype(episode_stats.data)::SPEC, SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE, 1>(device, episode_stats.data, 0, 0);
         episode_stats.steps   = view<DEVICE, typename decltype(episode_stats.data)::SPEC, SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE, 1>(device, episode_stats.data, 0, 1);
@@ -116,14 +117,14 @@ namespace rl_tools{
         free(device, runner.episode_return);
         free(device, runner.episode_step);
         free(device, runner.truncated);
-        free(device, runner.replay_buffers);
-        free(device, runner.episode_stats);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
             free(device, replay_buffer);
             auto& episode_stats = get(runner.episode_stats, 0, env_i);
             free(device, episode_stats);
         }
+        free(device, runner.replay_buffers);
+        free(device, runner.episode_stats);
         free(device, runner.policy_states);
     }
     template <typename DEVICE, typename SPEC>
@@ -160,12 +161,18 @@ namespace rl_tools{
     void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
         set_all(device, runner.truncated, true);
     }
+    template <typename DEVICE, typename T_SPEC>
+    void init(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
+        episode_stats.next_episode_i = 0;
+    }
     template<typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         truncate_all(device, runner);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
             init(device, replay_buffer);
+            auto& episode_stats = get(runner.episode_stats, 0, env_i);
+            init(device, episode_stats);
         }
         runner.previous_policy_set = false;
         runner.previous_policy = 0;

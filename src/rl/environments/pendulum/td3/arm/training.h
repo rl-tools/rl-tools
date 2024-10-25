@@ -145,7 +145,7 @@ void train(){
 
 
     rlt::init(device, actor_critic, rng);
-    rlt::init(device, off_policy_runner, envs, env_parameters);
+    rlt::init(device, off_policy_runner);
     rlt::set_all(device, observations_mean, 0);
     rlt::set_all(device, observations_std, 1);
 
