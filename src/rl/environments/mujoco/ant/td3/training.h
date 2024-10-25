@@ -375,7 +375,8 @@ void run(){
                 auto actor_file = HighFive::File(REPLAY_BUFFER_OUTPUT_PATH, HighFive::File::Overwrite);
                 auto replay_buffer_group = actor_file.createGroup("replay_buffer");
                 for(typename DEVICE::index_t env_i = 0; env_i < decltype(off_policy_runner)::N_ENVIRONMENTS; env_i++){
-                    rlt::save(device, off_policy_runner.replay_buffers[env_i], replay_buffer_group.createGroup(std::to_string(env_i)));
+                    auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, env_i);
+                    rlt::save(device, replay_buffer, replay_buffer_group.createGroup(std::to_string(env_i)));
                 }
             }
             catch(HighFive::Exception& e){
