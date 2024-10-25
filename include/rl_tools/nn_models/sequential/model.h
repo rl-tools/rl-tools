@@ -41,14 +41,21 @@ namespace rl_tools::nn_models::sequential{
             return find_output_dim<typename SPEC::NEXT_MODULE>();
         }
     }
+    template <typename SPEC, typename = void>
+    struct find_output_shape_t;
+
     template <typename SPEC>
-    constexpr auto find_output_shape() {
-        if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
-            return typename SPEC::CONTENT::OUTPUT_SHAPE{};
-        } else {
-            return find_output_shape<typename SPEC::NEXT_MODULE>();
-        }
-    }
+    struct find_output_shape_t<SPEC, utils::typing::enable_if_t<utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>>> {
+        using type = typename SPEC::CONTENT::OUTPUT_SHAPE;
+    };
+
+    template <typename SPEC>
+    struct find_output_shape_t<SPEC, utils::typing::enable_if_t<!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>>> {
+        using type = typename find_output_shape_t<typename SPEC::NEXT_MODULE>::type;
+    };
+    template <typename SPEC>
+    using find_output_shape = typename find_output_shape_t<SPEC>::type;
+
     template <typename TI, typename SPEC>
     constexpr auto find_max_hiddend_dim(TI current_max = 0){
         constexpr TI CONTENT_OUTPUT_DIM = product(typename SPEC::CONTENT::OUTPUT_SHAPE{});
@@ -73,7 +80,7 @@ namespace rl_tools::nn_models::sequential{
         using T = typename CONTENT::T;
         using TI = typename CONTENT::TI;
         using INPUT_SHAPE = typename CONTENT::INPUT_SHAPE;
-        using OUTPUT_SHAPE = decltype(find_output_shape<Specification<T_ORIGINAL_ROOT, T_CONTENT, T_NEXT_MODULE>>());
+        using OUTPUT_SHAPE = find_output_shape<Specification<T_ORIGINAL_ROOT, T_CONTENT, T_NEXT_MODULE>>;
         static constexpr TI MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_ORIGINAL_ROOT, T_CONTENT, T_NEXT_MODULE>>();
         static constexpr bool NEXT_IS_OUTPUT = utils::typing::is_same_v<NEXT_MODULE, OutputModule>;
         static_assert(NEXT_IS_OUTPUT || tensor::same_dimensions_shape<typename CONTENT::OUTPUT_SHAPE, utils::typing::conditional_t<NEXT_IS_OUTPUT, typename CONTENT::OUTPUT_SHAPE, typename NEXT_MODULE::CONTENT::INPUT_SHAPE>>());
