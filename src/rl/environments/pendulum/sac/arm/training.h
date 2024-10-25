@@ -1,21 +1,6 @@
-
+#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
 #define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-//#include <rl_tools/operations/arm.h>
-//#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
-//#include <rl_tools/logging/operations_arduino.h>
-//#else
-//#define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
-//#include <rl_tools/operations/cpu.h>
-//#endif
-//#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
-//#include <rl_tools/nn/layers/dense/operations_arm/opt.h>
-//#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
-//#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
-//#include <rl_tools/nn_models/mlp/operations_generic.h>
-//#include <rl_tools/nn_models/sequential/operations_generic.h>
-//#include <rl_tools/nn/optimizers/adam/operations_generic.h>
-
-#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#endif
 
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
 #include <rl_tools/operations/arm.h>
@@ -49,18 +34,6 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
-
-//#include <rl_tools/rl/algorithms/sac/loop/core/config.h>
-//#include <rl_tools/rl/loop/steps/evaluation/config.h>
-//#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
-//#include <rl_tools/rl/loop/steps/timing/config.h>
-//#endif
-//#include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
-//#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
-//#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
-//#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
-//#endif
-
 namespace rlt = rl_tools;
 
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
@@ -74,9 +47,12 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
+#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
 constexpr bool DYNAMIC_ALLOCATION_ACTOR = false;
 constexpr bool DYNAMIC_ALLOCATION_CRITIC = false;
 constexpr bool DYNAMIC_ALLOCATION_LOOP_STATE = false;
+constexpr bool DYNAMIC_ALLOCATION_ACTOR_CRITIC_BUFFERS = false;
+#endif
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
@@ -131,7 +107,7 @@ struct APPROXIMATOR_CONFIG{
 };
 
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, APPROXIMATOR_CONFIG, DYNAMIC_ALLOCATION_LOOP_STATE>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, APPROXIMATOR_CONFIG, DYNAMIC_ALLOCATION_LOOP_STATE, DYNAMIC_ALLOCATION_ACTOR_CRITIC_BUFFERS>;
 #ifdef BENCHMARK
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
@@ -170,17 +146,19 @@ void print_sizes(DEVICE& device, LOOP_STATE& ts){
     rlt::log(device, device.logger, "OffPolicyRunner.replay_buffers size: ", sizeof(ts.off_policy_runner.replay_buffers));
     rlt::log(device, device.logger, "CriticBatch size: ", sizeof(ts.critic_batch));
     rlt::log(device, device.logger, "CriticTrainingBuffers size: ", sizeof(ts.critic_training_buffers));
-    rlt::log(device, device.logger, "CriticBuffers size: ", sizeof(ts.critic_buffers));
+    rlt::log(device, device.logger, "CriticBuffer size: ", sizeof(ts.critic_buffer));
     rlt::log(device, device.logger, "ActorBatch size: ", sizeof(ts.actor_batch));
     rlt::log(device, device.logger, "ActorTrainingBuffers size: ", sizeof(ts.actor_training_buffers));
-    rlt::log(device, device.logger, "ActorBuffers size: ", sizeof(ts.actor_buffers));
-    rlt::log(device, device.logger, "Total: ", sizeof(ts.actor_critic) + sizeof(ts.off_policy_runner) + sizeof(ts.critic_batch) + sizeof(ts.critic_training_buffers) + sizeof(ts.critic_buffers) + sizeof(ts.actor_batch) + sizeof(ts.actor_training_buffers) + sizeof(ts.actor_buffers));
+    rlt::log(device, device.logger, "ActorBuffer size: ", sizeof(ts.actor_buffer));
+    rlt::log(device, device.logger, "ActorBufferEval size: ", sizeof(ts.actor_buffer_eval));
+    TI accounted_for = sizeof(ts.actor_critic) + sizeof(ts.off_policy_runner) + sizeof(ts.critic_batch) + sizeof(ts.critic_training_buffers) + sizeof(ts.critic_buffer) + sizeof(ts.actor_batch) + sizeof(ts.actor_training_buffers) + sizeof(ts.actor_buffer) + sizeof(ts.actor_buffer_eval);
+    rlt::log(device, device.logger, "Total (accounted for): ", accounted_for);
+    rlt::log(device, device.logger, "Total: ", sizeof(ts));
 }
 
 void train(){
     DEVICE device;
     LOOP_STATE ts;
-    std::cout << "sizeof(LOOP_STATE): " << sizeof(ts) << std::endl;
     rlt::malloc(device, ts);
     rlt::init(device, ts, 0);
     print_sizes(device, ts);

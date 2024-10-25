@@ -27,7 +27,7 @@ namespace rl_tools{
         using TI = typename LAYER_SPEC::TI;
         {
 
-            T *weights_row;
+            const T *weights_row;
             const T *input_row = input._data;
             T *output_row = output._data;
 
@@ -104,7 +104,7 @@ namespace rl_tools{
         {
 
             T *weights_row;
-            T *input_row = input._data;
+            const T *input_row = input._data;
             T *pre_activations_row = layer.pre_activations._data;
             T *output_row = output._data;
 
