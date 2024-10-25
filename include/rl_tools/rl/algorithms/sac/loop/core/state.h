@@ -26,12 +26,12 @@ namespace rl_tools{
             rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<typename decltype(off_policy_runner)::SPEC, CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::SEQUENCE_LENGTH, CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::DYNAMIC_ALLOCATION>> critic_batch;
             rl::algorithms::sac::CriticTrainingBuffers<rl::algorithms::sac::CriticTrainingBuffersSpecification<typename CONFIG::ACTOR_CRITIC_SPEC, CONFIG::DYNAMIC_ALLOCATION>> critic_training_buffers[2];
             Matrix<matrix::Specification<T, TI, CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH * CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM, CONFIG::DYNAMIC_ALLOCATION>> action_noise_critic;
-            typename CONFIG::NN::CRITIC_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION_ACTOR_CRITIC_BUFFERS> critic_buffer;
+            typename CONFIG::NN::CRITIC_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> critic_buffers[2];
             rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<typename decltype(off_policy_runner)::SPEC, CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::SEQUENCE_LENGTH, CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, CONFIG::DYNAMIC_ALLOCATION>> actor_batch;
             rl::algorithms::sac::ActorTrainingBuffers<rl::algorithms::sac::ActorTrainingBuffersSpecification<typename CONFIG::ACTOR_CRITIC_TYPE::SPEC, CONFIG::DYNAMIC_ALLOCATION>> actor_training_buffers;
             Matrix<matrix::Specification<T, TI, CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH * CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM, CONFIG::DYNAMIC_ALLOCATION>> action_noise_actor;
-            typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION_ACTOR_CRITIC_BUFFERS> actor_buffer;
-            typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION_ACTOR_CRITIC_BUFFERS> actor_buffer_eval;
+            typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffers[2];
+            typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffers_eval;
             TI step;
             bool allocated = false;
             bool warmup_policy_transitioned = false;
