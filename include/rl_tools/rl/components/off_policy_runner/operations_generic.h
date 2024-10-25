@@ -37,14 +37,19 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         malloc(device, runner.buffers);
+        malloc(device, runner.envs);
         malloc(device, runner.states);
         malloc(device, runner.env_parameters);
         malloc(device, runner.episode_return);
         malloc(device, runner.episode_step);
         malloc(device, runner.truncated);
+        malloc(device, runner.replay_buffers);
+        malloc(device, runner.episode_stats);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
-            malloc(device, runner.replay_buffers[env_i]);
-            malloc(device, runner.episode_stats[env_i]);
+            auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
+            malloc(device, replay_buffer);
+            auto& episode_stats = get(runner.episode_stats, 0, env_i);
+            malloc(device, episode_stats);
         }
         malloc(device, runner.policy_states);
     }
@@ -105,14 +110,19 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         free(device, runner.buffers);
+        free(device, runner.envs);
         free(device, runner.states);
         free(device, runner.env_parameters);
         free(device, runner.episode_return);
         free(device, runner.episode_step);
         free(device, runner.truncated);
+        free(device, runner.replay_buffers);
+        free(device, runner.episode_stats);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
-            free(device, runner.replay_buffers[env_i]);
-            free(device, runner.episode_stats[env_i]);
+            auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
+            free(device, replay_buffer);
+            auto& episode_stats = get(runner.episode_stats, 0, env_i);
+            free(device, episode_stats);
         }
         free(device, runner.policy_states);
     }
@@ -151,12 +161,11 @@ namespace rl_tools{
         set_all(device, runner.truncated, true);
     }
     template<typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT envs[SPEC::PARAMETERS::N_ENVIRONMENTS], typename SPEC::ENVIRONMENT::Parameters parameters[SPEC::PARAMETERS::N_ENVIRONMENTS]) {
+    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         truncate_all(device, runner);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
-            init(device, runner.replay_buffers[env_i]);
-            runner.envs[env_i] = envs[env_i];
-            set(runner.env_parameters, 0, env_i, parameters[env_i]);
+            auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
+            init(device, replay_buffer);
         }
         runner.previous_policy_set = false;
         runner.previous_policy = 0;
@@ -181,7 +190,7 @@ namespace rl_tools{
             auto observation_view_tensor = to_tensor(device, runner.buffers.observations);
             auto action_view_tensor = to_tensor(device, action_view);
             static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
-            auto policy_state = get<POLICY_INDEX>(runner.policy_states);
+            auto& policy_state = get<POLICY_INDEX>(runner.policy_states);
             if(get(runner.truncated, 0, 0)){
                 reset(device, policy, policy_state, rng);
             }
@@ -394,7 +403,7 @@ namespace rl_tools{
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng);
-            auto& replay_buffer = runner.replay_buffers[env_i];
+            auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
             gather_batch<DEVICE, typename RUNNER::REPLAY_BUFFER_SPEC, BATCH_SPEC, RNG, DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
         }
     }

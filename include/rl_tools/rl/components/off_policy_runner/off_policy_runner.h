@@ -198,10 +198,10 @@ namespace rl_tools::rl::components{
         bool previous_policy_set = false;
 
         // todo: change to "environments"
-        ENVIRONMENT envs[N_ENVIRONMENTS];
+        Matrix<matrix::Specification<ENVIRONMENT, TI, 1, N_ENVIRONMENTS>> envs;
         POLICY_STATES policy_states;
-        off_policy_runner::EpisodeStats<SPEC> episode_stats[N_ENVIRONMENTS];
-        REPLAY_BUFFER_TYPE replay_buffers[N_ENVIRONMENTS];
+        Matrix<matrix::Specification<off_policy_runner::EpisodeStats<SPEC>, TI, 1, N_ENVIRONMENTS>> episode_stats;
+        Matrix<matrix::Specification<REPLAY_BUFFER_TYPE, TI, 1, N_ENVIRONMENTS>> replay_buffers;
 
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> states;
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::Parameters, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> env_parameters;

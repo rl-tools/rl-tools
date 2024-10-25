@@ -12,14 +12,14 @@ namespace rl_tools::rl::components::off_policy_runner{
         // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
         using RUNNER = rl::components::OffPolicyRunner<SPEC>;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
-        auto& env = runner.envs[env_i];
+        auto& env = get(runner.envs, 0, env_i);
         auto& state = get(runner.states, 0, env_i);
         auto& parameters = get(runner.env_parameters, 0, env_i);
         static_assert(!SPEC::PARAMETERS::COLLECT_EPISODE_STATS || SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE > 1);
         if (get(runner.truncated, 0, env_i)){
             if constexpr(SPEC::PARAMETERS::COLLECT_EPISODE_STATS){
                 // todo: the first episode is always zero steps and zero return because the initialization is done by setting truncated to true
-                auto& episode_stats = runner.episode_stats[env_i];
+                auto& episode_stats = get(runner.episode_stats, 0, env_i);
                 TI next_episode_i = episode_stats.next_episode_i;
                 if(next_episode_i > 0){
                     TI episode_i = next_episode_i - 1;
@@ -55,7 +55,7 @@ namespace rl_tools::rl::components::off_policy_runner{
         auto next_observation            = view<DEVICE, typename decltype(runner.buffers.observations           )::SPEC, 1, ENVIRONMENT::Observation::DIM           >(device, runner.buffers.next_observations           , env_i, 0);
         auto next_observation_privileged = view<DEVICE, typename decltype(runner.buffers.observations_privileged)::SPEC, 1, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, runner.buffers.next_observations_privileged, env_i, 0);
 //        auto action_raw = view<DEVICE, typename decltype(runner.buffers.actions)::SPEC, 1, ENVIRONMENT::ACTION_DIM>(device, runner.buffers.actions, env_i, 0);
-        auto& env = runner.envs[env_i];
+        auto& env = get(runner.envs, 0, env_i);
         auto& state = get(runner.states, 0, env_i);
         auto& parameters = get(runner.env_parameters, 0, env_i);
         typename ENVIRONMENT::State next_state;
@@ -77,7 +77,8 @@ namespace rl_tools::rl::components::off_policy_runner{
         auto episode_step_i = get(runner.episode_step, 0, env_i);
         bool truncated = terminated_flag || episode_step_i == SPEC::PARAMETERS::EPISODE_STEP_LIMIT;
         set(runner.truncated, 0, env_i, truncated);
-        add(device, runner.replay_buffers[env_i], state, observation, observation_privileged, action, reward_value, next_state, next_observation, next_observation_privileged, terminated_flag, truncated);
+        auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
+        add(device, replay_buffer, state, observation, observation_privileged, action, reward_value, next_state, next_observation, next_observation_privileged, terminated_flag, truncated);
 
         // state progression needs to come after the addition to the replay buffer because "observation" can point to the memory of runner_state.state (in the case of REQUIRES_OBSERVATION=false)
         state = next_state;

@@ -26,8 +26,8 @@ struct parameters_pendulum_0{
             };
 
         };
-        using CFG = rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential<T, TI, ENVIRONMENT, LOOP_PARAMS, rlt::MatrixDynamicTag>;
-        using OPTIMIZER = typename CFG::OPTIMIZER;
+        using CFG = rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential<T, TI, ENVIRONMENT, LOOP_PARAMS>;
+        using OPTIMIZER = typename CFG::ACTOR_OPTIMIZER;
         using ACTOR_NETWORK_TYPE = typename CFG::ACTOR_TYPE;
         using CRITIC_NETWORK_TYPE = typename CFG::CRITIC_TYPE;
         using CRITIC_TARGET_NETWORK_TYPE = typename CFG::CRITIC_TARGET_TYPE;
@@ -48,7 +48,10 @@ struct parameters_pendulum_0{
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = false;
             static constexpr T EXPLORATION_NOISE = 0.1;
         };
-        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS>;
+        using EXPLORATION_POLICY_SPEC = rlt::nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, rlt::nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+        using EXPLORATION_POLICY = rlt::nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
+        using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY, ACTOR_NETWORK_TYPE>;
+        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
         using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
         using CRITIC_BATCH_TYPE = rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
         using ACTOR_BATCH_TYPE = rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;

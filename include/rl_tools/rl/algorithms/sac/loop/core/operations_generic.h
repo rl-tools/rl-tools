@@ -52,7 +52,7 @@ namespace rl_tools{
             rl_tools::init(device, ts.envs[env_i], ts.env_parameters[env_i]);
         }
 
-        init(device, ts.off_policy_runner, ts.envs, ts.env_parameters);
+        init(device, ts.off_policy_runner);
 
         ts.step = 0;
     }
