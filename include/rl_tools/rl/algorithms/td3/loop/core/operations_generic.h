@@ -28,19 +28,23 @@ namespace rl_tools{
         malloc(device, ts.actor_buffers_eval);
         malloc(device, ts.actor_buffers[0]);
         malloc(device, ts.actor_buffers[1]);
-        malloc(device, ts.actor_deterministic_evaluation_buffers);
         for(auto& env: ts.envs){
             rl_tools::malloc(device, env);
         }
     }
     template <typename DEVICE, typename T_CONFIG>
     void free(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+        free(device, ts.actor_critic);
+        free(device, ts.off_policy_runner);
         free(device, ts.critic_batch);
         free(device, ts.critic_training_buffers);
+        free(device, ts.critic_buffers[0]);
+        free(device, ts.critic_buffers[1]);
         free(device, ts.actor_batch);
         free(device, ts.actor_training_buffers);
-        free(device, ts.off_policy_runner);
-        free(device, ts.actor_critic);
+        free(device, ts.actor_buffers_eval);
+        free(device, ts.actor_buffers[0]);
+        free(device, ts.actor_buffers[1]);
         for(auto& env: ts.envs){
             rl_tools::free(device, env);
         }
