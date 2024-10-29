@@ -34,11 +34,11 @@ namespace rl_tools::rl::environments::l2f::parameters {
         };
         static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = CONFIG::ZERO_ORIENTATION_INIT ? rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC> : rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
-            0.01, // position
-            0.001, // orientation
-            0.01, // linear_velocity
-            0.02, // angular_velocity
-            0.1, // imu acceleration
+            0.0, // position
+            0.00, // orientation
+            0.0, // linear_velocity
+            0.0, // angular_velocity
+            0.0, // imu acceleration
         };
 //        static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
 //                0.0, // position

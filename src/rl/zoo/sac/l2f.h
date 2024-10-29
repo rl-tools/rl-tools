@@ -17,7 +17,10 @@ namespace rl_tools::rl::zoo::sac::l2f{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct LearningToFly{
-        using ENVIRONMENT = typename rl::environments::l2f::parameters::DefaultParameters<T, TI>::ENVIRONMENT;
+        struct ENVIRONMENT_CONFIG{
+            static constexpr bool ZERO_ORIENTATION_INIT = false;
+        };
+        using ENVIRONMENT = typename rl::environments::l2f::parameters::DefaultParameters<T, TI, ENVIRONMENT_CONFIG>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
@@ -31,7 +34,7 @@ namespace rl_tools::rl::zoo::sac::l2f{
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
-            static constexpr TI STEP_LIMIT = 1000000;
+            static constexpr TI STEP_LIMIT = 10000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
