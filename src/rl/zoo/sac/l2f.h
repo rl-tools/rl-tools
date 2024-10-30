@@ -33,6 +33,7 @@ namespace rl_tools::rl::zoo::sac::l2f{
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.3;
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
+                static constexpr T TARGET_ENTROPY = -((T)4);
             };
             static constexpr TI STEP_LIMIT = 10000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
@@ -44,6 +45,15 @@ namespace rl_tools::rl::zoo::sac::l2f{
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
+            struct ACTOR_OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
+                static constexpr T ALPHA = 0.0001;
+            };
+            struct CRITIC_OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
+                static constexpr T ALPHA = 0.0001;
+            };
+            struct ALPHA_OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
+                static constexpr T ALPHA = 0.001;
+            };
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
     };

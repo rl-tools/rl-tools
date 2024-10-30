@@ -79,8 +79,12 @@ namespace rl_tools::rl::environments::l2f{
             Termination termination;
         };
         struct DomainRandomization{
+            T mass;
+            T inertia;
+            T motor_time_constant;
             T rotor_thrust_coefficients;
             T rotor_torque_constant;
+            T action_limit;
         };
         Dynamics dynamics;
         Integration integration;

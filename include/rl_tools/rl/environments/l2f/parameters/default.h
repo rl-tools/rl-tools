@@ -59,8 +59,12 @@ namespace rl_tools::rl::environments::l2f::parameters {
             termination
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-            0, //thrust_coefficients
-            0 //torque_coefficients
+            0, // mass
+            0, // inertia
+            0, // motor_time_constant
+            0, // rotor_thrust_coefficients
+            0, // rotor_torque_constant
+            0 // action_limit
         };
         static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
