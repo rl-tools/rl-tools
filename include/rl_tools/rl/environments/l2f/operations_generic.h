@@ -269,31 +269,46 @@ namespace rl_tools{
     static void initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters){
         parameters = SPEC::PARAMETER_VALUES;
     }
+    namespace rl::environments::l2f {
+        template <typename T, typename DEVICE, typename RNG>
+        T sample_domain_randomization_factor(DEVICE& device, T range, RNG& rng) {
+            T factor = random::normal_distribution::sample(device.random, (T)0, range, rng);
+            factor = factor < 0 ? 1/(1-factor) : 1+factor; // reciprocal scale
+            return factor;
+        }
+    }
     template<typename DEVICE, typename SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-//        T J_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)2, rng);
-//        env.current_dynamics.J[0][0] *= J_factor;
-//        env.current_dynamics.J[1][1] *= J_factor;
-//        env.current_dynamics.J[2][2] *= J_factor;
-//        env.current_dynamics.J_inv[0][0] /= J_factor;
-//        env.current_dynamics.J_inv[1][1] /= J_factor;
-//        env.current_dynamics.J_inv[2][2] /= J_factor;
-//        T mass_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)1.5, rng);
-//        env.current_dynamics.mass *= mass_factor;
-//        printf("initial state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
         initial_parameters(device, env, parameters);
-        {
-            T factor = random::normal_distribution::sample(device.random, (T)0, parameters.domain_randomization.rotor_thrust_coefficients, rng);
-            factor = factor < 0 ? 1/(1-factor) : 1+factor; // reciprocal scale
+        { // mass
+            T factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.mass, rng);
+            parameters.dynamics.mass *= factor;
+        }
+        { // inertia
+            T factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.inertia, rng);
+            for(TI axis_i=0; axis_i < 3; axis_i++) {
+                parameters.dynamics.J[axis_i][axis_i] *= factor;
+                parameters.dynamics.J[axis_i][axis_i] *= factor;
+                parameters.dynamics.J[axis_i][axis_i] *= factor;
+                parameters.dynamics.J_inv[axis_i][axis_i] /= factor;
+                parameters.dynamics.J_inv[axis_i][axis_i] /= factor;
+                parameters.dynamics.J_inv[axis_i][axis_i] /= factor;
+            }
+        }
+        { // motor_time_constant
+            T factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.motor_time_constant, rng);
+            parameters.dynamics.motor_time_constant *= factor;
+        }
+        { // rotor_thrust_coefficients
+            T factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.rotor_thrust_coefficients, rng);
             for(TI order_i=0; order_i < 3; order_i++){
                 parameters.dynamics.rotor_thrust_coefficients[order_i] *= factor;
             }
         }
-        {
-            T factor = random::normal_distribution::sample(device.random, (T)0, parameters.domain_randomization.rotor_torque_constant, rng);
-            factor = factor < 0 ? 1/(1-factor) : 1+factor; // reciprocal scale
+        { // rotor_torque_constant
+            T factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.rotor_torque_constant, rng);
             parameters.dynamics.rotor_torque_constant *= factor;
         }
         // todo: make this more generic (e.g. if thrust vector of (individual) rotors and gravity vector are not aligned)
