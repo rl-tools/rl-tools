@@ -83,7 +83,7 @@ namespace rl_tools::rl::environments::l2f{
             T thrust_to_weight_max;
             T mass_min;
             T mass_max;
-            T torque_to_inertia; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
+            // T torque_to_inertia; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
             T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
             T motor_time_constant;
             T rotor_torque_constant;
@@ -495,7 +495,6 @@ namespace rl_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
         static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !rl_tools::utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, l2f::observation::NONE<TI>>;
 //        using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
-//        typename SPEC::PARAMETERS parameters;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

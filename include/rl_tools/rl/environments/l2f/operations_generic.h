@@ -273,77 +273,82 @@ namespace rl_tools{
         template <typename T, typename DEVICE, typename RNG>
         T sample_domain_randomization_factor(DEVICE& device, T range, RNG& rng) {
             T factor = random::normal_distribution::sample(device.random, -range, range, rng);
-            factor = factor < 0 ? 1/(1+factor) : 1+factor; // reciprocal scale
+            factor = factor < 0 ? 1/(1-factor) : 1+factor; // reciprocal scale, note 1-factor because factor is negative in that case anyways
             return factor;
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, RNG& rng){
+    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, RNG& rng, bool reset = true){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        initial_parameters(device, env, parameters);
-        { // thrust_to_weight
-            T max_action = parameters.dynamics.action_limit.max;
-            T max_thrust = parameters.dynamics.rotor_thrust_coefficients[0] + parameters.dynamics.rotor_thrust_coefficients[1] * max_action + parameters.dynamics.rotor_thrust_coefficients[2] * max_action * max_action;
-            T gravity_norm = math::sqrt(device.math, parameters.dynamics.gravity[0] * parameters.dynamics.gravity[0] + parameters.dynamics.gravity[1] * parameters.dynamics.gravity[1] + parameters.dynamics.gravity[2] * parameters.dynamics.gravity[2]);
-            T thrust_to_weight_nominal = 4 * max_thrust / (parameters.dynamics.mass * gravity_norm); // this assumes all the rotors are pointing into the same direction
-
-            T thrust_to_weight = thrust_to_weight_nominal;
-            T factor_thrust_to_weight = 1;
-            if(parameters.domain_randomization.thrust_to_weight_min != 0) {
-                thrust_to_weight = random::uniform_real_distribution(device.random, parameters.domain_randomization.thrust_to_weight_min, parameters.domain_randomization.thrust_to_weight_max, rng);
-                factor_thrust_to_weight = thrust_to_weight / thrust_to_weight_nominal;
-            }
-
-            T factor_mass = 1;
-            T scale = 1;
-            if(parameters.domain_randomization.mass_min != 0) {
-                T mass_new = random::uniform_real_distribution(device.random, parameters.domain_randomization.mass_min, parameters.domain_randomization.mass_max, rng);
-                scale = math::cbrt(device.math, mass_new/parameters.dynamics.mass);
-                parameters.dynamics.mass = mass_new;
-                factor_mass = mass_new / parameters.dynamics.mass;
-            }
-            T factor_thrust_coefficients = factor_thrust_to_weight * factor_mass;
-            for(TI order_i = 0; order_i < 3; order_i++){
-                parameters.dynamics.rotor_thrust_coefficients[order_i] *= factor_thrust_coefficients;
-            }
-            T first_rotor_distance_nominal = math::sqrt(device.math, parameters.dynamics.rotor_positions[0][0] * parameters.dynamics.rotor_positions[0][0] + parameters.dynamics.rotor_positions[0][1] * parameters.dynamics.rotor_positions[0][1] + parameters.dynamics.rotor_positions[0][2] * parameters.dynamics.rotor_positions[0][2]);
-            T max_torque = first_rotor_distance_nominal * 1.414213562373095 * max_thrust ; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
-            T x_inertia = parameters.dynamics.J[0][0];
-            T torque_to_inertia_nominal = max_torque / x_inertia;
-            T torque_to_inertia_scale = thrust_to_weight/scale/0.0025;
-
-            T torque_to_inertia_factor = 1;
-            if(parameters.domain_randomization.torque_to_inertia != 0) {
-                T torque_to_inertia_randomization_factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.torque_to_inertia, rng);
-                T torque_to_inertia = torque_to_inertia_scale * torque_to_inertia_randomization_factor;
-                torque_to_inertia_factor = torque_to_inertia / torque_to_inertia_nominal;
-            }
-
-            T size_factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.mass_size_deviation, rng);
-            T rotor_distance_factor = scale * size_factor;
-            T inertia_factor = torque_to_inertia_factor/rotor_distance_factor;
-
-            for(TI axis_i = 0; axis_i < 3; axis_i++){
-                parameters.dynamics.J[axis_i][axis_i] /= inertia_factor;
-                parameters.dynamics.J_inv[axis_i][axis_i] *= inertia_factor;
-            }
-            for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
-                for(TI axis_i = 0; axis_i < 3; axis_i++){
-                    parameters.dynamics.rotor_positions[rotor_i][axis_i] *= rotor_distance_factor;
-                }
-            }
-
+        if(reset){
+            initial_parameters(device, env, parameters);
         }
-        // todo: make this more generic (e.g. if thrust vector of (individual) rotors and gravity vector are not aligned)
-        // todo:
-//        if(parameters.mdp.reward.calculate_action_baseline){
-//            utils::assert_exit(device, env.current_dynamics.rotor_thrust_coefficients[1] == 0, "linear thrust coefficient not handled yet");
-//            T hover_thrust = env.current_dynamics.mass * (-1) * env.current_dynamics.gravity[2];
-//            parameters.mdp.reward.action_baseline = math::sqrt(device.math, (hover_thrust / 4 - env.current_dynamics.rotor_thrust_coefficients[0]) / env.current_dynamics.rotor_thrust_coefficients[2]);
-////            parameters.mdp.reward.action_baseline *= 0.8;
-//        }
+        /*
+         *  Strategy:
+         *  1. Sample Thrust to Weight
+         *  2. Sample Mass
+         *  3. Calculate resulting thrust curve (based on max input)
+         *  4. Get torque to inertia based on the scale (based on the sampled mass)
+         *  5. Sample new torque_to_inertia around calculated one
+         *  6. Sample a new size based on the scale (based on the sampled mass)
+         *      a. Adjust the rotor positions
+         *  7. Adjust inertia to fit the sampled torque to inertia ratio
+         */
+        T max_action = parameters.dynamics.action_limit.max;
+        T max_thrust_nominal = parameters.dynamics.rotor_thrust_coefficients[0] + parameters.dynamics.rotor_thrust_coefficients[1] * max_action + parameters.dynamics.rotor_thrust_coefficients[2] * max_action * max_action;
+        T gravity_norm = math::sqrt(device.math, parameters.dynamics.gravity[0] * parameters.dynamics.gravity[0] + parameters.dynamics.gravity[1] * parameters.dynamics.gravity[1] + parameters.dynamics.gravity[2] * parameters.dynamics.gravity[2]);
+        T thrust_to_weight_nominal = 4 * max_thrust_nominal / (parameters.dynamics.mass * gravity_norm); // this assumes all the rotors are pointing into the same direction
 
+        T thrust_to_weight = thrust_to_weight_nominal;
+        T factor_thrust_to_weight = 1;
+        if(parameters.domain_randomization.thrust_to_weight_min != 0) {
+            thrust_to_weight = random::uniform_real_distribution(device.random, parameters.domain_randomization.thrust_to_weight_min, parameters.domain_randomization.thrust_to_weight_max, rng);
+            factor_thrust_to_weight = thrust_to_weight / thrust_to_weight_nominal;
+        }
+
+        T factor_mass = 1;
+        T scale = 1;
+        if(parameters.domain_randomization.mass_min != 0) {
+            T mass_new = random::uniform_real_distribution(device.random, parameters.domain_randomization.mass_min, parameters.domain_randomization.mass_max, rng);
+            // scale = math::cbrt(device.math, mass_new/parameters.dynamics.mass);
+            scale = math::cbrt(device.math, mass_new); // thrust_to_weight_by_torque_to_inertia is defined wrt. to the crazyflie
+            factor_mass = mass_new / parameters.dynamics.mass;
+            parameters.dynamics.mass = mass_new;
+        }
+        T factor_thrust_coefficients = factor_thrust_to_weight * factor_mass;
+        for(TI order_i = 0; order_i < 3; order_i++){
+            parameters.dynamics.rotor_thrust_coefficients[order_i] *= factor_thrust_coefficients;
+        }
+        T max_thrust = parameters.dynamics.rotor_thrust_coefficients[0] + parameters.dynamics.rotor_thrust_coefficients[1] * max_action + parameters.dynamics.rotor_thrust_coefficients[2] * max_action * max_action;
+        T first_rotor_distance_nominal = math::sqrt(device.math, parameters.dynamics.rotor_positions[0][0] * parameters.dynamics.rotor_positions[0][0] + parameters.dynamics.rotor_positions[0][1] * parameters.dynamics.rotor_positions[0][1] + parameters.dynamics.rotor_positions[0][2] * parameters.dynamics.rotor_positions[0][2]);
+        T max_torque = first_rotor_distance_nominal * 1.414213562373095 * max_thrust; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
+        T x_inertia = parameters.dynamics.J[0][0];
+        T torque_to_inertia_nominal = max_torque / x_inertia;
+        T thrust_to_weight_by_torque_to_inertia_upper = 0.7  * scale;
+        T thrust_to_weight_by_torque_to_inertia_lower = 0.300 * (scale-1.0);
+
+        T torque_to_inertia_factor = 1;
+        if(parameters.domain_randomization.mass_min != 0) {
+            T thrust_to_weight_by_torque_to_inertia = random::uniform_real_distribution(device.random, thrust_to_weight_by_torque_to_inertia_lower, thrust_to_weight_by_torque_to_inertia_upper, rng);
+            T torque_to_inertia = thrust_to_weight / thrust_to_weight_by_torque_to_inertia;
+            torque_to_inertia_factor = torque_to_inertia / torque_to_inertia_nominal;
+        }
+
+        T size_factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.mass_size_deviation, rng);
+        T rotor_distance_factor = scale * size_factor;
+        T inertia_factor = torque_to_inertia_factor/rotor_distance_factor;
+
+        for(TI axis_i = 0; axis_i < 3; axis_i++){
+            parameters.dynamics.J[axis_i][axis_i] /= inertia_factor;
+            parameters.dynamics.J_inv[axis_i][axis_i] *= inertia_factor;
+            // todo sample I_yy and I_zz, I_xx is random already through the torque_to_inertia mechanism
+        }
+        for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+            for(TI axis_i = 0; axis_i < 3; axis_i++){
+                parameters.dynamics.rotor_positions[rotor_i][axis_i] *= rotor_distance_factor;
+            }
+        }
     }
     template<typename DEVICE, typename T, typename STATE_TI, typename SPEC>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StateBase<T, STATE_TI>& state){

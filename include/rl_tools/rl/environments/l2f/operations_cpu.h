@@ -8,6 +8,91 @@
 #include <string>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Dynamics& parameters) {
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        std::string json = "{";
+        json += "\"mass\": " + std::to_string(parameters.mass) + ", ";
+        json += "\"gravity\": [" + std::to_string(parameters.gravity[0]) + ", " + std::to_string(parameters.gravity[1]) + ", " + std::to_string(parameters.gravity[2]) + "], ";
+        json += "\"J\": [";
+        for (TI i = 0; i < 3; i++) {
+            json += "[" + std::to_string(parameters.J[i][0]) + ", " + std::to_string(parameters.J[i][1]) + ", " + std::to_string(parameters.J[i][2]) + "]";
+            if (i < 2) {
+                json += ", ";
+            }
+        }
+        json += "], ";
+        json += "\"J_inv\": [";
+        for (TI i = 0; i < 3; i++) {
+            json += "[" + std::to_string(parameters.J_inv[i][0]) + ", " + std::to_string(parameters.J_inv[i][1]) + ", " + std::to_string(parameters.J_inv[i][2]) + "]";
+            if (i < 2) {
+                json += ", ";
+            }
+        }
+        json += "], ";
+        json += "\"rotors\": [";
+        for (TI i = 0; i < PARAM_SPEC::N; i++) {
+            json += "{";
+            json += "\"thrust_curve\": [";
+            json += std::to_string(parameters.rotor_thrust_coefficients[0]) + ", ";
+            json += std::to_string(parameters.rotor_thrust_coefficients[1]) + ", ";
+            json += std::to_string(parameters.rotor_thrust_coefficients[2]);
+            json += "], ";
+            json += "\"torque_constant\": " + std::to_string(parameters.rotor_torque_constant) + ", ";
+            json += "\"pose\": {";
+            json += "\"position\": [" + std::to_string(parameters.rotor_positions[i][0]) + ", " + std::to_string(parameters.rotor_positions[i][1]) + ", " + std::to_string(parameters.rotor_positions[i][2]) + "], ";
+            T qw, qx, qy, qz;
+            {
+                // thrust direction to quaternion
+                T x = parameters.rotor_thrust_directions[i][0];
+                T y = parameters.rotor_thrust_directions[i][1];
+                T z = parameters.rotor_thrust_directions[i][2];
+
+                T z_unit[3] = {0.0f, 0.0f, 1.0f};
+
+                T cross_x = z_unit[1] * z - z_unit[2] * y;
+                T cross_y = z_unit[2] * x - z_unit[0] * z;
+                T cross_z = z_unit[0] * y - z_unit[1] * x;
+
+                T dot = z_unit[0] * x + z_unit[1] * y + z_unit[2] * z;
+
+                T angle = math::acos(device.math, dot);
+
+                T cross_magnitude = math::sqrt(device.math, cross_x * cross_x + cross_y * cross_y + cross_z * cross_z);
+                if (cross_magnitude != 0) {
+                    cross_x /= cross_magnitude;
+                    cross_y /= cross_magnitude;
+                    cross_z /= cross_magnitude;
+                }
+
+                T half_angle = angle / 2.0f;
+                T sin_half_angle = sin(half_angle);
+
+                qw = cos(half_angle);
+                qx = cross_x * sin_half_angle;
+                qy = cross_y * sin_half_angle;
+                qz = cross_z * sin_half_angle;
+            }
+            json += "\"orientation\": [" + std::to_string(qw) + ", " + std::to_string(qx) + ", " + std::to_string(qy) + ", " + std::to_string(qz) + "]";
+            json += "}, "; // closing pose
+            json += "\"torque_direction\": [" + std::to_string(parameters.rotor_torque_directions[i][0]) + ", " + std::to_string(parameters.rotor_torque_directions[i][1]) + ", " + std::to_string(parameters.rotor_torque_directions[i][2]) + "]";
+            json += "}"; // closing rotor
+            if (i < PARAM_SPEC::N - 1) {
+                json += ", ";
+            }
+        }
+        json += "], ";
+        json += "\"motor_time_constant\": " + std::to_string(parameters.motor_time_constant) + ", ";
+        json += "\"hovering_throttle_relative\": " + std::to_string(parameters.hovering_throttle_relative) + ", ";
+        json += "\"action_limit\": {";
+        json += "\"min\": " + std::to_string(parameters.action_limit.min) + ", ";
+        json += "\"max\": " + std::to_string(parameters.action_limit.max);
+        json += "}"; // closing action_limit
+        json += "}"; // closing main JSON
+        return json;
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersBase<PARAM_SPEC>& parameters){
         using T = typename SPEC::T;
@@ -65,6 +150,8 @@ namespace rl_tools{
         }
         json += "],";
         json += "\"imu\": {\"pose\": {\"position\": [0, 0, 0], \"orientation\": [1, 0, 0, 0]}}";
+        std::string dynamics = rl_tools::json<PARAM_SPEC>(device, env, parameters.dynamics);
+        json += ", \"dynamics\": " + dynamics;
         json += "}";
         return json;
     }

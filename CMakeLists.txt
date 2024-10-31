@@ -50,6 +50,7 @@ option(RL_TOOLS_COMPILER_FLAGS "Additional compiler flags" OFF)
 option(RL_TOOLS_DISABLE_CPU_SPECIFIC_OPTIMIZATIONS "Disable CPU specific optimizations (e.g. for building portable Docker containers)" OFF)
 option(RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS "Memory allocations are 64 byte / 512 bit aligned by default. Disable the alignment of memory allocations" OFF)
 option(RL_TOOLS_DEBUG_COMPILER_OPTIONS "Options like -ftemplate-backtrace-limit=0" OFF)
+option(RL_TOOLS_EXPERIMENTAL "Experimental" OFF)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release" AND RL_TOOLS_ENABLE_LTO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
@@ -535,6 +536,10 @@ if(RL_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
         file(GLOB MSVC_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/msvc/*.dll")
         install(FILES ${MSVC_REDISTRIBUTABLES} DESTINATION bin)
     endif()
+endif()
+
+if(RL_TOOLS_EXPERIMENTAL)
+    target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_EXPERIMENTAL)
 endif()
 
 target_link_libraries(rl_tools_backend INTERFACE rl_tools_core_definitions)
