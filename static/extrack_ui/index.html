@@ -14,6 +14,19 @@
         }
     </script>
     <script type="module">
+        if (window.location.protocol === "file:") {
+            alert(
+                "It looks like you're opening this page locally. To avoid CORS issues, please start a local HTTP server.\n\n" +
+                "Here's how:\n" +
+                "1. Open a terminal or command prompt.\n" +
+                "2. Navigate to this folder.\n" +
+                "3. Run:\n\n" +
+                "   python -m http.server 8000\n\n" +
+                "4. Open your browser and go to: http://localhost:8000\n\n"
+            );
+        }
+    </script>
+    <script type="module">
         function check_dependency(path){
             fetch(path).then((response) => {
                 if(!response.ok){
