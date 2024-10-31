@@ -208,7 +208,7 @@ namespace rl_tools::rl::components{
         Matrix<matrix::Specification<ENVIRONMENT, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> envs;
         POLICY_STATES policy_states;
         Matrix<matrix::Specification<off_policy_runner::EpisodeStats<off_policy_runner::EpisodeStatsSpecification<SPEC, SPEC::DYNAMIC_ALLOCATION>>, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> episode_stats;
-        Matrix<matrix::Specification<REPLAY_BUFFER_TYPE, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> replay_buffers;
+        Matrix<matrix::Specification<REPLAY_BUFFER_TYPE, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> replay_buffers = {};
 
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> states;
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::Parameters, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> env_parameters;

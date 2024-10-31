@@ -48,8 +48,10 @@ namespace rl_tools{
         malloc(device, runner.episode_stats);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
+            replay_buffer = {}; // zero-initialize such that in debug mode the nullptr check on malloc does not trigger
             malloc(device, replay_buffer);
             auto& episode_stats = get(runner.episode_stats, 0, env_i);
+            episode_stats = {};
             malloc(device, episode_stats);
         }
         malloc(device, runner.policy_states);

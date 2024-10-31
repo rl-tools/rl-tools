@@ -44,6 +44,10 @@ namespace rl_tools::math {
         return std::sqrt(x);
     }
     template<typename T>
+    T cbrt(const devices::math::CPU&, const T x) {
+        return std::cbrt(x);
+    }
+    template<typename T>
     T tanh(const devices::math::CPU&, const T x) {
         return std::tanh(x);
     }
