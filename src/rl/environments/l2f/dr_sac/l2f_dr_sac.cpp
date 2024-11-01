@@ -55,12 +55,12 @@ using T = float;
 constexpr TI BASE_SEED = 0;
 
 
+constexpr bool IDENT = true;
 
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
 constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
-static constexpr auto reward_function = rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T>;
-//        static constexpr auto reward_function = rl_tools::rl::environments::l2f::parameters::reward_functions::squared_no_orientation<T>;
+static constexpr auto reward_function = IDENT ? rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T> : rl_tools::rl::environments::l2f::parameters::reward_functions::constant<T>;
 using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
 using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
@@ -109,7 +109,7 @@ static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomizat
     // 0.0 // rotor_torque_constant;
     0.0, // thrust_to_weight_min;
     0.0, // thrust_to_weight_max;
-    0.0, // mass_min;
+    IDENT ? 0.0 : 0.02, // mass_min;
     0.035, // mass_max;
     0.0, // mass_size_deviation;
     0.0, // motor_time_constant;
@@ -195,7 +195,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
         static constexpr T ALPHA = 0.001;
     };
-    static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
+    static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = IDENT;
 };
 
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
