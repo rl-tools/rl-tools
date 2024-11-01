@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
     std::string nominal_parameters_json = rlt::json(device, env, nominal_parameters);
     std::string parameters_json = rlt::json(device, env, parameters);
 
-    rlt::compare_parameters(device, nominal_parameters.dynamics, parameters.dynamics);
+    rlt::compare_parameters(device, nominal_parameters, parameters);
 
     std::cout << parameters_json << std::endl;
 }

@@ -9,16 +9,25 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename T>
-    void compare_parameters(DEVICE& device, const T& nominal, const T& perturbed){
+    template <typename DEVICE, typename PARAMETERS>
+    void compare_parameters(DEVICE& device, const PARAMETERS& nominal_main, const PARAMETERS& perturbed_main){
+        using T = typename PARAMETERS::T;
+        using TI = typename DEVICE::index_t;
+        auto& nominal = nominal_main.dynamics;
+        auto& perturbed = perturbed_main.dynamics;
         auto percentage_change = [](auto nominal_value, auto perturbed_value){
             return ((perturbed_value - nominal_value) / nominal_value) * 100.0;
         };
         log(device, device.logger, "Mass: ", nominal.mass, " -> ", perturbed.mass, " (", percentage_change(nominal.mass, perturbed.mass), "%)");
-        for (int i = 0; i < 3; ++i) {
+        for (TI i = 0; i < 3; ++i) {
             log(device, device.logger, "J[", i, "][", i, "]: ", nominal.J[i][i], " -> ", perturbed.J[i][i], " (", percentage_change(nominal.J[i][i], perturbed.J[i][i]), "%)");
         }
-        for (int i = 0; i < 3; ++i) {
+        for (TI rotor_i = 0; rotor_i < 1; ++rotor_i) {
+            T rotor_distance_nominal = math::sqrt(device.math, nominal.rotor_positions[rotor_i][0] * nominal.rotor_positions[rotor_i][0] + nominal.rotor_positions[rotor_i][1] * nominal.rotor_positions[rotor_i][1] + nominal.rotor_positions[rotor_i][2] * nominal.rotor_positions[rotor_i][2]);
+            T rotor_distance_perturbed = math::sqrt(device.math, perturbed.rotor_positions[rotor_i][0] * perturbed.rotor_positions[rotor_i][0] + perturbed.rotor_positions[rotor_i][1] * perturbed.rotor_positions[rotor_i][1] + perturbed.rotor_positions[rotor_i][2] * perturbed.rotor_positions[rotor_i][2]);
+            log(device, device.logger, "Rotor distance[", rotor_i, "]: ", rotor_distance_nominal, " -> ", rotor_distance_perturbed, " (", percentage_change(rotor_distance_nominal, rotor_distance_perturbed), "%)");
+        }
+        for (TI i = 0; i < 3; ++i) {
             log(device, device.logger, "Rotor thrust coefficient[", i, "]: ", nominal.rotor_thrust_coefficients[i], " -> ", perturbed.rotor_thrust_coefficients[i], " (", percentage_change(nominal.rotor_thrust_coefficients[i], perturbed.rotor_thrust_coefficients[i]), "%)");
         }
         log(device, device.logger, "Rotor torque constant: ", nominal.rotor_torque_constant, " -> ", perturbed.rotor_torque_constant, " (", percentage_change(nominal.rotor_torque_constant, perturbed.rotor_torque_constant), "%)");

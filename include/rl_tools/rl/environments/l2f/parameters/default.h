@@ -69,7 +69,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
             // 0.0 // rotor_torque_constant;
             0.0, // thrust_to_weight_min;
             0.0, // thrust_to_weight_max;
-            0.0, // mass_min;
+            0.02, // mass_min;
             0.035, // mass_max;
             0.0, // mass_size_deviation;
             0.0, // motor_time_constant;

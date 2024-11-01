@@ -308,11 +308,12 @@ namespace rl_tools{
         }
 
         T factor_mass = 1;
-        T scale = 1;
+        T scale_absolute = 1;
+        T scale_relative = 1;
         if(parameters.domain_randomization.mass_min != 0) {
             T mass_new = random::uniform_real_distribution(device.random, parameters.domain_randomization.mass_min, parameters.domain_randomization.mass_max, rng);
-            // scale = math::cbrt(device.math, mass_new/parameters.dynamics.mass);
-            scale = math::cbrt(device.math, mass_new); // thrust_to_weight_by_torque_to_inertia is defined wrt. to the crazyflie
+            scale_relative = math::cbrt(device.math, mass_new/parameters.dynamics.mass);
+            scale_absolute = math::cbrt(device.math, mass_new); // thrust_to_weight_by_torque_to_inertia is defined wrt. to the crazyflie
             factor_mass = mass_new / parameters.dynamics.mass;
             parameters.dynamics.mass = mass_new;
         }
@@ -325,8 +326,8 @@ namespace rl_tools{
         T max_torque = first_rotor_distance_nominal * 1.414213562373095 * max_thrust; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
         T x_inertia = parameters.dynamics.J[0][0];
         T torque_to_inertia_nominal = max_torque / x_inertia;
-        T thrust_to_weight_by_torque_to_inertia_upper = 0.7  * scale;
-        T thrust_to_weight_by_torque_to_inertia_lower = 0.300 * (scale-1.0);
+        T thrust_to_weight_by_torque_to_inertia_upper = 0.7  * scale_absolute;
+        T thrust_to_weight_by_torque_to_inertia_lower = 0.300 * (scale_absolute-1.0);
 
         T torque_to_inertia_factor = 1;
         if(parameters.domain_randomization.mass_min != 0) {
@@ -336,7 +337,7 @@ namespace rl_tools{
         }
 
         T size_factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.mass_size_deviation, rng);
-        T rotor_distance_factor = scale * size_factor;
+        T rotor_distance_factor = scale_relative * size_factor;
         T inertia_factor = torque_to_inertia_factor/rotor_distance_factor;
 
         for(TI axis_i = 0; axis_i < 3; axis_i++){
