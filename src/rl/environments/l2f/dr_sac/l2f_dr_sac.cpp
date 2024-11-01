@@ -32,15 +32,8 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
 
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
 #include <rl_tools/rl/environments/l2f/parameters/default.h>
 #include <rl_tools/rl/environments/l2f/parameters/dynamics/crazyflie.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/race.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_sim.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_real.h>
-#include <rl_tools/rl/environments/l2f/parameters/init/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/termination/default.h>
 
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
