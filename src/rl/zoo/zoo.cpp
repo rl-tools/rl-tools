@@ -70,6 +70,8 @@
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+#include <rl_tools/rl/utils/evaluation/operations_cpu.h>
+
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using SUPER_DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -149,21 +151,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::ofstream return_file(ts.extrack_seed_path / "return.json");
         return_file << "[";
         for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
-            return_file << "{";
-            return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL *  LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i << ", ";
-            return_file << "\"returns_mean\": " << get(ts.evaluation_results, 0, evaluation_i).returns_mean << ", ";
-            return_file << "\"returns_std\": " << get(ts.evaluation_results, 0, evaluation_i).returns_std << ", ";
-            return_file << "\"episode_length_mean\": " << get(ts.evaluation_results, 0, evaluation_i).episode_length_mean << ", ";
-            return_file << "\"episode_length_std\": " << get(ts.evaluation_results, 0, evaluation_i).episode_length_std << ", ";
-            return_file << "\"returns\": [";
-            for(TI episode_i = 0; episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES; episode_i++){
-                return_file << get(ts.evaluation_results, 0, evaluation_i).returns[episode_i];
-                if(episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES - 1){
-                    return_file << ", ";
-                }
-            }
-            return_file << "]";
-            return_file << "}";
+            auto& result = get(ts.evaluation_results, 0, evaluation_i);
+            return_file << rlt::json(device, result, LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i);
             if(evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1){
                 return_file << ", ";
             }

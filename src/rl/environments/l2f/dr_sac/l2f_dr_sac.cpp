@@ -43,6 +43,8 @@
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+#include <rl_tools/rl/utils/evaluation/operations_cpu.h>
+
 
 #include <rl_tools/utils/generic/typing.h>
 
@@ -61,7 +63,7 @@ constexpr bool ZERO_ANGLE_INIT = true;
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
 constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
-static constexpr auto reward_function = IDENT ? rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T> : rl_tools::rl::environments::l2f::parameters::reward_functions::constant<T>;
+static constexpr auto reward_function = IDENT ? rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T> : rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T>;
 using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
 using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
@@ -99,23 +101,15 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = {
     termination
 };
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-    // 1.5, // thrust_to_weight_min;
-    // 4.0, // thrust_to_weight_max;
-    // 0.027, // mass_min;
-    // 5.0, // mass_max;
-    // 1.0, // torque_to_inertia;
-    // 0.0, // mass_size_deviation;
-    // 0.0, // motor_time_constant;
-    // 0.0 // rotor_torque_constant;
-    0.0, // thrust_to_weight_min;
-    0.0, // thrust_to_weight_max;
-    0.0, // thrust_to_weight_by_torque_to_inertia_min;
-    0.0, // thrust_to_weight_by_torque_to_inertia_max;
+    IDENT ? 0 : 1.5, // thrust_to_weight_min;
+    IDENT ? 0 : 5, // thrust_to_weight_max;
+    IDENT ? 0 : 0.0026034812863058926, // thrust_to_weight_by_torque_to_inertia_min;
+    IDENT ? 0 : 0.04586570698345237, // thrust_to_weight_by_torque_to_inertia_max;
     IDENT ? 0.0 : 0.02, // mass_min;
-    0.035, // mass_max;
-    0.0, // mass_size_deviation;
-    0.0, // motor_time_constant;
-    0.0 // rotor_torque_constant;
+    IDENT ? 0.0 : 5, // mass_max;
+    IDENT ? 0.0 : 0.1, // mass_size_deviation;
+    IDENT ? 0.0 : 0.1, // motor_time_constant;
+    IDENT ? 0.0 : 0.1 // rotor_torque_constant;
 };
 static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
     typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
@@ -189,10 +183,10 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
     struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr T ALPHA = IDENT ? 0.0001 : 0.001;
+        static constexpr T ALPHA = 0.0001;
     };
     struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr T ALPHA = IDENT ? 0.0001 : 0.001;
+        static constexpr T ALPHA = 0.0001;
     };
     struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
         static constexpr T ALPHA = 0.001;
@@ -230,7 +224,7 @@ using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 using LOOP_STATE = typename LOOP_CONFIG::State<LOOP_CONFIG>;
 
 int main(){
-    TI seed = IDENT ? 11 : 11;
+    TI seed = IDENT ? 11 : 12;
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
     LOOP_STATE ts;
@@ -253,4 +247,17 @@ int main(){
     rlt::set_parameters(device, ts.off_policy_runner, env_parameters);
     while(!rlt::step(device, ts)){
     }
+    std::filesystem::create_directories(ts.extrack_seed_path);
+    std::ofstream return_file(ts.extrack_seed_path / "return.json");
+    return_file << "[";
+    for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
+        auto& result = get(ts.evaluation_results, 0, evaluation_i);
+        return_file << rlt::json(device, result, LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i);
+        if(evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1){
+            return_file << ", ";
+        }
+    }
+    return_file << "]";
+    std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
+    return_file_confirmation.close();
 }
