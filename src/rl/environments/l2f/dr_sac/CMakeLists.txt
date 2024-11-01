@@ -1,0 +1,2 @@
+add_executable(rl_environments_l2f_dr_sac l2f_dr_sac.cpp)
+target_link_libraries(rl_environments_l2f_dr_sac RLtools::RLtools)
