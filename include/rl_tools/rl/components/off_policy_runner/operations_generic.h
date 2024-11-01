@@ -163,6 +163,13 @@ namespace rl_tools{
     void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
         set_all(device, runner.truncated, true);
     }
+    template<typename DEVICE, typename SPEC>
+    void set_parameters(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT::Parameters &parameters){
+        for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++) {
+            auto& parameters_target = get(runner.env_parameters, 0, env_i);
+            parameters_target = parameters;
+        }
+    }
     template <typename DEVICE, typename T_SPEC>
     void init(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
         episode_stats.next_episode_i = 0;

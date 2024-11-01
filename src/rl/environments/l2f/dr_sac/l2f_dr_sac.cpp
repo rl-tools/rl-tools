@@ -90,6 +90,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
         static constexpr T ALPHA = 0.001;
     };
+    static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = false;
 };
 
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
@@ -122,9 +123,10 @@ using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 using LOOP_STATE = typename LOOP_CONFIG::State<LOOP_CONFIG>;
 
 int main() {
-    DEVICE device;
-    LOOP_STATE ts;
     TI seed = 11;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(device.random, seed);
+    LOOP_STATE ts;
     ts.extrack_name = "zoo";
     ts.extrack_population_variates = "algorithm_environment";
     ts.extrack_population_values = "dr-sac_l2f";
@@ -135,6 +137,12 @@ int main() {
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
+    LOOP_CONFIG::ENVIRONMENT env;
+    LOOP_CONFIG::ENVIRONMENT::Parameters env_parameters;
+    rlt::sample_initial_parameters(device, env, env_parameters, rng);
+    std::string parameters_json = rlt::json(device, env, env_parameters);
+    std::cout << "Parameters: " << parameters_json << std::endl;
+    rlt::set_parameters(device, ts.off_policy_runner, env_parameters);
     while(!rlt::step(device, ts)){
     }
 }
