@@ -210,6 +210,7 @@ struct LOOP_EVALUATION_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<
     static constexpr TI EVALUATION_INTERVAL = EVALUATION_INTERVAL_TEMP == 0 ? 1 : EVALUATION_INTERVAL_TEMP;
     static constexpr TI NUM_EVALUATION_EPISODES = 10;
     static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
+    static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = false;
 };
 using LOOP_EVALUATION_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CHECKPOINT_CONFIG, LOOP_EVALUATION_PARAMETERS>;
 struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectories::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
@@ -223,8 +224,16 @@ using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 
 using LOOP_STATE = typename LOOP_CONFIG::State<LOOP_CONFIG>;
 
-int main(){
-    TI seed = IDENT ? 11 : 12;
+int main(int argc, char** argv){
+    TI arg_seed = 11;
+    if(argc > 1){
+        arg_seed = std::stoi(argv[1]);
+    }
+    bool non_zero_init = false;
+    if(argc > 2) {
+        non_zero_init = std::strcmp(argv[2], "true") == 0;
+    }
+    TI seed = IDENT ? 11 : arg_seed;
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
     LOOP_STATE ts;
@@ -244,7 +253,11 @@ int main(){
     rlt::sample_initial_parameters(device, env, env_parameters, rng);
     std::string parameters_json = rlt::json(device, env, env_parameters);
     rlt::compare_parameters(device, env_parameters_nominal, env_parameters);
+    if(non_zero_init) {
+        env_parameters.mdp.init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+    }
     rlt::set_parameters(device, ts.off_policy_runner, env_parameters);
+    ts.env_eval_parameters = env_parameters;
     while(!rlt::step(device, ts)){
     }
     std::filesystem::create_directories(ts.extrack_seed_path);

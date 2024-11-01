@@ -19,6 +19,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
         static constexpr TI EPISODE_STEP_LIMIT = NEXT::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
         using EVALUATION_MODE = mode::Evaluation<>;
+        static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
     };
     struct ConfigTag{};
     template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>, typename T_UI = environments::DummyUI>

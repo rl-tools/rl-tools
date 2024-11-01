@@ -22,13 +22,14 @@ namespace rl_tools{
         data += "\"episode_length_std\": " + std::to_string(result.episode_length_std) + ", ";
         data += "\"returns\": [";
         for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
-            data += result.returns[episode_i];
+            data += std::to_string(result.returns[episode_i]);
             if(episode_i < SPEC::N_EPISODES - 1){
                 data += ", ";
             }
         }
         data += "]";
         data += "}";
+        return data;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -22,7 +22,6 @@ namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     void malloc(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
-        malloc(device, ts.env_save_trajectories);
         malloc(device, ts.actor_deterministic_save_trajectories_buffers);
         ts.save_trajectories_buffer = new typename STATE::template DATA_TYPE<typename T_CONFIG::SAVE_TRAJECTORIES_SPEC>;
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
@@ -31,8 +30,6 @@ namespace rl_tools{
     void init(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-        init(device, ts.env_save_trajectories, ts.env_save_trajectories_parameters);
-        init(device, ts.env_save_trajectories, ts.env_save_trajectories_parameters, ts.ui);
         ts.rng_save_trajectories = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
         ts.save_trajectories_ui_written = false;
     }
@@ -105,7 +102,7 @@ namespace rl_tools{
                 malloc(device, evaluation_actor);
                 auto actor = get_actor(ts);
                 copy(device, device, actor, evaluation_actor);
-                evaluate(device, ts.env_eval, ts.ui, evaluation_actor, ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_save_trajectories_buffers, ts.rng_save_trajectories, ts.evaluation_mode, false);
+                evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_save_trajectories_buffers, ts.rng_save_trajectories, ts.evaluation_mode, false, CONFIG::EVALUATION_PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
                 free(device, evaluation_actor);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;

@@ -37,6 +37,7 @@ namespace rl_tools{
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
         init(device, ts.env_eval, ts.env_eval_parameters);
         init(device, ts.env_eval, ts.env_eval_parameters, ts.ui);
+        initial_parameters(device, ts.env_eval, ts.env_eval_parameters);
         ts.rng_eval = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
     }
 
@@ -55,7 +56,7 @@ namespace rl_tools{
                 malloc(device, evaluation_actor);
                 auto actor = get_actor(ts);
                 copy(device, device, actor, evaluation_actor);
-                evaluate(device, ts.env_eval, ts.ui, evaluation_actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, ts.evaluation_mode, false);
+                evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, ts.evaluation_mode, false, PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
                 free(device, evaluation_actor);
                 log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
                 add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
