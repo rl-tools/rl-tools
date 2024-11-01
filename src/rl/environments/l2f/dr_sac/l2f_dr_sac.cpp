@@ -56,6 +56,7 @@ constexpr TI BASE_SEED = 0;
 
 
 constexpr bool IDENT = true;
+constexpr bool ZERO_ANGLE_INIT = true;
 
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
@@ -71,10 +72,10 @@ static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::env
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
     0.01 // integration dt
 };
-static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = IDENT ? rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC> : rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
+static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = IDENT ? rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC> : (ZERO_ANGLE_INIT ? rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC> : rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>);
 static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
     0.0, // position
-    0.00, // orientation
+    0.0, // orientation
     0.0, // linear_velocity
     0.0, // angular_velocity
     0.0, // imu acceleration
@@ -89,7 +90,7 @@ static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noi
 static constexpr typename PARAMETERS_TYPE::MDP::ActionNoise action_noise = {
     0, // std of additive gaussian noise onto the normalized action (-1, 1)
 };
-static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = rl_tools::rl::environments::l2f::parameters::termination::fast_learning<PARAMETERS_SPEC>;
+static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = IDENT ? rl_tools::rl::environments::l2f::parameters::termination::fast_learning<PARAMETERS_SPEC> : rl_tools::rl::environments::l2f::parameters::termination::narrow<PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::MDP mdp = {
     init,
     reward_function,
@@ -108,6 +109,8 @@ static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomizat
     // 0.0 // rotor_torque_constant;
     0.0, // thrust_to_weight_min;
     0.0, // thrust_to_weight_max;
+    0.0, // thrust_to_weight_by_torque_to_inertia_min;
+    0.0, // thrust_to_weight_by_torque_to_inertia_max;
     IDENT ? 0.0 : 0.02, // mass_min;
     0.035, // mass_max;
     0.0, // mass_size_deviation;
@@ -186,10 +189,10 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
     struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr T ALPHA = 0.0001;
+        static constexpr T ALPHA = IDENT ? 0.0001 : 0.001;
     };
     struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr T ALPHA = 0.0001;
+        static constexpr T ALPHA = IDENT ? 0.0001 : 0.001;
     };
     struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
         static constexpr T ALPHA = 0.001;
@@ -226,8 +229,8 @@ using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 
 using LOOP_STATE = typename LOOP_CONFIG::State<LOOP_CONFIG>;
 
-int main() {
-    TI seed = 11;
+int main(){
+    TI seed = IDENT ? 11 : 11;
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
     LOOP_STATE ts;

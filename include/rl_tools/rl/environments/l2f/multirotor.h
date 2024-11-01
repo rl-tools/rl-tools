@@ -81,6 +81,8 @@ namespace rl_tools::rl::environments::l2f{
         struct DomainRandomization{
             T thrust_to_weight_min;
             T thrust_to_weight_max;
+            T thrust_to_weight_by_torque_to_inertia_min;
+            T thrust_to_weight_by_torque_to_inertia_max;
             T mass_min;
             T mass_max;
             T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio

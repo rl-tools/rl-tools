@@ -9,6 +9,15 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::termination{
     template<typename SPEC>
+    constexpr typename rl_tools::rl::environments::l2f::ParametersBase<SPEC>::MDP::Termination narrow = {
+        true,           // enable
+        1,            // position
+        10,         // linear velocity
+        35, // angular velocity
+        10000, // position integral
+        50000, // orientation integral
+    };
+    template<typename SPEC>
     constexpr typename rl_tools::rl::environments::l2f::ParametersBase<SPEC>::MDP::Termination fast_learning = {
         true,           // enable
         5,            // position

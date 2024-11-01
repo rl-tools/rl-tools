@@ -326,12 +326,12 @@ namespace rl_tools{
         T max_torque = first_rotor_distance_nominal * 1.414213562373095 * max_thrust; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
         T x_inertia = parameters.dynamics.J[0][0];
         T torque_to_inertia_nominal = max_torque / x_inertia;
-        T thrust_to_weight_by_torque_to_inertia_upper = 0.7  * scale_absolute;
-        T thrust_to_weight_by_torque_to_inertia_lower = 0.300 * (scale_absolute-1.0);
+        // T thrust_to_weight_by_torque_to_inertia_upper = 0.7  * scale_absolute;
+        // T thrust_to_weight_by_torque_to_inertia_lower = 0.300 * (scale_absolute-1.0);
 
         T torque_to_inertia_factor = 1;
-        if(parameters.domain_randomization.mass_min != 0) {
-            T thrust_to_weight_by_torque_to_inertia = random::uniform_real_distribution(device.random, thrust_to_weight_by_torque_to_inertia_lower, thrust_to_weight_by_torque_to_inertia_upper, rng);
+        if(parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min != 0) {
+            T thrust_to_weight_by_torque_to_inertia = random::uniform_real_distribution(device.random, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max, rng);
             T torque_to_inertia = thrust_to_weight / thrust_to_weight_by_torque_to_inertia;
             torque_to_inertia_factor = torque_to_inertia / torque_to_inertia_nominal;
         }
