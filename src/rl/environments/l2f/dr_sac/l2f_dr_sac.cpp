@@ -71,8 +71,7 @@ static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::env
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
     0.01 // integration dt
 };
-// static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
-static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = IDENT ? rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC> : rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
     0.0, // position
     0.00, // orientation
