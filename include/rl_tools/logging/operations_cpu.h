@@ -47,6 +47,21 @@ namespace rl_tools{
     void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i){
         std::cout << a << b << c << d << e << f << g << h << i << std::endl;
     }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j){
+        std::cout << a << b << c << d << e << f << g << h << i << j << std::endl;
+    }
+
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J, typename K>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j, const K k){
+        std::cout << a << b << c << d << e << f << g << h << i << j << k << std::endl;
+    }
+
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J, typename K, typename L>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j, const K k, const L l){
+        std::cout << a << b << c << d << e << f << g << h << i << j << k << l << std::endl;
+    }
+
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::CPU& logger, typename DEVICE::index_t step){ /* noop */ }
     template <typename DEVICE, typename ARG_1, typename ARG_2>
