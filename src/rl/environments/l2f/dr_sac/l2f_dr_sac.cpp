@@ -57,7 +57,7 @@ using T = float;
 constexpr TI BASE_SEED = 0;
 
 
-constexpr bool IDENT = true;
+constexpr bool IDENT = false;
 constexpr bool ZERO_ANGLE_INIT = true;
 
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
@@ -172,7 +172,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
     };
-    static constexpr TI STEP_LIMIT = 10000000;
+    static constexpr TI STEP_LIMIT = 2000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
