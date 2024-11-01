@@ -33,7 +33,9 @@ namespace rl_tools::rl::components::off_policy_runner{
                 }
                 episode_stats.next_episode_i = next_episode_i;
             }
-            sample_initial_parameters(device, env, parameters, rng);
+            if(SPEC::PARAMETERS::SAMPLE_PARAMETERS){
+                sample_initial_parameters(device, env, parameters, rng);
+            }
             sample_initial_state(device, env, parameters, state, rng);
             set(runner.episode_step, 0, env_i, 0);
             set(runner.episode_return, 0, env_i, 0);

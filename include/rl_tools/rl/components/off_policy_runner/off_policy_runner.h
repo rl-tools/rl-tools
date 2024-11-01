@@ -31,6 +31,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI EPISODE_STEP_LIMIT = 1000;
         static constexpr bool COLLECT_EPISODE_STATS = false;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
+        static constexpr bool SAMPLE_PARAMETERS = true;
 
         static constexpr T EXPLORATION_NOISE = 0.1;
     };
@@ -153,7 +154,7 @@ namespace rl_tools::rl::components::off_policy_runner {
     };
 
     template <typename T_OPR_SPEC, bool T_DYNAMIC_ALLOCATION=true>
-    struct EpisodeStatsSpecification {
+    struct EpisodeStatsSpecification{
         using OPR_SPEC = T_OPR_SPEC;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
     };
@@ -178,7 +179,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     template<typename T_SPEC>
-    struct OffPolicyRunner {
+    struct OffPolicyRunner{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

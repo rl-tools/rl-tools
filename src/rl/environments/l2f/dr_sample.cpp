@@ -71,7 +71,6 @@ int main(int argc, char** argv) {
         5.0, // thrust_to_weight_max;
         0.027, // mass_min;
         5.00, // mass_max;
-        1.0, // torque_to_inertia;
         1.0, // mass_size_deviation;
         0.0, // motor_time_constant;
         0.0 // rotor_torque_constant;
