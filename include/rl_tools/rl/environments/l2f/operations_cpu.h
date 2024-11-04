@@ -93,6 +93,64 @@ namespace rl_tools{
         json += "}"; // closing main JSON
         return json;
     }
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Integration& parameters) {
+        return std::string("{\"dt\": ") + std::to_string(parameters.dt) + "}";
+    }
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::Initialization& parameters) {
+        std::string json_string = "{";
+        json_string += "\"guidance\": " + std::to_string(parameters.guidance) + ", ";
+        json_string += "\"max_position\": " + std::to_string(parameters.max_position) + ", ";
+        json_string += "\"max_angle\": " + std::to_string(parameters.max_angle) + ", ";
+        json_string += "\"max_linear_velocity\": " + std::to_string(parameters.max_linear_velocity) + ", ";
+        json_string += "\"max_angular_velocity\": " + std::to_string(parameters.max_angular_velocity) + ", ";
+        json_string += "\"relative_rpm\": " + std::to_string(parameters.relative_rpm) + ", ";
+        json_string += "\"min_rpm\": " + std::to_string(parameters.min_rpm) + ", ";
+        json_string += "\"max_rpm\": " + std::to_string(parameters.max_rpm);
+        json_string += "}";
+        return json_string;
+    }
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::Termination& parameters) {
+        std::string json_string = "{";
+        json_string += "\"enabled\": " + std::to_string(parameters.enabled) + ", ";
+        json_string += "\"position_threshold\": " + std::to_string(parameters.position_threshold) + ", ";
+        json_string += "\"linear_velocity_threshold\": " + std::to_string(parameters.linear_velocity_threshold) + ", ";
+        json_string += "\"angular_velocity_threshold\": " + std::to_string(parameters.angular_velocity_threshold) + ", ";
+        json_string += "\"position_integral_threshold\": " + std::to_string(parameters.position_integral_threshold) + ", ";
+        json_string += "\"orientation_integral_threshold\": " + std::to_string(parameters.orientation_integral_threshold);
+        json_string += "}";
+        return json_string;
+    }
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::ObservationNoise& parameters) {
+        std::string json_string = "{";
+        json_string += "\"position\": " + std::to_string(parameters.position) + ", ";
+        json_string += "\"orientation\": " + std::to_string(parameters.orientation) + ", ";
+        json_string += "\"linear_velocity\": " + std::to_string(parameters.linear_velocity) + ", ";
+        json_string += "\"angular_velocity\": " + std::to_string(parameters.angular_velocity) + ", ";
+        json_string += "\"imu_acceleration\": " + std::to_string(parameters.imu_acceleration);
+        json_string += "}";
+        return json_string;
+    }
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::ActionNoise& parameters) {
+        std::string json_string = "{";
+        json_string += "\"normalized_rpm\": " + std::to_string(parameters.normalized_rpm);
+        json_string += "}";
+        return json_string;
+    }
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP& parameters) {
+        std::string json_string = "{";
+        json_string += "\"init\": " + json<PARAM_SPEC>(device, env, parameters.init) + ", ";
+        json_string += "\"observation_noise\": " + json<PARAM_SPEC>(device, env, parameters.observation_noise) + ", ";
+        json_string += "\"action_noise\": " + json<PARAM_SPEC>(device, env, parameters.action_noise) + ", ";
+        json_string += "\"termination\": " + json<PARAM_SPEC>(device, env, parameters.termination);
+        json_string += "}";
+        return json_string;
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersBase<PARAM_SPEC>& parameters){
         using T = typename SPEC::T;
@@ -152,6 +210,8 @@ namespace rl_tools{
         json += "\"imu\": {\"pose\": {\"position\": [0, 0, 0], \"orientation\": [1, 0, 0, 0]}}";
         std::string dynamics = rl_tools::json<PARAM_SPEC>(device, env, parameters.dynamics);
         json += ", \"dynamics\": " + dynamics;
+        json += ", \"integration\": " + rl_tools::json<PARAM_SPEC>(device, env, parameters.integration);
+        json += ", \"mdp\": " + rl_tools::json<PARAM_SPEC>(device, env, parameters.mdp);
         json += "}";
         return json;
     }
