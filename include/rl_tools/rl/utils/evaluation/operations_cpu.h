@@ -27,6 +27,14 @@ namespace rl_tools{
                 data += ", ";
             }
         }
+        data += "],";
+        data += "\"episode_length\": [";
+        for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
+            data += std::to_string(result.episode_length[episode_i]);
+            if(episode_i < SPEC::N_EPISODES - 1){
+                data += ", ";
+            }
+        }
         data += "]";
         data += "}";
         return data;
