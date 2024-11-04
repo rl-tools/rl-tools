@@ -302,7 +302,7 @@ namespace rl_tools{
 
         T thrust_to_weight = thrust_to_weight_nominal;
         T factor_thrust_to_weight = 1;
-        if(parameters.domain_randomization.thrust_to_weight_min != 0) {
+        if(parameters.domain_randomization.thrust_to_weight_min != 0){
             thrust_to_weight = random::uniform_real_distribution(device.random, parameters.domain_randomization.thrust_to_weight_min, parameters.domain_randomization.thrust_to_weight_max, rng);
             factor_thrust_to_weight = thrust_to_weight / thrust_to_weight_nominal;
         }

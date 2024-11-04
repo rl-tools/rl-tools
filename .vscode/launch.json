@@ -99,6 +99,15 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "src/rl/environments/l2f/dr_sac/analyze.py",
+            "type": "python",
+            "request": "launch",
+            "program": "src/rl/environments/l2f/dr_sac/analyze.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }

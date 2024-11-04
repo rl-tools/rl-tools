@@ -235,7 +235,7 @@ int main(int argc, char** argv){
     }
     TI seed = IDENT ? 11 : arg_seed;
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, seed);
+    auto rng = rlt::random::default_engine(device.random, seed+1);
     LOOP_STATE ts;
     ts.extrack_name = "dr-sac";
     ts.extrack_population_variates = "algorithm_environment_zero-init";
