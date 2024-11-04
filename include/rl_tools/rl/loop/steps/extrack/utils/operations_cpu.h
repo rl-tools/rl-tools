@@ -14,6 +14,7 @@ namespace rl_tools{
     namespace rl::loop::steps::extrack::utils{
         template <typename DUMMY = bool>
         std::string get_timestamp_string(){
+            // equivalent to date '+%Y-%m-%d_%H-%M-%S'
             auto now = std::chrono::system_clock::now();
             std::time_t now_c = std::chrono::system_clock::to_time_t(now);
             std::tm now_local;

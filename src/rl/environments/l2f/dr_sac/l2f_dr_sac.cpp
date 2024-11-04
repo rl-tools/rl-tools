@@ -172,7 +172,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
     };
-    static constexpr TI STEP_LIMIT = 2000000;
+    static constexpr TI STEP_LIMIT = 20000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
@@ -237,9 +237,9 @@ int main(int argc, char** argv){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
     LOOP_STATE ts;
-    ts.extrack_name = "zoo";
+    ts.extrack_name = "dr-sac";
     ts.extrack_population_variates = "algorithm_environment";
-    ts.extrack_population_values = "dr-sac_l2f";
+    ts.extrack_population_values = "sac_l2f";
     rlt::malloc(device);
     rlt::init(device);
     rlt::malloc(device, ts);
@@ -262,6 +262,9 @@ int main(int argc, char** argv){
     }
     std::filesystem::create_directories(ts.extrack_seed_path);
     std::ofstream return_file(ts.extrack_seed_path / "return.json");
+    return_file << "{";
+    return_file << "\"parameters\": " << parameters_json << ", ";
+    return_file << "\"evaluation\": ";
     return_file << "[";
     for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
         auto& result = get(ts.evaluation_results, 0, evaluation_i);
@@ -271,6 +274,7 @@ int main(int argc, char** argv){
         }
     }
     return_file << "]";
+    return_file << "}";
     std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
     return_file_confirmation.close();
 }

@@ -13,7 +13,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, rl::utils::evaluation::Result<SPEC>& result, typename DEVICE::index_t step = 0) {
         using TI = typename DEVICE::index_t;
-        std::string data = "[";
+        std::string data;
         data += "{";
         data += "\"step\": " + std::to_string(step) + ", ";
         data += "\"returns_mean\": " + std::to_string(result.returns_mean) + ", ";

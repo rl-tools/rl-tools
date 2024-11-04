@@ -12,6 +12,8 @@
 #include <ctime>
 #include <sstream>
 
+#include <cstdlib>
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
@@ -21,7 +23,13 @@ namespace rl_tools{
         if(ts.extrack_experiment_path.empty()){
             utils::assert_exit(device, !ts.extrack_base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
             if(ts.extrack_experiment.empty()){
-                ts.extrack_experiment = rl::loop::steps::extrack::utils::get_timestamp_string();
+
+                auto environment_extrack_experiment = std::getenv("RL_TOOLS_EXTRACK_EXPERIMENT");
+                if(environment_extrack_experiment != nullptr){
+                    ts.extrack_experiment = std::string(environment_extrack_experiment);
+                } else {
+                    ts.extrack_experiment = rl::loop::steps::extrack::utils::get_timestamp_string();
+                }
             }
             ts.extrack_experiment_path = ts.extrack_base_path / ts.extrack_experiment;
         }
