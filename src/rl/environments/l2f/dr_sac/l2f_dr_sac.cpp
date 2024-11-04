@@ -172,7 +172,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
     };
-    static constexpr TI STEP_LIMIT = 20000;
+    static constexpr TI STEP_LIMIT = 2000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
@@ -238,8 +238,8 @@ int main(int argc, char** argv){
     auto rng = rlt::random::default_engine(device.random, seed);
     LOOP_STATE ts;
     ts.extrack_name = "dr-sac";
-    ts.extrack_population_variates = "algorithm_environment";
-    ts.extrack_population_values = "sac_l2f";
+    ts.extrack_population_variates = "algorithm_environment_zero-init";
+    ts.extrack_population_values = "sac_l2f_" + std::string((non_zero_init ? "false" : "true"));
     rlt::malloc(device);
     rlt::init(device);
     rlt::malloc(device, ts);
@@ -253,7 +253,7 @@ int main(int argc, char** argv){
     rlt::sample_initial_parameters(device, env, env_parameters, rng);
     std::string parameters_json = rlt::json(device, env, env_parameters);
     rlt::compare_parameters(device, env_parameters_nominal, env_parameters);
-    if(non_zero_init) {
+    if(non_zero_init){
         env_parameters.mdp.init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
     }
     rlt::set_parameters(device, ts.off_policy_runner, env_parameters);
