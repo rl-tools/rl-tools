@@ -13,8 +13,11 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #ifdef RL_TOOLS_ENABLE_HDF5
+#include <rl_tools/containers/matrix/persist.h>
+#include <rl_tools/containers/tensor/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
+#include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn/layers/td3_sampling/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
@@ -22,8 +25,11 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #endif
 
+#include <rl_tools/containers/matrix/persist_code.h>
+#include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
+#include <rl_tools/nn/layers/gru/persist_code.h>
 #include <rl_tools/nn/layers/standardize/persist_code.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist_code.h>
 #include <rl_tools/nn/layers/td3_sampling/persist_code.h>
@@ -172,6 +178,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T GAMMA = 0.99;
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
+        // static constexpr TI SEQUENCE_LENGTH = 10;
     };
     static constexpr TI STEP_LIMIT = 10000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
@@ -195,7 +202,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = SAMPLE_ENV_PARAMETERS;
 };
 
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU>;
 
 constexpr TI NUM_CHECKPOINTS = 10;
 constexpr TI NUM_EVALUATIONS = 100;
