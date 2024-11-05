@@ -365,7 +365,14 @@ namespace rl_tools{
         multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
         copy(device, device, output_step, relevant_state);
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-            set(device, state.step, get(device, state.step, batch_i) + 1, batch_i);
+            TI new_step = get(device, state.step, batch_i) + 1;
+            if(new_step >= LAYER_SPEC::SEQUENCE_LENGTH){
+                new_step = 0;
+                auto row = view(device, relevant_state, batch_i);
+                copy(device, device, layer.initial_hidden_state.parameters, row);
+            }
+            set(device, state.step, new_step, batch_i);
+
         }
     }
 
