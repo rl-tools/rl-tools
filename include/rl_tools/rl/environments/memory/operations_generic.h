@@ -11,7 +11,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void free(DEVICE& device, const rl::environments::Memory<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters){ }
+    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, const rl::environments::Memory<SPEC>& env){ }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, RNG& rng){ }
     template<typename DEVICE, typename SPEC>
