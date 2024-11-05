@@ -94,7 +94,7 @@ namespace rl_tools{
             terminated[env_i] = false;
             auto& state = states[env_i];
             auto& current_parameters = parameters[env_i];
-            init(device, env, current_parameters);
+            init(device, env);
             if(deterministic) {
                 rl_tools::initial_parameters(device, env, current_parameters);
                 rl_tools::initial_state(device, env, current_parameters, state);

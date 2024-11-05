@@ -183,6 +183,7 @@ namespace rl_tools{
             auto& episode_stats = get(runner.episode_stats, 0, env_i);
             init(device, episode_stats);
             auto& env = get(runner.envs, 0, env_i);
+            init(device, env);
             auto& parameters = get(runner.env_parameters, 0, env_i);
             initial_parameters(device, env, parameters);
         }

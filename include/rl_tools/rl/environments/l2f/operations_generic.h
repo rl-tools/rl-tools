@@ -260,14 +260,22 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE&, rl::environments::Multirotor<SPEC>){ }
+    void malloc(DEVICE&, rl::environments::Multirotor<SPEC>& env){
+    }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE&, rl::environments::Multirotor<SPEC>){ }
+    void free(DEVICE&, rl::environments::Multirotor<SPEC>&){ }
     template<typename DEVICE, typename SPEC>
-    void init(DEVICE&, rl::environments::Multirotor<SPEC>, typename rl::environments::Multirotor<SPEC>::Parameters& parameters){ }
+    void init(DEVICE&, rl::environments::Multirotor<SPEC>& env){
+        env.parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
+    }
+//    template<typename DEVICE, typename SPEC>
+//    void init(DEVICE&, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters){
+//        env.parameters = parameters;
+//    }
     template<typename DEVICE, typename SPEC>
     static void initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters){
-        parameters = SPEC::PARAMETER_VALUES;
+        parameters = env.parameters;
+//        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     namespace rl::environments::l2f {
         template <typename T, typename DEVICE, typename RNG>

@@ -496,6 +496,7 @@ namespace rl_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
         static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !rl_tools::utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, l2f::observation::NONE<TI>>;
 //        using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
+        Parameters parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
