@@ -57,8 +57,8 @@ using T = float;
 constexpr TI BASE_SEED = 0;
 
 
-constexpr bool IDENT = true;
-constexpr bool ZERO_ANGLE_INIT = true;
+constexpr bool IDENT = false;
+constexpr bool ZERO_ANGLE_INIT = false;
 constexpr bool SAMPLE_ENV_PARAMETERS = IDENT || true;
 
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
@@ -230,17 +230,13 @@ int main(int argc, char** argv){
     if(argc > 1){
         arg_seed = std::stoi(argv[1]);
     }
-    bool non_zero_init = false;
-    if(argc > 2) {
-        non_zero_init = std::strcmp(argv[2], "true") == 0;
-    }
     TI seed = IDENT ? 11 : arg_seed;
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
     LOOP_STATE ts;
     ts.extrack_name = "dr-sac";
     ts.extrack_population_variates = "algorithm_environment_zero-init";
-    ts.extrack_population_values = "sac_l2f_" + std::string((non_zero_init ? "false" : "true"));
+    ts.extrack_population_values = "sac_l2f_" + std::string((ZERO_ANGLE_INIT ? "true" : "false"));
     rlt::malloc(device);
     rlt::init(device);
     rlt::malloc(device, ts);
@@ -249,16 +245,13 @@ int main(int argc, char** argv){
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
     std::string parameters_json;
-    if constexpr(SAMPLE_ENV_PARAMETERS) {
+    if constexpr(!SAMPLE_ENV_PARAMETERS) {
         LOOP_CONFIG::ENVIRONMENT env;
         LOOP_CONFIG::ENVIRONMENT::Parameters env_parameters, env_parameters_nominal;
         rlt::initial_parameters(device, env, env_parameters_nominal);
         rlt::sample_initial_parameters(device, env, env_parameters, rng);
         parameters_json = rlt::json(device, env, env_parameters);
         rlt::compare_parameters(device, env_parameters_nominal, env_parameters);
-        if(non_zero_init){
-            env_parameters.mdp.init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
-        }
         rlt::set_parameters(device, ts.off_policy_runner, env_parameters);
         ts.env_eval_parameters = env_parameters;
     }
@@ -267,7 +260,7 @@ int main(int argc, char** argv){
     std::filesystem::create_directories(ts.extrack_seed_path);
     std::ofstream return_file(ts.extrack_seed_path / "return.json");
     return_file << "{";
-    if constexpr(SAMPLE_ENV_PARAMETERS) {
+    if constexpr(!SAMPLE_ENV_PARAMETERS) {
         return_file << "\"parameters\": " << parameters_json << ", ";
     }
     return_file << "\"evaluation\": ";
