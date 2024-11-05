@@ -60,7 +60,7 @@ namespace rl_tools::rl::zoo::sac::acrobot_swingup_v0{
         struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{
 //            static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT_PARAMETERS::DT;
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
