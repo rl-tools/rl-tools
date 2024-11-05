@@ -63,9 +63,10 @@ using T = float;
 constexpr TI BASE_SEED = 0;
 
 
-constexpr bool IDENT = true;
+constexpr bool IDENT = false;
 constexpr bool ZERO_ANGLE_INIT = false;
 constexpr bool SAMPLE_ENV_PARAMETERS = IDENT || true;
+constexpr bool SEQUENTIAL = true;
 
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
@@ -167,8 +168,8 @@ using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
-        static constexpr TI ACTOR_BATCH_SIZE = 256;
-        static constexpr TI CRITIC_BATCH_SIZE = 256;
+        static constexpr TI ACTOR_BATCH_SIZE = 64;
+        static constexpr TI CRITIC_BATCH_SIZE = 64;
         static constexpr TI TRAINING_INTERVAL = 10;
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
         static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
@@ -178,15 +179,15 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T GAMMA = 0.99;
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
-        // static constexpr TI SEQUENCE_LENGTH = 10;
+        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 10 : 1;
     };
     static constexpr TI STEP_LIMIT = 10000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI ACTOR_HIDDEN_DIM = 32;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
-    static constexpr TI CRITIC_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_HIDDEN_DIM = 32;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
@@ -202,7 +203,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = SAMPLE_ENV_PARAMETERS;
 };
 
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU>;
+using LOOP_CORE_CONFIG_MLP = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU>;
+using LOOP_CORE_CONFIG_GRU = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU>;
+using LOOP_CORE_CONFIG = rlt::utils::typing::conditional_t<SEQUENTIAL, LOOP_CORE_CONFIG_GRU, LOOP_CORE_CONFIG_MLP>;
 
 constexpr TI NUM_CHECKPOINTS = 10;
 constexpr TI NUM_EVALUATIONS = 100;
