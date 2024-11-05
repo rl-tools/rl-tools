@@ -64,7 +64,7 @@ constexpr TI BASE_SEED = 0;
 
 
 constexpr bool IDENT = false;
-constexpr bool ZERO_ANGLE_INIT = false;
+constexpr bool ZERO_ANGLE_INIT = true;
 constexpr bool SAMPLE_ENV_PARAMETERS = IDENT || true;
 constexpr bool SEQUENTIAL = true;
 
@@ -136,7 +136,7 @@ static constexpr PARAMETERS_TYPE nominal_parameters = {
 namespace static_builder{
     using namespace rl_tools::rl::environments::l2f;
     struct ENVIRONMENT_STATIC_PARAMETERS{
-        static constexpr TI ACTION_HISTORY_LENGTH = 16;
+        static constexpr TI ACTION_HISTORY_LENGTH = SEQUENTIAL ? 1 : 16;
         static constexpr TI CLOSED_FORM = false;
         using STATE_BASE = StateBase<T, TI>;
         using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
@@ -168,8 +168,8 @@ using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
-        static constexpr TI ACTOR_BATCH_SIZE = 64;
-        static constexpr TI CRITIC_BATCH_SIZE = 64;
+        static constexpr TI ACTOR_BATCH_SIZE = 32;
+        static constexpr TI CRITIC_BATCH_SIZE = 32;
         static constexpr TI TRAINING_INTERVAL = 10;
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
         static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
@@ -179,7 +179,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T GAMMA = 0.99;
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
-        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 10 : 1;
+        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 8 : 1;
     };
     static constexpr TI STEP_LIMIT = 10000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
@@ -192,10 +192,10 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
     struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr T ALPHA = 0.0001;
+        static constexpr T ALPHA = 1e-4;
     };
     struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr T ALPHA = 0.0001;
+        static constexpr T ALPHA = 1e-3;
     };
     struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
         static constexpr T ALPHA = 0.001;
@@ -266,6 +266,9 @@ int main(int argc, char** argv){
         ts.env_eval_parameters = env_parameters;
     }
     while(!rlt::step(device, ts)){
+        if(ts.step == 1000000){
+
+        }
     }
     std::filesystem::create_directories(ts.extrack_seed_path);
     std::ofstream return_file(ts.extrack_seed_path / "return.json");
