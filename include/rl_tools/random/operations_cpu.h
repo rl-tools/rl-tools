@@ -13,7 +13,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
     auto default_engine(const devices::random::CPU& dev, devices::random::CPU::index_t seed = 0){
-        using RANDOM_ENGINE = std::mt19937;
+        // using RANDOM_ENGINE = std::mt19937;
+        using RANDOM_ENGINE = std::default_random_engine;
         return RANDOM_ENGINE(static_cast<RANDOM_ENGINE::result_type>(seed+1));
     };
 

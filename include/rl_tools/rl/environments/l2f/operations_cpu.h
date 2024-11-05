@@ -450,7 +450,7 @@ export async function episode_init(ui_state, parameters){
     const camera_distance = (parameters.ui ? parameters.ui.camera_distance || 1 : 1)
     const scale = parameters.mass/0.1 * camera_distance
     if(!ui_state.camera_set){
-      ui_state.camera.position.set(3.3 * scale, 1.4 * scale, 0.00)
+      ui_state.camera.position.set(3.3 * 0.027, 1.4 * 0.027, 0.00)
       ui_state.camera_set = true
     }
     if(ui_state.drone){

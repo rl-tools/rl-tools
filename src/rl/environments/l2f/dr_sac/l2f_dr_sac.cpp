@@ -57,8 +57,9 @@ using T = float;
 constexpr TI BASE_SEED = 0;
 
 
-constexpr bool IDENT = false;
+constexpr bool IDENT = true;
 constexpr bool ZERO_ANGLE_INIT = true;
+constexpr bool SAMPLE_ENV_PARAMETERS = IDENT || true;
 
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
@@ -172,7 +173,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
     };
-    static constexpr TI STEP_LIMIT = 2000000;
+    static constexpr TI STEP_LIMIT = 10000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
@@ -191,7 +192,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
         static constexpr T ALPHA = 0.001;
     };
-    static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = IDENT;
+    static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = SAMPLE_ENV_PARAMETERS;
 };
 
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
@@ -235,7 +236,7 @@ int main(int argc, char** argv){
     }
     TI seed = IDENT ? 11 : arg_seed;
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, seed+1);
+    auto rng = rlt::random::default_engine(device.random, seed);
     LOOP_STATE ts;
     ts.extrack_name = "dr-sac";
     ts.extrack_population_variates = "algorithm_environment_zero-init";
@@ -247,23 +248,28 @@ int main(int argc, char** argv){
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
-    LOOP_CONFIG::ENVIRONMENT env;
-    LOOP_CONFIG::ENVIRONMENT::Parameters env_parameters, env_parameters_nominal;
-    rlt::initial_parameters(device, env, env_parameters_nominal);
-    rlt::sample_initial_parameters(device, env, env_parameters, rng);
-    std::string parameters_json = rlt::json(device, env, env_parameters);
-    rlt::compare_parameters(device, env_parameters_nominal, env_parameters);
-    if(non_zero_init){
-        env_parameters.mdp.init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+    std::string parameters_json;
+    if constexpr(SAMPLE_ENV_PARAMETERS) {
+        LOOP_CONFIG::ENVIRONMENT env;
+        LOOP_CONFIG::ENVIRONMENT::Parameters env_parameters, env_parameters_nominal;
+        rlt::initial_parameters(device, env, env_parameters_nominal);
+        rlt::sample_initial_parameters(device, env, env_parameters, rng);
+        parameters_json = rlt::json(device, env, env_parameters);
+        rlt::compare_parameters(device, env_parameters_nominal, env_parameters);
+        if(non_zero_init){
+            env_parameters.mdp.init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+        }
+        rlt::set_parameters(device, ts.off_policy_runner, env_parameters);
+        ts.env_eval_parameters = env_parameters;
     }
-    rlt::set_parameters(device, ts.off_policy_runner, env_parameters);
-    ts.env_eval_parameters = env_parameters;
     while(!rlt::step(device, ts)){
     }
     std::filesystem::create_directories(ts.extrack_seed_path);
     std::ofstream return_file(ts.extrack_seed_path / "return.json");
     return_file << "{";
-    return_file << "\"parameters\": " << parameters_json << ", ";
+    if constexpr(SAMPLE_ENV_PARAMETERS) {
+        return_file << "\"parameters\": " << parameters_json << ", ";
+    }
     return_file << "\"evaluation\": ";
     return_file << "[";
     for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
