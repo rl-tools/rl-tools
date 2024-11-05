@@ -93,7 +93,7 @@ auto run(TI seed, bool verbose){
     rlt::malloc(device, evaluation_actor);
     rlt::malloc(device, evaluation_buffer);
     rlt::copy(device, device, actor, evaluation_actor);
-    evaluate(device, ts.envs[0], ts.ui, evaluation_actor, result, evaluation_buffer, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{}, false);
+    evaluate(device, ts.envs[0], ts.env_parameters[0], ts.ui, evaluation_actor, result, evaluation_buffer, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{}, false);
     rlt::free(device, evaluation_actor);
     rlt::free(device, evaluation_buffer);
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);

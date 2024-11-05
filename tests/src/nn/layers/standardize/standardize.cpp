@@ -34,7 +34,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
 
 TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     constexpr TI DIM = 10;
-    constexpr TI BATCH_SIZE = 100000;
+    constexpr TI BATCH_SIZE = 1000000;
     using CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, DIM>;
     using CAPABILITY = rlt::nn::capability::Forward<>;

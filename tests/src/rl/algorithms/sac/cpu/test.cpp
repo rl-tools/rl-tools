@@ -17,7 +17,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING){
     while(!rlt::step(device, ts)){
         if(ts.step % 1000 == 0){
             rlt::rl::utils::evaluation::Result<typename decltype(ts)::CONFIG::EVALUATION_RESULT_SPEC> result;
-            rlt::evaluate(device, ts.env_eval, ts.ui, rlt::get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, ts.evaluation_mode);
+            rlt::evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, rlt::get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, ts.evaluation_mode);
             evaluation_returns.push_back(result.returns_mean);
             std::sort(evaluation_returns.begin(), evaluation_returns.end());
             std::cout << "perc60: " << evaluation_returns[evaluation_returns.size()*0.6] << std::endl;

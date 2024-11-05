@@ -45,6 +45,7 @@ using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 typedef rlt::rl::environments::pendulum::UI<T> UI;
 #endif
 ENVIRONMENT env;
+ENVIRONMENT::Parameters env_parameters;
 
 using AC_DEVICE = rlt::devices::DefaultCPU;
 
@@ -112,7 +113,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     rlt::load(device, actor_critic.actor.content, step_group.getGroup("actor"));
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 100, 200>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-    rlt::evaluate(device, env, ui, actor_critic.actor, result, eval_buffers, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+    rlt::evaluate(device, env, env_parameters, ui, actor_critic.actor, result, eval_buffers, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
     std::cout << "mean return: " << result.returns_mean << std::endl;
 }
 
@@ -552,7 +553,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             }
             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 100, 200>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device, env, ui, actor_critic.actor, result, actor_eval_buffers, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+            rlt::evaluate(device, env, env_parameters, ui, actor_critic.actor, result, actor_eval_buffers, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
 #ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
             plot_policy_and_value_function<T, ENVIRONMENT, ActorCriticType::ACTOR_TYPE, ActorCriticType::CRITIC_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
 #endif
