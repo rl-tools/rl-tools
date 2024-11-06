@@ -109,7 +109,7 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = {
     termination
 };
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-    IDENT ? 0 : 3.5, // thrust_to_weight_min;
+    IDENT ? 0 : 2.5, // thrust_to_weight_min;
     IDENT ? 0 : 5, // thrust_to_weight_max;
     IDENT ? 0 : 0.0026034812863058926, // thrust_to_weight_by_torque_to_inertia_min;
     IDENT ? 0 : 0.00586570698345237, // thrust_to_weight_by_torque_to_inertia_max;
@@ -184,10 +184,10 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI STEP_LIMIT = 10000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
-    static constexpr TI ACTOR_HIDDEN_DIM = 32;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
-    static constexpr TI CRITIC_HIDDEN_DIM = 32;
+    static constexpr TI CRITIC_HIDDEN_DIM = 64;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
