@@ -272,10 +272,10 @@ int main(int argc, char** argv){
             set_max_angle = true;
             max_angle = 22.5/180.0*rlt::math::PI<T>;
         }
-//        if(ts.step == 2000000){
-//            set_max_angle = true;
-//            max_angle = 45.0/180.0*rlt::math::PI<T>;
-//        }
+        if(ts.step == 2000000){
+            set_max_angle = true;
+            max_angle = 45.0/180.0*rlt::math::PI<T>;
+        }
 //        if(ts.step == 3000000){
 //            set_max_angle = true;
 //            max_angle = 90.0/180.0*rlt::math::PI<T>;
