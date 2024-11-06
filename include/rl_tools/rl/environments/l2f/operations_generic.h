@@ -348,7 +348,10 @@ namespace rl_tools{
         if(parameters.domain_randomization.mass_size_deviation != 0) {
             T size_factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.mass_size_deviation, rng);
             rotor_distance_factor = scale_relative * size_factor;
-            parameters.mdp.termination.position_threshold *= size_factor;
+            parameters.mdp.termination.position_threshold *= size_factor * size_factor;
+            if(parameters.mdp.termination.position_threshold < parameters.mdp.init.max_position * 2){
+                parameters.mdp.termination.position_threshold = parameters.mdp.init.max_position * 2;
+            }
         }
         T inertia_factor = torque_to_inertia_factor/rotor_distance_factor;
 

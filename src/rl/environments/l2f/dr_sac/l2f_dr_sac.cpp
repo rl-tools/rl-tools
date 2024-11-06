@@ -66,7 +66,7 @@ constexpr TI BASE_SEED = 0;
 constexpr bool IDENT = false;
 constexpr bool ZERO_ANGLE_INIT = true;
 constexpr bool SAMPLE_ENV_PARAMETERS = IDENT || true;
-constexpr bool SEQUENTIAL = true;
+constexpr bool SEQUENTIAL = false;
 
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
@@ -272,14 +272,14 @@ int main(int argc, char** argv){
             set_max_angle = true;
             max_angle = 22.5/180.0*rlt::math::PI<T>;
         }
-        if(ts.step == 2000000){
-            set_max_angle = true;
-            max_angle = 45.0/180.0*rlt::math::PI<T>;
-        }
-        if(ts.step == 3000000){
-            set_max_angle = true;
-            max_angle = 90.0/180.0*rlt::math::PI<T>;
-        }
+//        if(ts.step == 2000000){
+//            set_max_angle = true;
+//            max_angle = 45.0/180.0*rlt::math::PI<T>;
+//        }
+//        if(ts.step == 3000000){
+//            set_max_angle = true;
+//            max_angle = 90.0/180.0*rlt::math::PI<T>;
+//        }
         if(set_max_angle){
             for(TI env_i=0; env_i < decltype(ts.off_policy_runner)::N_ENVIRONMENTS; env_i++){
                 auto& env = get(ts.off_policy_runner.envs, 0, env_i);
