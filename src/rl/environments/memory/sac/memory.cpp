@@ -47,9 +47,6 @@
 
 namespace rlt = rl_tools;
 
-#include "approximators.h"
-
-
 #ifdef MUX
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 #else

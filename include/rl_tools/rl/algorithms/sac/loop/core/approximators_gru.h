@@ -33,12 +33,13 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
             using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
             using SAMPLE_AND_SQUASH_MODULE = Module<SAMPLE_AND_SQUASH_LAYER>;
-            using MODULE_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>>>;
             using MODULE_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>;
+            using MODULE_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>>;
+            using MODULE_GRU_THREE_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>>>;
             using INPUT_SHAPE = tensor::Shape<TI, SAC_PARAMETERS::SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-            using MODEL_GRU = nn_models::sequential::Build<CAPABILITY, MODULE_GRU, INPUT_SHAPE>;
-    //        using MODEL = MODEL_GRU_TWO_LAYER;
-            using MODEL = MODEL_GRU;
+            static_assert(PARAMETERS::CRITIC_NUM_LAYERS == 2 || PARAMETERS::CRITIC_NUM_LAYERS == 3 || PARAMETERS::CRITIC_NUM_LAYERS == 4, "Only 2/3/4 layers (1/2 GRU + 1/2 Output) are supported right now");
+            using SELECTED_MODULE = utils::typing::conditional_t<PARAMETERS::CRITIC_NUM_LAYERS == 2, MODULE_GRU, utils::typing::conditional_t<PARAMETERS::CRITIC_NUM_LAYERS == 3, MODULE_GRU_TWO_LAYER, MODULE_GRU_THREE_LAYER>>;
+            using MODEL = nn_models::sequential::Build<CAPABILITY, SELECTED_MODULE, INPUT_SHAPE>;
         };
         template <typename CAPABILITY>
         struct Critic{
@@ -53,12 +54,13 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             using OUTPUT_LAYER_TEMPLATE = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
             using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-            using MODEL_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>>>;
-            using INPUT_SHAPE = tensor::Shape<TI, SAC_PARAMETERS::SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
             using MODULE_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>;
-            using MODEL_GRU = nn_models::sequential::Build<CAPABILITY, MODULE_GRU, INPUT_SHAPE>;
-    //        using MODEL = MODEL_GRU_TWO_LAYER;
-            using MODEL = MODEL_GRU;
+            using MODULE_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>>;
+            using MODULE_GRU_THREE_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>>>;
+            using INPUT_SHAPE = tensor::Shape<TI, SAC_PARAMETERS::SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
+            static_assert(PARAMETERS::CRITIC_NUM_LAYERS == 2 || PARAMETERS::CRITIC_NUM_LAYERS == 3 || PARAMETERS::CRITIC_NUM_LAYERS == 4, "Only 2/3/4 layers (1/2 GRU + 1/2 Output) are supported right now");
+            using SELECTED_MODULE = utils::typing::conditional_t<PARAMETERS::CRITIC_NUM_LAYERS == 2, MODULE_GRU, utils::typing::conditional_t<PARAMETERS::CRITIC_NUM_LAYERS == 3, MODULE_GRU_TWO_LAYER, MODULE_GRU_THREE_LAYER>>;
+            using MODEL = nn_models::sequential::Build<CAPABILITY, SELECTED_MODULE, INPUT_SHAPE>;
         };
 
         using CAPABILITY_ACTOR = nn::capability::Gradient<nn::parameters::Adam>;
