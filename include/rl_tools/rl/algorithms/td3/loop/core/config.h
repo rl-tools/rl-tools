@@ -11,6 +11,7 @@
 #include "../../../../../nn/optimizers/adam/adam.h"
 #include "state.h"
 #include "approximators_mlp.h"
+#include "approximators_gru.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3::loop::core{
