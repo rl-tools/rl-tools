@@ -868,6 +868,17 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true>> out{m._data};
         return out;
     }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T squared_sum(DEVICE& device, const Matrix<SPEC>& m){
+        typename SPEC::T acc = 0;
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+                auto val = get(m, row_i, col_i);
+                acc += val * val;
+            }
+        }
+        return acc;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

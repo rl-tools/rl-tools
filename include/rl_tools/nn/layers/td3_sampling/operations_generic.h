@@ -258,6 +258,10 @@ namespace rl_tools{
         }
         return upstream_nan || is_nan(device, l.log_probabilities, mode) || is_nan(device, l.output, mode);
     }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T gradient_norm(DEVICE& device, const nn::layers::td3_sampling::LayerGradient<SPEC>& layer) {
+        return 0;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

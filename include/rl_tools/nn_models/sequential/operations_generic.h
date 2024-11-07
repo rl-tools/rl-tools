@@ -475,6 +475,18 @@ namespace rl_tools{
             print(device, model.next_module, layer_i + 1);
         }
     }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T gradient_norm(DEVICE& device, const nn_models::sequential::ModuleForward<SPEC>& model, bool initial = true){
+        using T = typename SPEC::T;
+        T return_value = gradient_norm(device, model.content);
+        if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>) {
+            return_value += gradient_norm(device, model.next_module, false);
+        }
+        if(initial) {
+            return_value = math::sqrt(device.math, return_value);
+        }
+        return return_value;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

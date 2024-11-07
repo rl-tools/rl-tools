@@ -1125,3 +1125,31 @@ TEST(RL_TOOLS_TENSOR_TEST, SHAPE_GETTER){
         ASSERT_EQ(SHAPE::LENGTH, 3);
     }
 }
+
+TEST(RL_TOOLS_TENSOR_TEST, SQUARED_SUM){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    using SHAPE = rlt::tensor::Shape<TI, 10, 5, 3>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, false>> tensor;
+    rlt::randn(device, tensor, rng);
+    T squared_sum = rlt::squared_sum(device, tensor);
+    T manual = 0;
+    for(TI i=0; i < 10; i++){
+        for(TI j=0; j < 5; j++){
+            for(TI k=0; k < 3; k++){
+                manual += rlt::get(device, tensor, i, j, k) * rlt::get(device, tensor, i, j, k);
+            }
+        }
+    }
+    std::cout << "Squared sum: " << squared_sum << std::endl;
+    std::cout << "Manual: " << manual << std::endl;
+    ASSERT_EQ(squared_sum, manual);
+
+    auto matrix_view = rlt::matrix_view(device, tensor);
+    T squared_sum_matrix = rlt::squared_sum(device, matrix_view);
+    std::cout << "Squared sum matrix: " << squared_sum_matrix << std::endl;
+    ASSERT_EQ(squared_sum_matrix, squared_sum);
+}

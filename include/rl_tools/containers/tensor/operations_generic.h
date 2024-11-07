@@ -372,6 +372,10 @@ namespace rl_tools{
                 ACCUMULATOR_TYPE sum(DEVICE, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
                     return accumulator + current;
                 }
+                template <typename DEVICE, typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE>
+                ACCUMULATOR_TYPE squared_sum(DEVICE, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
+                    return accumulator + current * current;
+                }
                 template <typename DEVICE, typename PARAMETER, typename CURRENT_TYPE>
                 CURRENT_TYPE sum_reduce(DEVICE, const PARAMETER& parameter, CURRENT_TYPE a, CURRENT_TYPE b){
                     return a + b;
@@ -391,6 +395,8 @@ namespace rl_tools{
             }
             template <typename DEVICE, typename T>
             using Sum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::sum<DEVICE, OperationEmptyParameter, T, T>>;
+            template <typename DEVICE, typename T>
+            using SquaredSum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::squared_sum<DEVICE, OperationEmptyParameter, T, T>>;
             template <typename TARGET_TYPE, typename DEVICE, typename T>
             using CastSum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::sum<DEVICE, OperationEmptyParameter, TARGET_TYPE, TARGET_TYPE>>;
             template <typename DEVICE, typename T>
@@ -622,6 +628,13 @@ namespace rl_tools{
     typename SPEC::T sum(DEVICE& device, Tensor<SPEC>& t){
         static_assert(!utils::typing::is_same_v<typename SPEC::T, bool>, "Sum would work like or for boolean tensors");
         tensor::unary_reduce_operations::Sum<decltype(device.math), typename SPEC::T> op;
+        op.initial_value = 0;
+        return unary_associative_reduce(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T squared_sum(DEVICE& device, const Tensor<SPEC>& t){
+        static_assert(!utils::typing::is_same_v<typename SPEC::T, bool>, "Sum would work like or for boolean tensors");
+        tensor::unary_reduce_operations::SquaredSum<decltype(device.math), typename SPEC::T> op;
         op.initial_value = 0;
         return unary_associative_reduce(device, op, t);
     }

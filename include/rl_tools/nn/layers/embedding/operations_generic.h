@@ -202,6 +202,10 @@ namespace rl_tools{
         auto tensor = view_memory<typename SPEC::OUTPUT_SHAPE>(device, tensor_flat);
         return tensor;
     }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T gradient_norm(DEVICE& device, const nn::layers::embedding::LayerGradient<SPEC>& layer) {
+        return gradient_norm(device, layer.weights);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

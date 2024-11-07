@@ -70,6 +70,10 @@ namespace rl_tools{
         }
         return upstream_nan || is_nan(device, p.gradient, mode);
     }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::CONTAINER::T gradient_norm(DEVICE& device, const nn::parameters::Gradient::instance<SPEC>& parameter){
+        return squared_sum(device, parameter.gradient);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
