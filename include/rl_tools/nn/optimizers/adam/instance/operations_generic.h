@@ -22,10 +22,11 @@ namespace rl_tools{
         free(device, p.gradient_first_order_moment);
         free(device, p.gradient_second_order_moment);
     }
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void update(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer) {
-        utils::polyak::update(device, parameter.gradient, parameter.gradient_first_order_moment, optimizer.parameters.beta_1);
-        utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, optimizer.parameters.beta_2);
+    template<typename DEVICE, typename SPEC, typename ADAM_SPEC>
+    void update(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<ADAM_SPEC>& optimizer) {
+        using PARAMETERS = typename ADAM_SPEC::DEFAULT_PARAMETERS;
+        utils::polyak::update(device, parameter.gradient, parameter.gradient_first_order_moment, optimizer.parameters.beta_1, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
+        utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, optimizer.parameters.beta_2, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
         gradient_descent(device, parameter, optimizer);
     }
 

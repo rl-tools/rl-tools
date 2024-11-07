@@ -179,7 +179,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T GAMMA = 0.99;
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
-        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 1 : 1;
+        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 20 : 1;
     };
     static constexpr TI STEP_LIMIT = 20000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
@@ -191,14 +191,18 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
-    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
+    struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
+        static constexpr bool ENABLE_GRADIENT_CLIPPING = true;
+        static constexpr T GRADIENT_CLIP_VALUE = 1;
+    };
+    struct ACTOR_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
         static constexpr T ALPHA = 1e-4;
     };
-    struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr T ALPHA = 1e-3;
+    struct CRITIC_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
+        static constexpr T ALPHA = 1e-4;
     };
-    struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr T ALPHA = 0.001;
+    struct ALPHA_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
+        static constexpr T ALPHA = 1e-4;
     };
     static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = SAMPLE_ENV_PARAMETERS;
 };
@@ -266,6 +270,7 @@ int main(int argc, char** argv){
         ts.env_eval_parameters = env_parameters;
     }
     while(!rlt::step(device, ts)){
+
         bool set_max_angle = false;
         T max_angle = 0;
         // if(ts.step == 1000000){
@@ -286,6 +291,9 @@ int main(int argc, char** argv){
                 env.parameters.mdp.init.max_angle = max_angle;
             }
             ts.env_eval.parameters.mdp.init.max_angle = max_angle;
+        }
+        if(ts.step >= 2515000) {
+            break;
         }
     }
     std::filesystem::create_directories(ts.extrack_seed_path);

@@ -36,6 +36,8 @@ namespace rl_tools::nn::optimizers{
             static constexpr T WEIGHT_DECAY_OUTPUT = 0;
             static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
             static constexpr T BIAS_LR_FACTOR = 1;
+            static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
+            static constexpr T GRADIENT_CLIP_VALUE = 1;
         };
         template <typename T>
         struct DEFAULT_PARAMETERS_PYTORCH: DEFAULT_PARAMETERS_TENSORFLOW<T>{
