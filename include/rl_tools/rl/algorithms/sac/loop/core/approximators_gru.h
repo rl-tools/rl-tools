@@ -13,13 +13,13 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         struct Actor{
             using INPUT_SHAPE = tensor::Shape<TI, SAC_PARAMETERS::SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
             using GRU_SPEC = nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, nn::parameters::groups::Normal, true>;
-            using GRU_TEMPLATE = nn::layers::gru::BindConfiguration<GRU_SPEC>;
+            using GRU = nn::layers::gru::BindConfiguration<GRU_SPEC>;
             using GRU2_SPEC = nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, nn::parameters::groups::Normal, true>;
-            using GRU2_TEMPLATE = nn::layers::gru::BindConfiguration<GRU2_SPEC>;
+            using GRU2 = nn::layers::gru::BindConfiguration<GRU2_SPEC>;
             using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Normal>;
-            using DENSE_LAYER_TEMPLATE = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
+            using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
             using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, 2*ENVIRONMENT::ACTION_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Normal>;
-            using OUTPUT_LAYER_TEMPLATE = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
+            using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
             struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
                 static constexpr T LOG_STD_LOWER_BOUND = SAC_PARAMETERS::LOG_STD_LOWER_BOUND;
                 static constexpr T LOG_STD_UPPER_BOUND = SAC_PARAMETERS::LOG_STD_UPPER_BOUND;
@@ -34,9 +34,9 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
             using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
             using SAMPLE_AND_SQUASH_MODULE = Module<SAMPLE_AND_SQUASH_LAYER>;
-            using MODULE_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>;
-            using MODULE_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>>;
-            using MODULE_GRU_THREE_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE, SAMPLE_AND_SQUASH_MODULE>>>>;
+            using MODULE_GRU = Module<GRU, Module<OUTPUT_LAYER, SAMPLE_AND_SQUASH_MODULE>>;
+            using MODULE_GRU_TWO_LAYER = Module<GRU, Module<GRU2, Module<OUTPUT_LAYER, SAMPLE_AND_SQUASH_MODULE>>>;
+            using MODULE_GRU_THREE_LAYER = Module<GRU, Module<GRU2, Module<DENSE_LAYER, Module<OUTPUT_LAYER, SAMPLE_AND_SQUASH_MODULE>>>>;
             using SELECTED_MODULE = rl_tools::utils::typing::conditional_t<PARAMETERS::CRITIC_NUM_LAYERS == 2, MODULE_GRU, rl_tools::utils::typing::conditional_t<PARAMETERS::CRITIC_NUM_LAYERS == 3, MODULE_GRU_TWO_LAYER, MODULE_GRU_THREE_LAYER>>;
             static_assert(PARAMETERS::CRITIC_NUM_LAYERS == 2 || PARAMETERS::CRITIC_NUM_LAYERS == 3 || PARAMETERS::CRITIC_NUM_LAYERS == 4, "Only 2/3/4 layers (1/2 GRU + 1/2 Output) are supported right now");
             using MODEL = nn_models::sequential::Build<CAPABILITY, SELECTED_MODULE, INPUT_SHAPE>;
@@ -46,18 +46,18 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
             using INPUT_SHAPE = tensor::Shape<TI, SAC_PARAMETERS::SEQUENCE_LENGTH, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
             using GRU_SPEC = nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, nn::parameters::groups::Normal, true>;
-            using GRU_TEMPLATE = nn::layers::gru::BindConfiguration<GRU_SPEC>;
+            using GRU = nn::layers::gru::BindConfiguration<GRU_SPEC>;
             using GRU2_SPEC = nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, nn::parameters::groups::Normal, true>;
-            using GRU2_TEMPLATE = nn::layers::gru::BindConfiguration<GRU2_SPEC>;
+            using GRU2 = nn::layers::gru::BindConfiguration<GRU2_SPEC>;
             using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Normal>;
-            using DENSE_LAYER_TEMPLATE = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
+            using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
             using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Normal>;
-            using OUTPUT_LAYER_TEMPLATE = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
+            using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
             using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-            using MODULE_GRU = Module<GRU_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>;
-            using MODULE_GRU_TWO_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>>;
-            using MODULE_GRU_THREE_LAYER = Module<GRU_TEMPLATE, Module<GRU2_TEMPLATE, Module<DENSE_LAYER_TEMPLATE, Module<OUTPUT_LAYER_TEMPLATE>>>>;
+            using MODULE_GRU = Module<GRU, Module<OUTPUT_LAYER>>;
+            using MODULE_GRU_TWO_LAYER = Module<GRU, Module<GRU2, Module<OUTPUT_LAYER>>>;
+            using MODULE_GRU_THREE_LAYER = Module<GRU, Module<GRU2, Module<DENSE_LAYER, Module<OUTPUT_LAYER>>>>;
             using SELECTED_MODULE = rl_tools::utils::typing::conditional_t<PARAMETERS::CRITIC_NUM_LAYERS == 2, MODULE_GRU, rl_tools::utils::typing::conditional_t<PARAMETERS::CRITIC_NUM_LAYERS == 3, MODULE_GRU_TWO_LAYER, MODULE_GRU_THREE_LAYER>>;
             static_assert(PARAMETERS::CRITIC_NUM_LAYERS == 2 || PARAMETERS::CRITIC_NUM_LAYERS == 3 || PARAMETERS::CRITIC_NUM_LAYERS == 4, "Only 2/3/4 layers (1/2 GRU + 1/2 Output) are supported right now");
             using MODEL = nn_models::sequential::Build<CAPABILITY, SELECTED_MODULE, INPUT_SHAPE>;
