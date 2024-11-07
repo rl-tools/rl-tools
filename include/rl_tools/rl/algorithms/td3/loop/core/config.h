@@ -10,6 +10,7 @@
 #include "../../../../../rl/algorithms/td3/td3.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
 #include "state.h"
+#include "approximators_mlp.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3::loop::core{
@@ -40,56 +41,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
     };
 
-    // The approximator config sets up any types that support the usual rl_tools::forward and rl_tools::backward operations (can be custom as well)
-    // We provide approximators based on the sequential and mlp models. The latter (mlp) allows for a variable number of layers, but is restricted to a uniform hidden layer size while the former allows for arbitrary layers to be combined in a sequential manner. Both support compile-time autodiff
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
-    struct ConfigApproximatorsSequential{
-        using TD3_PARAMETERS = typename PARAMETERS::TD3_PARAMETERS;
-        template <typename CAPABILITY>
-        struct ACTOR{
-            using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-            using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction::TANH>;
-            using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
-            struct SAMPLING_PARAMETERS: nn::layers::td3_sampling::DefaultParameters<T>{
-                static constexpr T STD = PARAMETERS::EXPLORATION_NOISE;
-            };
-            using SAMPLING_CONFIG = nn::layers::td3_sampling::Configuration<T, TI, SAMPLING_PARAMETERS>;
-            using SAMPLING = nn::layers::td3_sampling::BindConfiguration<SAMPLING_CONFIG>;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-
-            using MODULE_CHAIN = Module<MLP, Module<SAMPLING>>;
-            using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
-        };
-
-        template <typename CAPABILITY>
-        struct CRITIC{
-            static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
-            static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
-
-            using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM + ENVIRONMENT::ACTION_DIM>;
-            using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction::IDENTITY>;
-            using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
-
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-
-            using MODULE_CHAIN = Module<MLP>;
-            using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
-        };
-
-        using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-
-        using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
-
-        using ACTOR_TYPE = typename ACTOR<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
-        using ACTOR_TARGET_TYPE = typename ACTOR<nn::capability::Forward<>>::MODEL;
-        using CRITIC_TYPE = typename CRITIC<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
-        using CRITIC_TARGET_TYPE = typename CRITIC<nn::capability::Forward<>>::MODEL;
-    };
-
-    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, bool T_DYNAMIC_ALLOCATION=true>
+    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP, bool T_DYNAMIC_ALLOCATION=true>
     struct Config{
         using T = T_T;
         using TI = T_TI;

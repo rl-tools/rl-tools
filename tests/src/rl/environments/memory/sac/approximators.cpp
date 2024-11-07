@@ -18,7 +18,7 @@
 
 namespace rlt = rl_tools;
 
-#include "../../../../../../src/rl/environments/memory/sac/approximators.h"
+#include <rl_tools/rl/algorithms/sac/loop/core/approximators_mlp.h>
 
 #include <gtest/gtest.h>
 
@@ -40,9 +40,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI CRITIC_BATCH_SIZE = BATCH_SIZE;
     };
     static constexpr TI STEP_LIMIT = 10000;
-    static constexpr TI ACTOR_NUM_LAYERS = 3;
+    static constexpr TI ACTOR_NUM_LAYERS = 2;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
-    static constexpr TI CRITIC_NUM_LAYERS = 3;
+    static constexpr TI CRITIC_NUM_LAYERS = 2;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
 };
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
@@ -51,7 +51,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     TI seed = 0;
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
-    using APPROXIMATORS = ConfigApproximatorsSequential<T, TI, SEQUENCE_LENGTH, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+    using APPROXIMATORS = rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
     using CRITIC = APPROXIMATORS::Critic<CAPABILITY>::MODEL;

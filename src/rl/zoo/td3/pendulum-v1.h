@@ -19,7 +19,7 @@ namespace rl_tools::rl::zoo::td3::pendulum_v1{
             static constexpr TI CRITIC_NUM_LAYERS = 3;
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsSequential>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

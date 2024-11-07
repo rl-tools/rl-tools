@@ -15,8 +15,8 @@ namespace rl_tools{
         free(device, env.env);
     }
     template<typename DEVICE, typename ENVIRONMENT>
-    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters){
-        malloc(device, env.env);
+    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, rl::environment_wrappers::Wrapper<ENVIRONMENT>& env){
+        init(device, env.env);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters, RNG& rng){

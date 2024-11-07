@@ -35,7 +35,7 @@ namespace rl_tools{
     void init(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-        init(device, ts.env_eval);
+        init(device);
         init(device, ts.env_eval, ts.env_eval_parameters, ts.ui);
         initial_parameters(device, ts.env_eval, ts.env_eval_parameters);
         ts.rng_eval = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);

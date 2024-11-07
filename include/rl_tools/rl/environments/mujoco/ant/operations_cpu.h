@@ -47,7 +47,7 @@ namespace rl_tools{
         mj_deleteModel(env.model);
     }
     template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters){ }
+    void init(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env){ }
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE&, rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters){
         return "{}";
