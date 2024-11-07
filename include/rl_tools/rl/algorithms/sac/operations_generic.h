@@ -265,6 +265,8 @@ namespace rl_tools{
             mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
         {
+            T output_matrix_value = get(output_matrix_view, 0, 0);
+            add_scalar(device, device.logger, "critic_value", output_matrix_value);
             if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
                 // for the loss and average value calculation
                 auto output_temp = output(device, critic);
@@ -272,10 +274,11 @@ namespace rl_tools{
                 mask_gradient(device, training_buffers.target_action_value, batch.final_step_mask, true);
             }
             T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, loss_weight);
-            add_scalar(device, device.logger, "critic_loss", loss, 1000);
-            add_scalar(device, device.logger, "critic_value", get(output_matrix_view, 0, 0), 1000);
+            add_scalar(device, device.logger, "critic_loss", loss);
         }
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
+        T critic_gradient_norm = gradient_norm(device, critic);
+        add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm);
         step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename TRAINING_BUFFERS_SPEC, typename RNG>
