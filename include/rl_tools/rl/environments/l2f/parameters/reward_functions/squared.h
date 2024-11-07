@@ -36,7 +36,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         };
     };
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename rl::environments::l2f::parameters::reward_functions::Squared<T>::Components reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT typename rl::environments::l2f::parameters::reward_functions::Squared<T>::Components reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& reward_parameters, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         typename rl::environments::l2f::parameters::reward_functions::Squared<T>::Components components;
@@ -59,24 +59,23 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         }
         components.action_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         components.action_cost *= components.action_cost;
-        components.weighted_cost = params.position * components.position_cost + params.orientation * components.orientation_cost + params.linear_velocity * components.linear_vel_cost + params.angular_velocity * components.angular_vel_cost + params.linear_acceleration * components.linear_acc_cost + params.angular_acceleration * components.angular_acc_cost + params.action * components.action_cost;
+        components.weighted_cost = reward_parameters.position * components.position_cost + reward_parameters.orientation * components.orientation_cost + reward_parameters.linear_velocity * components.linear_vel_cost + reward_parameters.angular_velocity * components.angular_vel_cost + reward_parameters.linear_acceleration * components.linear_acc_cost + reward_parameters.angular_acceleration * components.angular_acc_cost + reward_parameters.action * components.action_cost;
         bool terminated_flag = terminated(device, env, parameters, next_state, rng);
-        components.scaled_weighted_cost = params.scale * components.weighted_cost;
+        components.scaled_weighted_cost = reward_parameters.scale * components.weighted_cost;
 
         if(terminated_flag){
-            components.reward = params.termination_penalty;
+            components.reward = reward_parameters.termination_penalty;
         }
         else{
-            components.reward = -components.scaled_weighted_cost + params.constant;
-            components.reward = (components.reward > 0 || !params.non_negative) ? components.reward : 0;
+            components.reward = -components.scaled_weighted_cost + reward_parameters.constant;
+            components.reward = (components.reward > 0 || !reward_parameters.non_negative) ? components.reward : 0;
         }
 
         return components;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
-        constexpr typename SPEC::TI cadence = 1;
-        auto components = reward_components(device, env, params, state, action, next_state, rng);
+    RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& reward_parameters, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
+        auto components = reward_components(device, env, parameters, reward_parameters, state, action, next_state, rng);
         add_scalar(device, device.logger, "reward/orientation_cost", components.orientation_cost, cadence);
         add_scalar(device, device.logger, "reward/position_cost",    components.position_cost, cadence);
         add_scalar(device, device.logger, "reward/linear_vel_cost",  components.linear_vel_cost, cadence);
@@ -86,22 +85,22 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward/action_cost",      components.action_cost, cadence);
         add_scalar(device, device.logger, "reward/pre_exp",         -components.weighted_cost, cadence);
 
-        add_scalar(device, device.logger, "reward_weighted/orientation_cost", params.orientation          * components.orientation_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/position_cost",    params.position             * components.position_cost,    cadence);
-        add_scalar(device, device.logger, "reward_weighted/linear_vel_cost",  params.linear_velocity      * components.linear_vel_cost,  cadence);
-        add_scalar(device, device.logger, "reward_weighted/angular_vel_cost", params.angular_velocity     * components.angular_vel_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/linear_acc_cost" , params.linear_acceleration  * components.linear_acc_cost,  cadence);
-        add_scalar(device, device.logger, "reward_weighted/angular_acc_cost", params.angular_acceleration * components.angular_acc_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/action_cost",      params.action               * components.action_cost,      cadence);
+        add_scalar(device, device.logger, "reward_weighted/orientation_cost", reward_parameters.orientation          * components.orientation_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/position_cost",    reward_parameters.position             * components.position_cost,    cadence);
+        add_scalar(device, device.logger, "reward_weighted/linear_vel_cost",  reward_parameters.linear_velocity      * components.linear_vel_cost,  cadence);
+        add_scalar(device, device.logger, "reward_weighted/angular_vel_cost", reward_parameters.angular_velocity     * components.angular_vel_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/linear_acc_cost" , reward_parameters.linear_acceleration  * components.linear_acc_cost,  cadence);
+        add_scalar(device, device.logger, "reward_weighted/angular_acc_cost", reward_parameters.angular_acceleration * components.angular_acc_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/action_cost",      reward_parameters.action               * components.action_cost,      cadence);
         // log share of the weighted abs cost
-        add_scalar(device, device.logger, "reward_share/orientation", params.orientation          * components.orientation_cost / components.weighted_cost, cadence);
-        add_scalar(device, device.logger, "reward_share/position",    params.position             * components.position_cost    / components.weighted_cost, cadence);
-        add_scalar(device, device.logger, "reward_share/linear_vel",  params.linear_velocity      * components.linear_vel_cost  / components.weighted_cost, cadence);
-        add_scalar(device, device.logger, "reward_share/angular_vel", params.angular_velocity     * components.angular_vel_cost / components.weighted_cost, cadence);
-        add_scalar(device, device.logger, "reward_share/linear_acc",  params.linear_acceleration  * components.linear_acc_cost  / components.weighted_cost, cadence);
-        add_scalar(device, device.logger, "reward_share/angular_acc", params.angular_acceleration * components.angular_acc_cost / components.weighted_cost, cadence);
-        add_scalar(device, device.logger, "reward_share/action",      params.action               * components.action_cost      / components.weighted_cost, cadence);
-        add_scalar(device, device.logger, "reward_share/const",       components.reward/params.constant, cadence);
+        add_scalar(device, device.logger, "reward_share/orientation", reward_parameters.orientation          * components.orientation_cost / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/position",    reward_parameters.position             * components.position_cost    / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/linear_vel",  reward_parameters.linear_velocity      * components.linear_vel_cost  / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/angular_vel", reward_parameters.angular_velocity     * components.angular_vel_cost / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/linear_acc",  reward_parameters.linear_acceleration  * components.linear_acc_cost  / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/angular_acc", reward_parameters.angular_acceleration * components.angular_acc_cost / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/action",      reward_parameters.action               * components.action_cost      / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/const",       components.reward/reward_parameters.constant, cadence);
 
         add_scalar(device, device.logger, "reward/weighted_cost",        components.weighted_cost, cadence);
         add_scalar(device, device.logger, "reward/scaled_weighted_cost", components.scaled_weighted_cost, cadence);
@@ -109,12 +108,12 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward/reward_zero",          components.reward == 0, cadence);
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
-        auto components = reward_components(device, env, parameters, params, state, action, next_state, rng);
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& reward_parameters, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
+        auto components = reward_components(device, env, parameters, reward_parameters, state, action, next_state, rng);
         return components.reward;
     }
     template<typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto name(DEVICE& device, const rl::environments::l2f::parameters::reward_functions::Squared<T>& params){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto name(DEVICE& device, const rl::environments::l2f::parameters::reward_functions::Squared<T>& reward_parameters){
         return "squared";
     }
 }

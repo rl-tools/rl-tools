@@ -84,10 +84,10 @@ static constexpr typename PARAMETERS_TYPE::Integration integration = {
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = IDENT ? rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC> : (ZERO_ANGLE_INIT ? rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC> : rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>);
 static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
-    0.0, // position
-    0.0, // orientation
-    0.0, // linear_velocity
-    0.0, // angular_velocity
+    0.01, // position
+    0.001, // orientation
+    0.01, // linear_velocity
+    0.01, // angular_velocity
     0.0, // imu acceleration
 };
 //        static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
@@ -109,10 +109,10 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = {
     termination
 };
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-    IDENT ? 0 : 2.5, // thrust_to_weight_min;
+    IDENT ? 0 : 1.5, // thrust_to_weight_min;
     IDENT ? 0 : 5, // thrust_to_weight_max;
     IDENT ? 0 : 0.0026034812863058926, // thrust_to_weight_by_torque_to_inertia_min;
-    IDENT ? 0 : 0.00586570698345237, // thrust_to_weight_by_torque_to_inertia_max;
+    IDENT ? 0 : 0.025, // thrust_to_weight_by_torque_to_inertia_max;
     IDENT ? 0.0 : 0.02, // mass_min;
     IDENT ? 0.0 : 5, // mass_max;
     IDENT ? 0.0 : 0.1, // mass_size_deviation;
@@ -179,15 +179,15 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T GAMMA = 0.99;
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
-        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 16 : 1;
+        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 1 : 1;
     };
-    static constexpr TI STEP_LIMIT = 10000000;
+    static constexpr TI STEP_LIMIT = 20000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI ACTOR_HIDDEN_DIM = 32;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
-    static constexpr TI CRITIC_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_HIDDEN_DIM = 32;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
@@ -268,18 +268,18 @@ int main(int argc, char** argv){
     while(!rlt::step(device, ts)){
         bool set_max_angle = false;
         T max_angle = 0;
-        if(ts.step == 1000000){
-            set_max_angle = true;
-            max_angle = 22.5/180.0*rlt::math::PI<T>;
-        }
-        if(ts.step == 2000000){
-            set_max_angle = true;
-            max_angle = 45.0/180.0*rlt::math::PI<T>;
-        }
-        if(ts.step == 3000000){
-            set_max_angle = true;
-            max_angle = 90.0/180.0*rlt::math::PI<T>;
-        }
+        // if(ts.step == 1000000){
+        //     set_max_angle = true;
+        //     max_angle = 22.5/180.0*rlt::math::PI<T>;
+        // }
+        // if(ts.step == 2000000){
+        //     set_max_angle = true;
+        //     max_angle = 45.0/180.0*rlt::math::PI<T>;
+        // }
+        // if(ts.step == 3000000){
+        //     set_max_angle = true;
+        //     max_angle = 90.0/180.0*rlt::math::PI<T>;
+        // }
         if(set_max_angle){
             for(TI env_i=0; env_i < decltype(ts.off_policy_runner)::N_ENVIRONMENTS; env_i++){
                 auto& env = get(ts.off_policy_runner.envs, 0, env_i);
