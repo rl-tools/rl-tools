@@ -168,8 +168,8 @@ using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
-        static constexpr TI ACTOR_BATCH_SIZE = 64;
-        static constexpr TI CRITIC_BATCH_SIZE = 64;
+        static constexpr TI ACTOR_BATCH_SIZE = 128;
+        static constexpr TI CRITIC_BATCH_SIZE = 128;
         static constexpr TI TRAINING_INTERVAL = 10;
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
         static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
@@ -184,10 +184,10 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI STEP_LIMIT = 20000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
-    static constexpr TI ACTOR_HIDDEN_DIM = 32;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
-    static constexpr TI CRITIC_HIDDEN_DIM = 32;
+    static constexpr TI CRITIC_HIDDEN_DIM = 64;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
@@ -223,7 +223,7 @@ using LOOP_CHECKPOINT_CONFIG = rlt::rl::loop::steps::checkpoint::Config<LOOP_EXT
 struct LOOP_EVALUATION_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
     static constexpr TI EVALUATION_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_EVALUATIONS;
     static constexpr TI EVALUATION_INTERVAL = EVALUATION_INTERVAL_TEMP == 0 ? 1 : EVALUATION_INTERVAL_TEMP;
-    static constexpr TI NUM_EVALUATION_EPISODES = 10;
+    static constexpr TI NUM_EVALUATION_EPISODES = 100;
     static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
     static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = SAMPLE_ENV_PARAMETERS;
 };
