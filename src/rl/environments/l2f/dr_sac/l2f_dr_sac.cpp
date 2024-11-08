@@ -179,7 +179,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T GAMMA = 0.99;
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
-        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 1 : 1;
+        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 100 : 1;
     };
     static constexpr TI STEP_LIMIT = 20000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
