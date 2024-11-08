@@ -12,7 +12,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp {
-    template <typename T_T, typename T_TI, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>>
+    template <typename T_T, typename T_TI, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>, bool T_IS_INPUT=true, bool T_IS_OUTPUT=true>
     struct Configuration{
         using T = T_T;
         using TI = T_TI;
@@ -23,6 +23,8 @@ namespace rl_tools::nn_models::mlp {
         static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
         static constexpr auto HIDDEN_ACTIVATION_FUNCTION = T_HIDDEN_ACTIVATION_FUNCTION;
         static constexpr auto OUTPUT_ACTIVATION_FUNCTION = T_OUTPUT_ACTIVATION_FUNCTION;
+        static constexpr TI IS_INPUT = T_IS_INPUT;
+        static constexpr TI IS_OUTPUT = T_IS_OUTPUT;
 
         using LAYER_INITIALIZER = T_LAYER_INITIALIZER;
 
@@ -41,9 +43,9 @@ namespace rl_tools::nn_models::mlp {
         static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
         static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_DIM * INPUT_DIM + CONFIG::OUTPUT_DIM;
 
-        using INPUT_LAYER_CONFIG  = nn::layers::dense::Configuration<T, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, nn::parameters::groups::Input >;
+        using INPUT_LAYER_CONFIG  = nn::layers::dense::Configuration<T, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, utils::typing::conditional_t<CONFIG::IS_INPUT, nn::parameters::groups::Input, nn::parameters::groups::Normal>>;
         using HIDDEN_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, nn::parameters::groups::Normal>;
-        using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, CONFIG::OUTPUT_DIM, CONFIG::OUTPUT_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, nn::parameters::groups::Output>;
+        using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, CONFIG::OUTPUT_DIM, CONFIG::OUTPUT_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, utils::typing::conditional_t<CONFIG::IS_OUTPUT ,nn::parameters::groups::Output, nn::parameters::groups::Normal>>;
         using INPUT_LAYER = nn::layers::dense::Layer<INPUT_LAYER_CONFIG, CAPABILITY, INPUT_SHAPE>;
         using HIDDEN_LAYER = nn::layers::dense::Layer<HIDDEN_LAYER_CONFIG, CAPABILITY, typename INPUT_LAYER::SPEC::OUTPUT_SHAPE>;
         using OUTPUT_LAYER = nn::layers::dense::Layer<OUTPUT_LAYER_CONFIG, CAPABILITY, typename HIDDEN_LAYER::SPEC::OUTPUT_SHAPE>;

@@ -12,13 +12,15 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         template <typename CAPABILITY>
         struct Actor{
             using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+            using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Input>;
+            using INPUT_LAYER = nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
             using GRU_CONFIG = nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, nn::parameters::groups::Normal, true>;
             using GRU = nn::layers::gru::BindConfiguration<GRU_CONFIG>;
             using GRU2_CONFIG = nn::layers::gru::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, nn::parameters::groups::Normal, true>;
             using GRU2 = nn::layers::gru::BindConfiguration<GRU2_CONFIG>;
             using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Normal>;
             using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
-            using OUTPUT_CONFIG = nn::layers::dense::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Normal>;
+            using OUTPUT_CONFIG = nn::layers::dense::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Output>;
             using OUTPUT = nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
 
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
@@ -35,13 +37,15 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         template <typename CAPABILITY>
         struct Critic{
             using INPUT_SHAPE = tensor::Shape<TI, TD3_PARAMETERS::SEQUENCE_LENGTH, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM + ENVIRONMENT::ACTION_DIM>;
+            using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Input>;
+            using INPUT_LAYER = nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
             using GRU_CONFIG = nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, nn::parameters::groups::Normal, true>;
             using GRU = nn::layers::gru::BindConfiguration<GRU_CONFIG>;
             using GRU2_CONFIG = nn::layers::gru::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, nn::parameters::groups::Normal, true>;
             using GRU2 = nn::layers::gru::BindConfiguration<GRU2_CONFIG>;
             using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Normal>;
             using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
-            using OUTPUT_CONFIG = nn::layers::dense::Configuration<T, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Normal>;
+            using OUTPUT_CONFIG = nn::layers::dense::Configuration<T, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Output>;
             using OUTPUT = nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
             static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
 

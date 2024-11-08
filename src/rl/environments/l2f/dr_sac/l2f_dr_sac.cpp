@@ -194,6 +194,8 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
         static constexpr bool ENABLE_GRADIENT_CLIPPING = true;
         static constexpr T GRADIENT_CLIP_VALUE = 1;
+        static constexpr bool ENABLE_WEIGHT_DECAY = true;
+        static constexpr T WEIGHT_DECAY = 0.0001;
     };
     struct ACTOR_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
         static constexpr T ALPHA = 1e-3;
@@ -211,9 +213,9 @@ using LOOP_CORE_CONFIG_MLP = rlt::rl::algorithms::sac::loop::core::Config<T, TI,
 using LOOP_CORE_CONFIG_GRU = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU>;
 using LOOP_CORE_CONFIG = rlt::utils::typing::conditional_t<SEQUENTIAL, LOOP_CORE_CONFIG_GRU, LOOP_CORE_CONFIG_MLP>;
 
-constexpr TI NUM_CHECKPOINTS = 10;
-constexpr TI NUM_EVALUATIONS = 100;
-constexpr TI NUM_SAVE_TRAJECTORIES = 10;
+constexpr TI NUM_CHECKPOINTS = 100;
+constexpr TI NUM_EVALUATIONS = 500;
+constexpr TI NUM_SAVE_TRAJECTORIES = 100;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
