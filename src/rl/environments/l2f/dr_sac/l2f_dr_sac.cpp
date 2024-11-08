@@ -84,11 +84,11 @@ static constexpr typename PARAMETERS_TYPE::Integration integration = {
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = IDENT ? rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC> : (ZERO_ANGLE_INIT ? rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC> : rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>);
 static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
-    0.01, // position
-    0.001, // orientation
-    0.01, // linear_velocity
-    0.01, // angular_velocity
-    0.0, // imu acceleration
+    0, // 0.01, // position
+    0, // 0.001, // orientation
+    0, // 0.01, // linear_velocity
+    0, // 0.01, // angular_velocity
+    0, // 0.0, // imu acceleration
 };
 //        static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
 //                0.0, // position
@@ -109,7 +109,7 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = {
     termination
 };
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-    IDENT ? 0 : 1.5, // thrust_to_weight_min;
+    IDENT ? 0 : 2.0, // thrust_to_weight_min;
     IDENT ? 0 : 5, // thrust_to_weight_max;
     IDENT ? 0 : 0.0026034812863058926, // thrust_to_weight_by_torque_to_inertia_min;
     IDENT ? 0 : 0.025, // thrust_to_weight_by_torque_to_inertia_max;
@@ -179,7 +179,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T GAMMA = 0.99;
         static constexpr bool IGNORE_TERMINATION = false;
         static constexpr T TARGET_ENTROPY = -((T)4);
-        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 20 : 1;
+        static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 1 : 1;
     };
     static constexpr TI STEP_LIMIT = 20000000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
@@ -192,7 +192,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
     struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T> {
-        static constexpr bool ENABLE_GRADIENT_CLIPPING = true;
+        static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
         static constexpr T GRADIENT_CLIP_VALUE = 1;
     };
     struct ACTOR_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
@@ -291,9 +291,6 @@ int main(int argc, char** argv){
                 env.parameters.mdp.init.max_angle = max_angle;
             }
             ts.env_eval.parameters.mdp.init.max_angle = max_angle;
-        }
-        if(ts.step >= 2515000) {
-            break;
         }
     }
     std::filesystem::create_directories(ts.extrack_seed_path);

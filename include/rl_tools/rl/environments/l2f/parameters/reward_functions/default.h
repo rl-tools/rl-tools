@@ -29,7 +29,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             0, // termination penalty
             10, // position
             2.5, // orientation
-            0.005, // linear_velocity
+            0.05, // linear_velocity
             0, // angular_velocity
             0, // linear_acceleration
             0, // angular_acceleration
