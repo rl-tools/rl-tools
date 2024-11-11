@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive JavaScript Editor</title>
+    <title>ExTrack Terminal</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/keybinding-vim.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/mode-javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/theme-tomorrow.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             margin: 0;
@@ -52,13 +53,14 @@
             border-radius: 4px;
             margin-bottom: 20px;
         }
-        #output {
+        .output {
             background: white;
             padding: 20px;
             border: 1px solid #ccc;
             border-radius: 4px;
             min-height: 100px;
             white-space: pre-wrap;
+            margin-bottom: 10px;
         }
         button {
             padding: 8px 12px;
@@ -146,7 +148,9 @@
         </div>
     </div>
     <div id="editor"></div>
-    <div id="output"></div>
+    <div id="output" class="output"></div>
+    <div id="output2" class="output" style="display: none;">
+    </div>
 </div>
 
 <script>
@@ -254,8 +258,60 @@ Object.keys(data).forEach(path => console.log(path));`;
             const code = editor.getValue();
             output.textContent = '';
 
+            let scatter_chart = null
+            function scatter(input_data, x_axis_label, y_axis_label, title) {
+                const output2 = document.getElementById('output2');
+                output2.style.display = 'block';
+                const canvas = document.createElement('canvas');
+                canvas.style.width = '100%';
+                canvas.style.height = '500px';
+                output2.innerHTML = '';
+                output2.appendChild(canvas);
+                const ctx = canvas.getContext('2d');
+
+                const xAxisLabel = x_axis_label || 'X-Axis';
+                const yAxisLabel = y_axis_label || 'Y-Axis';
+                const chartTitle = title || '';
+
+                if (scatter_chart) {
+                    scatter_chart.destroy();
+                }
+
+                scatter_chart = new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: input_data
+                    },
+                    options: {
+                        animation: false,
+                        plugins: {
+                            title: {
+                                display: !!chartTitle,
+                                text: chartTitle
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: {
+                                    display: true,
+                                    text: xAxisLabel
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: yAxisLabel
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+
             try {
-                const func = new Function('data', `
+                const func = new Function('data', 'scatter', `
                     const console = {
                         log: (...args) => {
                             const output = document.getElementById('output');
@@ -267,7 +323,7 @@ Object.keys(data).forEach(path => console.log(path));`;
                     ${code}
                 `);
 
-                func(data);
+                func(data, scatter);
             } catch (error) {
                 output.textContent = `Error: ${error.message}`;
             }
