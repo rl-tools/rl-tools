@@ -196,7 +196,9 @@ console.log("Selected files data:", data);
 
 // Example: List all selected file paths
 console.log("\\nSelected files:");
-Object.keys(data).forEach(path => console.log(path));`;
+Object.keys(data).forEach(path => console.log(path));
+scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Label", "Title");
+`;
 
         editor.setValue(savedCode, -1);
 
