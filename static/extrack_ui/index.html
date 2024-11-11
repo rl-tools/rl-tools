@@ -30,11 +30,12 @@
         function check_dependency(path){
             fetch(path).then((response) => {
                 if(!response.ok){
-                    console.error(`Error: Could not load dependency: ${path}. Please run \`./download_dependencies.sh\` in the \`./static/extrack_ui\` directory`)
+                    alert(`Error: Could not load dependency: ${path}. Please run \`./download_dependencies.sh\` in the \`./static/extrack_ui\` directory`)
                 }
             })
         }
         check_dependency("./lib/three.module.js")
+        check_dependency("./lib/OrbitControls.js")
         const url = window.location.href;
         const urlObj = new URL(url);
         const params = new URLSearchParams(urlObj.search);

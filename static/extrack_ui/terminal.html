@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive JavaScript Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/keybinding-vim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/mode-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/theme-tomorrow.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .file-select-container {
+            flex-grow: 1;
+        }
+        .file-select {
+            width: 100%;
+            min-height: 100px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            overflow-x: scroll;
+        }
+        .file-select option {
+            padding: 8px 12px;
+        }
+        #editor {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        #output {
+            background: white;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-height: 100px;
+            white-space: pre-wrap;
+        }
+        button {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        button:hover {
+            background: #f0f0f0;
+        }
+        .vim-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        /* Switch styles */
+        .form-switch {
+            display: inline-block;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .form-switch i {
+            position: relative;
+            display: inline-block;
+            margin-right: .5rem;
+            width: 46px;
+            height: 26px;
+            background-color: #e6e6e6;
+            border-radius: 23px;
+            vertical-align: text-bottom;
+            transition: all 0.3s linear;
+        }
+        .form-switch i::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            width: 42px;
+            height: 22px;
+            background-color: #fff;
+            border-radius: 11px;
+            transform: translate3d(2px, 2px, 0) scale3d(1, 1, 1);
+            transition: all 0.25s linear;
+        }
+        .form-switch i::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            width: 22px;
+            height: 22px;
+            background-color: #fff;
+            border-radius: 11px;
+            box-shadow: 0 2px 2px rgba(0, 0, 0, 0.24);
+            transform: translate3d(2px, 2px, 0);
+            transition: all 0.2s ease-in-out;
+        }
+        .form-switch:active i::after {
+            width: 28px;
+            transform: translate3d(2px, 2px, 0);
+        }
+        .form-switch:active input:checked + i::after { transform: translate3d(16px, 2px, 0); }
+        .form-switch input { display: none; }
+        .form-switch input:checked + i { background-color: #67b1ae; }
+        .form-switch input:checked + i::before { transform: translate3d(18px, 2px, 0) scale3d(0, 0, 0); }
+        .form-switch input:checked + i::after { transform: translate3d(22px, 2px, 0); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="file-select-container">
+            <select id="fileSelect" multiple class="file-select">
+            </select>
+        </div>
+        <div class="controls">
+            <button id="executeButton">Execute (Ctrl+Enter)</button>
+            <div class="vim-control">
+                <label class="form-switch">
+                    <input type="checkbox" id="vimToggle">
+                    <i></i>
+                </label>
+                <span>Vim Mode</span>
+            </div>
+        </div>
+    </div>
+    <div id="editor"></div>
+    <div id="output"></div>
+</div>
+
+<script>
+
+    const experiments_path = "/experiments"
+
+    async function fetchAndProcessIndex() {
+        try {
+            // Fetch the index.txt file from the specified path
+            const response = await fetch(`${experiments_path}/index_static.txt`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch the index file');
+            }
+
+            // Read the text from the response
+            const text = await response.text();
+
+            const paths = text.split('\n').map(path => path.trim());
+            const filteredPaths = paths.filter(path => path.endsWith('.json') || path.endsWith('.json.gz'));
+
+            // Sort the remaining paths alphabetically
+            const sortedPaths = filteredPaths.sort();
+
+            // Log or return the sorted paths
+            console.log(sortedPaths);
+            return sortedPaths;
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    async function main(){
+        const paths = await fetchAndProcessIndex();
+
+        // Initialize editor
+        const editor = ace.edit("editor");
+        editor.setTheme("ace/theme/tomorrow");
+        editor.session.setMode("ace/mode/javascript");
+        editor.setOptions({
+            fontSize: '14px',
+            showPrintMargin: false,
+        });
+
+        // Populate file select
+        const fileSelect = document.getElementById('fileSelect');
+        paths.forEach(filename => {
+            const option = document.createElement('option');
+            option.value = filename;
+            option.textContent = filename;
+            fileSelect.appendChild(option);
+        });
+
+        // Initialize output
+        const output = document.getElementById('output');
+
+        // Vim mode toggle
+        const vimToggle = document.getElementById('vimToggle');
+        vimToggle.addEventListener('change', () => {
+            editor.setKeyboardHandler(vimToggle.checked ? "ace/keyboard/vim" : null);
+        });
+
+        // Handle Ctrl+A for select all
+        fileSelect.addEventListener('keydown', (e) => {
+            if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                Array.from(fileSelect.options).forEach(option => option.selected = true);
+            }
+        });
+
+        // Execute code function
+        async function executeCode() {
+
+            const fetchPromises = Array.from(fileSelect.selectedOptions).map(async (option) => {
+                const res = await fetch(`${experiments_path}/${option.value}`);
+                if (!res.ok) {
+                    throw new Error(`Failed to fetch content from ${option.value}`);
+                }
+                const content = await res.text();
+                return [option.value, content];
+            });
+
+            const entries = await Promise.all(fetchPromises);
+            const data = Object.fromEntries(entries);
+
+            const code = editor.getValue();
+
+            output.textContent = ''; // Clear previous output
+
+            try {
+                // Create a function that has access to the selected data
+                const func = new Function('data', `
+                    const console = {
+                        log: (...args) => {
+                            const output = document.getElementById('output');
+                            output.textContent += args.map(arg =>
+                                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+                            ).join(' ') + '\\n';
+                        }
+                    };
+                    ${code}
+                `);
+
+                func(data);
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Add execute button handler
+        document.getElementById('executeButton').addEventListener('click', executeCode);
+
+        // Add Ctrl+Enter handler
+        editor.commands.addCommand({
+            name: 'executeCode',
+            bindKey: {win: 'Ctrl-Enter', mac: 'Command-Enter'},
+            exec: executeCode
+        });
+
+        // Set initial example code
+        editor.setValue(`// Selected files data is available as 'data' object
+// Keys are file paths, values are file contents
+// Example: console.log(data)
+
+console.log("Selected files data:", data);
+
+// Example: List all selected file paths
+console.log("\\nSelected files:");
+Object.keys(data).forEach(path => console.log(path));`, -1);
+    }
+    main()
+
+
+
+</script>
+</body>
+</html>

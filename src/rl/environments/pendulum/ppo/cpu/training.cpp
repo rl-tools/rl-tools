@@ -67,7 +67,7 @@ struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI,
 template <TI NUM_EPISODES_FINAL_EVAL>
 auto run(TI seed, bool verbose){
     DEVICE device;
-#ifndef RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_PPO_BENCHMARK
+#ifndef BENCHMARK
     using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS<LOOP_CORE_CONFIG>>;
     using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 #else
