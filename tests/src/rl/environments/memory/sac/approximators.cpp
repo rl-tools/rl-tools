@@ -126,7 +126,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::zero_gradient(device, actor);
     rlt::zero_gradient(device, critic);
     rlt::backward(device, actor, actor_input, d_actor_output, actor_buffer);
-    rlt::utils::assert_exit(device, !rlt::is_nan(device, rlt::matrix_view(device, actor.content.weights_input.gradient)), "Actor gradient contains NaNs");
+    rlt::utils::assert_exit(device, !rlt::is_nan(device, rlt::matrix_view(device, actor.content.weights.gradient)), "Actor gradient contains NaNs");
     rlt::step(device, actor_optimizer, actor);
     rlt::forward(device, actor, actor_input, actor_output_after_update, actor_buffer, rng);
     T sum = rlt::sum(device, actor_output);

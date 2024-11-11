@@ -312,7 +312,7 @@ void run(){
             if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, parameters_environment::ENVIRONMENT::EPISODE_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-                rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, result, actor_buffers_deterministic_eval, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+                rlt::evaluate(device, evaluation_env, evaluation_env_parameters, ui, actor_critic.actor, result, actor_buffers_deterministic_eval, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);

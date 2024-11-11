@@ -343,6 +343,18 @@ namespace rl_tools{
         auto matrix_view_d_input = matrix_view(device, d_input);
         backward_full(device, model, matrix_view_input, matrix_view_d_output, matrix_view_d_input, buffer, mode);
     }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T gradient_norm(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<SPEC>& model){
+        using TI = typename DEVICE::index_t;
+        using T = typename SPEC::T;
+        T return_value = 0;
+        return_value += gradient_norm(device, model.input_layer);
+        for(TI layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
+            return_value += gradient_norm(device, model.hidden_layers[layer_i]);
+        }
+        return_value += gradient_norm(device, model.output_layer);
+        return return_value;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
