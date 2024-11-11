@@ -150,38 +150,32 @@
 </div>
 
 <script>
-
     const experiments_path = "/experiments"
+    const STORAGE_KEYS = {
+        CODE: 'editor_code',
+        VIM_MODE: 'editor_vim_mode',
+        SELECTED_FILES: 'selected_files'
+    };
 
     async function fetchAndProcessIndex() {
         try {
-            // Fetch the index.txt file from the specified path
             const response = await fetch(`${experiments_path}/index_static.txt`);
             if (!response.ok) {
                 throw new Error('Failed to fetch the index file');
             }
-
-            // Read the text from the response
             const text = await response.text();
-
             const paths = text.split('\n').map(path => path.trim());
             const filteredPaths = paths.filter(path => path.endsWith('.json') || path.endsWith('.json.gz'));
-
-            // Sort the remaining paths alphabetically
-            const sortedPaths = filteredPaths.sort();
-
-            // Log or return the sorted paths
-            console.log(sortedPaths);
-            return sortedPaths;
+            return filteredPaths.sort();
         } catch (error) {
             console.error('Error:', error);
+            return [];
         }
     }
 
     async function main(){
         const paths = await fetchAndProcessIndex();
 
-        // Initialize editor
         const editor = ace.edit("editor");
         editor.setTheme("ace/theme/tomorrow");
         editor.session.setMode("ace/mode/javascript");
@@ -190,34 +184,60 @@
             showPrintMargin: false,
         });
 
-        // Populate file select
+        const savedCode = localStorage.getItem(STORAGE_KEYS.CODE) || `// Selected files data is available as 'data' object
+// Keys are file paths, values are file contents
+// Example: console.log(data)
+
+console.log("Selected files data:", data);
+
+// Example: List all selected file paths
+console.log("\\nSelected files:");
+Object.keys(data).forEach(path => console.log(path));`;
+
+        editor.setValue(savedCode, -1);
+
+        const selectedFilesString = localStorage.getItem(STORAGE_KEYS.SELECTED_FILES) || "{}";
+        const selectedFiles = JSON.parse(selectedFilesString);
         const fileSelect = document.getElementById('fileSelect');
         paths.forEach(filename => {
             const option = document.createElement('option');
             option.value = filename;
             option.textContent = filename;
+            if (selectedFiles[filename]) {
+                option.selected = true;
+            }
             fileSelect.appendChild(option);
         });
 
-        // Initialize output
         const output = document.getElementById('output');
 
-        // Vim mode toggle
         const vimToggle = document.getElementById('vimToggle');
+
+        const savedVimMode = localStorage.getItem(STORAGE_KEYS.VIM_MODE) === 'true';
+        vimToggle.checked = savedVimMode;
+        editor.setKeyboardHandler(savedVimMode ? "ace/keyboard/vim" : null);
+
         vimToggle.addEventListener('change', () => {
             editor.setKeyboardHandler(vimToggle.checked ? "ace/keyboard/vim" : null);
+            localStorage.setItem(STORAGE_KEYS.VIM_MODE, vimToggle.checked);
         });
 
-        // Handle Ctrl+A for select all
         fileSelect.addEventListener('keydown', (e) => {
             if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 Array.from(fileSelect.options).forEach(option => option.selected = true);
             }
         });
+        fileSelect.addEventListener('change', () => {
+            const selectedFiles = Array.from(fileSelect.selectedOptions).reduce((acc, option) => {
+                acc[option.value] = true;
+                return acc;
+            }, {});
+            localStorage.setItem(STORAGE_KEYS.SELECTED_FILES, JSON.stringify(selectedFiles));
+        });
 
-        // Execute code function
         async function executeCode() {
+            localStorage.setItem(STORAGE_KEYS.CODE, editor.getValue());
 
             const fetchPromises = Array.from(fileSelect.selectedOptions).map(async (option) => {
                 const res = await fetch(`${experiments_path}/${option.value}`);
@@ -232,11 +252,9 @@
             const data = Object.fromEntries(entries);
 
             const code = editor.getValue();
-
-            output.textContent = ''; // Clear previous output
+            output.textContent = '';
 
             try {
-                // Create a function that has access to the selected data
                 const func = new Function('data', `
                     const console = {
                         log: (...args) => {
@@ -255,31 +273,16 @@
             }
         }
 
-        // Add execute button handler
         document.getElementById('executeButton').addEventListener('click', executeCode);
 
-        // Add Ctrl+Enter handler
         editor.commands.addCommand({
             name: 'executeCode',
             bindKey: {win: 'Ctrl-Enter', mac: 'Command-Enter'},
             exec: executeCode
         });
-
-        // Set initial example code
-        editor.setValue(`// Selected files data is available as 'data' object
-// Keys are file paths, values are file contents
-// Example: console.log(data)
-
-console.log("Selected files data:", data);
-
-// Example: List all selected file paths
-console.log("\\nSelected files:");
-Object.keys(data).forEach(path => console.log(path));`, -1);
     }
     main()
-
-
-
 </script>
 </body>
 </html>
+
