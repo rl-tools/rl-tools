@@ -64,7 +64,7 @@ namespace rl_tools{
                     step_json += action_json + ",";
                     step_json += "\"dt\":" + std::to_string(data.dt[episode_i][step_i]) + ",";
                     step_json += "\"reward\":" + std::to_string(data.rewards[episode_i][step_i]) + ",";
-                    step_json += "\"terminated\":" + std::to_string(data.terminated[episode_i][step_i]);
+                    step_json += "\"terminated\":" + (std::to_string(data.terminated[episode_i][step_i]) ? "true" : "false");;
                     step_json += "}";
                     trajectory_json += step_json + ",";
                 }

@@ -242,6 +242,7 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
             localStorage.setItem(STORAGE_KEYS.SELECTED_FILES, JSON.stringify(selectedFiles));
         });
 
+        let charts = []
         async function executeCode() {
             localStorage.setItem(STORAGE_KEYS.CODE, editor.getValue());
 
@@ -260,14 +261,14 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
             const code = editor.getValue();
             output.textContent = '';
 
-            let scatter_chart = null
+            charts.map(chart => chart.destroy());
+            output2.innerHTML = '';
             function scatter(input_data, x_axis_label, y_axis_label, title) {
                 const output2 = document.getElementById('output2');
                 output2.style.display = 'block';
                 const canvas = document.createElement('canvas');
                 canvas.style.width = '100%';
                 canvas.style.height = '500px';
-                output2.innerHTML = '';
                 output2.appendChild(canvas);
                 const ctx = canvas.getContext('2d');
 
@@ -275,11 +276,7 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
                 const yAxisLabel = y_axis_label || 'Y-Axis';
                 const chartTitle = title || '';
 
-                if (scatter_chart) {
-                    scatter_chart.destroy();
-                }
-
-                scatter_chart = new Chart(ctx, {
+                const scatter_chart = new Chart(ctx, {
                     type: 'scatter',
                     data: {
                         datasets: input_data
@@ -309,6 +306,7 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
                         }
                     }
                 });
+                charts.push(scatter_chart);
             }
 
 
@@ -343,4 +341,45 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
 </script>
 </body>
 </html>
+<!--
+Samples:
+
+
+mass_thrust_no_crash = []
+mass_thrust_crash = []
+tw_ti_no_crash = []
+tw_ti_crash = []
+Object.keys(data).forEach(path => {
+    JSON.parse(data[path]).forEach(trajectory =>{
+        const single_rotor_thrust = trajectory.parameters.dynamics.rotors[0].thrust_curve.reduce((a, c) => a + c)
+        const thrust_to_weight = single_rotor_thrust * 4 * 9.81 / trajectory.parameters.dynamics.mass
+        const rotor_position = trajectory.parameters.dynamics.rotors[0].pose.position
+        const rotor_lever = Math.sqrt(rotor_position[0] * rotor_position[0] + rotor_position[1] * rotor_position[1] + rotor_position[2] * rotor_position[2])
+        const torque = rotor_lever * Math.sqrt(2) * single_rotor_thrust
+        const inertia = trajectory.parameters.dynamics.J[0][0]
+        const torque_to_inertia = torque / inertia
+        mass_thrust = {
+            x: trajectory.parameters.dynamics.mass,
+            y: single_rotor_thrust * 4
+        }
+        tw_ti = {
+            x: thrust_to_weight,
+            y: torque_to_inertia
+        }
+        if(trajectory.trajectory.some(x => x.terminated === 1) === true){
+            tw_ti_crash.push(tw_ti)
+            mass_thrust_crash.push(mass_thrust)
+        }
+        else{
+            tw_ti_no_crash.push(tw_ti)
+            mass_thrust_no_crash.push(mass_thrust)
+        }
+    })
+})
+
+
+scatter([{label: "no crash", data: mass_thrust_no_crash}, {label: "crash", data: mass_thrust_crash}], "Mass [kg]", "Thrust [N]", "Thrust to Mass")
+scatter([{label: "no crash", data: tw_ti_no_crash}, {label: "crash", data: tw_ti_crash}], "Torque to Inertia Ratio", "Thrust to Weight Ratio", "Thrust to weight / Torque to Inertia")
+
+-->
 
