@@ -349,10 +349,13 @@ mass_thrust_no_crash = []
 mass_thrust_crash = []
 tw_ti_no_crash = []
 tw_ti_crash = []
+tw_ti_scale_no_crash = []
+tw_ti_scale_crash = []
 Object.keys(data).forEach(path => {
     JSON.parse(data[path]).forEach(trajectory =>{
+        // console.log(trajectory.parameters.dynamics.rotors[0].thrust_curve)
         const single_rotor_thrust = trajectory.parameters.dynamics.rotors[0].thrust_curve.reduce((a, c) => a + c)
-        const thrust_to_weight = single_rotor_thrust * 4 * 9.81 / trajectory.parameters.dynamics.mass
+        const thrust_to_weight = single_rotor_thrust * 4/ (trajectory.parameters.dynamics.mass*9.81)
         const rotor_position = trajectory.parameters.dynamics.rotors[0].pose.position
         const rotor_lever = Math.sqrt(rotor_position[0] * rotor_position[0] + rotor_position[1] * rotor_position[1] + rotor_position[2] * rotor_position[2])
         const torque = rotor_lever * Math.sqrt(2) * single_rotor_thrust
@@ -366,20 +369,26 @@ Object.keys(data).forEach(path => {
             x: thrust_to_weight,
             y: torque_to_inertia
         }
+        tw_ti_scale = {
+            x: rotor_lever,
+            y: thrust_to_weight / torque_to_inertia
+        }
         if(trajectory.trajectory.some(x => x.terminated === 1) === true){
-            tw_ti_crash.push(tw_ti)
             mass_thrust_crash.push(mass_thrust)
+            tw_ti_crash.push(tw_ti)
+            tw_ti_scale_crash.push(tw_ti_scale)
         }
         else{
-            tw_ti_no_crash.push(tw_ti)
             mass_thrust_no_crash.push(mass_thrust)
+            tw_ti_no_crash.push(tw_ti)
+            tw_ti_scale_no_crash.push(tw_ti_scale)
         }
     })
 })
 
 
 scatter([{label: "no crash", data: mass_thrust_no_crash}, {label: "crash", data: mass_thrust_crash}], "Mass [kg]", "Thrust [N]", "Thrust to Mass")
-scatter([{label: "no crash", data: tw_ti_no_crash}, {label: "crash", data: tw_ti_crash}], "Torque to Inertia Ratio", "Thrust to Weight Ratio", "Thrust to weight / Torque to Inertia")
-
+scatter([{label: "no crash", data: tw_ti_no_crash}, {label: "crash", data: tw_ti_crash}], "Thrust to Weight Ratio", "Torque to Inertia Ratio", "Thrust to weight / Torque to Inertia")
+scatter([{label: "no crash", data: tw_ti_scale_no_crash}, {label: "crash", data: tw_ti_scale_crash}], "Thrust to Weight to Torque to Inertia Ratio", "Radius [m]", "Thrust to weight / Torque to Inertia by Scale")
 -->
 
