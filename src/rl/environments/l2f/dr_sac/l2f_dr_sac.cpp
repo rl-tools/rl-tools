@@ -64,9 +64,9 @@ constexpr TI BASE_SEED = 0;
 
 
 constexpr bool IDENT = false;
-constexpr bool ZERO_ANGLE_INIT = true;
+constexpr bool ZERO_ANGLE_INIT = false;
 constexpr bool SAMPLE_ENV_PARAMETERS = IDENT || true;
-constexpr bool SEQUENTIAL = true;
+constexpr bool SEQUENTIAL = false;
 
 constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
@@ -109,15 +109,15 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = {
     termination
 };
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-    IDENT ? 0 : 2.0, // thrust_to_weight_min;
-    IDENT ? 0 : 5, // thrust_to_weight_max;
-    IDENT ? 0 : 0.0026034812863058926, // thrust_to_weight_by_torque_to_inertia_min;
-    IDENT ? 0 : 0.025, // thrust_to_weight_by_torque_to_inertia_max;
-    IDENT ? 0.0 : 0.02, // mass_min;
-    IDENT ? 0.0 : 5, // mass_max;
-    IDENT ? 0.0 : 0.1, // mass_size_deviation;
-    IDENT ? 0.0 : 0.1, // motor_time_constant;
-    IDENT ? 0.0 : 0.1 // rotor_torque_constant;
+    true || IDENT ? 0 : 2.0, // thrust_to_weight_min;
+    true || IDENT ? 0 : 5, // thrust_to_weight_max;
+    true || IDENT ? 0 : 0.0026034812863058926, // thrust_to_weight_by_torque_to_inertia_min;
+    true || IDENT ? 0 : 0.025, // thrust_to_weight_by_torque_to_inertia_max;
+    true || IDENT ? 0.0 : 0.02, // mass_min;
+    true || IDENT ? 0.0 : 5, // mass_max;
+    true || IDENT ? 0.0 : 0.1, // mass_size_deviation;
+    true || IDENT ? 0.0 : 0.1, // motor_time_constant;
+    true || IDENT ? 0.0 : 0.1 // rotor_torque_constant;
 };
 static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
     typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
