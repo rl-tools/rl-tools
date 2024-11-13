@@ -895,7 +895,7 @@ namespace rl_tools{
             using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
             constexpr TI TOTAL_ROWS = get<0>(PROD{});
             using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
-            const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, true>> view{data(t)};
+            const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, true>> view{{data(t)}};
             return view;
         }
     }
@@ -913,7 +913,7 @@ namespace rl_tools{
             using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
             constexpr TI TOTAL_ROWS = get<0>(PROD{});
             using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
-            const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, false>> view{data(t)};
+            const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, false>> view{{data(t)}};
             return view;
         }
     }
