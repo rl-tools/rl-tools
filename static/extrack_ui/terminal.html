@@ -9,6 +9,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/mode-javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/theme-tomorrow.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./lib/three.module.js",
+                "three-orbitcontrols": "./lib/OrbitControls.js"
+            }
+        }
+    </script>
     <style>
         body {
             margin: 0;
@@ -216,6 +224,7 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
         });
 
         const output = document.getElementById('output');
+        const output2 = document.getElementById('output2');
 
         const vimToggle = document.getElementById('vimToggle');
 
@@ -311,19 +320,21 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
 
 
             try {
-                const func = new Function('data', 'scatter', `
+                const func = new Function('data', 'output', `
                     const console = {
                         log: (...args) => {
-                            const output = document.getElementById('output');
-                            output.textContent += args.map(arg =>
+                            output.console_container.textContent += args.map(arg =>
                                 typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
                             ).join(' ') + '\\n';
+                        },
+                        clear: () => {
+                            output.console_container.textContent = '';
                         }
                     };
                     ${code}
                 `);
 
-                func(data, scatter);
+                func(data, {"console_container": output, "container": output2, "scatter": scatter});
             } catch (error) {
                 output.textContent = `Error: ${error.message}`;
             }
@@ -341,10 +352,89 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
 </script>
 </body>
 </html>
+
 <!--
-Samples:
 
 
+
+const experiments_stub = "/experiments"
+const run_stub = Object.keys(data)[0].split("/").slice(0, -3).join("/")
+ui_path = `${experiments_stub}/${run_stub}/ui.esm.js`
+
+const container = output.container
+console.log(container)
+const training_step_data = JSON.parse(data[Object.keys(data)[0]])
+async function main(){
+    console.log(ui_path)
+
+    const ui = await import(ui_path)
+
+    container.style.display = "block"
+    container.innerHTML = "hello"
+
+    container.innerHTML = ""
+    container.style.textAlign = "center"
+    const canvas = document.createElement('canvas')
+    canvas.width = 800
+    canvas.height = 800
+    container.appendChild(canvas);
+    container.appendChild(document.createElement("br"))
+    const button = document.createElement("button")
+    button.innerText = "reset"
+    container.appendChild(button)
+    ui_state = await ui.init(canvas, {devicePixelRatio: window.devicePixelRatio})
+    if(ui_state.cursor_grab){
+        canvas.style.cursor = "grab"
+    }
+    const drones = await Promise.all(training_step_data.map(async trajectory => {
+        const parameters = trajectory.parameters
+        parameters.ui = {
+            camera_distance: 20
+        }
+        const drone = new ui.Drone(parameters)
+        ui_state.simulator.add(drone.get())
+        const steps = trajectory.trajectory
+        return {parameters, drone, steps}
+    }))
+    const normal_dt = drones[0].steps[0].dt
+    const rollover_dt = 1
+    let dt = rollover_dt
+    let current_step = 0;
+    let last_animation_frame = new Date()
+    button.addEventListener('click', () => {
+        current_step = 0;
+        dt = rollover_dt;
+        last_animation_frame = new Date()
+    });
+    async function loop(){
+        const now = new Date()
+        if((now - last_animation_frame)/1000 >= dt){
+            current_step += 1
+            if(current_step >= drones[0].steps.length){
+                current_step = 0
+                dt = rollover_dt
+            }
+            else{
+                dt = normal_dt
+            }
+            last_animation_frame = now
+        }
+        console.clear()
+        drones.map(drone => {
+            const state = drone.steps[current_step].state
+            drone.drone.drone.position.set(...state.position)
+            drone.drone.drone.quaternion.copy(new ui_state.THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+        })
+        ui_state.controls.update()
+        ui_state.renderer.render(ui_state.scene, ui_state.camera);
+        requestAnimationFrame(loop)
+    }
+    loop()
+}
+main()
+-->
+
+<!--
 mass_thrust_no_crash = []
 mass_thrust_crash = []
 tw_ti_no_crash = []
@@ -406,10 +496,8 @@ Object.keys(data).forEach(path => {
 })
 
 
-scatter([{label: "no crash", data: mass_thrust_no_crash}, {label: "crash", data: mass_thrust_crash}], "Mass [kg]", "Thrust [N]", "Thrust to Mass")
-scatter([{label: "no crash", data: tw_ti_no_crash}, {label: "crash", data: tw_ti_crash}], "Thrust to Weight Ratio", "Torque to Inertia Ratio", "Thrust to weight / Torque to Inertia")
-scatter([{label: "no crash", data: tw_ti_scale_no_crash}, {label: "crash", data: tw_ti_scale_crash}], "Radius [m]", "Thrust to Weight to Torque to Inertia Ratio", "Thrust to weight / Torque to Inertia by Scale")
-scatter([{label: "no crash", data: initial_position_orientation_no_crash}, {label: "crash", data: initial_position_orientation_crash}], "Initial Distance From Origin [m]", "Initial Orientation [degrees]", "Initial Position / Orientation")
-
+output.scatter([{label: "no crash", data: mass_thrust_no_crash}, {label: "crash", data: mass_thrust_crash}], "Mass [kg]", "Thrust [N]", "Thrust to Mass")
+output.scatter([{label: "no crash", data: tw_ti_no_crash}, {label: "crash", data: tw_ti_crash}], "Thrust to Weight Ratio", "Torque to Inertia Ratio", "Thrust to weight / Torque to Inertia")
+output.scatter([{label: "no crash", data: tw_ti_scale_no_crash}, {label: "crash", data: tw_ti_scale_crash}], "Radius [m]", "Thrust to Weight to Torque to Inertia Ratio", "Thrust to weight / Torque to Inertia by Scale")
+output.scatter([{label: "no crash", data: initial_position_orientation_no_crash}, {label: "crash", data: initial_position_orientation_crash}], "Initial Distance From Origin [m]", "Initial Orientation [degrees]", "Initial Position / Orientation")
 -->
-
