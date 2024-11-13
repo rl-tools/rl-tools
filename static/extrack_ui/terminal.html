@@ -382,12 +382,15 @@ Object.keys(data).forEach(path => {
         const length = Math.sqrt(x * x + y * y + z * z + w * w);
         const angle = 2 * Math.acos(w / length);
         const angle_degrees = angle * (180 / Math.PI);
+        let angle_degrees_normalized = angle_degrees % 360;
+        if (angle_degrees_normalized < 0) angle_degrees_normalized += 360;
+        angle_degrees_normalized = Math.min(angle_degrees_normalized, 360 - angle_degrees_normalized);
         const position_orientation = {
             x: initial_distance,
-            y: angle_degrees
+            y: angle_degrees_normalized
         }
 
-        if(trajectory.trajectory.some(x => x.terminated === 1) === true){
+        if(trajectory.trajectory.some(x => x.terminated === true) === true){
             mass_thrust_crash.push(mass_thrust)
             tw_ti_crash.push(tw_ti)
             tw_ti_scale_crash.push(tw_ti_scale)
@@ -407,7 +410,6 @@ scatter([{label: "no crash", data: mass_thrust_no_crash}, {label: "crash", data:
 scatter([{label: "no crash", data: tw_ti_no_crash}, {label: "crash", data: tw_ti_crash}], "Thrust to Weight Ratio", "Torque to Inertia Ratio", "Thrust to weight / Torque to Inertia")
 scatter([{label: "no crash", data: tw_ti_scale_no_crash}, {label: "crash", data: tw_ti_scale_crash}], "Radius [m]", "Thrust to Weight to Torque to Inertia Ratio", "Thrust to weight / Torque to Inertia by Scale")
 scatter([{label: "no crash", data: initial_position_orientation_no_crash}, {label: "crash", data: initial_position_orientation_crash}], "Initial Distance From Origin [m]", "Initial Orientation [degrees]", "Initial Position / Orientation")
-
 
 -->
 
