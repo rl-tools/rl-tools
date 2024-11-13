@@ -181,7 +181,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T TARGET_ENTROPY = -((T)4);
         static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 1 : 1;
     };
-    static constexpr TI STEP_LIMIT = 20000000;
+    static constexpr TI STEP_LIMIT = 400000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
@@ -214,9 +214,9 @@ using LOOP_CORE_CONFIG_MLP = rlt::rl::algorithms::sac::loop::core::Config<T, TI,
 // using LOOP_CORE_CONFIG = rlt::utils::typing::conditional_t<SEQUENTIAL, LOOP_CORE_CONFIG_GRU, LOOP_CORE_CONFIG_MLP>;
 using LOOP_CORE_CONFIG = LOOP_CORE_CONFIG_MLP;
 
-constexpr TI NUM_CHECKPOINTS = 100;
-constexpr TI NUM_EVALUATIONS = 500;
-constexpr TI NUM_SAVE_TRAJECTORIES = 100;
+constexpr TI NUM_CHECKPOINTS = 10;
+constexpr TI NUM_EVALUATIONS = 10;
+constexpr TI NUM_SAVE_TRAJECTORIES = 10;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
