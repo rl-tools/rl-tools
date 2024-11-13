@@ -25,16 +25,29 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, COMPILE){
 
     bool rng = false;
 
-    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng);
+    {
+        rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng);
+        auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
+        std::cout << "Oiriginal output:" << std::endl;
+        rlt::print(device, rl_tools_export::output::container);
+        std::cout << "Loaded output:" << std::endl;
+        rlt::print(device, output);
 
-    auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
+        std::cout << "abs_diff: " << abs_diff << std::endl;
+        ASSERT_LT(abs_diff, 1e-5);
+    }
 
-    std::cout << "Oiriginal output:" << std::endl;
-    rlt::print(device, rl_tools_export::output::container);
-    std::cout << "Loaded output:" << std::endl;
-    rlt::print(device, output);
+    {
+        auto model = rl_tools_export::model::factory<>;
+        rlt::evaluate(device, model, rl_tools_export::input::container, output, buffer, rng);
+        auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
+        std::cout << "Oiriginal output:" << std::endl;
+        rlt::print(device, rl_tools_export::output::container);
+        std::cout << "Loaded output:" << std::endl;
+        rlt::print(device, output);
 
-    std::cout << "abs_diff: " << abs_diff << std::endl;
-    ASSERT_LT(abs_diff, 1e-5);
+        std::cout << "abs_diff: " << abs_diff << std::endl;
+        ASSERT_LT(abs_diff, 1e-5);
+    }
 }
 

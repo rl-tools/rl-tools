@@ -9,7 +9,7 @@
 
 #include "../../../../data/test_nn_layers_gru_persist_code.h"
 
-#include <highfive/H5File.hpp>
+// #include <highfive/H5File.hpp>
 
 namespace rlt = rl_tools;
 

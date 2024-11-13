@@ -58,7 +58,7 @@ namespace rl_tools{
             std::string model_stub = "TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
             std::stringstream ss_initializer_list;
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list << "layer_" << inner_layer_i << "::create<" << model_stub << "::CONTENT>()";
+                ss_initializer_list << "layer_" << inner_layer_i << "::factory<" << model_stub << "::CONTENT>";
                 if(inner_layer_i < num_layers(model)-1){
                     ss_initializer_list << ", {";
                 }
@@ -71,9 +71,9 @@ namespace rl_tools{
             ss << ss_initializer_list.str() << ";\n";
 
             std::stringstream ss_initializer_list_create;
-            std::string model_stub_create = "MODEL"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
+            std::string model_stub_create = "T_TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list_create << "layer_" << inner_layer_i << "::create<typename " << model_stub_create << "::CONTENT>()";
+                ss_initializer_list_create << "layer_" << inner_layer_i << "::factory<typename " << model_stub_create << "::CONTENT>";
                 if(inner_layer_i < num_layers(model)-1){
                     ss_initializer_list_create << ", {";
                 }
@@ -83,14 +83,13 @@ namespace rl_tools{
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
                 ss_initializer_list_create << "}";
             }
+            std::string initializer_list = ss_initializer_list_create.str();
+            ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = {" << initializer_list << ";" << "\n";
+            ss << ind << "}";
 
-            ss << ind << "    " << "template <typename MODEL>" << "\n";
-            ss << ind << "    " << "constexpr MODEL create(){" << "\n";
-            ss << ind << "    " << "    return MODEL{" << ss_initializer_list_create.str() << ";" << "\n";
-            ss << ind << "    " << "}" << "\n";
 
 //            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<" << layer_i << "> module = {layer_0::container, " << get_type_string<typename SPEC::NEXT_MODULE>() << "::module, };\n";
-            ss << ind << "}";
         }
         return {ss_header.str(), ss.str()};
     }

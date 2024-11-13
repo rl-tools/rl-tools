@@ -51,32 +51,32 @@ namespace rl_tools{
         ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;" << "\n";
         std::stringstream ss_initializer_list;
         {
-            ss_initializer_list << "{input_layer::create<TYPE::SPEC::INPUT_LAYER>(), ";
+            ss_initializer_list << "{input_layer::factory<TYPE::SPEC::INPUT_LAYER>, ";
             ss_initializer_list << "{";
             for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
                 if(hidden_layer_i > 0){
                     ss_initializer_list << ", ";
                 }
-                ss_initializer_list << "hidden_layer_" << hidden_layer_i << "::create<TYPE::SPEC::HIDDEN_LAYER>()";
+                ss_initializer_list << "hidden_layer_" << hidden_layer_i << "::factory<TYPE::SPEC::HIDDEN_LAYER>";
             }
             ss_initializer_list << "}, ";
-            ss_initializer_list << "output_layer::create<TYPE::SPEC::OUTPUT_LAYER>()}";
+            ss_initializer_list << "output_layer::factory<TYPE::SPEC::OUTPUT_LAYER>}";
         }
         std::stringstream ss_initializer_list_create;
         {
-            ss_initializer_list_create << "{input_layer::create<typename MODEL::SPEC::INPUT_LAYER>(), ";
+            ss_initializer_list_create << "{input_layer::factory<typename T_TYPE::SPEC::INPUT_LAYER>, ";
             ss_initializer_list_create << "{";
             for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
                 if(hidden_layer_i > 0){
                     ss_initializer_list_create << ", ";
                 }
-                ss_initializer_list_create << "hidden_layer_" << hidden_layer_i << "::create<typename MODEL::SPEC::HIDDEN_LAYER>()";
+                ss_initializer_list_create << "hidden_layer_" << hidden_layer_i << "::factory<typename T_TYPE::SPEC::HIDDEN_LAYER>";
             }
             ss_initializer_list_create << "}, ";
-            ss_initializer_list_create << "output_layer::create<typename MODEL::SPEC::OUTPUT_LAYER>()}";
+            ss_initializer_list_create << "output_layer::factory<typename T_TYPE::SPEC::OUTPUT_LAYER>}";
         }
 
-        std::string initializer_list;
+        // std::string initializer_list;
 //        if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
 //            initializer_list = "{" + ss_initializer_list.str() + "}";
 //        }
@@ -93,11 +93,10 @@ namespace rl_tools{
 //                }
 //            }
 //        }
+        std::string initializer_list = ss_initializer_list_create.str();
         ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << ss_initializer_list.str() << ";\n";
-        ss << ind << "    " << "template <typename MODEL>" << "\n";
-        ss << ind << "    " << "constexpr MODEL create(){" << "\n";
-        ss << ind << "    " << "    return MODEL" << ss_initializer_list_create.str() << ";" << "\n";
-        ss << ind << "    " << "}" << "\n";
+        ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = " << initializer_list << ";" << "\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }

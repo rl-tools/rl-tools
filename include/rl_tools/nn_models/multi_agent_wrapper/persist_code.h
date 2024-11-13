@@ -40,7 +40,7 @@ namespace rl_tools{
         ss << ind << "    using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << SPEC::INPUT_SHAPE::template GET<0> << ", " << SPEC::INPUT_SHAPE::template GET<1> << ", " << SPEC::INPUT_SHAPE::template GET<2> << ">;\n";
         ss << ind << "    using MODEL = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::multi_agent_wrapper::Module<CONFIG, CAPABILITY, INPUT_SHAPE>; \n";
         std::stringstream ss_initializer_list;
-        ss_initializer_list << "{content::create<MODEL::MODEL>()}";
+        ss_initializer_list << "{content::factory<MODEL::MODEL>}";
         ss << ind << "    " << (const_declaration ? "const " : "") << "MODEL module = " << ss_initializer_list.str() << ";\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
