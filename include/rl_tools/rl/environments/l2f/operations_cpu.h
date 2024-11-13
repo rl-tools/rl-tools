@@ -309,12 +309,13 @@ class State{
         this.controls.update()
 
         this.camera_set = false
+        this.THREE = THREE
     }
 
 }
 
 
-class Drone{
+export class Drone{
   constructor(model, origin, envParams, displayIMUCoordinateSystem, displayActions){
     // console.log(model)
     this.origin = origin
