@@ -215,52 +215,52 @@
         <h2>Control Mapping</h2>
         <div class="axis-row">
             <span class="axis-label">Thrust</span>
-            <select id="thrustAxis"></select>
+            <select id="thrustAxis" onchange="saveConfiguration()"></select>
             <span class="axis-value" id="thrustValue">0.00</span>
             <div class="axis-bar-container">
                 <div class="axis-bar" id="thrustBar"></div>
             </div>
-            <input type="checkbox" id="invertThrust" class="invert-checkbox" onchange="invertAxis('thrust')">
+            <input type="checkbox" id="invertThrust" class="invert-checkbox" onchange="invertAxis('thrust'); saveConfiguration()">
             <label for="invertThrust" class="invert-label">Invert</label>
         </div>
 
         <div class="axis-row">
             <span class="axis-label">Yaw</span>
-            <select id="yawAxis"></select>
+            <select id="yawAxis" onchange="saveConfiguration()"></select>
             <span class="axis-value" id="yawValue">0.00</span>
             <div class="axis-bar-container">
                 <div class="axis-bar" id="yawBar"></div>
             </div>
-            <input type="checkbox" id="invertYaw" class="invert-checkbox" onchange="invertAxis('yaw')">
+            <input type="checkbox" id="invertYaw" class="invert-checkbox" onchange="invertAxis('yaw'); saveConfiguration()">
             <label for="invertYaw" class="invert-label">Invert</label>
         </div>
 
         <div class="axis-row">
             <span class="axis-label">Roll</span>
-            <select id="rollAxis"></select>
+            <select id="rollAxis" onchange="saveConfiguration()"></select>
             <span class="axis-value" id="rollValue">0.00</span>
             <div class="axis-bar-container">
                 <div class="axis-bar" id="rollBar"></div>
             </div>
-            <input type="checkbox" id="invertRoll" class="invert-checkbox" onchange="invertAxis('roll')">
+            <input type="checkbox" id="invertRoll" class="invert-checkbox" onchange="invertAxis('roll'); saveConfiguration()">
             <label for="invertRoll" class="invert-label">Invert</label>
         </div>
 
         <div class="axis-row">
             <span class="axis-label">Pitch</span>
-            <select id="pitchAxis"></select>
+            <select id="pitchAxis" onchange="saveConfiguration()"></select>
             <span class="axis-value" id="pitchValue">0.00</span>
             <div class="axis-bar-container">
                 <div class="axis-bar" id="pitchBar"></div>
             </div>
-            <input type="checkbox" id="invertPitch" class="invert-checkbox" onchange="invertAxis('pitch')">
+            <input type="checkbox" id="invertPitch" class="invert-checkbox" onchange="invertAxis('pitch'); saveConfiguration()">
             <label for="invertPitch" class="invert-label">Invert</label>
         </div>
     </div>
 
     <div class="button-config">
         <h2>Button Configuration</h2>
-        <button onclick="addButtonMapping()">Add Button Mapping</button>
+        <button onclick="addButtonMapping(); saveConfiguration()">Add Button Mapping</button>
         <div id="buttonMappings"></div>
     </div>
 </div>
@@ -399,6 +399,7 @@
                 buttonMappings.splice(index, 1);
             }
             mappingDiv.remove();
+            saveConfiguration();
         };
 
         mappingDiv.appendChild(input);
@@ -463,6 +464,7 @@
         gamepad = e.gamepad;
         updateStatus();
         initAxisSelects();
+        loadConfiguration();
     });
 
     window.addEventListener('gamepaddisconnected', (e) => {
@@ -477,8 +479,50 @@
             if (gamepad.buttons[i] && gamepad.buttons[i].pressed && mapping.buttonIndex === null) {
                 mapping.buttonIndex = i;
                 mapping.label.textContent = `Button ${i}`;
+                saveConfiguration();
                 break;
             }
+        }
+    }
+
+    function saveConfiguration() {
+        const config = {
+            axisSelects: {
+                thrust: axisSelects.thrust.value,
+                yaw: axisSelects.yaw.value,
+                roll: axisSelects.roll.value,
+                pitch: axisSelects.pitch.value
+            },
+            axisInversions,
+            buttonMappings: buttonMappings.map(mapping => ({
+                buttonIndex: mapping.buttonIndex,
+                identifier: mapping.input.value
+            }))
+        };
+        localStorage.setItem('gamepadConfig', JSON.stringify(config));
+    }
+
+    function loadConfiguration() {
+        const config = JSON.parse(localStorage.getItem('gamepadConfig'));
+        if (config) {
+            axisSelects.thrust.value = config.axisSelects.thrust;
+            axisSelects.yaw.value = config.axisSelects.yaw;
+            axisSelects.roll.value = config.axisSelects.roll;
+            axisSelects.pitch.value = config.axisSelects.pitch;
+
+            axisInversions = config.axisInversions;
+            document.getElementById('invertThrust').checked = axisInversions.thrust;
+            document.getElementById('invertYaw').checked = axisInversions.yaw;
+            document.getElementById('invertRoll').checked = axisInversions.roll;
+            document.getElementById('invertPitch').checked = axisInversions.pitch;
+
+            config.buttonMappings.forEach(mapping => {
+                addButtonMapping();
+                const newMapping = buttonMappings[buttonMappings.length - 1];
+                newMapping.buttonIndex = mapping.buttonIndex;
+                newMapping.input.value = mapping.identifier;
+                newMapping.label.textContent = mapping.buttonIndex !== null ? `Button ${mapping.buttonIndex}` : 'Press button to map...';
+            });
         }
     }
 
