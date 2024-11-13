@@ -251,7 +251,9 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
             localStorage.setItem(STORAGE_KEYS.SELECTED_FILES, JSON.stringify(selectedFiles));
         });
 
-        let charts = []
+        let state = {
+            charts: []
+        }
         async function executeCode() {
             localStorage.setItem(STORAGE_KEYS.CODE, editor.getValue());
 
@@ -270,7 +272,7 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
             const code = editor.getValue();
             output.textContent = '';
 
-            charts.map(chart => chart.destroy());
+            state.charts.map(chart => chart.destroy());
             output2.innerHTML = '';
             function scatter(input_data, x_axis_label, y_axis_label, title) {
                 const output2 = document.getElementById('output2');
@@ -315,12 +317,12 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
                         }
                     }
                 });
-                charts.push(scatter_chart);
+                state.charts.push(scatter_chart);
             }
 
 
             try {
-                const func = new Function('data', 'output', `
+                const func = new Function('app_state', 'data', 'output', `
                     const console = {
                         log: (...args) => {
                             output.console_container.textContent += args.map(arg =>
@@ -362,8 +364,10 @@ const run_stub = Object.keys(data)[0].split("/").slice(0, -3).join("/")
 ui_path = `${experiments_stub}/${run_stub}/ui.esm.js`
 
 const container = output.container
-console.log(container)
 const training_step_data = JSON.parse(data[Object.keys(data)[0]])
+const old_execution_id = window.terminal_execution_id === undefined ? -1 : window.terminal_execution_id;
+const execution_id = old_execution_id + 1;
+window.terminal_execution_id = execution_id
 async function main(){
     console.log(ui_path)
 
@@ -419,7 +423,6 @@ async function main(){
             }
             last_animation_frame = now
         }
-        console.clear()
         drones.map(drone => {
             const state = drone.steps[current_step].state
             drone.drone.drone.position.set(...state.position)
@@ -427,11 +430,14 @@ async function main(){
         })
         ui_state.controls.update()
         ui_state.renderer.render(ui_state.scene, ui_state.camera);
-        requestAnimationFrame(loop)
+        if(window.terminal_execution_id === execution_id){
+            requestAnimationFrame(loop)
+        }
     }
     loop()
 }
 main()
+
 -->
 
 <!--
