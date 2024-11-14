@@ -1,3 +1,6 @@
+#ifdef BENCHMARK
+#undef RL_TOOLS_ENABLE_TENSORBOARD
+#endif
 #include <rl_tools/operations/cpu_mux.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -168,9 +171,9 @@ using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
-        static constexpr TI ACTOR_BATCH_SIZE = 128;
-        static constexpr TI CRITIC_BATCH_SIZE = 128;
-        static constexpr TI TRAINING_INTERVAL = 10;
+        static constexpr TI ACTOR_BATCH_SIZE = 64;
+        static constexpr TI CRITIC_BATCH_SIZE = 64;
+        static constexpr TI TRAINING_INTERVAL = 5;
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
         static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
         static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
@@ -181,13 +184,13 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T TARGET_ENTROPY = -((T)4);
         static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL ? 1 : 1;
     };
-    static constexpr TI STEP_LIMIT = 400000;
+    static constexpr TI STEP_LIMIT = 200000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI ACTOR_HIDDEN_DIM = 32;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
-    static constexpr TI CRITIC_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_HIDDEN_DIM = 32;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
@@ -215,8 +218,8 @@ using LOOP_CORE_CONFIG_MLP = rlt::rl::algorithms::sac::loop::core::Config<T, TI,
 using LOOP_CORE_CONFIG = LOOP_CORE_CONFIG_MLP;
 
 constexpr TI NUM_CHECKPOINTS = 10;
-constexpr TI NUM_EVALUATIONS = 10;
-constexpr TI NUM_SAVE_TRAJECTORIES = 10;
+constexpr TI NUM_EVALUATIONS = 20;
+constexpr TI NUM_SAVE_TRAJECTORIES = 20;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
@@ -238,7 +241,11 @@ struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectorie
 };
 using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVALUATION_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_SAVE_TRAJECTORIES_CONFIG>;
+#ifdef BENCHMARK
+using LOOP_CONFIG = LOOP_CORE_CONFIG;
+#else
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+#endif
 
 using LOOP_STATE = typename LOOP_CONFIG::State<LOOP_CONFIG>;
 
@@ -251,14 +258,16 @@ int main(int argc, char** argv){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, seed);
     LOOP_STATE ts;
+#ifndef BENCHMARK
     ts.extrack_name = "dr-sac";
     ts.extrack_population_variates = "algorithm_environment_zero-init";
     ts.extrack_population_values = "sac_l2f_" + std::string((ZERO_ANGLE_INIT ? "true" : "false"));
+#endif
     rlt::malloc(device);
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD)
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
     std::string parameters_json;
@@ -270,7 +279,9 @@ int main(int argc, char** argv){
         parameters_json = rlt::json(device, env, env_parameters);
         rlt::compare_parameters(device, env_parameters_nominal, env_parameters);
         rlt::set_parameters(device, ts.off_policy_runner, env_parameters);
+#ifndef BENCHMARK
         ts.env_eval_parameters = env_parameters;
+#endif
     }
     while(!rlt::step(device, ts)){
 
@@ -293,9 +304,12 @@ int main(int argc, char** argv){
                 auto& env = get(ts.off_policy_runner.envs, 0, env_i);
                 env.parameters.mdp.init.max_angle = max_angle;
             }
+#ifndef BENCHMARK
             ts.env_eval.parameters.mdp.init.max_angle = max_angle;
+#endif
         }
     }
+#ifndef BENCHMARK
     std::filesystem::create_directories(ts.extrack_seed_path);
     std::ofstream return_file(ts.extrack_seed_path / "return.json");
     return_file << "{";
@@ -315,4 +329,5 @@ int main(int argc, char** argv){
     return_file << "}";
     std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
     return_file_confirmation.close();
+#endif
 }
