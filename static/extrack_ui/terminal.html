@@ -9,6 +9,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/mode-javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/theme-tomorrow.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+
     <script type="importmap">
         {
             "imports": {
@@ -162,6 +164,7 @@
 </div>
 
 <script>
+
     const experiments_path = "/experiments"
     const STORAGE_KEYS = {
         CODE: 'editor_code',
@@ -262,7 +265,15 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
                 if (!res.ok) {
                     throw new Error(`Failed to fetch content from ${option.value}`);
                 }
-                const content = await res.text();
+                let content;
+                if(option.value.slice(-3) === '.gz'){
+                    const compressedData = await res.arrayBuffer();
+                    const decompressedData = pako.ungzip(new Uint8Array(compressedData), { to: 'string' });
+                    content = JSON.parse(decompressedData);
+                }
+                else{
+                    content = JSON.parse(await res.json());
+                }
                 return [option.value, content];
             });
 
@@ -322,7 +333,7 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
 
 
             try {
-                const func = new Function('app_state', 'data', 'output', `
+                const func = new Function('data', 'output', `
                     const console = {
                         log: (...args) => {
                             output.console_container.textContent += args.map(arg =>
@@ -357,14 +368,12 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
 
 <!--
 
-
-
 const experiments_stub = "/experiments"
 const run_stub = Object.keys(data)[0].split("/").slice(0, -3).join("/")
 ui_path = `${experiments_stub}/${run_stub}/ui.esm.js`
 
 const container = output.container
-const training_step_data = JSON.parse(data[Object.keys(data)[0]])
+const training_step_data = data[Object.keys(data)[0]]
 const old_execution_id = window.terminal_execution_id === undefined ? -1 : window.terminal_execution_id;
 const execution_id = old_execution_id + 1;
 window.terminal_execution_id = execution_id
@@ -439,6 +448,14 @@ async function main(){
 main()
 
 -->
+
+
+
+
+
+
+
+
 
 <!--
 mass_thrust_no_crash = []
