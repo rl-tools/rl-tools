@@ -1,25 +1,15 @@
-#include <rl_tools/rl/environments/acrobot/operations_generic.h>
+#include "environment.h"
+
 
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>
-//#include <rl_tools/rl/loop/steps/extrack/config.h>
-//#include <rl_tools/rl/loop/steps/checkpoint/config.h>
-//#include <rl_tools/rl/loop/steps/evaluation/config.h>
-//#include <rl_tools/rl/loop/steps/save_trajectories/config.h>
-//#include <rl_tools/rl/loop/steps/timing/config.h>
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::sac::acrobot_swingup_v0{
+namespace rl_tools::rl::zoo::acrobot_swingup_v0::sac{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
-    struct AcrobotSwingupV0{
-        struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::acrobot::EasyParameters<T>{
-            static constexpr T DT = 0.02;
-            static constexpr T MIN_TORQUE = -5;
-            static constexpr T MAX_TORQUE = +5;
-        };
-        using ENVIRONMENT_SPEC = rlt::rl::environments::acrobot::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
-        using ENVIRONMENT = rlt::rl::environments::AcrobotSwingup<ENVIRONMENT_SPEC>;
+    struct FACTORY{
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<T, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
@@ -39,7 +29,7 @@ namespace rl_tools::rl::zoo::sac::acrobot_swingup_v0{
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr T ALPHA = 1;
             static constexpr T TARGET_ENTROPY = -2;
-            static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT_PARAMETERS::DT;
+            static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT::Parameters::DT;
             static constexpr TI N_WARMUP_STEPS = 50000;
             struct INITIALIZER_SPEC: nn::layers::dense::KaimingUniformSpecification<T, TI>{
                 static constexpr bool INIT_LEGACY = false;

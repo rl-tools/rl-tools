@@ -1,7 +1,7 @@
 #include <rl_tools/version.h>
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ZOO_BOTTLENECK_V0)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ZOO_BOTTLENECK_V0_ENVIRONMENT_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ZOO_BOTTLENECK_V0
+#define RL_TOOLS_RL_ZOO_BOTTLENECK_V0_ENVIRONMENT_H
 
 #include <rl_tools/rl/environments/multi_agent/bottleneck/operations_cpu.h>
 

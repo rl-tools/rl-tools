@@ -1,7 +1,7 @@
 #include <rl_tools/version.h>
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ZOO_PENDULUM_V1)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ZOO_PENDULUM_V1_ENVIRONMENT_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ZOO_PENDULUM_V1
+#define RL_TOOLS_RL_ZOO_PENDULUM_V1_ENVIRONMENT_H
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 

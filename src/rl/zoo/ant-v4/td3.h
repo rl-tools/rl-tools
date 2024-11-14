@@ -1,4 +1,4 @@
-#include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
+#include "environment.h"
 
 #include <rl_tools/rl/algorithms/td3/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/extrack/config.h>
@@ -7,15 +7,11 @@
 #include <rl_tools/rl/loop/steps/save_trajectories/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 
-namespace rl_tools::rl::zoo::td3::ant_v4{
+namespace rl_tools::rl::zoo::ant_v4::td3{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
-    struct AntV4{
-        using ENVIRONMENT_SPEC = rlt::rl::environments::mujoco::ant::Specification<double, TI, rlt::rl::environments::mujoco::ant::DefaultParameters<T, TI>>;
-        using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
-//        using ENVIRONMENT_PARAMETERS = rlt::rl::environments::mujoco::ant::DefaultParameters<T_ENVIRONMENT, TI>;
-//        using ENVIRONMENT_SPEC = rlt::rl::environments::mujoco::ant::Specification<T_ENVIRONMENT, TI, ENVIRONMENT_PARAMETERS>;
-//        using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
+    struct FACTORY{
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<T, T, TI>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{

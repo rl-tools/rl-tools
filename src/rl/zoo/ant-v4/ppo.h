@@ -1,4 +1,4 @@
-#include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
+#include "environment.h"
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/extrack/config.h>
@@ -9,14 +9,11 @@
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::ppo::ant_v4{
+namespace rl_tools::rl::zoo::ant_v4::ppo{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
-    struct AntV4{
-        using T_ENVIRONMENT = double;
-        using ENVIRONMENT_PARAMETERS = rlt::rl::environments::mujoco::ant::DefaultParameters<T_ENVIRONMENT, TI>;
-        using ENVIRONMENT_SPEC = rlt::rl::environments::mujoco::ant::Specification<T_ENVIRONMENT, TI, ENVIRONMENT_PARAMETERS>;
-        using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
+    struct FACTORY{
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<T, T, TI>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             static constexpr TI STEP_LIMIT = 600; // ~2.5M env steps

@@ -41,15 +41,15 @@
 #endif
 
 #include "pendulum-v1/sac.h"
-#include "sac/acrobot-swingup-v0.h"
-#include "sac/l2f.h"
+#include "acrobot-swingup-v0/sac.h"
+#include "l2f/sac.h"
 #include "pendulum-v1/td3.h"
-#include "td3/l2f.h"
+#include "l2f/td3.h"
 #include "pendulum-v1/ppo.h"
 #include "bottleneck-v0/ppo.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
-#include "ppo/ant-v4.h"
-#include "td3/ant-v4.h"
+#include "ant-v4/ppo.h"
+#include "ant-v4/td3.h"
 #endif
 
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>

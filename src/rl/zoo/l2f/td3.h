@@ -1,23 +1,14 @@
-
-#include <rl_tools/rl/environments/l2f/operations_cpu.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/crazyflie.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/race.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_sim.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_real.h>
-#include <rl_tools/rl/environments/l2f/parameters/init/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/termination/default.h>
+#include "environment.h"
 
 
+#include <rl_tools/rl/algorithms/td3/loop/core/config.h>
 #include <rl_tools/utils/generic/typing.h>
 
-namespace rl_tools::rl::zoo::td3::l2f{
+namespace rl_tools::rl::zoo::l2f::td3{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
-    struct LearningToFly{
-        using ENVIRONMENT = typename rl::environments::l2f::parameters::DefaultParameters<T, TI>::ENVIRONMENT;
+    struct FACTORY{
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;

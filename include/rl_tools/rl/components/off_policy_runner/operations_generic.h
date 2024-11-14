@@ -53,6 +53,9 @@ namespace rl_tools{
             auto& episode_stats = get(runner.episode_stats, 0, env_i);
             episode_stats = {};
             malloc(device, episode_stats);
+            auto& env = get(runner.envs, 0, env_i);
+            env = {};
+            malloc(device, env);
         }
         malloc(device, runner.policy_states);
     }

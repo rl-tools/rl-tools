@@ -11,11 +11,11 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::sac::FACTORY<DEVICE, T, TI, 
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::acrobot_swingup_v0::AcrobotSwingupV0<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
-using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::sac::acrobot_swingup_v0::AcrobotSwingupV0<DEVICE, T, TI, RNG>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
+using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, T, TI, RNG>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::l2f::LearningToFly<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 #else
@@ -27,11 +27,11 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::td3::FACTORY<DEVICE, T, TI, 
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::td3::l2f::LearningToFly<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::td3::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::td3::ant_v4::AntV4<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::ant_v4::td3::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #else
@@ -47,7 +47,7 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::bottleneck_v0::ppo::FACTORY<DEVICE, T, TI
 template <typename BASE>
 using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::bottleneck_v0::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::ppo::ant_v4::AntV4<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::ant_v4::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #else
