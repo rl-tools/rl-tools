@@ -207,8 +207,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         if(extrack_experiment != ""){
             ts.extrack_experiment = extrack_experiment;
         }
-        ts.extrack_population_variates = "algorithm_environment";
-        ts.extrack_population_values = algorithm + "_" + environment;
+        ts.extrack_population_variates = "environment_algorithm";
+        ts.extrack_population_values = environment + "_" + algorithm;
         if(extrack_experiment_path != ""){
             ts.extrack_experiment = extrack_experiment_path;
         }

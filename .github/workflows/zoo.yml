@@ -82,33 +82,33 @@ jobs:
           $MUJOCO_OPTION
 
       - name: Build
-        run: cmake --build build --target rl_zoo_sac_pendulum_v1 rl_zoo_td3_pendulum_v1 rl_zoo_ppo_pendulum_v1
+        run: cmake --build build --target rl_zoo_pendulum_v1_sac rl_zoo_pendulum_v1_td3 rl_zoo_pendulum_v1_ppo
       - name: Build Acrobot
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.acrobot == 'true'
-        run: cmake --build build --target rl_zoo_sac_acrobot_swingup_v0
+        run: cmake --build build --target rl_zoo_acrobot_swingup_v0_sac
       - name: Build MuJoCo
         if: ${{ env.MUJOCO == 'true' }}
-        run: cmake --build build --target rl_zoo_ppo_ant_v4
+        run: cmake --build build --target rl_zoo_ant_v4_ppo
       - name: Run Zoo (SAC Pendulum-v1)
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_sac_pendulum_v1 -n $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_sac -n $NUM_SEEDS
 
       - name: Run Zoo (TD3 Pendulum-v1)
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_td3_pendulum_v1 -n $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_td3 -n $NUM_SEEDS
 
       - name: Run Zoo (PPO Pendulum-v1)
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_ppo_pendulum_v1 -n $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_ppo -n $NUM_SEEDS
 
       - name: Run Zoo (SAC AcrobotSwingup-v0)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.acrobot == 'true'
-        run: ./build/src/rl/zoo/rl_zoo_sac_acrobot_swingup_v0 -n $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_acrobot_swingup_v0_sac -n $NUM_SEEDS
 
       - name: Run Zoo (PPO Ant-v4)
         if: ${{ env.MUJOCO == 'true' }}
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_ppo_ant_v4 -n $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_ant_v4_ppo -n $NUM_SEEDS
 
       - name: Pull Zoo Blob Again
         working-directory: ${{ github.workspace }}/experiments
