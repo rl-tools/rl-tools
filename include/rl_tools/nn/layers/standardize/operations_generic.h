@@ -56,7 +56,8 @@ namespace rl_tools{
         static_assert(MEAN_SPEC::ROWS == 1);
         copy(device, device, mean, layer.mean.parameters);
         for(TI i=0; i < LAYER_SPEC::INPUT_DIM; i++){
-            T precision = 1/get(std, 0, i);
+            T current_std = 1/get(std, 0, i);
+            T precision = current_std == 0 ? 0 : 1/current_std;
             set(layer.precision.parameters, 0, i, precision);
         }
     }
@@ -71,7 +72,10 @@ namespace rl_tools{
                 T mean = get(layer.mean.parameters, 0, output_i);
                 T precision = get(layer.precision.parameters, 0, output_i);
                 T input_value = get(input, batch_i, output_i);
-                T output_value = (input_value - mean) * precision;
+                T output_value = (input_value - mean);
+                if(precision != 0){
+                    output_value *= precision;
+                }
                 set(output, batch_i, output_i, output_value);
             }
         }

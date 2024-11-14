@@ -1,4 +1,6 @@
-//#define RL_TOOLS_NAMESPACE_WRAPPER zoo
+#ifdef BENCHMARK
+#undef RL_TOOLS_ENABLE_TENSORBOARD
+#endif
 #define RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
 
 #include <rl_tools/operations/cpu_mux.h>
@@ -41,6 +43,7 @@
 #include "bottleneck-v0/ppo.h"
 #include "l2f/sac.h"
 #include "l2f/td3.h"
+#include "l2f/ppo.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ant-v4/ppo.h"
 #include "ant-v4/td3.h"
@@ -129,6 +132,10 @@ template <typename BASE>
 using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::bottleneck_v0::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::ant_v4::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #else

@@ -455,6 +455,7 @@ namespace rl_tools::rl::environments{
         using Parameters = typename SPEC::PARAMETERS;
 //        using REWARD_FUNCTION = typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION;
 //        static constexpr TI STATE_DIM = 13;
+        static constexpr TI N_AGENTS = 1;
         static constexpr TI ACTION_DIM = 4;
         static constexpr TI EPISODE_STEP_LIMIT = 500;
 

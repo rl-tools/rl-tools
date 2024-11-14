@@ -682,7 +682,12 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
                 acc += diff * diff;
             }
         }
-        return math::sqrt(device.math, acc/(SPEC::ROWS * SPEC::COLS - 1));
+        if(acc < 1e-6){
+            return 0;
+        }
+        else{
+            return math::sqrt(device.math, acc/(SPEC::ROWS * SPEC::COLS - 1));
+        }
     }
 
     template <typename DEVICE, typename T, typename DEVICE::index_t DIM>
