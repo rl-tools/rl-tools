@@ -17,11 +17,11 @@ which allows for easy creation of learning curves.
 # Bare Bones Compilation
 
 ```
-g++ -I ../include/ ../src/rl/zoo/zoo*.cpp -std=c++17 -Ofast -DRL_TOOLS_RL_ZOO_ALGORITHM_TD3 -DRL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1 -o pendulum_td3
+g++ -I include src/rl/zoo/zoo*.cpp -std=c++17 -Ofast -DRL_TOOLS_RL_ZOO_ALGORITHM_SAC -DRL_TOOLS_RL_ZOO_ENVIRONMENT_L2F -o a.out && ./a.out
 ```
 
 With openblas (actually any ABI compatible BLAS)
 
 ```
-g++ -I ../include/ ../src/rl/zoo/zoo*.cpp -std=c++17 -Ofast -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -DRL_TOOLS_RL_ZOO_ALGORITHM_TD3 -DRL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1 -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -o pendulum_td3 -lblas && ./pendulum_td3
+g++ -I include src/rl/zoo/zoo*.cpp -std=c++17 -Ofast -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -DRL_TOOLS_RL_ZOO_ALGORITHM_SAC -DRL_TOOLS_RL_ZOO_ENVIRONMENT_L2F -o a.out -lblas && ./a.out
 ```
