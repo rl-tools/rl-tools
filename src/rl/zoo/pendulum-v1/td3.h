@@ -1,15 +1,14 @@
-#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
+#include "environment.h"
 
 #include <rl_tools/rl/algorithms/td3/loop/core/config.h>
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::td3::pendulum_v1{
+namespace rl_tools::rl::zoo::pendulum_v1::td3{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
-    struct PendulumV1{
-        using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
-        using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
+    struct FACTORY{
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct TD3_PARAMETERS: rl::algorithms::td3::DefaultParameters<T, TI>{};
             static constexpr TI STEP_LIMIT = 20000;

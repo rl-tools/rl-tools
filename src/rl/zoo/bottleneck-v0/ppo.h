@@ -1,4 +1,4 @@
-#include <rl_tools/rl/environments/multi_agent/bottleneck/operations_cpu.h>
+#include "environment.h"
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/extrack/config.h>
@@ -9,25 +9,11 @@
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::ppo::bottleneck_v0{
+namespace rl_tools::rl::zoo::bottleneck_v0::ppo{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
-    struct BottleneckV0{
-        struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::DefaultParameters<T, TI>{
-            static constexpr TI N_AGENTS = 5;
-            static constexpr TI LIDAR_RESOLUTION = 5;
-            static constexpr T LIDAR_FOV = math::PI<T> * 90/180; // in radians (0 to PI)
-            static constexpr T BOTTLENECK_WIDTH = 5;
-            static constexpr TI EPISODE_STEP_LIMIT = 200;
-            static constexpr bool SPAWN_BOTH_SIDES = false;
-            static constexpr T AGENT_MAX_SPEED = 4;
-            static constexpr T AGENT_MAX_ANGULAR_VELOCITY = 4;
-            static constexpr T AGENT_MAX_ACCELERATION = 20;
-            static constexpr T AGENT_MAX_ANGULAR_ACCELERATION = 20;
-            static constexpr T DT = 0.05;
-        };
-        using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
-        using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
+    struct FACTORY{
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             static constexpr TI STEP_LIMIT = 5000; // 1024 * 4 * 74 ~ 300k steps
 
