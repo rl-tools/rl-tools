@@ -25,11 +25,22 @@ namespace rl_tools::rl::zoo::l2f{
     struct ENVIRONMENT_FACTORY{
 
         static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
-
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
-        static constexpr auto reward_function = rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T>;
-        using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
-        using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
+
+        using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
+        static constexpr REWARD_FUNCTION reward_function = {
+                false, // non-negative
+                00.10, // scale
+                01.00, // constant
+                00.00, // termination penalty
+                10.00, // position
+                02.50, // orientation
+                00.05, // linear_velocity
+                00.00, // angular_velocity
+                00.00, // linear_acceleration
+                00.00, // angular_acceleration
+                00.10, // action
+        };
 
         using PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION, rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY, MODEL>;
         using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDisturbances<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>;
@@ -49,7 +60,14 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr typename PARAMETERS_TYPE::MDP::ActionNoise action_noise = {
             0, // std of additive gaussian noise onto the normalized action (-1, 1)
         };
-        static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = rl_tools::rl::environments::l2f::parameters::termination::narrow<PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
+            true,  // enable
+            1,     // position
+            10,    // linear velocity
+            35,    // angular velocity
+            10000, // position integral
+            50000, // orientation integral
+        };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
             reward_function,
