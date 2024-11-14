@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ZOO_ACROBOT_SWINGUP_V0_ENVIRONMENT_H
 
-#include <rl_tools/rl/environments/acrobot/operations_generic.h>
+#include <rl_tools/rl/environments/acrobot/operations_cpu.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::acrobot_swingup_v0{
