@@ -1,11 +1,6 @@
 #include "environment.h"
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
-#include <rl_tools/rl/loop/steps/extrack/config.h>
-#include <rl_tools/rl/loop/steps/checkpoint/config.h>
-#include <rl_tools/rl/loop/steps/evaluation/config.h>
-#include <rl_tools/rl/loop/steps/save_trajectories/config.h>
-#include <rl_tools/rl/loop/steps/timing/config.h>
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
