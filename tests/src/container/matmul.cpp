@@ -1,7 +1,7 @@
-#include <rl_tools/operations/arm.h>
+#include <rl_tools/operations/cpu.h>
 #include <gtest/gtest.h>
 namespace rlt = rl_tools;
-using DEVICE = rlt::devices::DefaultARM;
+using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 
