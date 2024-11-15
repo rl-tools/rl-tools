@@ -148,9 +148,14 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 constexpr TI NUM_CHECKPOINTS = 10;
 constexpr TI NUM_EVALUATIONS = 100;
 constexpr TI NUM_SAVE_TRAJECTORIES = 10;
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
+#ifdef RL_TOOLS_RL_ZOO_ALGORITHM_PPO
+static constexpr TI TIMING_INTERVAL = 10;
+#else
+static constexpr TI TIMING_INTERVAL = 10000;
+#endif
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG, rlt::rl::loop::steps::timing::Parameters<TI, TIMING_INTERVAL>>;
 #ifndef BENCHMARK
-using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>;
+using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
     static constexpr TI CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL_TEMP == 0 ? 1 : CHECKPOINT_INTERVAL_TEMP;

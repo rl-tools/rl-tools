@@ -28,16 +28,19 @@ namespace rl_tools{
         using TI = typename CONFIG::TI;
         using STATE = rl::loop::steps::timing::State<CONFIG>;
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
-        auto now = std::chrono::steady_clock::now();
-        if(now - ts.last_steps_per_second_time > std::chrono::seconds(10)){
-            TI steps = ts.step - ts.last_steps_per_second_step;
-            T steps_per_second = (T)steps / std::chrono::duration_cast<std::chrono::microseconds>(now - ts.last_steps_per_second_time).count() * 1000000 * CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP;
-            log(device, device.logger, "Loop step: ", ts.step, ", env step: ", ts.step * CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP, ", SPS: ", steps_per_second, " (elapsed: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, " s)");
-            add_scalar(device, device.logger, "steps_per_second", steps_per_second);
-            ts.last_steps_per_second_time = now;
-            ts.last_steps_per_second_step = ts.step;
+        if(ts.step % CONFIG::PARAMETERS::INTERVAL == 0){
+            auto now = std::chrono::steady_clock::now();
+            if(now - ts.last_steps_per_second_time > std::chrono::seconds(10)){
+                TI steps = ts.step - ts.last_steps_per_second_step;
+                T steps_per_second = (T)steps / std::chrono::duration_cast<std::chrono::microseconds>(now - ts.last_steps_per_second_time).count() * 1000000 * CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP;
+                log(device, device.logger, "Loop step: ", ts.step, ", env step: ", ts.step * CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP, ", SPS: ", steps_per_second, " (elapsed: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, " s)");
+                add_scalar(device, device.logger, "steps_per_second", steps_per_second);
+                ts.last_steps_per_second_time = now;
+                ts.last_steps_per_second_step = ts.step;
+            }
         }
         if(finished){
+            auto now = std::chrono::steady_clock::now();
             log(device, device.logger, "Time: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, "s");
         }
         return finished;

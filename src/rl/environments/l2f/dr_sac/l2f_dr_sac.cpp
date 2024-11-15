@@ -220,7 +220,8 @@ using LOOP_CORE_CONFIG = LOOP_CORE_CONFIG_MLP;
 constexpr TI NUM_CHECKPOINTS = 10;
 constexpr TI NUM_EVALUATIONS = 20;
 constexpr TI NUM_SAVE_TRAJECTORIES = 20;
-using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG, rlt::rl::loop::steps::timing::Parameters<TI, 10000>>;
+using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
     static constexpr TI CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL_TEMP == 0 ? 1 : CHECKPOINT_INTERVAL_TEMP;
@@ -240,11 +241,10 @@ struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectorie
     static constexpr TI NUM_EPISODES = 100;
 };
 using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVALUATION_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_SAVE_TRAJECTORIES_CONFIG>;
 #ifdef BENCHMARK
-using LOOP_CONFIG = LOOP_CORE_CONFIG;
-#else
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+#else
+using LOOP_CONFIG = LOOP_SAVE_TRAJECTORIES_CONFIG;
 #endif
 
 using LOOP_STATE = typename LOOP_CONFIG::State<LOOP_CONFIG>;
