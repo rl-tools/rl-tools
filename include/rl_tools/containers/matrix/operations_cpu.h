@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <iomanip>
+// #include <immintrin.h> // For AVX intrinsics
 #include <cstdlib>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -80,6 +81,223 @@ namespace rl_tools{
             result.push_back(row);
         }
         return result;
+    }
+    template<typename DEVICE_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply_naive(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C){
+        static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
+        static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
+        static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
+        using DEVICE = devices::CPU<DEVICE_SPEC>;
+
+        using T = typename OUTPUT_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        constexpr TI M = INPUT_SPEC_A::ROWS;
+        constexpr TI N = INPUT_SPEC_B::COLS;
+        constexpr TI K = INPUT_SPEC_A::COLS;
+
+        const T * __restrict__ A_data = A._data;
+        const T * __restrict__ B_data = B._data;
+        T * __restrict__ C_data = C._data;
+
+        for (TI i = 0; i < M * N; ++i) {
+            C_data[i] = 0.0f;
+        }
+
+        for (TI i = 0; i < M; ++i) {
+            for (TI k_idx = 0; k_idx < K; ++k_idx) {
+                float A_val = A_data[i * K + k_idx];
+                for (TI j = 0; j < N; ++j) {
+                    C_data[i * N + j] += A_val * B_data[k_idx * N + j];
+                }
+            }
+        }
+    }
+    template<typename DEVICE_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply_tiled(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C) {
+        static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
+        static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
+        static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
+        using DEVICE = devices::CPU<DEVICE_SPEC>;
+
+        using T = typename OUTPUT_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        constexpr TI M = INPUT_SPEC_A::ROWS;
+        constexpr TI N = INPUT_SPEC_B::COLS;
+        constexpr TI K = INPUT_SPEC_A::COLS;
+        constexpr TI blockSize = 32;
+
+        const T * __restrict__ A_data = A._data;
+        const T * __restrict__ B_data = B._data;
+        T * __restrict__ C_data = C._data;
+
+        // Initialize C to zero
+        for (TI i = 0; i < M * N; ++i) {
+            C_data[i] = 0.0f;
+        }
+
+        for (TI ii = 0; ii < M; ii += blockSize){
+            for (TI kk = 0; kk < K; kk += blockSize){
+                for (TI jj = 0; jj < N; jj += blockSize){
+                    TI i_end = (ii + blockSize > M) ? M : ii + blockSize;
+                    TI k_end = (kk + blockSize > K) ? K : kk + blockSize;
+                    TI j_end = (jj + blockSize > N) ? N : jj + blockSize;
+                    for (TI i = ii; i < i_end; ++i) {
+                        for (TI k_idx = kk; k_idx < k_end; ++k_idx) {
+                            float A_val = A_data[i * K + k_idx];
+                            for (TI j = jj; j < j_end; ++j) {
+                                C_data[i * N + j] += A_val * B_data[k_idx * N + j];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // template<typename DEVICE_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    // void multiply_tiled_simd(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C) {
+    //     // Ensure matrix dimensions are compatible
+    //     static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS, "A.rows must equal C.rows");
+    //     static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS, "A.cols must equal B.rows");
+    //     static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS, "B.cols must equal C.cols");
+    //     using DEVICE = devices::CPU<DEVICE_SPEC>;
+    //
+    //     using T = typename OUTPUT_SPEC::T;
+    //     using TI = typename DEVICE_SPEC::index_t; // Corrected index type
+    //
+    //     constexpr TI M = INPUT_SPEC_A::ROWS;
+    //     constexpr TI N = INPUT_SPEC_B::COLS;
+    //     constexpr TI K = INPUT_SPEC_A::COLS;
+    //     constexpr TI blockSize = 32; // Adjust block size as needed
+    //
+    //     T* __restrict__ A_data = A._data;
+    //     T* __restrict__ B_data = B._data;
+    //     T* __restrict__ C_data = C._data;
+    //
+    //     // Initialize C to zero
+    //     for (TI i = 0; i < M * N; ++i) {
+    //         C_data[i] = static_cast<T>(0);
+    //     }
+    //
+    //     // Tiled matrix multiplication with SIMD intrinsics
+    //     for (TI ii = 0; ii < M; ii += blockSize) {
+    //         for (TI kk = 0; kk < K; kk += blockSize) {
+    //             for (TI jj = 0; jj < N; jj += blockSize) {
+    //                 TI i_end = (ii + blockSize > M) ? M : ii + blockSize;
+    //                 TI k_end = (kk + blockSize > K) ? K : kk + blockSize;
+    //                 TI j_end = (jj + blockSize > N) ? N : jj + blockSize;
+    //
+    //                 for (TI i = ii; i < i_end; ++i) {
+    //                     for (TI k_idx = kk; k_idx < k_end; ++k_idx) {
+    //                         T A_val = A_data[i * K + k_idx];
+    //
+    //                         // SIMD vectorization over the j loop
+    //                         TI j = jj;
+    //                         // Process 8 elements at a time using AVX
+    //                         for (; j <= j_end - 8; j += 8) {
+    //                             // Load B and C data into vectors
+    //                             __m256 B_vec = _mm256_loadu_ps(&B_data[k_idx * N + j]);
+    //                             __m256 C_vec = _mm256_loadu_ps(&C_data[i * N + j]);
+    //                             __m256 A_vec = _mm256_set1_ps(A_val); // Broadcast A_val
+    //
+    //                             // Perform fused multiply-add: C_vec += A_vec * B_vec
+    //                             C_vec = _mm256_fmadd_ps(A_vec, B_vec, C_vec);
+    //
+    //                             // Store the result back to C_data
+    //                             _mm256_storeu_ps(&C_data[i * N + j], C_vec);
+    //                         }
+    //
+    //                         // Handle remaining elements
+    //                         for (; j < j_end; ++j) {
+    //                             C_data[i * N + j] += A_val * B_data[k_idx * N + j];
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    // template<typename DEVICE_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    // void multiply_tiled_simd_ptr(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C) {
+    //     // Ensure matrix dimensions are compatible
+    //     static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS, "A.rows must equal C.rows");
+    //     static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS, "A.cols must equal B.rows");
+    //     static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS, "B.cols must equal C.cols");
+    //
+    //     using T = typename OUTPUT_SPEC::T;
+    //     using TI = typename DEVICE_SPEC::index_t;
+    //
+    //     constexpr TI M = INPUT_SPEC_A::ROWS;
+    //     constexpr TI N = INPUT_SPEC_B::COLS;
+    //     constexpr TI K = INPUT_SPEC_A::COLS;
+    //     constexpr TI blockSize = 32; // Adjust as needed
+    //
+    //     T* __restrict__ A_data = A._data;
+    //     T* __restrict__ B_data = B._data;
+    //     T* __restrict__ C_data = C._data;
+    //
+    //     // Initialize C to zero
+    //     std::fill(C_data, C_data + M * N, static_cast<T>(0));
+    //
+    //     // Tiled matrix multiplication with SIMD intrinsics and pointer arithmetic
+    //     for (TI ii = 0; ii < M; ii += blockSize) {
+    //         for (TI kk = 0; kk < K; kk += blockSize) {
+    //             for (TI jj = 0; jj < N; jj += blockSize) {
+    //                 TI i_end = std::min(ii + blockSize, M);
+    //                 TI k_end = std::min(kk + blockSize, K);
+    //                 TI j_end = std::min(jj + blockSize, N);
+    //
+    //                 for (TI i = ii; i < i_end; ++i) {
+    //                     T* __restrict__ C_row_ptr = C_data + i * N + jj;
+    //                     T* __restrict__ A_row_ptr = A_data + i * K + kk;
+    //
+    //                     for (TI k_idx = kk; k_idx < k_end; ++k_idx) {
+    //                         T A_val = A_row_ptr[k_idx - kk]; // Offset within the block
+    //                         T* __restrict__ B_row_ptr = B_data + k_idx * N + jj;
+    //
+    //                         TI j = jj;
+    //
+    //                         // SIMD vectorization over the j loop
+    //                         for (; j <= j_end - 8; j += 8) {
+    //                             __m256 A_vec = _mm256_set1_ps(A_val);
+    //                             __m256 B_vec = _mm256_loadu_ps(B_row_ptr + (j - jj));
+    //                             __m256 C_vec = _mm256_loadu_ps(C_row_ptr + (j - jj));
+    //
+    //                             C_vec = _mm256_fmadd_ps(A_vec, B_vec, C_vec);
+    //
+    //                             _mm256_storeu_ps(C_row_ptr + (j - jj), C_vec);
+    //                         }
+    //
+    //                         // Handle remaining elements
+    //                         for (; j < j_end; ++j) {
+    //                             C_row_ptr[j - jj] += A_val * B_row_ptr[j - jj];
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    template<typename DEVICE_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C){
+        using DEVICE = devices::CPU<DEVICE_SPEC>;
+        using TI = typename DEVICE::index_t;
+        constexpr TI M = INPUT_SPEC_A::ROWS;
+        constexpr TI N = INPUT_SPEC_B::COLS;
+        constexpr TI K = INPUT_SPEC_A::COLS;
+        if(M <= 32 || N <= 32 || K <= 32){
+            multiply_tiled(device, A, B, C);
+        }
+        else{
+            if(M <= 64 || N <= 64 || K <= 64){
+                multiply_tiled(device, A, B, C);
+            } else {
+                multiply_naive(device, A, B, C);
+            }
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

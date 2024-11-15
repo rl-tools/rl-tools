@@ -20,6 +20,7 @@ namespace rl_tools{
     }
     template <typename T_SPEC>
     void init(devices::CPU_MKL<T_SPEC>& device){
+        init(static_cast<devices::CPU_BLAS<T_SPEC>&>(device));
         using DEVICE = devices::CPU_MKL<T_SPEC>;
         const char *env_var_name = "MKL_NUM_THREADS";
         const char *value = getenv(env_var_name);

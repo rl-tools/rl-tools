@@ -1,7 +1,6 @@
 #ifdef BENCHMARK
 #undef RL_TOOLS_ENABLE_TENSORBOARD
 #endif
-#define RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -64,11 +63,11 @@
 #include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 
 // Additional Loop steps
+#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
-#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
@@ -155,7 +154,7 @@ static constexpr TI TIMING_INTERVAL = 10000;
 #endif
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG, rlt::rl::loop::steps::timing::Parameters<TI, TIMING_INTERVAL>>;
 #ifndef BENCHMARK
-using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>>;
+using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
     static constexpr TI CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL_TEMP == 0 ? 1 : CHECKPOINT_INTERVAL_TEMP;
