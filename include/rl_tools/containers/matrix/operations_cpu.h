@@ -288,15 +288,20 @@ namespace rl_tools{
         constexpr TI M = INPUT_SPEC_A::ROWS;
         constexpr TI N = INPUT_SPEC_B::COLS;
         constexpr TI K = INPUT_SPEC_A::COLS;
-        if(M <= 32 || N <= 32 || K <= 32){
-            multiply_tiled(device, A, B, C);
+        if constexpr(INPUT_SPEC_A::COL_PITCH == 1 && INPUT_SPEC_B::COL_PITCH == 1 && OUTPUT_SPEC::COL_PITCH == 1 && INPUT_SPEC_A::ROW_PITCH == INPUT_SPEC_A::COLS && INPUT_SPEC_B::ROW_PITCH == INPUT_SPEC_B::COLS && OUTPUT_SPEC::ROW_PITCH == OUTPUT_SPEC::COLS){
+            if(M <= 32 || N <= 32 || K <= 32){
+                multiply_tiled(device, A, B, C);
+            }
+            else{
+                if(M <= 64 || N <= 64 || K <= 64){
+                    multiply_tiled(device, A, B, C);
+                } else {
+                    multiply_naive(device, A, B, C);
+                }
+            }
         }
         else{
-            if(M <= 64 || N <= 64 || K <= 64){
-                multiply_tiled(device, A, B, C);
-            } else {
-                multiply_naive(device, A, B, C);
-            }
+            multiply_generic(device, A, B, C);
         }
     }
 }

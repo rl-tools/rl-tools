@@ -845,7 +845,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         return result;
     }
     template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
-    void multiply(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
+    void multiply_generic(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
         static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
         static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
         static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
@@ -862,6 +862,10 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
                 set(output, row_i, col_i, acc);
             }
         }
+    }
+    template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
+        multiply_generic(device, A, B, output);
     }
     template<typename DEVICE, typename SPEC>
     auto matrix_view(DEVICE& device, Matrix<SPEC>& m){
