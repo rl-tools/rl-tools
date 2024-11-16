@@ -21,7 +21,6 @@ export class DynamicFileSystem {
         const doc = parser.parseFromString(html, 'text/html');
         const links = Array.from(doc.getElementsByTagName('a'));
 
-        // Return both name and whether it's a directory
         return links
             .map(link => ({
                 name: link.textContent,
@@ -43,14 +42,34 @@ export class DynamicFileSystem {
             path: relativePath
         };
 
-        for (const {name, isDirectory} of entries) {
+        // Create an array of promises for directory fetches
+        const directoryPromises = entries.map(async ({name, isDirectory}) => {
             if (isDirectory) {
-                // Only recurse into directories
                 const childPath = relativePath + name + "/";
-                node.children[name] = await this.fetchAndParseDirectory(childPath);
+                // Return both the name and the promise result
+                return {
+                    name,
+                    children: await this.fetchAndParseDirectory(childPath),
+                    isDirectory: true
+                };
             } else {
-                // For files, just store the path
-                node.children[name] = this.base_path + relativePath + name;
+                return {
+                    name,
+                    path: this.base_path + relativePath + name,
+                    isDirectory: false
+                };
+            }
+        });
+
+        // Wait for all directory fetches to complete concurrently
+        const results = await Promise.all(directoryPromises);
+
+        // Populate the node's children from the results
+        for (const result of results) {
+            if (result.isDirectory) {
+                node.children[result.name] = result.children;
+            } else {
+                node.children[result.name] = result.path;
             }
         }
 
