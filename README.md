@@ -95,6 +95,12 @@
     Benchmarks of the inference frequency for a two-layer [64, 64] fully-connected neural network across different microcontrollers (types and architectures).
 </div>
 
+## Quick Start
+Clone this repo and build a Zoo example:
+```
+g++ -std=c++17 -Ofast -I include src/rl/zoo/l2f/sac.cpp
+```
+Run it `./a.out` then run `python3 -m http.server` to visualize the results. Open `http://localhost:8000` in your browser and navigate to the ExTrack UI to watch the quadrotor flying.
 
 ## Algorithms
 | Algorithm | Example                                                                                                                                                                                                                                                                                |
