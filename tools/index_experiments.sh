@@ -1,15 +1,13 @@
 #!/bin/bash
+set -e
 
-create_index_files() {
-  local dir="$1"
-  echo "Indexing $dir."
-  local files_index="${dir}/index_files.txt"
-  local directories_index="${dir}/index_directories.txt"
-  find "$dir" -maxdepth 1 -type f ! -name 'index_files.txt' ! -name 'index_directories.txt' ! -name 'index_static.txt' !  -name '.*' -exec basename {} \; | grep -v '^$' > "$files_index"
-  find "$dir" -maxdepth 1 -type d ! -path "$dir" ! -name 'index_files.txt' ! -name 'index_directories.txt' ! -name 'index_static.txt' ! -name '.*' -exec basename {} \; | grep -v '^$' > "$directories_index"
-}
+if [ -z "$1" ]; then
+    echo "Error: No path to the experiments directory provided."
+    echo "Usage: $0 <path_to_experiments>"
+    exit 1
+fi
 
-export -f create_index_files
-start_dir="${1:-../experiments}"
-find "$start_dir" -type d -exec bash -c 'create_index_files "$0"' {} \;
-echo "Index files created successfully."
+cd $1
+find . -type f -not -path '\.\/\.git*' | grep -v index.txt\$ | grep -v index_files.txt\$ | grep -v index_directories.txt\$ | grep -v index_static.txt\$ | grep -v index_static.txt.tmp\$ | grep -v .gitignore\$ | sort > index.txt.tmp
+mv index.txt.tmp index.txt
+echo "Wrote $(pwd)/index.txt"

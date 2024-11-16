@@ -174,7 +174,7 @@
 
     async function fetchAndProcessIndex() {
         try {
-            const response = await fetch(`${experiments_path}/index_static.txt`);
+            const response = await fetch(`${experiments_path}/index.txt`);
             if (!response.ok) {
                 throw new Error('Failed to fetch the index file');
             }

@@ -63,7 +63,7 @@ export class Index{
         const tree = await this.fs.loadTree()
         const run_list = []
         for(const experiment_key of Object.keys(tree.children).sort().reverse()){
-            if(experiment_key === "index_static.txt"){
+            if(experiment_key === "index.txt" || experiment_key === "index.txt.tmp"){
                 continue
             }
             const run_config = {
@@ -108,5 +108,6 @@ export class Index{
         }
         this.run_list = run_list
         this.run_hierarchy = run_hierarchy
+        return this
     }
 }

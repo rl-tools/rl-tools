@@ -1,7 +1,7 @@
 export class StaticFileSystem{
     constructor(base_path){
         this.base_path = base_path;
-        this.index_path = `${base_path}index_static.txt`
+        this.index_path = `${base_path}index.txt`
     }
     async loadTree(){
         this.tree = await fetch(this.index_path)

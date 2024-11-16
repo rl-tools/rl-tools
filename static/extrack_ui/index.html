@@ -53,31 +53,41 @@
         import { StaticFileSystem } from "./StaticFileSystem.js";
         import { Index, group_by } from "./Index.js";
         import { ShowRun } from "./ShowRun.js";
+        import { Explorer } from "./Explorer.js";
+        import { Zoo } from "./Zoo.js";
 
         window.group_by = group_by // make available in the developer console
-        const fs = new DynamicFileSystem(experiments_base_path)
-        const idx = new Index(fs)
-        window.idx = idx
-        const idx_promise = idx.refresh()
-
-        import { Explorer } from "./Explorer.js";
-        const explorer = new Explorer(experiments_base_path, idx, {"verbose": true})
-        const explorerContainer = document.getElementById('explorer-container');
-        explorerContainer.appendChild(explorer.getContainer());
-
-        import { Zoo } from "./Zoo.js";
-        const zoo = new Zoo(experiments_base_path, idx, {"verbose": true})
-        const zooContainer = document.getElementById('zoo-container');
-        zooContainer.appendChild(zoo.getContainer());
-        zoo.success.then((success) => {
-            if(success){
-                const learning_curve_section = document.getElementById('learning-curve-section')
-                learning_curve_section.style.display = "block"
+        const idx_promise = fetch(`${experiments_base_path}index.txt`).then((response) => {
+            let fs;
+            if(response.ok){
+                fs = new StaticFileSystem(experiments_base_path)
             }
+            else{
+                fs = new DynamicFileSystem(experiments_base_path)
+            }
+            const idx = new Index(fs)
+            window.idx = idx
+            return idx.refresh()
+        })
+
+        idx_promise.then((idx) => {
+            const explorer = new Explorer(experiments_base_path, idx, {"verbose": true})
+            const explorerContainer = document.getElementById('explorer-container');
+            explorerContainer.appendChild(explorer.getContainer());
+
+            const zoo = new Zoo(experiments_base_path, idx, {"verbose": true})
+            const zooContainer = document.getElementById('zoo-container');
+            zooContainer.appendChild(zoo.getContainer());
+            zoo.success.then((success) => {
+                if(success){
+                    const learning_curve_section = document.getElementById('learning-curve-section')
+                    learning_curve_section.style.display = "block"
+                }
+            })
         })
 
 
-        idx_promise.then(() => {
+        idx_promise.then((idx) => {
             const runs_with_ui = idx.run_list.filter(run => run.ui_jsm)
             const runs_with_steps = runs_with_ui.filter((run) => {
                 if(run.steps && Object.keys(run.steps).length > 0){
@@ -92,7 +102,7 @@
         })
 
         // Latest Zoo Runs
-        idx_promise.then(() => {
+        idx_promise.then((idx) => {
             const runs_with_ui = idx.run_list.filter(run => run.ui_jsm)
             const runs_with_steps = runs_with_ui.filter((run) => {
                 if(run.steps && Object.keys(run.steps).length > 0){
