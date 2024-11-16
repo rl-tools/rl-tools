@@ -21,6 +21,11 @@ int main(int argc, char** argv) {
         app.add_option("--eep,--extrack-experiment-path", extrack_experiment_path, "extrack-experiment-path");
         app.add_option("-c,--config", config_path, "config");
         CLI11_PARSE(app, argc, argv);
+    #else
+        if(argc > 1){
+            seed = std::stoi(argv[1]);
+            n_seeds = seed + 1;
+        }
     #endif
     if(seed > n_seeds){
         n_seeds = seed + 1;
