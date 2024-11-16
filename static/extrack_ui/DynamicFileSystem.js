@@ -4,7 +4,61 @@ export class DynamicFileSystem {
     }
 
     async loadTree() {
-        return await this.fetchAndParseDirectory("");
+        // First, discover all directories
+        const allDirs = new Set();
+        const pendingDirs = [""];
+        const dirToEntries = new Map();
+
+        while (pendingDirs.length > 0) {
+            const currentPath = pendingDirs.shift();
+            allDirs.add(currentPath);
+
+            const html = await this.fetchDirectory(currentPath);
+            const entries = this.parseDirectoryHtml(html);
+            dirToEntries.set(currentPath, entries);
+
+            // Add new directories to pending list
+            for (const { name, isDirectory } of entries) {
+                if (isDirectory) {
+                    const childPath = currentPath + name + "/";
+                    if (!allDirs.has(childPath)) {
+                        pendingDirs.push(childPath);
+                    }
+                }
+            }
+        }
+
+        // Now fetch all directories in parallel
+        const dirContentPromises = Array.from(allDirs).map(async dir => ({
+            path: dir,
+            entries: dirToEntries.get(dir)
+        }));
+
+        const allDirContents = await Promise.all(dirContentPromises);
+
+        // Build the tree from our complete directory listing
+        return this.buildTree("", allDirContents);
+    }
+
+    buildTree(path, allDirContents) {
+        const node = {
+            children: {},
+            path: path
+        };
+
+        const dirContent = allDirContents.find(d => d.path === path);
+        if (!dirContent) return node;
+
+        for (const { name, isDirectory } of dirContent.entries) {
+            if (isDirectory) {
+                const childPath = path + name + "/";
+                node.children[name] = this.buildTree(childPath, allDirContents);
+            } else {
+                node.children[name] = this.base_path + path + name;
+            }
+        }
+
+        return node;
     }
 
     async fetchDirectory(path) {
@@ -31,49 +85,6 @@ export class DynamicFileSystem {
                 name: isDirectory ? name.slice(0, -1) : name,
                 isDirectory
             }));
-    }
-
-    async fetchAndParseDirectory(relativePath) {
-        const html = await this.fetchDirectory(relativePath);
-        const entries = this.parseDirectoryHtml(html);
-
-        const node = {
-            children: {},
-            path: relativePath
-        };
-
-        // Create an array of promises for directory fetches
-        const directoryPromises = entries.map(async ({name, isDirectory}) => {
-            if (isDirectory) {
-                const childPath = relativePath + name + "/";
-                // Return both the name and the promise result
-                return {
-                    name,
-                    children: await this.fetchAndParseDirectory(childPath),
-                    isDirectory: true
-                };
-            } else {
-                return {
-                    name,
-                    path: this.base_path + relativePath + name,
-                    isDirectory: false
-                };
-            }
-        });
-
-        // Wait for all directory fetches to complete concurrently
-        const results = await Promise.all(directoryPromises);
-
-        // Populate the node's children from the results
-        for (const result of results) {
-            if (result.isDirectory) {
-                node.children[result.name] = result.children;
-            } else {
-                node.children[result.name] = result.path;
-            }
-        }
-
-        return node;
     }
 
     normalize(path) {
