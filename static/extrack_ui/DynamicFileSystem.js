@@ -1,51 +1,77 @@
-export class DynamicFileSystem{
-    constructor(base_path){
+export class DynamicFileSystem {
+    constructor(base_path) {
         this.base_path = base_path;
     }
-    async refresh(node){
-        return this.loadTree(node.path)
+
+    async loadTree() {
+        return await this.fetchAndParseDirectory("");
     }
-    async loadTree(relative_path){
-        if(!relative_path){
-            relative_path = ""
-        }
-        const current_base_path = `${this.base_path}${relative_path}`
-        const files_promise = fetch(`${current_base_path}/index_files.txt`)
-            .then(response => {
-                if(!response.ok){
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.text()
-            })
-            .then(index => {
-                return index.split("\n").filter(line => line.length > 0).map((name) =>{
-                    const file = {}
-                    file[name] = `${current_base_path}/${name}`
-                    return file
-                })
-            })
-        const directories_promise = fetch(`${current_base_path}/index_directories.txt`)
-            .then(response => {
-                if(!response.ok){
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.text()
-            })
-            .then(index => {
-                return Promise.all(index.split("\n").filter(line => line.length > 0).map(async (name) =>{
-                    const directory = {}
-                    directory[name] = await this.loadTree(`${relative_path}/${name}`)
-                    return directory
-                }))
-            })
 
-        const files = await files_promise;
-        const directories = await directories_promise;
-        const children = Object.assign({}, ...files, ...directories)
-        return {
-            "children": children,
-            "path": current_base_path
+    async fetchDirectory(path) {
+        const url = this.base_path + path;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.text();
+    }
+
+    parseDirectoryHtml(html) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const links = Array.from(doc.getElementsByTagName('a'));
+
+        // Return both name and whether it's a directory
+        return links
+            .map(link => ({
+                name: link.textContent,
+                isDirectory: link.textContent.endsWith('/')
+            }))
+            .filter(({name}) => name !== '../' && name.length > 0)
+            .map(({name, isDirectory}) => ({
+                name: isDirectory ? name.slice(0, -1) : name,
+                isDirectory
+            }));
+    }
+
+    async fetchAndParseDirectory(relativePath) {
+        const html = await this.fetchDirectory(relativePath);
+        const entries = this.parseDirectoryHtml(html);
+
+        const node = {
+            children: {},
+            path: relativePath
+        };
+
+        for (const {name, isDirectory} of entries) {
+            if (isDirectory) {
+                // Only recurse into directories
+                const childPath = relativePath + name + "/";
+                node.children[name] = await this.fetchAndParseDirectory(childPath);
+            } else {
+                // For files, just store the path
+                node.children[name] = this.base_path + relativePath + name;
+            }
         }
 
+        return node;
+    }
+
+    normalize(path) {
+        return (new URL(path, window.location.origin)).pathname.substring(1);
+    }
+
+    // For compatibility with existing interface
+    addNode(node, path, relativePath, fullPath) {
+        throw new Error('addNode is not used in DynamicFileSystem');
+    }
+
+    parsePath(tree, path) {
+        throw new Error('parsePath is not used in DynamicFileSystem');
+    }
+
+    parse(index) {
+        throw new Error('parse is not used in DynamicFileSystem');
     }
 }
+

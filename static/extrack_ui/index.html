@@ -55,7 +55,7 @@
         import { ShowRun } from "./ShowRun.js";
 
         window.group_by = group_by // make available in the developer console
-        const fs = new StaticFileSystem(experiments_base_path)
+        const fs = new DynamicFileSystem(experiments_base_path)
         const idx = new Index(fs)
         window.idx = idx
         const idx_promise = idx.refresh()
