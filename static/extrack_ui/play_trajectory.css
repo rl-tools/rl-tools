@@ -11,6 +11,9 @@
     position: relative;
 }
 
+.trajectory-player-controls-container{
+    text-align: center;
+}
 .trajectory-player-controls-container > * {
     margin: 5px;
 }

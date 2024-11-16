@@ -54,6 +54,7 @@ export class TrajectoryPlayer{
         let currentStep = 0;
         let currentEpisodeLength = 0;
         let currentEpisodeReturn = 0;
+        let current_episode_return_multi = 0;
 
         const ui = await this.ui;
 
@@ -96,17 +97,24 @@ export class TrajectoryPlayer{
         window.addEventListener('resize', onResize);
 
         const dt = trajectoryData[0].trajectory[0].dt;
+        const single = !Boolean(ui.render_multi)
+        if(!single){
+            previous_button.style.display = "none";
+            skip_button.style.display = "none";
+        }
         let current_parameters = null
         let ui_state = null
         let current_state = null
         let current_action = null
         let render_loop = {id: 0}
         let render_loops_running = {}
+        let current_parameters_multi = null
+        let current_step_data_multi = null
 
         const render = async () => {
             if (ui.render && ui.init){
                 if(!ui_state){
-                    if(current_parameters){
+                    if(current_parameters || current_parameters_multi){
                         this.canvas_container.innerHTML = "";
                         this.canvas = document.createElement('canvas');
                         this.canvas.classList.add("trajectory-player-canvas")
@@ -137,17 +145,31 @@ export class TrajectoryPlayer{
                     render_loops_running[current_id] = true;
                     const loop = async () => {
                         if(render_loop.id === current_id){
-                            if(current_parameters && current_state && current_action){
-                                await ui.render(ui_state, current_parameters, current_state, current_action)
-                                requestAnimationFrame(loop);
-                                return
+                            if(single){
+                                if(current_parameters && current_state && current_action){
+                                    await ui.render(ui_state, current_parameters, current_state, current_action)
+                                    requestAnimationFrame(loop);
+                                    return
+                                }
+                            }
+                            else{
+                                if(current_parameters_multi && current_step_data_multi){
+                                    await ui.render_multi(ui_state, current_parameters_multi, current_step_data_multi)
+                                    requestAnimationFrame(loop);
+                                    return
+                                }
                             }
                         }
                         console.log("Stopping render loop: ", current_id)
                         delete render_loops_running[current_id];
                     }
                     if(ui.episode_init){
-                        await ui.episode_init(ui_state, current_parameters)
+                        if(single){
+                            await ui.episode_init(ui_state, current_parameters)
+                        }
+                        else{
+                            await ui.episode_init_multi(ui_state, current_parameters_multi)
+                        }
                     }
                     requestAnimationFrame(loop)
                 }
@@ -166,36 +188,52 @@ export class TrajectoryPlayer{
             else{
                 episode_info.innerHTML = "";
             }
-            episode_info.innerHTML += `Episode: ${currentEpisode+1}/${trajectoryData.length}, Step: ${currentStep}, Return: ${currentEpisodeReturn.toFixed(2)}`;
-            if (currentEpisode < trajectoryData.length) {
-                const { parameters, trajectory } = trajectoryData[currentEpisode];
-                current_parameters = parameters;
-                let skip = false;
-                if (currentStep < trajectory.length) {
-                    const { state, action, reward, terminated, dt } = trajectory[currentStep];
-                    current_state = state;
-                    current_action = action;
-                    currentEpisodeLength++;
-                    currentEpisodeReturn += reward;
-                    if(currentStep === 0){
-                        render()
-                    }
-                    currentStep++;
-                    if(terminated){
+            if(single){
+                episode_info.innerHTML += `Episode: ${currentEpisode+1}/${trajectoryData.length}, Step: ${currentStep}, Return: ${currentEpisodeReturn.toFixed(2)}`;
+                if (currentEpisode < trajectoryData.length) {
+                    const { parameters, trajectory } = trajectoryData[currentEpisode];
+                    current_parameters = parameters;
+                    let skip = false;
+                    if (currentStep < trajectory.length) {
+                        const { state, action, reward, terminated, dt } = trajectory[currentStep];
+                        current_state = state;
+                        current_action = action;
+                        currentEpisodeLength++;
+                        currentEpisodeReturn += reward;
+                        if(currentStep === 0){
+                            render()
+                        }
+                        currentStep++;
+                        if(terminated){
+                            skip = true
+                        }
+                    } else {
                         skip = true
                     }
-                } else {
-                    skip = true
-                }
-                if(skip){
-                    currentStep = 0;
-                    currentEpisode++;
-                    if(currentEpisode >= trajectoryData.length){
-                        currentEpisode = 0;
+                    if(skip){
+                        currentStep = 0;
+                        currentEpisode++;
+                        if(currentEpisode >= trajectoryData.length){
+                            currentEpisode = 0;
+                        }
+                        console.log(`Episode ${currentEpisode} finished. Return = ${currentEpisodeReturn}, Length = ${currentEpisodeLength}`);
+                        currentEpisodeLength = 0;
+                        currentEpisodeReturn = 0;
                     }
-                    console.log(`Episode ${currentEpisode} finished. Return = ${currentEpisodeReturn}, Length = ${currentEpisodeLength}`);
-                    currentEpisodeLength = 0;
-                    currentEpisodeReturn = 0;
+                }
+            }
+            else{
+                episode_info.innerHTML += `Step: ${currentStep}, Return (avg): ${current_episode_return_multi.toFixed(2)}`;
+                current_parameters_multi = trajectoryData.map((episode) => episode.parameters);
+                current_step_data_multi = trajectoryData.map((episode) => episode.trajectory[currentStep]);
+                if(currentStep == 0) {
+                    render()
+                }
+                current_episode_return_multi += trajectoryData.reduce((acc, episode) => acc + episode.trajectory[currentStep].reward, 0) / trajectoryData.length;
+                currentStep++;
+                if(currentStep >= trajectoryData[0].trajectory.length) {
+                    currentStep = 0;
+                    current_episode_return_multi = 0;
                 }
             }
         }

@@ -227,9 +227,36 @@ namespace rl_tools{
     std::string get_ui(DEVICE& device, rl::environments::Multirotor<SPEC>& env){
         // just the body of `function render(ctx, state, action) {` (so that it can be easily processed by `new Function("ctx", "state", "action", body)`
         std::string ui = R"RL_TOOLS_LITERAL(
+
+
+
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 
+class CoordinateSystem{
+    constructor(origin, length=1, diameter=0.01) {
+        this.cs = new THREE.Group()
+        const material_red = new THREE.MeshLambertMaterial({color: 0xAA0000})
+        const material_green = new THREE.MeshLambertMaterial({color: 0x00AA00})
+        const material_blue = new THREE.MeshLambertMaterial({color: 0x0000AA})
+        const line = new THREE.BoxGeometry(length, diameter, diameter)
+        var x = new THREE.Mesh( line, material_red);
+        x.position.set(length/2, 0, 0)
+        var y = new THREE.Mesh( line, material_green);
+        y.position.set(0, length/2, 0)
+        y.rotation.set(0, 0, Math.PI/2)
+        var z = new THREE.Mesh( line, material_blue);
+        z.position.set(0, 0, length/2)
+        z.rotation.set(0, Math.PI/2, 0)
+        this.cs.add(x)
+        this.cs.add(y)
+        this.cs.add(z)
+        this.cs.position.set(origin[0], origin[1], origin[2])
+    }
+    get(){
+        return this.cs
+    }
+}
 
 function norm(a){
     return Math.sqrt(a.map(x => x**2).reduce((a, c) => a + c, 0))
@@ -259,9 +286,10 @@ function Matrix4FromRotMat(rotMat){
 
 
 class State{
-    constructor(canvas, {devicePixelRatio}){
+    constructor(canvas, {devicePixelRatio, showAxes=false}){
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
+        this.showAxes = showAxes
         this.cursor_grab = true // Instruct the embedding code to make the cursor a grab cursor
     }
     async initialize(){
@@ -284,8 +312,10 @@ class State{
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 
         this.simulator = new THREE.Group()
-        this.simulator.rotation.set(-Math.PI/2, 0, 0)
+        this.simulator.rotation.set(-Math.PI / 2, 0, Math.PI / 2, 'XYZ');
 
+        // const axesHelper = new THREE.AxesHelper(5);
+        // this.scene.add(axesHelper)
         this.scene.add(this.simulator)
 
         var light = new THREE.AmbientLight( 0xffffff,0.5 ); // soft white light
@@ -303,10 +333,12 @@ class State{
         directionalLight.target.position.set(0, 0, 0)
         this.scene.add( directionalLight )
 
-        this.camera.position.set(3.3, 1.4, 0.00)
-        this.camera.quaternion.set(-0.14, 0.70, 0.14, 0.68)
-        this.controls.target.set(0.0, 0.0, 0.0)
-        this.controls.update()
+        this.camera.position.set(0.5, 0, 1)
+        // this.camera.quaternion.set(-0.14, 0.70, 0.14, 0.68)
+        // this.controls.target.set(0.0, 0.0, 0.0)
+        // this.controls.minDistance = 1
+        // this.controls.minDistance = 5
+        // this.controls.update()
 
         this.camera_set = false
         this.THREE = THREE
@@ -316,13 +348,13 @@ class State{
 
 
 export class Drone{
-  constructor(model, origin, envParams, displayIMUCoordinateSystem, displayActions){
+  constructor(model, origin, displayIMUCoordinateSystem, displayActions){
     // console.log(model)
     this.origin = origin
     this.model = model
-    this.envParams = envParams
     this.droneFrame = new THREE.Group()
     this.drone = new THREE.Group()
+    this.drone.position.set(...origin)
     // this.drone.add((new CoordinateSystem()).get())
     // this.drone.add((new CoordinateSystem(10 * this.scale, 0.1 * this.scale)).get())
     this.scale = model.mass
@@ -339,7 +371,7 @@ export class Drone{
     // this.drone.quaternion.set(Math.sqrt(0.5), Math.sqrt(0.5), 0,0) // ENUtoNED
     this.imuGroup = new THREE.Group()
     this.imuGroup.position.set(...model.imu.pose.position)
-    this.imuGroup.quaternion.set(model.imu.pose.orientation[3], model.imu.pose.orientation[0], model.imu.pose.orientation[1], model.imu.pose.orientation[2])
+    this.imuGroup.quaternion.set(model.imu.pose.orientation[1], model.imu.pose.orientation[2], model.imu.pose.orientation[3], model.imu.pose.orientation[0])
     if (displayIMUCoordinateSystem) {
       this.imuGroup.add((new CoordinateSystem([0, 0, 0], coordinateSystemLength, coordinateSystemThickness)).get())
     }
@@ -446,34 +478,89 @@ export async function init(canvas, options){
     await state.initialize()
     return state
 }
-
-export async function episode_init(ui_state, parameters){
-    const camera_distance = (parameters.ui ? parameters.ui.camera_distance || 1 : 1)
-    const scale = parameters.mass/0.1 * camera_distance
-    if(!ui_state.camera_set){
-      ui_state.camera.position.set(3.3 * 0.027, 1.4 * 0.027, 0.00)
-      ui_state.camera_set = true
-    }
+function clear_episode(ui_state){
     if(ui_state.drone){
       ui_state.simulator.remove(ui_state.drone.get())
+      if(ui_state.showAxes){
+        ui_state.simulator.remove(ui_state.origin_coordinate_system.get())
+      }
     }
-    ui_state.drone = new Drone(parameters)
+    if(ui_state.drones){
+      ui_state.drones.map(drone => ui_state.simulator.remove(drone.get()))
+      if(ui_state.showAxes){
+        ui_state.origin_coordinate_systems.map(cs => ui_state.simulator.remove(cs.get()))
+      }
+    }
+}
+function set_camera(ui_state, scale){
+    if(!ui_state.camera_set){
+      ui_state.camera.position.set(0.5 * scale, 0.5 * scale, 1 * scale)
+      ui_state.camera.lookAt(0, 0, 0)
+      ui_state.camera_set = true
+    }
+}
+export async function episode_init(ui_state, parameters){
+    const camera_distance = (parameters.ui ? parameters.ui.camera_distance || 1 : 1)
+    const scale = Math.cbrt(parameters.mass) * 2 * camera_distance
+    set_camera(ui_state, scale)
+    clear_episode(ui_state)
+    ui_state.drone = new Drone(parameters, [0, 0, 0], ui_state.showAxes)
     ui_state.simulator.add(ui_state.drone.get())
+    if(ui_state.showAxes){
+      ui_state.origin_coordinate_system = new CoordinateSystem([0, 0, 0], 1 * scale, 0.01 * scale)
+      ui_state.simulator.add(ui_state.origin_coordinate_system.get())
+    }
+}
+
+export async function episode_init_multi(ui_state, parameters){
+  const grid_distance = 0.0
+  const grid_size = Math.ceil(Math.sqrt(parameters.length))
+  set_camera(ui_state, (grid_distance > 0 ? grid_distance * grid_size * 2 : Math.cbrt(parameters[0].mass)))
+  clear_episode(ui_state)
+  ui_state.drones = []
+  ui_state.origin_coordinate_systems = []
+  parameters.map((parameter, i) => {
+    const x = (i % grid_size) * grid_distance
+    const y = Math.floor(i / grid_size) * grid_distance
+    const drone = new Drone(parameter, [x, y, 0], ui_state.showAxes)
+    ui_state.simulator.add(drone.get())
+    if(ui_state.showAxes){
+      const cs = new CoordinateSystem([x, y, 0], 1, 0.01)
+      ui_state.simulator.add(cs.get())
+      ui_state.origin_coordinate_systems.push(cs)
+    }
+    ui_state.drones.push(drone)
+  })
+}
+
+function update_camera(ui_state){
+  const width = ui_state.canvas.width/ui_state.devicePixelRatio
+  const height = ui_state.canvas.height/ui_state.devicePixelRatio
+  ui_state.camera.aspect =  width / height
+  ui_state.camera.updateProjectionMatrix()
+  ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio)
+  ui_state.renderer.setSize(width, height)
+
+  ui_state.controls.update()
+  ui_state.renderer.render(ui_state.scene, ui_state.camera);
 }
 
 export async function render(ui_state, parameters, state, action) {
-    ui_state.drone.drone.position.set(...state.position)
-    ui_state.drone.drone.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
-    const width = ui_state.canvas.width/ui_state.devicePixelRatio
-    const height = ui_state.canvas.height/ui_state.devicePixelRatio
-    ui_state.camera.aspect =  width / height
-    ui_state.camera.updateProjectionMatrix()
-    ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio)
-    ui_state.renderer.setSize(width, height)
-
-    ui_state.controls.update()
-    ui_state.renderer.render(ui_state.scene, ui_state.camera);
+  ui_state.drone.droneFrame.position.set(...state.position)
+  ui_state.drone.droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+  update_camera(ui_state)
 }
+
+export async function render_multi(ui_state, parameters, steps){
+  steps.map((step, i) => {
+    ui_state.drones[i].droneFrame.position.set(...step.state.position)
+    ui_state.drones[i].droneFrame.quaternion.copy(new THREE.Quaternion(step.state.orientation[1], step.state.orientation[2], step.state.orientation[3], step.state.orientation[0]).normalize())
+  })
+  update_camera(ui_state)
+}
+
+
+        
 
         )RL_TOOLS_LITERAL";
         return ui;
