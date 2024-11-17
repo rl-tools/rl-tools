@@ -354,7 +354,9 @@ export class Drone{
     this.model = model
     this.droneFrame = new THREE.Group()
     this.drone = new THREE.Group()
-    this.drone.position.set(...origin)
+    if(origin){
+        this.drone.position.set(...origin)
+    }
     // this.drone.add((new CoordinateSystem()).get())
     // this.drone.add((new CoordinateSystem(10 * this.scale, 0.1 * this.scale)).get())
     this.scale = model.mass
