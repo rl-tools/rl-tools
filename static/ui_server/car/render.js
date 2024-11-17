@@ -10,6 +10,14 @@ function renderCanvas(aspectRatioContainerContainer){
     const aspectRatioContainer = createAndAppendElement('div', {id: 'car-aspectRatioContainer'}, aspectRatioContainerContainer);
     const canvasContainerInner = createAndAppendElement('div', {id: 'car-canvasContainerInner'}, aspectRatioContainer);
     createAndAppendElement('canvas', {id: 'car-drawingCanvas', width: '100', height: '100'}, canvasContainerInner);
+    const trainingOverlay = document.createElement("div")
+    trainingOverlay.id = 'car-drawingCanvasTrainingOverlay'
+    const trainingOverlayText = document.createElement("div")
+    trainingOverlayText.id = 'car-drawingCanvasTrainingOverlayText'
+    trainingOverlayText.textContent = 'Training...'
+    trainingOverlay.style.display = 'none'
+    trainingOverlay.appendChild(trainingOverlayText)
+    canvasContainerInner.appendChild(trainingOverlay)
 }
 
 function renderCanvasContainer(canvasContainer){

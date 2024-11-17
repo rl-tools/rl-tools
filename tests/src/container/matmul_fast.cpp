@@ -3,14 +3,14 @@
 
 #include <thread>
 #include <rl_tools/operations/cpu.h>
-#include <rl_tools/operations/cpu_mkl.h>
+#include <rl_tools/operations/cpu_mux.h>
 namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DefaultCPU;
-using DEVICE_MKL = rlt::devices::DefaultCPU_MKL;
+using DEVICE_MKL = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
-#include <immintrin.h> // For AVX intrinsics
+// #include <immintrin.h> // For AVX intrinsics
 
 #include <chrono>
 

@@ -44,6 +44,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_NUM_LAYERS = 2;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
+    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+        static constexpr T ALPHA = 0.01;
+    };
 };
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 

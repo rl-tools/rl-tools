@@ -146,8 +146,7 @@ namespace rl_tools{
                 auto action = row(device, actions_buffer, env_i);
                 T dt = step(device, env, env_parameters, state, action, next_state, rng);
                 if(env_i == 0 && !terminated[env_i]){ // only render the first environment
-                    set_state(device, env, env_parameters, ui, state);
-                    set_action(device, env,  env_parameters, ui, action);
+                    set_state(device, env, env_parameters, ui, state, action);
                     render(device, env, env_parameters, ui);
                 }
                 rl::utils::evaluation::set_dt(data, env_i, step_i, dt);
@@ -161,8 +160,19 @@ namespace rl_tools{
                     results.returns[env_i] += r;
                     results.episode_length[env_i] += 1;
                 }
+                else{
+                    set_truncated(device, env, env_parameters, ui, next_state); // this is to sed the terminated flag to the car env
+                    render(device, env, env_parameters, ui);
+                }
                 states[env_i] = next_state;
             }
+        }
+        for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+            auto& env_parameters = parameters[env_i];
+            auto& env = envs[env_i];
+            auto& state = states[env_i];
+            set_truncated(device, env, env_parameters, ui, state); // this is to sed the terminated flag to the car env
+            render(device, env, env_parameters, ui);
         }
         free(device, policy_state);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {

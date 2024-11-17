@@ -75,6 +75,18 @@ namespace rl_tools{
         message += "}";
         return message;
     }
+    template <typename DEVICE, typename ENVIRONMENT>
+    std::string set_truncated_message(DEVICE& dev, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIJSON<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
+        std::string message = "{";
+        message += "\"namespace\": \"" + ui.ns + "\", ";
+        message += "\"channel\": \"setTruncated\", ";
+        std::string data = "{";
+        data += "\"state\": " + std::string(json(dev, env, parameters, state));
+        data += "}";
+        message += "\"data\": " + data;
+        message += "}";
+        return message;
+    }
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
     std::string action_data(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIJSON<ENVIRONMENT>& ui, const Matrix<ACTION_SPEC>& action){
         static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
@@ -138,6 +150,10 @@ namespace rl_tools{
     template <typename DEVICE, typename ENVIRONMENT>
     void set_state(DEVICE& dev, ENVIRONMENT& env, typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIBuffered<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
         ui.buffer.push(set_state_message(dev, env, parameters, ui, state));
+    }
+    template <typename DEVICE, typename ENVIRONMENT>
+    void set_truncated(DEVICE& dev, ENVIRONMENT& env, typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIBuffered<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
+        ui.buffer.push(set_truncated_message(dev, env, parameters, ui, state));
     }
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
     void set_state(DEVICE& dev, ENVIRONMENT& env, typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIBuffered<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){

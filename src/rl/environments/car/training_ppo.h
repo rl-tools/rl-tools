@@ -112,6 +112,7 @@ float step(State* state){
             rlt::step(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->interactive_state, state->interactive_action, state->interactive_next_state, state->ts.rng_eval);
             bool terminated = rlt::terminated(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->interactive_next_state, state->ts.rng_eval);
             if(terminated){
+                rlt::sample_initial_parameters(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->ts.rng_eval);
                 rlt::sample_initial_state(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->interactive_state, state->ts.rng_eval);
             }
             else{
@@ -135,16 +136,17 @@ float step(State* state, const char* message_string) {
         for (TI row_i = 0; row_i < ENVIRONMENT::SPEC::HEIGHT; row_i++) {
             for (TI col_i = 0; col_i < ENVIRONMENT::SPEC::WIDTH; col_i++) {
                 for (TI env_i = 0; env_i < LOOP_CORE_PARAMETERS::N_ENVIRONMENTS; env_i++) {
-                    auto& parameters = get(state->ts.on_policy_runner.env_parameters, 0, env_i);
-                    parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+                    auto& env = get(state->ts.on_policy_runner.environments, 0, env_i);
+                    env.track[row_i][col_i] = message["data"][row_i][col_i];
                 }
-                state->ts.env_eval_parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+                state->ts.env_eval.track[row_i][col_i] = message["data"][row_i][col_i];
             }
         }
         rlt::init(state->device, state->ts.on_policy_runner, state->ts.envs, state->ts.env_parameters, state->ts.rng);
     } else {
         if (message["channel"] == "setAction") {
             if(!state->mode_interactive){
+                rlt::sample_initial_parameters(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->ts.rng_eval);
                 rlt::sample_initial_state(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->interactive_state, state->ts.rng_eval);
             }
             rlt::set(state->interactive_action, 0, 0, message["data"][0]);

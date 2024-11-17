@@ -154,7 +154,7 @@ export class Track{
         this.redrawTrack()
         if(this.state){
             for(let car_i=0; car_i<this.state.length; car_i++){
-                const action = this.action && this.action.length > car_i && this.action[car_i] && this.action[car_i].length == 2 ? this.action[car_i] : [0, 0];
+                const action = this.action && this.action.length > car_i && this.action[car_i] && this.action[car_i].length == 1 && this.action[car_i][0].length == 2 ? this.action[car_i][0] : [0, 0];
                 drawCar(this.canvas, this.ctx, this.carParameters, this.state[car_i], action, this.ratio, this.pixelSize/(this.pixelSizeReal));
             }
         }

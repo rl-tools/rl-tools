@@ -21,24 +21,30 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    static void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
-        env.initialized = true;
-    }
-    template<typename DEVICE, typename SPEC>
     static void malloc(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
     static void free(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
     static void init(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    static void initial_parameters(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters) {
+    static void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
+        env.initialized = true;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static_assert(decltype(rl::environments::car::tracks::default_track<TI>)::HEIGHT == SPEC::HEIGHT);
         static_assert(decltype(rl::environments::car::tracks::default_track<TI>)::WIDTH == SPEC::WIDTH);
         for(TI row_i=0; row_i < SPEC::HEIGHT; row_i++){
             for(TI col_i=0; col_i < SPEC::WIDTH; col_i++){
-                parameters.track[row_i][col_i] = rl::environments::car::tracks::default_track<TI>.track[row_i][col_i];
+                env.track[row_i][col_i] = rl::environments::car::tracks::default_track<TI>.track[row_i][col_i];
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC>
+    static void initial_parameters(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters) {
+        using TI = typename SPEC::TI;
+        for(TI row_i=0; row_i < SPEC::HEIGHT; row_i++){
+            for(TI col_i=0; col_i < SPEC::WIDTH; col_i++){
+                parameters.track[row_i][col_i] = env.track[row_i][col_i];
             }
         }
     }
@@ -71,6 +77,27 @@ namespace rl_tools{
         state.y = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -dist, dist, rng);
         state.mu = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
     }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State state, RNG& rng){
+        using T = typename SPEC::T;
+        return state.x > 1.0 || state.x < -1.0 || state.y > 1.0 || state.y < -1.0;
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State state, RNG& rng){
+#ifdef RL_TOOLS_DEBUG
+        utils::assert_exit(device, env.initialized, "Environment not initialized");
+#endif
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        T x_coord = (state.x + SPEC::TRACK_SCALE * SPEC::WIDTH / 2.0) / ((T)SPEC::TRACK_SCALE);
+        T y_coord = (-state.y + SPEC::TRACK_SCALE * SPEC::HEIGHT / 2.0) / ((T)SPEC::TRACK_SCALE);
+        if(x_coord > 0 && x_coord < SPEC::WIDTH && y_coord > 0 && y_coord < SPEC::HEIGHT){
+            return !parameters.track[(TI)y_coord][(TI)x_coord];
+        }
+        else{
+            return true;
+        }
+    }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& s, const Matrix<ACTION_SPEC>& action, typename rl::environments::Car<SPEC>::State& next_state, RNG& rng) {
         using ENVIRONMENT = rl::environments::Car<SPEC>;
@@ -99,6 +126,8 @@ namespace rl_tools{
         next_state.vx    += p.dt * (1/p.m*(Fx - FyF * math::sin(device.math, delta)) + s.omega * s.vy);
         next_state.vy    += p.dt * (1/p.m*(FyF * math::cos(device.math, delta) + FyR) - s.omega * s.vx);
         next_state.omega += p.dt * (1/p.I*(FyF * p.lf * math::cos(device.math, delta) - FyR * p.lr));
+
+        next_state.terminated = terminated(device, env, parameters, next_state, rng);
 
         return p.dt;
     }
@@ -162,27 +191,6 @@ namespace rl_tools{
                 }
             }
             set(observation, 0, 6 + direction_i, distance / (NUM_STEPS * step_size));
-        }
-    }
-    template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State state, RNG& rng){
-        using T = typename SPEC::T;
-        return state.x > 1.0 || state.x < -1.0 || state.y > 1.0 || state.y < -1.0;
-    }
-    template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State state, RNG& rng){
-#ifdef RL_TOOLS_DEBUG
-        utils::assert_exit(device, env.initialized, "Environment not initialized");
-#endif
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        T x_coord = (state.x + SPEC::TRACK_SCALE * SPEC::WIDTH / 2.0) / ((T)SPEC::TRACK_SCALE);
-        T y_coord = (-state.y + SPEC::TRACK_SCALE * SPEC::HEIGHT / 2.0) / ((T)SPEC::TRACK_SCALE);
-        if(x_coord > 0 && x_coord < SPEC::WIDTH && y_coord > 0 && y_coord < SPEC::HEIGHT){
-            return !parameters.track[(TI)y_coord][(TI)x_coord];
-        }
-        else{
-            return true;
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>

@@ -12,7 +12,7 @@ const keyThrottleValue = 0.5
 const orientationGainSteering = 3
 const orientationGainThrottle = 3
 let first_orientation = null
-let playbackSpeed = 100
+let playbackSpeed = 3
 
 let main = async () => {
     const canvas = document.getElementById('car-drawingCanvas');
@@ -52,9 +52,22 @@ let main = async () => {
                 track.resizeCanvas()
             },
             setStateCallback: (state)=>{
+                const overlay = document.getElementById('car-drawingCanvasTrainingOverlay')
+                if(overlay){
+                    overlay.style.display = 'none'
+                }
                 if(track){
                     track.state = [state.state];
                     track.action = [state.action];
+                }
+            },
+            setTruncatedCallback: (state)=>{
+                const overlay = document.getElementById('car-drawingCanvasTrainingOverlay')
+                if(overlay){
+                    overlay.style.display = 'flex'
+                    requestAnimationFrame(() => {
+                        overlay.classList.add('show');
+                    });
                 }
             },
             setActionCallback: (data)=>{

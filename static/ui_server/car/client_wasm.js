@@ -15,10 +15,11 @@ export class Client{
             this.onMessage(event.data);
         });
     }
-    setEnvironmentCallbacks({setParametersCallback, setStateCallback, setActionCallback}){
+    setEnvironmentCallbacks({setParametersCallback, setStateCallback, setActionCallback, setTruncatedCallback}){
         this.setParametersCallback = setParametersCallback;
         this.setStateCallback = setStateCallback;
         this.setActionCallback = setActionCallback;
+        this.setTruncatedCallback = setTruncatedCallback
     }
 
     onMessage(message){
@@ -38,6 +39,13 @@ export class Client{
                 if(channel === "setAction"){
                     if(this.setActionCallback){
                         this.setActionCallback(data)
+                    }
+                }
+                else{
+                    if(channel === "setTruncated"){
+                        if(this.setTruncatedCallback){
+                            this.setTruncatedCallback(data)
+                        }
                     }
                 }
             }

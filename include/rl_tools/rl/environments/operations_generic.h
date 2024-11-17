@@ -18,6 +18,8 @@ namespace rl_tools{
     void set_state(DEVICE&, ENV&, PARAMS&, rl::environments::DummyUI, STATE&, ACTION&){};
     template <typename DEVICE, typename ENV, typename PARAMS, typename ACTION>
     void set_action(DEVICE&, ENV&, PARAMS&, rl::environments::DummyUI, ACTION&){};
+    template <typename DEVICE, typename ENV, typename PARAMS, typename STATE>
+    void set_truncated(DEVICE&, ENV&, PARAMS&, rl::environments::DummyUI, STATE&){};
     template <typename DEVICE, typename ENV>
     auto get_ui(DEVICE&, ENV&){return "";}
 }
