@@ -127,8 +127,6 @@ namespace rl_tools{
         next_state.vy    += p.dt * (1/p.m*(FyF * math::cos(device.math, delta) + FyR) - s.omega * s.vx);
         next_state.omega += p.dt * (1/p.I*(FyF * p.lf * math::cos(device.math, delta) - FyR * p.lr));
 
-        next_state.terminated = terminated(device, env, parameters, next_state, rng);
-
         return p.dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>

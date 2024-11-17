@@ -102,6 +102,7 @@ namespace rl_tools::rl::environments{
         using Observation = car::ObservationCarTrack<TI>;
         using ObservationPrivileged = Observation;
         bool initialized = false;
+        bool track[T_SPEC::PARAMETERS::HEIGHT][T_SPEC::PARAMETERS::WIDTH];
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
