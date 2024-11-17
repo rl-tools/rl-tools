@@ -1,6 +1,7 @@
 import {main as car_main} from './car/main.js';
 import {
     renderCanvas as car_renderCanvas,
+    renderCanvasContainer as car_renderCanvasContainer,
     renderControlInputs as car_renderControlInputs,
     renderMessageLabels as car_renderMessageLabels
 } from './car/render.js';
@@ -185,7 +186,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const controlContainer = document.getElementById("car-control-container");
     car_renderControlInputs(controlContainer);
     const canvasContainer = document.getElementById("car-canvas-container");
-    car_renderCanvas(canvasContainer);
+    car_renderCanvasContainer(canvasContainer);
 })
 window.addEventListener("load", () =>{
     if (window.Worker) {
