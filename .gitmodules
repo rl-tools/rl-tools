@@ -19,9 +19,6 @@
 [submodule "embedded_platforms/px4"]
 	path = embedded_platforms/px4
 	url = https://github.com/rl-tools/px4.git
-[submodule "embedded_platforms/crazyflie/benchmark"]
-	path = embedded_platforms/crazyflie/benchmark
-	url = https://github.com/rl-tools/crazyflie-firmware-benchmark.git
 [submodule "embedded_platforms/ios"]
 	path = embedded_platforms/ios
 	url = https://github.com/rl-tools/ios
@@ -31,6 +28,9 @@
 [submodule "embedded_platforms/esp32"]
 	path = embedded_platforms/esp32
 	url = https://github.com/rl-tools/esp32.git
+[submodule "embedded_platforms/crazyflie/controller"]
+	path = embedded_platforms/crazyflie/controller
+	url = https://github.com/rl-tools/crazyflie-controller.git
 
 # Dependencies
 [submodule "external/cli11"]
