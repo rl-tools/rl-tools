@@ -20,6 +20,7 @@ jobs:
       NUM_SEEDS: 10
       MUJOCO: false
       MUJOCO_OPTION: "-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=OFF"
+      MKL_NUM_THREADS: 1
     steps:
       - name: Set number of seeds from input
         if: github.event_name == 'workflow_dispatch'
