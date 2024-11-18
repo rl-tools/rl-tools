@@ -106,7 +106,7 @@ namespace rl_tools{
 
         for (TI i = 0; i < M; ++i) {
             for (TI k_idx = 0; k_idx < K; ++k_idx) {
-                float A_val = A_data[i * K + k_idx];
+                T A_val = A_data[i * K + k_idx];
                 for (TI j = 0; j < N; ++j) {
                     C_data[i * N + j] += A_val * B_data[k_idx * N + j];
                 }
@@ -145,7 +145,7 @@ namespace rl_tools{
                     TI j_end = (jj + blockSize > N) ? N : jj + blockSize;
                     for (TI i = ii; i < i_end; ++i) {
                         for (TI k_idx = kk; k_idx < k_end; ++k_idx) {
-                            float A_val = A_data[i * K + k_idx];
+                            T A_val = A_data[i * K + k_idx];
                             for (TI j = jj; j < j_end; ++j) {
                                 C_data[i * N + j] += A_val * B_data[k_idx * N + j];
                             }

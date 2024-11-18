@@ -414,9 +414,9 @@ void test_matrix_multiplication_mkl_generic(){
     T diff_per_element = diff / (M * N);
     std::cout << "Matrix mul diff: " << diff << " per element: " << diff_per_element << std::endl;
     if(rlt::utils::typing::is_same_v<T, float>){
-        ASSERT_TRUE(diff_per_element < 1e-5);
+        ASSERT_LT(diff_per_element, 1e-5);
     }else{
-        ASSERT_TRUE(diff_per_element < 1e-10);
+        ASSERT_LT(diff_per_element, 1e-10);
     }
 }
 TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL_GENERIC){
