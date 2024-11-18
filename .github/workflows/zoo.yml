@@ -37,8 +37,8 @@ jobs:
       - name: List Environment Variables
         run: env
       - uses: actions/checkout@v3
-      - name: Checkout Submodule CLI11
-        run: git submodule update --init --recursive external/cli11
+      - name: Checkout Submodules CLI11 and zlib
+        run: git submodule update --init --recursive external/cli11 external/zlib
       - name: Clone MuJoCo
         if: ${{ env.MUJOCO == 'true' }}
         run: |
@@ -68,7 +68,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libhdf5-dev zlib1g-dev
+          sudo apt-get install -y libhdf5-dev
 
       - name: Configure CMake
         run: >
