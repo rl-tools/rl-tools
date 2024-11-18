@@ -23,13 +23,10 @@ int main(int argc, char** argv) {
         io_context.run();
     });
 
-    io_thread.detach();
-
-//    std::cout << "Track: " << message.dump(4) << std::endl;
     bool prev_mode_interactive = false;
     T sleep = 0;
     T playbackSpeed = 1;
-    while(true){
+    while(!state->finished){
         {
             std::string message = "";
             bool new_message = false;
@@ -71,5 +68,9 @@ int main(int argc, char** argv) {
             std::this_thread::sleep_for(std::chrono::duration<T>(state->ts.env_eval_parameters.dt / 100));
         }
     }
+
+    io_context.stop();
+    io_thread.join();
+    destroy(state);
     return 0;
 }

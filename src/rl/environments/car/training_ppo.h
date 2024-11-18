@@ -163,5 +163,6 @@ float step(State* state, const char* message_string) {
     return step(state);
 }
 void destroy(State* state){
+    rlt::free(state->device, state->ts);
     delete state;
 }

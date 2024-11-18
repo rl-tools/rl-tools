@@ -45,6 +45,7 @@ async function async_main(){
                     if(rlt._proxy_num_messages(training_state) > 0){
                         const message_pointer = rlt._proxy_pop_message(training_state);
                         const message = rlt.UTF8ToString(message_pointer);
+                        rlt._proxy_delete_message(message_pointer)
                         self.postMessage(JSON.parse(message))
                         // await new Promise(resolve => setTimeout(resolve, 10/playbackSpeed));
                     }
