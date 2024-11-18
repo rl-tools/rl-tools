@@ -6,11 +6,15 @@
 #include "../rl_tools.h"
 // ------------ Groups 1 ------------
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+#ifdef RL_TOOLS_ENABLE_WARNINGS
 #pragma message("RLtools: Enabling Tensorboard")
+#endif
 #include "../operations/cpu_tensorboard/group_1.h"
 #endif
 #if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
+#ifdef RL_TOOLS_ENABLE_WARNINGS
 #pragma message("RLtools: Using MKL backend")
+#endif
 #include "../operations/cpu_mkl/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -20,7 +24,9 @@ namespace rl_tools::devices{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
+#ifdef RL_TOOLS_ENABLE_WARNINGS
 #pragma message("RLtools: Using Apple Accelerate backend")
+#endif
 #include "../operations/cpu_accelerate/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -30,7 +36,9 @@ namespace rl_tools::devices{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #if defined(RL_TOOLS_BACKEND_ENABLE_OPENBLAS) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
+#ifdef RL_TOOLS_ENABLE_WARNINGS
 #pragma message("RLtools: Uing OpenBLAS backend")
+#endif
 #include "../operations/cpu_openblas/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -39,7 +47,9 @@ namespace rl_tools::devices{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
+#ifdef RL_TOOLS_ENABLE_WARNINGS
 #pragma message("RLtools: Using Generic Backend")
+#endif
 #include "../operations/cpu/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -51,7 +61,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 #endif
 #if defined(RL_TOOLS_BACKEND_ENABLE_CUDA) && defined(RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA)
+#ifdef RL_TOOLS_ENABLE_WARNINGS
 #pragma message("RLtools: Enabling CUDA")
+#endif
 #include "../operations/cuda/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
