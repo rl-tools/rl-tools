@@ -22,6 +22,14 @@ namespace rl_tools{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
+#if defined(_MSC_VER)
+    #define RL_TOOLS_RESTRICT __restrict
+#elif defined(__GNUC__) || defined(__clang__)
+    #define RL_TOOLS_RESTRICT __restrict__
+#else
+    #define RL_TOOLS_RESTRICT
+#endif
+
 
 #endif
 

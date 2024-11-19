@@ -96,9 +96,9 @@ namespace rl_tools{
         constexpr TI N = INPUT_SPEC_B::COLS;
         constexpr TI K = INPUT_SPEC_A::COLS;
 
-        const T * __restrict__ A_data = A._data;
-        const T * __restrict__ B_data = B._data;
-        T * __restrict__ C_data = C._data;
+        const T * RL_TOOLS_RESTRICT A_data = A._data;
+        const T * RL_TOOLS_RESTRICT B_data = B._data;
+        T * RL_TOOLS_RESTRICT C_data = C._data;
 
         for (TI i = 0; i < M * N; ++i) {
             C_data[i] = 0.0f;
@@ -128,9 +128,9 @@ namespace rl_tools{
         constexpr TI K = INPUT_SPEC_A::COLS;
         constexpr TI blockSize = 32;
 
-        const T * __restrict__ A_data = A._data;
-        const T * __restrict__ B_data = B._data;
-        T * __restrict__ C_data = C._data;
+        const T * RL_TOOLS_RESTRICT A_data = A._data;
+        const T * RL_TOOLS_RESTRICT B_data = B._data;
+        T * RL_TOOLS_RESTRICT C_data = C._data;
 
         // Initialize C to zero
         for (TI i = 0; i < M * N; ++i) {
@@ -172,9 +172,9 @@ namespace rl_tools{
     //     constexpr TI K = INPUT_SPEC_A::COLS;
     //     constexpr TI blockSize = 32; // Adjust block size as needed
     //
-    //     T* __restrict__ A_data = A._data;
-    //     T* __restrict__ B_data = B._data;
-    //     T* __restrict__ C_data = C._data;
+    //     T* RL_TOOLS_RESTRICT A_data = A._data;
+    //     T* RL_TOOLS_RESTRICT B_data = B._data;
+    //     T* RL_TOOLS_RESTRICT C_data = C._data;
     //
     //     // Initialize C to zero
     //     for (TI i = 0; i < M * N; ++i) {
@@ -234,9 +234,9 @@ namespace rl_tools{
     //     constexpr TI K = INPUT_SPEC_A::COLS;
     //     constexpr TI blockSize = 32; // Adjust as needed
     //
-    //     T* __restrict__ A_data = A._data;
-    //     T* __restrict__ B_data = B._data;
-    //     T* __restrict__ C_data = C._data;
+    //     T* RL_TOOLS_RESTRICT A_data = A._data;
+    //     T* RL_TOOLS_RESTRICT B_data = B._data;
+    //     T* RL_TOOLS_RESTRICT C_data = C._data;
     //
     //     // Initialize C to zero
     //     std::fill(C_data, C_data + M * N, static_cast<T>(0));
@@ -250,12 +250,12 @@ namespace rl_tools{
     //                 TI j_end = std::min(jj + blockSize, N);
     //
     //                 for (TI i = ii; i < i_end; ++i) {
-    //                     T* __restrict__ C_row_ptr = C_data + i * N + jj;
-    //                     T* __restrict__ A_row_ptr = A_data + i * K + kk;
+    //                     T* RL_TOOLS_RESTRICT C_row_ptr = C_data + i * N + jj;
+    //                     T* RL_TOOLS_RESTRICT A_row_ptr = A_data + i * K + kk;
     //
     //                     for (TI k_idx = kk; k_idx < k_end; ++k_idx) {
     //                         T A_val = A_row_ptr[k_idx - kk]; // Offset within the block
-    //                         T* __restrict__ B_row_ptr = B_data + k_idx * N + jj;
+    //                         T* RL_TOOLS_RESTRICT B_row_ptr = B_data + k_idx * N + jj;
     //
     //                         TI j = jj;
     //

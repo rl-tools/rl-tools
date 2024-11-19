@@ -61,11 +61,11 @@ namespace rl_tools{
         };
         template <typename T, typename TI, TI SIZE_BYTES, bool CONST = false>
         struct MatrixDynamic{
-            T* __restrict__ _data = nullptr;
+            T* RL_TOOLS_RESTRICT _data = nullptr;
         };
         template <typename T, typename TI, TI SIZE_BYTES>
         struct MatrixDynamic<T, TI, SIZE_BYTES, true>{
-            const T* __restrict__ _data = nullptr;
+            const T* RL_TOOLS_RESTRICT _data = nullptr;
         };
     }
 
