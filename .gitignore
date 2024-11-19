@@ -58,3 +58,4 @@
 /**/*.out
 /**/*.pdf
 /**/*.tar.gz
+/experiments_old

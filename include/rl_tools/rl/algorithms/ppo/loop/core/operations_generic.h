@@ -80,7 +80,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
         constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
-        set_step(device, device.logger, ts.step);
+        set_step(device, device.logger, ts.step * CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS * CONFIG::CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
         bool finished = false;
 
         auto per_agent_observations = reshape<OBS_SPEC::ROWS*N_AGENTS, OBS_SPEC::COLS/N_AGENTS>(device, ts.observations_dense);
