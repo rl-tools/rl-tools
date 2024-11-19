@@ -1,5 +1,5 @@
 <div align="center">
-  <center><h1><span style="color:#7DB9B6">RLtools</span>: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h1></center>
+  <center><h1><span style="color:#7DB9B6">RLtools</span>: The Fastest Deep Reinforcement Learning Library</h1></center>
 </div>
 
 
