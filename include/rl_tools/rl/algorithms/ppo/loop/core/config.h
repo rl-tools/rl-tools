@@ -76,8 +76,8 @@ namespace rl_tools{
                 using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
 
-            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
-            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
             using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam>;
@@ -128,8 +128,8 @@ namespace rl_tools{
 //                using MODEL = nn_models::multi_agent_wrapper::Module<WRAPPER_CONFIG, CAPABILITY, INPUT_SHAPE>;
             };
 
-            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
-            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
             using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam>;
