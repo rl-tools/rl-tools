@@ -105,8 +105,13 @@ namespace rl_tools{
         ui.last_render_time = std::chrono::high_resolution_clock::now();
     }
     template <typename DEVICE, typename ENV_SPEC, typename SPEC, typename T, typename TI>
-    void set_state(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, const typename rl::environments::Pendulum<ENV_SPEC>::Parameters& parameters, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui, const rl::environments::pendulum::State<T, TI>& state){
+    void set_truncated(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, const typename rl::environments::Pendulum<ENV_SPEC>::Parameters& parameters, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui, const rl::environments::pendulum::State<T, TI>& state){
+    }
+    template <typename DEVICE, typename ENV_SPEC, typename SPEC, typename T, typename TI, typename ACTION_SPEC>
+    void set_state(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, const typename rl::environments::Pendulum<ENV_SPEC>::Parameters& parameters, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui, const rl::environments::pendulum::State<T, TI>& state, const Matrix<ACTION_SPEC>& action){
+        static_assert(ACTION_SPEC::ROWS == 1 && ACTION_SPEC::COLS == 1);
         ui.state = state;
+        ui.action = get(action, 0, 0);
     }
     template <typename DEVICE, typename ENV_SPEC, typename SPEC, typename ACTION_SPEC>
     void set_action(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, const typename rl::environments::Pendulum<ENV_SPEC>::Parameters& parameters, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui, const Matrix<ACTION_SPEC>& action){
