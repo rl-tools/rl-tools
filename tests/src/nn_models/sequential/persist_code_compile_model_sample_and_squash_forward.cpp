@@ -30,7 +30,8 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
     rlt::copy(device, device, rl_tools_export::noise::container, buffer.content_buffer.next_content_buffer.buffer.noise);
-    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng, mode);
+    const rl_tools_export::model::TYPE module = rl_tools_export::model::factory_function(); // MSVC fix:
+    rlt::evaluate(device, module, rl_tools_export::input::container, output, buffer, rng, mode);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
 
@@ -53,7 +54,8 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH
 
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng);
+    const rl_tools_export::model::TYPE module = rl_tools_export::model::factory_function(); // MSVC fix:
+    rlt::evaluate(device, module, rl_tools_export::input::container, output, buffer, rng);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
 

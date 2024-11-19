@@ -70,22 +70,28 @@ namespace rl_tools{
             }
             ss << ss_initializer_list.str() << ";\n";
 
-            std::stringstream ss_initializer_list_create;
+            std::stringstream ss_initializer_list_create, ss_initializer_list_create_function;
             std::string model_stub_create = "T_TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
                 ss_initializer_list_create << "layer_" << inner_layer_i << "::factory<typename " << model_stub_create << "::CONTENT>";
+                ss_initializer_list_create_function << "layer_" << inner_layer_i << "::factory_function<typename " << model_stub_create << "::CONTENT>()";
                 if(inner_layer_i < num_layers(model)-1){
                     ss_initializer_list_create << ", {";
+                    ss_initializer_list_create_function << ", {";
                 }
                 model_stub_create += "::NEXT_MODULE";
             }
             ss_initializer_list_create << ", {}";
+            ss_initializer_list_create_function << ", {}";
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
                 ss_initializer_list_create << "}";
+                ss_initializer_list_create_function << "}";
             }
             std::string initializer_list = ss_initializer_list_create.str();
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
             ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = {" << initializer_list << ";" << "\n";
+            ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory_function(){return T_TYPE{" << ss_initializer_list_create_function.str() << ";" << "}\n";
             ss << ind << "}";
 
 

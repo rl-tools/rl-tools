@@ -65,19 +65,26 @@ namespace rl_tools{
             ss_initializer_list << "output_layer::factory<TYPE::SPEC::OUTPUT_LAYER>}";
             ss_initializer_list << ", log_std::parameters}";
         }
-        std::stringstream ss_initializer_list_create;
+        std::stringstream ss_initializer_list_create, ss_initializer_list_create_function;
         {
             ss_initializer_list_create << "{{input_layer::factory<typename T_TYPE::SPEC::INPUT_LAYER>, ";
+            ss_initializer_list_create_function << "{{input_layer::factory_function<typename T_TYPE::SPEC::INPUT_LAYER>(), ";
             ss_initializer_list_create << "{";
+            ss_initializer_list_create_function << "{";
             for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
                 if(hidden_layer_i > 0){
                     ss_initializer_list_create << ", ";
+                    ss_initializer_list_create_function << ", ";
                 }
                 ss_initializer_list_create << "hidden_layer_" << hidden_layer_i << "::factory<typename T_TYPE::SPEC::HIDDEN_LAYER>";
+                ss_initializer_list_create_function << "hidden_layer_" << hidden_layer_i << "::factory_function<typename T_TYPE::SPEC::HIDDEN_LAYER>()";
             }
             ss_initializer_list_create << "}, ";
+            ss_initializer_list_create_function << "}, ";
             ss_initializer_list_create << "output_layer::factory<typename T_TYPE::SPEC::OUTPUT_LAYER>}";
+            ss_initializer_list_create_function << "output_layer::factory_function<typename T_TYPE::SPEC::OUTPUT_LAYER>()";
             ss_initializer_list_create << ", log_std::parameters}";
+            ss_initializer_list_create_function << ", log_std::parameters}";
         }
 
         std::string initializer_list, initializer_list_create;
@@ -103,6 +110,8 @@ namespace rl_tools{
         ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << initializer_list << ";\n";
         ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
         ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = " << initializer_list_create << ";" << "\n";
+        ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory_function(){return T_TYPE" << initializer_list_create << ";" << "}\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }

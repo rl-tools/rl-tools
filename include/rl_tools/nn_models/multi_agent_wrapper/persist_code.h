@@ -38,10 +38,15 @@ namespace rl_tools{
         ss << ">; \n";
         ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
         ss << ind << "    using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << SPEC::INPUT_SHAPE::template GET<0> << ", " << SPEC::INPUT_SHAPE::template GET<1> << ", " << SPEC::INPUT_SHAPE::template GET<2> << ">;\n";
-        ss << ind << "    using MODEL = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::multi_agent_wrapper::Module<CONFIG, CAPABILITY, INPUT_SHAPE>; \n";
-        std::stringstream ss_initializer_list;
-        ss_initializer_list << "{content::factory<MODEL::MODEL>}";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "MODEL module = " << ss_initializer_list.str() << ";\n";
+        ss << ind << "    using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::multi_agent_wrapper::Module<CONFIG, CAPABILITY, INPUT_SHAPE>; \n";
+        std::stringstream ss_initializer_list, ss_initializer_list_function;
+        ss_initializer_list << "{content::factory<TYPE::MODEL>}";
+        ss_initializer_list_function << "{content::factory_function<TYPE::MODEL>()}";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << ss_initializer_list.str() << ";\n";
+        ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = " << ss_initializer_list.str() << ";" << "\n";
+        ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory_function(){return " << ss_initializer_list_function.str() << ";}\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }

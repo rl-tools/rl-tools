@@ -50,7 +50,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE_COMPILE){
     rlt::malloc(device, output_imported);
 
 
-    rlt::evaluate(device, gru::module, input::container, output_imported, buffer, rng);
+    const gru::TYPE module = gru::factory_function(); // MSVC fix:
+    rlt::evaluate(device, module, input::container, output_imported, buffer, rng);
 
     std::cout << "expected output: " << std::endl;
     rlt::print(device, output::container);

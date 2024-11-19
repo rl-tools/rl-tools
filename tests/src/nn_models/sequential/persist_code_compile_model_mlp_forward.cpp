@@ -27,7 +27,8 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_MLP_FORWARD){
 
     bool rng = false;
 
-    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng);
+    const rl_tools_export::model::TYPE module = rl_tools_export::model::factory_function(); // MSVC fix:
+    rlt::evaluate(device, module, rl_tools_export::input::container, output, buffer, rng);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
 

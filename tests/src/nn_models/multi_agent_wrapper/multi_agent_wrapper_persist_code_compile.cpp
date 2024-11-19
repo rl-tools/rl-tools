@@ -20,15 +20,16 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE_COMPILE, GRADIENT){
     DEVICE device;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools_export::model::MODEL::OUTPUT_SHAPE>> output;
-    rl_tools_export::model::MODEL::Buffer<> buffer;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools_export::model::TYPE::OUTPUT_SHAPE>> output;
+    rl_tools_export::model::TYPE::Buffer<> buffer;
 
     rlt::malloc(device, output);
     rlt::malloc(device, buffer);
 
     bool rng = false;
 
-    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng);
+    const rl_tools_export::model::TYPE module = rl_tools_export::model::factory_function(); // MSVC fix:
+    rlt::evaluate(device, module, rl_tools_export::input::container, output, buffer, rng);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
 

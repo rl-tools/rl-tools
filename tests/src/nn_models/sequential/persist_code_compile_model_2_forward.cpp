@@ -27,7 +27,8 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2_FORWARD){
 
     bool rng = false;
 
-    rlt::evaluate(device, rl_tools_export::model::module, rl_tools_export::input::container, output, buffer, rng);
+    const rl_tools_export::model::TYPE module = rl_tools_export::model::factory_function(); // MSVC fix:
+    rlt::evaluate(device, module, rl_tools_export::input::container, output, buffer, rng);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
 
@@ -40,7 +41,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2_FORWARD){
     ASSERT_LT(abs_diff, 1e-5);
 
     {
-        auto& first_layer = rl_tools_export::model::module.content;
+        auto& first_layer = module.content;
         for(TI input_i=0; input_i < rlt::get_last(typename rl_tools_export::model::TYPE::INPUT_SHAPE{}); input_i++){
             T mean = rlt::get(first_layer.mean.parameters, 0, input_i);
             ASSERT_EQ(mean, input_i);
@@ -50,7 +51,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2_FORWARD){
     }
 
     {
-        auto& last_layer = rlt::get_last_layer(rl_tools_export::model::module);
+        auto& last_layer = rlt::get_last_layer(module);
         for(TI output_i=0; output_i < rlt::get_last(typename rl_tools_export::model::TYPE::OUTPUT_SHAPE{}); output_i++){
             T p = rlt::get(last_layer.log_std.parameters, 0, output_i);
             ASSERT_EQ(p, output_i);
