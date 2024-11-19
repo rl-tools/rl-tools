@@ -127,7 +127,6 @@ jobs:
           -S ${{ github.workspace }}
           -DRL_TOOLS_ENABLE_TESTS=ON
           -DRL_TOOLS_ENABLE_TESTS:BOOL=ON
-          -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
           -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
           -DCMAKE_TOOLCHAIN_FILE=${{ steps.strings.outputs.build-output-dir }}/conan_toolchain.cmake
