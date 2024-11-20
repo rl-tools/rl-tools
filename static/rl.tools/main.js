@@ -116,12 +116,8 @@ let async_main = (async () => {
 
     let training = false;
     document.getElementById("training-button").addEventListener("click", async () => {
+        gtag('event', 'pendulum_training_button', {"training": training});
         if(!training){
-            gtag('event', 'conversion', {
-                'send_to': 'AW-11023595590/fCKQCMfCvaEZEMbwuogp',
-                'value': 0.01,
-                'currency': 'USD'
-            });
             training = true;
             document.getElementById("training-button").value = "Stop training";
             returns_chart.data.labels = [];

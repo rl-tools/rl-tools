@@ -173,6 +173,7 @@ let main = async () => {
         }
     });
     trainButton.addEventListener('click', ()=>{
+        gtag('event', 'car_training_button');
         mode_interactive = false
         client.sendMessage("startTraining", null);
         playButton.style.display = "none";
