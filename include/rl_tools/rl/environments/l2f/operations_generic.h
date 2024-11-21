@@ -420,6 +420,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using MULTIROTOR = rl::environments::Multirotor<SPEC>;
         initial_state(device, env, parameters, static_cast<rl::environments::l2f::StateRotors<T, TI, T_CLOSED_FORM, NEXT_COMPONENT>&>(state));
+        state.current_step = 0;
         for(TI step_i = 0; step_i < HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
                 state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
@@ -609,6 +610,7 @@ namespace rl_tools{
         using MULTIROTOR = rl::environments::Multirotor<SPEC>;
         using TI = typename DEVICE::index_t;
         sample_initial_state(device, env, parameters, static_cast<typename rl::environments::l2f::StateRotors<T_S, TI_S, T_CLOSED_FORM, NEXT_COMPONENT>&>(state), rng);
+        state.current_step = 0;
         for(TI step_i = 0; step_i < HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
                 state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
@@ -837,10 +839,13 @@ namespace rl_tools{
             static_assert(rl::environments::Multirotor<SPEC>::State::HISTORY_LENGTH == OBSERVATION::HISTORY_LENGTH);
             static_assert(rl::environments::Multirotor<SPEC>::State::ACTION_DIM == OBSERVATION::ACTION_DIM);
             static_assert(rl::environments::Multirotor<SPEC>::ACTION_DIM == OBSERVATION::ACTION_DIM);
+            TI current_step = state.current_step;
             for(TI step_i = 0; step_i < OBSERVATION::HISTORY_LENGTH; step_i++){
+                TI base = step_i*OBSERVATION::ACTION_DIM;
                 for(TI action_i = 0; action_i < OBSERVATION::ACTION_DIM; action_i++){
-                    set(observation, 0, step_i*OBSERVATION::ACTION_DIM + action_i, state.action_history[step_i][action_i]);
+                    set(observation, 0, base + action_i, state.action_history[current_step][action_i]);
                 }
+                current_step = (current_step + 1) % OBSERVATION::HISTORY_LENGTH;
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
@@ -925,14 +930,19 @@ namespace rl_tools{
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
         post_integration(device, env, parameters, static_cast<const rl::environments::l2f::StateRotors<T_S, TI_S, T_CLOSED_FORM, NEXT_STATE_COMPONENT>&>(state), action, static_cast<rl::environments::l2f::StateRotors<T_S, TI_S, T_CLOSED_FORM, NEXT_STATE_COMPONENT>&>(next_state), rng);
         if constexpr(HISTORY_LENGTH > 0){
-            for(TI step_i = 0; step_i < HISTORY_LENGTH-1; step_i++){
-                for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                    next_state.action_history[step_i][action_i] = state.action_history[step_i+1][action_i];
-                }
-            }
+            // for(TI step_i = 0; step_i < HISTORY_LENGTH-1; step_i++){
+            //     for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
+            //         next_state.action_history[step_i][action_i] = state.action_history[step_i+1][action_i];
+            //     }
+            // }
+            // for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
+            //     next_state.action_history[HISTORY_LENGTH-1][action_i] = get(action, 0, action_i);
+            // }
+            TI current_step = state.current_step;
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                next_state.action_history[HISTORY_LENGTH-1][action_i] = get(action, 0, action_i);
+                next_state.action_history[current_step][action_i] = get(action, 0, action_i);
             }
+            next_state.current_step = (state.current_step + 1) % HISTORY_LENGTH;
         }
     }
 //    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T_S, typename TI_S, typename STATE, typename RNG>

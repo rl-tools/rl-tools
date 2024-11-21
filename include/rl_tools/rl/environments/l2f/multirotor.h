@@ -399,6 +399,7 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr TI PARENT_DIM = StateRotors<T, TI, T_CLOSED_FORM, NEXT_COMPONENT>::DIM;
         static constexpr TI ACTION_DIM = 4;
         static constexpr TI DIM = PARENT_DIM + HISTORY_LENGTH * ACTION_DIM;
+        TI current_step;
         T action_history[HISTORY_LENGTH][4];
     };
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
