@@ -264,12 +264,14 @@ We use `snake_case` for variables/instances, functions as well as namespaces and
 ## Citing
 When using <span style="color:#7DB9B6">RLtools</span> in an academic work please cite our publication using the following Bibtex citation:
 ```
-@misc{eschmann2023rltools,
-      title={RLtools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control}, 
-      author={Jonas Eschmann and Dario Albani and Giuseppe Loianno},
-      year={2023},
-      eprint={2306.03530},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG}
+@article{JMLR:v25:24-0248,
+  author  = {Jonas Eschmann and Dario Albani and Giuseppe Loianno},
+  title   = {RLtools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control},
+  journal = {Journal of Machine Learning Research},
+  year    = {2024},
+  volume  = {25},
+  number  = {301},
+  pages   = {1--19},
+  url     = {http://jmlr.org/papers/v25/24-0248.html}
 }
 ```
