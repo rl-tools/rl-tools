@@ -4,7 +4,7 @@
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 #include <rl_tools/nn/operations_generic.h>
 
-#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
+#include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
@@ -12,10 +12,10 @@
 
 #include <rl_tools/rl/algorithms/td3/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
-#include <rl_tools/rl/loop/steps/timing/config.h>
+// #include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
-#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
+// #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 namespace rlt = rl_tools;
 
@@ -43,7 +43,7 @@ int main(int argc, char** argv){
     DEVICE device;
     TI seed = 3;
     if(argc > 1){
-        seed = std::atoi(argv[1]);
+        seed = 10; //std::atoi(argv[1]);
     }
     LOOP_STATE ts;
     rlt::malloc(device, ts);

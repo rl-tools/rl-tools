@@ -8,7 +8,7 @@ target_link_libraries(
         PRIVATE
         RLtools::Core
 )
-target_compile_options(rl_environments_pendulum_td3_bare PRIVATE -nostdlib)
+target_compile_options(rl_environments_pendulum_td3_bare PRIVATE -nostdlib -ffreestanding)
 RL_TOOLS_INSTALL(rl_environments_pendulum_td3_bare)
 
 # RL Algorithm td3 test full training standalone

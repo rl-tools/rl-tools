@@ -299,7 +299,12 @@ namespace rl_tools{
     namespace tensor{
         template <typename T, typename TI, TI SIZE>
         struct TensorStatic{
+            static_assert(SIZE > 0, "MSVC does not allow SIZE=0");
             T _data[SIZE];
+        };
+        template <typename T>
+        struct TensorStaticEmpty{
+            T* _data = nullptr;
         };
         template <typename T, typename TI, TI SIZE, bool CONST = false>
         struct TensorDynamic{
@@ -312,7 +317,7 @@ namespace rl_tools{
     }
 
     template <typename T_SPEC>
-    struct Tensor: utils::typing::conditional_t<T_SPEC::DYNAMIC_ALLOCATION, tensor::TensorDynamic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE, T_SPEC::CONST>, tensor::TensorStatic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE>>{
+    struct Tensor: utils::typing::conditional_t<T_SPEC::DYNAMIC_ALLOCATION, tensor::TensorDynamic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE, T_SPEC::CONST>, utils::typing::conditional_t<(T_SPEC::SIZE > 0), tensor::TensorStatic<typename T_SPEC::T, typename T_SPEC::TI, T_SPEC::SIZE>, tensor::TensorStaticEmpty<typename T_SPEC::T>>>{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         template <typename VIEW_SPEC>

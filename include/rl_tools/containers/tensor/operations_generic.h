@@ -16,6 +16,14 @@ namespace rl_tools{
     void free(DEVICE& device, tensor::TensorStatic<T, T_TI, SIZE>& tensor) {
         // no-op
     }
+    template<typename DEVICE, typename T>
+    void malloc(DEVICE& device, tensor::TensorStaticEmpty<T>& tensor) {
+        // no-op
+    }
+    template<typename DEVICE, typename T>
+    void free(DEVICE& device, tensor::TensorStaticEmpty<T>& tensor) {
+        // no-op
+    }
 
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE, bool CONST>
