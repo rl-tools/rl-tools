@@ -144,21 +144,26 @@
             }
 
             const environmentCallbacks = {
-                setParametersCallback: (new_parameters)=>{
+                setParametersCallback: async (new_parameters)=>{
                     console.log('Parameters:', new_parameters);
                     parameters = new_parameters
+                    if(ui_module && ui_state){
+                        if((await ui_module).episode_init){
+                            await (await ui_module).episode_init((await ui_state), parameters)
+                            episode_initialized = true
+                        }
+                    }
+                    else{
+                        console.error('UI not set, cannot set parameters')
+                    }
                 },
                 setStateCallback: async (new_state)=>{
                     console.log('State:', new_state);
                     if(ui_module && ui_state){
                         // render(ctx, parameters, state.state, state.action)
                         if(!episode_initialized){
-                            episode_initialized = true
                             if(!parameters){
                                 console.error('Parameters not set')
-                            }
-                            if((await ui_module).episode_init){
-                                await (await ui_module).episode_init((await ui_state), parameters)
                             }
                         }
                         state = new_state

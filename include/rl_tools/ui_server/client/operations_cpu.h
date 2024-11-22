@@ -55,6 +55,7 @@ namespace rl_tools{
         std::string message = "{";
         message += "\"namespace\": \"" + ui.ns + "\", ";
         message += "\"channel\": \"setUI\", ";
+        message += "\"latch\": true, ";
         std::string data = "{";
         data += "\"type\": \"2d\", ";
         data += "\"render_function\": \"" + ui_server::client::escape_json_string(render_function) + "\"";
