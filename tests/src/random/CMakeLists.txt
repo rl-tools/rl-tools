@@ -1,3 +1,4 @@
+if(NOT MSVC)
 project(rl_tools_random_arm)
 
 add_executable(
@@ -11,3 +12,4 @@ target_link_libraries(
         rl_tools_test
 )
 gtest_discover_tests(test_random_arm)
+endif()
