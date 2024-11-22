@@ -4,7 +4,7 @@
 #define RL_TOOLS_CONTAINERS_MATRIX_OPERATIONS_ARM_H
 
 #include "operations_generic.h"
-#include <cstring> // formemcpy
+// #include <cstring> // formemcpy
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
@@ -17,8 +17,12 @@ namespace rl_tools{
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     void copy(devices::ARM<SOURCE_DEV_SPEC>& source_device, devices::ARM<TARGET_DEV_SPEC>& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+        using DEVICE = devices::ARM<SOURCE_DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
         if constexpr(containers::check_memory_layout<SPEC_1, SPEC_2>){
-            std::memcpy(target._data, source._data, SPEC_1::SIZE_BYTES);
+            for(TI i = 0; i < SPEC_1::SIZE_BYTES; i++){
+                target._data[i] = source._data[i];
+            }
         }
         else{
             copy_view(source_device, target_device, source, target);
