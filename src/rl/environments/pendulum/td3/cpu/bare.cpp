@@ -28,7 +28,7 @@ using DEVICE = rlt::devices::DefaultARM;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
-static constexpr bool DYNAMIC_ALLOCATION = true;
+static constexpr bool DYNAMIC_ALLOCATION = false;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
