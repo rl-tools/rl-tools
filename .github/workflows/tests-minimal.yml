@@ -45,7 +45,7 @@ jobs:
             build_type: Release
 
           # macOS
-          - os: macos-latest
+          - os: macos-14
             c_compiler: clang
             cpp_compiler: clang++
             build_type: Release
