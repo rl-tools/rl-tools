@@ -1,4 +1,5 @@
 # RL Algorithm td3 test full training standalone
+if(NOT MSVC)
 add_executable(
         rl_environments_pendulum_td3_bare
         bare.cpp
@@ -10,6 +11,7 @@ target_link_libraries(
 )
 target_compile_options(rl_environments_pendulum_td3_bare PRIVATE -nostdlib)
 RL_TOOLS_INSTALL(rl_environments_pendulum_td3_bare)
+endif()
 
 # RL Algorithm td3 test full training standalone
 add_executable(
