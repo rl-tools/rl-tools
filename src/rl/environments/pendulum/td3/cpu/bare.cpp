@@ -1,3 +1,8 @@
+#define DEBUG_BARE
+#ifdef DEBUG_BARE
+#include <iostream>
+#endif
+
 #include <rl_tools/operations/arm.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
@@ -23,7 +28,7 @@ using DEVICE = rlt::devices::DefaultARM;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
-static constexpr bool DYNAMIC_ALLOCATION = false;
+static constexpr bool DYNAMIC_ALLOCATION = true;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
@@ -53,6 +58,9 @@ int main(int argc, char** argv){
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, LOOP_EVAL_CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, LOOP_EVAL_CONFIG::CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
     rlt::evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, ts.actor_critic.actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{}, false);
+#ifdef DEBUG_BARE
+    std::cout << "Mean return: " << result.returns_mean << std::endl;
+#endif
     TI return_code = (TI)(-result.returns_mean / 100);
     rlt::free(device, ts);
     return return_code < 4 ? 0 : return_code;

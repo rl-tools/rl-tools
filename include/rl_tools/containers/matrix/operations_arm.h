@@ -20,7 +20,7 @@ namespace rl_tools{
         using DEVICE = devices::ARM<SOURCE_DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         if constexpr(containers::check_memory_layout<SPEC_1, SPEC_2>){
-            for(TI i = 0; i < SPEC_1::SIZE_BYTES; i++){
+            for(TI i = 0; i < SPEC_1::SIZE; i++){
                 target._data[i] = source._data[i];
             }
         }
