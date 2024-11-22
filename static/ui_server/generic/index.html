@@ -40,7 +40,7 @@
 
                 this.ws.addEventListener("message", (event)=>{
                     const message = JSON.parse(event.data);
-                    // console.log('Message:', message);
+                    console.log('Message:', message);
                     this.onMessage(message);
                 })
 
@@ -138,7 +138,7 @@
 
             const renderLoop = async () => {
                 if(ui_module && ui_state && episode_initialized && state){
-                    await ui_module.render(ui_state, parameters, state.state, state.action)
+                    await (await ui_module).render(await ui_state, parameters, state.state, state.action)
                 }
                 requestAnimationFrame(renderLoop);
             }
@@ -157,8 +157,8 @@
                             if(!parameters){
                                 console.error('Parameters not set')
                             }
-                            if(ui_module.episode_init){
-                                await ui_module.episode_init(ui_state, parameters)
+                            if((await ui_module).episode_init){
+                                await (await ui_module).episode_init((await ui_state), parameters)
                             }
                         }
                         state = new_state
@@ -173,13 +173,16 @@
                         if(!ui_module){
                             const blob = new Blob([ui.render_function], { type: 'application/javascript' });
                             const url = URL.createObjectURL(blob);
-                            ui_module = await import(url)
-                            URL.revokeObjectURL(url);
-                            ui_state = await ui_module.init(canvas, {devicePixelRatio: window.devicePixelRatio})
-                            if(ui_state.cursor_grab){
-                                this.canvas.style.cursor = "grab"
-                            }
-                            renderLoop()
+                            ui_module = import(url)
+                            ui_state = ui_module.then(async (module)=>{
+                                URL.revokeObjectURL(url);
+                                ui_state = await module.init(canvas, {devicePixelRatio: window.devicePixelRatio})
+                                if(ui_state.cursor_grab){
+                                    this.canvas.style.cursor = "grab"
+                                }
+                                renderLoop()
+                                return ui_state
+                            })
                         }
                     }
                     else{

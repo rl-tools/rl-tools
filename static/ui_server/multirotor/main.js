@@ -117,6 +117,7 @@ async function onload(){
   };
 
   ws.onmessage = function(event) {
+    console.log("Message: ", event.data)
     let {channel, data} = JSON.parse(event.data)
     if (channel === "addDrone") {
       window.addDrone(data.id, data.origin, data.model || default_model, data.display_options);
