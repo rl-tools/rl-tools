@@ -7,7 +7,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3::loop::core{
     // The approximator config sets up any types that support the usual rl_tools::forward and rl_tools::backward operations (can be custom as well)
     // We provide approximators based on the sequential and mlp models. The latter (mlp) allows for a variable number of layers, but is restricted to a uniform hidden layer size while the former allows for arbitrary layers to be combined in a sequential manner. Both support compile-time autodiff
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION>
     struct ConfigApproximatorsMLP{
         using TD3_PARAMETERS = typename PARAMETERS::TD3_PARAMETERS;
         template <typename CAPABILITY>
@@ -48,10 +48,10 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
-        using ACTOR_TYPE = typename ACTOR<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
-        using ACTOR_TARGET_TYPE = typename ACTOR<nn::capability::Forward<>>::MODEL;
-        using CRITIC_TYPE = typename CRITIC<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
-        using CRITIC_TARGET_TYPE = typename CRITIC<nn::capability::Forward<>>::MODEL;
+        using ACTOR_TYPE = typename ACTOR<nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>>::MODEL;
+        using ACTOR_TARGET_TYPE = typename ACTOR<nn::capability::Forward<DYNAMIC_ALLOCATION>>::MODEL;
+        using CRITIC_TYPE = typename CRITIC<nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>>::MODEL;
+        using CRITIC_TARGET_TYPE = typename CRITIC<nn::capability::Forward<DYNAMIC_ALLOCATION>>::MODEL;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

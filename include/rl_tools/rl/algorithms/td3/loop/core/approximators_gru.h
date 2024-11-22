@@ -5,7 +5,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3::loop::core{
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION>
     struct ConfigApproximatorsGRU{
     //    static constexpr bool USE_GRU = true;
         using TD3_PARAMETERS = typename PARAMETERS::TD3_PARAMETERS;
@@ -61,8 +61,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using MODEL = nn_models::sequential::Build<CAPABILITY, SELECTED_MODULE, INPUT_SHAPE>;
         };
 
-        using CAPABILITY_ACTOR = nn::capability::Gradient<nn::parameters::Adam>;
-        using CAPABILITY_CRITIC = nn::capability::Gradient<nn::parameters::Adam>;
+        using CAPABILITY_ACTOR = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
+        using CAPABILITY_CRITIC = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
         using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
         using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
         using CRITIC_TARGET_TYPE = typename Critic<nn::capability::Forward<>>::MODEL;

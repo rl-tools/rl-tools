@@ -88,7 +88,7 @@ struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::Par
     static constexpr T EXPLORATION_NOISE = 0.1;
 };
 using POLICIES = rl_tools::utils::Tuple<TI, ACTOR_NETWORK_TYPE>;
-using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification< T, DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
+using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification< T, DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, DYNAMIC_ALLOCATION>;
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
 EXTMEM rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 #else
