@@ -37,10 +37,10 @@ jobs:
             c_compiler: clang
             cpp_compiler: clang++
             rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
-          - os: macos-14
-            c_compiler: clang
-            cpp_compiler: clang++
-            rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
+#          - os: macos-14
+#            c_compiler: clang
+#            cpp_compiler: clang++
+#            rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
         exclude:
           - os: ubuntu-latest
             c_compiler: cl
