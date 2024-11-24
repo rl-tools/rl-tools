@@ -115,6 +115,17 @@ namespace rl_tools{
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
+        {
+            // logging actor std
+            auto& last_layer = get_last_layer(ts.ppo.actor);
+            using T = typename CONFIG::T;
+            constexpr TI PER_AGENT_ACTION_DIM = T_CONFIG::ENVIRONMENT::ACTION_DIM/N_AGENTS;
+            for(TI action_i = 0; action_i < PER_AGENT_ACTION_DIM; action_i++){
+                T current_action_log_std = get(last_layer.log_std.parameters, 0, action_i % PER_AGENT_ACTION_DIM);
+                add_scalar(device, device.logger, "actor/log_std", current_action_log_std);
+            }
+        }
+
 //        log(device, device.logger, "log_std: ", get(ts.ppo.actor.log_std.parameters, 0, 0));
 
         ts.step++;

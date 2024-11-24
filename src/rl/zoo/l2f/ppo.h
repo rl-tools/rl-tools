@@ -31,8 +31,8 @@ namespace rl_tools::rl::zoo::l2f::ppo{
                 static constexpr TI N_EPOCHS = 1;
                 static constexpr bool LEARN_ACTION_STD = true;
                 static constexpr T INITIAL_ACTION_STD = 0.5;
-                static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
-                static constexpr bool NORMALIZE_ADVANTAGE = false;
+                static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
+                static constexpr bool NORMALIZE_ADVANTAGE = true;
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool ADAPTIVE_LEARNING_RATE = false;
                 static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.008;
