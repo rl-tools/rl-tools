@@ -110,7 +110,7 @@ Run it `./a.out 1337` (number = seed) then run `python3 -m http.server` to visua
 |-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **TD3**   | [Pendulum](./src/rl/environments/pendulum/td3/cpu/standalone.cpp), [Racing Car](./src/rl/environments/car/car.cpp), [MuJoCo Ant-v4](./src/rl/environments/mujoco/ant/td3/training.h), [Acrobot](./src/rl/environments/acrobot/td3/acrobot.cpp)                                         |
 | **PPO**   | [Pendulum](./src/rl/environments/pendulum/ppo/cpu/training.cpp), [Racing Car](./src/rl/environments/car/training_ppo.h), [MuJoCo Ant-v4 (CPU)](./src/rl/environments/mujoco/ant/ppo/cpu/training.h), [MuJoCo Ant-v4 (CUDA)](./src/rl/environments/mujoco/ant/ppo/cuda/training_ppo.cu) |
-| **Multi-Agent PPO**   | [Bottleneck](./src/rl/zoo/ppo/bottleneck-v0.h) |
+| **Multi-Agent PPO**   | [Bottleneck](./src/rl/zoo/bottleneck-v0/ppo.h) |
 | **SAC**   | [Pendulum (CPU)](./src/rl/environments/pendulum/sac/cpu/training.cpp), [Pendulum (CUDA)](./src/rl/environments/pendulum/sac/cuda/sac.cu), [Acrobot](./src/rl/environments/acrobot/sac/acrobot.cpp)                                                                                     |
 
 ## Projects Based on <span style="color:#7DB9B6">RLtools</span>
