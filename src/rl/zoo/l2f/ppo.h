@@ -22,8 +22,8 @@ namespace rl_tools::rl::zoo::l2f::ppo{
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             static constexpr TI N_ENVIRONMENTS = 64;
-            static constexpr TI BATCH_SIZE = 2048;
-            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
+            static constexpr TI BATCH_SIZE = 2048 * 2;
+            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
             static constexpr bool NORMALIZE_OBSERVATIONS = true;
             static constexpr bool NORMALIZE_OBSERVATIONS_CONTINUOUSLY = false;
 
