@@ -24,11 +24,11 @@ namespace rl_tools::rl::zoo::l2f::sac{
             };
             static constexpr TI STEP_LIMIT = 40000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI ACTOR_NUM_LAYERS = 3;
-            static constexpr TI ACTOR_HIDDEN_DIM = 32;
+            static constexpr TI ACTOR_NUM_LAYERS = 4;
+            static constexpr TI ACTOR_HIDDEN_DIM = 16;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-            static constexpr TI CRITIC_NUM_LAYERS = 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = 32;
+            static constexpr TI CRITIC_NUM_LAYERS = 4;
+            static constexpr TI CRITIC_HIDDEN_DIM = 16;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
             static constexpr TI N_WARMUP_STEPS = 2000;
@@ -45,7 +45,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T ALPHA = 1e-3;
             };
             struct CRITIC_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
-                static constexpr T ALPHA = 1e-3;
+                static constexpr T ALPHA = 2e-3;
             };
             struct ALPHA_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
                 static constexpr T ALPHA = 1e-3;
