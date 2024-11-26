@@ -38,14 +38,14 @@ experiments = {
 
 
 
-use_wall_time = False
+use_wall_time = True
 plt.figure()
 for experiment_name, experiment in experiments.items():
     steps, wall_time, mean_returns, std_returns = load_experiment(*experiment)
     x = wall_time if use_wall_time else steps
     plt.plot(x, mean_returns, label=experiment_name)
     plt.fill_between(x, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
-plt.xlabel("Time") if use_wall_time else plt.xlabel("Step")
+plt.xlabel("Time [s]") if use_wall_time else plt.xlabel("Step")
 plt.ylabel("Returns")
 plt.title("Learning curve")
 plt.legend()
