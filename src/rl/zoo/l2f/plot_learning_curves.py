@@ -3,7 +3,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-def load_experiment(experiment):
+def load_experiment(experiment, time):
     steps = []
     steps_set = False
     returns = []
@@ -26,22 +26,22 @@ def load_experiment(experiment):
 
     mean_returns = np.mean(returns, axis=1)
     std_returns = np.std(returns, axis=1)
-    return steps, mean_returns, std_returns
+    return steps/(steps.max() / time), mean_returns, std_returns
 
 
 experiments = {
-    "baseline": "experiments/2024-11-26_11-06-39/dd10193_zoo_environment_algorithm/l2f_sac",
-    "challenger": "experiments/2024-11-26_11-04-29/dd10193_zoo_environment_algorithm/l2f_sac"
+    "baseline": ("experiments/2024-11-26_11-06-39/dd10193_zoo_environment_algorithm/l2f_sac", 1.71),
+    "challenger": ("experiments/2024-11-26_11-04-29/dd10193_zoo_environment_algorithm/l2f_sac", 1.38)
 }
 
 
 
 plt.figure()
 for experiment_name, experiment in experiments.items():
-    steps, mean_returns, std_returns = load_experiment(experiment)
+    steps, mean_returns, std_returns = load_experiment(*experiment)
     plt.plot(steps, mean_returns, label=experiment_name)
     plt.fill_between(steps, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
-plt.xlabel("Steps")
+plt.xlabel("Time")
 plt.ylabel("Returns")
 plt.title("Learning curve")
 plt.legend()
