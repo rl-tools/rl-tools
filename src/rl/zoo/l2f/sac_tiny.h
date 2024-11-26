@@ -52,11 +52,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
         };
-#if defined(BENCHMARK) && defined(RL_TOOLS_EXPERIMENTAL)
-        static constexpr bool DYNAMIC_ALLOCATION = false;
-#else
         static constexpr bool DYNAMIC_ALLOCATION = true;
-#endif
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, true>;
     };
 }
