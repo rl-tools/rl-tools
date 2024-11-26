@@ -37,9 +37,8 @@ def load_experiment(experiment, time, lower_percentile=0, upper_percentile=100):
 
 
 experiments = {
-    "baseline": ("experiments/2024-11-26_12-54-50/f06eafb_zoo_environment_algorithm/l2f_sac", 1.143),
-    "challenger": ("experiments/2024-11-26_12-57-49/f06eafb_zoo_environment_algorithm/l2f_sac", 1.144),
-    "challenger2": ("experiments/2024-11-26_13-01-03/f06eafb_zoo_environment_algorithm/l2f_sac", 1.144),
+    "baseline": ("experiments/2024-11-26_13-31-36/c91e9c4_zoo_environment_algorithm/l2f_sac", 1.144),
+    "small_batch": ("experiments/2024-11-26_13-50-54/c91e9c4_zoo_environment_algorithm/l2f_sac", 1.144),
 }
 
 
@@ -72,22 +71,5 @@ for idx, (use_wall_time, (iqm_lower_percentile, iqm_upper_percentile)) in enumer
     ax.set_title(title)
     ax.legend()
 
-# Adjust layout for better spacing
 plt.tight_layout()
 plt.show()
-
-# use_wall_time = True
-# use_iqm = True
-# plt.figure()
-# for experiment_name, experiment in experiments.items():
-#     steps, wall_time, mean_returns, std_returns, iqm_mean_returns, iqm_std_returns = load_experiment(*experiment)
-#     x = wall_time if use_wall_time else steps
-#     mean_y = iqm_mean_returns if use_iqm else mean_returns
-#     std_y = iqm_std_returns if use_iqm else std_returns
-#     plt.plot(x, mean_y, label=experiment_name)
-#     plt.fill_between(x, mean_y - std_y, mean_y + std_y, alpha=0.2)
-# plt.xlabel("Time [s]") if use_wall_time else plt.xlabel("Step")
-# plt.ylabel("Returns")
-# plt.title("Learning curve")
-# plt.legend()
-# plt.show()

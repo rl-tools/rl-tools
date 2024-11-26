@@ -11,8 +11,8 @@ namespace rl_tools::rl::zoo::l2f::sac{
         using ENVIRONMENT = typename ENVIRONMENT_TINY_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
-                static constexpr TI ACTOR_BATCH_SIZE = 64;
-                static constexpr TI CRITIC_BATCH_SIZE = 64;
+                static constexpr TI ACTOR_BATCH_SIZE = 32;
+                static constexpr TI CRITIC_BATCH_SIZE = 32;
                 static constexpr TI TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
@@ -22,7 +22,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T TARGET_ENTROPY = -((T)4);
                 static constexpr TI SEQUENCE_LENGTH = 1;
             };
-            static constexpr TI STEP_LIMIT = 40000;
+            static constexpr TI STEP_LIMIT = 60000;
             static constexpr TI REPLAY_BUFFER_CAP = 10000;
             static constexpr TI ACTOR_NUM_LAYERS = 4;
             static constexpr TI ACTOR_HIDDEN_DIM = 16;
@@ -34,7 +34,8 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr TI N_WARMUP_STEPS = 2000;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 2000;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 2000;
-        //            static constexpr bool SHARED_BATCH = false;
+            static constexpr bool SHARED_BATCH = true;
+            static constexpr bool COLLECT_EPISODE_STATS = false;
             struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
                 static constexpr T GRADIENT_CLIP_VALUE = 1;
