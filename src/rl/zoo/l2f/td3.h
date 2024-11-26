@@ -11,8 +11,8 @@ namespace rl_tools::rl::zoo::l2f::td3{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
-                static constexpr TI ACTOR_BATCH_SIZE = 256 * 2;
-                static constexpr TI CRITIC_BATCH_SIZE = 256 * 2;
+                static constexpr TI ACTOR_BATCH_SIZE = 256;
+                static constexpr TI CRITIC_BATCH_SIZE = 256;
                 static constexpr TI TRAINING_INTERVAL = 16;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
@@ -27,13 +27,13 @@ namespace rl_tools::rl::zoo::l2f::td3{
             static constexpr TI STEP_LIMIT = 4000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
-            static constexpr TI ACTOR_HIDDEN_DIM = 192;
-            static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr TI ACTOR_HIDDEN_DIM = 256;
+            static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI CRITIC_NUM_LAYERS = 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = 192;
-            static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr TI CRITIC_HIDDEN_DIM = 256;
+            static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
-            static constexpr TI N_WARMUP_STEPS = 1000;
+            static constexpr TI N_WARMUP_STEPS = 10000;
 //            static constexpr bool SHARED_BATCH = false;
             struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr T ALPHA = 3e-4;
