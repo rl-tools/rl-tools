@@ -40,7 +40,11 @@
 #include "pendulum-v1/ppo.h"
 #include "acrobot-swingup-v0/sac.h"
 #include "bottleneck-v0/ppo.h"
+#ifdef RL_TOOLS_EXPERIMENTAL
+#include "l2f/sac_tiny.h"
+#else
 #include "l2f/sac.h"
+#endif
 #include "l2f/td3.h"
 #include "l2f/ppo.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
