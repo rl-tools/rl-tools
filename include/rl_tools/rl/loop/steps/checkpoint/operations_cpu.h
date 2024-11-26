@@ -50,9 +50,9 @@ namespace rl_tools{
     }
 
     namespace rl::loop::steps::checkpoint{
-            template <auto BATCH_SIZE, typename DEVICE, typename CONFIG, typename ACTOR_TYPE, bool STORE_UNCOMPRESSED_ANYWAYS=true>
-            void save_code(DEVICE& device, rl::loop::steps::checkpoint::State<CONFIG>& ts, std::string step_folder, ACTOR_TYPE& actor_forward){
-                using T = typename CONFIG::T;
+            template <auto BATCH_SIZE, typename DEVICE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
+            void save_code(DEVICE& device, std::string step_folder, ACTOR_TYPE& actor_forward, RNG& rng){
+                using T = typename ACTOR_TYPE::T;
                 using TI = typename DEVICE::index_t;
                 typename ACTOR_TYPE::template Buffer<> actor_buffer;
                 malloc(device, actor_buffer);
@@ -64,7 +64,7 @@ namespace rl_tools{
                     Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>>> output;
                     malloc(device, input);
                     malloc(device, output);
-                    auto rng_copy = ts.rng;
+                    auto rng_copy = rng;
                     randn(device, input, rng_copy);
                     Mode<mode::Evaluation<>> mode;
                     evaluate(device, actor_forward, input, output, actor_buffer, rng_copy, mode);
@@ -94,8 +94,10 @@ namespace rl_tools{
                 };
 #endif
                 if(!stored_compressed || STORE_UNCOMPRESSED_ANYWAYS){
-                    std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h";
-                    std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_code_path << std::endl;
+                    std::filesystem::path step_folder_path = step_folder;
+                    std::filesystem::create_directories(step_folder_path);
+                    std::filesystem::path checkpoint_code_path = step_folder_path / "checkpoint.h";
+                    std::cerr << "Checkpointing at to: " << checkpoint_code_path << std::endl;
                     std::ofstream actor_output_file(checkpoint_code_path);
                     actor_output_file << output_string;
                     actor_output_file.close();
@@ -140,7 +142,7 @@ namespace rl_tools{
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
 #endif
-            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, ts, step_folder.string(), evaluation_actor);
+            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, step_folder.string(), evaluation_actor, ts.rng);
             free(device, evaluation_actor);
 
         }
