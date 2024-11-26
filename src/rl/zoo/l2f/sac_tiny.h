@@ -23,7 +23,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr TI SEQUENCE_LENGTH = 1;
             };
             static constexpr TI STEP_LIMIT = 40000;
-            static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
+            static constexpr TI REPLAY_BUFFER_CAP = 10000;
             static constexpr TI ACTOR_NUM_LAYERS = 4;
             static constexpr TI ACTOR_HIDDEN_DIM = 16;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
@@ -52,7 +52,11 @@ namespace rl_tools::rl::zoo::l2f::sac{
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
         };
-
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, true>;
+#if defined(BENCHMARK) && defined(RL_TOOLS_EXPERIMENTAL)
+        static constexpr bool DYNAMIC_ALLOCATION = false;
+#else
+        static constexpr bool DYNAMIC_ALLOCATION = true;
+#endif
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
     };
 }
