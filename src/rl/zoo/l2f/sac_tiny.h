@@ -31,6 +31,9 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr TI CRITIC_HIDDEN_DIM = 32;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
+            static constexpr TI N_WARMUP_STEPS = 2000;
+            static constexpr TI N_WARMUP_STEPS_CRITIC = 2000;
+            static constexpr TI N_WARMUP_STEPS_ACTOR = 2000;
         //            static constexpr bool SHARED_BATCH = false;
             struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
