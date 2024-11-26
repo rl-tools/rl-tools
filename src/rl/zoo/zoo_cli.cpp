@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
             n_seeds = seed + 1;
         }
     #endif
-    if(seed > n_seeds){
+    if(seed >= n_seeds){
         n_seeds = seed + 1;
     }
     return zoo(seed, n_seeds, extrack_base_path, extrack_experiment, extrack_experiment_path, config_path);
