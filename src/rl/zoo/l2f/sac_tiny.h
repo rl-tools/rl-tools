@@ -17,8 +17,6 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
-                static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.9;
-                static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.3;
                 static constexpr T GAMMA = 0.98;
                 static constexpr bool IGNORE_TERMINATION = false;
                 static constexpr T TARGET_ENTROPY = -((T)4);
