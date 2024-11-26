@@ -33,6 +33,9 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;
+            static constexpr TI N_WARMUP_STEPS = 10000; // Exploration executed with a uniform random policy for N_WARMUP_STEPS steps
+            static constexpr TI N_WARMUP_STEPS_CRITIC = 10000; // Number of steps before critic training starts
+            static constexpr TI N_WARMUP_STEPS_ACTOR = 10000; // Number of steps before actor training starts
             struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
                 static constexpr T GRADIENT_CLIP_VALUE = 1;
@@ -40,13 +43,13 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T WEIGHT_DECAY = 0.0001;
             };
             struct ACTOR_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
-                static constexpr T ALPHA = 1e-3;
+                static constexpr T ALPHA = 3e-4;
             };
             struct CRITIC_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
-                static constexpr T ALPHA = 1e-3;
+                static constexpr T ALPHA = 3e-4;
             };
             struct ALPHA_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
-                static constexpr T ALPHA = 1e-3;
+                static constexpr T ALPHA = 3e-4;
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
         };
