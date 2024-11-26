@@ -32,8 +32,7 @@ def load_experiment(experiment, time):
 
 experiments = {
     "baseline": ("experiments/2024-11-26_11-51-39/f06eafb_zoo_environment_algorithm/l2f_sac", 1.38),
-    "challenger": ("experiments/2024-11-26_12-00-52/f06eafb_zoo_environment_algorithm/l2f_sac", 2.45),
-    "challenger2": ("experiments/2024-11-26_12-05-50/f06eafb_zoo_environment_algorithm/l2f_sac", 2.45),
+    "challenger": ("experiments/2024-11-26_12-54-50/f06eafb_zoo_environment_algorithm/l2f_sac", 1.143),
 }
 
 

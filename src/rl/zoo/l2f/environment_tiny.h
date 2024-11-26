@@ -47,11 +47,15 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
-            static constexpr TI ACTION_HISTORY_LENGTH = 16;
+            static constexpr TI ACTION_HISTORY_LENGTH = 1;
             static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = StateBase<T, TI>;
             using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
-            using OBSERVATION_TYPE = typename ENVIRONMENT_FACTORY::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE;
+            using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
+                    observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
+                            observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
+                                    observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
+                                            observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = typename ENVIRONMENT_FACTORY::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
