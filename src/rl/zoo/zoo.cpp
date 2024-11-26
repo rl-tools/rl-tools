@@ -157,7 +157,6 @@ static constexpr TI TIMING_INTERVAL = 10;
 static constexpr TI TIMING_INTERVAL = 10000;
 #endif
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG, rlt::rl::loop::steps::timing::Parameters<TI, TIMING_INTERVAL>>;
-#ifndef BENCHMARK
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
@@ -177,9 +176,10 @@ struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<r
     static constexpr TI NUM_EPISODES = 100;
 };
 using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVALUATION_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
-using LOOP_CONFIG = LOOP_SAVE_TRAJECTORIES_CONFIG;
+#ifndef BENCHMARK
+using LOOP_CONFIG = LOOP_EXTRACK_CONFIG;
 #else
-using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+using LOOP_CONFIG = LOOP_SAVE_TRAJECTORIES_CONFIG;
 #endif
 
 #if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
@@ -214,7 +214,6 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 //    rlt::utils::assert_exit(device, num_seeds > 0, "Number of seeds must be greater than 0.");
     for(TI seed = initial_seed; seed < (TI)num_seeds; seed++){
         LOOP_STATE ts;
-#ifndef BENCHMARK
         ts.extrack_name = "zoo";
         if(extrack_base_path != ""){
             ts.extrack_base_path = extrack_base_path;
@@ -227,7 +226,6 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         if(extrack_experiment_path != ""){
             ts.extrack_experiment = extrack_experiment_path;
         }
-#endif
         rlt::malloc(device);
         rlt::init(device);
         rlt::malloc(device, ts);
@@ -256,6 +254,19 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         return_file << "]";
         std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
         return_file_confirmation.close();
+#else
+        auto& actor = rlt::get_actor(ts);
+        static constexpr TI BATCH_SIZE = 13;
+        using ORIGINAL_ACTOR = typename LOOP_CORE_CONFIG::NN::ACTOR_TYPE;
+        using EVALUATION_ACTOR_TYPE_BATCH_SIZE = ORIGINAL_ACTOR::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
+        using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
+        EVALUATION_ACTOR_TYPE evaluation_actor;
+        rlt::malloc(device, evaluation_actor);
+        rlt::copy(device, device, actor, evaluation_actor);
+        std::stringstream step_ss;
+        step_ss << std::setw(15) << std::setfill('0') << ts.step;
+        rlt::rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, ts.extrack_seed_path / "steps" / (step_ss.str() + ".alt"), evaluation_actor, ts.rng);
+        rlt::free(device, evaluation_actor);
 #endif
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
         rlt::free(device, device.logger);

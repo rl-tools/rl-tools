@@ -101,8 +101,10 @@ namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     bool step(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
+        if(ts.step >= CONFIG::CORE_PARAMETERS::STEP_LIMIT){
+            return true;
+        }
         set_step(device, device.logger, ts.step);
-        bool finished = false;
         if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             step<1>(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng);
         }
@@ -142,12 +144,7 @@ namespace rl_tools{
         }
 
         ts.step++;
-        if(ts.step > CONFIG::CORE_PARAMETERS::STEP_LIMIT){
-            return true;
-        }
-        else{
-            return finished;
-        }
+        return false;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
