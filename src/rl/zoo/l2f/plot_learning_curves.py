@@ -26,23 +26,26 @@ def load_experiment(experiment, time):
 
     mean_returns = np.mean(returns, axis=1)
     std_returns = np.std(returns, axis=1)
-    return steps/(steps.max() / time), mean_returns, std_returns
+    wall_time = steps/(steps.max() / time)
+    return steps, wall_time, mean_returns, std_returns
 
 
 experiments = {
-    "baseline": ("experiments/2024-11-26_11-04-29/dd10193_zoo_environment_algorithm/l2f_sac", 1.38),
-    "challenger": ("experiments/2024-11-26_11-55-37/f06eafb_zoo_environment_algorithm/l2f_sac", 1.38),
-    "challenger2": ("experiments/2024-11-26_11-51-39/f06eafb_zoo_environment_algorithm/l2f_sac", 1.38)
+    "baseline": ("experiments/2024-11-26_11-51-39/f06eafb_zoo_environment_algorithm/l2f_sac", 1.38),
+    "challenger": ("experiments/2024-11-26_12-00-52/f06eafb_zoo_environment_algorithm/l2f_sac", 2.45),
+    "challenger2": ("experiments/2024-11-26_12-05-50/f06eafb_zoo_environment_algorithm/l2f_sac", 2.45),
 }
 
 
 
+use_wall_time = False
 plt.figure()
 for experiment_name, experiment in experiments.items():
-    steps, mean_returns, std_returns = load_experiment(*experiment)
-    plt.plot(steps, mean_returns, label=experiment_name)
-    plt.fill_between(steps, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
-plt.xlabel("Time")
+    steps, wall_time, mean_returns, std_returns = load_experiment(*experiment)
+    x = wall_time if use_wall_time else steps
+    plt.plot(x, mean_returns, label=experiment_name)
+    plt.fill_between(x, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
+plt.xlabel("Time") if use_wall_time else plt.xlabel("Step")
 plt.ylabel("Returns")
 plt.title("Learning curve")
 plt.legend()
