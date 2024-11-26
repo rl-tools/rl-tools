@@ -108,6 +108,15 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "src/rl/zoo/l2f/plot_learning_curves.py",
+            "type": "python",
+            "request": "launch",
+            "program": "src/rl/zoo/l2f/plot_learning_curves.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }
