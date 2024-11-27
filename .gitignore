@@ -62,3 +62,4 @@
 /**/*.nsys-rep
 /**/*.sqlite
 /**/*.qdstrm
+/perf.data
