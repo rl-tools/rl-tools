@@ -4,6 +4,11 @@
 
 #include <rl_tools/utils/generic/typing.h>
 
+
+// run this as MKL_NUM_THREADS=1 /usr/bin/time sudo -E nice -n-20 cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac_benchmark
+// in the best case this yields < 1s on an AMD Ryzen 9 7945HX
+
+
 namespace rl_tools::rl::zoo::l2f::sac{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
