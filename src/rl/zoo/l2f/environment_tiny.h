@@ -52,6 +52,7 @@ namespace rl_tools::rl::zoo::l2f{
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI ACTION_HISTORY_LENGTH = 2;
+            static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
             static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = StateBase<T, TI>;
             using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
@@ -62,7 +63,6 @@ namespace rl_tools::rl::zoo::l2f{
                                             observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = typename ENVIRONMENT_FACTORY::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
-            static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters;
         };

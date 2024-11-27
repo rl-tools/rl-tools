@@ -102,6 +102,7 @@ namespace rl_tools::rl::zoo::l2f{
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
+            static constexpr TI EPISODE_STEP_LIMIT = 500;
             static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = StateBase<T, TI>;
             using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
