@@ -37,9 +37,10 @@ def load_experiment(experiment, time, lower_percentile=0, upper_percentile=100):
 
 
 experiments = {
-    "baseline": ("experiments/2024-11-26_14-33-33/c91e9c4_zoo_environment_algorithm/l2f_sac", 1.144),
-    "50k": ("experiments/2024-11-26_16-12-12/c91e9c4_zoo_environment_algorithm/l2f_sac", 0.844),
-    "50k_+1-layer": ("experiments/2024-11-26_16-15-58/c91e9c4_zoo_environment_algorithm/l2f_sac", 0.844),
+    # "baseline": ("experiments/2024-11-26_14-33-33/c91e9c4_zoo_environment_algorithm/l2f_sac", 1.144),
+    # "50k": ("experiments/2024-11-26_16-12-12/c91e9c4_zoo_environment_algorithm/l2f_sac", 0.844),
+    # "50k_+1-layer": ("experiments/2024-11-26_16-15-58/c91e9c4_zoo_environment_algorithm/l2f_sac", 0.844),
+    "aftera-all": ("experiments/2024-11-26_20-35-04/d56db9c_zoo_environment_algorithm/l2f_sac/", 0.099)
 }
 
 
