@@ -97,7 +97,7 @@ namespace rl_tools{
                     std::filesystem::path step_folder_path = step_folder;
                     std::filesystem::create_directories(step_folder_path);
                     std::filesystem::path checkpoint_code_path = step_folder_path / "checkpoint.h";
-                    std::cerr << "Checkpointing at to: " << checkpoint_code_path << std::endl;
+                    std::cerr << "Checkpointing to: " << checkpoint_code_path << std::endl;
                     std::ofstream actor_output_file(checkpoint_code_path);
                     actor_output_file << output_string;
                     actor_output_file.close();
