@@ -290,7 +290,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             std::stringstream step_ss;
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
             auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
-            rlt::rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, ts.extrack_seed_path / "steps" / step_ss.str(), evaluation_actor, rng);
+            rlt::rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, (ts.extrack_seed_path / "steps" / step_ss.str()).string(), evaluation_actor, rng);
             rlt::free(device, evaluation_actor);
         }
 #endif
