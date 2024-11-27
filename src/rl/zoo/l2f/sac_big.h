@@ -1,4 +1,4 @@
-#include "environment.h"
+#include "environment_big.h"
 
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>
 
