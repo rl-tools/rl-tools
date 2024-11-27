@@ -41,6 +41,7 @@ namespace rl_tools{
     void init(DEVICE& device, rl::loop::steps::checkpoint::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::checkpoint::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
+        ts.rng_checkpoint = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
     }
 
     template <typename DEVICE, typename T_CONFIG>
@@ -64,10 +65,9 @@ namespace rl_tools{
                     Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>>> output;
                     malloc(device, input);
                     malloc(device, output);
-                    auto rng_copy = rng;
-                    randn(device, input, rng_copy);
+                    randn(device, input, rng);
                     Mode<mode::Evaluation<>> mode;
-                    evaluate(device, actor_forward, input, output, actor_buffer, rng_copy, mode);
+                    evaluate(device, actor_forward, input, output, actor_buffer, rng, mode);
                     output_ss << "\n" << save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
                     output_ss << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
                     free(device, input);
@@ -142,7 +142,7 @@ namespace rl_tools{
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
 #endif
-            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, step_folder.string(), evaluation_actor, ts.rng);
+            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, step_folder.string(), evaluation_actor, ts.rng_checkpoint);
             free(device, evaluation_actor);
 
         }

@@ -46,7 +46,7 @@ target_link_libraries(rl_zoo_l2f_sac_benchmark PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_l2f_sac_benchmark)
 target_compile_definitions(rl_zoo_l2f_sac_benchmark PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_l2f_sac_benchmark PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
-target_compile_definitions(rl_zoo_l2f_sac_benchmark PRIVATE BENCHMARK)
+target_compile_definitions(rl_zoo_l2f_sac_benchmark PRIVATE RL_TOOLS_RL_ZOO_BENCHMARK)
 # TD3
 add_executable(rl_zoo_l2f_td3 zoo_cli.cpp zoo.cpp)
 target_link_libraries(rl_zoo_l2f_td3 PRIVATE RLtools::RLtools)
