@@ -30,11 +30,19 @@ namespace rl_tools::rl::zoo::l2f{
 
         static constexpr auto reward_function = [](){
             auto reward_function = ENVIRONMENT_FACTORY::reward_function;
-            reward_function.constant = 0;
-            reward_function.scale = 0.01;
+//            reward_function.constant = 0;
+            reward_function.scale = 0.09;
+            reward_function.position = 20;
+            reward_function.orientation = 0.5;
             reward_function.linear_velocity = 2.0;
-            reward_function.termination_penalty = -10;
+//            reward_function.termination_penalty = 0;
             return reward_function;
+        }();
+
+        static constexpr auto termination = [](){
+            auto termination = ENVIRONMENT_FACTORY::termination;
+            termination.linear_velocity_threshold = 2;
+            return termination;
         }();
 
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
@@ -63,7 +71,7 @@ namespace rl_tools::rl::zoo::l2f{
             },
 //            ENVIRONMENT_FACTORY::disturbances
             typename PARAMETERS_TYPE::Disturbances{
-                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 20}, // random_force;
+                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 60}, // random_force;
                 typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 10000} // random_torque;
             }
         };
