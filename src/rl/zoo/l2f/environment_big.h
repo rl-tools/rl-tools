@@ -30,12 +30,21 @@ namespace rl_tools::rl::zoo::l2f{
 
         static constexpr auto reward_function = [](){
             auto reward_function = ENVIRONMENT_FACTORY::reward_function;
-            reward_function.linear_velocity = 0.5;
+            reward_function.constant = 0;
+            reward_function.scale = 0.01;
+            reward_function.linear_velocity = 2.0;
+            reward_function.termination_penalty = -10;
             return reward_function;
         }();
 
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             ENVIRONMENT_FACTORY::init,
+//            [](){
+//                auto base = rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
+//                base.max_linear_velocity = 0.0;
+//                base.max_angular_velocity = 0.0;
+//                return base;
+//            }(),
             reward_function,
             ENVIRONMENT_FACTORY::observation_noise,
             ENVIRONMENT_FACTORY::action_noise,
@@ -52,11 +61,11 @@ namespace rl_tools::rl::zoo::l2f{
                 mdp,
                 ENVIRONMENT_FACTORY::domain_randomization
             },
-            ENVIRONMENT_FACTORY::disturbances
-//            typename PARAMETERS_TYPE::Disturbances{
-//                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 20}, // random_force;
-//                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 10000} // random_torque;
-//            }
+//            ENVIRONMENT_FACTORY::disturbances
+            typename PARAMETERS_TYPE::Disturbances{
+                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 20}, // random_force;
+                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 10000} // random_torque;
+            }
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
