@@ -28,9 +28,15 @@ namespace rl_tools::rl::zoo::l2f{
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY::PARAMETERS_SPEC;
         using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY::PARAMETERS_TYPE;
 
+        static constexpr auto reward_function = [](){
+            auto reward_function = ENVIRONMENT_FACTORY::reward_function;
+            reward_function.linear_velocity = 0.5;
+            return reward_function;
+        }();
+
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             ENVIRONMENT_FACTORY::init,
-            ENVIRONMENT_FACTORY::reward_function,
+            reward_function,
             ENVIRONMENT_FACTORY::observation_noise,
             ENVIRONMENT_FACTORY::action_noise,
             ENVIRONMENT_FACTORY::termination
@@ -47,6 +53,10 @@ namespace rl_tools::rl::zoo::l2f{
                 ENVIRONMENT_FACTORY::domain_randomization
             },
             ENVIRONMENT_FACTORY::disturbances
+//            typename PARAMETERS_TYPE::Disturbances{
+//                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 20}, // random_force;
+//                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 10000} // random_torque;
+//            }
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
