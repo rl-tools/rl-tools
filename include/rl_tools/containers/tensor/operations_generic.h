@@ -48,7 +48,7 @@ namespace rl_tools{
         static_assert(tensor::dense_row_major_layout<SPEC, true>());
         using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, true, typename SPEC::STRIDE, true>; // note the last boolean signals constness and needs to be flipped for the non-const version of this function
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
-        const VIEW_TYPE view{data(tensor)};
+        const VIEW_TYPE view{{data(tensor)}};
         return view;
     }
 
@@ -60,7 +60,7 @@ namespace rl_tools{
         using STRIDE = tensor::Append<tensor::PopBack<DENSE_STRIDE>, get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{})>; // the RELAX_MAJOR in dense_row_major_layout allows for a stride in the last element which is accounted for here;
         using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, true, STRIDE, false>;
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
-        VIEW_TYPE view{data(tensor)};
+        VIEW_TYPE view{{data(tensor)}};
         return view;
     }
 
@@ -110,7 +110,7 @@ namespace rl_tools{
         using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, true, NEW_STRIDE, true>;
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
 //        data_reference(view) = ;
-        const Tensor<NEW_SPEC> view{data(tensor) + offset};
+        const Tensor<NEW_SPEC> view{{data(tensor) + offset}};
         return view;
     }
 
@@ -121,7 +121,7 @@ namespace rl_tools{
         using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, true, NEW_STRIDE, false>;
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
 //        data_reference(view) = ;
-        Tensor<NEW_SPEC> view{data(tensor) + offset};
+        Tensor<NEW_SPEC> view{{data(tensor) + offset}};
         return view;
     }
 
