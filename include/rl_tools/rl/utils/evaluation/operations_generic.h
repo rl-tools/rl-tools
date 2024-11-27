@@ -153,14 +153,15 @@ namespace rl_tools{
                 T r = reward(device, env, env_parameters, state, action, next_state, rng);
                 rl::utils::evaluation::set_reward(data, env_i, step_i, r);
                 bool terminated_flag = rl_tools::terminated(device, env, env_parameters, next_state, rng);
-                terminated_flag = terminated_flag || terminated[env_i];
-                terminated[env_i] = terminated_flag;
-                rl::utils::evaluation::set_terminated(data, env_i, step_i, terminated_flag);
-                if(!terminated_flag){
+                if(!terminated[env_i]){
+                    // count the final step as well (e.g. termination penalty)
                     results.returns[env_i] += r;
                     results.episode_length[env_i] += 1;
                 }
-                else{
+                terminated_flag = terminated_flag || terminated[env_i];
+                terminated[env_i] = terminated_flag;
+                rl::utils::evaluation::set_terminated(data, env_i, step_i, terminated_flag);
+                if(terminated_flag){
                     set_truncated(device, env, env_parameters, ui, next_state); // this is to sed the terminated flag to the car env
                     render(device, env, env_parameters, ui);
                 }
