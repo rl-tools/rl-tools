@@ -233,7 +233,7 @@ namespace rl_tools{
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 
-class CoordinateSystem{
+export class CoordinateSystem{
     constructor(origin, length=1, diameter=0.01) {
         this.cs = new THREE.Group()
         const material_red = new THREE.MeshLambertMaterial({color: 0xAA0000})
