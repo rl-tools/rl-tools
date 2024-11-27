@@ -135,6 +135,7 @@ namespace rl_tools{
                     std::ofstream trajectories_file(trajectories_path, std::ios::binary);
                     trajectories_file.write(reinterpret_cast<const char*>(trajectories_output.data()), trajectories_output.size());
 #endif
+                    trajectories_file.close();
                 }
             }
         }
