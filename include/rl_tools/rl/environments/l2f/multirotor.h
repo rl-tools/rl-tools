@@ -427,6 +427,7 @@ namespace rl_tools::rl::environments::l2f{
                                  observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI>>>>>>>>;
         using OBSERVATION_TYPE_PRIVILEGED = observation::NONE<TI>;
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
+        static constexpr TI EPISODE_STEP_LIMIT = 500;
         using PARAMETERS = T_PARAMETERS;
         static constexpr auto PARAMETER_VALUES = T_PARAMETER_VALUES::VALUES;
     };
@@ -458,7 +459,7 @@ namespace rl_tools::rl::environments{
 //        static constexpr TI STATE_DIM = 13;
         static constexpr TI N_AGENTS = 1;
         static constexpr TI ACTION_DIM = 4;
-        static constexpr TI EPISODE_STEP_LIMIT = 500;
+        static constexpr TI EPISODE_STEP_LIMIT = SPEC::STATIC_PARAMETERS::EPISODE_STEP_LIMIT;
 
         static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
 

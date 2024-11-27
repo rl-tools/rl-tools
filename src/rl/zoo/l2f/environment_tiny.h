@@ -36,10 +36,14 @@ namespace rl_tools::rl::zoo::l2f{
             ENVIRONMENT_FACTORY::action_noise,
             ENVIRONMENT_FACTORY::termination
         };
+        static constexpr TI SIMULATION_FREQUENCY = 50;
+        static constexpr typename PARAMETERS_TYPE::Integration integration = {
+            1.0/((T)SIMULATION_FREQUENCY) // integration dt
+        };
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 ENVIRONMENT_FACTORY::dynamics,
-                ENVIRONMENT_FACTORY::integration,
+                integration,
                 mdp,
                 ENVIRONMENT_FACTORY::domain_randomization
             },
@@ -58,6 +62,7 @@ namespace rl_tools::rl::zoo::l2f{
                                             observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = typename ENVIRONMENT_FACTORY::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
+            static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters;
         };
