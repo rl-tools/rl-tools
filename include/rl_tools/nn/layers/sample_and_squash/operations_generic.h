@@ -255,6 +255,15 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         using PARAMETERS = typename SPEC::PARAMETERS;
+        {
+            // logging
+            for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
+                T log_std = get(input, 0, SPEC::DIM + col_i);
+                T log_std_clipped = math::clamp(device.math, log_std, (T)PARAMETERS::LOG_STD_LOWER_BOUND, (T)PARAMETERS::LOG_STD_UPPER_BOUND);
+                T std = math::exp(device.math, log_std_clipped);
+                add_scalar(device, device.logger, "actor_std", std, 10001);
+            }
+        }
         for(TI row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
             forward_per_sample(device, layer, input, buffer, rng, row_i, mode);
         }
@@ -333,9 +342,6 @@ namespace rl_tools{
             T action_log_prob = random::normal_distribution::log_prob(device.random, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
             entropy += -action_log_prob;
         }
-        if(batch_i == 0){
-            // add_scalar(device, device.logger, "actor_entropy", entropy, 1000);
-        }
         T d_alpha = entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
         if(all_d_output_zero){
             d_alpha = 0;
@@ -352,6 +358,22 @@ namespace rl_tools{
         constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
         T log_alpha = get(layer.log_alpha.parameters, 0, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
+        T d_log_alpha = 0;
+        {
+            // logging
+            T entropy = 0;
+            for(TI action_i = 0; action_i < SPEC::DIM; action_i++){
+                T action = get(layer.output, 0, action_i);
+                T mu = get(input, 0, action_i);
+                T log_std_pre_clamp = get(input, 0, action_i + SPEC::DIM);
+                T log_std_clamped = math::clamp(device.math, log_std_pre_clamp, (T)SPEC::PARAMETERS::LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::LOG_STD_UPPER_BOUND);
+                T action_sample = get(layer.pre_squashing, 0, action_i);
+                T one_minus_action_square_plus_eps = (1-action*action + SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON);
+                T action_log_prob = random::normal_distribution::log_prob(device.random, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
+                entropy += -action_log_prob;
+            }
+            add_scalar(device, device.logger, "actor_entropy", entropy, 1000);
+        }
         for(TI batch_i = 0; batch_i < INTERNAL_BATCH_SIZE; batch_i++){
             backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
