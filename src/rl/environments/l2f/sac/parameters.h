@@ -17,6 +17,7 @@ namespace env_param_builder{
         using PARENT = typename rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI, ENV_CONFIG>;
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI ACTION_HISTORY_LENGTH = 1;
+            static constexpr TI EPISODE_STEP_LIMIT = 500;
             static constexpr bool CLOSED_FORM = false;
             using STATE_BASE = StateLinearAcceleration<T, TI, StateBase<T, TI>>;
             using STATE_TYPE_NORMAL = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
