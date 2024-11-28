@@ -210,20 +210,6 @@ git submodule update --init --recursive -- external
 The submodules for the embedded platforms, the redistributable binaries and test dependencies/data can be cloned in the same fashion (by replacing `external` with the appropriate folder from the enumeration above). 
 Note: Make sure that for the redistributable dependencies and test data `git-lfs` is installed (e.g. `sudo apt install git-lfs` on Ubuntu) and activated (`git lfs install`) otherwise only the metadata of the blobs is downloaded.
 
-### Docker
-If you would like to take advantage of the features that require additional dependencies, but don't want to install them on your machine yet, you can use Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
-[Docker instructions & examples](examples/docker/README.MD)
-While it depends on personal preferences, we believe that there are good reasons (ease of debugging, usage of IDEs etc.) to run everything natively when developing. We make sure that the additional dependencies requried for the full feature set are not invasive and usually available through your systems package manager. We believe `sudo ./setup.sh` is harmful and should not exist. Instead we make the setup explicit so that users maintain agency over their systems. 
-
-### Native
-For maximum performance and malleability for research and development we recommend to run <span style="color:#7DB9B6">RLtools</span> natively. Since <span style="color:#7DB9B6">RLtools</span> itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
-
-#### [Unix (Linux and macOS) instructions & examples](examples/unix/README.MD)
-
-#### [Windows instructions & examples](examples/windows/README.MD)
-
-**Pro tip**: Enable `lldb` data formatters to get nicely formatted, human- (and machine-) readable outputs for `rl_tools::Matrix` and `rl_tools::Tensor` while debugging. Instructions to use [.lldbinit](./.lldbinit) for [CLion](https://www.jetbrains.com/help/clion/configuring-debugger-options.html#enable-initfiles-root) & [VS Code](https://code.visualstudio.com/docs/cpp/cpp-debug#_lldb-data-formatters)
-
 ### Python Interface
 
 We provide Python bindings that available as `rltools` through PyPI (the pip package index). Note that using Python Gym environments can slow down the trianing significantly compared to native <span style="color:#7DB9B6">RLtools</span> environments.
