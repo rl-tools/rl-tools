@@ -122,8 +122,10 @@ namespace rl_tools{
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        constexpr bool TARGET_ROW_MAJOR = TARGET_SPEC::LAYOUT::ROW_PITCH >= TARGET_SPEC::LAYOUT::COL_PITCH;
-        constexpr bool TARGET_DENSE = TARGET_ROW_MAJOR ? TARGET_SPEC::LAYOUT::ROW_PITCH == TARGET_SPEC::COLS : TARGET_SPEC::LAYOUT::COL_PITCH == TARGET_SPEC::ROWS;
+        constexpr TI ROW_PITCH = TARGET_SPEC::LAYOUT::template ROW_PITCH<TARGET_SPEC::ROWS, TARGET_SPEC::COLS>;
+        constexpr TI COL_PITCH = TARGET_SPEC::LAYOUT::template COL_PITCH<TARGET_SPEC::ROWS, TARGET_SPEC::COLS>;
+        constexpr bool TARGET_ROW_MAJOR = ROW_PITCH >= COL_PITCH;
+        constexpr bool TARGET_DENSE = TARGET_ROW_MAJOR ? ROW_PITCH == TARGET_SPEC::COLS : COL_PITCH == TARGET_SPEC::ROWS;
         if constexpr(TARGET_DENSE){
             // make a temporary copy of the source matrix (with the same layout as the target) and then copy it directly
             Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, true, typename TARGET_SPEC::LAYOUT, false>> temp;
