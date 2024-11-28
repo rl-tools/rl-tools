@@ -12,8 +12,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 #ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-    template<typename DEV_SPEC, typename SPEC>
-    void malloc(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+    template<typename DEV_SPEC, typename T, typename T_TI, T_TI SIZE_BYTES, bool T_CONST>
+    void malloc(devices::CUDA<DEV_SPEC>& device, matrix::MatrixDynamic<T, T_TI, SIZE_BYTES, T_CONST>& matrix){
         /* for checking the pitch
         {
             size_t pitch;
@@ -24,9 +24,11 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
-        auto result = cudaMalloc(&matrix._data, SPEC::SIZE_BYTES);
+        T *temp = nullptr;
+        auto result = cudaMalloc(&temp, SIZE_BYTES);
+        matrix._data = temp;
         check_status(device);
-        count_malloc(device, SPEC::SIZE_BYTES);
+        count_malloc(device, SIZE_BYTES);
 
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         if (result != cudaSuccess) {
@@ -34,8 +36,8 @@ namespace rl_tools{
         }
 #endif
     }
-    template<typename DEV_SPEC, typename SPEC>
-    void free(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+    template<typename DEV_SPEC, typename T, typename T_TI, T_TI SIZE_BYTES, bool T_CONST>
+    void free(devices::CUDA<DEV_SPEC>& device, matrix::MatrixDynamic<T, T_TI, SIZE_BYTES, T_CONST>& matrix){
         cudaFree(matrix._data);
         check_status(device);
     }
@@ -114,14 +116,15 @@ namespace rl_tools{
     }
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy_layout_mismatch(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
-//        static_assert(!TARGET_SPEC::IS_VIEW);
         using DEVICE_CUDA = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
 //        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        if constexpr(!TARGET_SPEC::IS_VIEW){
+        constexpr bool TARGET_ROW_MAJOR = TARGET_SPEC::LAYOUT::ROW_PITCH >= TARGET_SPEC::LAYOUT::COL_PITCH;
+        constexpr bool TARGET_DENSE = TARGET_ROW_MAJOR ? TARGET_SPEC::LAYOUT::ROW_PITCH == TARGET_SPEC::COLS : TARGET_SPEC::LAYOUT::COL_PITCH == TARGET_SPEC::ROWS;
+        if constexpr(TARGET_DENSE){
             // make a temporary copy of the source matrix (with the same layout as the target) and then copy it directly
             Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, true, typename TARGET_SPEC::LAYOUT, false>> temp;
             using TEMP_SPEC = typename decltype(temp)::SPEC;
@@ -134,17 +137,10 @@ namespace rl_tools{
             free(source_device, temp);
         }
         else{
+            // prevent large copy (if the target e.g. is a view)
             Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, true, typename SOURCE_SPEC::LAYOUT, false>> temp;
             malloc(target_device, temp);
             copy(source_device, target_device, source, temp);
-//            {
-//                constexpr TI BLOCKSIZE_COLS = 32;
-//                constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
-//                dim3 grid(N_BLOCKS_COLS);
-//                dim3 block(BLOCKSIZE_COLS);
-//                containers::cuda::kernels::copy<DEVICE_CUDA, TARGET_SPEC, typename decltype(temp)::SPEC><<<grid, block, 0, device.stream>>>(target, temp);
-//                check_status(target_device);
-//            }
             copy(target_device, target_device, temp, target);
         }
     }
