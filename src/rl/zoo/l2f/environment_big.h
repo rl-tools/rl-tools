@@ -33,8 +33,9 @@ namespace rl_tools::rl::zoo::l2f{
 //            reward_function.constant = 0;
             reward_function.scale = 0.09;
             reward_function.position = 20;
-            reward_function.orientation = 0.5;
+            reward_function.orientation = 0.05;
             reward_function.linear_velocity = 2.0;
+            reward_function.action = 0.0;
 //            reward_function.termination_penalty = 0;
             return reward_function;
         }();
