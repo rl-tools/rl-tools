@@ -33,7 +33,7 @@ namespace rl_tools{
                 initial_parameters(device, env, parameters);
             }
         }
-        template <typename DEVICE, typename RUNNER_SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
+        template <bool DETERMINISTIC, typename DEVICE, typename RUNNER_SPEC, typename BATCH_SPEC, typename RNG>
         __global__
         void gather_batch_kernel(DEVICE device, rl::components::OffPolicyRunner<RUNNER_SPEC> runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC> batch, RNG rng) {
             using T = typename RUNNER_SPEC::T;
@@ -145,8 +145,8 @@ namespace rl_tools{
         runner.initialized = true;
 #endif
     }
-    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
-    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, RNG& rng){
+    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
+    void gather_batch(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, RNG& rng) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
         using T = typename SPEC::T;
@@ -156,7 +156,7 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block, 0, device.stream>>>(runner, batch, rng);
+        rl::components::off_policy_runner::gather_batch_kernel<DETERMINISTIC><<<bias_grid, bias_block, 0, device.stream>>>(device, runner, batch, rng);
         check_status(device);
     }
     template<auto POLICY_INDEX, typename DEV_SPEC, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>

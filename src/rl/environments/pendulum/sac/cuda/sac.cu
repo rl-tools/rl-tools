@@ -109,31 +109,31 @@ int main(){
     while(!finished){
         rlt::set_step(device, device.logger, step);
         rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-//         if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-//             if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
-//                 cudaStream_t critic_training_streams[2];
-//                 for(int critic_i = 0; critic_i < 2; critic_i++){
-//                     cudaStreamCreate(&critic_training_streams[critic_i]);
-// //                    device.stream = critic_training_streams[critic_i]; // parallel streams actually make it slightly worse (bandwidth bound?)
-//                     rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-//                     rlt::randn(device, ts.action_noise_critic, ts.rng);
-//                     rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
-//                 }
-//                 for(int critic_i = 0; critic_i < 2; critic_i++){
-//                     cudaStreamSynchronize(critic_training_streams[critic_i]);
-//                     cudaStreamDestroy(critic_training_streams[critic_i]);
-//                 }
-//                 device.stream = 0;
-//             }
-//             if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
-//                 {
-//                     rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-//                     rlt::randn(device, ts.action_noise_actor, ts.rng);
-//                     rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
-//                 }
-//                 rlt::update_critic_targets(device, ts.actor_critic);
-//             }
-//         }
+        if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+            if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
+                cudaStream_t critic_training_streams[2];
+                for(int critic_i = 0; critic_i < 2; critic_i++){
+                    cudaStreamCreate(&critic_training_streams[critic_i]);
+//                    device.stream = critic_training_streams[critic_i]; // parallel streams actually make it slightly worse (bandwidth bound?)
+                    rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+                    rlt::randn(device, ts.action_noise_critic, ts.rng);
+                    rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                }
+                for(int critic_i = 0; critic_i < 2; critic_i++){
+                    cudaStreamSynchronize(critic_training_streams[critic_i]);
+                    cudaStreamDestroy(critic_training_streams[critic_i]);
+                }
+                device.stream = 0;
+            }
+            if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
+                {
+                    rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+                    rlt::randn(device, ts.action_noise_actor, ts.rng);
+                    rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+                }
+                rlt::update_critic_targets(device, ts.actor_critic);
+            }
+        }
 // #ifndef BENCHMARK
 //         if(step % 1000 == 0){
 //             rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
