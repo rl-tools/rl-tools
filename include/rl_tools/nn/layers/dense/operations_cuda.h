@@ -14,6 +14,39 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace nn::dense::cuda{
+        template<typename DEV_SPEC, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
+        __global__
+        void init_weights_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::dense::LayerForward<SPEC> layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC> initializer, RNG rng) {
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            T gain;
+            if constexpr(INITIALIZER_SPEC::INIT_LEGACY){
+                T negative_slope = math::sqrt(device.math, (T)5);
+                gain = math::sqrt(device.math, (T)2.0 / (1 + negative_slope * negative_slope));
+            }
+            else{
+                gain = math::sqrt(device.math, (T)2.0) * INITIALIZER_SPEC::SCALE;
+            }
+            T fan = SPEC::INPUT_DIM;
+            T std = gain / math::sqrt(device.math, fan);
+            T weight_bound = math::sqrt(device.math, (T)3.0) * std;
+            T bias_bound = 1/math::sqrt(device.math, (T)SPEC::INPUT_DIM);
+            TI output_pos = blockIdx.x * blockDim.x + threadIdx.x;
+            static_assert(RNG::NUM_RNGS >= SPEC::OUTPUT_DIM);
+            if(output_pos < SPEC::OUTPUT_DIM){
+                auto& current_rng = get(rng.states, 0, output_pos);
+                if constexpr(INITIALIZER_SPEC::INIT_LEGACY) {
+                    set(layer.biases.parameters, 0, output_pos, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, current_rng));
+                }
+                else{
+                    set(layer.biases.parameters, 0, output_pos, 0);
+                }
+                for(TI j = 0; j < SPEC::INPUT_DIM; j++) {
+                    set(layer.weights.parameters, output_pos, j, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, current_rng));
+                }
+            }
+        }
         template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC>
         __global__ void
         set_biases_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<OUTPUT_SPEC> output) {
@@ -178,6 +211,23 @@ namespace rl_tools{
                 }
             }
         }
+    }
+    template<typename DEV_SPEC, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
+    void init_weights(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_INPUT = 32;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::OUTPUT_DIM, BLOCKSIZE_ACTIVATION_OUTPUT);
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_INPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::INPUT_DIM, BLOCKSIZE_ACTIVATION_INPUT);
+        dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
+        dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        nn::dense::cuda::init_weights_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, typename SPEC::CONFIG::INITIALIZER{}, rng);
+        check_status(device);
+    }
+    template<typename DEV_SPEC, typename SPEC, typename RNG>
+    void init_weights(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
+        init_weights(device, layer, typename SPEC::INITIALIZER{}, rng);
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>

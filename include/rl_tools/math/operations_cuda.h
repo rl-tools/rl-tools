@@ -165,6 +165,10 @@ namespace rl_tools::math {
             return ::abs(x);
         }
     }
+    template<typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT T nan(const devices::math::CUDA&){
+        return std::numeric_limits<T>::quiet_NaN();
+    }
 //    template<typename T>
 //    RL_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::CUDA& dev, T x) {
 //        x = clamp(dev, x, -(T)3.0, (T)3.0);

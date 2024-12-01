@@ -8,20 +8,42 @@
 #include "operations_generic.h"
 
 #include <curand_kernel.h>
+#include "../containers/matrix/matrix.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
     namespace cuda{
-        using RNG = unsigned int; // actually the seed
+        template <typename T_TI, T_TI T_NUM_RNGS, typename CURAND_TYPE=curandState>
+        struct RNG{
+            using TI = T_TI;
+            static constexpr TI NUM_RNGS = T_NUM_RNGS;
+            Matrix<matrix::Specification<CURAND_TYPE, TI, 1, NUM_RNGS, true>> states;
+        };
+        template <typename DEVICE, typename T_TI, T_TI T_NUM_RNGS, typename CURAND_TYPE>
+        __global__
+        void init_rng_kernel(DEVICE device, RNG<T_TI, T_NUM_RNGS, CURAND_TYPE> rng, typename DEVICE::index_t seed){
+            auto i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(i < T_NUM_RNGS){
+                curand_init(seed, i, 0, &get(rng.states, 0, i));
+            }
+        }
+
     }
-    cuda::RNG default_engine(const devices::random::CUDA& dev, devices::random::CUDA::index_t seed = 1){
-        return 1337 + 1;
+    template <typename DEV_SPEC, typename T_TI = typename devices::CUDA<DEV_SPEC>::index_t, T_TI NUM_RNGS = 1024>
+    auto default_engine(devices::CUDA<DEV_SPEC>& dev, typename devices::CUDA<DEV_SPEC>::index_t seed = 1){
+        cuda::RNG<T_TI, NUM_RNGS> rng;
+        malloc(dev, rng.states);
+        constexpr T_TI BLOCKSIZE_COLS = 32;
+        constexpr T_TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(NUM_RNGS, BLOCKSIZE_COLS);
+        dim3 grid(N_BLOCKS_COLS);
+        dim3 block(BLOCKSIZE_COLS);
+        cuda::init_rng_kernel<<<grid, block, 0>>>(dev, rng, seed);
+        return rng;
     };
-
-    cuda::RNG next(const devices::random::CUDA& dev, cuda::RNG& rng){
-        return rng + 1;
-    };
-
+    template <typename T_TI, T_TI T_NUM_RNGS, typename CURAND_TYPE=curandState>
+    void free(cuda::RNG<T_TI, T_NUM_RNGS, CURAND_TYPE>& rng){
+        free(rng.states);
+    }
 
     template<typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){

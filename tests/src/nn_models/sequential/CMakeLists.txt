@@ -149,5 +149,5 @@ gtest_discover_tests(test_nn_models_sequential_compose)
 
 
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)
-add_subdirectory(cuda)
+        add_subdirectory(cuda)
 endif()

@@ -84,7 +84,7 @@ struct DEV_SPEC: rlt::devices::DEVICE_FACTORY<>::SPEC{
 };
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using T = float;
 constexpr TI BASE_SEED = 0;
 

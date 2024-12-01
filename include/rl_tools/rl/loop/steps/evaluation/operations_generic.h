@@ -40,7 +40,7 @@ namespace rl_tools{
         initial_parameters(device, ts.env_eval, ts.env_eval_parameters);
         init(device, ts.env_eval, ts.env_eval_parameters, ts.ui);
         initial_parameters(device, ts.env_eval, ts.env_eval_parameters);
-        ts.rng_eval = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
+        ts.rng_eval = random::default_engine(device, seed);
     }
 
 

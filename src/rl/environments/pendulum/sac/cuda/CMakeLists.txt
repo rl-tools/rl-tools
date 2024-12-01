@@ -5,6 +5,21 @@ set(CMAKE_CXX_STANDARD  17)
 
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     add_executable(
+            rl_environments_pendulum_sac_cuda_init_test
+            init_test.cu
+    )
+    target_link_libraries(
+            rl_environments_pendulum_sac_cuda_init_test
+            PRIVATE
+            RLtools::Backend # required for cuBLAS
+    )
+    target_compile_options(rl_environments_pendulum_sac_cuda_init_test PRIVATE -O3)
+    target_compile_definitions(rl_environments_pendulum_sac_cuda_init_test PRIVATE RL_TOOLS_BACKEND_ENABLE_CUDA)
+    target_compile_options(rl_environments_pendulum_sac_cuda_init_test PRIVATE -w)
+endif()
+
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    add_executable(
             rl_environments_pendulum_sac_cuda
             sac.cu
     )
@@ -14,7 +29,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
             RLtools::Backend # required for cuBLAS
     )
     target_compile_definitions(rl_environments_pendulum_sac_cuda PRIVATE RL_TOOLS_BACKEND_ENABLE_CUDA)
-    #target_compile_options(rl_environments_pendulum_sac_cuda PRIVATE -gG)
+    target_compile_options(rl_environments_pendulum_sac_cuda PRIVATE -w)
 endif()
 
 
