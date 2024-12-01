@@ -8,11 +8,14 @@
 #include <rl_tools/nn/layers/sample_and_squash/operations_cuda.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/random_uniform/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
-#include <rl_tools/rl/algorithms/sac/operations_cuda.h>
 
+#include <rl_tools/rl/components/off_policy_runner/operations_cuda.h>
+
+#include <rl_tools/rl/algorithms/sac/operations_cuda.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
@@ -20,7 +23,6 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
-#include <rl_tools/rl/components/off_policy_runner/operations_cuda.h>
 
 namespace rlt = rl_tools;
 
@@ -30,8 +32,9 @@ using DEVICE_INIT = rlt::devices::DEVICE_FACTORY<>;
 #else
 using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes problems in this case (this example seems cursed)
 #endif
-using RNG = decltype(rlt::random::default_engine(DEVICE{}));
-using RNG_INIT = decltype(rlt::random::default_engine(typename DEVICE_INIT::SPEC::RANDOM{}));
+DEVICE dummy_device; // this is needed because default_engine can not take a const device
+using RNG = decltype(rlt::random::default_engine(dummy_device));
+using RNG_INIT = decltype(rlt::random::default_engine(DEVICE_INIT{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -68,6 +71,7 @@ using LOOP_STATE_INIT = LOOP_CONFIG<RNG_INIT>::template State<LOOP_CONFIG<RNG_IN
 
 
 int main(){
+    TI seed = 0;
     DEVICE device;
     DEVICE_INIT device_init;
     LOOP_STATE ts;
@@ -77,10 +81,15 @@ int main(){
     using EVAL_PARAMETERS = CONFIG::EVALUATION_PARAMETERS;
     rlt::init(device);
     rlt::malloc(device, ts);
-    rlt::malloc(device_init, ts_init);
-    rlt::init(device_init, ts_init, 1);
-    rlt::copy(device_init, device, ts_init, ts);
-//    rlt::copy(device_init, device, ts_init.off_policy_runner, ts.off_policy_runner);
+    // rlt::malloc(device_init, ts_init);
+    rlt::init(device, ts, 1);
+    rlt::check_status(device);
+    // rlt::init(device_init, ts_init, 1);
+    // auto& episode_stats_source = ts_init.off_policy_runner.episode_stats;
+    // rlt::utils::typing::remove_reference_t<decltype(episode_stats_source)> episode_stats_target;
+    // episode_stats_target = episode_stats_source;
+    // rlt::copy(device_init, device, ts_init, ts);
+    //    rlt::copy(device_init, device, ts_init.off_policy_runner, ts.off_policy_runner);
 
 #ifdef _MSC_VER
     CONFIG::ENVIRONMENT env_eval;
@@ -88,69 +97,69 @@ int main(){
     rlt::rl::environments::DummyUI ui;
 #endif
 
-    decltype(ts.off_policy_runner)* off_policy_runner_pointer;
-    cudaMalloc(&off_policy_runner_pointer, sizeof(decltype(ts.off_policy_runner)));
-    cudaMemcpy(off_policy_runner_pointer, &ts.off_policy_runner, sizeof(decltype(ts.off_policy_runner)), cudaMemcpyHostToDevice);
-    rlt::check_status(device);
+    // decltype(ts.off_policy_runner)* off_policy_runner_pointer;
+    // cudaMalloc(&off_policy_runner_pointer, sizeof(decltype(ts.off_policy_runner)));
+    // cudaMemcpy(off_policy_runner_pointer, &ts.off_policy_runner, sizeof(decltype(ts.off_policy_runner)), cudaMemcpyHostToDevice);
+    // rlt::check_status(device);
 
     TI step = 0;
-    ts.rng = rlt::random::default_engine(device);
+    // ts.rng = rlt::random::default_engine(device);
     bool finished = false;
     auto start_time = std::chrono::high_resolution_clock::now();
     while(!finished){
         rlt::set_step(device, device.logger, step);
-        rlt::step(device, ts.off_policy_runner, off_policy_runner_pointer, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-        if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
-                cudaStream_t critic_training_streams[2];
-                for(int critic_i = 0; critic_i < 2; critic_i++){
-                    cudaStreamCreate(&critic_training_streams[critic_i]);
-//                    device.stream = critic_training_streams[critic_i]; // parallel streams actually make it slightly worse (bandwidth bound?)
-                    rlt::gather_batch(device, off_policy_runner_pointer, ts.critic_batch, ts.rng);
-                    rlt::randn(device, ts.action_noise_critic, ts.rng);
-                    rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
-                }
-                for(int critic_i = 0; critic_i < 2; critic_i++){
-                    cudaStreamSynchronize(critic_training_streams[critic_i]);
-                    cudaStreamDestroy(critic_training_streams[critic_i]);
-                }
-                device.stream = 0;
-            }
-            if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
-                {
-                    rlt::gather_batch(device, off_policy_runner_pointer, ts.actor_batch, ts.rng);
-                    rlt::randn(device, ts.action_noise_actor, ts.rng);
-                    rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
-                }
-                rlt::update_critic_targets(device, ts.actor_critic);
-            }
-        }
-#ifndef BENCHMARK
-        if(step % 1000 == 0){
-            rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
-#ifdef _MSC_VER
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
-            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
-//            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
-#else
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
-            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device_init, ts_init.env_eval, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
-#endif
-            rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
-//            add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
-//            add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
-        }
-#endif
-        step++;
-        finished = step > CORE_PARAMETERS::STEP_LIMIT;
-    }
-    auto end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed_seconds = end_time - start_time;
-    std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
-    rlt::free(device, ts);
-    rlt::free(device_init, ts_init);
+        rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
+//         if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+//             if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
+//                 cudaStream_t critic_training_streams[2];
+//                 for(int critic_i = 0; critic_i < 2; critic_i++){
+//                     cudaStreamCreate(&critic_training_streams[critic_i]);
+// //                    device.stream = critic_training_streams[critic_i]; // parallel streams actually make it slightly worse (bandwidth bound?)
+//                     rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+//                     rlt::randn(device, ts.action_noise_critic, ts.rng);
+//                     rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+//                 }
+//                 for(int critic_i = 0; critic_i < 2; critic_i++){
+//                     cudaStreamSynchronize(critic_training_streams[critic_i]);
+//                     cudaStreamDestroy(critic_training_streams[critic_i]);
+//                 }
+//                 device.stream = 0;
+//             }
+//             if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
+//                 {
+//                     rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+//                     rlt::randn(device, ts.action_noise_actor, ts.rng);
+//                     rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+//                 }
+//                 rlt::update_critic_targets(device, ts.actor_critic);
+//             }
+//         }
+// #ifndef BENCHMARK
+//         if(step % 1000 == 0){
+//             rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
+// #ifdef _MSC_VER
+//             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+//             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+//             rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+// //            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+// #else
+//             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+//             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+//             rlt::evaluate(device_init, ts_init.env_eval, ts_init.env_eval_parameters, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
+// #endif
+//             rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
+// //            add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
+// //            add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
+//         }
+// #endif
+//         step++;
+//         finished = step > CORE_PARAMETERS::STEP_LIMIT;
+     }
+//     auto end_time = std::chrono::high_resolution_clock::now();
+//     std::chrono::duration<double> elapsed_seconds = end_time - start_time;
+//     std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
+//     rlt::free(device, ts);
+//     rlt::free(device_init, ts_init);
 }
 
 // benchmark training should take < 2s on P1

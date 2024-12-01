@@ -20,10 +20,10 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
-        curandState rng_state;
-        curand_init(rng, batch_step_i, 0, &rng_state);
+        static_assert(RNG::NUM_RNGS >= BATCH_SIZE);
         if(batch_step_i < BATCH_SIZE){
-            evaluate_per_sample(device, layer, input, output, buffer, rng, batch_step_i, mode);
+            auto& rng_state = get(rng.states, 0, batch_step_i);
+            evaluate_per_sample(device, layer, input, output, buffer, rng_state, batch_step_i, mode);
         }
     }
     template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
@@ -48,12 +48,12 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
 //        using BUFFERS = nn::layers::sample_and_squash::LayerGradient<BUFFER_SPEC>;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
-        static_assert(BATCH_SIZE == SPEC::BATCH_SIZE);
+        static_assert(BATCH_SIZE == SPEC::INTERNAL_BATCH_SIZE);
+        static_assert(RNG::NUM_RNGS >= BATCH_SIZE);
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
-        curandState rng_state;
-        curand_init(rng, batch_step_i, 0, &rng_state);
         if(batch_step_i < BATCH_SIZE){
-            forward_per_sample(device, layer, input, buffer, rng, batch_step_i, mode);
+            auto& rng_state = get(rng.states, 0, batch_step_i);
+            forward_per_sample(device, layer, input, buffer, rng_state, batch_step_i, mode);
         }
     }
 
@@ -79,7 +79,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
 //        using BUFFERS = nn::layers::sample_and_squash::LayerGradient<BUFFER_SPEC>;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
-        static_assert(BATCH_SIZE == SPEC::BATCH_SIZE);
+        static_assert(BATCH_SIZE == SPEC::INTERNAL_BATCH_SIZE);
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(batch_step_i < BATCH_SIZE){
             T log_alpha = get(layer.log_alpha.parameters, 0, 0);

@@ -39,7 +39,7 @@ namespace rl_tools {
         free(device, rb.next_states);
     }
     template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
         rb.full = false;
         rb.position = 0;
     }
