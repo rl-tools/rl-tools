@@ -31,7 +31,7 @@ namespace rl_tools{
             rl::algorithms::sac::ActorTrainingBuffers<rl::algorithms::sac::ActorTrainingBuffersSpecification<typename CONFIG::ACTOR_CRITIC_TYPE::SPEC, CONFIG::DYNAMIC_ALLOCATION>> actor_training_buffers;
             Matrix<matrix::Specification<T, TI, CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH * CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM, CONFIG::DYNAMIC_ALLOCATION>> action_noise_actor;
             typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffers[2];
-            typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffers_eval;
+            typename CONFIG::EVAL_ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffers_eval;
             TI step;
             bool allocated = false;
             bool warmup_policy_transitioned = false;

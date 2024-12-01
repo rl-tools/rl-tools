@@ -44,6 +44,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
     static constexpr bool SHARED_BATCH = false;
+    static constexpr TI N_ENVIRONMENTS = 1;
     struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
         static constexpr T ALPHA = 1e-4;
         static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
