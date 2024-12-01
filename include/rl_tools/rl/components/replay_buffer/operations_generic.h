@@ -9,9 +9,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
-        using DATA_SPEC = typename decltype(rb.data)::SPEC;
-        malloc(device, rb.data);
+    RL_TOOLS_FUNCTION_PLACEMENT void init_views(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb){
         typename DEVICE::index_t offset = 0;
         rb.observations                 = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >{}, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
         rb.observations_privileged      = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>{}, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
@@ -21,6 +19,11 @@ namespace rl_tools {
         rb.next_observations_privileged = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>{}, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
         rb.terminated                   = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, 1                               >{}, 0, offset); offset += 1;
         rb.truncated                    = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, 1                               >{}, 0, offset);
+    }
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
+        malloc(device, rb.data);
+        init_views(device, rb);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
@@ -40,6 +43,7 @@ namespace rl_tools {
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
+        init_views(device, rb);
         rb.full = false;
         rb.position = 0;
     }
