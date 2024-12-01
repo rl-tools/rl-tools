@@ -87,8 +87,10 @@ namespace rl_tools{
         void epilogue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC> runner, POLICY policy, RNG rng) {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
+            using OFF_POLICY_RUNNER = rl::components::OffPolicyRunner<SPEC>;
             static_assert(RNG::NUM_RNGS >= SPEC::PARAMETERS::N_ENVIRONMENTS, "Please increase the number of CUDA RNGs");
             TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+            static_assert(OFF_POLICY_RUNNER::REPLAY_BUFFER_TYPE::SPEC::DYNAMIC_ALLOCATION == false, "When using the OffPolicyRunner with CUDA, the replay buffers should be statically allocated");
             if(env_i < SPEC::PARAMETERS::N_ENVIRONMENTS){
                 POLICY dummy_policy;
                 auto& rng_state = get(rng.states, 0, env_i);
