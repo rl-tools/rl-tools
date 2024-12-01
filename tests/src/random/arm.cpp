@@ -7,7 +7,7 @@ void test_int_uniform_limits(){
     namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = rlt::devices::DefaultARM;
     using T = float;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     for(unsigned i = 0; i < NUM_RUNS; ++i){
         auto number = rlt::random::uniform_int_distribution(DEVICE::SPEC::RANDOM(), MIN, MAX, rng);
         ASSERT_TRUE(number >= MIN);
@@ -27,7 +27,7 @@ void test_int_uniform_distribution(){
     using DEVICE = rlt::devices::DefaultARM;
     using T = float;
     using TI = typename DEVICE::index_t;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     TI smaller_than_half = 0;
     TI bigger_than_half = 0;
     long int threshold = ((long int)MAX - (long int)MIN) / 2;
@@ -57,7 +57,7 @@ template <typename T, auto MIN, auto MAX, auto DENOMINATOR, int NUM_RUNS = 10000
 void test_real_uniform_limits(){
     namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = rlt::devices::DefaultARM;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     T min = (T)MIN / (T)DENOMINATOR;
     T max = (T)MAX / (T)DENOMINATOR;
     for(unsigned i = 0; i < NUM_RUNS; ++i){
@@ -81,7 +81,7 @@ void test_real_uniform_distribution(){
     namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = rlt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     T min = (T)MIN / (T)DENOMINATOR;
     T max = (T)MAX / (T)DENOMINATOR;
     TI smaller_than_half = 0;
@@ -115,7 +115,7 @@ void test_normal_distribution(){
     namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = rlt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     T mean = (T)MEAN / (T)DENOMINATOR;
     T std = (T)STD / (T)DENOMINATOR;
     TI smaller_than_mean = 0;

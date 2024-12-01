@@ -69,7 +69,7 @@ void test_correctness(){
     using T = typename CONFIG::T;
     using TI = typename CONFIG::TI;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input, d_input, d_input_sequential, d_input_only, d_input_sequential_only;
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::OUTPUT_SHAPE>> output, output_eval, d_output, output_sequential, output_sequential_eval;
@@ -252,7 +252,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
 //     using TI = typename CONFIG::TI;
 //     constexpr TI NUM_ITERATIONS = 1000;
 //
-//     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
+//     auto rng = rlt::random::default_engine(DEVICE{}, 0);
 //
 //     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input, d_input;
 //     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::OUTPUT_SHAPE>> output, d_output, output_sequential;

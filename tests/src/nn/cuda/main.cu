@@ -71,7 +71,7 @@ int main(){
     rlt::malloc(device_cpu, network_cpu);
     rlt::reset_optimizer_state(device_cpu, network_cpu);
     rlt::zero_gradient(device_cpu, network_cpu);
-    auto rng = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(device_cpu);
     rlt::init_weights(device_cpu, network_cpu, rng);
 
     rlt::copy(device_cuda, network_cuda, network_cpu);

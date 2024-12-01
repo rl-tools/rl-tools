@@ -28,7 +28,7 @@ namespace rl_tools::rl::components::off_policy_runner{
             RNG rngs[SPEC::PARAMETERS::N_ENVIRONMENTS];
             auto base = random::uniform_int_distribution(typename DEV_SPEC::RANDOM(), 0, 1000000, rng);
             for (TI env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++) {
-                rngs[env_i] = rl_tools::random::default_engine(typename DEV_SPEC::RANDOM(), base + env_i);
+                rngs[env_i] = rl_tools::random::default_engine(device, base + env_i);
             }
 
             for (TI thread_i = 0; thread_i < NUM_THREADS; thread_i++) {

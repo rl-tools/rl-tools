@@ -63,7 +63,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Replace<GRU_MODEL::OUTPUT_SHAPE, BATCH_SIZE, 1>>> output, d_output;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
 
     rlt::malloc(device, gru);
     rlt::malloc(device, buffer);

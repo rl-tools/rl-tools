@@ -23,7 +23,7 @@ TEST(RL_TOOLS_NN_MODE, LAYER) {
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, OUTPUT_DIM, false>> output;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::malloc(device, layer);
     rlt::malloc(device, buffer);
     rlt::init_weights(device, layer, rng);

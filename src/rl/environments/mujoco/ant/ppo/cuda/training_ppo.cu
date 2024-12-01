@@ -170,8 +170,8 @@ int main(int argc, char** argv){
         // -------------------------------------------------------
         prl::ACTOR_OPTIMIZER actor_optimizer;
         prl::CRITIC_OPTIMIZER critic_optimizer;
-        auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
-        auto evaluation_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
+        auto rng = rlt::random::default_engine(DEVICE{}, seed);
+        auto evaluation_rng = rlt::random::default_engine(DEVICE{}, 12);
         prl::PPO_TYPE ppo;
         // -------------- added for cuda training ----------------
         prl::PPO_TYPE ppo_gpu;

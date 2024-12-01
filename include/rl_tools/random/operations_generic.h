@@ -8,26 +8,29 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
-   template <typename MATH_DEV>
-   typename MATH_DEV::index_t default_engine(const devices::random::Generic<MATH_DEV>& dev, typename MATH_DEV::index_t seed = 1){
-       return 0b10101010101010101010101010101010 + seed;
-   };
     template <typename MATH_DEV>
-    constexpr typename MATH_DEV::index_t next_max(const devices::random::Generic<MATH_DEV>& dev){
-       return MATH_DEV::MAX_INDEX;
-   }
-   // template<typename MATH_DEV, typename RNG>
-   // void next(const devices::random::Generic<MATH_DEV>& dev, RNG& rng){
-   //     static_assert(utils::typing::is_same_v<RNG, typename MATH_DEV::index_t>);
-   //     rng ^= (rng << 13);
-   //     rng ^= (rng >> 17);
-   //     rng ^= (rng << 5);
-   // }
+    typename MATH_DEV::index_t default_engine(const devices::random::Generic<MATH_DEV>& dev, typename MATH_DEV::index_t seed = 1){
+        return 0b10101010101010101010101010101010 + seed;
+    };
+    namespace generic{
+        template <typename MATH_DEV>
+        constexpr typename MATH_DEV::index_t next_max(const devices::random::Generic<MATH_DEV>& dev){
+            return MATH_DEV::MAX_INDEX;
+        }
+        template<typename MATH_DEV, typename RNG>
+        void next(const devices::random::Generic<MATH_DEV>& dev, RNG& rng){
+            static_assert(utils::typing::is_same_v<RNG, typename MATH_DEV::index_t>);
+            rng ^= (rng << 13);
+            rng ^= (rng >> 17);
+            rng ^= (rng << 5);
+        }
+    }
+
     template <typename MATH_DEV, typename TI, typename RNG>
     auto split(const devices::random::Generic<MATH_DEV>& dev, TI split_id, RNG& rng){
         // this operation should not alter the state of rng
         RNG rng_copy = rng;
-        auto next_value = next(dev, rng_copy);
+        auto next_value = generic::next(dev, rng_copy);
         return default_engine(dev, next_value + split_id);
     }
 
@@ -36,7 +39,7 @@ namespace rl_tools::random{
        static_assert(utils::typing::is_same_v<RNG, typename MATH_DEV::index_t>);
        using TI = typename MATH_DEV::index_t;
        TI range = static_cast<typename MATH_DEV::index_t>(high - low) + 1;
-       next(dev, rng);
+       generic::next(dev, rng);
        TI r = rng % range;
        return static_cast<T>(r) + low;
    }
@@ -44,18 +47,18 @@ namespace rl_tools::random{
    T uniform_real_distribution(const devices::random::Generic<MATH_DEV>& dev, T low, T high, RNG& rng){
        static_assert(utils::typing::is_same_v<RNG, typename MATH_DEV::index_t>);
        static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
-       next(dev, rng);
-       return (rng / static_cast<T>(next_max(dev))) * (high - low) + low;
+       generic::next(dev, rng);
+       return (rng / static_cast<T>(generic::next_max(dev))) * (high - low) + low;
    }
     namespace normal_distribution{
         template<typename MATH_DEV, typename T, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::Generic<MATH_DEV>& dev, T mean, T std, RNG& rng){
             static_assert(utils::typing::is_same_v<RNG, typename MATH_DEV::index_t>);
             static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
-            next(dev, rng);
-            T u1 = rng / static_cast<T>(next_max(dev));
-            next(dev, rng);
-            T u2 = rng / static_cast<T>(next_max(dev));
+            generic::next(dev, rng);
+            T u1 = rng / static_cast<T>(generic::next_max(dev));
+            generic::next(dev, rng);
+            T u2 = rng / static_cast<T>(generic::next_max(dev));
             T x = math::sqrt(MATH_DEV{}, -2.0 * math::log(MATH_DEV{}, u1));
             T y = 2.0 * math::PI<T> * u2;
             T z = x * math::cos(MATH_DEV{}, y);

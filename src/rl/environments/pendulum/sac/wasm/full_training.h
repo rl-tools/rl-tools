@@ -23,7 +23,7 @@
 //struct TrainingConfig{
 //    using T = float;
 //    using TI = typename DEVICE::index_t;
-//    using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+//    using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 //
 //    using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 //    using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC> ;
@@ -129,7 +129,7 @@
 //    using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
 //
 //
-//    ts.rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), seed);
+//    ts.rng = rlt::random::default_engine(DEVICE{}, seed);
 //
 //    rlt::malloc(device, ts.actor_critic);
 //    rlt::init(device, ts.actor_critic, ts.rng);
@@ -255,7 +255,7 @@
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -282,7 +282,7 @@ using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #else
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
     static constexpr TI EVALUATION_EPISODES = 100;

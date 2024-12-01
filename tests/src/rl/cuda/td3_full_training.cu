@@ -72,7 +72,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     rlt::init(device);
     rlt::construct(device_init, device_init.logger);
     auto rng_init = rlt::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     p::env::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
     p::env::ENVIRONMENT::Parameters env_parameters[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
     rlt::rl::environments::DummyUI ui;

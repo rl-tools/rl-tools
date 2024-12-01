@@ -32,7 +32,7 @@
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -88,7 +88,7 @@ void evaluate(DEVICE& device, ACTOR& actor, ACTOR_BUFFER& actor_buffer, RNG& rng
 int main(int argc, char** argv){
     using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
     TI seed = 0;
     LOOP_STATE ts;
     CLI::App app{"rl_zoo"};

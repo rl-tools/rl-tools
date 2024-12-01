@@ -41,7 +41,7 @@ int main(){
     ACTOR::Buffer<> actor_buffer_sequential;
     DEVICE device;
 
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(device, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::INPUT_SHAPE, false>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::CONTENT::OUTPUT_SHAPE, false>> intermediate_output;

@@ -29,7 +29,7 @@ namespace rlt = rl_tools;
 
 
 using DEVICE = rlt::devices::DefaultCPU;
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -49,7 +49,7 @@ using EVALUATION_ENVIRONMENT = typename env_param_builder::ENVIRONMENT_PARAMETER
 
 int main(){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
 
     rl_tools::checkpoint::actor::MODEL::Buffer<1, rlt::MatrixStaticTag> buffer;
 //    rlt::malloc(device, buffer);

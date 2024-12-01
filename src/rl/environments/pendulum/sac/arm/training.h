@@ -43,7 +43,7 @@ using DEVICE = rlt::devices::arm::OPT<rlt::devices::arm::Specification<rlt::devi
 using DEVICE = rlt::devices::DefaultCPU;
 #endif
 
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -105,7 +105,7 @@ struct APPROXIMATOR_CONFIG{
 
 };
 
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, APPROXIMATOR_CONFIG, DYNAMIC_ALLOCATION_LOOP_STATE>;
 #ifdef BENCHMARK
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO

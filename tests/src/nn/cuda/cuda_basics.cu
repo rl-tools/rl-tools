@@ -105,11 +105,11 @@ void COPY_CONTAINER() {
         rlt::malloc(device_cuda, matrix_cuda2);
         rlt::malloc(device_cpu, matrix_cpu2);
 
-        auto rng = rlt::random::default_engine(decltype(device_cpu)::SPEC::RANDOM());
+        auto rng = rlt::random::default_engine(device_cpu);
 
         for(DEVICE_CPU::index_t row_i = 0; row_i < decltype(matrix_cpu)::SPEC::ROWS; row_i++){
             for(DEVICE_CPU::index_t col_i = 0; col_i < decltype(matrix_cpu)::SPEC::COLS; col_i++){
-                set(matrix_cpu, row_i, col_i, rlt::random::normal_distribution::sample(decltype(device_cpu)::SPEC::RANDOM(), (T)0, (T)1, rng));
+                set(matrix_cpu, row_i, col_i, rlt::random::normal_distribution::sample(device_cpu.random, (T)0, (T)1, rng));
             }
         }
 
@@ -199,7 +199,7 @@ TEST(RL_TOOLS_NN_CUDA, COPYING_VIEWS){
     DEVICE_CPU device_cpu;
     using DTYPE = float;
     {
-        auto rng = rlt::random::default_engine(decltype(device_cpu)::SPEC::RANDOM());
+        auto rng = rlt::random::default_engine(device_cpu);
         rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data;
         rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_2;
         rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_3;
@@ -306,7 +306,7 @@ TEST(RL_TOOLS_NN_CUDA, COPY) {
     rlt::malloc(device_cpu, network_cpu_2);
     rlt::malloc(device_cuda, network_cuda);
 
-    auto rng = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(device_cpu);
 
     rlt::init_weights(device_cpu, network_cpu, rng);
     rlt::init_weights(device_cpu, network_cpu_2, rng);
@@ -374,7 +374,7 @@ void GEMM() {
     rlt::malloc(device_cuda, network_cuda);
     rlt::malloc(device_cuda, network_cuda_buffers);
 
-    auto rng = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(device_cpu);
     auto rng_cuda = rlt::random::default_engine(DEVICE_CUDA::SPEC::RANDOM{});
 
     rlt::init_weights(device_cpu, network_cpu, rng);
@@ -535,7 +535,7 @@ void FORWARD() {
     rlt::malloc(device_cuda, network_cuda);
     rlt::malloc(device_cuda, network_cuda_buffers);
 
-    auto rng = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(device_cpu);
     auto rng_cuda = rlt::random::default_engine(DEVICE_CUDA::SPEC::RANDOM{});
 
 
@@ -707,7 +707,7 @@ void BACKWARD() {
     rlt::malloc(device_cuda, network_cuda);
     rlt::malloc(device_cuda, network_cuda_buffers);
 
-    auto rng = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(device_cpu);
     auto rng_cuda = rlt::random::default_engine(DEVICE_CUDA::SPEC::RANDOM{});
 
     rlt::init_weights(device_cpu, network_cpu, rng);
@@ -888,7 +888,7 @@ void ADAM_UPDATE() {
     rlt::malloc(device_cuda, network_cuda);
     rlt::malloc(device_cuda, network_cuda_buffers);
 
-    auto rng = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(device_cpu);
     auto rng_cuda = rlt::random::default_engine(DEVICE_CUDA::SPEC::RANDOM{});
 
     rlt::init_weights(device_cpu, network_cpu, rng);

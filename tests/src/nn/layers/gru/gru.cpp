@@ -78,7 +78,7 @@ void test_loading(std::string DATA_FILE_NAME){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
     constexpr T EPSILON = 1e-10;
     constexpr TI SEQUENCE_LENGTH = 50;
     constexpr TI BATCH_SIZE = 128;

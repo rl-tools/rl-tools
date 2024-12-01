@@ -150,7 +150,7 @@ int main(void) {
 
     DEVICE_CPU device_cpu;
 
-    auto rng = rlt::random::default_engine(device_cpu.random, 0);
+    auto rng = rlt::random::default_engine(device_cpu, 0);
 
     ENVIRONMENT* envs_cpu = (ENVIRONMENT*)malloc(sizeof(ENVIRONMENT) * N_BLOCKS * N_THREADS);
     ENVIRONMENT::Parameters* parameters_cpu = (ENVIRONMENT::Parameters*)malloc(sizeof(ENVIRONMENT::Parameters) * N_BLOCKS * N_THREADS);

@@ -15,7 +15,7 @@ int main(){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
     constexpr T EPSILON = 1e-6;
     constexpr TI SEQUENCE_LENGTH = 50;
     constexpr TI BATCH_SIZE = 128;

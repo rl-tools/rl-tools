@@ -10,7 +10,7 @@ using TI = typename DEVICE::index_t;
 template <TI M, TI N, TI K>
 void matmul(){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random);
+    auto rng = rlt::random::default_engine(device);
 
     rlt::Matrix<rlt::matrix::Specification<T, TI, M, K, false>> A;
     rlt::Matrix<rlt::matrix::Specification<T, TI, K, N, false>> B;

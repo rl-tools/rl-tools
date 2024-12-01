@@ -24,7 +24,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
     DEVICE device;
     REPLAY_BUFFER replay_buffer_1;
     REPLAY_BUFFER replay_buffer_2;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     {
         rlt::malloc(device, replay_buffer_1);
         rlt::test::rl::components::replay_buffer::sample(device, replay_buffer_1, rng);

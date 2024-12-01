@@ -92,7 +92,7 @@ int main() {
     NN_DEVICE nn_device;
     rlt::malloc(device, off_policy_runner);
     rlt::malloc(device, actor_critic);
-    auto rng = rlt::random::default_engine(decltype(device)::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(device);
     rlt::init(device, actor_critic, rng);
 
     rlt::rl::environments::DummyUI ui;

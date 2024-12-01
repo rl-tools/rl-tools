@@ -147,8 +147,8 @@ void run(){
         auto& run_eval_step = eval_step.back();
         auto& run_eval_return = eval_return.back();
 
-        auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i + 1);
-        auto evaluation_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i); // separate evaluation rng to make runs reproducible/deterministic even if evaluation is turned on or off
+        auto rng = rlt::random::default_engine(DEVICE{}, run_i + 1);
+        auto evaluation_rng = rlt::random::default_engine(DEVICE{}, run_i); // separate evaluation rng to make runs reproducible/deterministic even if evaluation is turned on or off
 
         // device
         typename DEVICE::SPEC::LOGGING logger;
@@ -236,8 +236,8 @@ void run(){
                             auto critic_training_end = std::chrono::high_resolution_clock::now();
                             rlt::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
                         };
-                        auto rng1 = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
-                        auto rng2 = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        auto rng1 = rlt::random::default_engine(DEVICE{}, std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        auto rng2 = rlt::random::default_engine(DEVICE{}, std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
                         if(std::getenv("RL_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
                             auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});

@@ -150,7 +150,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     DEVICE device;
     MLP mlp;
     MLP::Buffer<> mlp_buffer;
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
 
     LAYER_1::Layer<CAPABILITY_ADAM, LAYER_1_INPUT_SHAPE> layer_1;
     LAYER_2::Layer<CAPABILITY_ADAM, LAYER_2_INPUT_SHAPE> layer_2;
@@ -252,7 +252,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
 
     DEVICE device;
     SEQUENTIAL model;
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
 
     rlt::malloc(device, model);
     rlt::init_weights(device, model, rng);
@@ -283,7 +283,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     std::cout << "Max hidden dim: " << rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() << std::endl;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
 
     LAYER_1::Layer<CAPABILITY_ADAM, LAYER_1_INPUT_SHAPE> layer_1;
     LAYER_2::Layer<CAPABILITY_ADAM, LAYER_2_INPUT_SHAPE> layer_2;
@@ -358,7 +358,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     DEVICE device;
     MLP mlp;
     typename MLP::Buffer<1> mlp_buffers;
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
 
     LAYER_1::Layer<CAPABILITY_ADAM, LAYER_1_INPUT_SHAPE> layer_1;
     LAYER_2::Layer<CAPABILITY_ADAM, LAYER_2_INPUT_SHAPE> layer_2;
@@ -515,7 +515,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD_2){
     std::cout << "Max hidden dim: " << rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() << std::endl;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
 
     LAYER_1::Layer<CAPABILITY_ADAM, LAYER_1_INPUT_SHAPE> layer_1;
     LAYER_2::Layer<CAPABILITY_ADAM, LAYER_2_INPUT_SHAPE> layer_2;

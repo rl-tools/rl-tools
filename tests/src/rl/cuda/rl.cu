@@ -110,7 +110,7 @@ public:
 protected:
     void SetUp() override {
         rlt::init(device_gpu);
-        auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+        auto rng_cpu = rlt::random::default_engine(device_cpu);
         auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
         // alloc
         rlt::malloc(device_cpu, off_policy_runner_cpu);
@@ -184,7 +184,7 @@ protected:
 
 TEST_F(RL_TOOLS_RL_CUDA, VIEW_COPY_PROBLEM) {
 
-    auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_cpu = rlt::random::default_engine(device_cpu);
     auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
     rlt::randn(device_cpu, batch_cpu.observations_actions_next_observations, rng_cpu);
@@ -200,7 +200,7 @@ TEST_F(RL_TOOLS_RL_CUDA, VIEW_COPY_PROBLEM) {
 
 TEST_F(RL_TOOLS_RL_CUDA, GATHER_BATCH) {
 
-    auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_cpu = rlt::random::default_engine(device_cpu);
     auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
     for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++) {
         rlt::copy(device_gpu, device_cpu, off_policy_runner_gpu_cpu.replay_buffers[rb_i], off_policy_runner_cpu_2.replay_buffers[rb_i]);
@@ -230,7 +230,7 @@ TEST_F(RL_TOOLS_RL_CUDA, GATHER_BATCH) {
 TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
     constexpr DEVICE_CPU::index_t N_STEPS = 5;
 
-    auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_cpu = rlt::random::default_engine(device_cpu);
     auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
     auto sample_batch = [&](bool deterministic){
@@ -378,7 +378,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
 
-    auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_cpu = rlt::random::default_engine(device_cpu);
     auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
     auto sample_batch = [&](bool deterministic){
@@ -445,7 +445,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
     DEVICE_MKL device_mkl;
     constexpr DEVICE_CPU::index_t N_STEPS = 10000;
 
-    auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_cpu = rlt::random::default_engine(device_cpu);
     auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
     auto sample_batch = [&](bool deterministic){
@@ -504,7 +504,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
 
 TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
-    auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_cpu = rlt::random::default_engine(device_cpu);
     auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
     auto sample_batch = [&](bool deterministic){
@@ -534,7 +534,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
 
 TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
     constexpr DEVICE_CPU::index_t N_STEPS = 10000;
-    auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_cpu = rlt::random::default_engine(device_cpu);
     auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
     auto sample_batch = [&](bool deterministic){

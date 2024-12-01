@@ -19,7 +19,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST){
     using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> orig;
     rlt::malloc(device, orig);
     rlt::randn(device, orig, rng);
@@ -38,7 +38,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::nn::layers::dense::LayerForward<rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU>> layer;
     rlt::malloc(device, layer);
     rlt::init_weights(device, layer, rng);
@@ -54,7 +54,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::nn::layers::dense::LayerGradient<rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam>> layer;
     rlt::malloc(device, layer);
     rlt::init_weights(device, layer, rng);
@@ -81,7 +81,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
     using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     using SPEC = rlt::nn_models::mlp::ForwardSpecification<rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
     rlt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
     rlt::malloc(device, mlp);
@@ -98,7 +98,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<DTYPE, DEVICE::index_t>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     using SPEC = rlt::nn_models::mlp::AdamSpecification<rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
     rlt::nn_models::mlp::NeuralNetworkAdam<SPEC> mlp;
     rlt::malloc(device, mlp);
@@ -117,7 +117,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     using DTYPE = float;
     constexpr typename DEVICE::index_t BATCH_SIZE = 10;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     using SPEC = rlt::nn_models::mlp::ForwardSpecification<STRUCTURE_SPEC>;
     rlt::nn_models::mlp::NeuralNetwork<SPEC> mlp;

@@ -16,7 +16,7 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, MAIN) {
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
     using T = float;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 10, 15>>> tensor;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 10, 15>> matrix;
@@ -42,7 +42,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, MAIN) {
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, ND_Tensor){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
     using T = float;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2, 10, 15>>> tensor;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 20, 15>> matrix;
@@ -69,7 +69,7 @@ template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequentia
 using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
     using T = double;
     constexpr TI INPUT_DIM = 10;
     constexpr TI OUTPUT_DIM = 20;

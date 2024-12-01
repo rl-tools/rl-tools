@@ -30,7 +30,7 @@ using DEVICE_INIT = rlt::devices::DEVICE_FACTORY<>;
 #else
 using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes problems in this case (this example seems cursed)
 #endif
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using RNG_INIT = decltype(rlt::random::default_engine(typename DEVICE_INIT::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -94,7 +94,7 @@ int main(){
     rlt::check_status(device);
 
     TI step = 0;
-    ts.rng = rlt::random::next(device.random, ts.rng);
+    ts.rng = rlt::random::default_engine(device);
     bool finished = false;
     auto start_time = std::chrono::high_resolution_clock::now();
     while(!finished){

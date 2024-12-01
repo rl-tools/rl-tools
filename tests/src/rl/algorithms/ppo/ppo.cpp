@@ -32,7 +32,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     {
         static constexpr T ALPHA = 0.001;
     };
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    auto rng = rlt::random::default_engine(DEVICE{}, 10);
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
