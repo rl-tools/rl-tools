@@ -86,7 +86,7 @@ namespace rl_tools{
         if constexpr(mode::is<MODE, mode::sequential::ResetMask>){
             for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
                 if (get(mode.mask, 0, batch_i)) {
-                    set(device, state.step, 0, batch_i, 0);
+                    set(device, state.step, batch_i, 0);
                     auto row = view(device, state.state, batch_i);
                     copy(device, device, layer.initial_hidden_state.parameters, row);
                 }
