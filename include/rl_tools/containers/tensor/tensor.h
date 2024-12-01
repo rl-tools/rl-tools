@@ -299,19 +299,23 @@ namespace rl_tools{
     namespace tensor{
         template <typename T, typename TI, TI SIZE>
         struct TensorStatic{
+            static constexpr bool DYNAMIC_ALLOCATION = false;
             static_assert(SIZE > 0, "MSVC does not allow SIZE=0");
             T _data[SIZE];
         };
         template <typename T>
         struct TensorStaticEmpty{
+            static constexpr bool DYNAMIC_ALLOCATION = false;
             T* _data = nullptr;
         };
         template <typename T, typename TI, TI SIZE, bool CONST = false>
         struct TensorDynamic{
+            static constexpr bool DYNAMIC_ALLOCATION = true;
             T* _data = nullptr;
         };
         template <typename T, typename TI, TI SIZE>
         struct TensorDynamic<T, TI, SIZE, true>{
+            static constexpr bool DYNAMIC_ALLOCATION = true;
             const T* _data;
         };
     }

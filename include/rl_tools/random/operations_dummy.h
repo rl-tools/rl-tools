@@ -9,7 +9,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
-    auto default_engine(const devices::random::Dummy& dev){
+    template <typename DEV_SPEC>
+    auto default_engine(const devices::Dummy<DEV_SPEC>& dev){
         return devices::random::Dummy::State(0);
     }
 

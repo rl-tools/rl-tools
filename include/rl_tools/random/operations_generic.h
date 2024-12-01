@@ -16,13 +16,13 @@ namespace rl_tools::random{
     constexpr typename MATH_DEV::index_t next_max(const devices::random::Generic<MATH_DEV>& dev){
        return MATH_DEV::MAX_INDEX;
    }
-   template<typename MATH_DEV, typename RNG>
-   void next(const devices::random::Generic<MATH_DEV>& dev, RNG& rng){
-       static_assert(utils::typing::is_same_v<RNG, typename MATH_DEV::index_t>);
-       rng ^= (rng << 13);
-       rng ^= (rng >> 17);
-       rng ^= (rng << 5);
-   }
+   // template<typename MATH_DEV, typename RNG>
+   // void next(const devices::random::Generic<MATH_DEV>& dev, RNG& rng){
+   //     static_assert(utils::typing::is_same_v<RNG, typename MATH_DEV::index_t>);
+   //     rng ^= (rng << 13);
+   //     rng ^= (rng >> 17);
+   //     rng ^= (rng << 5);
+   // }
     template <typename MATH_DEV, typename TI, typename RNG>
     auto split(const devices::random::Generic<MATH_DEV>& dev, TI split_id, RNG& rng){
         // this operation should not alter the state of rng

@@ -9,7 +9,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
-    devices::random::WASM32::index_t default_engine(const devices::random::WASM32& dev, devices::random::WASM32::index_t seed = 1){
+    template <typename DEV_SPEC>
+    devices::random::WASM32::index_t default_engine(const devices::WASM32<DEV_SPEC>& dev, devices::random::WASM32::index_t seed = 1){
         return default_engine(devices::random::Generic<devices::math::WASM32>{}, seed);
     };
     constexpr devices::random::WASM32::index_t next_max(const devices::random::WASM32& dev){

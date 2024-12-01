@@ -55,7 +55,7 @@ namespace rl_tools{
     void free(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
 
     template<typename DEVICE, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
-    void init_weights(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng) {
+    void init_weights(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         T gain;

@@ -30,7 +30,7 @@ namespace rl_tools{
     void init(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-        ts.rng_save_trajectories = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
+        ts.rng_save_trajectories = random::default_engine(device, seed);
         ts.save_trajectories_ui_written = false;
     }
 

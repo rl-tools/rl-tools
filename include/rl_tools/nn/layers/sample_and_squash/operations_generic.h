@@ -64,7 +64,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, RNG& rng){
         init_weights(device, static_cast<nn::layers::sample_and_squash::LayerForward<SPEC>&>(layer), rng);
-        set(layer.log_alpha.parameters, 0, 0, math::log(typename DEVICE::SPEC::MATH{}, SPEC::PARAMETERS::ALPHA));
+        set_all(device, layer.log_alpha.parameters, math::log(typename DEVICE::SPEC::MATH{}, SPEC::PARAMETERS::ALPHA));
     }
     template <typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, rl_tools::nn::layers::sample_and_squash::LayerBackward<SPEC>& l) {
