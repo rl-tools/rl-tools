@@ -73,6 +73,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         using ACTOR_CRITIC_SPEC = rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, typename NN::ACTOR_OPTIMIZER, typename NN::CRITIC_OPTIMIZER, typename NN::ALPHA_OPTIMIZER, typename CORE_PARAMETERS::SAC_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
+        using EVAL_ACTOR_TYPE = typename NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, CORE_PARAMETERS::N_ENVIRONMENTS>;
 
         struct OFF_POLICY_RUNNER_PARAMETERS{
             static constexpr TI N_ENVIRONMENTS = CORE_PARAMETERS::N_ENVIRONMENTS;
@@ -84,7 +85,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             static constexpr T EXPLORATION_NOISE = 0.1;
             static constexpr bool SAMPLE_PARAMETERS = CORE_PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS;
         };
-        using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY, typename NN::ACTOR_TYPE>;
+        using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY, EVAL_ACTOR_TYPE>;
 
         using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, DYNAMIC_ALLOCATION>;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
