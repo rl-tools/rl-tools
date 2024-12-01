@@ -25,7 +25,10 @@ namespace rl_tools{
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
         T *temp = nullptr;
-        auto result = cudaMalloc(&temp, SIZE_BYTES);
+        // auto result = cudaMalloc(&temp, SIZE_BYTES);
+        auto result = cudaMallocAsync(&temp, SIZE_BYTES, device.stream);
+        cudaDeviceSynchronize();
+        cudaStreamSynchronize(device.stream);
         matrix._data = temp;
         check_status(device);
         count_malloc(device, SIZE_BYTES);
@@ -107,7 +110,8 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
-            cudaMemcpy(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice);
+            cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, source_device.stream);
+            cudaStreamSynchronize(source_device.stream);
             check_status(source_device);
         }
         else{
@@ -134,7 +138,8 @@ namespace rl_tools{
             malloc(source_device, temp);
             copy(source_device, source_device, source, temp);
             auto temp_size = TEMP_SPEC::SIZE_BYTES;
-            cudaMemcpy(target._data, temp._data, temp_size, cudaMemcpyHostToDevice);
+            cudaMemcpyAsync(target._data, temp._data, temp_size, cudaMemcpyHostToDevice, target_device.stream);
+            cudaStreamSynchronize(target_device.stream);
             check_status(target_device);
             free(source_device, temp);
         }
@@ -153,7 +158,8 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
-            cudaMemcpy(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyHostToDevice);
+            cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, target_device.stream);
+            cudaStreamSynchronize(target_device.stream);
             check_status(target_device);
         }
         else{
@@ -169,20 +175,13 @@ namespace rl_tools{
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, true>> temp_gpu, temp_cpu;
+        Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, true>> temp_gpu, temp_gpu2, temp_cpu;
         using TEMP_SPEC = typename decltype(temp_gpu)::SPEC;
         malloc(source_device, temp_gpu);
-//        {
-//            constexpr TI BLOCKSIZE_COLS = 32;
-//            constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
-//            dim3 grid(N_BLOCKS_COLS);
-//            dim3 block(BLOCKSIZE_COLS);
-//            containers::cuda::kernels::copy<DEVICE_CUDA, typename decltype(temp_gpu)::SPEC, SOURCE_SPEC><<<grid, block, 0, device.stream>>>(temp_gpu, source);
-//            check_status(source_device);
-//        }
         copy(source_device, source_device, source, temp_gpu);
         malloc(target_device, temp_cpu);
-        cudaMemcpy(temp_cpu._data, temp_gpu._data, TEMP_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost);
+        cudaMemcpyAsync(temp_cpu._data, temp_gpu._data, TEMP_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, source_device.stream);
+        cudaStreamSynchronize(source_device.stream);
         check_status(source_device);
         free(source_device, temp_gpu);
         copy(target_device, target_device, temp_cpu, target);
@@ -195,7 +194,8 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
-            cudaMemcpy(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost);
+            cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, source_device.stream);
+            cudaStreamSynchronize(source_device.stream);
             check_status(target_device);
         }
         else{

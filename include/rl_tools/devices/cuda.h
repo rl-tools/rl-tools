@@ -111,9 +111,10 @@ namespace rl_tools {
             std::cerr << "CUDA device not initialized" << std::endl;
         }
 #endif
-#ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
+// #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
         cudaDeviceSynchronize();
-#endif
+// #endif
+        cudaStreamSynchronize(device.stream);
         cudaError_t cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) {
             std::string error_string = cudaGetErrorString(cudaStatus);
