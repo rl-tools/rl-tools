@@ -17,6 +17,10 @@ namespace rl_tools::rl::components::off_policy_runner{
         auto& parameters = get(runner.env_parameters, 0, env_i);
         static_assert(!SPEC::PARAMETERS::COLLECT_EPISODE_STATS || SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE > 1);
         if (get(runner.truncated, 0, env_i)){
+            T episode_return = get(runner.episode_return, 0, env_i);
+#ifdef __CUDACC__
+            printf("Episode return: %f\n", episode_return);
+#endif
             if constexpr(SPEC::PARAMETERS::COLLECT_EPISODE_STATS){
                 // todo: the first episode is always zero steps and zero return because the initialization is done by setting truncated to true
                 auto& episode_stats = get(runner.episode_stats, 0, env_i);
