@@ -78,8 +78,8 @@ namespace rl_tools{
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             TI col = blockIdx.x * blockDim.x + threadIdx.x;
-            curandState rng_state;
-            curand_init(rng, col, 0, &rng_state);
+            static_assert(SPEC::COLS <= RNG::NUM_RNGS, "Please increase the number of CUDA RNGs");
+            auto& rng_state = get(rng.states, 0, col);
             if(col < SPEC::COLS){
                 for(TI row = 0; row < SPEC::ROWS; row++){
                     T sample = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, mean, std, rng_state);

@@ -189,7 +189,7 @@ namespace rl_tools{
             T std = math::exp(device.math, log_std_clipped);
             T noise;
             if(row_i == 0){
-                add_scalar(device, device.logger, "actor_std", std, 10001);
+                // add_scalar(device, device.logger, "actor_std", std, 10001);
             }
             if constexpr(mode::is<MODE, nn::layers::sample_and_squash::mode::ExternalNoise>){
                 noise = get(buffer.noise, row_i, col_i);
@@ -311,7 +311,7 @@ namespace rl_tools{
             entropy += -action_log_prob;
         }
         if(batch_i == 0){
-            add_scalar(device, device.logger, "actor_entropy", entropy, 1000);
+            // add_scalar(device, device.logger, "actor_entropy", entropy, 1000);
         }
         T d_alpha = entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
         if(all_d_output_zero){
@@ -332,7 +332,7 @@ namespace rl_tools{
         for(TI batch_i = 0; batch_i < INTERNAL_BATCH_SIZE; batch_i++){
             d_log_alpha += backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
-        add_scalar(device, device.logger, "actor_alpha", alpha, 1000);
+        // add_scalar(device, device.logger, "actor_alpha", alpha, 1000);
 
         // TODO: change INTERNAL_BATCH_SIZE to sum(reset) if MASK_NON_TERMINAL is used
         increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/INTERNAL_BATCH_SIZE); // note if changing the BATCH_SIZE to INTERNAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
