@@ -83,15 +83,26 @@ namespace rl_tools{
     void reset(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) {
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
-        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-            auto row = view(device, state.state, batch_i);
-            copy(device, device, layer.initial_hidden_state.parameters, row);
-        }
-        if constexpr(mode::is<MODE, mode::Default>){
-            set_all(device, state.step, 0);
+        if constexpr(mode::is<MODE, mode::sequential::ResetMask>){
+            for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+                if (get(mode.mask, 0, batch_i)) {
+                    set(device, state.step, 0, batch_i, 0);
+                    auto row = view(device, state.state, batch_i);
+                    copy(device, device, layer.initial_hidden_state.parameters, row);
+                }
+            }
         }
         else{
-            utils::assert_exit(device, false, "Unsupported mode");
+            if constexpr(mode::is<MODE, mode::Default>){
+                set_all(device, state.step, 0);
+                for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+                    auto row = view(device, state.state, batch_i);
+                    copy(device, device, layer.initial_hidden_state.parameters, row);
+                }
+            }
+            else{
+                utils::assert_exit(device, false, "Unsupported mode");
+            }
         }
     }
     template<typename DEVICE, typename SPEC>

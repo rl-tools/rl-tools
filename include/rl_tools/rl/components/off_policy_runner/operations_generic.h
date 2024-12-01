@@ -29,11 +29,14 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename T_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void init_views(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats){
+        episode_stats.returns = view<DEVICE, typename decltype(episode_stats.data)::SPEC, T_SPEC::BUFFER_SIZE, 1>(device, episode_stats.data, 0, 0);
+        episode_stats.steps   = view<DEVICE, typename decltype(episode_stats.data)::SPEC, T_SPEC::BUFFER_SIZE, 1>(device, episode_stats.data, 0, 1);
+    }
+    template <typename DEVICE, typename T_SPEC>
     void malloc(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
-        using SPEC = typename T_SPEC::OPR_SPEC;
         malloc(device, episode_stats.data);
-        episode_stats.returns = view<DEVICE, typename decltype(episode_stats.data)::SPEC, SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE, 1>(device, episode_stats.data, 0, 0);
-        episode_stats.steps   = view<DEVICE, typename decltype(episode_stats.data)::SPEC, SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE, 1>(device, episode_stats.data, 0, 1);
+        init_views(device, episode_stats);
     }
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
@@ -174,7 +177,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename T_SPEC>
-    void init(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
         episode_stats.next_episode_i = 0;
     }
     template<typename DEVICE, typename SPEC>
@@ -212,11 +215,11 @@ namespace rl_tools{
             auto action_view = view(device, runner.buffers.actions, matrix::ViewSpec<BATCH_SIZE, POLICY_OUTPUT_DIM>{});
             auto observation_view_tensor = to_tensor(device, runner.buffers.observations);
             auto action_view_tensor = to_tensor(device, action_view);
-            static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
+            // static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
             auto& policy_state = get<POLICY_INDEX>(runner.policy_states);
-            if(get(runner.truncated, 0, 0)){
-                reset(device, policy, policy_state, rng);
-            }
+            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.truncated)>>> mode_reset_mask;
+            mode_reset_mask.mask = runner.truncated;
+            reset(device, policy, policy_state, rng, mode_reset_mask);
             Mode<mode::Rollout<>> mode; // we want stochasticity for exploration
             evaluate_step(device, policy, observation_view_tensor, policy_state, action_view_tensor, policy_eval_buffers, rng, mode);
         }
@@ -255,57 +258,8 @@ namespace rl_tools{
         runner.previous_policy = POLICY_INDEX;
         runner.previous_policy_set = true;
     }
-    template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
-    void gather_batch(DEVICE& device, const rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
-#ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_GATHER_BATCH_CHECK_REPLAY_BUFFER_POSITION
-        utils::assert_exit(device, replay_buffer.position > 0 || replay_buffer.full, "Replay buffer is empty");
-#endif
-        typename DEVICE::index_t sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
-        typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
-
-        auto observation_target = row(device, batch.observations, batch_step_i);
-        auto observation_source = row(device, replay_buffer.observations, sample_index);
-        copy(device, device, observation_source, observation_target);
-
-        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
-            auto observation_privileged_target = row(device, batch.observations_privileged        , batch_step_i);
-            auto observation_privileged_source = row(device, replay_buffer.observations_privileged, sample_index);
-            copy(device, device, observation_privileged_source, observation_privileged_target);
-        }
-
-        auto action_target = row(device, batch.actions, batch_step_i);
-        auto action_source = row(device, replay_buffer.actions, sample_index);
-        copy(device, device, action_source, action_target);
-
-        auto next_observation_target = row(device, batch.next_observations, batch_step_i);
-        auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
-        copy(device, device, next_observation_source, next_observation_target);
-
-        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
-            auto next_observation_privileged_target = row(device, batch.next_observations_privileged        , batch_step_i);
-            auto next_observation_privileged_source = row(device, replay_buffer.next_observations_privileged, sample_index);
-            copy(device, device, next_observation_privileged_source, next_observation_privileged_target);
-        }
-
-        set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
-        set(batch.terminated, 0, batch_step_i, get(replay_buffer.terminated, sample_index, 0));
-        set(batch.truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
-    }
-    template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
-    void gather_batch(DEVICE& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, RNG& rng) {
-        static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        using RUNNER = rl::components::OffPolicyRunner<SPEC>;
-        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
-        for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
-            typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng);
-            auto& replay_buffer = runner.replay_buffers[env_i];
-            gather_batch<DEVICE, typename RUNNER::REPLAY_BUFFER_SPEC, BATCH_SPEC, RNG, DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
-        }
-    }
-    template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
-    void gather_batch(DEVICE& device, rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
+    template <bool DETERMINISTIC, typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void gather_batch(DEVICE& device, rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
         // note: make sure that the replay_buffer has at least one transition in it;
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
@@ -427,7 +381,7 @@ namespace rl_tools{
         for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng);
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
-            gather_batch<DEVICE, typename RUNNER::REPLAY_BUFFER_SPEC, BATCH_SPEC, RNG, DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
+            gather_batch<DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
         }
     }
 //    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>
@@ -437,7 +391,7 @@ namespace rl_tools{
 //        copy(source_device, target_device, source.d_output, target.d_output);
 //    }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::Batch<SOURCE_SPEC>& source, rl::components::off_policy_runner::Batch<TARGET_SPEC>& target){
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::SequentialBatch<SOURCE_SPEC>& source, rl::components::off_policy_runner::SequentialBatch<TARGET_SPEC>& target){
         copy(source_device, target_device, source.observations_actions_next_observations, target.observations_actions_next_observations);
         copy(source_device, target_device, source.rewards, target.rewards);
         copy(source_device, target_device, source.terminated, target.terminated);
@@ -460,11 +414,9 @@ namespace rl_tools{
         copy(source_device, target_device, source.episode_return, target.episode_return);
         copy(source_device, target_device, source.episode_step, target.episode_step);
         copy(source_device, target_device, source.truncated, target.truncated);
-        for (typename SOURCE_DEVICE::index_t env_i = 0; env_i < SOURCE_SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
-            copy(source_device, target_device, source.replay_buffers[env_i], target.replay_buffers[env_i]);
-            copy(source_device, target_device, source.episode_stats[env_i], target.episode_stats[env_i]);
-            target.envs[env_i] = source.envs[env_i];
-        }
+        copy(source_device, target_device, source.replay_buffers, target.replay_buffers);
+        copy(source_device, target_device, source.episode_stats, target.episode_stats);
+        copy(source_device, target_device, source.envs, target.envs);
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         target.initialized = source.initialized;
 #endif

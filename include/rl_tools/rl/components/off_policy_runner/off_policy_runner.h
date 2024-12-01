@@ -48,6 +48,8 @@ namespace rl_tools::rl::components::off_policy_runner {
         using POLICIES = T_POLICIES;
         using PARAMETERS = T_PARAMETERS;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+        static constexpr bool DYNAMIC_ALLOCATION_REPLAY_BUFFER = false;
+        static constexpr bool DYNAMIC_ALLOCATION_EPISODE_STATS = false;
         static_assert((PARAMETERS::ASYMMETRIC_OBSERVATIONS && ENVIRONMENT::ObservationPrivileged::DIM > 0) == PARAMETERS::ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS requested but not available in the environment");
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : ENVIRONMENT::Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : 0;
@@ -153,23 +155,24 @@ namespace rl_tools::rl::components::off_policy_runner {
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> final_step_mask;
     };
 
-    template <typename T_OPR_SPEC, bool T_DYNAMIC_ALLOCATION=true>
+    template <typename T_T, typename T_TI, T_TI T_BUFFER_SIZE, bool T_DYNAMIC_ALLOCATION=true>
     struct EpisodeStatsSpecification{
-        using OPR_SPEC = T_OPR_SPEC;
+        using T = T_T;
+        using TI = T_TI;
+        static constexpr TI BUFFER_SIZE = T_BUFFER_SIZE;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
     };
 
     template<typename T_SPEC>
     struct EpisodeStats{
-        using SPEC = typename T_SPEC::OPR_SPEC;
+        using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr TI BUFFER_SIZE = SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
-        Matrix<matrix::Specification<T, TI, BUFFER_SIZE, 2, T_SPEC::DYNAMIC_ALLOCATION>> data;
+        Matrix<matrix::Specification<T, TI, SPEC::BUFFER_SIZE, 2, SPEC::DYNAMIC_ALLOCATION>> data;
 
         TI next_episode_i = 0;
         template<typename SPEC::TI DIM>
-        using STATS_VIEW = typename decltype(data)::template VIEW<BUFFER_SIZE, DIM>;
+        using STATS_VIEW = typename decltype(data)::template VIEW<SPEC::BUFFER_SIZE, DIM>;
         STATS_VIEW<1> returns;
         STATS_VIEW<1> steps;
     };
@@ -190,7 +193,7 @@ namespace rl_tools::rl::components{
             using CONTENT = typename INPUT::template State<SPEC::DYNAMIC_ALLOCATION>;
         };
         using POLICY_STATES = rl_tools::utils::MapTuple<POLICIES, GET_STATE>;
-        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::Observation::DIM, ENVIRONMENT::ObservationPrivileged::DIM, SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY, SPEC::DYNAMIC_ALLOCATION>;
+        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::Observation::DIM, ENVIRONMENT::ObservationPrivileged::DIM, SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY, SPEC::DYNAMIC_ALLOCATION_REPLAY_BUFFER>;
         using REPLAY_BUFFER_WITH_STATES_SPEC = replay_buffer::SpecificationWithStates<ENVIRONMENT, REPLAY_BUFFER_SPEC>;
         using REPLAY_BUFFER_TYPE = ReplayBufferWithStates<REPLAY_BUFFER_WITH_STATES_SPEC>;
         static constexpr TI N_ENVIRONMENTS = SPEC::PARAMETERS::N_ENVIRONMENTS;
@@ -208,7 +211,7 @@ namespace rl_tools::rl::components{
         // todo: change to "environments"
         Matrix<matrix::Specification<ENVIRONMENT, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> envs;
         POLICY_STATES policy_states;
-        Matrix<matrix::Specification<off_policy_runner::EpisodeStats<off_policy_runner::EpisodeStatsSpecification<SPEC, SPEC::DYNAMIC_ALLOCATION>>, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> episode_stats;
+        Matrix<matrix::Specification<off_policy_runner::EpisodeStats<off_policy_runner::EpisodeStatsSpecification<T, TI, SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE, SPEC::DYNAMIC_ALLOCATION_EPISODE_STATS>>, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> episode_stats;
         Matrix<matrix::Specification<REPLAY_BUFFER_TYPE, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> replay_buffers = {};
 
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS, SPEC::DYNAMIC_ALLOCATION>> states;
