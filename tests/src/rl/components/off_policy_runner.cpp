@@ -41,7 +41,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     OPTIMIZER optimizer;
     MLP policy;
     rlt::malloc(device, policy);
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
     rlt::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;
     rlt::malloc(device, off_policy_runner);
@@ -59,7 +59,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
 TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
     DEVICE device;
     EXPLORATION_POLICY policy;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
     OffPolicyRunner off_policy_runner;
     rlt::malloc(device, off_policy_runner);
     ENVIRONMENT envs[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];

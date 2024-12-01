@@ -62,7 +62,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
     ACTOR_TYPE::Buffers<NUM_ENVIRONMENTS> actor_buffers;
     rlt::Matrix<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions, actions_gpu;
     rlt::Matrix<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::Observation::DIM>> observations, observations_gpu;
-    auto proto_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    auto proto_rng = rlt::random::default_engine(DEVICE{}, 10);
     decltype(proto_rng) rngs[NUM_THREADS];
 
     rlt::malloc(device, actions);

@@ -130,7 +130,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
     MODEL model;
     MODEL::Buffer<1> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE, false>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE, false>> output;
@@ -177,7 +177,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_model_benchmark) {
     MODEL model;
     MODEL::Buffer<1> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
@@ -226,7 +226,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
     MODEL model;
     MODEL::Buffer<MODEL_2::BATCH_SIZE> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
@@ -294,7 +294,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
     MODEL::template CHANGE_CAPABILITY<CAPABILITY_FORWARD> model;
     MODEL::Buffer<MODEL_2::BATCH_SIZE> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
@@ -356,7 +356,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
     MODEL::template CHANGE_CAPABILITY<CAPABILITY_BACKWARD> model;
     MODEL::Buffer<MODEL_2::BATCH_SIZE> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
@@ -420,7 +420,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp){
     MODEL model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
@@ -470,7 +470,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp_forward){
     MODEL::template CHANGE_CAPABILITY<CAPABILITY_FORWARD> model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
@@ -520,7 +520,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
     MODEL::template CHANGE_CAPABILITY<CAPABILITY_FORWARD> model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
@@ -573,7 +573,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
     MODEL::template CHANGE_CAPABILITY<CAPABILITY> model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
@@ -625,7 +625,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_gradien
     MODEL::template CHANGE_CAPABILITY<CAPABILITY> model;
     MODEL::Buffer<MODEL_MLP::BATCH_SIZE> buffer;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;

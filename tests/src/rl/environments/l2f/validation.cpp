@@ -12,7 +12,7 @@
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using T = double;
 using TI = typename DEVICE::index_t;
 
@@ -81,7 +81,7 @@ ENVIRONMENT::State parse_state(DEVICE& device, ENVIRONMENT& env, ENVIRONMENT::St
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
     std::string DATA_FILE_NAME = "quad_dynamics.json";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;

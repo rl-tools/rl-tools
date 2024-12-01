@@ -355,7 +355,7 @@ TEST(RL_TOOLS_TENSOR_TEST, RANDN){
     using T = double;
     using TI = typename DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
@@ -407,7 +407,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUM){
     using T = double;
     using TI = typename DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 2>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
@@ -500,7 +500,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SET_ALL) {
     using T = double;
     using TI = typename DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
     using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
@@ -542,7 +542,7 @@ TEST(RL_TOOLS_TENSOR_TEST, COPY){
     using T = double;
     using TI = typename DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
@@ -603,7 +603,7 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
     using T = double;
     using TI = typename DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
@@ -796,7 +796,7 @@ bool test_element_wise_multiply_accumulate(){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A, B, C;
         rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A_target, B_target, C_target;
@@ -896,7 +896,7 @@ TEST(RL_TOOLS_TENSOR_TEST, PERMUTE){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 2, 2>;
         rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A;
@@ -963,7 +963,7 @@ TEST(RL_TOOLS_TENSOR_TEST, REDUCE_ALONG_DIMENSION){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 2, 2>;
         using SHAPE_OUTPUT = rlt::tensor::Shape<TI, 2>;
@@ -1046,7 +1046,7 @@ TEST(RL_TOOLS_TENSOR_TEST, RESHAPE){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     using SHAPE = rlt::tensor::Shape<TI, 10>;
     using STRIDE = rlt::tensor::Stride<TI, 3>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true, STRIDE>> tensor;
@@ -1069,7 +1069,7 @@ TEST(RL_TOOLS_TENSOR_TEST, IS_NAN){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 10>;
         rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor;
@@ -1112,7 +1112,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SHAPE_GETTER){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 10, 5, 3>;
         ASSERT_EQ(SHAPE::VALUE, 10);
@@ -1131,7 +1131,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SQUARED_SUM){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE{}, 1);
     using SHAPE = rlt::tensor::Shape<TI, 10, 5, 3>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, false>> tensor;
     rlt::randn(device, tensor, rng);

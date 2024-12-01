@@ -59,7 +59,7 @@ void test_view(){
     using T = float;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS, true, rlt::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> m_dense;
     rlt::malloc(device, m);
@@ -95,7 +95,7 @@ void test_view_col(){
     using T = float;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS, true, rlt::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> m_dense;
     rlt::malloc(device, m);
@@ -134,7 +134,7 @@ void test_is_nan(){
     using T = float;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS, true, rlt::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
     rlt::malloc(device, m);
     rlt::randn(device, m, rng);
@@ -161,7 +161,7 @@ void test_is_finite(){
     using T = float;
     using TI = DEVICE::index_t;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS, true, rlt::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
     rlt::malloc(device, m);
     rlt::randn(device, m, rng);
@@ -197,7 +197,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, WRAP){
     using TI = DEVICE::index_t;
     constexpr int DIM = 11;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     T test[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     auto m = rlt::wrap<DEVICE, T, DIM>(device, test);
     rlt::print(device, m);
@@ -239,7 +239,7 @@ void test_max_stochastic(){
     using TI = DEVICE::index_t;
     constexpr int DIM = 11;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS>> m;
     rlt::malloc(device, m);
     for(TI test_i = 0; test_i < 10; test_i++){
@@ -289,7 +289,7 @@ void test_argmax_stochastic(){
     using TI = DEVICE::index_t;
     constexpr int DIM = 11;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS>> m;
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, 1>> am;
     rlt::malloc(device, m);
@@ -392,7 +392,7 @@ void test_matrix_multiplication_mkl_generic(){
     using DEVICE_GENERIC = rlt::devices::DefaultCPU;
     DEVICE_MKL device_mkl;
     DEVICE_GENERIC device;
-    auto rng = rlt::random::default_engine(DEVICE_GENERIC::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(device);
     rlt::Matrix<rlt::matrix::Specification<T, TI, M, K>> A;
     rlt::Matrix<rlt::matrix::Specification<T, TI, K, N>> B;
     rlt::Matrix<rlt::matrix::Specification<T, TI, M, N>> C, C_target;
@@ -481,7 +481,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, RESHAPE) {
     rlt::Matrix<rlt::matrix::Specification<T, TI, 10, 6, false>> m;
     using M = decltype(m);
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
     rlt::randn(device, m, rng);
 
     rlt::print(device, m);

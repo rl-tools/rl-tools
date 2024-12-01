@@ -43,7 +43,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     rlt::malloc(device, runner);
     ENVIRONMENT envs[ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS];
     ENVIRONMENT::Parameters parameters[ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS];
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 199);
+    auto rng = rlt::random::default_engine(DEVICE{}, 199);
     rlt::init(device, runner, envs, parameters, rng);
 
 //    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::TANH>;

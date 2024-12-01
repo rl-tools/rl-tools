@@ -37,7 +37,6 @@ namespace rl_tools{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rng = rl_tools::random::next(device.random, rng);
         evaluate_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, input, output, buffer, rng, mode);
         check_status(device);
     }
@@ -69,7 +68,6 @@ namespace rl_tools{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rng = rl_tools::random::next(device.random, rng);
         forward_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, input, buffer, rng, mode);
         check_status(device);
     }

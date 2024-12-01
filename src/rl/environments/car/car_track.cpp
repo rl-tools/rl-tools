@@ -109,7 +109,7 @@ int main(){
     ENVIRONMENT::Parameters env_parameters;
     UI ui;
     ENVIRONMENT::State state;
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
+    auto rng = rlt::random::default_engine(device, 0);
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
     rlt::malloc(device, action);

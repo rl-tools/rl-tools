@@ -48,7 +48,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH*4, BATCH_SIZE/4, HIDDEN_DIM>>> d_output_4x;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, 0);
+    auto rng = rlt::random::default_engine(device, 0);
     GRU gru, gru_copy;
     GRU_4X gru_4x;
     GRU::Buffer<true> buffer, buffer_copy;

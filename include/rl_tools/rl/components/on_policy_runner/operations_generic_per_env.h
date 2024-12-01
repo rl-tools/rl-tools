@@ -51,7 +51,7 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
             static_assert(ACTION_LOG_STD_SPEC::ROWS == 1);
             T current_action_log_std = get(action_log_std, 0, action_i % PER_AGENT_ACTION_DIM);
             T action_std = math::exp(device.math, current_action_log_std);
-            T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), action_mean, action_std, rng);
+            T action_noisy = random::normal_distribution::sample(device.random, action_mean, action_std, rng);
             action_log_prob += random::normal_distribution::log_prob(device.random, action_mean, current_action_log_std, action_noisy);
             set(actions, env_i, action_i, action_noisy);
         }

@@ -7,7 +7,7 @@ using T = float;
 using TI = typename DEVICE::index_t;
 DEVICE device;
 TI seed = 1;
-auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
+auto rng = rlt::random::default_engine(DEVICE{}, seed);
 
 constexpr TI INPUT_DIM = 5;
 constexpr TI OUTPUT_DIM = 5;

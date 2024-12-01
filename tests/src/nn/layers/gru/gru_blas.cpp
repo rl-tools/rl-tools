@@ -29,7 +29,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, BLAS){
 
     DEVICE_GENERIC device_generic;
     DEVICE_BLAS device_blas;
-    auto rng = rlt::random::default_engine(device_generic.random, 0);
+    auto rng = rlt::random::default_engine(device_generic, 0);
 
     using INPUT_SPEC = rlt::tensor::Specification<T, TI, GRU::INPUT_SHAPE>;
     using INPUT = rlt::Tensor<INPUT_SPEC>;

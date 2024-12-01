@@ -25,7 +25,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 //using DEVICE = rlt::devices::DefaultCPU;
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using T = double;
 using TI = typename DEVICE::index_t;
 
@@ -48,12 +48,12 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T ALPHA = 0.01;
     };
 };
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     TI seed = 0;
     DEVICE device;
-    auto rng = rlt::random::default_engine(device.random, seed);
+    auto rng = rlt::random::default_engine(device, seed);
     using APPROXIMATORS = rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR = APPROXIMATORS::Actor<CAPABILITY>::MODEL;

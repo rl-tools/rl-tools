@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     else {
         seed = std::stoi(argv[1]);
     }
-    auto rng = rlt::random::default_engine(device.random, seed);
+    auto rng = rlt::random::default_engine(device, seed);
 
     ENVIRONMENT::Parameters nominal_parameters, parameters;
     ENVIRONMENT::State state;

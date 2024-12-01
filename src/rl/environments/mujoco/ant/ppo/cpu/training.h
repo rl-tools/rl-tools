@@ -137,8 +137,8 @@ void run(){
         prl::CRITIC_OPTIMIZER critic_optimizer;
         actor_optimizer.parameters.alpha = 3e-4;
         critic_optimizer.parameters.alpha = 3e-4 * 2;
-        auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
-        auto evaluation_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
+        auto rng = rlt::random::default_engine(DEVICE{}, seed);
+        auto evaluation_rng = rlt::random::default_engine(DEVICE{}, 12);
         prl::PPO_TYPE ppo;
         prl::PPO_BUFFERS_TYPE ppo_buffers;
         prl::ON_POLICY_RUNNER_TYPE on_policy_runner;

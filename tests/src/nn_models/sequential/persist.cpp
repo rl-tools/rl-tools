@@ -43,7 +43,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_forward) {
     DEVICE device;
     MODEL model, model_loaded;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::malloc(device, model);
     rlt::malloc(device, model_loaded);
@@ -71,7 +71,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_backward_forward) {
     MODEL_BACKWARD::MODEL model;
     MODEL_FORWARD::MODEL model_loaded;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::malloc(device, model);
     rlt::malloc(device, model_loaded);
@@ -99,7 +99,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_gradient_adam_forward)
     MODEL_GRADIENT_ADAM::MODEL model;
     MODEL_FORWARD::MODEL model_loaded;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::malloc(device, model);
     rlt::malloc(device, model_loaded);
@@ -127,7 +127,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_gradient_adam)
     MODEL_FORWARD::MODEL model;
     MODEL_GRADIENT_ADAM::MODEL model_loaded;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::malloc(device, model);
     rlt::malloc(device, model_loaded);
@@ -162,7 +162,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_gradient_adam_gradient
     MODEL_GRADIENT_ADAM::MODEL model;
     MODEL_GRADIENT_ADAM::MODEL model_loaded;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE{}, 0);
 
     rlt::malloc(device, model);
     rlt::malloc(device, model_loaded);

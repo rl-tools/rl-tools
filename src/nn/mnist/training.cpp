@@ -94,7 +94,7 @@ int main(){
 
 
     rlt::reset_optimizer_state(device, optimizer, network);
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 2);
+    auto rng = rlt::random::default_engine(device, 2);
     rlt::init_weights(device, network, rng);
 
     constexpr TI NUM_BATCHES = DATASET_SIZE_TRAIN / BATCH_SIZE;

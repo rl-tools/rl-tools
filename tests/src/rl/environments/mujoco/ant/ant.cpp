@@ -28,7 +28,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
     ENVIRONMENT::Parameters parameters;
     rlt::malloc(dev, env);
 
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    auto rng = rlt::random::default_engine(DEVICE{}, 10);
 
     typename ENVIRONMENT::State state, next_state;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
@@ -54,7 +54,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
     ENVIRONMENT::Parameters env_parameters;
     rlt::malloc(dev, env);
 
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    auto rng = rlt::random::default_engine(DEVICE{}, 10);
 
     using STATE = typename ENVIRONMENT::State;
     STATE initial_state, state, next_state_1, next_state_2, next_state_temp;
@@ -118,7 +118,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     ENVIRONMENT env;
     ENVIRONMENT::Parameters env_parameters;
     rlt::malloc(dev, env);
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    auto rng = rlt::random::default_engine(DEVICE{}, 10);
 
     std::string DATA_FILE_NAME = "tests_rl_environments_mujoco_ant_data.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);

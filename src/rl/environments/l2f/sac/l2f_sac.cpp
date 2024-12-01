@@ -62,7 +62,7 @@ namespace rlt = rl_tools;
 
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG = decltype(rlt::random::default_engine(DEVICE{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -85,7 +85,7 @@ int main(){
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
     std::cout << "Sizeof training state: " << sizeof(ts) << std::endl;
-    auto myrng = rlt::random::default_engine(device.random, seed);
+    auto myrng = rlt::random::default_engine(device, seed);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif

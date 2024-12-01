@@ -26,7 +26,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
     using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> m;
     rlt::malloc(device, m);
     rlt::randn(device, m, rng);
@@ -50,7 +50,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     OPTIMIZER optimizer;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 3>;
     using LAYER_SPEC = rlt::nn::layers::dense::Configuration<DTYPE, typename DEVICE::index_t, 3, rlt::nn::activation_functions::ActivationFunction::RELU>;
@@ -83,7 +83,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     using TI = typename DEVICE::index_t;
     using DTYPE = float;
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE{});
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
     using SPEC = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;

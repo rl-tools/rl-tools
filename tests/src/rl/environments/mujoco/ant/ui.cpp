@@ -30,7 +30,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     rlt::malloc(dev, env);
     rlt::init(dev, env, env_parameters, ui);
 
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    auto rng = rlt::random::default_engine(DEVICE{}, 10);
 
     typename ENVIRONMENT::State state, next_state;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
