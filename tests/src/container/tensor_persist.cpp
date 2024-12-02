@@ -247,7 +247,7 @@ template <typename DEVICE, typename SHAPE>
 bool serialize(DEVICE& device){
     using T = double;
     using TI = typename DEVICE::index_t;
-    auto rng = rlt::random::default_engine(device.random);
+    auto rng = rlt::random::default_engine(device);
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor, tensor2, diff;
     rlt::malloc(device, tensor);
     rlt::malloc(device, tensor2);
@@ -290,7 +290,7 @@ template <typename DEVICE, typename SHAPE, typename DEVICE::index_t VIEW_DIM, ty
 bool serialize_view(DEVICE& device){
     using T = double;
     using TI = typename DEVICE::index_t;
-    auto rng = rlt::random::default_engine(device.random);
+    auto rng = rlt::random::default_engine(device);
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> generator, tensor;
     rlt::malloc(device, generator);
     rlt::malloc(device, tensor);
@@ -380,7 +380,7 @@ template <typename DEVICE, typename SHAPE, typename T1, typename T2>
 bool save_and_load_one_way(DEVICE& device){
     using T = double;
     using TI = typename DEVICE::index_t;
-    auto rng = rlt::random::default_engine(device.random);
+    auto rng = rlt::random::default_engine(device);
     rlt::Tensor<rlt::tensor::Specification<T1, TI, SHAPE>> tensor;
     rlt::malloc(device, tensor);
     rlt::randn(device, tensor, rng);
