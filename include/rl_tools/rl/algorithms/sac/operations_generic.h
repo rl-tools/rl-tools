@@ -82,6 +82,7 @@ namespace rl_tools{
         malloc(device, critic_training_buffers.d_output);
         malloc(device, critic_training_buffers.d_input);
         malloc(device, critic_training_buffers.next_action_log_probs);
+        malloc(device, critic_training_buffers.loss_weight);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -98,6 +99,7 @@ namespace rl_tools{
         free(device, critic_training_buffers.d_output);
         free(device, critic_training_buffers.d_input);
         free(device, critic_training_buffers.next_action_log_probs);
+        free(device, critic_training_buffers.loss_weight);
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
@@ -217,6 +219,18 @@ namespace rl_tools{
             mask_gradient_step(device, gradient, mask, seq_step_i, invert_mask);
         }
     }
+    template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename LOSS_WEIGHT_SPEC>
+    void calculate_gradient_weight(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>& batch, Tensor<LOSS_WEIGHT_SPEC>& loss_weight){
+        static_assert(LOSS_WEIGHT_SPEC::SHAPE::LENGTH == 1);
+        static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1);
+        using BATCH = rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>;
+        using T = typename BATCH::T;
+        T loss_weight_value = 0.5;
+        T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+        utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
+        loss_weight_value *= SEQUENCE_LENGTH * BATCH_SIZE / num_final_steps; // reweight the loss by the number of non-masked outputs
+        set(device, loss_weight, loss_weight_value, 0);
+    }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFER_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
     void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -264,14 +278,15 @@ namespace rl_tools{
         auto output_matrix_view = matrix_view(device, output(device, critic));
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
-        T loss_weight = 0.5;
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
-            T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
-            utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
-            loss_weight *= SEQUENCE_LENGTH * BATCH_SIZE / num_final_steps; // reweight the loss by the number of non-masked outputs
+            calculate_gradient_weight(device, batch, training_buffers.loss_weight);
         }
+        else {
+            T loss_weight = 0.5;
+            set(device, training_buffers.loss_weight, loss_weight, 0);
+        }
+        nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, training_buffers.loss_weight); // SB3/SBX uses 1/2, CleanRL doesn't
 
-        nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, loss_weight); // SB3/SBX uses 1/2, CleanRL doesn't
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
@@ -284,7 +299,7 @@ namespace rl_tools{
                 mask_gradient(device, output_temp, batch.final_step_mask, true);
                 mask_gradient(device, training_buffers.target_action_value, batch.final_step_mask, true);
             }
-            T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, loss_weight);
+            T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, training_buffers.loss_weight);
             add_scalar(device, device.logger, "critic_loss", loss, 10001);
         }
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
