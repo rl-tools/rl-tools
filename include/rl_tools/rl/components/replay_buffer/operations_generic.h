@@ -11,9 +11,6 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void init_views(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb){
         typename DEVICE::index_t offset = 0;
-        printf("init views\n");
-        printf("replay buffer pointer %p\n", rb.data._data);
-        printf("replay buffer view pointer before %p\n", rb.observations._data);
         rb.observations                 = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >{}, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
         rb.observations_privileged      = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>{}, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
         rb.actions                      = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::ACTION_DIM                >{}, 0, offset); offset += SPEC::ACTION_DIM;
@@ -22,8 +19,6 @@ namespace rl_tools {
         rb.next_observations_privileged = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>{}, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
         rb.terminated                   = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, 1                               >{}, 0, offset); offset += 1;
         rb.truncated                    = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, 1                               >{}, 0, offset);
-        printf("replay buffer pointer %p\n", rb.data._data);
-        printf("replay buffer view pointer %p\n", rb.observations._data);
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
