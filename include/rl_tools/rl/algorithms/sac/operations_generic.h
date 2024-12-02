@@ -192,23 +192,29 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SOURCE_SPEC, typename MASK_SPEC>
+    void mask_gradient(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<MASK_SPEC>& mask, typename DEVICE::index_t seq_step_i, bool invert_mask=false) {
+        using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = get<1>(typename SOURCE_SPEC::SHAPE{});
+        auto gradient_seq_step_view = view(device, gradient, seq_step_i);
+        for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
+            auto gradient_batch_step_view = view(device, gradient_seq_step_view, batch_step_i);
+            bool reset = get(device, mask, seq_step_i, batch_step_i, 0);
+            if(invert_mask){
+                reset = !reset;
+            }
+            if(reset){
+                set_all(device, gradient_batch_step_view, 0);
+            }
+        }
+    }
+
+    template <typename DEVICE, typename SOURCE_SPEC, typename MASK_SPEC>
     void mask_gradient(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
         using T = typename SOURCE_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
-        constexpr TI BATCH_SIZE = get<1>(typename SOURCE_SPEC::SHAPE{});
         for(TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
-            auto gradient_seq_step_view = view(device, gradient, seq_step_i);
-            for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-                auto gradient_batch_step_view = view(device, gradient_seq_step_view, batch_step_i);
-                bool reset = get(device, mask, seq_step_i, batch_step_i, 0);
-                if(invert_mask){
-                    reset = !reset;
-                }
-                if(reset){
-                    set_all(device, gradient_batch_step_view, 0);
-                }
-            }
+            mask_gradient(device, gradient, mask, seq_step_i, invert_mask);
         }
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFER_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
