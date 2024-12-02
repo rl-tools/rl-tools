@@ -48,8 +48,16 @@ namespace rl_tools::rl::components::off_policy_runner {
         using POLICIES = T_POLICIES;
         using PARAMETERS = T_PARAMETERS;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+#ifndef _MSC_VER
         static constexpr bool DYNAMIC_ALLOCATION_REPLAY_BUFFER = false;
         static constexpr bool DYNAMIC_ALLOCATION_EPISODE_STATS = false;
+#else
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDA
+#fatal "CUDA requires static allocation of the replay buffers in the OffPolicyRunner"
+#endif
+        static constexpr bool DYNAMIC_ALLOCATION_REPLAY_BUFFER = true;
+        static constexpr bool DYNAMIC_ALLOCATION_EPISODE_STATS = true;
+#endif
         static_assert((PARAMETERS::ASYMMETRIC_OBSERVATIONS && ENVIRONMENT::ObservationPrivileged::DIM > 0) == PARAMETERS::ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS requested but not available in the environment");
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : ENVIRONMENT::Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::ObservationPrivileged::DIM : 0;
