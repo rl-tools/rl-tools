@@ -69,7 +69,7 @@ namespace rl_tools{
         static_assert(SIZE > 0);
         static_assert(get<DIM>(typename SPEC::SHAPE{}) >= SIZE);
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
         utils::assert_exit(device, offset < SPEC::SIZE, "Index out of bounds");
         utils::assert_exit(device, offset + SIZE <= SPEC::SIZE, "Index out of bounds");
 #endif
@@ -85,7 +85,7 @@ namespace rl_tools{
         static_assert(SIZE > 0);
         static_assert(get<DIM>(typename SPEC::SHAPE{}) >= SIZE);
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
         utils::assert_exit(device, offset < SPEC::SIZE, "Index out of bounds");
         utils::assert_exit(device, offset + SIZE <= SPEC::SIZE, "Index out of bounds");
 #endif
@@ -190,7 +190,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T get(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
         static_assert(length(typename SPEC::SHAPE{})==1);
         auto idx = index(device, tensor, local_index);
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
         utils::assert_exit(device, idx < SPEC::SIZE, "Index out of bounds");
 #endif
         return *(data(tensor) + idx);
@@ -210,7 +210,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T get_flat(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
         static_assert(tensor::dense_row_major_layout<SPEC>());
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
         utils::assert_exit(device, local_index < SPEC::SIZE, "Index out of bounds");
 #endif
         return *(data(tensor) + local_index);
@@ -220,7 +220,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void set(DEVICE& device, Tensor<SPEC>& tensor, typename SPEC::T value, TII current_index){
         static_assert(length(typename SPEC::SHAPE{})==1);
         auto idx = index(device, tensor, static_cast<typename DEVICE::index_t>(current_index));
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
         utils::assert_exit(device, idx < SPEC::SIZE, "Index out of bounds");
 #endif
         *(data(tensor) + idx) = value;

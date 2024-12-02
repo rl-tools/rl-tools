@@ -62,7 +62,7 @@ namespace rl_tools{
 
     }
     template <typename TI, TI VALUE, typename NEXT_ELEMENT>
-    TI constexpr length(tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI current_length=0){
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr length(tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI current_length=0){
         if constexpr(utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
             return current_length;
         }
@@ -71,7 +71,7 @@ namespace rl_tools{
         }
     }
     template <typename TI, TI VALUE, typename NEXT_ELEMENT>
-    TI constexpr product(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr product(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
         if constexpr(utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
             return 1;
         }
@@ -80,7 +80,7 @@ namespace rl_tools{
         }
     }
     template <auto TARGET_INDEX_INPUT, typename TI, TI VALUE, typename NEXT_ELEMENT>
-    TI constexpr get(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr get(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
         constexpr TI TARGET_INDEX = TARGET_INDEX_INPUT;
     //        constexpr bool LAST_ELEMENT = utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>;
         static_assert(TARGET_INDEX <= length(NEXT_ELEMENT{}), "Index out of bounds");
@@ -92,7 +92,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename TI, TI VALUE, typename NEXT_ELEMENT>
-    TI get(DEVICE& device, const tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI index){
+    RL_TOOLS_FUNCTION_PLACEMENT TI get(DEVICE& device, const tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI index){
         utils::assert_exit(device, index < length(tensor::Element<TI, VALUE, NEXT_ELEMENT>{}), "Index out of bounds");
         if constexpr (utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
             return VALUE;
@@ -107,7 +107,7 @@ namespace rl_tools{
         }
     }
     template <typename TI, TI VALUE, typename NEXT_ELEMENT>
-    TI constexpr get_last(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr get_last(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
         constexpr TI TARGET_INDEX = length(tensor::Element<TI, VALUE, NEXT_ELEMENT>{}) - 1;
         if constexpr(TARGET_INDEX == 0){
             return VALUE;
@@ -219,7 +219,7 @@ namespace rl_tools{
             static constexpr auto SIZE = T_SIZE;
         };
         template <typename SHAPE, typename STRIDE>
-        bool constexpr generalized_row_major(){
+        RL_TOOLS_FUNCTION_PLACEMENT bool constexpr generalized_row_major(){
             static_assert(length(SHAPE{}) == length(STRIDE{}));
             if constexpr(length(SHAPE{}) == 1){
                 return true;
@@ -233,7 +233,7 @@ namespace rl_tools{
             }
         }
         template <typename A, typename B>
-        bool constexpr same_dimensions_shape(){
+       RL_TOOLS_FUNCTION_PLACEMENT  bool constexpr same_dimensions_shape(){
             if constexpr(length(A{}) != length(B{})){
                 return false;
             }
@@ -247,13 +247,13 @@ namespace rl_tools{
             }
         }
         template <typename SPEC_A, typename SPEC_B>
-        bool constexpr same_dimensions(){
+        RL_TOOLS_FUNCTION_PLACEMENT bool constexpr same_dimensions(){
             return same_dimensions_shape<typename SPEC_A::SHAPE, typename SPEC_B::SHAPE>();
         }
 
 
         template <typename SHAPE, typename STRIDE, bool RELAX_MAJOR=false>
-        bool constexpr _dense_row_major_layout_shape(){
+        RL_TOOLS_FUNCTION_PLACEMENT bool constexpr _dense_row_major_layout_shape(){
             static_assert(length(SHAPE{}) > 0);
             if(length(STRIDE{}) != length(SHAPE{})){
                 return false;
@@ -273,7 +273,7 @@ namespace rl_tools{
             }
         }
         template <typename SPEC, bool RELAX_MAJOR=false>
-        bool constexpr dense_row_major_layout(){
+        RL_TOOLS_FUNCTION_PLACEMENT bool constexpr dense_row_major_layout(){
             return _dense_row_major_layout_shape<typename SPEC::SHAPE, typename SPEC::STRIDE, RELAX_MAJOR>();
         }
         namespace spec::view{
