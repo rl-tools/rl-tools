@@ -164,7 +164,8 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        rl::components::off_policy_runner::gather_batch_kernel<DETERMINISTIC><<<bias_grid, bias_block, 0, device.stream>>>(device, runner, batch, rng);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        rl::components::off_policy_runner::gather_batch_kernel<DETERMINISTIC><<<bias_grid, bias_block, 0, device.stream>>>(tag_device, runner, batch, rng);
         check_status(device);
     }
     template<auto POLICY_INDEX, typename DEV_SPEC, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>

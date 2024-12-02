@@ -165,7 +165,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, typename MASK_SPEC>
-    void mask_actions_step(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, Tensor<MASK_SPEC>& mask, typename DEVICE::index_t seq_step_i, bool invert_mask=false){
+    RL_TOOLS_FUNCTION_PLACEMENT void mask_actions_step(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, Tensor<MASK_SPEC>& mask, typename DEVICE::index_t seq_step_i, bool invert_mask=false){
         using TI = typename DEVICE::index_t;
         auto source_seq_step_view = view(device, source, seq_step_i);
         auto target_seq_step_view = view(device, target, seq_step_i);

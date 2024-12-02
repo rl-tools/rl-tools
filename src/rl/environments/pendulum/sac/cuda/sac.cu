@@ -40,6 +40,10 @@ using RNG_INIT = decltype(rlt::random::default_engine(DEVICE_INIT{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#pragma message "RL_TOOLS_FUNCTION_PLACEMENT: " TOSTRING(RL_TOOLS_FUNCTION_PLACEMENT)
+
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
