@@ -6,3 +6,4 @@
 - Check the action distribution of the actor after random initialization
 # CUDA
 - Make sure nothing is passed by reference into any kernel
+- Pay attention to `warning #20013-D: calling a constexpr __host__ function`

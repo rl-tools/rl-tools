@@ -268,6 +268,7 @@ namespace rl_tools{
         TI sample_index;
         constexpr bool RANDOM_SEQ_LENGTH = true;
         constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
+        printf("hello from gather_batch %d\n", batch_step_i);
 
         TI current_seq_length = SEQUENCE_LENGTH;
         if constexpr(RANDOM_SEQ_LENGTH){
@@ -280,20 +281,26 @@ namespace rl_tools{
                 }
             }
         }
+        printf("after random seq length  %d\n", batch_step_i);
         TI current_seq_step = 0;
 
         bool previous_step_truncated = true;
         for(typename DEVICE::index_t seq_step_i=0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++) {
             if(previous_step_truncated){
+                printf("before sampling index  %d\n", batch_step_i);
                 sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(device.random, (TI) 0, sample_index_max, rng);
+                printf("after sampling index  %d\n", batch_step_i);
             }
 
+            printf("doing views  %d\n", batch_step_i);
             auto observation_target_sequence = view<0>(device, batch.observations, seq_step_i);
             auto observation_target = view<0>(device, observation_target_sequence, batch_step_i);
             auto observation_source = row(device, replay_buffer.observations, sample_index);
             auto observation_source_tensor = to_tensor(device, observation_source);
             auto observation_source_tensor_squeezed = squeeze(device, observation_source_tensor);
+            printf("before copy observation  %d\n", batch_step_i);
             copy(device, device, observation_source_tensor_squeezed, observation_target);
+            printf("after copy observation  %d\n", batch_step_i);
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
                 auto observation_privileged_target_sequence = view<0>(device, batch.observations_privileged, seq_step_i);
@@ -310,17 +317,20 @@ namespace rl_tools{
             auto action_source_tensor = to_tensor(device, action_source);
             auto action_source_tensor_squeezed = squeeze(device, action_source_tensor);
             copy(device, device, action_source_tensor_squeezed, action_target);
+            printf("after copy action  %d\n", batch_step_i);
 
             if(seq_step_i >= 1 && !previous_step_truncated){
                 auto next_action_target_sequence = view<0>(device, batch.next_actions, seq_step_i-1); // <<= -1 is important!
                 auto next_action_target = view<0>(device, next_action_target_sequence, batch_step_i);
                 copy(device, device, action_source_tensor_squeezed, next_action_target);
+                printf("after copy action  %d\n", batch_step_i);
             }
             else{
                 TI target_index = seq_step_i == 0 ? SEQUENCE_LENGTH-1 : seq_step_i-1;
                 auto next_action_target_sequence = view<0>(device, batch.next_actions, target_index);
                 auto next_action_target = view<0>(device, next_action_target_sequence, batch_step_i);
                 set_all(device, next_action_target, math::nan<T>(device.math)); // setting the empty slot to nan that is filled by the current actor
+                printf("after setting next action to nan  %d\n", batch_step_i);
             }
 
             auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i);
@@ -329,6 +339,7 @@ namespace rl_tools{
             auto next_observation_source_tensor = to_tensor(device, next_observation_source);
             auto next_observation_source_tensor_squeezed = squeeze(device, next_observation_source_tensor);
             copy(device, device, next_observation_source_tensor_squeezed, next_observation_target);
+            printf("after copy next obs  %d\n", batch_step_i);
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
                 auto next_observation_privileged_target_sequence = view<0>(device, batch.next_observations_privileged, seq_step_i);
@@ -342,6 +353,9 @@ namespace rl_tools{
             set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i, 0);
             set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i, 0);
             set(device, batch.reset, previous_step_truncated, seq_step_i, batch_step_i, 0);
+
+            printf("after setting batch  %d\n", batch_step_i);
+
             if(seq_step_i > 0){
                 set(device, batch.final_step_mask, previous_step_truncated, seq_step_i-1, batch_step_i, 0);
             }
@@ -350,6 +364,7 @@ namespace rl_tools{
                 set(device, batch.final_step_mask, true, SEQUENCE_LENGTH-1, batch_step_i, 0);
             }
             bool truncated = get(replay_buffer.truncated, sample_index, 0);
+            printf("after setting batch truncated  %d\n", batch_step_i);
             set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
             sample_index = sample_index + 1;
             sample_index = sample_index % (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position);

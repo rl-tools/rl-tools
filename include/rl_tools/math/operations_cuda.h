@@ -10,6 +10,7 @@
 #include "operations_generic.h"
 
 #include "../devices/cuda.h"
+#include <limits>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::math {

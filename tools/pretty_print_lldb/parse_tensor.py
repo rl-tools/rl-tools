@@ -59,7 +59,8 @@ def parse_templates(text, root, verbose=False):
 
 
 class Tensor:
-    def __init__(self, element_type, index_type, shape, dynamic_allocation, stride):
+    def __init__(self, pointer, element_type, index_type, shape, dynamic_allocation, stride):
+        self.pointer = pointer
         self.element_type = element_type
         self.index_type = index_type
         self.shape = shape
@@ -67,7 +68,7 @@ class Tensor:
         self.stride = stride
     
     def __str__(self):
-        return f"Tensor(shape={self.shape}, stride={self.stride}, element_type={self.element_type}, index_type={self.index_type}, dynamic_allocation={self.dynamic_allocation})"
+        return f"Tensor(pointer={self.pointer}, shape={self.shape}, stride={self.stride}, element_type={self.element_type}, index_type={self.index_type}, dynamic_allocation={self.dynamic_allocation})"
     
     def __repr__(self):
         return str(self)
@@ -309,7 +310,7 @@ def parse_tuple(tree, verbose=False):
     
 
 
-def parse_tensor(tree, verbose=False):
+def parse_tensor(pointer, tree, verbose=False):
     if tree.type != "tree":
         if verbose:
             print(f"Parse Tensor: Expected tree node, got {tree.type}")
@@ -366,23 +367,23 @@ def parse_tensor(tree, verbose=False):
     if stride is None:
         return None
 
-    return Tensor(element_type, index_type, shape, dynamic_allocation, stride)
+    return Tensor(pointer, element_type, index_type, shape, dynamic_allocation, stride)
     
 
 
 
-def parse_string(text, verbose=False):
+def parse_string(pointer, text, verbose=False):
     root = Node("tree")
     parse_templates(text, root, verbose=verbose)
     if verbose:
         root.print()
-    return parse_tensor(root, verbose=verbose)
+    return parse_tensor(pointer, root, verbose=verbose)
 
 
     
 
 if __name__ == "__main__":
-    tensor = parse_string(example, verbose=True)
+    tensor = parse_string(0x00, example, verbose=True)
     print(tensor)
 
 # with open("lldb_type_dump.txt", "r") as file:
