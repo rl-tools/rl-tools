@@ -333,25 +333,25 @@ namespace rl_tools{
     };
 
     template <typename T, typename TI, TI SIZE>
-    constexpr auto data(tensor::TensorStatic<T, TI, SIZE>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT auto data(tensor::TensorStatic<T, TI, SIZE>& tensor){
         return tensor._data;
     }
     template <typename T, typename TI, TI SIZE>
-    constexpr auto data(const tensor::TensorStatic<T, TI, SIZE>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT auto data(const tensor::TensorStatic<T, TI, SIZE>& tensor){
         return &tensor._data[0];
     }
 
     template <typename T, typename TI, TI SIZE, bool CONST>
-    constexpr auto data(tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT auto data(tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
         return tensor._data;
     }
     template <typename T, typename TI, TI SIZE, bool CONST>
-    constexpr auto data(const tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT auto data(const tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
         return &tensor._data[0];
     }
 
     template <typename T, typename TI, TI SIZE, bool CONST>
-    constexpr T** data_pointer(tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT T** data_pointer(tensor::TensorDynamic<T, TI, SIZE, CONST>& tensor){
         return &tensor._data;
     }
 }

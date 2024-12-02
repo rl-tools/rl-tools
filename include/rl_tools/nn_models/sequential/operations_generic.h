@@ -220,40 +220,40 @@ namespace rl_tools{
     }
 
     template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    auto _content_output_helper(DEVICE& device, Tensor<SPEC>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, Tensor<SPEC>& tensor){
         return tensor;
     }
     template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    auto _content_output_helper(DEVICE& device, const Tensor<SPEC>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, const Tensor<SPEC>& tensor){
         return tensor;
     }
     template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    auto _content_output_helper(DEVICE& device, Matrix<SPEC>& matrix){
+    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, Matrix<SPEC>& matrix){
         auto output_tensor = to_tensor(device, matrix);
         auto output_tensor_reshaped = reshape_row_major(device, output_tensor, TARGET_SHAPE{});
         return output_tensor_reshaped;
     }
     template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    auto _content_output_helper(DEVICE& device, const Matrix<SPEC>& matrix){
+    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, const Matrix<SPEC>& matrix){
         auto output_tensor = to_tensor(device, matrix);
         auto output_tensor_reshaped = reshape_row_major(device, output_tensor, TARGET_SHAPE{});
         return output_tensor_reshaped;
     }
 
     template <typename DEVICE, typename SPEC> // non-const
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto content_output(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT auto content_output(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& m){
         auto output_matrix = output(device, m.content);
         return _content_output_helper<typename SPEC::CONTENT::OUTPUT_SHAPE>(device, output_matrix);
     }
 
     template <typename DEVICE, typename SPEC> // const
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto content_output(DEVICE& device, const nn_models::sequential::ModuleGradient<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT auto content_output(DEVICE& device, const nn_models::sequential::ModuleGradient<SPEC>& m){
         auto output_matrix = output(device, m.content);
         return _content_output_helper<typename SPEC::CONTENT::OUTPUT_SHAPE>(device, output_matrix);
     }
 
     template <typename DEVICE, typename SPEC> // non-const
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT auto output(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             return content_output(device, m);
         } else {
@@ -261,7 +261,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC> // const
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, const nn_models::sequential::ModuleGradient<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT auto output(DEVICE& device, const nn_models::sequential::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             return content_output(device, m);
         } else {

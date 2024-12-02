@@ -109,7 +109,7 @@ class TensorPrinter:
         print(f"float_type is: {float_type}")
         print(f"Typename is: {typename}")
 
-        tensor = parse_string(typename)
+        tensor = parse_string(str(float_ptr), typename)
         if tensor is None:
             print(f"Parse error on: {typename}")
             return typename
