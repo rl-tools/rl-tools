@@ -165,25 +165,30 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, typename MASK_SPEC>
+    void mask_actions_step(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, Tensor<MASK_SPEC>& mask, typename DEVICE::index_t seq_step_i, bool invert_mask=false){
+        using TI = typename DEVICE::index_t;
+        auto source_seq_step_view = view(device, source, seq_step_i);
+        auto target_seq_step_view = view(device, target, seq_step_i);
+        constexpr TI BATCH_SIZE = get<1>(typename SOURCE_SPEC::SHAPE{});
+        for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
+            auto source_batch_step_view = view(device, source_seq_step_view, batch_step_i);
+            auto target_batch_step_view = view(device, target_seq_step_view, batch_step_i);
+            bool reset = get(device, mask, seq_step_i, batch_step_i, 0);
+            if(invert_mask){
+                reset = !reset;
+            }
+            if(reset){
+                copy(device, device, source_batch_step_view, target_batch_step_view);
+            }
+        }
+    }
+    template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, typename MASK_SPEC>
     void mask_actions(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
         using T = typename SOURCE_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
-        constexpr TI BATCH_SIZE = get<1>(typename SOURCE_SPEC::SHAPE{});
         for(TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
-            auto source_seq_step_view = view(device, source, seq_step_i);
-            auto target_seq_step_view = view(device, target, seq_step_i);
-            for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-                auto source_batch_step_view = view(device, source_seq_step_view, batch_step_i);
-                auto target_batch_step_view = view(device, target_seq_step_view, batch_step_i);
-                bool reset = get(device, mask, seq_step_i, batch_step_i, 0);
-                if(invert_mask){
-                    reset = !reset;
-                }
-                if(reset){
-                    copy(device, device, source_batch_step_view, target_batch_step_view);
-                }
-            }
+            mask_actions_step(device, source, target, mask, seq_step_i, invert_mask);
         }
     }
     template <typename DEVICE, typename SOURCE_SPEC, typename MASK_SPEC>
