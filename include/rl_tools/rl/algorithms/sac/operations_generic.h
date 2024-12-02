@@ -192,7 +192,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SOURCE_SPEC, typename MASK_SPEC>
-    void mask_gradient(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<MASK_SPEC>& mask, typename DEVICE::index_t seq_step_i, bool invert_mask=false) {
+    RL_TOOLS_FUNCTION_PLACEMENT void mask_gradient_step(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<MASK_SPEC>& mask, typename DEVICE::index_t seq_step_i, bool invert_mask=false) {
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = get<1>(typename SOURCE_SPEC::SHAPE{});
         auto gradient_seq_step_view = view(device, gradient, seq_step_i);
@@ -214,7 +214,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
         for(TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
-            mask_gradient(device, gradient, mask, seq_step_i, invert_mask);
+            mask_gradient_step(device, gradient, mask, seq_step_i, invert_mask);
         }
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFER_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
