@@ -868,12 +868,12 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         multiply_generic(device, A, B, output);
     }
     template<typename DEVICE, typename SPEC>
-    auto matrix_view(DEVICE& device, Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT auto matrix_view(DEVICE& device, Matrix<SPEC>& m){
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true>> out{m._data};
         return out;
     }
     template<typename DEVICE, typename SPEC>
-    auto matrix_view(DEVICE& device, const Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT auto matrix_view(DEVICE& device, const Matrix<SPEC>& m){
         const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS, true>> out{m._data};
         return out;
     }
