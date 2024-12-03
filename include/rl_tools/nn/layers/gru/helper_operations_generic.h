@@ -131,34 +131,35 @@ namespace rl_tools::nn::layers::gru::helper{
     void d_sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<unary_operations::d_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::OperationLegacy<unary_operations::d_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     void d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC>& t){
         // this function takes sigmoid(x) as an input instead of x (to reuse it in the calculation)
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<unary_operations::d_sigmoid_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+        unary_operation(device, tensor::OperationLegacy<unary_operations::d_sigmoid_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     void d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         // this function takes sigmoid(x) as an input instead of x (to reuse it in the calculation)
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<unary_operations::d_sigmoid_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::OperationLegacy<unary_operations::d_sigmoid_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     void d_tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<unary_operations::d_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::OperationLegacy<unary_operations::d_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     void d_tanh_post_activation(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         // this function takes tanh(x) as an input instead of x (to reuse it in the calculation)
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<unary_operations::d_tanh_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::OperationLegacy<unary_operations::d_tanh_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
+
 }
 #endif
