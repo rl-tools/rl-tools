@@ -290,81 +290,110 @@ namespace rl_tools{
     }
 
     namespace tensor{
+        struct Operation{};
         struct OperationEmptyParameter{};
         template <auto T_OPERATION, typename PARAMETER=OperationEmptyParameter>
-        struct Operation{
+        struct OperationLegacy{
             static constexpr auto OPERATION = T_OPERATION;
             PARAMETER parameter;
         };
-        namespace binary_operations{
-            template <typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T add(T a, T b, const OperationEmptyParameter){
-                return a + b;
-            }
-            template <typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T subtract(T a, T b, const OperationEmptyParameter){
-                return a - b;
-            }
-            template <typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T multiply(T a, T b, const OperationEmptyParameter){
-                return a * b;
-            }
-            template <typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T divide(T a, T b, const OperationEmptyParameter){
-                return a / b;
-            }
+        namespace operations::binary{
+            struct Add: Operation{
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Add& parameter, T a, T b){
+                    return a + b;
+                }
+            };
+            struct Subtract: Operation{
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Subtract& parameter, T a, T b){
+                    return a - b;
+                }
+            };
+            struct Multiply: Operation{
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Multiply& parameter, T a, T b){
+                    return a * b;
+                }
+            };
+            struct Divide: Operation{
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Divide parameter, T a, T b){
+                    return a / b;
+                }
+            };
         }
-        namespace unary_operations{
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T negate(DEVICE& device, const PARAMETER& parameter, T a){
-                return -a;
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T abs(DEVICE& device, const PARAMETER& parameter, T a){
-                return math::abs(device.math, a);
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T constant(DEVICE& device, const PARAMETER& parameter, T a){
-                return parameter;
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
-                return 1 / (1 + math::exp(device.math, -a));
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T fast_sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
-                return math::fast_sigmoid(device.math, a);
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T exp(DEVICE& device, const PARAMETER& parameter, T a){
-                return math::exp(device.math, a);
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T tanh(DEVICE& device, const PARAMETER& parameter, T a){
-                return math::tanh(device.math, a);
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T fast_tanh(DEVICE& device, const PARAMETER& parameter, T a){
-                return math::fast_tanh(device.math, a);
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T one_minus(DEVICE& device, const PARAMETER& parameter, T a){
-                return 1 - a;
-            }
+        namespace operations::unary{
+            struct Negate: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Negate& parameter, T a){
+                    return -a;
+                }
+            };
+            struct Abs: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Abs& parameter, T a){
+                    return math::abs(device.math, a);
+                }
+            };
             template <typename T>
-            struct ScaleOperationParameters{
+            struct Constant: Operation {
+                T constant;
+                template <typename DEVICE, typename T_T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T_T operation(DEVICE& device, const Constant<T_T>& parameter, T_T a){
+                    return parameter.constant;
+                }
+            };
+            struct Sigmoid: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Sigmoid& parameter, T a){
+                    return 1 / (1 + math::exp(device.math, -a));
+                }
+            };
+            struct FastSigmoid: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const FastSigmoid& parameter, T a){
+                    return math::fast_sigmoid(device.math, a);
+                }
+            };
+            struct Exp: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Exp& parameter, T a){
+                    return math::exp(device.math, a);
+                }
+            };
+            struct Tanh: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Tanh& parameter, T a){
+                    return math::tanh(device.math, a);
+                }
+            };
+            struct FastTanh: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const FastTanh& parameter, T a){
+                    return math::fast_tanh(device.math, a);
+                }
+            };
+            struct OneMinus: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const OneMinus& parameter, T a){
+                    return 1 - a;
+                }
+            };
+            template <typename T>
+            struct Scale: Operation{
                 T scale;
                 bool reciprocal;
+                template <typename DEVICE, typename T_T>
+                RL_TOOLS_FUNCTION_PLACEMENT T_T static operation(DEVICE& device, const Scale<T_T>& parameter, T_T a){
+                    if(parameter.reciprocal){
+                        return ((T_T)1.0)/a * parameter.scale;
+                    }
+                    else{
+                        return a * parameter.scale;
+                    }
+                }
             };
-            template <typename DEVICE, typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T scale(DEVICE& device, const ScaleOperationParameters<T>& parameter, T a){
-                if(parameter.reciprocal){
-                    return ((T)1.0)/a * parameter.scale;
-                }
-                else{
-                    return a * parameter.scale;
-                }
-            }
         }
         namespace ternary_operations{
             template <typename T>
@@ -443,8 +472,8 @@ namespace rl_tools{
             using AbsoluteDifference = BinaryReduceOperation<OperationEmptyParameter, T1, T1, T2, impl::absolute_difference<DEVICE, OperationEmptyParameter, T1, T1, T2>, impl::sum<DEVICE, OperationEmptyParameter, T1, T1>>;
         }
     }
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, auto BINARY_OPERATION, typename OPERATION_PARAMETER>
-    RL_TOOLS_FUNCTION_PLACEMENT void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER> param, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    template<typename DEVICE, typename OPERATION, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    RL_TOOLS_FUNCTION_PLACEMENT void binary_operation(DEVICE& device, const OPERATION& operation, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
@@ -454,20 +483,20 @@ namespace rl_tools{
                 auto next_t1 = view(device, t1, i);
                 auto next_t2 = view(device, t2, i);
                 auto next_result = view(device, result, i);
-                binary_operation(device, param, next_t1, next_t2, next_result);
+                binary_operation(device, operation, next_t1, next_t2, next_result);
             }
         }
         else{
             for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
                 T t1_value = get(device, t1, i);
                 T t2_value = get(device, t2, i);
-                T result_value = BINARY_OPERATION(t1_value, t2_value, param.parameter);
+                T result_value = OPERATION::operation(device, operation, t1_value, t2_value);
                 set(device, result, result_value, i);
             }
         }
     }
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_OPERATION, typename OPERATION_PARAMETER>
-    RL_TOOLS_FUNCTION_PLACEMENT void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER> params, const Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
+    template<typename DEVICE, typename OPERATION, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT void binary_operation(DEVICE& device, const OPERATION operation, const Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
@@ -475,68 +504,68 @@ namespace rl_tools{
             for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
                 auto next_t1 = view(device, t1, i);
                 auto next_t2 = view(device, t2, i);
-                binary_operation(device, params, next_t1, next_t2);
+                binary_operation(device, operation, next_t1, next_t2);
             }
         }
         else{
             for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
                 T t1_value = get(device, t1, i);
                 T t2_value = get(device, t2, i);
-                T result_value = BINARY_OPERATION(t1_value, t2_value, params.parameter);
+                T result_value = OPERATION::operation(device, operation, t1_value, t2_value);
                 set(device, t2, result_value, i);
             }
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     RL_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
-        binary_operation(device, tensor::Operation<tensor::binary_operations::add<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2);
+        binary_operation(device, tensor::operations::binary::Add{}, t1, t2);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     RL_TOOLS_FUNCTION_PLACEMENT void subtract(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
-        binary_operation(device, tensor::Operation<tensor::binary_operations::subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, result);
+        binary_operation(device, tensor::operations::binary::Subtract{}, t1, t2, result);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     RL_TOOLS_FUNCTION_PLACEMENT void multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
-        binary_operation(device, tensor::Operation<tensor::binary_operations::multiply<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2);
+        binary_operation(device, tensor::operations::binary::Multiply{}, t1, t2);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT void multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
-        binary_operation(device, tensor::Operation<tensor::binary_operations::multiply<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, t_output);
+        binary_operation(device, tensor::operations::binary::Multiply{}, t1, t2, t_output);
     }
 
-    template<typename DEVICE, typename SPEC, auto UNARY_OPERATION, typename OPERATION_PARAMETER>
-    RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(DEVICE& device, const tensor::Operation<UNARY_OPERATION, OPERATION_PARAMETER>& op, Tensor<SPEC>& t){
+    template<typename DEVICE, typename OPERATION, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(DEVICE& device, const OPERATION& operation, Tensor<SPEC>& t){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         if constexpr(length(typename SPEC::SHAPE{}) > 1){
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
                 auto next_t = view(device, t, i);
-                unary_operation(device, op, next_t);
+                unary_operation(device, operation, next_t);
             }
         }
         else{
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
                 T t_value = get(device, t, i);
-                T result_value = UNARY_OPERATION(device, op.parameter, t_value);
+                T result_value = OPERATION::operation(device, operation, t_value);
                 set(device, t, result_value, i);
             }
         }
     }
-    template<typename DEVICE, typename SPEC, auto UNARY_OPERATION, typename OPERATION_PARAMETER, typename SPEC_OUTPUT>
-    RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(DEVICE& device, const tensor::Operation<UNARY_OPERATION, OPERATION_PARAMETER>& op, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    template<typename DEVICE, typename OPERATION, typename SPEC, typename SPEC_OUTPUT>
+    RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(DEVICE& device, const OPERATION& operation, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         if constexpr(length(typename SPEC::SHAPE{}) > 1){
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
                 auto next_t = view(device, t, i);
                 auto next_output = view(device, output, i);
-                unary_operation(device, op, next_t, next_output);
+                unary_operation(device, operation, next_t, next_output);
             }
         }
         else{
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
                 T t_value = get(device, t, i);
-                T result_value = UNARY_OPERATION(device, op.parameter, t_value);
+                T result_value = OPERATION::operation(device, operation, t_value);
                 set(device, output, result_value, i);
             }
         }
@@ -544,77 +573,101 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void exp(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::exp<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+        unary_operation(device, tensor::operations::unary::Exp{}, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT void exp(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::exp<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::operations::unary::Exp{}, t, output);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void sigmoid(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+        unary_operation(device, tensor::operations::unary::Sigmoid{}, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT void sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::operations::unary::Sigmoid{}, t, output);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void fast_sigmoid(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::fast_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+        unary_operation(device, tensor::operations::unary::FastSigmoid{}, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT void fast_sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::fast_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::operations::unary::FastSigmoid{}, t, output);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void tanh(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+        unary_operation(device, tensor::operations::unary::Tanh{}, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT void tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::operations::unary::Tanh{}, t, output);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void fast_tanh(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::fast_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+        unary_operation(device, tensor::operations::unary::FastTanh{}, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT void fast_tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::fast_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+        unary_operation(device, tensor::operations::unary::FastTanh{}, t, output);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void scale(DEVICE& device, Tensor<SPEC>& t, typename SPEC::T scale, bool reciprocal = false){
         using T = typename SPEC::T;
-        using PARAMETER_TYPE = tensor::unary_operations::ScaleOperationParameters<T>;
-        tensor::Operation<tensor::unary_operations::scale<DEVICE, T>, PARAMETER_TYPE> operation;
-        operation.parameter.scale = scale;
-        operation.parameter.reciprocal = reciprocal;
+        tensor::operations::unary::Scale<T> operation;
+        operation.scale = scale;
+        operation.reciprocal = reciprocal;
         unary_operation(device, operation, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    RL_TOOLS_FUNCTION_PLACEMENT void scale(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void scale(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output, bool reciprocal = false){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        using PARAMETER_TYPE = tensor::unary_operations::ScaleOperationParameters<T>;
-        tensor::Operation<tensor::unary_operations::scale<DEVICE, PARAMETER_TYPE, T>, PARAMETER_TYPE> operation;
-        operation.parameter.scale = scale;
-        operation.parameter.reciprocal = false;
+        tensor::operations::unary::Scale<T> operation;
+        operation.scale = scale;
+        operation.reciprocal = reciprocal;
         unary_operation(device, operation, t, output);
     }
+    template<typename DEVICE, typename SPEC>
+    void abs(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::operations::unary::Abs{}, t);
+    }
+
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void set_all(DEVICE& device, Tensor<SPEC>& t, typename SPEC::T value){
+        tensor::operations::unary::Constant<typename SPEC::T> op;
+        op.constant = value;
+        unary_operation(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    void one_minus(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        using PARAMETER = T;
+        unary_operation(device, tensor::operations::unary::OneMinus{}, t);
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void one_minus(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        using T = typename SPEC::T;
+        using PARAMETER = T;
+        unary_operation(device, tensor::operations::unary::OneMinus{}, t, output);
+    }
+
+
 
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
     RL_TOOLS_FUNCTION_PLACEMENT ACCUMULATOR_TYPE _unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t, ACCUMULATOR_TYPE accumulator){
@@ -679,10 +732,10 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, auto TERNARY_OPERATION, typename OPERATION_PARAMETER>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const tensor::Operation<TERNARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        using BOP = tensor::Operation<TERNARY_OPERATION, OPERATION_PARAMETER>;
+        using BOP = tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_OUT>());
         if constexpr(length(typename SPEC_1::SHAPE{}) > 1){
@@ -705,10 +758,10 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename SPEC_OUT, auto TERNARY_OPERATION, typename OPERATION_PARAMETER>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const tensor::Operation<TERNARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        using BOP = tensor::Operation<TERNARY_OPERATION, OPERATION_PARAMETER>;
+        using BOP = tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
         static_assert(tensor::same_dimensions<SPEC_2, SPEC_3>());
         static_assert(tensor::same_dimensions<SPEC_3, SPEC_OUT>());
@@ -736,7 +789,7 @@ namespace rl_tools{
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("tensor::multiply_accumulate");
 #endif
-        ternary_operation(device, tensor::Operation<tensor::ternary_operations::multiply_accumulate<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, t_output);
+        ternary_operation(device, tensor::OperationLegacy<tensor::ternary_operations::multiply_accumulate<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, t_output);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_REDUCE_OPERATION, auto BINARY_ASSOCIATIVE_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE1, typename CURRENT_TYPE2, typename OPERATION_PARAMETER>
@@ -800,24 +853,6 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC, auto SIZE=0, auto DIM=length(typename SPEC::SHAPE{})-1>
     RL_TOOLS_FUNCTION_PLACEMENT auto reduce_sum(DEVICE& device, Tensor<SPEC>& input, Tensor<OUTPUT_SPEC>& output, tensor::ViewSpec<DIM, SIZE> = tensor::ViewSpec<length(typename SPEC::SHAPE{})-1, SIZE>{}){
         reduce_sum<false>(device, input, output);
-    }
-
-
-    template<typename DEVICE, typename SPEC>
-    void abs(DEVICE& device, Tensor<SPEC>& t){
-        using T = typename SPEC::T;
-        using PARAMETER = tensor::OperationEmptyParameter;
-        tensor::Operation<tensor::unary_operations::abs<DEVICE, PARAMETER, T>, PARAMETER> op;
-        unary_operation(device, op, t);
-    }
-
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void set_all(DEVICE& device, Tensor<SPEC>& t, typename SPEC::T value){
-        using T = typename SPEC::T;
-        using PARAMETER = T;
-        tensor::Operation<tensor::unary_operations::constant<DEVICE, PARAMETER, T>, PARAMETER> op;
-        op.parameter = value;
-        unary_operation(device, op, t);
     }
 
 

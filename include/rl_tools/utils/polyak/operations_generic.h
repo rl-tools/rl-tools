@@ -46,37 +46,45 @@ namespace rl_tools::utils::polyak {
             T clip_value;
         };
         template <typename T>
-        T update(T source, T target, const PolyakParameters<T>& p){
-            if(p.clip) {
-                source = source > p.clip_value ? p.clip_value : (source < -p.clip_value ? -p.clip_value : source);
+        struct PolyakUpdate {
+            PolyakParameters<T> parameters;
+            template <typename DEVICE, typename T_T>
+            RL_TOOLS_FUNCTION_PLACEMENT static T_T operation(DEVICE& device, const PolyakUpdate<T_T>& p, T_T source, T_T target){
+                if(p.parameters.clip) {
+                    source = source > p.parameters.clip_value ? p.parameters.clip_value : (source < -p.parameters.clip_value ? -p.parameters.clip_value : source);
+                }
+                return p.parameters.polyak * target + (1 - p.parameters.polyak) * source;
             }
-            return p.polyak * target + (1 - p.polyak) * source;
-        }
+        };
         template <typename T>
-        T update_squared(T source, T target, const PolyakParameters<T>& p){
-            if(p.clip) {
-                source = source > p.clip_value ? p.clip_value : (source < -p.clip_value ? -p.clip_value : source);
+        struct PolyakUpdateSquared {
+            PolyakParameters<T> parameters;
+            template <typename DEVICE, typename T_T>
+            RL_TOOLS_FUNCTION_PLACEMENT static T_T operation(DEVICE& device, const PolyakUpdateSquared<T_T>& p, T_T source, T_T target){
+                if(p.parameters.clip) {
+                    source = source > p.parameters.clip_value ? p.parameters.clip_value : (source < -p.parameters.clip_value ? -p.parameters.clip_value : source);
+                }
+                return p.parameters.polyak * target + (1 - p.parameters.polyak) * source * source;
             }
-            return p.polyak * target + (1 - p.polyak) * source * source;
-        }
+        };
     }
     template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void update(DEVICE& device, const  Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak, const bool clip = false, typename SOURCE_SPEC::T clip_value = 1) {
         using T = typename SOURCE_SPEC::T;
-        tensor::Operation<binary_kernels::update<T>, binary_kernels::PolyakParameters<T>> params{};
-        params.parameter.polyak = polyak;
-        params.parameter.clip = clip;
-        params.parameter.clip_value = clip_value;
+        binary_kernels::PolyakUpdate<T> params{};
+        params.parameters.polyak = polyak;
+        params.parameters.clip = clip;
+        params.parameters.clip_value = clip_value;
         binary_operation(device, params, source, target);
     }
 
     template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void update_squared(DEVICE& device, const  Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak, const bool clip = false, typename SOURCE_SPEC::T clip_value = 1) {
         using T = typename SOURCE_SPEC::T;
-        tensor::Operation<binary_kernels::update_squared<T>, binary_kernels::PolyakParameters<T>> params{};
-        params.parameter.polyak = polyak;
-        params.parameter.clip = clip;
-        params.parameter.clip_value = clip_value;
+        binary_kernels::PolyakUpdateSquared<T> params{};
+        params.parameters.polyak = polyak;
+        params.parameters.clip = clip;
+        params.parameters.clip_value = clip_value;
         binary_operation(device, params, source, target);
     }
 }
