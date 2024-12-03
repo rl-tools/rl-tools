@@ -612,6 +612,7 @@ namespace rl_tools{
         using PARAMETER_TYPE = tensor::unary_operations::ScaleOperationParameters<T>;
         tensor::Operation<tensor::unary_operations::scale<DEVICE, PARAMETER_TYPE, T>, PARAMETER_TYPE> operation;
         operation.parameter.scale = scale;
+        operation.parameter.reciprocal = false;
         unary_operation(device, operation, t, output);
     }
 
@@ -640,8 +641,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER, typename RESULT_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
-        using T = typename SPEC::T;
-        T result_value = _unary_associative_reduce(device, op, t, op.initial_value);
+        ACCUMULATOR_TYPE result_value = _unary_associative_reduce(device, op, t, op.initial_value);
         set(device, result, result_value, 0);
     }
 

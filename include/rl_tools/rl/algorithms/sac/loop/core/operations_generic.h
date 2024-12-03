@@ -118,7 +118,7 @@ namespace rl_tools{
         }
         if(train_critic_flag){
             for(int critic_i = 0; critic_i < 2; critic_i++){
-                if constexpr(!CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
+                if constexpr(!CONFIG::CORE_PARAMETERS::SHARED_BATCH){
                     gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                     randn(device, ts.action_noise_critic, ts.rng);
                 }
