@@ -225,14 +225,13 @@ namespace rl_tools{
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1);
         using BATCH = rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>;
         using T = typename BATCH::T;
-        // T loss_weight_value = 0.5;
         tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
         op.initial_value = 0;
         unary_associative_reduce(device, op, batch.final_step_mask, loss_weight);
-        T num_final_steps = get(device, loss_weight, 0);
-        utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
-        // loss_weight_value *= SEQUENCE_LENGTH * BATCH_SIZE / num_final_steps; // reweight the loss by the number of non-masked outputs
-        // set(device, loss_weight, loss_weight_value, 0);
+        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU){
+            T num_final_steps = get(device, loss_weight, 0);
+            utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
+        }
         constexpr T LOSS_WEIGHT_A_PRIORI = 0.5;
         scale(device, loss_weight, SEQUENCE_LENGTH * BATCH_SIZE * LOSS_WEIGHT_A_PRIORI, true);
     }
