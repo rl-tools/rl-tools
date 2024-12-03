@@ -631,6 +631,12 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT ACCUMULATOR_TYPE unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t){
         return _unary_associative_reduce(device, op, t, op.initial_value);
     }
+    template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER, typename RESULT_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
+        using T = typename SPEC::T;
+        T result_value = _unary_associative_reduce(device, op, t, op.initial_value);
+        set(device, result, result_value, 0);
+    }
 
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T sum(DEVICE& device, Tensor<SPEC>& t){

@@ -225,11 +225,16 @@ namespace rl_tools{
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1);
         using BATCH = rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>;
         using T = typename BATCH::T;
-        T loss_weight_value = 0.5;
-        T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+        // T loss_weight_value = 0.5;
+        tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
+        op.initial_value = 0;
+        unary_associative_reduce(device, op, batch.final_step_mask, loss_weight);
+        T num_final_steps = get(device, loss_weight, 0);
         utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
-        loss_weight_value *= SEQUENCE_LENGTH * BATCH_SIZE / num_final_steps; // reweight the loss by the number of non-masked outputs
-        set(device, loss_weight, loss_weight_value, 0);
+        // loss_weight_value *= SEQUENCE_LENGTH * BATCH_SIZE / num_final_steps; // reweight the loss by the number of non-masked outputs
+        // set(device, loss_weight, loss_weight_value, 0);
+        constexpr T LOSS_WEIGHT_A_PRIORI = 0.5;
+        scale(device, loss_weight, SEQUENCE_LENGTH * BATCH_SIZE * LOSS_WEIGHT_A_PRIORI);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFER_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
     void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
