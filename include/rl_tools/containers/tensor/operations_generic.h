@@ -354,10 +354,16 @@ namespace rl_tools{
             template <typename T>
             struct ScaleOperationParameters{
                 T scale;
+                bool reciprocal;
             };
             template <typename DEVICE, typename T>
             RL_TOOLS_FUNCTION_PLACEMENT T scale(DEVICE& device, const ScaleOperationParameters<T>& parameter, T a){
-                return a * parameter.scale;
+                if(parameter.reciprocal){
+                    return ((T)1.0)/a * parameter.scale;
+                }
+                else{
+                    return a * parameter.scale;
+                }
             }
         }
         namespace ternary_operations{
@@ -591,11 +597,12 @@ namespace rl_tools{
         unary_operation(device, tensor::Operation<tensor::unary_operations::fast_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void scale(DEVICE& device, Tensor<SPEC>& t, typename SPEC::T scale){
+    RL_TOOLS_FUNCTION_PLACEMENT void scale(DEVICE& device, Tensor<SPEC>& t, typename SPEC::T scale, bool reciprocal = false){
         using T = typename SPEC::T;
         using PARAMETER_TYPE = tensor::unary_operations::ScaleOperationParameters<T>;
         tensor::Operation<tensor::unary_operations::scale<DEVICE, T>, PARAMETER_TYPE> operation;
         operation.parameter.scale = scale;
+        operation.parameter.reciprocal = reciprocal;
         unary_operation(device, operation, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
