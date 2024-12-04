@@ -95,7 +95,7 @@ int main(){
     // auto& episode_stats_source = ts_init.off_policy_runner.episode_stats;
     // rlt::utils::typing::remove_reference_t<decltype(episode_stats_source)> episode_stats_target;
     // episode_stats_target = episode_stats_source;
-    // rlt::copy(device, device_init, ts, ts_init);
+    rlt::copy(device, device_init, ts, ts_init);
     //    rlt::copy(device_init, device, ts_init.off_policy_runner, ts.off_policy_runner);
 
 #ifdef _MSC_VER

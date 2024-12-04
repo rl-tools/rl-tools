@@ -407,6 +407,16 @@ namespace rl_tools{
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::EpisodeStats<SOURCE_SPEC>& source, rl::components::off_policy_runner::EpisodeStats<TARGET_SPEC>& target){
         copy(source_device, target_device, source.data, target.data);
     }
+    template <typename DEVICE, typename SPEC>
+    void update_views(DEVICE& device, Matrix<SPEC>& replay_buffers) {
+        static_assert(SPEC::ROWS == 1);
+        using TI = typename DEVICE::index_t;
+        for(TI rb_i = 0; rb_i < SPEC::COLS; rb_i++) {
+            auto& rb = get(replay_buffers, 0, rb_i);
+            update_views(device, rb);
+        }
+    }
+
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::OffPolicyRunner<SOURCE_SPEC>& source, rl::components::OffPolicyRunner<TARGET_SPEC>& target){
         copy(source_device, target_device, source.buffers, target.buffers);
@@ -415,6 +425,7 @@ namespace rl_tools{
         copy(source_device, target_device, source.episode_step, target.episode_step);
         copy(source_device, target_device, source.truncated, target.truncated);
         copy(source_device, target_device, source.replay_buffers, target.replay_buffers);
+        update_views(target_device, target.replay_buffers);
         copy(source_device, target_device, source.episode_stats, target.episode_stats);
         copy(source_device, target_device, source.envs, target.envs);
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
