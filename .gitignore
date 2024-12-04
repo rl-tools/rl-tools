@@ -59,3 +59,4 @@
 /**/*.pdf
 /**/*.tar.gz
 /experiments_old
+/**/*.nsys-rep
