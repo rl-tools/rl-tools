@@ -227,10 +227,9 @@ namespace rl_tools{
         __global__ void unary_associative_reduce(devices::CUDA<DEV_SPEC> device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION> op, const Tensor<SPEC> t, Tensor<RESULT_SPEC> result){
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using TI = typename DEVICE::index_t;
-            using T = typename SPEC::T;
             TI thread_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(thread_i == 0) {
-                T output = _unary_associative_reduce(device, op, t, op.initial_value);
+                ACCUMULATOR_TYPE output = _unary_associative_reduce(device, op, t, op.initial_value);
                 set(device, result, output, 0);
             }
         }

@@ -227,19 +227,6 @@ namespace rl_tools{
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1);
         using BATCH = rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>;
         using T = typename BATCH::T;
-        {
-            // // todo this should be a function
-            // tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
-            // op.initial_value = 0;
-            // unary_associative_reduce(device, op, batch.final_step_mask, loss_weight);
-            cast_reduce_sum<T>(device, batch.final_step_mask, loss_weight);
-        }
-        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU){
-            T num_final_steps = get(device, loss_weight, 0);
-            utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
-        }
-        constexpr T LOSS_WEIGHT_A_PRIORI = 0.5;
-        scale(device, loss_weight, SEQUENCE_LENGTH * BATCH_SIZE * LOSS_WEIGHT_A_PRIORI, true);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFER_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
     void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
@@ -289,11 +276,17 @@ namespace rl_tools{
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
-            calculate_gradient_weight(device, batch, training_buffers.loss_weight);
+            cast_reduce_sum<T>(device, batch.final_step_mask, training_buffers.loss_weight);
+            if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU){
+                T num_final_steps = get(device, training_buffers.loss_weight, 0);
+                utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
+            }
+            constexpr T LOSS_WEIGHT_A_PRIORI = 0.5;
+            scale(device, training_buffers.loss_weight, SEQUENCE_LENGTH * BATCH_SIZE * LOSS_WEIGHT_A_PRIORI, true);
         }
         else {
             T loss_weight = 0.5;
-            set(device, training_buffers.loss_weight, loss_weight, 0);
+            set_all(device, training_buffers.loss_weight, loss_weight);
         }
         nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, training_buffers.loss_weight); // SB3/SBX uses 1/2, CleanRL doesn't
 
