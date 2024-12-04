@@ -416,7 +416,7 @@ namespace rl_tools{
         // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU) {
-                T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+                T num_final_steps = cast_reduce_sum<T>(device, batch.final_step_mask);
                 utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
             }
             {
