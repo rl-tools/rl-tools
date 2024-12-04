@@ -696,6 +696,8 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER, typename RESULT_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
+        static_assert(RESULT_SPEC::SHAPE::LENGTH == 1);
+        static_assert(RESULT_SPEC::SHAPE::template GET<0> == 1);
         ACCUMULATOR_TYPE result_value = _unary_associative_reduce(device, op, t, op.initial_value);
         set(device, result, result_value, 0);
     }
@@ -715,10 +717,18 @@ namespace rl_tools{
         return unary_associative_reduce(device, op, t);
     }
     template<typename TARGET_TYPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT TARGET_TYPE cast_sum(DEVICE& device, Tensor<SPEC>& t){
+    RL_TOOLS_FUNCTION_PLACEMENT TARGET_TYPE cast_reduce_sum(DEVICE& device, Tensor<SPEC>& t){
         tensor::unary_reduce_operations::CastSum<TARGET_TYPE, decltype(device.math), TARGET_TYPE> op;
         op.initial_value = 0;
         return unary_associative_reduce(device, op, t);
+    }
+    template<typename TARGET_TYPE, typename DEVICE, typename SPEC, typename RESULT_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void cast_reduce_sum(DEVICE& device, Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
+        static_assert(RESULT_SPEC::SHAPE::LENGTH == 1);
+        static_assert(RESULT_SPEC::SHAPE::template GET<0> == 1);
+        tensor::unary_reduce_operations::CastSum<TARGET_TYPE, decltype(device.math), TARGET_TYPE> op;
+        op.initial_value = 0;
+        unary_associative_reduce(device, op, t, result);
     }
     template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T is_nan(DEVICE& device, const Tensor<SPEC>& t, const Mode<MODE>& mode = {}){

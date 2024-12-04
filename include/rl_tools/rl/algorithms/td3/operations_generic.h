@@ -189,7 +189,7 @@ namespace rl_tools{
         {
             T loss_weight = 1;
             if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
-                T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+                T num_final_steps = cast_reduce_sum<T>(device, batch.final_step_mask);
                 utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
                 loss_weight *= SEQUENCE_LENGTH * BATCH_SIZE / num_final_steps; // reweight the loss by the number of non-masked outputs
             }
@@ -243,7 +243,7 @@ namespace rl_tools{
         auto& critic = actor_critic.critic_1;
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, critic_buffers, rng, reset_mode);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
-            T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+            T num_final_steps = cast_reduce_sum<T>(device, batch.final_step_mask);
             utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
             set_all(device, training_buffers.d_output, (T)-1/num_final_steps); // we only take the mean over the non-masked outputs
             mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);

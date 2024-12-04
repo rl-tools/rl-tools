@@ -37,6 +37,25 @@ void test(DEVICE& device, DEVICE_CPU& device_cpu, T epsilon) {
         std::cout << "exp diff: " << diff << std::endl;
         ASSERT_LT(diff, epsilon);
     }
+    {
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1>, true>> result, result_cpu, result_target;
+        rlt::malloc(device, result);
+        rlt::malloc(device_cpu, result_cpu);
+        rlt::malloc(device_cpu, result_target);
+        rlt::set_all(device, tensor, 1.3);
+        rlt::set_all(device_cpu, tensor_cpu, 1.3);
+        rlt::cast_reduce_sum<T>(device, tensor, result);
+        rlt::cast_reduce_sum<T>(device_cpu, tensor_cpu, result_target);
+        rlt::copy(device, device_cpu, result, result_cpu);
+        T diff = rlt::abs_diff(device_cpu, result_cpu, result_target);
+        std::cout << "Result target: " << std::endl;
+        rlt::print(device_cpu, result_target);
+        std::cout << "unary associative reduce: sum diff: " << diff << std::endl;
+        ASSERT_LT(diff, epsilon);
+        rlt::free(device, result);
+        rlt::free(device_cpu, result_cpu);
+        rlt::free(device_cpu, result_target);
+    }
 }
 
 TEST(RL_TOOLS_CONTAINER_TENSOR_CUDA, MAIN){
