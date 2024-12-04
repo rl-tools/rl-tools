@@ -39,49 +39,52 @@ using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes probl
 DEVICE dummy_device; // this is needed because default_engine can not take a const device
 using RNG = decltype(rlt::random::default_engine(dummy_device));
 using RNG_INIT = decltype(rlt::random::default_engine(DEVICE_INIT{}));
-using T = double;
 using TI = typename DEVICE::index_t;
 
-using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
-using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
-        static constexpr TI ACTOR_BATCH_SIZE = 100;
-        static constexpr TI CRITIC_BATCH_SIZE = 100;
+template <typename T>
+struct ConfigFactory{
+    using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+    using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
+    struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+        struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+            static constexpr TI ACTOR_BATCH_SIZE = 100;
+            static constexpr TI CRITIC_BATCH_SIZE = 100;
+        };
+        static constexpr TI STEP_LIMIT = 10000;
+        static constexpr TI ACTOR_NUM_LAYERS = 3;
+        static constexpr TI ACTOR_HIDDEN_DIM = 64;
+        static constexpr TI CRITIC_NUM_LAYERS = 3;
+        static constexpr TI CRITIC_HIDDEN_DIM = 64;
+        static constexpr bool COLLECT_EPISODE_STATS = false;
+        static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
     };
-    static constexpr TI STEP_LIMIT = 20000;
-    static constexpr TI ACTOR_NUM_LAYERS = 3;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
-    static constexpr TI CRITIC_NUM_LAYERS = 3;
-    static constexpr TI CRITIC_HIDDEN_DIM = 64;
-    static constexpr bool COLLECT_EPISODE_STATS = false;
-    static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
+    template <typename RNG>
+    using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+
+    struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG<RNG>>{
+        static constexpr TI NUM_EVALUATION_EPISODES = 100;
+    };
+    template <typename RNG>
+    using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<RNG>, LOOP_EVAL_PARAMETERS>;
+    template <typename RNG>
+    using LOOP_CONFIG = LOOP_EVAL_CONFIG<RNG>;
+
+    using LOOP_STATE = typename LOOP_CONFIG<RNG>::template State<LOOP_CONFIG<RNG>>;
+    using LOOP_STATE_INIT = typename LOOP_CONFIG<RNG_INIT>::template State<LOOP_CONFIG<RNG_INIT>>;
 };
-template <typename RNG>
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
-
-struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG<RNG>>{
-    static constexpr TI NUM_EVALUATION_EPISODES = 100;
-};
-template <typename RNG>
-using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<RNG>, LOOP_EVAL_PARAMETERS>;
-template <typename RNG>
-using LOOP_CONFIG = LOOP_EVAL_CONFIG<RNG>;
-
-using LOOP_STATE = LOOP_CONFIG<RNG>::template State<LOOP_CONFIG<RNG>>;
-using LOOP_STATE_INIT = LOOP_CONFIG<RNG_INIT>::template State<LOOP_CONFIG<RNG_INIT>>;
 
 
-template <bool GPU_INIT, bool GPU_ROLLOUT, bool GPU_ACTOR_ROLLOUT, bool GPU_NOISE, bool GPU_EVALUATION>
-void test() {
+template <typename T, bool GPU_INIT, bool GPU_ROLLOUT, bool GPU_ACTOR_ROLLOUT, bool GPU_NOISE, bool GPU_EVALUATION>
+T test() {
+    using CONFIG_FACTORY = ConfigFactory<T>;
     TI seed = 0;
     DEVICE device;
     DEVICE_INIT device_init;
-    LOOP_STATE ts;
-    LOOP_STATE_INIT ts_init, ts_comparison;
-    using CONFIG = decltype(ts)::CONFIG;
-    using CORE_PARAMETERS = CONFIG::CORE_PARAMETERS;
-    using EVAL_PARAMETERS = CONFIG::EVALUATION_PARAMETERS;
+    typename CONFIG_FACTORY::LOOP_STATE ts;
+    typename CONFIG_FACTORY::LOOP_STATE_INIT ts_init, ts_comparison;
+    using CONFIG = typename decltype(ts)::CONFIG;
+    using CORE_PARAMETERS = typename CONFIG::CORE_PARAMETERS;
+    using EVAL_PARAMETERS = typename CONFIG::EVALUATION_PARAMETERS;
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::malloc(device_init, ts_init);
@@ -104,6 +107,7 @@ void test() {
     TI step = 0;
     bool finished = false;
     auto start_time = std::chrono::high_resolution_clock::now();
+    T return_value = -1337;
     while(!finished){
         // std::cout << "Step: " << step << std::endl;
         // Evaluation
@@ -117,11 +121,12 @@ void test() {
             rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
 //            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
 #else
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
             rlt::evaluate(device_init, ts_init.env_eval, ts_init.env_eval_parameters, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
 #endif
             rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
+            return_value = result.returns_mean;
         }
 
         // Training
@@ -204,10 +209,17 @@ void test() {
     rlt::malloc(device, ts);
     rlt::malloc(device_init, ts_init);
     rlt::malloc(device_init, ts_comparison);
+    return return_value;
 }
-// TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_INIT_GPU_ACTOR_ROLLOUT_GPU_EVALUATION) {
-//     test<true, false, true, false, true>();
-// }
+TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_INIT_GPU_ACTOR_ROLLOUT_GPU_EVALUATION) {
+    constexpr bool GPU_INIT = true;
+    constexpr bool GPU_ROLLOUT = false;
+    constexpr bool GPU_ACTOR_ROLLOUT = true;
+    constexpr bool GPU_NOISE = false;
+    constexpr bool GPU_EVALUATION = true;
+    using T = double;
+    test<T, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_NOISE, GPU_EVALUATION>();
+}
 
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_ROLLOUT) {
     constexpr bool GPU_INIT = false;
@@ -215,7 +227,18 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_ROLLOUT) {
     constexpr bool GPU_ACTOR_ROLLOUT = false;
     constexpr bool GPU_NOISE = false;
     constexpr bool GPU_EVALUATION = false;
-    test<GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_NOISE, GPU_EVALUATION>();
+    using T = double;
+    test<T, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_NOISE, GPU_EVALUATION>();
+}
+
+TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, FULL_GPU_TRAINING) {
+    constexpr bool GPU_INIT = true;
+    constexpr bool GPU_ROLLOUT = true;
+    constexpr bool GPU_ACTOR_ROLLOUT = true;
+    constexpr bool GPU_NOISE = true;
+    constexpr bool GPU_EVALUATION = true;
+    using T = double;
+    test<T, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_NOISE, GPU_EVALUATION>();
 }
 
 // benchmark training should take < 2s on P1
