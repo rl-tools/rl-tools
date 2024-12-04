@@ -40,7 +40,7 @@ using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes probl
 DEVICE dummy_device; // this is needed because default_engine can not take a const device
 using RNG = decltype(rlt::random::default_engine(dummy_device));
 using RNG_INIT = decltype(rlt::random::default_engine(DEVICE_INIT{}));
-using T = float;
+using T = double;
 using TI = typename DEVICE::index_t;
 
 #define STRINGIFY(x) #x
@@ -121,6 +121,7 @@ int main(){
         rlt::set_step(device, device.logger, step);
         // rlt::copy(device_init, device, ts_init.actor_critic.actor, ts.actor_critic.actor);
         // rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
+        rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
         rlt::step<1>(device_init, ts_init.off_policy_runner, ts_init.actor_critic.actor, ts_init.actor_buffers_eval, ts_init.rng);
         if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
@@ -129,17 +130,14 @@ int main(){
                     rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.critic_batch, ts_init.rng);
                     // rlt::copy(device, device_init, ts.critic_batch, ts_init.critic_batch);
                     rlt::copy(device_init, device, ts_init.critic_batch, ts.critic_batch);
-                    rlt::copy(device, device_init, ts.critic_batch, ts_comparison.critic_batch);
-                    T abs_diff_batch = rlt::abs_diff(device_init, ts_init.critic_batch, ts_comparison.critic_batch);
-                    std::cout << "Abs diff batch: " << abs_diff_batch << std::endl;
                     // rlt::randn(device, ts.action_noise_critic, ts.rng);
                     rlt::randn(device_init, ts_init.action_noise_critic, ts_init.rng);
                     rlt::copy(device_init, device, ts_init.action_noise_critic, ts.action_noise_critic);
                     rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
                     rlt::train_critic(device_init, ts_init.actor_critic, critic_i == 0 ? ts_init.actor_critic.critic_1 : ts_init.actor_critic.critic_2, ts_init.critic_batch, ts_init.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
-                    rlt::copy(device, device_init, ts, ts_comparison);
-                    T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.critic_1, ts_comparison.actor_critic.critic_1);
-                    std::cout << "Abs diff is: " << abs_diff << " after critic update" << std::endl;
+                    // rlt::copy(device, device_init, ts, ts_comparison);
+                    // T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.critic_1, ts_comparison.actor_critic.critic_1);
+                    // std::cout << "Abs diff is: " << abs_diff << " after critic update" << std::endl;
                 }
                 device.stream = 0;
             }
@@ -154,9 +152,9 @@ int main(){
                     rlt::copy(device_init, device, ts_init.action_noise_actor, ts.action_noise_actor);
                     rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                     rlt::train_actor(device_init, ts_init.actor_critic, ts_init.actor_batch, ts_init.actor_optimizer, ts_init.actor_buffers[0], ts_init.critic_buffers[0], ts_init.actor_training_buffers, ts_init.action_noise_actor, ts_init.rng);
-                    rlt::copy(device, device_init, ts, ts_comparison);
-                    T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.actor, ts_comparison.actor_critic.actor);
-                    std::cout << "Abs diff is: " << abs_diff << " after actor update" << std::endl;
+                    // rlt::copy(device, device_init, ts, ts_comparison);
+                    // T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.actor, ts_comparison.actor_critic.actor);
+                    // std::cout << "Abs diff is: " << abs_diff << " after actor update" << std::endl;
                 }
                 rlt::update_critic_targets(device, ts.actor_critic);
                 rlt::update_critic_targets(device_init, ts_init.actor_critic);
