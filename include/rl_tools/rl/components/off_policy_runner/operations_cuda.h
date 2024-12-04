@@ -45,8 +45,7 @@ namespace rl_tools{
             // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
             TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
             static_assert(RNG::NUM_RNGS >= BATCH_SPEC::BATCH_SIZE, "Please increase the number of CUDA RNGs");
-            // if(batch_step_i < BATCH_SPEC::BATCH_SIZE){
-            if(batch_step_i == 0){
+            if(batch_step_i < BATCH_SPEC::BATCH_SIZE){
                 auto& rng_state = get(rng.states, 0, batch_step_i);
                 typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng_state);
                 // printf("Chose env %d\n", env_i);
@@ -192,6 +191,33 @@ namespace rl_tools{
 
         runner.previous_policy = POLICY_INDEX;
         runner.previous_policy_set = true;
+    }
+    namespace rl::components::off_policy_runner::kernels {
+        template <typename DEV_SPEC, typename SPEC>
+        __global__
+        void update_views(devices::CUDA<DEV_SPEC> device, Matrix<SPEC> replay_buffers) {
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            static_assert(SPEC::ROWS == 1);
+            using TI = typename DEVICE::index_t;
+            TI thread_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(thread_i < SPEC::COLS) {
+                auto& rb = get(replay_buffers, 0, thread_i);
+                rl_tools::update_views(device, rb);
+            }
+        }
+    }
+    template <typename DEV_SPEC, typename SPEC>
+    void update_views(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& replay_buffers) {
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        static_assert(SPEC::ROWS == 1);
+        using TI = typename DEVICE::index_t;
+        constexpr TI BLOCKSIZE_COLS = 32;
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
+        dim3 bias_grid(N_BLOCKS_COLS);
+        dim3 bias_block(BLOCKSIZE_COLS);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        rl::components::off_policy_runner::kernels::update_views<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, replay_buffers);
+        check_status(device);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

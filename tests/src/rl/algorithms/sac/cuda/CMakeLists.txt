@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD  17)
 
 add_executable(test_rl_algorithms_sac_cuda sac.cu)
 target_link_libraries(test_rl_algorithms_sac_cuda PRIVATE RLtools::Minimal GTest::gtest_main)
-#target_compile_options(test_rl_algorithms_sac_cuda PRIVATE -gG)
+target_compile_options(test_rl_algorithms_sac_cuda PRIVATE -w)
 gtest_discover_tests(test_rl_algorithms_sac_cuda)
 
 add_executable(test_rl_algorithms_sac_cuda_loop sac_loop.cu)
