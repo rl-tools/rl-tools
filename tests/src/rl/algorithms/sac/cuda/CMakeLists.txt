@@ -8,7 +8,7 @@ set(CMAKE_CUDA_ARCHITECTURES "native")
 
 add_executable(test_rl_algorithms_sac_cuda sac.cu)
 target_link_libraries(test_rl_algorithms_sac_cuda PRIVATE RLtools::Minimal GTest::gtest_main)
-target_compile_options(test_rl_algorithms_sac_cuda PRIVATE -w)
+target_compile_options(test_rl_algorithms_sac_cuda PRIVATE -w -O3 --fast-math)
 gtest_discover_tests(test_rl_algorithms_sac_cuda)
 
 add_executable(test_rl_algorithms_sac_cuda_loop sac_loop.cu)
