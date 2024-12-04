@@ -26,8 +26,6 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
-// #include "../../../../../../tests/src/utils/nn_comparison_mlp.h"
-
 
 namespace rlt = rl_tools;
 
@@ -42,10 +40,6 @@ using RNG = decltype(rlt::random::default_engine(dummy_device));
 using RNG_INIT = decltype(rlt::random::default_engine(DEVICE_INIT{}));
 using T = double;
 using TI = typename DEVICE::index_t;
-
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
-#pragma message "RL_TOOLS_FUNCTION_PLACEMENT: " TOSTRING(RL_TOOLS_FUNCTION_PLACEMENT)
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
@@ -96,28 +90,33 @@ int main(){
     rlt::check_status(device);
     rlt::init(device_init, ts_init, 1);
     rlt::init(device_init, ts_comparison, 1);
-    // auto& episode_stats_source = ts_init.off_policy_runner.episode_stats;
-    // rlt::utils::typing::remove_reference_t<decltype(episode_stats_source)> episode_stats_target;
-    // episode_stats_target = episode_stats_source;
     rlt::copy(device, device_init, ts, ts_init);
-    //    rlt::copy(device_init, device, ts_init.off_policy_runner, ts.off_policy_runner);
-
 #ifdef _MSC_VER
     CONFIG::ENVIRONMENT env_eval;
     RNG_INIT rng_eval;
     rlt::rl::environments::DummyUI ui;
 #endif
-
-    // decltype(ts.off_policy_runner)* off_policy_runner_pointer;
-    // cudaMalloc(&off_policy_runner_pointer, sizeof(decltype(ts.off_policy_runner)));
-    // cudaMemcpy(off_policy_runner_pointer, &ts.off_policy_runner, sizeof(decltype(ts.off_policy_runner)), cudaMemcpyHostToDevice);
-    // rlt::check_status(device);
-
     TI step = 0;
-    // ts.rng = rlt::random::default_engine(device);
     bool finished = false;
     auto start_time = std::chrono::high_resolution_clock::now();
     while(!finished){
+        // Evaluation
+        if(step % 1000 == 0){
+            rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
+#ifdef _MSC_VER
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+//            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+#else
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device_init, ts_init.env_eval, ts_init.env_eval_parameters, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
+#endif
+            rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
+        }
+
+        // Training
         rlt::set_step(device, device.logger, step);
         // rlt::copy(device_init, device, ts_init.actor_critic.actor, ts.actor_critic.actor);
         // rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
@@ -160,24 +159,6 @@ int main(){
                 rlt::update_critic_targets(device_init, ts_init.actor_critic);
             }
         }
-#ifndef BENCHMARK
-        if(step % 1000 == 0){
-            // rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
-#ifdef _MSC_VER
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
-            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
-//            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
-#else
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
-            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device_init, ts_init.env_eval, ts_init.env_eval_parameters, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
-#endif
-            rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
-//            add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
-//            add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
-        }
-#endif
         step++;
         finished = step > CORE_PARAMETERS::STEP_LIMIT;
         step++;
