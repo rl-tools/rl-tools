@@ -41,7 +41,7 @@ namespace rl_tools{
         check_status(device);
     }
 #endif
-    namespace tensor::kernels {
+    namespace tensor::kernels{
         template<typename DEVICE, typename FROM_SPEC, typename TO_SPEC>
         __global__
         void copy(DEVICE device, Tensor<FROM_SPEC> from, Tensor<TO_SPEC> to){
@@ -107,19 +107,146 @@ namespace rl_tools{
         }
     }
     template<typename FROM_DEV_SPEC, typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
-        // static_assert(false, "Cannot copy Tensor from CUDA to non-CUDA device yet");
-        std::cout << 'hello' << std::endl;
+    void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
+        static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
+        constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
+        static_assert(SAME_STRIDE);
+        if constexpr(SAME_STRIDE){
+            cudaMemcpy(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost);
+        }
+        else{
+
+        }
     }
     template<typename FROM_DEVICE, typename TO_DEV_SPEC, typename FROM_SPEC, typename TO_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(FROM_DEVICE& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
-        // static_assert(false, "Cannot copy Tensor from CUDA to non-CUDA device yet");
-        std::cout << 'hello' << std::endl;
+    void copy(FROM_DEVICE& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
+        static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
+        constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
+        static_assert(SAME_STRIDE);
+        if constexpr(SAME_STRIDE){
+            cudaMemcpy(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice);
+        }
+        else{
+
+        }
     }
     namespace tensor::kernels {
-
+        template<typename DEV_SPEC, typename SPEC, typename OPERATION>
+        __global__
+        void unary_operation(devices::CUDA<DEV_SPEC> device, const OPERATION op, Tensor<SPEC> t){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            static_assert(SPEC::SHAPE::LENGTH == 1);
+            constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
+            TI thread_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if (thread_i < SIZE) {
+                T t_value = get(device, t, thread_i);
+                T result_value = OPERATION::operation(device, op, t_value);
+                set(device, t, result_value, thread_i);
+            }
+        }
+        template<typename DEV_SPEC, typename SPEC, typename OPERATION, typename SPEC_OUTPUT>
+        __global__
+        void unary_operation(devices::CUDA<DEV_SPEC> device, const OPERATION op, Tensor<SPEC> t, Tensor<SPEC_OUTPUT> output) {
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            static_assert(SPEC::SHAPE::LENGTH == 1);
+            constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
+            TI thread_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if (thread_i < SIZE) {
+                T t_value = get(device, t, thread_i);
+                T result_value = OPERATION::operation(device, op, t_value);
+                set(device, output, result_value, thread_i);
+            }
+        }
 
     }
+    // template<typename DEV_SPEC, typename SPEC, typename OPERATION, typename SPEC_OUTPUT,
+    //     typename utils::typing::enable_if<devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
+    // __device__
+    // void unary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    //     using DEVICE = devices::CUDA<DEV_SPEC>;
+    //     using T = typename SPEC::T;
+    //     using TI = typename DEVICE::index_t;
+    //     if constexpr(length(typename SPEC::SHAPE{}) > 1){
+    //         for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+    //             auto next_t = view(device, t, i);
+    //             auto next_output = view(device, output, i);
+    //             unary_operation(device, op, next_t, next_output);
+    //         }
+    //     }
+    //     else{
+    //         using DEVICE = devices::CUDA<DEV_SPEC>;
+    //         using T = typename SPEC::T;
+    //         using TI = typename SPEC::TI;
+    //         constexpr TI BLOCKSIZE_COLS = 32;
+    //         constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
+    //         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE_COLS);
+    //         dim3 grid(N_BLOCKS_COLS);
+    //         dim3 block(BLOCKSIZE_COLS);
+    //         devices::cuda::TAG<DEVICE, true> tag_device{};
+    //         tensor::kernels::unary_operation<<<grid, block, 0, device.stream>>>(tag_device, op, t, output);
+    //         check_status(device);
+    //     }
+    // }
+
+
+    // Unary operation when on Host device
+    template<typename DEV_SPEC, typename SPEC, typename OPERATION, typename SPEC_OUTPUT,
+        typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
+    void unary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) > 1){
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+                auto next_t = view(device, t, i);
+                auto next_output = view(device, output, i);
+                unary_operation(device, op, next_t, next_output);
+            }
+        }
+        else{
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            constexpr TI BLOCKSIZE_COLS = 32;
+            constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
+            constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE_COLS);
+            dim3 grid(N_BLOCKS_COLS);
+            dim3 block(BLOCKSIZE_COLS);
+            devices::cuda::TAG<DEVICE, true> tag_device{};
+            tensor::kernels::unary_operation<<<grid, block, 0, device.stream>>>(tag_device, op, t, output);
+            check_status(device);
+        }
+    }
+
+    namespace tensor::kernels{
+        template<typename DEV_SPEC, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER, typename RESULT_SPEC>
+        __global__ void unary_associative_reduce(devices::CUDA<DEV_SPEC> device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION> op, const Tensor<SPEC> t, Tensor<RESULT_SPEC> result){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC::T;
+            TI thread_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(thread_i == 0) {
+                T output = _unary_associative_reduce(device, op, t, op.initial_value);
+                set(device, result, output, 0);
+            }
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER, typename RESULT_SPEC>
+    void unary_associative_reduce(devices::CUDA<DEV_SPEC>& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
+        static_assert(RESULT_SPEC::SHAPE::LENGTH == 1);
+        static_assert(RESULT_SPEC::SHAPE::template GET<0> == 1);
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        dim3 grid(1);
+        dim3 block(1);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        tensor::kernels::unary_associative_reduce<<<grid, block, 0, device.stream>>>(tag_device, op, t, result);
+        check_status(device);
+    }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
