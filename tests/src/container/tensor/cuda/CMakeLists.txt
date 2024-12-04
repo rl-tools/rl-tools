@@ -1,0 +1,8 @@
+project(test_rl_tools_container_cuda CUDA)
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CXX_STANDARD  17)
+    add_executable(test_container_tensor_cuda_test test_tensor_cuda.cu)
+    target_link_libraries(test_container_tensor_cuda_test PRIVATE RLtools::Minimal GTest::gtest_main)
+    gtest_discover_tests(test_container_tensor_cuda_test)
+endif()
