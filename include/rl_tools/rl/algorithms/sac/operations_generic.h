@@ -425,8 +425,10 @@ namespace rl_tools{
                 op.initial_value = 0;
                 unary_associative_reduce(device, op, batch.final_step_mask, training_buffers.loss_weight);
             }
-            constexpr T LOSS_WEIGHT_A_PRIORI = 0.5;
-            scale(device, training_buffers.loss_weight, BATCH_SPEC::SEQUENCE_LENGTH * BATCH_SIZE * LOSS_WEIGHT_A_PRIORI, true);
+            // constexpr T LOSS_WEIGHT_A_PRIORI = 0.5;
+            constexpr T LOSS_WEIGHT_A_PRIORI = 1;
+            scale(device, training_buffers.loss_weight, -LOSS_WEIGHT_A_PRIORI, true);
+            // scale(device, training_buffers.loss_weight, BATCH_SPEC::SEQUENCE_LENGTH * BATCH_SIZE * LOSS_WEIGHT_A_PRIORI, true);
             set_all(device, training_buffers.d_output, training_buffers.loss_weight); // we only take the mean over the non-masked outputs
             mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
