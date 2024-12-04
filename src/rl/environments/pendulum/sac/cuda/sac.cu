@@ -26,6 +26,8 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+// #include "../../../../../../tests/src/utils/nn_comparison_mlp.h"
+
 
 namespace rlt = rl_tools;
 
@@ -82,16 +84,18 @@ int main(){
     DEVICE device;
     DEVICE_INIT device_init;
     LOOP_STATE ts;
-    LOOP_STATE_INIT ts_init;
+    LOOP_STATE_INIT ts_init, ts_comparison;
     using CONFIG = decltype(ts)::CONFIG;
     using CORE_PARAMETERS = CONFIG::CORE_PARAMETERS;
     using EVAL_PARAMETERS = CONFIG::EVALUATION_PARAMETERS;
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::malloc(device_init, ts_init);
+    rlt::malloc(device_init, ts_comparison);
     rlt::init(device, ts, 1);
     rlt::check_status(device);
     rlt::init(device_init, ts_init, 1);
+    rlt::init(device_init, ts_comparison, 1);
     // auto& episode_stats_source = ts_init.off_policy_runner.episode_stats;
     // rlt::utils::typing::remove_reference_t<decltype(episode_stats_source)> episode_stats_target;
     // episode_stats_target = episode_stats_source;
@@ -115,6 +119,7 @@ int main(){
     auto start_time = std::chrono::high_resolution_clock::now();
     while(!finished){
         rlt::set_step(device, device.logger, step);
+        // rlt::copy(device_init, device, ts_init.actor_critic.actor, ts.actor_critic.actor);
         // rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         rlt::step<1>(device_init, ts_init.off_policy_runner, ts_init.actor_critic.actor, ts_init.actor_buffers_eval, ts_init.rng);
         if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
@@ -122,10 +127,19 @@ int main(){
                 for(int critic_i = 0; critic_i < 2; critic_i++){
                     // rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                     rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.critic_batch, ts_init.rng);
+                    // rlt::copy(device, device_init, ts.critic_batch, ts_init.critic_batch);
+                    rlt::copy(device_init, device, ts_init.critic_batch, ts.critic_batch);
+                    rlt::copy(device, device_init, ts.critic_batch, ts_comparison.critic_batch);
+                    T abs_diff_batch = rlt::abs_diff(device_init, ts_init.critic_batch, ts_comparison.critic_batch);
+                    std::cout << "Abs diff batch: " << abs_diff_batch << std::endl;
                     // rlt::randn(device, ts.action_noise_critic, ts.rng);
                     rlt::randn(device_init, ts_init.action_noise_critic, ts_init.rng);
-                    // rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                    rlt::copy(device_init, device, ts_init.action_noise_critic, ts.action_noise_critic);
+                    rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
                     rlt::train_critic(device_init, ts_init.actor_critic, critic_i == 0 ? ts_init.actor_critic.critic_1 : ts_init.actor_critic.critic_2, ts_init.critic_batch, ts_init.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
+                    rlt::copy(device, device_init, ts, ts_comparison);
+                    T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.critic_1, ts_comparison.actor_critic.critic_1);
+                    std::cout << "Abs diff is: " << abs_diff << " after critic update" << std::endl;
                 }
                 device.stream = 0;
             }
@@ -133,35 +147,41 @@ int main(){
                 {
                     // rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
                     rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.actor_batch, ts_init.rng);
+                    // rlt::copy(device, device_init, ts.actor_batch, ts_init.actor_batch);
+                    rlt::copy(device_init, device, ts_init.actor_batch, ts.actor_batch);
                     // rlt::randn(device, ts.action_noise_actor, ts.rng);
                     rlt::randn(device_init, ts_init.action_noise_actor, ts_init.rng);
-                    // rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+                    rlt::copy(device_init, device, ts_init.action_noise_actor, ts.action_noise_actor);
+                    rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                     rlt::train_actor(device_init, ts_init.actor_critic, ts_init.actor_batch, ts_init.actor_optimizer, ts_init.actor_buffers[0], ts_init.critic_buffers[0], ts_init.actor_training_buffers, ts_init.action_noise_actor, ts_init.rng);
+                    rlt::copy(device, device_init, ts, ts_comparison);
+                    T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.actor, ts_comparison.actor_critic.actor);
+                    std::cout << "Abs diff is: " << abs_diff << " after actor update" << std::endl;
                 }
-                // rlt::update_critic_targets(device, ts.actor_critic);
+                rlt::update_critic_targets(device, ts.actor_critic);
                 rlt::update_critic_targets(device_init, ts_init.actor_critic);
             }
         }
-// #ifndef BENCHMARK
-//         if(step % 1000 == 0){
-//             rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
-// #ifdef _MSC_VER
-//             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
-//             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-//             rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
-// //            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
-// #else
-//             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
-//             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-//             rlt::evaluate(device_init, ts_init.env_eval, ts_init.env_eval_parameters, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
-// #endif
-//             rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
-// //            add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
-// //            add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
-//         }
-// #endif
-//         step++;
-//         finished = step > CORE_PARAMETERS::STEP_LIMIT;
+#ifndef BENCHMARK
+        if(step % 1000 == 0){
+            // rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
+#ifdef _MSC_VER
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+//            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+#else
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device_init, ts_init.env_eval, ts_init.env_eval_parameters, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
+#endif
+            rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
+//            add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
+//            add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
+        }
+#endif
+        step++;
+        finished = step > CORE_PARAMETERS::STEP_LIMIT;
         step++;
      }
 //     auto end_time = std::chrono::high_resolution_clock::now();
