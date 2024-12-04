@@ -90,6 +90,7 @@ namespace rl_tools::rl::algorithms::sac {
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ACTION_DIM * 2>, DYNAMIC_ALLOCATION>> d_squashing_input;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ACTION_DIM * 2>, DYNAMIC_ALLOCATION>> d_actor_output;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ACTOR_INPUT_DIM>, DYNAMIC_ALLOCATION>> d_actor_input;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1>, DYNAMIC_ALLOCATION>> loss_weight;
     };
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
     struct CriticTrainingBuffersSpecification{

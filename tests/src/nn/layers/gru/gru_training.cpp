@@ -164,7 +164,8 @@ int main(){
             }
             T elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() / 1000.0;
             T elapsed_print = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - last_print).count() / 1000.0;
-            if(elapsed_print > 0.2 || sample_i % 10000 == 0){
+            if(sample_i % 100 == 0){
+            // if(elapsed_print > 0.2 || sample_i % 10000 == 0){
                 T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits_matrix_view, output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
                 std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;

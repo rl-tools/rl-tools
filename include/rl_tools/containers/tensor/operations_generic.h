@@ -533,24 +533,6 @@ namespace rl_tools{
         binary_operation(device, tensor::operations::binary::Multiply{}, t1, t2, t_output);
     }
 
-    template<typename DEVICE, typename OPERATION, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(DEVICE& device, const OPERATION& operation, Tensor<SPEC>& t){
-        using T = typename SPEC::T;
-        using TI = typename DEVICE::index_t;
-        if constexpr(length(typename SPEC::SHAPE{}) > 1){
-            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
-                auto next_t = view(device, t, i);
-                unary_operation(device, operation, next_t);
-            }
-        }
-        else{
-            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
-                T t_value = get(device, t, i);
-                T result_value = OPERATION::operation(device, operation, t_value);
-                set(device, t, result_value, i);
-            }
-        }
-    }
     template<typename DEVICE, typename OPERATION, typename SPEC, typename SPEC_OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(DEVICE& device, const OPERATION& operation, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         using T = typename SPEC::T;
@@ -569,6 +551,10 @@ namespace rl_tools{
                 set(device, output, result_value, i);
             }
         }
+    }
+    template<typename DEVICE, typename OPERATION, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(DEVICE& device, const OPERATION& operation, Tensor<SPEC>& t){
+        unary_operation(device, operation, t, t);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void exp(DEVICE& device, Tensor<SPEC>& t){
@@ -652,6 +638,14 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void set_all(DEVICE& device, Tensor<SPEC>& t, typename SPEC::T value){
         tensor::operations::unary::Constant<typename SPEC::T> op;
         op.constant = value;
+        unary_operation(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC, typename VALUE_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void set_all(DEVICE& device, Tensor<SPEC>& t, Tensor<VALUE_SPEC>& value){
+        static_assert(VALUE_SPEC::SHAPE::LENGTH == 1);
+        static_assert(VALUE_SPEC::SHAPE::template GET<0> == 1);
+        tensor::operations::unary::Constant<typename SPEC::T> op;
+        op.constant = get(device, value, 0);
         unary_operation(device, op, t);
     }
     template<typename DEVICE, typename SPEC>

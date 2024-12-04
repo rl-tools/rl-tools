@@ -48,6 +48,7 @@ namespace rl_tools{
         malloc(device, actor_training_buffers.d_actor_output_squashing);
         malloc(device, actor_training_buffers.d_squashing_input);
         malloc(device, actor_training_buffers.d_actor_input);
+        malloc(device, actor_training_buffers.loss_weight);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& actor_training_buffers){
@@ -65,6 +66,7 @@ namespace rl_tools{
         free(device, actor_training_buffers.d_actor_output_squashing);
         free(device, actor_training_buffers.d_squashing_input);
         free(device, actor_training_buffers.d_actor_input);
+        free(device, actor_training_buffers.loss_weight);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -225,9 +227,12 @@ namespace rl_tools{
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1);
         using BATCH = rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>;
         using T = typename BATCH::T;
-        tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
-        op.initial_value = 0;
-        unary_associative_reduce(device, op, batch.final_step_mask, loss_weight);
+        {
+            // todo this should be a function
+            tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
+            op.initial_value = 0;
+            unary_associative_reduce(device, op, batch.final_step_mask, loss_weight);
+        }
         if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU){
             T num_final_steps = get(device, loss_weight, 0);
             utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
@@ -294,7 +299,7 @@ namespace rl_tools{
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
-        {
+        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU){
             T output_matrix_value = get(output_matrix_view, 0, 0);
             add_scalar(device, device.logger, "critic_value", output_matrix_value, 10001);
             if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
@@ -307,8 +312,10 @@ namespace rl_tools{
             add_scalar(device, device.logger, "critic_loss", loss, 10001);
         }
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
-        T critic_gradient_norm = gradient_norm(device, critic);
-        add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm, 10001);
+        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU) {
+            T critic_gradient_norm = gradient_norm(device, critic);
+            add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm, 10001);
+        }
         step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename TRAINING_BUFFERS_SPEC, typename RNG>
@@ -407,10 +414,20 @@ namespace rl_tools{
         // we minimize the negative of the actor loss
         // todo: evaluate only backpropagating the active values
         // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
-        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
-            T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
-            utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
-            set_all(device, training_buffers.d_output, (T)-1/num_final_steps); // we only take the mean over the non-masked outputs
+        if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
+            if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU) {
+                T num_final_steps = cast_sum<T>(device, batch.final_step_mask);
+                utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
+            }
+            {
+                // todo this should be a function
+                tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
+                op.initial_value = 0;
+                unary_associative_reduce(device, op, batch.final_step_mask, training_buffers.loss_weight);
+            }
+            constexpr T LOSS_WEIGHT_A_PRIORI = 0.5;
+            scale(device, training_buffers.loss_weight, BATCH_SPEC::SEQUENCE_LENGTH * BATCH_SIZE * LOSS_WEIGHT_A_PRIORI, true);
+            set_all(device, training_buffers.d_output, training_buffers.loss_weight); // we only take the mean over the non-masked outputs
             mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
         else{
