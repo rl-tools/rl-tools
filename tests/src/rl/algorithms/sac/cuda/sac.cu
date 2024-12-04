@@ -105,6 +105,7 @@ void test() {
     bool finished = false;
     auto start_time = std::chrono::high_resolution_clock::now();
     while(!finished){
+        // std::cout << "Step: " << step << std::endl;
         // Evaluation
         if(step % 1000 == 0){
             if constexpr(GPU_EVALUATION) {
@@ -204,8 +205,17 @@ void test() {
     rlt::malloc(device_init, ts_init);
     rlt::malloc(device_init, ts_comparison);
 }
-TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
-    test<true, false, true, false, true>();
+// TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_INIT_GPU_ACTOR_ROLLOUT_GPU_EVALUATION) {
+//     test<true, false, true, false, true>();
+// }
+
+TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_ROLLOUT) {
+    constexpr bool GPU_INIT = false;
+    constexpr bool GPU_ROLLOUT = true;
+    constexpr bool GPU_ACTOR_ROLLOUT = false;
+    constexpr bool GPU_NOISE = false;
+    constexpr bool GPU_EVALUATION = false;
+    test<GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_NOISE, GPU_EVALUATION>();
 }
 
 // benchmark training should take < 2s on P1

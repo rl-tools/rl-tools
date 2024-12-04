@@ -471,7 +471,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
     template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
 //    [[deprecated("Note: math::isnan might be optimized out by the compiler when using e.g. fast-math")]]
-    bool is_nan(DEVICE& device, const Matrix<SPEC>& m, const Mode<MODE>& mode = {}){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const Matrix<SPEC>& m, const Mode<MODE>& mode = {}){
         return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_nan<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, false);
     }
     template<typename DEVICE, typename SPEC>
