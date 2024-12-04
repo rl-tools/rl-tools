@@ -5,7 +5,7 @@
 #include "../../../rl/components/off_policy_runner/off_policy_runner.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    namespace rl::components::off_policy_runner::kernels {
+    namespace rl::components::off_policy_runner::kernels{
         // template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC,typename ALPHA_PARAMETER>
         template <typename DEV_SPEC, typename BATCH_SPEC, typename TRAINING_BUFFER_SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename LOG_ALPHA_SPEC>
         __global__
@@ -40,14 +40,16 @@ namespace rl_tools{
         check_status(device);
     }
 
+    template <typename DEVICE, typename SPEC, typename TRAINING_BUFFERS_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void min_value_d_output_per_sample(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers, typename DEVICE::index_t batch_i);
     namespace rl::components::off_policy_runner::kernels {
-        template <typename DEV_SPEC, typename SPEC>
+        template <typename DEV_SPEC, typename SPEC, typename TRAINING_BUFFERS_SPEC>
         __global__
-        void min_value_d_output_kernel(devices::CUDA<DEV_SPEC> device, rl::algorithms::sac::ActorCritic<SPEC> actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC> training_buffers){
+        void min_value_d_output_kernel(devices::CUDA<DEV_SPEC> device, rl::algorithms::sac::ActorCritic<SPEC> actor_critic, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC> training_buffers){
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
-            using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<SPEC>;
+            using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>;
             constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
             TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(batch_step_i < BATCH_SIZE){
@@ -55,12 +57,12 @@ namespace rl_tools{
             }
         }
     }
-    template <typename DEV_SPEC, typename SPEC>
-    void min_value_d_output(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers){
+    template <typename DEV_SPEC, typename SPEC, typename TRAINING_BUFFERS_SPEC>
+    void min_value_d_output(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        constexpr TI BATCH_SIZE = rl::algorithms::sac::ActorTrainingBuffers<SPEC>::BATCH_SIZE;
+        constexpr TI BATCH_SIZE = rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>::BATCH_SIZE;
         constexpr TI BLOCKSIZE_COLS = 32;
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
@@ -97,20 +99,20 @@ namespace rl_tools{
         check_status(device);
     }
     namespace rl::components::off_policy_runner::kernels{
-        template <typename DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, typename MASK_SPEC>
+        template <typename DEV_SPEC, typename SOURCE_SPEC, typename MASK_SPEC>
         __global__
-        void mask_gradient(devices::CUDA<DEV_SPEC> device, Tensor<SOURCE_SPEC> source, Tensor<TARGET_SPEC> target, Tensor<MASK_SPEC> mask, bool invert_mask=false){
+        void mask_gradient(devices::CUDA<DEV_SPEC> device, Tensor<SOURCE_SPEC> source, Tensor<MASK_SPEC> mask, bool invert_mask=false){
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using TI = typename DEVICE::index_t;
             constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
             TI seq_step_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(seq_step_i < SEQUENCE_LENGTH){
-                mask_gradient_step(device, source, target, mask, seq_step_i, invert_mask);
+                mask_gradient_step(device, source, mask, seq_step_i, invert_mask);
             }
         }
     }
-    template <typename DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, typename MASK_SPEC>
-    void mask_gradient(devices::CUDA<DEV_SPEC>& device, Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
+    template <typename DEV_SPEC, typename SOURCE_SPEC, typename MASK_SPEC>
+    void mask_gradient(devices::CUDA<DEV_SPEC>& device, Tensor<SOURCE_SPEC>& source,Tensor<MASK_SPEC>& mask, bool invert_mask=false){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SOURCE_SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -120,7 +122,7 @@ namespace rl_tools{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::components::off_policy_runner::kernels::mask_gradient<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, source, target, mask, invert_mask);
+        rl::components::off_policy_runner::kernels::mask_gradient<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, source, mask, invert_mask);
         check_status(device);
     }
 }
