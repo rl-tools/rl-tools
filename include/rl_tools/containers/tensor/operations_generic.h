@@ -344,6 +344,14 @@ namespace rl_tools{
                     return parameter.constant;
                 }
             };
+            template <typename TENSOR>
+            struct ConstantFromTensor: Operation {
+                TENSOR constant;
+                template <typename DEVICE, typename T_TENSOR>
+                RL_TOOLS_FUNCTION_PLACEMENT static typename T_TENSOR::SPEC::T operation(DEVICE& device, const ConstantFromTensor<T_TENSOR>& parameter, typename T_TENSOR::SPEC::T a){
+                    return get(device, parameter.constant, 0);
+                }
+            };
             struct Sigmoid: Operation {
                 template <typename DEVICE, typename T>
                 RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Sigmoid& parameter, T a){
@@ -644,8 +652,8 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void set_all(DEVICE& device, Tensor<SPEC>& t, Tensor<VALUE_SPEC>& value){
         static_assert(VALUE_SPEC::SHAPE::LENGTH == 1);
         static_assert(VALUE_SPEC::SHAPE::template GET<0> == 1);
-        tensor::operations::unary::Constant<typename SPEC::T> op;
-        op.constant = get(device, value, 0);
+        tensor::operations::unary::ConstantFromTensor<Tensor<VALUE_SPEC>> op;
+        op.constant = value;
         unary_operation(device, op, t);
     }
     template<typename DEVICE, typename SPEC>
