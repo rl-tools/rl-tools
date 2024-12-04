@@ -88,14 +88,14 @@ int main(){
     using EVAL_PARAMETERS = CONFIG::EVALUATION_PARAMETERS;
     rlt::init(device);
     rlt::malloc(device, ts);
-    // rlt::malloc(device_init, ts_init);
+    rlt::malloc(device_init, ts_init);
     rlt::init(device, ts, 1);
     rlt::check_status(device);
-    // rlt::init(device_init, ts_init, 1);
+    rlt::init(device_init, ts_init, 1);
     // auto& episode_stats_source = ts_init.off_policy_runner.episode_stats;
     // rlt::utils::typing::remove_reference_t<decltype(episode_stats_source)> episode_stats_target;
     // episode_stats_target = episode_stats_source;
-    // rlt::copy(device_init, device, ts_init, ts);
+    // rlt::copy(device, device_init, ts, ts_init);
     //    rlt::copy(device_init, device, ts_init.off_policy_runner, ts.off_policy_runner);
 
 #ifdef _MSC_VER
@@ -115,23 +115,31 @@ int main(){
     auto start_time = std::chrono::high_resolution_clock::now();
     while(!finished){
         rlt::set_step(device, device.logger, step);
-        rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
+        // rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
+        rlt::step<1>(device_init, ts_init.off_policy_runner, ts_init.actor_critic.actor, ts_init.actor_buffers_eval, ts_init.rng);
         if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
                 for(int critic_i = 0; critic_i < 2; critic_i++){
-                    rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                    rlt::randn(device, ts.action_noise_critic, ts.rng);
-                    rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                    // rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+                    rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.critic_batch, ts_init.rng);
+                    // rlt::randn(device, ts.action_noise_critic, ts.rng);
+                    rlt::randn(device_init, ts_init.action_noise_critic, ts_init.rng);
+                    // rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                    rlt::train_critic(device_init, ts_init.actor_critic, critic_i == 0 ? ts_init.actor_critic.critic_1 : ts_init.actor_critic.critic_2, ts_init.critic_batch, ts_init.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
                 }
                 device.stream = 0;
             }
             if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
                 {
-                    rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                    rlt::randn(device, ts.action_noise_actor, ts.rng);
-                    rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+                    // rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+                    rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.actor_batch, ts_init.rng);
+                    // rlt::randn(device, ts.action_noise_actor, ts.rng);
+                    rlt::randn(device_init, ts_init.action_noise_actor, ts_init.rng);
+                    // rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+                    rlt::train_actor(device_init, ts_init.actor_critic, ts_init.actor_batch, ts_init.actor_optimizer, ts_init.actor_buffers[0], ts_init.critic_buffers[0], ts_init.actor_training_buffers, ts_init.action_noise_actor, ts_init.rng);
                 }
-                rlt::update_critic_targets(device, ts.actor_critic);
+                // rlt::update_critic_targets(device, ts.actor_critic);
+                rlt::update_critic_targets(device_init, ts_init.actor_critic);
             }
         }
 // #ifndef BENCHMARK

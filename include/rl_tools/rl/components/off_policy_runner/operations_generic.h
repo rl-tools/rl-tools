@@ -378,8 +378,8 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         using RUNNER = rl::components::OffPolicyRunner<SPEC>;
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
-        for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
-            typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng);
+        for(TI batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
+            TI env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (TI) 0, (TI)(SPEC::PARAMETERS::N_ENVIRONMENTS - 1), rng);
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
             gather_batch<DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
         }
