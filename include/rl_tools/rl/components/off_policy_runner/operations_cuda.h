@@ -38,7 +38,7 @@ namespace rl_tools{
         void gather_batch_kernel(DEVICE device, rl::components::OffPolicyRunner<RUNNER_SPEC> runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC> batch, RNG rng) {
             int dummy;
             void* stack_ptr = &dummy;
-            printf("Stack pointer in thread (%d, %d): %p\n", blockIdx.x, threadIdx.x, stack_ptr);
+            // printf("Stack pointer in thread (%d, %d): %p\n", blockIdx.x, threadIdx.x, stack_ptr);
             using T = typename RUNNER_SPEC::T;
             using TI = typename RUNNER_SPEC::TI;
             using RUNNER = rl::components::OffPolicyRunner<RUNNER_SPEC>;
@@ -49,11 +49,11 @@ namespace rl_tools{
             if(batch_step_i == 0){
                 auto& rng_state = get(rng.states, 0, batch_step_i);
                 typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng_state);
-                printf("Chose env %d\n", env_i);
+                // printf("Chose env %d\n", env_i);
                 auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
-                printf("replay buffer pointer %p\n", replay_buffer.data._data);
-                printf("replay buffer view pointer %p\n", replay_buffer.observations._data);
-                printf("batch pointer %p\n", batch.observations_actions_next_observations._data);
+                // printf("replay buffer pointer %p\n", replay_buffer.data._data);
+                // printf("replay buffer view pointer %p\n", replay_buffer.observations._data);
+                // printf("batch pointer %p\n", batch.observations_actions_next_observations._data);
                 gather_batch<DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng_state);
             }
         }
