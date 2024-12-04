@@ -1,369 +1,211 @@
+// /usr/local/cuda/bin/nvcc -I include -DRL_TOOLS_BACKEND_ENABLE_CUDA -lcublas src/rl/environments/pendulum/sac/cuda/sac.cu
+
+#ifdef RL_TOOLS_DEBUG
 #define RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
-
-// ------------ Groups 1 ------------
-#include <rl_tools/operations/cuda/group_1.h>
-#include <rl_tools/operations/cpu_mkl/group_1.h>
-#include <rl_tools/operations/cpu_tensorboard/group_1.h>
-// ------------ Groups 2 ------------
-#include <rl_tools/operations/cuda/group_2.h>
-#include <rl_tools/operations/cpu_mkl/group_2.h>
-#include <rl_tools/operations/cpu_tensorboard/group_2.h>
-// ------------ Groups 3 ------------
-#include <rl_tools/operations/cuda/group_3.h>
-#include <rl_tools/operations/cpu_mkl/group_3.h>
-#include <rl_tools/operations/cpu_tensorboard/group_3.h>
-
-namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER::rl_tools;
-
+#endif
+#define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
+#include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
-#include <rl_tools/nn/layers/dense/operations_cuda.h>
-#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_cuda.h>
-#include <rl_tools/nn/operations_cuda.h>
-#include <rl_tools/nn/operations_cpu_mkl.h>
-using DEV_SPEC_INIT = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU_TENSORBOARD<>>;
-using DEVICE_INIT = rlt::devices::CPU_MKL<DEV_SPEC_INIT>;
-//using DEVICE = rlt::devices::CPU_MKL<DEV_SPEC_INIT>;
-using DEVICE = rlt::devices::DefaultCUDA;
-using DEV_SPEC = DEVICE::SPEC;
+#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/random_uniform/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
-#include "parameters.h"
-
-#include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
+
 #include <rl_tools/rl/components/off_policy_runner/operations_cuda.h>
+
 #include <rl_tools/rl/algorithms/sac/operations_cuda.h>
-#include <rl_tools/rl/algorithms/sac/operations_generic.h>
-
-#include <rl_tools/rl/utils/evaluation/operations_generic.h>
-
+#include <rl_tools/rl/algorithms/sac/loop/core/config.h>
+#include <rl_tools/rl/loop/steps/evaluation/config.h>
+#include <rl_tools/rl/loop/steps/timing/config.h>
+#include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
+#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
+#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 #include <gtest/gtest.h>
-#include <filesystem>
 
-using DTYPE = double;
+namespace rlt = rl_tools;
+
+using DEVICE = rlt::devices::DEVICE_FACTORY_CUDA<>;
+#ifndef _MSC_VER
+using DEVICE_INIT = rlt::devices::DEVICE_FACTORY<>;
+#else
+using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes problems in this case (this example seems cursed)
+#endif
+DEVICE dummy_device; // this is needed because default_engine can not take a const device
+using RNG = decltype(rlt::random::default_engine(dummy_device));
+using RNG_INIT = decltype(rlt::random::default_engine(DEVICE_INIT{}));
+using T = double;
+using TI = typename DEVICE::index_t;
+
+using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+        static constexpr TI ACTOR_BATCH_SIZE = 100;
+        static constexpr TI CRITIC_BATCH_SIZE = 100;
+    };
+    static constexpr TI STEP_LIMIT = 20000;
+    static constexpr TI ACTOR_NUM_LAYERS = 3;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_NUM_LAYERS = 3;
+    static constexpr TI CRITIC_HIDDEN_DIM = 64;
+    static constexpr bool COLLECT_EPISODE_STATS = false;
+    static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
+};
+template <typename RNG>
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG<RNG>>{
+    static constexpr TI NUM_EVALUATION_EPISODES = 100;
+};
+template <typename RNG>
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<RNG>, LOOP_EVAL_PARAMETERS>;
+template <typename RNG>
+using LOOP_CONFIG = LOOP_EVAL_CONFIG<RNG>;
+
+using LOOP_STATE = LOOP_CONFIG<RNG>::template State<LOOP_CONFIG<RNG>>;
+using LOOP_STATE_INIT = LOOP_CONFIG<RNG_INIT>::template State<LOOP_CONFIG<RNG_INIT>>;
 
 
-using p = parameters_pendulum_0<DEVICE, DTYPE>;
-using rlp = p::rl<p::env::ENVIRONMENT>;
-
-static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
-
-
-static constexpr bool check_diff = true;
-
-TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
-    DEVICE_INIT::SPEC::LOGGING logger;
+template <bool GPU_INIT, bool GPU_ROLLOUT, bool GPU_ACTOR_ROLLOUT, bool GPU_NOISE, bool GPU_EVALUATION>
+void test() {
+    TI seed = 0;
     DEVICE device;
     DEVICE_INIT device_init;
-    using T = DTYPE;
-    using TI = DEVICE::index_t;
-
-    rlp::ACTOR_CRITIC_TYPE actor_critic_init, actor_critic_init2;
-    rlp::ACTOR_CRITIC_TYPE actor_critic;
-    rlp::OFF_POLICY_RUNNER_TYPE off_policy_runner_init, off_policy_runner;
-    rlp::OFF_POLICY_RUNNER_TYPE* off_policy_runner_pointer;
-
-    rlp::CRITIC_BATCH_TYPE critic_batch, critic_batch_init;
-    rlp::CRITIC_BATCH_TYPE* critic_batch_pointer;
-    rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers, critic_training_buffers_init, critic_training_buffers_init2;
-    rlp::CRITIC_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2], critic_buffers_init[2];
-    rlt::Matrix<rlt::matrix::Specification<T, TI, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, p::env::ENVIRONMENT::ACTION_DIM>> action_noise_critic_init[2], action_noise_critic[2];
-
-    rlp::ACTOR_BATCH_TYPE actor_batch, actor_batch_init;
-    rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
-    rlp::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers, actor_training_buffers_init, actor_training_buffers_init2;
-    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2], actor_buffers_init[2];
-    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;
-    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval_init;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, p::env::ENVIRONMENT::ACTION_DIM>> action_noise_actor_init, action_noise_actor;
-
+    LOOP_STATE ts;
+    LOOP_STATE_INIT ts_init, ts_comparison;
+    using CONFIG = decltype(ts)::CONFIG;
+    using CORE_PARAMETERS = CONFIG::CORE_PARAMETERS;
+    using EVAL_PARAMETERS = CONFIG::EVALUATION_PARAMETERS;
     rlt::init(device);
-    rlt::construct(device_init, device_init.logger);
-    auto rng_init = rlt::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
-    auto rng = rlt::random::default_engine(DEVICE{});
-    p::env::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
-    p::env::ENVIRONMENT::Parameters env_parameters[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
+    rlt::malloc(device, ts);
+    rlt::malloc(device_init, ts_init);
+    rlt::malloc(device_init, ts_comparison);
+    rlt::init(device, ts, 1);
+    rlt::check_status(device);
+    rlt::init(device_init, ts_init, 1);
+    rlt::init(device_init, ts_comparison, 1);
+    if constexpr(GPU_INIT) {
+        rlt::copy(device, device_init, ts, ts_init);
+    }
+    else {
+        rlt::copy(device_init, device, ts_init, ts);
+    }
+#ifdef _MSC_VER
+    CONFIG::ENVIRONMENT env_eval;
+    RNG_INIT rng_eval;
     rlt::rl::environments::DummyUI ui;
-
-
-    rlt::malloc(device_init, actor_critic_init);
-    rlt::malloc(device_init, actor_critic_init2);
-    rlt::malloc(device, actor_critic);
-    rlt::malloc(device_init, off_policy_runner_init);
-    rlt::malloc(device, off_policy_runner);
-    cudaMalloc(&off_policy_runner_pointer, sizeof(rlp::OFF_POLICY_RUNNER_TYPE));
-    rlt::check_status(device);
-
-    rlt::malloc(device_init, critic_batch_init);
-    rlt::malloc(device, critic_batch);
-    cudaMalloc(&critic_batch_pointer, sizeof(rlp::CRITIC_BATCH_TYPE));
-    rlt::check_status(device);
-    rlt::malloc(device_init, critic_training_buffers_init);
-    rlt::malloc(device_init, critic_training_buffers_init2);
-    rlt::malloc(device, critic_training_buffers);
-    rlt::malloc(device_init, action_noise_critic_init[0]);
-    rlt::malloc(device_init, action_noise_critic_init[1]);
-    rlt::malloc(device, action_noise_critic[0]);
-    rlt::malloc(device, action_noise_critic[1]);
-    rlt::malloc(device_init, critic_buffers_init[0]);
-    rlt::malloc(device_init, critic_buffers_init[1]);
-    rlt::malloc(device, critic_buffers[0]);
-    rlt::malloc(device, critic_buffers[1]);
-
-    rlt::malloc(device_init, actor_batch_init);
-    rlt::malloc(device, actor_batch);
-    cudaMalloc(&actor_batch_pointer, sizeof(rlp::ACTOR_BATCH_TYPE));
-    rlt::check_status(device);
-    rlt::malloc(device_init, actor_training_buffers_init);
-    rlt::malloc(device_init, actor_training_buffers_init2);
-    rlt::malloc(device, actor_training_buffers);
-    rlt::malloc(device_init, action_noise_actor_init);
-    rlt::malloc(device, action_noise_actor);
-    rlt::malloc(device, actor_buffers_eval);
-    rlt::malloc(device_init, actor_buffers_eval_init);
-    rlt::malloc(device_init, actor_buffers_init[0]);
-    rlt::malloc(device_init, actor_buffers_init[1]);
-    rlt::malloc(device, actor_buffers[0]);
-    rlt::malloc(device, actor_buffers[1]);
-
-    rlt::init(device_init, actor_critic_init, rng_init);
-    rlt::zero_gradient(device_init, actor_critic_init.critic_1);
-    rlt::zero_gradient(device_init, actor_critic_init.critic_2);
-    rlt::zero_gradient(device_init, actor_critic_init.actor);
-    rlt::reset_forward_state(device_init, actor_critic_init.critic_1);
-    rlt::reset_forward_state(device_init, actor_critic_init.critic_2);
-    rlt::reset_forward_state(device_init, actor_critic_init.actor);
-//    rlt::reset_optimizer_state(device_init, optimizer, actor_critic_init.critic_1);
-//    rlt::reset_optimizer_state(device_init, optimizer, actor_critic_init.critic_2);
-//    rlt::reset_optimizer_state(device_init, optimizer, actor_critic_init.actor);
-    rlt::copy(device_init, device, actor_critic_init, actor_critic);
-//    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
-//        auto parameters = p::env::parameters;
-//        envs[i].parameters = parameters;
-//    }
-    rlt::init(device_init, off_policy_runner_init, envs, env_parameters);
-    rlt::copy(device_init, device, off_policy_runner_init, off_policy_runner);
-    cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
-    rlt::check_status(device);
-    cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(rlp::ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
-    rlt::check_status(device);
-    cudaMemcpy(critic_batch_pointer, &critic_batch, sizeof(rlp::CRITIC_BATCH_TYPE), cudaMemcpyHostToDevice);
-    rlt::check_status(device);
-
+#endif
+    TI step = 0;
+    bool finished = false;
     auto start_time = std::chrono::high_resolution_clock::now();
-
-    constexpr DEVICE::index_t step_limit = 20000;
-    T epsilon = 1e-13;
-    T epsilon_decay = 1;
-    T epsilon_decay_rate = 2.00;
-    T returns_acc = 0;
-    T returns_acc_count = 0;
-    for(int step_i = 0; step_i < step_limit; step_i += 1){
-        bool check_diff_now = check_diff && (step_i < rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC + 100);
-        if(step_i % 1000 == 0){
-            {
-                auto rng_init_copy = rng_init;
-                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, p::env::ENVIRONMENT, 100, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
-                rlt::rl::utils::evaluation::Result<RESULT_SPEC> results;
-                rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, results, actor_buffers_eval_init, rng_init_copy);
-                std::cout << "Mean return (GPU): " << results.returns_mean << std::endl;
-                if(step_i > 10000){
-                    ASSERT_GT(results.returns_mean, -400);
-                    returns_acc += results.returns_mean;
-                    returns_acc_count += 1;
-                }
+    while(!finished){
+        // Evaluation
+        if(step % 1000 == 0){
+            if constexpr(GPU_EVALUATION) {
+                rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
             }
-            {
-                auto rng_init_copy = rng_init;
-                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, p::env::ENVIRONMENT, 100, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
-                rlt::rl::utils::evaluation::Result<RESULT_SPEC> results;
-                rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, results, actor_buffers_eval_init, rng_init_copy);
-                std::cout << "Mean return (CPU): " << results.returns_mean << std::endl;
-                if(step_i > 10000){
-                    ASSERT_GT(results.returns_mean, -400);
-                }
-            }
-        }
-        rlt::step(device, off_policy_runner, off_policy_runner_pointer, actor_critic.actor, actor_buffers_eval, rng);
-//        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-//        rlt::rl::components::off_policy_runner::prologue(device, *off_policy_runner_pointer, rng);
-//        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-//        rlt::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
-//        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-//        rlt::rl::components::off_policy_runner::epilogue(device, *off_policy_runner_pointer, rng);
-
-        if(step_i % 1000 == 0){
-            auto current_time = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed_seconds = current_time - start_time;
-            std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
-        }
-
-        if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC && step_i % rlp::ACTOR_CRITIC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
-            for (int critic_i = 0; critic_i < 2; critic_i++) {
-                rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-//                cudaDeviceSynchronize();
-//                auto start = std::chrono::high_resolution_clock::now();
-                rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-                rlt::gather_batch(device, off_policy_runner_pointer, critic_batch, rng);
-                rlt::copy(device, device_init, critic_batch, critic_batch_init);
-                if(check_diff_now){
-                    rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                    DTYPE diff_before = rlt::abs_diff(device_init, actor_critic_init.critic_1, actor_critic_init2.critic_1);
-                    std::cout << "step: " << step_i << " " << "diff before: " << diff_before << std::endl;
-                }
-                rlt::randn(device_init, action_noise_critic_init[critic_i], rng_init);
-                rlt::copy(device_init, device, action_noise_critic_init[critic_i], action_noise_critic[critic_i]);
-                rlt::train_critic(device     , actor_critic     , critic_i == 0 ? actor_critic.critic_1      : actor_critic.critic_2     , critic_batch     , actor_critic.critic_optimizers[critic_i]     , actor_buffers[critic_i]     , critic_buffers[critic_i]     , critic_training_buffers     , action_noise_critic[critic_i], rng);
-                rlt::train_critic(device_init, actor_critic_init, critic_i == 0 ? actor_critic_init.critic_1 : actor_critic_init.critic_2, critic_batch_init, actor_critic_init.critic_optimizers[critic_i], actor_buffers_init[critic_i], critic_buffers_init[critic_i], critic_training_buffers_init, action_noise_critic_init[critic_i], rng);
-                if(check_diff_now){
-                    rlt::copy(device, device_init, critic_training_buffers, critic_training_buffers_init2);
-//                rlt::copy(device, device_init, critic_training_buffers.next_actions_mean, critic_training_buffers_init2.next_actions_mean);
-                    T next_actions_mean_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_actions_mean, critic_training_buffers_init2.next_actions_mean);
-                    std::cout << "step: " << step_i << " " << "next_actions_mean_diff: " << next_actions_mean_diff << std::endl;
-                    ASSERT_LT(next_actions_mean_diff, epsilon*epsilon_decay);
-                    T next_state_action_value_input_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_state_action_value_input, critic_training_buffers_init2.next_state_action_value_input);
-                    std::cout << "step: " << step_i << " " << "next_state_action_value_input_diff: " << next_state_action_value_input_diff << std::endl;
-                    ASSERT_LT(next_state_action_value_input_diff, epsilon*epsilon_decay);
-                    T next_state_action_value_critic_1_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_state_action_value_critic_1, critic_training_buffers_init2.next_state_action_value_critic_1);
-                    std::cout << "step: " << step_i << " " << "next_state_action_value_critic_1_diff: " << next_state_action_value_critic_1_diff << std::endl;
-                    ASSERT_LT(next_state_action_value_critic_1_diff, epsilon*epsilon_decay);
-                    T next_state_action_value_critic_2_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_state_action_value_critic_2, critic_training_buffers_init2.next_state_action_value_critic_2);
-                    std::cout << "step: " << step_i << " " << "next_state_action_value_critic_2_diff: " << next_state_action_value_critic_2_diff << std::endl;
-                    ASSERT_LT(next_state_action_value_critic_2_diff, epsilon*epsilon_decay);
-                    T target_action_value_diff = rlt::abs_diff(device_init, critic_training_buffers_init.target_action_value, critic_training_buffers_init2.target_action_value);
-                    std::cout << "step: " << step_i << " " << "target_action_value_diff: " << target_action_value_diff << std::endl;
-                    ASSERT_LT(target_action_value_diff, epsilon*epsilon_decay);
-                    T d_output_diff = rlt::abs_diff(device_init, critic_training_buffers_init.d_output, critic_training_buffers_init2.d_output);
-                    std::cout << "step: " << step_i << " " << "d_output_diff: " << d_output_diff << std::endl;
-                    ASSERT_LT(d_output_diff, epsilon*epsilon_decay);
-
-                    rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                    T diff_gradient_first_layer = rlt::abs_diff(device_init, actor_critic_init.critic_1.content.input_layer.weights.gradient, actor_critic_init2.critic_1.content.input_layer.weights.gradient);
-                    std::cout << "step: " << step_i << " " << "diff_gradient_first_layer: " << diff_gradient_first_layer << std::endl;
-                    ASSERT_LT(diff_gradient_first_layer, epsilon*epsilon_decay);
-                    T diff_weights_first_layer = rlt::abs_diff(device_init, actor_critic_init.critic_1.content.input_layer.weights.parameters, actor_critic_init2.critic_1.content.input_layer.weights.parameters);
-                    std::cout << "step: " << step_i << " " << "diff_weights_first_layer: " << diff_weights_first_layer << std::endl;
-                    ASSERT_LT(diff_weights_first_layer, epsilon*epsilon_decay);
-                    DTYPE diff_after = rlt::abs_diff(device_init, actor_critic_init.critic_1, actor_critic_init2.critic_1);
-                    std::cout << "step: " << step_i << " " << "diff after: " << diff_after << std::endl;
-                    ASSERT_LT(diff_after, 1e-10*epsilon_decay);
-
-                }
-//                cudaDeviceSynchronize();
-//                auto end = std::chrono::high_resolution_clock::now();
-//                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-//                std::cout << "critic_i: " << critic_i << " " << duration_microseconds << "us" << std::endl;
-            }
-        }
-
-        if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_ACTOR && step_i % rlp::ACTOR_CRITIC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
-            cudaDeviceSynchronize();
-//            auto start = std::chrono::high_resolution_clock::now();
-            if(check_diff_now){
-                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                T diff_before = rlt::abs_diff(device_init, actor_critic_init.actor.content, actor_critic_init2.actor.content);
-                std::cout << "step: " << step_i << " " << "actor diff before: " << diff_before << std::endl;
-            }
-            rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-            rlt::gather_batch(device, off_policy_runner_pointer, actor_batch, rng);
-            rlt::copy(device, device_init, actor_batch, actor_batch_init);
-            rlt::randn(device_init, action_noise_actor_init, rng_init);
-            rlt::copy(device_init, device, action_noise_actor_init, action_noise_actor);
-            rlt::train_actor(device     , actor_critic     , actor_batch     , actor_critic.actor_optimizer     , actor_buffers[0]     , critic_buffers[0]     , actor_training_buffers     , action_noise_actor, rng);
-            rlt::train_actor(device_init, actor_critic_init, actor_batch_init, actor_critic_init.actor_optimizer, actor_buffers_init[0], critic_buffers_init[0], actor_training_buffers_init, action_noise_actor_init, rng);
-            if(check_diff_now){
-                rlt::copy(device, device_init, actor_training_buffers, actor_training_buffers_init2);
-                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                auto last_layer_init = rlt::get_last_layer(actor_critic_init.actor);
-                auto last_layer_init2 = rlt::get_last_layer(actor_critic_init2.actor);
-                T diff_output = rlt::abs_diff(device_init, last_layer_init.output, last_layer_init2.output);
-                std::cout << "step: " << step_i << " " << "diff_output: " << diff_output << std::endl;
-                ASSERT_LT(diff_output, epsilon*epsilon_decay);
-                T diff_actions = rlt::abs_diff(device_init, actor_training_buffers_init.actions, actor_training_buffers_init2.actions);
-                std::cout << "step: " << step_i << " " << "diff_actions: " << diff_actions << std::endl;
-                ASSERT_LT(diff_actions, epsilon*epsilon_decay);
-                {
-                    T diff_d_critic_input_1 = rlt::abs_diff(device_init, actor_training_buffers_init.d_critic_1_input, actor_training_buffers_init2.d_critic_1_input);
-                    std::cout << "step: " << step_i << " " << "diff_d_critic_input_1: " << diff_d_critic_input_1 << std::endl;
-                    ASSERT_LT(diff_d_critic_input_1, epsilon*epsilon_decay);
-                }
-                {
-                    T diff_d_critic_input_2 = rlt::abs_diff(device_init, actor_training_buffers_init.d_critic_2_input, actor_training_buffers_init2.d_critic_2_input);
-                    std::cout << "step: " << step_i << " " << "diff_d_critic_input_2: " << diff_d_critic_input_2 << std::endl;
-                    ASSERT_LT(diff_d_critic_input_2, epsilon*epsilon_decay);
-                }
-                {
-                    T diff_critic_output = rlt::abs_diff(device_init, rlt::output(actor_critic_init.critic_1), rlt::output(actor_critic_init2.critic_1));
-                    std::cout << "step: " << step_i << " " << "diff_critic_output: " << diff_critic_output << std::endl;
-                    ASSERT_LT(diff_critic_output, epsilon*epsilon_decay);
-                }
-                {
-                    T diff_actor_d_actor_output_squashing = rlt::abs_diff(device_init, actor_training_buffers_init.d_actor_output_squashing, actor_training_buffers_init2.d_actor_output_squashing);
-                    std::cout << "step: " << step_i << " " << "diff_actor_d_actor_output_squashing: " << diff_actor_d_actor_output_squashing << std::endl;
-                    ASSERT_LT(diff_actor_d_actor_output_squashing, epsilon*epsilon_decay);
-                }
-                {
-
-                    T diff_gradient_first_layer = rlt::abs_diff(device_init, actor_critic_init.actor.content.input_layer.weights.gradient, actor_critic_init2.actor.content.input_layer.weights.gradient);
-                    std::cout << "step: " << step_i << " " << "diff_gradient_first_layer: " << diff_gradient_first_layer << std::endl;
-                    ASSERT_LT(diff_gradient_first_layer, epsilon*epsilon_decay);
-                    T diff_weights_first_layer = rlt::abs_diff(device_init, actor_critic_init.actor.content.input_layer.weights.parameters, actor_critic_init2.actor.content.input_layer.weights.parameters);
-                    std::cout << "step: " << step_i << " " << "diff_weights_first_layer: " << diff_weights_first_layer << std::endl;
-                    ASSERT_LT(diff_weights_first_layer, epsilon*epsilon_decay);
-                }
-                T diff_after = rlt::abs_diff(device_init, actor_critic_init.actor.content, actor_critic_init2.actor.content);
-                std::cout << "step: " << step_i << " " << "actor diff after: " << diff_after << std::endl;
-                ASSERT_LT(diff_after, 1e-10*epsilon_decay);
-            }
-//            cudaDeviceSynchronize();
-//            auto end = std::chrono::high_resolution_clock::now();
-//            auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-//                    std::cout << "actor: " << duration_microseconds << "us" << std::endl;
-            if(epsilon_decay == 1){
-                epsilon_decay *=  10000000;
-            }
-            else{
-                epsilon_decay *= epsilon_decay_rate;
-            }
-        }
-
-        if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC && step_i % rlp::ACTOR_CRITIC_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0) {
-            {
-//                cudaDeviceSynchronize();
-//                auto start = std::chrono::high_resolution_clock::now();
-                rlt::update_critic_targets(device, actor_critic);
-                rlt::update_critic_targets(device_init, actor_critic_init);
-//                cudaDeviceSynchronize();
-//                auto end = std::chrono::high_resolution_clock::now();
-//                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-//                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
-            }
-        }
-#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
-            std::cout << "step: " << step_i << std::endl;
-            if (step_i >= 2){
-                break;
-            }
+#ifdef _MSC_VER
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+//            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+#else
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device_init, ts_init.env_eval, ts_init.env_eval_parameters, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
 #endif
-    }
-#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
-    ASSERT_GT(returns_acc/returns_acc_count, -200);
-#endif
-    {
-        auto current_time = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed_seconds = current_time - start_time;
-        std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
-        // 90s, 15x of CPU BLAS => todo: investigate individual kernel timings
-        // on device rollout: 24s, 6x of CPU BLAS => todo: investigate individual kernel timings
-        // no device sync: 14s, 2.5x of CPU BLAS => todo: investigate individual kernel timings
+            rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
+        }
 
-    }
-    rlt::free(device, critic_batch);
-    rlt::free(device, critic_training_buffers);
-    rlt::free(device, actor_batch);
-    rlt::free(device, actor_training_buffers);
-    rlt::free(device, off_policy_runner);
-    rlt::free(device, actor_critic);
+        // Training
+        rlt::set_step(device, device.logger, step);
+        if constexpr(GPU_ROLLOUT){
+            if constexpr(!GPU_ACTOR_ROLLOUT) {
+                rlt::copy(device_init, device, ts_init.actor_critic.actor, ts.actor_critic.actor);
+            }
+            rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
+        }
+        else {
+            if constexpr(GPU_ACTOR_ROLLOUT){
+                rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
+            }
+            rlt::step<1>(device_init, ts_init.off_policy_runner, ts_init.actor_critic.actor, ts_init.actor_buffers_eval, ts_init.rng);
+        }
+        if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+            if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
+                for(int critic_i = 0; critic_i < 2; critic_i++){
+                    if constexpr(GPU_ROLLOUT) {
+                        rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+                        rlt::copy(device, device_init, ts.critic_batch, ts_init.critic_batch);
+                    }
+                    else {
+                        rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.critic_batch, ts_init.rng);
+                        rlt::copy(device_init, device, ts_init.critic_batch, ts.critic_batch);
+                    }
+                    if constexpr(GPU_NOISE) {
+                        rlt::randn(device, ts.action_noise_critic, ts.rng);
+                        rlt::copy(device, device_init, ts.action_noise_critic, ts_init.action_noise_critic);
+                    }
+                    else {
+                        rlt::randn(device_init, ts_init.action_noise_critic, ts_init.rng);
+                        rlt::copy(device_init, device, ts_init.action_noise_critic, ts.action_noise_critic);
+                    }
+                    rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                    rlt::train_critic(device_init, ts_init.actor_critic, critic_i == 0 ? ts_init.actor_critic.critic_1 : ts_init.actor_critic.critic_2, ts_init.critic_batch, ts_init.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
+
+                    if(step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL * 100) == 0) {
+                        rlt::copy(device, device_init, ts, ts_comparison);
+                        T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.critic_1, ts_comparison.actor_critic.critic_1);
+                        std::cout << "Abs diff is: " << abs_diff << " after critic update" << std::endl;
+                    }
+                }
+            }
+            if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
+                {
+                    if constexpr(GPU_ROLLOUT) {
+                        rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+                        rlt::copy(device, device_init, ts.actor_batch, ts_init.actor_batch);
+                    }
+                    else {
+                        rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.actor_batch, ts_init.rng);
+                        rlt::copy(device_init, device, ts_init.actor_batch, ts.actor_batch);
+                    }
+                    if constexpr(GPU_NOISE) {
+                        rlt::randn(device, ts.action_noise_actor, ts.rng);
+                        rlt::copy(device, device_init, ts.action_noise_actor, ts_init.action_noise_actor);
+                    }
+                    else {
+                        rlt::randn(device_init, ts_init.action_noise_actor, ts_init.rng);
+                        rlt::copy(device_init, device, ts_init.action_noise_actor, ts.action_noise_actor);
+                    }
+                    rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+                    rlt::train_actor(device_init, ts_init.actor_critic, ts_init.actor_batch, ts_init.actor_optimizer, ts_init.actor_buffers[0], ts_init.critic_buffers[0], ts_init.actor_training_buffers, ts_init.action_noise_actor, ts_init.rng);
+
+                    if(step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL * 100) == 0) {
+                        rlt::copy(device, device_init, ts, ts_comparison);
+                        T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.actor, ts_comparison.actor_critic.actor);
+                        std::cout << "Abs diff is: " << abs_diff << " after actor update" << std::endl;
+                    }
+                }
+                rlt::update_critic_targets(device, ts.actor_critic);
+                rlt::update_critic_targets(device_init, ts_init.actor_critic);
+            }
+        }
+        step++;
+        finished = step > CORE_PARAMETERS::STEP_LIMIT;
+     }
+    rlt::malloc(device, ts);
+    rlt::malloc(device_init, ts_init);
+    rlt::malloc(device_init, ts_comparison);
 }
+TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
+    test<true, false, true, false, true>();
+}
+
+// benchmark training should take < 2s on P1
