@@ -82,12 +82,10 @@ namespace rl_tools{
         malloc(device, batch.truncated);
     }
     template <typename DEVICE, typename BATCH_SPEC>
-    void malloc(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
+    void update_views(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
         using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
         using SPEC = typename BATCH_SPEC::SPEC;
         using DATA_SPEC = typename decltype(batch.observations_actions_next_observations)::SPEC;
-        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
-        malloc(device, batch.observations_actions_next_observations);
         typename DEVICE::index_t offset = 0;
         batch.observations                  = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM>{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
         batch.observations_and_actions      = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>{});
@@ -98,6 +96,12 @@ namespace rl_tools{
         batch.next_observations_privileged  = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
         batch.next_actions                  = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
 
+    }
+    template <typename DEVICE, typename BATCH_SPEC>
+    void malloc(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
+        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
+        malloc(device, batch.observations_actions_next_observations);
+        update_views(device, batch);
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
         malloc(device, batch.truncated);
@@ -396,6 +400,20 @@ namespace rl_tools{
         copy(source_device, target_device, source.rewards, target.rewards);
         copy(source_device, target_device, source.terminated, target.terminated);
         copy(source_device, target_device, source.truncated, target.truncated);
+        copy(source_device, target_device, source.reset, target.reset);
+        copy(source_device, target_device, source.final_step_mask, target.final_step_mask);
+    }
+    template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    typename SOURCE_SPEC::SPEC::T abs_diff(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SOURCE_SPEC>& source, rl::components::off_policy_runner::SequentialBatch<TARGET_SPEC>& target) {
+        using T = typename SOURCE_SPEC::SPEC::T;
+        T acc = 0;
+        acc += abs_diff(device, source.observations_actions_next_observations, target.observations_actions_next_observations);
+        acc += abs_diff(device, source.rewards, target.rewards);
+        acc += abs_diff(device, source.terminated, target.terminated);
+        acc += abs_diff(device, source.truncated, target.truncated);
+        acc += abs_diff(device, source.reset, target.reset);
+        acc += abs_diff(device, source.final_step_mask, target.final_step_mask);
+        return acc;
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::Buffers<SOURCE_SPEC>& source, rl::components::off_policy_runner::Buffers<TARGET_SPEC>& target){
