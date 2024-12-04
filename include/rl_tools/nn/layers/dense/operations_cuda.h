@@ -13,7 +13,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    namespace nn::dense::cuda{
+    namespace nn::dense::kernels{
         template<typename DEV_SPEC, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
         __global__
         void init_weights_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::dense::LayerForward<SPEC> layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC> initializer, RNG rng) {
@@ -47,6 +47,24 @@ namespace rl_tools{
                 }
             }
         }
+    }
+    
+    template<typename DEV_SPEC, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
+    void init_weights(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::OUTPUT_DIM, BLOCKSIZE_ACTIVATION_OUTPUT);
+        dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
+        dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        nn::dense::kernels::init_weights_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, typename SPEC::CONFIG::INITIALIZER{}, rng);
+        check_status(device);
+    }
+    template<typename DEV_SPEC, typename SPEC, typename RNG>
+    void init_weights(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
+        init_weights(device, layer, typename SPEC::INITIALIZER{}, rng);
+    }
+    namespace nn::dense::kernels{
         template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC>
         __global__ void
         set_biases_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<OUTPUT_SPEC> output) {
@@ -72,7 +90,7 @@ namespace rl_tools{
             dim3 bias_grid(N_BLOCKS_BIAS);
             dim3 bias_block(BLOCKSIZE_BIAS);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            nn::dense::cuda::set_biases_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, output);
+            nn::dense::kernels::set_biases_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, output);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC>
@@ -105,7 +123,7 @@ namespace rl_tools{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT, N_BLOCKS_ACTIVATION_BATCH);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT, BLOCKSIZE_ACTIVATION_BATCH);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            nn::dense::cuda::activation_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, output);
+            nn::dense::kernels::activation_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, output);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
@@ -136,7 +154,7 @@ namespace rl_tools{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            nn::dense::cuda::d_activation_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, d_output, d_pre_activations);
+            nn::dense::kernels::d_activation_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, d_output, d_pre_activations);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
@@ -169,7 +187,7 @@ namespace rl_tools{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            nn::dense::cuda::d_activation_accumulate_bias_gradient_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, d_output, d_biases, d_pre_activations);
+            nn::dense::kernels::d_activation_accumulate_bias_gradient_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, d_output, d_biases, d_pre_activations);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
@@ -212,23 +230,6 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEV_SPEC, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
-    void init_weights(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng){
-        using DEVICE = devices::CUDA<DEV_SPEC>;
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_INPUT = 32;
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::OUTPUT_DIM, BLOCKSIZE_ACTIVATION_OUTPUT);
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_INPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::INPUT_DIM, BLOCKSIZE_ACTIVATION_INPUT);
-        dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
-        dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
-        devices::cuda::TAG<DEVICE, true> tag_device{};
-        nn::dense::cuda::init_weights_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, typename SPEC::CONFIG::INITIALIZER{}, rng);
-        check_status(device);
-    }
-    template<typename DEV_SPEC, typename SPEC, typename RNG>
-    void init_weights(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
-        init_weights(device, layer, typename SPEC::INITIALIZER{}, rng);
-    }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
@@ -242,7 +243,7 @@ namespace rl_tools{
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         {
-            nn::dense::cuda::set_biases(device, layer, output);
+            nn::dense::kernels::set_biases(device, layer, output);
 
             constexpr T alpha = 1;
             constexpr T beta = 1;
@@ -262,7 +263,7 @@ namespace rl_tools{
             if(stat != CUBLAS_STATUS_SUCCESS){
                 std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
             }
-            nn::dense::cuda::activation(device, layer, output, output);
+            nn::dense::kernels::activation(device, layer, output, output);
         }
     }
 
@@ -286,7 +287,7 @@ namespace rl_tools{
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
         constexpr auto n = BATCH_SIZE;
 
-        nn::dense::cuda::set_biases(device, layer, output);
+        nn::dense::kernels::set_biases(device, layer, output);
 
         cublasStatus_t stat;
         if constexpr(utils::typing::is_same_v<T, float>){
@@ -301,7 +302,7 @@ namespace rl_tools{
 
         copy(device, device, output, layer.pre_activations);
 
-        nn::dense::cuda::activation(device, layer, output, output);
+        nn::dense::kernels::activation(device, layer, output, output);
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
@@ -368,7 +369,7 @@ namespace rl_tools{
             constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
             constexpr auto k = BATCH_SIZE;
 
-            nn::dense::cuda::d_activation_accumulate_bias_gradient(device, layer, layer.pre_activations, d_output, layer.biases.gradient, d_output);
+            nn::dense::kernels::d_activation_accumulate_bias_gradient(device, layer, layer.pre_activations, d_output, layer.biases.gradient, d_output);
 
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
@@ -389,7 +390,7 @@ namespace rl_tools{
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
     void backward_input(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        nn::dense::cuda::d_activation(device, layer, layer.pre_activations, d_output, d_output);
+        nn::dense::kernels::d_activation(device, layer, layer.pre_activations, d_output, d_output);
         backward_input_additional(device, layer, d_output, d_input);
     }
 
@@ -422,7 +423,7 @@ namespace rl_tools{
         dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
         dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        nn::dense::cuda::update_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, optimizer);
+        nn::dense::kernels::update_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, optimizer);
         check_status(device);
     }
 }
