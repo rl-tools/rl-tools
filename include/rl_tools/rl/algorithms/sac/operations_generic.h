@@ -228,10 +228,11 @@ namespace rl_tools{
         using BATCH = rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>;
         using T = typename BATCH::T;
         {
-            // todo this should be a function
-            tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
-            op.initial_value = 0;
-            unary_associative_reduce(device, op, batch.final_step_mask, loss_weight);
+            // // todo this should be a function
+            // tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
+            // op.initial_value = 0;
+            // unary_associative_reduce(device, op, batch.final_step_mask, loss_weight);
+            cast_reduce_sum<T>(device, batch.final_step_mask, loss_weight);
         }
         if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU){
             T num_final_steps = get(device, loss_weight, 0);
@@ -419,12 +420,13 @@ namespace rl_tools{
                 T num_final_steps = cast_reduce_sum<T>(device, batch.final_step_mask);
                 utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
             }
-            {
-                // todo this should be a function
-                tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
-                op.initial_value = 0;
-                unary_associative_reduce(device, op, batch.final_step_mask, training_buffers.loss_weight);
-            }
+            // {
+            //     // todo this should be a function
+            //     tensor::unary_reduce_operations::CastSum<T, decltype(device.math), T> op;
+            //     op.initial_value = 0;
+            //     unary_associative_reduce(device, op, batch.final_step_mask, training_buffers.loss_weight);
+            // }
+            cast_reduce_sum<T>(device, batch.final_step_mask, training_buffers.loss_weight);
             // constexpr T LOSS_WEIGHT_A_PRIORI = 0.5;
             constexpr T LOSS_WEIGHT_A_PRIORI = 1;
             scale(device, training_buffers.loss_weight, -LOSS_WEIGHT_A_PRIORI, true);
