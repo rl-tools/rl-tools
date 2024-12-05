@@ -6,7 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::loss_functions::mse{
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
-    typename SPEC_A::T evaluate(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, typename SPEC_A::T loss_weight = 1) {
+    typename SPEC_A::T evaluate(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, typename SPEC_A::T loss_weight = 1) {
         static_assert(containers::check_structure<SPEC_A, SPEC_B>);
         using T = typename SPEC_A::T;
         using TI = typename SPEC_A::TI;
@@ -21,13 +21,13 @@ namespace rl_tools::nn::loss_functions::mse{
         return acc * loss_weight / (SPEC_A::ROWS * SPEC_A::COLS);
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename LOSS_WEIGHT_SPEC>
-    typename SPEC_A::T evaluate(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Tensor<LOSS_WEIGHT_SPEC>& loss_weight) {
+    typename SPEC_A::T evaluate(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, Tensor<LOSS_WEIGHT_SPEC>& loss_weight) {
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::LENGTH == 1);
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1);
         return evaluate(device, a, b, get(device, loss_weight, 0));
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
-    void gradient(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
+    void gradient(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, Matrix<SPEC_DA>& d_a, typename SPEC_A::T loss_weight) {
         static_assert(containers::check_structure<SPEC_A, SPEC_B>);
         static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
         using T = typename SPEC_A::T;
@@ -42,10 +42,24 @@ namespace rl_tools::nn::loss_functions::mse{
         }
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_DA, typename LOSS_WEIGHT_SPEC>
-    void gradient(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, Tensor<LOSS_WEIGHT_SPEC>& loss_weight) {
+    void gradient(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, Matrix<SPEC_DA>& d_a, Tensor<LOSS_WEIGHT_SPEC>& loss_weight) {
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::LENGTH == 1);
-        static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1);
-        gradient(device, a, b, d_a, get(device, loss_weight, 0));
+        static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1 || LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 0);
+        constexpr bool LOSS_WEIGHT_PROVIDED = LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1;
+        typename SPEC_A::T loss_weight_value;
+        if constexpr(LOSS_WEIGHT_PROVIDED) {
+            loss_weight_value= get(device, loss_weight, 0);
+        }
+        else {
+            loss_weight_value= 1;
+        }
+        gradient(device, a, b, d_a, loss_weight_value);
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
+    void gradient(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, Matrix<SPEC_DA>& d_a) {
+        using TI = typename SPEC_A::TI;
+        Tensor<tensor::Specification<typename SPEC_A::T, TI, tensor::Shape<TI, 0>>> dummy_loss_weight;
+        gradient(device, a, b, d_a, dummy_loss_weight);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

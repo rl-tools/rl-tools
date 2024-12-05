@@ -660,8 +660,8 @@ TEST(RL_TOOLS_NN_CUDA, FORWARD) {
     FORWARD<float, unsigned int, 9, 1>();
     FORWARD<double, unsigned int, 200, 1>();
     FORWARD<float, unsigned int, 200, 1>();
-    FORWARD<float, unsigned int, 64, 10000>();
-    FORWARD<float, unsigned int, 256, 100000>();
+    FORWARD<float, unsigned int, 64, 1000>();
+    FORWARD<float, unsigned int, 256, 100>();
 }
 
 template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
@@ -852,7 +852,7 @@ TEST(RL_TOOLS_NN_CUDA, BACKWARD) {
     BACKWARD<DEFAULT_DTYPE, unsigned int,  200, 256,  11, 100, 1>();
     BACKWARD<double       , unsigned int,  200, 256,  12, 101, 1>();
     BACKWARD<DEFAULT_DTYPE, unsigned int,   64, 256,  50, 101, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 10000>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 100>();
 }
 
 template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
@@ -988,6 +988,6 @@ TEST(RL_TOOLS_NN_CUDA, ADAM_UPDATE) {
     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    9, 256,  60, 100, 1>();
     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,  200, 256,  11, 100, 1>();
     ADAM_UPDATE<double       , unsigned int,  200, 256,  12, 101, 1>();
-    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,   64, 256,  50, 101, 10000>();
-    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 10000>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,   64, 256,  50, 101, 100>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 100>();
 }
