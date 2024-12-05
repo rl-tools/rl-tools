@@ -40,7 +40,7 @@ namespace rl_tools::devices{
             using SPEC = T_SPEC;
             typename SPEC::LOGGING* logger = nullptr;
             cublasHandle_t handle;
-            cudaStream_t stream = 0;
+            cudaStream_t stream;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
             index_t malloc_counter = 0;
 #endif
@@ -94,15 +94,22 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template <typename SPEC>
     void init(devices::CUDA<SPEC>& device){
-        cublasStatus_t stat;
-        stat = cublasCreate(&device.handle);
+        cudaError_t stat;
+        stat = cudaStreamCreate(&device.stream);
+        if (stat != CUBLAS_STATUS_SUCCESS) {
+//            log(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
+            std::cout << "CUDA Stream initialization failed " << cudaGetErrorString(stat) << std::endl;
+        }
+        cublasStatus_t cublas_stat;
+        cublas_stat = cublasCreate(&device.handle);
+        if (cublas_stat != CUBLAS_STATUS_SUCCESS) {
+//            log(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
+            std::cout << "CUBLAS initialization failed " << cublasGetStatusString(cublas_stat) << std::endl;
+        }
+        cublasSetStream(device.handle, device.stream);
 #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
         device.initialized = true;
 #endif
-        if (stat != CUBLAS_STATUS_SUCCESS) {
-//            log(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
-            std::cout << "CUBLAS initialization failed " << cublasGetStatusString(stat) << std::endl;
-        }
     }
     template <typename SPEC>
     void check_status(devices::CUDA<SPEC>& device){
@@ -111,9 +118,8 @@ namespace rl_tools {
             std::cerr << "CUDA device not initialized" << std::endl;
         }
 #endif
-// #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
+#ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
         cudaDeviceSynchronize();
-// #endif
         cudaStreamSynchronize(device.stream);
         cudaError_t cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) {
@@ -121,6 +127,7 @@ namespace rl_tools {
             std::cerr << "cuda failed: " << error_string << std::endl;
             std::exit(100);
         }
+#endif
     }
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::CUDA<DEV_SPEC>& device, TI size){

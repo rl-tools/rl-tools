@@ -30,19 +30,19 @@ namespace rl_tools::random{
 
     }
     template <typename DEV_SPEC, typename T_TI = typename devices::CUDA<DEV_SPEC>::index_t, T_TI NUM_RNGS = 1024>
-    auto default_engine(devices::CUDA<DEV_SPEC>& dev, typename devices::CUDA<DEV_SPEC>::index_t seed = 1){
+    auto default_engine(devices::CUDA<DEV_SPEC>& device, typename devices::CUDA<DEV_SPEC>::index_t seed = 1){
         cuda::RNG<T_TI, NUM_RNGS> rng;
-        malloc(dev, rng.states);
+        malloc(device, rng.states);
         constexpr T_TI BLOCKSIZE_COLS = 32;
         constexpr T_TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(NUM_RNGS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
-        cuda::init_rng_kernel<<<grid, block, 0>>>(dev, rng, seed);
+        cuda::init_rng_kernel<<<grid, block, 0, device.stream>>>(device, rng, seed);
         return rng;
     };
-    template <typename T_TI, T_TI T_NUM_RNGS, typename CURAND_TYPE=curandState>
-    void free(cuda::RNG<T_TI, T_NUM_RNGS, CURAND_TYPE>& rng){
-        free(rng.states);
+    template <typename DEV_SPEC, typename T_TI, T_TI T_NUM_RNGS, typename CURAND_TYPE=curandState>
+    void free(devices::CUDA<DEV_SPEC>& device, cuda::RNG<T_TI, T_NUM_RNGS, CURAND_TYPE>& rng){
+        free(device, rng.states);
     }
 
     template<typename T, typename RNG>

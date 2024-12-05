@@ -85,25 +85,30 @@ namespace rl_tools{
         using FROM_DEVICE = devices::CUDA<FROM_DEV_SPEC>;
         using TI = typename FROM_DEVICE::index_t;
         static_assert(tensor::same_dimensions<FROM_SPEC, TO_SPEC>());
-        if constexpr(length(typename FROM_SPEC::SHAPE{}) > 1){
-            for(TI i=0; i < get<0>(typename FROM_SPEC::SHAPE{}); ++i){
-                auto next_from = view(from_device, from, i);
-                auto next_to = view(to_device, to, i);
-                copy(from_device, to_device, next_from, next_to);
+        if constexpr(!tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>()){
+            if constexpr(length(typename FROM_SPEC::SHAPE{}) > 1){
+                for(TI i=0; i < get<0>(typename FROM_SPEC::SHAPE{}); ++i){
+                    auto next_from = view(from_device, from, i);
+                    auto next_to = view(to_device, to, i);
+                    copy(from_device, to_device, next_from, next_to);
+                }
+            }
+            else{
+                using DEVICE = devices::CUDA<FROM_DEV_SPEC>;
+                using T = typename FROM_SPEC::T;
+                using TI = typename FROM_SPEC::TI;
+                constexpr TI BLOCKSIZE_COLS = 32;
+                constexpr TI SIZE = get<0>(typename FROM_SPEC::SHAPE{});
+                constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE_COLS);
+                dim3 grid(N_BLOCKS_COLS);
+                dim3 block(BLOCKSIZE_COLS);
+                devices::cuda::TAG<DEVICE, true> tag_device{};
+                tensor::kernels::copy<<<grid, block, 0, from_device.stream>>>(tag_device, from, to);
+                check_status(from_device);
             }
         }
         else{
-            using DEVICE = devices::CUDA<FROM_DEV_SPEC>;
-            using T = typename FROM_SPEC::T;
-            using TI = typename FROM_SPEC::TI;
-            constexpr TI BLOCKSIZE_COLS = 32;
-            constexpr TI SIZE = get<0>(typename FROM_SPEC::SHAPE{});
-            constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE_COLS);
-            dim3 grid(N_BLOCKS_COLS);
-            dim3 block(BLOCKSIZE_COLS);
-            devices::cuda::TAG<DEVICE, true> tag_device{};
-            tensor::kernels::copy<<<grid, block, 0, from_device.stream>>>(tag_device, from, to);
-            check_status(from_device);
+            cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, from_device.stream);
         }
     }
     template<typename FROM_DEV_SPEC, typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
@@ -112,7 +117,7 @@ namespace rl_tools{
         constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
         static_assert(SAME_STRIDE);
         if constexpr(SAME_STRIDE){
-            cudaMemcpy(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost);
+            cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, from_device.stream);
         }
         else{
 
@@ -124,7 +129,7 @@ namespace rl_tools{
         constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
         static_assert(SAME_STRIDE);
         if constexpr(SAME_STRIDE){
-            cudaMemcpy(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice);
+            cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, to_device.stream);
         }
         else{
 
