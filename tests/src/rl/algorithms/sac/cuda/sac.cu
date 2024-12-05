@@ -73,7 +73,7 @@ struct ConfigFactory{
 };
 
 
-template <typename T, auto STEP_LIMIT, bool GPU_INIT, bool GPU_ROLLOUT, bool GPU_ACTOR_ROLLOUT, bool GPU_TRAINING, bool GPU_NOISE, bool GPU_EVALUATION>
+template <typename T, auto STEP_LIMIT, bool GPU_INIT, bool GPU_ROLLOUT, bool GPU_ACTOR_ROLLOUT, bool GPU_TRAINING, bool GPU_NOISE, bool GPU_EVALUATION, bool CPU_TRAINING>
 void test(T& return_value, T epsilon){
     DEVICE device;
     DEVICE_INIT device_init;
@@ -148,7 +148,9 @@ void test(T& return_value, T epsilon){
                 for(int critic_i = 0; critic_i < 2; critic_i++){
                     if constexpr(GPU_ROLLOUT) {
                         rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                        rlt::copy(device, device_init, ts.critic_batch, ts_init.critic_batch);
+                        if constexpr(CPU_TRAINING){
+                            rlt::copy(device, device_init, ts.critic_batch, ts_init.critic_batch);
+                        }
                     }
                     else {
                         rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.critic_batch, ts_init.rng);
@@ -156,7 +158,9 @@ void test(T& return_value, T epsilon){
                     }
                     if constexpr(GPU_NOISE) {
                         rlt::randn(device, ts.action_noise_critic, ts.rng);
-                        rlt::copy(device, device_init, ts.action_noise_critic, ts_init.action_noise_critic);
+                        if constexpr(CPU_TRAINING){
+                            rlt::copy(device, device_init, ts.action_noise_critic, ts_init.action_noise_critic);
+                        }
                     }
                     else {
                         rlt::randn(device_init, ts_init.action_noise_critic, ts_init.rng);
@@ -165,9 +169,11 @@ void test(T& return_value, T epsilon){
                     if constexpr(GPU_TRAINING) {
                         rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
                     }
-                    rlt::train_critic(device_init, ts_init.actor_critic, critic_i == 0 ? ts_init.actor_critic.critic_1 : ts_init.actor_critic.critic_2, ts_init.critic_batch, ts_init.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
+                    if constexpr(CPU_TRAINING){
+                        rlt::train_critic(device_init, ts_init.actor_critic, critic_i == 0 ? ts_init.actor_critic.critic_1 : ts_init.actor_critic.critic_2, ts_init.critic_batch, ts_init.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
+                    }
 
-                    if(GPU_TRAINING && (step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL * 100) == 0)) {
+                    if(GPU_TRAINING && CPU_TRAINING && (step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL * 100) == 0)) {
                         rlt::copy(device, device_init, ts, ts_comparison);
                         T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.critic_1, ts_comparison.actor_critic.critic_1);
                         std::cout << "Abs diff is: " << abs_diff << " after critic update" << std::endl;
@@ -179,7 +185,9 @@ void test(T& return_value, T epsilon){
                 {
                     if constexpr(GPU_ROLLOUT) {
                         rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                        rlt::copy(device, device_init, ts.actor_batch, ts_init.actor_batch);
+                        if constexpr(CPU_TRAINING){
+                            rlt::copy(device, device_init, ts.actor_batch, ts_init.actor_batch);
+                        }
                     }
                     else {
                         rlt::gather_batch(device_init, ts_init.off_policy_runner, ts_init.actor_batch, ts_init.rng);
@@ -187,7 +195,9 @@ void test(T& return_value, T epsilon){
                     }
                     if constexpr(GPU_NOISE) {
                         rlt::randn(device, ts.action_noise_actor, ts.rng);
-                        rlt::copy(device, device_init, ts.action_noise_actor, ts_init.action_noise_actor);
+                        if constexpr(CPU_TRAINING){
+                            rlt::copy(device, device_init, ts.action_noise_actor, ts_init.action_noise_actor);
+                        }
                     }
                     else {
                         rlt::randn(device_init, ts_init.action_noise_actor, ts_init.rng);
@@ -196,9 +206,11 @@ void test(T& return_value, T epsilon){
                     if constexpr(GPU_TRAINING) {
                         rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                     }
-                    rlt::train_actor(device_init, ts_init.actor_critic, ts_init.actor_batch, ts_init.actor_optimizer, ts_init.actor_buffers[0], ts_init.critic_buffers[0], ts_init.actor_training_buffers, ts_init.action_noise_actor, ts_init.rng);
+                    if constexpr(CPU_TRAINING){
+                        rlt::train_actor(device_init, ts_init.actor_critic, ts_init.actor_batch, ts_init.actor_optimizer, ts_init.actor_buffers[0], ts_init.critic_buffers[0], ts_init.actor_training_buffers, ts_init.action_noise_actor, ts_init.rng);
+                    }
 
-                    if(GPU_TRAINING && (step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL * 100) == 0)){
+                    if(GPU_TRAINING && CPU_TRAINING && (step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL * 100) == 0)){
                         rlt::copy(device, device_init, ts, ts_comparison);
                         T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.actor, ts_comparison.actor_critic.actor);
                         std::cout << "Abs diff is: " << abs_diff << " after actor update" << std::endl;
@@ -208,7 +220,9 @@ void test(T& return_value, T epsilon){
                 if constexpr(GPU_TRAINING) {
                     rlt::update_critic_targets(device, ts.actor_critic);
                 }
-                rlt::update_critic_targets(device_init, ts_init.actor_critic);
+                if constexpr(CPU_TRAINING){
+                    rlt::update_critic_targets(device_init, ts_init.actor_critic);
+                }
             }
         }
         step++;
@@ -218,31 +232,20 @@ void test(T& return_value, T epsilon){
     rlt::malloc(device_init, ts_init);
     rlt::malloc(device_init, ts_comparison);
 }
-// TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, CPU_TRAINING) {
-//     constexpr bool GPU_INIT = false;
-//     constexpr bool GPU_ROLLOUT = false;
-//     constexpr bool GPU_ACTOR_ROLLOUT = false;
-//     constexpr bool GPU_TRAINING = false;
-//     constexpr bool GPU_NOISE = false;
-//     constexpr bool GPU_EVALUATION = false;
-//     using T = float;
-//     constexpr T epsilon = 1e-8;
-//     T return_value;
-//     test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION>(return_value, epsilon);
-// }
-//
-// TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_INIT_GPU_ACTOR_ROLLOUT_GPU_EVALUATION) {
-//     constexpr bool GPU_INIT = true;
-//     constexpr bool GPU_ROLLOUT = false;
-//     constexpr bool GPU_ACTOR_ROLLOUT = true;
-//     constexpr bool GPU_TRAINING = true;
-//     constexpr bool GPU_NOISE = false;
-//     constexpr bool GPU_EVALUATION = true;
-//     using T = double;
-//     constexpr T epsilon = 1e-10;
-//     T return_value;
-//     test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION>(return_value, epsilon);
-// }
+TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, CPU_TRAINING) {
+    constexpr bool GPU_INIT = false;
+    constexpr bool GPU_ROLLOUT = false;
+    constexpr bool GPU_ACTOR_ROLLOUT = false;
+    constexpr bool GPU_TRAINING = false;
+    constexpr bool GPU_NOISE = false;
+    constexpr bool GPU_EVALUATION = false;
+    constexpr bool CPU_TRAINING = true;
+    using T = float;
+    constexpr T epsilon = 1e-8;
+    T return_value;
+    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    ASSERT_GE(return_value, -200);
+}
 
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_ROLLOUT) {
     constexpr bool GPU_INIT = false;
@@ -251,23 +254,42 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_ROLLOUT) {
     constexpr bool GPU_TRAINING = false;
     constexpr bool GPU_NOISE = false;
     constexpr bool GPU_EVALUATION = false;
+    constexpr bool CPU_TRAINING = true;
     using T = double;
     constexpr T epsilon = 1e-10;
     T return_value;
-    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION>(return_value, epsilon);
+    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    ASSERT_GE(return_value, -200);
 }
 
-// TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, FULL_GPU_TRAINING) {
-//     constexpr bool GPU_INIT = true;
-//     constexpr bool GPU_ROLLOUT = true;
-//     constexpr bool GPU_ACTOR_ROLLOUT = true;
-//     constexpr bool GPU_TRAINING = true;
-//     constexpr bool GPU_NOISE = true;
-//     constexpr bool GPU_EVALUATION = true;
-//     using T = double;
-//     constexpr T epsilon = 1e-10;
-//     T return_value;
-//     test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION>(return_value, epsilon);
-// }
+TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_INIT_GPU_ACTOR_ROLLOUT_GPU_EVALUATION){
+    constexpr bool GPU_INIT = true;
+    constexpr bool GPU_ROLLOUT = false;
+    constexpr bool GPU_ACTOR_ROLLOUT = true;
+    constexpr bool GPU_TRAINING = true;
+    constexpr bool GPU_NOISE = false;
+    constexpr bool GPU_EVALUATION = true;
+    constexpr bool CPU_TRAINING = true;
+    using T = double;
+    constexpr T epsilon = 1e-8;
+    T return_value;
+    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    ASSERT_GE(return_value, -200);
+}
+
+TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, FULL_GPU_TRAINING) {
+    constexpr bool GPU_INIT = true;
+    constexpr bool GPU_ROLLOUT = true;
+    constexpr bool GPU_ACTOR_ROLLOUT = true;
+    constexpr bool GPU_TRAINING = true;
+    constexpr bool GPU_NOISE = true;
+    constexpr bool GPU_EVALUATION = true;
+    constexpr bool CPU_TRAINING = false;
+    using T = double;
+    constexpr T epsilon = 1e10;
+    T return_value;
+    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    ASSERT_GE(return_value, -200);
+}
 
 // benchmark training should take < 2s on P1
