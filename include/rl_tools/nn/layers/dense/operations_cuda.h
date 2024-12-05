@@ -396,20 +396,20 @@ namespace rl_tools{
 
     template<typename DEV_SPEC, typename SPEC>
     void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
-        cudaMemset(layer.weights.gradient._data, 0, decltype(layer.weights.gradient)::SPEC::SIZE_BYTES);
+        cudaMemsetAsync(layer.weights.gradient._data, 0, decltype(layer.weights.gradient)::SPEC::SIZE_BYTES, device.stream);
         check_status(device);
-        cudaMemset(layer.biases.gradient._data, 0, decltype(layer.biases.gradient)::SPEC::SIZE_BYTES);
+        cudaMemsetAsync(layer.biases.gradient._data, 0, decltype(layer.biases.gradient)::SPEC::SIZE_BYTES, device.stream);
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
     void _reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
-        cudaMemset(layer.weights.gradient_first_order_moment._data, 0, decltype(layer.weights.gradient_first_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemsetAsync(layer.weights.gradient_first_order_moment._data, 0, decltype(layer.weights.gradient_first_order_moment)::SPEC::SIZE_BYTES, device.stream);
         check_status(device);
-        cudaMemset(layer.weights.gradient_second_order_moment._data, 0, decltype(layer.weights.gradient_second_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemsetAsync(layer.weights.gradient_second_order_moment._data, 0, decltype(layer.weights.gradient_second_order_moment)::SPEC::SIZE_BYTES, device.stream);
         check_status(device);
-        cudaMemset(layer.biases.gradient_first_order_moment._data, 0, decltype(layer.biases.gradient_first_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemsetAsync(layer.biases.gradient_first_order_moment._data, 0, decltype(layer.biases.gradient_first_order_moment)::SPEC::SIZE_BYTES, device.stream);
         check_status(device);
-        cudaMemset(layer.biases.gradient_second_order_moment._data, 0, decltype(layer.biases.gradient_second_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemsetAsync(layer.biases.gradient_second_order_moment._data, 0, decltype(layer.biases.gradient_second_order_moment)::SPEC::SIZE_BYTES, device.stream);
         check_status(device);
     }
 
