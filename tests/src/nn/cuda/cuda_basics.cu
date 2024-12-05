@@ -496,7 +496,9 @@ TEST(RL_TOOLS_NN_CUDA, GEMM) {
     GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
     GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
     GEMM<DEFAULT_DTYPE, unsigned int, 32, 1>();
+#ifndef RL_TOOLS_DEBUG
     GEMM<DEFAULT_DTYPE, unsigned int, 1024, 1>();
+#endif
     GEMM<DEFAULT_DTYPE, unsigned int, 10, 1>();
     GEMM<DEFAULT_DTYPE, unsigned int, 9, 1>();
     GEMM<double, unsigned int, 200, 1>();
@@ -655,7 +657,9 @@ TEST(RL_TOOLS_NN_CUDA, FORWARD) {
     FORWARD<float, unsigned int, 1, 1>();
     FORWARD<float, unsigned int, 2, 1>();
     FORWARD<float, unsigned int, 32, 1>();
+#ifndef RL_TOOLS_DEBUG
     FORWARD<float, unsigned int, 1024, 1>();
+#endif
     FORWARD<float, unsigned int, 10, 1>();
     FORWARD<float, unsigned int, 9, 1>();
     FORWARD<double, unsigned int, 200, 1>();
