@@ -84,8 +84,14 @@ namespace rl_tools{
         if(batch_step_i < BATCH_SIZE){
             T log_alpha = get(layer.log_alpha.parameters, 0, 0);
             T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
-            T d_log_alpha = backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_step_i, mode)/BATCH_SIZE;
-            atomicAdd(layer.log_alpha.gradient._data, d_log_alpha);
+            backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_step_i, mode)/BATCH_SIZE;
+            if(batch_step_i==0){
+                T d_log_alpha = 0;
+                for(TI batch_step_j = 0; batch_step_j < BATCH_SIZE; batch_step_j++){
+                    d_log_alpha += get(buffer.d_log_alpha, 0, batch_step_j);
+                }
+                set(layer.log_alpha.gradient, 0, 0, d_log_alpha);
+            }
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>

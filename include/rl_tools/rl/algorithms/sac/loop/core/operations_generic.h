@@ -18,6 +18,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     void malloc(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        malloc(device, ts.rng);
         malloc(device, ts.actor_critic);
         malloc(device, ts.off_policy_runner);
         malloc(device, ts.critic_batch);
@@ -44,7 +45,7 @@ namespace rl_tools{
         using T = typename CONFIG::T;
         using TI = typename DEVICE::index_t;
 
-        ts.rng = random::default_engine(device, seed);
+        init(device, ts.rng, seed);
 
         init(device, ts.actor_critic, ts.rng);
 
@@ -77,6 +78,7 @@ namespace rl_tools{
 
     template <typename DEVICE, typename T_CONFIG>
     void free(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
+        free(device, ts.rng);
         free(device, ts.actor_critic);
         free(device, ts.off_policy_runner);
         free(device, ts.critic_batch);

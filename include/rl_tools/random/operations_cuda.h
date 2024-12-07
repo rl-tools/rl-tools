@@ -13,36 +13,27 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
     namespace cuda{
-        template <typename T_TI, T_TI T_NUM_RNGS, typename CURAND_TYPE=curandState>
-        struct RNG{
+        template <typename T_TI, T_TI T_NUM_RNGS, typename T_CURAND_TYPE=curandState>
+        struct Specification{
             using TI = T_TI;
             static constexpr TI NUM_RNGS = T_NUM_RNGS;
-            Matrix<matrix::Specification<CURAND_TYPE, TI, 1, NUM_RNGS, true>> states;
+            using CURAND_TYPE = T_CURAND_TYPE;
         };
-        template <typename DEVICE, typename T_TI, T_TI T_NUM_RNGS, typename CURAND_TYPE>
+        template <typename SPEC>
+        struct RNG{
+            using TI = typename SPEC::TI;
+            static constexpr TI NUM_RNGS = SPEC::NUM_RNGS;
+            Matrix<matrix::Specification<typename SPEC::CURAND_TYPE, TI, 1, NUM_RNGS, true>> states;
+        };
+        template <typename DEVICE, typename SPEC>
         __global__
-        void init_rng_kernel(DEVICE device, RNG<T_TI, T_NUM_RNGS, CURAND_TYPE> rng, typename DEVICE::index_t seed){
+        void init_rng_kernel(DEVICE device, RNG<SPEC> rng, typename DEVICE::index_t seed){
             auto i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(i < T_NUM_RNGS){
+            if(i < SPEC::NUM_RNGS){
                 curand_init(seed, i, 0, &get(rng.states, 0, i));
             }
         }
 
-    }
-    template <typename DEV_SPEC, typename T_TI = typename devices::CUDA<DEV_SPEC>::index_t, T_TI NUM_RNGS = 1024>
-    auto default_engine(devices::CUDA<DEV_SPEC>& device, typename devices::CUDA<DEV_SPEC>::index_t seed = 1){
-        cuda::RNG<T_TI, NUM_RNGS> rng;
-        malloc(device, rng.states);
-        constexpr T_TI BLOCKSIZE_COLS = 32;
-        constexpr T_TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(NUM_RNGS, BLOCKSIZE_COLS);
-        dim3 grid(N_BLOCKS_COLS);
-        dim3 block(BLOCKSIZE_COLS);
-        cuda::init_rng_kernel<<<grid, block, 0, device.stream>>>(device, rng, seed);
-        return rng;
-    };
-    template <typename DEV_SPEC, typename T_TI, T_TI T_NUM_RNGS, typename CURAND_TYPE=curandState>
-    void free(devices::CUDA<DEV_SPEC>& device, cuda::RNG<T_TI, T_NUM_RNGS, CURAND_TYPE>& rng){
-        free(device, rng.states);
     }
 
     template<typename T, typename RNG>
@@ -80,6 +71,30 @@ namespace rl_tools::random{
             }
         }
     }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools {
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, random::cuda::RNG<SPEC>& rng){
+        malloc(device, rng.states);
+    }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, random::cuda::RNG<SPEC>& rng){
+        free(device, rng.states);
+    }
+    template <typename DEV_SPEC, typename SPEC>
+    void init(devices::CUDA<DEV_SPEC>& device, random::cuda::RNG<SPEC>& rng, typename SPEC::TI seed = 1){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        constexpr TI BLOCKSIZE_COLS = 32;
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::NUM_RNGS, BLOCKSIZE_COLS);
+        dim3 grid(N_BLOCKS_COLS);
+        dim3 block(BLOCKSIZE_COLS);
+        random::cuda::init_rng_kernel<<<grid, block, 0, device.stream>>>(device, rng, seed);
+        check_status(device);
+    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
