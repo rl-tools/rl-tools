@@ -12,28 +12,15 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
-    namespace cuda{
-        template <typename T_TI, T_TI T_NUM_RNGS, typename T_CURAND_TYPE=curandState>
-        struct Specification{
-            using TI = T_TI;
-            static constexpr TI NUM_RNGS = T_NUM_RNGS;
-            using CURAND_TYPE = T_CURAND_TYPE;
-        };
-        template <typename SPEC>
-        struct RNG{
-            using TI = typename SPEC::TI;
-            static constexpr TI NUM_RNGS = SPEC::NUM_RNGS;
-            Matrix<matrix::Specification<typename SPEC::CURAND_TYPE, TI, 1, NUM_RNGS, true>> states;
-        };
+    namespace cuda::kernels{
         template <typename DEVICE, typename SPEC>
         __global__
-        void init_rng_kernel(DEVICE device, RNG<SPEC> rng, typename DEVICE::index_t seed){
+        void init_rng_kernel(DEVICE device, devices::random::CUDA::ENGINE<SPEC> rng, typename DEVICE::index_t seed){
             auto i = threadIdx.x + blockIdx.x * blockDim.x;
             if(i < SPEC::NUM_RNGS){
                 curand_init(seed, i, 0, &get(rng.states, 0, i));
             }
         }
-
     }
 
     template<typename T, typename RNG>
@@ -77,22 +64,26 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, random::cuda::RNG<SPEC>& rng){
+    void malloc(DEVICE& device, devices::random::CUDA::ENGINE<SPEC>& rng){
         malloc(device, rng.states);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, random::cuda::RNG<SPEC>& rng){
+    void free(DEVICE& device, devices::random::CUDA::ENGINE<SPEC>& rng){
         free(device, rng.states);
     }
     template <typename DEV_SPEC, typename SPEC>
-    void init(devices::CUDA<DEV_SPEC>& device, random::cuda::RNG<SPEC>& rng, typename SPEC::TI seed = 1){
+    void init(devices::CUDA<DEV_SPEC>& device, devices::random::CUDA::ENGINE<SPEC>& rng, typename SPEC::TI seed = 1){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         constexpr TI BLOCKSIZE_COLS = 32;
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::NUM_RNGS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
-        random::cuda::init_rng_kernel<<<grid, block, 0, device.stream>>>(device, rng, seed);
+#ifdef RL_TOOLS_DEBUG
+        utils::assert_exit(device, rng.states._data != nullptr, "rng not allocated");;
+#endif
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        random::cuda::kernels::init_rng_kernel<<<grid, block, 0, device.stream>>>(tag_device, rng, seed);
         check_status(device);
     };
 }

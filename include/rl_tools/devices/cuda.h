@@ -5,11 +5,13 @@
 
 #include "../rl_tools.h"
 #include "../utils/generic/typing.h"
+#include "../containers/matrix/matrix.h"
 #include "devices.h"
 #include "cpu.h"
 #include <cublas_v2.h>
 #include <vector>
 #include <unordered_map>
+#include <curand_kernel.h>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace cuda{
@@ -27,6 +29,18 @@ namespace rl_tools::devices{
     namespace random{
         struct CUDA:devices::random::Generic<devices::math::CUDA>, cuda::Base{
             static constexpr Type TYPE = Type::random;
+            template <typename T_TI, T_TI T_NUM_RNGS, typename T_CURAND_TYPE=curandState>
+            struct Specification{
+                using TI = T_TI;
+                static constexpr TI NUM_RNGS = T_NUM_RNGS;
+                using CURAND_TYPE = T_CURAND_TYPE;
+            };
+            template <typename SPEC = Specification<cuda::Base::index_t, 1024>>
+            struct ENGINE{
+                using TI = typename SPEC::TI;
+                static constexpr TI NUM_RNGS = SPEC::NUM_RNGS;
+                Matrix<matrix::Specification<typename SPEC::CURAND_TYPE, TI, 1, NUM_RNGS, true>> states;
+            };
         };
     }
     namespace logging{
@@ -129,10 +143,10 @@ namespace rl_tools {
         }
 #endif
 #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
-        // if (!device.graph_capture_active){
-        //     cudaDeviceSynchronize();
-        //     cudaStreamSynchronize(device.stream);
-        // }
+        if (!device.graph_capture_active){
+            cudaDeviceSynchronize();
+            cudaStreamSynchronize(device.stream);
+        }
         cudaError_t cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess){
             std::string error_string = cudaGetErrorString(cudaStatus);

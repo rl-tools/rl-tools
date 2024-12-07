@@ -21,16 +21,14 @@ namespace rl_tools{
         T *temp = nullptr;
         // auto result = cudaMalloc(&temp, SIZE_BYTES);
         constexpr TI SIZE_BYTES = SIZE * sizeof(T);
-        auto result = cudaMallocAsync(&temp, SIZE_BYTES, device.stream);
+        auto result = cudaMalloc(&temp, SIZE_BYTES);
         tensor._data = temp;
         check_status(device);
         count_malloc(device, SIZE_BYTES);
 
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         if (result != cudaSuccess) {
             std::cerr << "Failed to allocate container: " << cudaGetErrorString(result) << std::endl;
         }
-#endif
 
     }
     template <typename DEV_SPEC, typename T, typename T_TI, T_TI SIZE, bool CONST>
