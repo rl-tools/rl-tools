@@ -111,8 +111,8 @@ int main() {
     //     cudaDeviceSynchronize();
     // }
 
-    // constexpr bool CUDA_GRAPH = true;
-    constexpr bool CUDA_GRAPH = false;
+    constexpr bool CUDA_GRAPH = true;
+    // constexpr bool CUDA_GRAPH = false;
 
 
 
