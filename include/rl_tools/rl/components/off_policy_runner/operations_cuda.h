@@ -47,7 +47,7 @@ namespace rl_tools{
             static_assert(RNG::NUM_RNGS >= BATCH_SPEC::BATCH_SIZE, "Please increase the number of CUDA RNGs");
             if(batch_step_i < BATCH_SPEC::BATCH_SIZE){
                 auto& rng_state = get(rng.states, 0, batch_step_i);
-                typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng_state);
+                typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (TI) 0, RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng_state);
                 // printf("Chose env %d\n", env_i);
                 auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
                 // printf("replay buffer pointer %p\n", replay_buffer.data._data);

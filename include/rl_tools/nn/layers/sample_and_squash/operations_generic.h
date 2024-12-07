@@ -44,10 +44,12 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::sample_and_squash::Buffer<SPEC>& buffer) {
         malloc(device, buffer.noise);
+        malloc(device, buffer.d_log_alpha);
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::sample_and_squash::Buffer<SPEC>& buffer) {
         free(device, buffer.noise);
+        free(device, buffer.d_log_alpha);
     }
     template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::sample_and_squash::State& state) { } // no-op
@@ -266,7 +268,7 @@ namespace rl_tools{
         utils::assert_exit(device, false, "Not implemented");
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
@@ -338,7 +340,8 @@ namespace rl_tools{
         if(all_d_output_zero){
             d_alpha = 0;
         }
-        return alpha*d_alpha; // d_log_alpha
+        T d_log_alpha = alpha*d_alpha; // d_log_alpha
+        set(buffer.d_log_alpha, 0, batch_i, d_log_alpha);
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
@@ -349,10 +352,10 @@ namespace rl_tools{
         constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
         T log_alpha = get(layer.log_alpha.parameters, 0, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
-        T d_log_alpha = 0;
         for(TI batch_i = 0; batch_i < INTERNAL_BATCH_SIZE; batch_i++){
-            d_log_alpha += backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
+            backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
+        T d_log_alpha = sum(device, buffer.d_log_alpha);
         // add_scalar(device, device.logger, "actor_alpha", alpha, 1000);
 
         // TODO: change INTERNAL_BATCH_SIZE to sum(reset) if MASK_NON_TERMINAL is used

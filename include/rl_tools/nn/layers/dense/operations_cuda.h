@@ -43,7 +43,8 @@ namespace rl_tools{
                     set(layer.biases.parameters, 0, output_pos, 0);
                 }
                 for(TI j = 0; j < SPEC::INPUT_DIM; j++) {
-                    set(layer.weights.parameters, output_pos, j, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, current_rng));
+                    T value = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, current_rng);
+                    set(layer.weights.parameters, output_pos, j, value);
                 }
             }
         }
