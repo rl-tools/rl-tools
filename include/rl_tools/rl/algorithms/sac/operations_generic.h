@@ -18,18 +18,26 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic){
         malloc(device, actor_critic.actor);
-        malloc(device, actor_critic.critic_1);
-        malloc(device, actor_critic.critic_2);
-        malloc(device, actor_critic.critic_target_1);
-        malloc(device, actor_critic.critic_target_2);
+        malloc(device, actor_critic.critics[0]);
+        malloc(device, actor_critic.critics[1]);
+        malloc(device, actor_critic.critics_target[0]);
+        malloc(device, actor_critic.critics_target[1]);
+        malloc(device, actor_critic.actor_optimizer);
+        malloc(device, actor_critic.critic_optimizers[0]);
+        malloc(device, actor_critic.critic_optimizers[1]);
+        malloc(device, actor_critic.alpha_optimizer);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic){
         free(device, actor_critic.actor);
-        free(device, actor_critic.critic_1);
-        free(device, actor_critic.critic_2);
-        free(device, actor_critic.critic_target_1);
-        free(device, actor_critic.critic_target_2);
+        free(device, actor_critic.critics[0]);
+        free(device, actor_critic.critics[1]);
+        free(device, actor_critic.critics_target[0]);
+        free(device, actor_critic.critics_target[1]);
+        free(device, actor_critic.actor_optimizer);
+        free(device, actor_critic.critic_optimizers[0]);
+        free(device, actor_critic.critic_optimizers[1]);
+        free(device, actor_critic.alpha_optimizer);
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& actor_training_buffers){
@@ -107,20 +115,19 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename RNG>
     void init(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
-        init_weights(device, actor_critic.critic_1, rng);
-        init_weights(device, actor_critic.critic_2, rng);
+        init_weights(device, actor_critic.critics[0], rng);
+        init_weights(device, actor_critic.critics[1], rng);
         zero_gradient(device, actor_critic.actor);
-        zero_gradient(device, actor_critic.critic_1);
-        zero_gradient(device, actor_critic.critic_2);
+        zero_gradient(device, actor_critic.critics[0]);
+        zero_gradient(device, actor_critic.critics[1]);
         reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
-        reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
-        reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
+        reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critics[0]);
+        reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critics[1]);
         reset_optimizer_state(device, actor_critic.alpha_optimizer, get_last_layer(actor_critic.actor).log_alpha);
-//        set(actor_critic.log_alpha.parameters, 0, 0, math::log(typename DEVICE::SPEC::MATH{}, SPEC::PARAMETERS::ALPHA));
 
 
-        copy(device, device, actor_critic.critic_1, actor_critic.critic_target_1);
-        copy(device, device, actor_critic.critic_2, actor_critic.critic_target_2);
+        copy(device, device, actor_critic.critics[0], actor_critic.critics_target[0]);
+        copy(device, device, actor_critic.critics[1], actor_critic.critics_target[1]);
     }
     template <typename DEVICE, typename BATCH_SPEC, typename BUFFER_SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER, typename TI_SAMPLE>
     RL_TOOLS_FUNCTION_PLACEMENT void target_action_values_per_sample(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<BUFFER_SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER alpha, TI_SAMPLE batch_step_i){
@@ -265,8 +272,8 @@ namespace rl_tools{
         using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
         Mode<RESET_MODE> reset_mode;
         reset_mode.reset_container = batch.reset;
-        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, reset_mode);
-        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, reset_mode);
+        evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, reset_mode);
+        evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, reset_mode);
 
         auto last_layer = get_last_layer(actor_critic.actor);
         auto next_action_log_probs = view_transpose(device, last_layer.log_probabilities);
@@ -321,8 +328,8 @@ namespace rl_tools{
 
         evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_distribution, actor_buffers, rng);
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
-        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
-        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
+        evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
+        evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
 
         T log_alpha = get(actor_critic.log_alpha, 0, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
@@ -332,9 +339,9 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename TRAINING_BUFFERS_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void min_value_d_output_per_sample(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers, typename DEVICE::index_t batch_i) {
-        auto critic_1_output = output(device, actor_critic.critic_1);
+        auto critic_1_output = output(device, actor_critic.critics[0]);
         auto critic_1_output_matrix_view = matrix_view(device, critic_1_output);
-        auto critic_2_output = output(device, actor_critic.critic_2);
+        auto critic_2_output = output(device, actor_critic.critics[1]);
         auto critic_2_output_matrix_view = matrix_view(device, critic_2_output);
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
@@ -403,8 +410,8 @@ namespace rl_tools{
             mask_actions(device, batch.actions, training_buffers.actions, batch.final_step_mask, true);
         }
         copy(device, device, batch.observations_privileged, training_buffers.observations);
-        forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
-        forward(device, actor_critic.critic_2, training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
+        forward(device, actor_critic.critics[0], training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
+        forward(device, actor_critic.critics[1], training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
         // we minimize the negative of the actor loss
         // todo: evaluate only backpropagating the active values
         // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
@@ -430,8 +437,8 @@ namespace rl_tools{
         else{
             set_all(device, training_buffers.d_output, (T)-1/(BATCH_SIZE*SPEC::PARAMETERS::SEQUENCE_LENGTH)); // we take the mean over the batch size and sequence length
         }
-        backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers, reset_mode);
-        backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
+        backward_input(device, actor_critic.critics[0], training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers, reset_mode);
+        backward_input(device, actor_critic.critics[1], training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
         min_value_d_output(device, actor_critic, training_buffers);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
             mask_gradient(device, training_buffers.d_actor_output_squashing, batch.final_step_mask, true);
@@ -453,7 +460,7 @@ namespace rl_tools{
 
         evaluate(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng);
         copy(device, device, batch.observations, training_buffers.observations);
-        auto& critic = actor_critic.critic_1;
+        auto& critic = actor_critic.critics[0];
         evaluate(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, critic_buffers, rng);
         return mean(device, training_buffers.state_action_value);
     }
@@ -492,8 +499,8 @@ namespace rl_tools{
 
     template <typename DEVICE, typename SPEC>
     void update_critic_targets(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic) {
-        rl::algorithms::sac::update_target_module(device, actor_critic.critic_1, actor_critic.critic_target_1, SPEC::PARAMETERS::CRITIC_POLYAK);
-        rl::algorithms::sac::update_target_module(device, actor_critic.critic_2, actor_critic.critic_target_2, SPEC::PARAMETERS::CRITIC_POLYAK);
+        rl::algorithms::sac::update_target_module(device, actor_critic.critics[0], actor_critic.critics_target[0], SPEC::PARAMETERS::CRITIC_POLYAK);
+        rl::algorithms::sac::update_target_module(device, actor_critic.critics[1], actor_critic.critics_target[1], SPEC::PARAMETERS::CRITIC_POLYAK);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -509,11 +516,11 @@ namespace rl_tools{
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::ActorCritic<SOURCE_SPEC>& source, rl::algorithms::sac::ActorCritic<TARGET_SPEC>& target){
         copy(source_device, target_device, source.actor   , target.actor);
-        copy(source_device, target_device, source.critic_1, target.critic_1);
-        copy(source_device, target_device, source.critic_2, target.critic_2);
+        copy(source_device, target_device, source.critics[0], target.critics[0]);
+        copy(source_device, target_device, source.critics[1], target.critics[1]);
 
-        copy(source_device, target_device, source.critic_target_1, target.critic_target_1);
-        copy(source_device, target_device, source.critic_target_2, target.critic_target_2);
+        copy(source_device, target_device, source.critics_target[0], target.critics_target[0]);
+        copy(source_device, target_device, source.critics_target[1], target.critics_target[1]);
 
         copy(source_device, target_device, source.actor_optimizer, target.actor_optimizer);
         copy(source_device, target_device, source.critic_optimizers[0], target.critic_optimizers[0]);

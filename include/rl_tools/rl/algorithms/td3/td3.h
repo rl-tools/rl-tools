@@ -187,10 +187,8 @@ namespace rl_tools::rl::algorithms::td3 {
         typename SPEC::ACTOR_TYPE actor;
         typename SPEC::ACTOR_TARGET_TYPE actor_target;
 
-        typename SPEC::CRITIC_TYPE critic_1;
-        typename SPEC::CRITIC_TYPE critic_2;
-        typename SPEC::CRITIC_TARGET_TYPE critic_target_1;
-        typename SPEC::CRITIC_TARGET_TYPE critic_target_2;
+        typename SPEC::CRITIC_TYPE critics[2];
+        typename SPEC::CRITIC_TARGET_TYPE critics_target[2];
 
         typename SPEC::OPTIMIZER actor_optimizer;
         typename SPEC::OPTIMIZER critic_optimizers[2];

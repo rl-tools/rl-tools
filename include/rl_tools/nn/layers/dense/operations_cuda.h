@@ -211,9 +211,9 @@ namespace rl_tools{
                     set(layer.biases.gradient_first_order_moment, 0, output_i, d_bias_first_order_moment);
                     T d_bias_second_order_moment = optimizer.parameters.beta_2 * get(layer.biases.gradient_second_order_moment, 0, output_i) + (1 - optimizer.parameters.beta_2) * d_bias * d_bias;
                     set(layer.biases.gradient_second_order_moment, 0, output_i, d_bias_second_order_moment);
-                    T pre_sqrt_term = d_bias_second_order_moment * optimizer.second_order_moment_bias_correction;
+                    T pre_sqrt_term = d_bias_second_order_moment * get(device, optimizer.second_order_moment_bias_correction, 0);
                     pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T)optimizer.parameters.epsilon_sqrt);
-                    T bias_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer.parameters.epsilon);
+                    T bias_update = optimizer.parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer.parameters.epsilon);
                     increment(layer.biases.parameters, 0, output_i, -bias_update);
                 }
                 {
@@ -223,9 +223,9 @@ namespace rl_tools{
                     set(layer.weights.gradient_first_order_moment, output_i, input_i, d_weight_first_order_moment);
                     T d_weight_second_order_moment = optimizer.parameters.beta_2 * get(layer.weights.gradient_second_order_moment, output_i, input_i) + (1 - optimizer.parameters.beta_2) * d_weight * d_weight;
                     set(layer.weights.gradient_second_order_moment, output_i, input_i, d_weight_second_order_moment);
-                    T pre_sqrt_term = d_weight_second_order_moment * optimizer.second_order_moment_bias_correction;
+                    T pre_sqrt_term = d_weight_second_order_moment * get(device, optimizer.second_order_moment_bias_correction, 0);
                     pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T)optimizer.parameters.epsilon_sqrt);
-                    T weight_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer.parameters.epsilon);
+                    T weight_update = optimizer.parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer.parameters.epsilon);
                     increment(layer.weights.parameters, output_i, input_i, -weight_update);
                 }
             }

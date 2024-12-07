@@ -139,10 +139,8 @@ namespace rl_tools::rl::algorithms::sac {
 //        using ACTOR_VIEW = nn_models::output_view::MODEL<nn_models::output_view::MODEL_VIEW_SPEC<TI, typename SPEC::ACTOR_NETWORK_TYPE, 0, SPEC::ENVIRONMENT::ACTION_DIM>>;
 //        ACTOR_VIEW actor_view;
 
-        typename SPEC::CRITIC_NETWORK_TYPE critic_1;
-        typename SPEC::CRITIC_NETWORK_TYPE critic_2;
-        typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_1;
-        typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_2;
+        typename SPEC::CRITIC_NETWORK_TYPE critics[2];
+        typename SPEC::CRITIC_TARGET_NETWORK_TYPE critics_target[2];
 
         typename SPEC::ACTOR_OPTIMIZER actor_optimizer;
         typename SPEC::CRITIC_OPTIMIZER critic_optimizers[2];

@@ -10,24 +10,44 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer){
+        malloc(device, optimizer.age);
+        malloc(device, optimizer.first_order_moment_bias_correction);
+        malloc(device, optimizer.second_order_moment_bias_correction);
+    }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer){
+        free(device, optimizer.age);
+        free(device, optimizer.first_order_moment_bias_correction);
+        free(device, optimizer.second_order_moment_bias_correction);
+    }
     template<typename DEVICE, typename SPEC, typename MODEL>
     void reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
-        optimizer.age = 1;
+        set(device, optimizer.age, 1, 0);
         _reset_optimizer_state(device, model, optimizer);
     }
 
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void _step(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer){
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        TI age = get(device, optimizer.age, 0);
+        T first_order_moment_bias_correction  = 1/(1 - math::pow(device.math, optimizer.parameters.beta_1, (T)age));
+        set(device, optimizer.first_order_moment_bias_correction, first_order_moment_bias_correction, 0);
+        T second_order_moment_bias_correction = 1/(1 - math::pow(device.math, optimizer.parameters.beta_2, (T)age));
+        set(device, optimizer.second_order_moment_bias_correction, second_order_moment_bias_correction, 0);
+        set(device, optimizer.age, age + 1, 0);
+    }
     template<typename DEVICE, typename SPEC, typename MODEL>
     void step(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
-        using T = typename SPEC::T;
-        optimizer.first_order_moment_bias_correction  = 1/(1 - math::pow(device.math, optimizer.parameters.beta_1, (T)optimizer.age));
-        optimizer.second_order_moment_bias_correction = 1/(1 - math::pow(device.math, optimizer.parameters.beta_2, (T)optimizer.age));
-        optimizer.age += 1;
+        _step(device, optimizer);
         update(device, model, optimizer);
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::optimizers::Adam<SOURCE_SPEC>& source, nn::optimizers::Adam<TARGET_SPEC>& target){
         target.parameters = source.parameters;
-        target.age = source.age;
+        copy(source_device, target_device, source.age, target.age);
     }
 
     template<typename DEVICE, typename SPEC>

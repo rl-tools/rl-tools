@@ -42,9 +42,9 @@ namespace rl_tools{
         constexpr TI COLS = decltype(parameters)::COLS;
         for(TI row_i = 0; row_i < ROWS; row_i++) {
             for(TI col_i = 0; col_i < COLS; col_i++) {
-                T pre_sqrt_term = get(gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction;
+                T pre_sqrt_term = get(gradient_second_order_moment, row_i, col_i) * get(device, optimizer.second_order_moment_bias_correction, 0);
                 pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T)optimizer.parameters.epsilon_sqrt);
-                T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * get(gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer.parameters.epsilon);
+                T parameter_update = optimizer.parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * get(gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer.parameters.epsilon);
                 if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
                     parameter_update *= optimizer.parameters.bias_lr_factor;
                 }

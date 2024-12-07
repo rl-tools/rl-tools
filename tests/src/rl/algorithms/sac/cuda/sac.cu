@@ -14,7 +14,7 @@
 #include <rl_tools/nn_models/random_uniform/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
-#include <rl_tools/nn/optimizers/adam/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 
 #include <rl_tools/rl/components/off_policy_runner/operations_cuda.h>
 
@@ -36,9 +36,9 @@ using DEVICE_INIT = rlt::devices::DEVICE_FACTORY<>;
 #else
 using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes problems in this case (this example seems cursed)
 #endif
-DEVICE dummy_device; // this is needed because default_engine can not take a const device
-using RNG = decltype(rlt::random::default_engine(dummy_device));
-using RNG_INIT = decltype(rlt::random::default_engine(DEVICE_INIT{}));
+using TI = typename DEVICE::index_t;
+using RNG = rlt::random::cuda::RNG<rlt::random::cuda::Specification<TI, 1024>>;
+using RNG_INIT = DEVICE_INIT::SPEC::RANDOM::ENGINE;
 
 template <typename T, typename TI, TI T_STEP_LIMIT>
 struct ConfigFactory{
@@ -167,15 +167,15 @@ void test(T& return_value, T epsilon){
                         rlt::copy(device_init, device, ts_init.action_noise_critic, ts.action_noise_critic);
                     }
                     if constexpr(GPU_TRAINING) {
-                        rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                        rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
                     }
                     if constexpr(CPU_TRAINING){
-                        rlt::train_critic(device_init, ts_init.actor_critic, critic_i == 0 ? ts_init.actor_critic.critic_1 : ts_init.actor_critic.critic_2, ts_init.critic_batch, ts_init.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
+                        rlt::train_critic(device_init, ts_init.actor_critic, ts_init.actor_critic.critics[critic_i], ts_init.critic_batch, ts_init.actor_critic.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
                     }
 
                     if(GPU_TRAINING && CPU_TRAINING && (step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL * 100) == 0)) {
                         rlt::copy(device, device_init, ts, ts_comparison);
-                        T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.critic_1, ts_comparison.actor_critic.critic_1);
+                        T abs_diff = rlt::abs_diff(device_init, ts_init.actor_critic.critics[0], ts_comparison.actor_critic.critics[0]);
                         std::cout << "Abs diff is: " << abs_diff << " after critic update" << std::endl;
                         ASSERT_LT(abs_diff, epsilon);
                     }
@@ -204,10 +204,10 @@ void test(T& return_value, T epsilon){
                         rlt::copy(device_init, device, ts_init.action_noise_actor, ts.action_noise_actor);
                     }
                     if constexpr(GPU_TRAINING) {
-                        rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+                        rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                     }
                     if constexpr(CPU_TRAINING){
-                        rlt::train_actor(device_init, ts_init.actor_critic, ts_init.actor_batch, ts_init.actor_optimizer, ts_init.actor_buffers[0], ts_init.critic_buffers[0], ts_init.actor_training_buffers, ts_init.action_noise_actor, ts_init.rng);
+                        rlt::train_actor(device_init, ts_init.actor_critic, ts_init.actor_batch, ts_init.actor_critic.actor_optimizer, ts_init.actor_buffers[0], ts_init.critic_buffers[0], ts_init.actor_training_buffers, ts_init.action_noise_actor, ts_init.rng);
                     }
 
                     if(GPU_TRAINING && CPU_TRAINING && (step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL * 100) == 0)){
