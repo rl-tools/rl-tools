@@ -110,8 +110,8 @@ int main() {
         cudaDeviceSynchronize();
     }
 
-    // constexpr bool CUDA_GRAPH = true;
-    constexpr bool CUDA_GRAPH = false;
+    constexpr bool CUDA_GRAPH = true;
+    // constexpr bool CUDA_GRAPH = false;
 
 
 
@@ -148,10 +148,10 @@ int main() {
         {
             cudaStreamBeginCapture(device.stream, cudaStreamCaptureModeGlobal);
             device.graph_capture_active = true;
-            // rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-            // rlt::randn(device, ts.action_noise_actor, ts.rng);
+            rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+            rlt::randn(device, ts.action_noise_actor, ts.rng);
             rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
-            // rlt::update_critic_targets(device, ts.actor_critic);
+            rlt::update_critic_targets(device, ts.actor_critic);
             cudaStreamEndCapture(device.stream, &actor_training_graph);
             device.graph_capture_active = false;
             rlt::check_status(device);
