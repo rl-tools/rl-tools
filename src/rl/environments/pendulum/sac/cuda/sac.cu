@@ -48,6 +48,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI CRITIC_BATCH_SIZE = 100;
     };
     static constexpr TI STEP_LIMIT = 10000;
+    static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
@@ -95,23 +96,23 @@ int main() {
     TI step = 0;
     bool finished = false;
 
-    {
-        cudaGraph_t test_graph;
-        cudaStreamBeginCapture(device.stream, cudaStreamCaptureModeGlobal);
-        device.graph_capture_active = true;
-        rlt::zero_gradient(device, ts.actor_critic.actor.content.input_layer);
-        cudaStreamEndCapture(device.stream, &test_graph);
-        device.graph_capture_active = false;
+    // {
+    //     cudaGraph_t test_graph;
+    //     cudaStreamBeginCapture(device.stream, cudaStreamCaptureModeGlobal);
+    //     device.graph_capture_active = true;
+    //     rlt::zero_gradient(device, ts.actor_critic.actor.content.input_layer);
+    //     cudaStreamEndCapture(device.stream, &test_graph);
+    //     device.graph_capture_active = false;
+    //
+    //     rlt::check_status(device);
+    //     cudaGraphExec_t graphExec;
+    //     cudaGraphInstantiate(&graphExec, test_graph, nullptr, nullptr, 0);
+    //     cudaGraphLaunch(graphExec, device.stream);
+    //     cudaDeviceSynchronize();
+    // }
 
-        rlt::check_status(device);
-        cudaGraphExec_t graphExec;
-        cudaGraphInstantiate(&graphExec, test_graph, nullptr, nullptr, 0);
-        cudaGraphLaunch(graphExec, device.stream);
-        cudaDeviceSynchronize();
-    }
-
-    constexpr bool CUDA_GRAPH = true;
-    // constexpr bool CUDA_GRAPH = false;
+    // constexpr bool CUDA_GRAPH = true;
+    constexpr bool CUDA_GRAPH = false;
 
 
 

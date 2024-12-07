@@ -196,6 +196,41 @@ namespace rl_tools{
                 set(device, output, result_value, thread_i);
             }
         }
+        template<typename DEV_SPEC, typename SPEC, typename OPERATION, typename SPEC_OUTPUT>
+        __global__
+        void unary_operation2d(devices::CUDA<DEV_SPEC> device, const OPERATION op, Tensor<SPEC> t, Tensor<SPEC_OUTPUT> output) {
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            static_assert(SPEC::SHAPE::LENGTH == 2);
+            constexpr TI ROW_SIZE = SPEC::SHAPE::template GET<0>;
+            constexpr TI COL_SIZE = SPEC::SHAPE::template GET<1>;
+            static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
+            TI row_i = threadIdx.x + blockIdx.x * blockDim.x;
+            TI col_i = threadIdx.y + blockIdx.y * blockDim.y;
+            if (row_i < ROW_SIZE && col_i < COL_SIZE) {
+                T t_value = get(device, t, row_i, col_i);
+                T result_value = OPERATION::operation(device, op, t_value);
+                set(device, output, result_value, row_i, col_i);
+            }
+        }
+        template<typename DEV_SPEC, typename SPEC, typename OPERATION>
+        __global__
+        void unary_operation2d(devices::CUDA<DEV_SPEC> device, const OPERATION op, Tensor<SPEC> t){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            static_assert(SPEC::SHAPE::LENGTH == 2);
+            constexpr TI ROW_SIZE = SPEC::SHAPE::template GET<0>;
+            constexpr TI COL_SIZE = SPEC::SHAPE::template GET<1>;
+            TI row_i = threadIdx.x + blockIdx.x * blockDim.x;
+            TI col_i = threadIdx.y + blockIdx.y * blockDim.y;
+            if (row_i < ROW_SIZE && col_i < COL_SIZE) {
+                T t_value = get(device, t, row_i, col_i);
+                T result_value = OPERATION::operation(device, op, t_value);
+                set(device, t, result_value, row_i, col_i);
+            }
+        }
 
     }
     // template<typename DEV_SPEC, typename SPEC, typename OPERATION, typename SPEC_OUTPUT,
@@ -235,25 +270,43 @@ namespace rl_tools{
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        if constexpr(length(typename SPEC::SHAPE{}) > 1){
+        if constexpr(length(typename SPEC::SHAPE{}) > 2){
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
                 auto next_t = view(device, t, i);
                 auto next_output = view(device, output, i);
                 unary_operation(device, op, next_t, next_output);
             }
         }
-        else{
-            using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            constexpr TI BLOCKSIZE_COLS = 32;
-            constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
-            constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE_COLS);
-            dim3 grid(N_BLOCKS_COLS);
-            dim3 block(BLOCKSIZE_COLS);
-            devices::cuda::TAG<DEVICE, true> tag_device{};
-            tensor::kernels::unary_operation<<<grid, block, 0, device.stream>>>(tag_device, op, t, output);
-            check_status(device);
+        else
+        {
+            if constexpr(length(typename SPEC::SHAPE{}) == 2){
+                using DEVICE = devices::CUDA<DEV_SPEC>;
+                using T = typename SPEC::T;
+                using TI = typename SPEC::TI;
+                constexpr TI BLOCKSIZE_COLS = 8;
+                constexpr TI ROW_SIZE = SPEC::SHAPE::template GET<0>;
+                constexpr TI COL_SIZE = SPEC::SHAPE::template GET<1>;
+                constexpr TI N_BLOCKS_ROWS = RL_TOOLS_DEVICES_CUDA_CEIL(ROW_SIZE, BLOCKSIZE_COLS);
+                constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(COL_SIZE, BLOCKSIZE_COLS);
+                dim3 grid(N_BLOCKS_ROWS, N_BLOCKS_COLS);
+                dim3 block(BLOCKSIZE_COLS, BLOCKSIZE_COLS);
+                devices::cuda::TAG<DEVICE, true> tag_device{};
+                tensor::kernels::unary_operation2d<<<grid, block, 0, device.stream>>>(tag_device, op, t, output);
+                check_status(device);
+            }
+            else{
+                using DEVICE = devices::CUDA<DEV_SPEC>;
+                using T = typename SPEC::T;
+                using TI = typename SPEC::TI;
+                constexpr TI BLOCKSIZE_COLS = 32;
+                constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
+                constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE_COLS);
+                dim3 grid(N_BLOCKS_COLS);
+                dim3 block(BLOCKSIZE_COLS);
+                devices::cuda::TAG<DEVICE, true> tag_device{};
+                tensor::kernels::unary_operation<<<grid, block, 0, device.stream>>>(tag_device, op, t, output);
+                check_status(device);
+            }
         }
     }
 
