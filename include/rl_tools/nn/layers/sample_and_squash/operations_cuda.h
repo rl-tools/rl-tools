@@ -77,21 +77,30 @@ namespace rl_tools{
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-//        using BUFFERS = nn::layers::sample_and_squash::LayerGradient<BUFFER_SPEC>;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         static_assert(BATCH_SIZE == SPEC::INTERNAL_BATCH_SIZE);
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(batch_step_i < BATCH_SIZE){
             T log_alpha = get(layer.log_alpha.parameters, 0, 0);
             T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
-            backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_step_i, mode)/BATCH_SIZE;
-            if(batch_step_i==0){
-                T d_log_alpha = 0;
-                for(TI batch_step_j = 0; batch_step_j < BATCH_SIZE; batch_step_j++){
-                    d_log_alpha += get(buffer.d_log_alpha, 0, batch_step_j);
-                }
-                set(layer.log_alpha.gradient, 0, 0, d_log_alpha);
+            backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_step_i, mode);
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    __global__
+    void backward_full_kernel_reduce(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_INPUT_SPEC> d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, const Mode<MODE> mode = Mode<mode::Default<>>{}) {
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
+        static_assert(BATCH_SIZE == SPEC::INTERNAL_BATCH_SIZE);
+        TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(batch_step_i==0){
+            T d_log_alpha = 0;
+            for(TI batch_step_j = 0; batch_step_j < BATCH_SIZE; batch_step_j++){
+                d_log_alpha += get(buffer.d_log_alpha, 0, batch_step_j);
             }
+            increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
@@ -106,6 +115,7 @@ namespace rl_tools{
         dim3 bias_block(BLOCKSIZE_COLS);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         backward_full_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, input, d_output, d_input, buffer, mode);
+        backward_full_kernel_reduce<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, input, d_output, d_input, buffer, mode);
         check_status(device);
     }
 }

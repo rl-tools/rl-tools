@@ -35,9 +35,9 @@ using DEVICE_EVALUATION = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes problems in this case (this example seems cursed)
 #endif
 DEVICE dummy_device; // this is needed because default_engine can not take a const device
-using RNG = decltype(rlt::random::default_engine(dummy_device));
 using TI = typename DEVICE::index_t;
 using T = float;
+using RNG = rlt::random::cuda::RNG<rlt::random::cuda::Specification<TI, 1024>>;
 
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
