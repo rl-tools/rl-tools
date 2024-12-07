@@ -54,15 +54,15 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    template <typename DEV_SPEC>
-    void malloc(devices::CPU<DEV_SPEC>& device, typename DEV_SPEC::RANDOM::ENGINE& rng){
+    template <typename DEV_SPEC, typename SPEC>
+    void malloc(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng){
     }
-    template <typename DEV_SPEC>
-    void free(devices::CPU<DEV_SPEC>& device, typename DEV_SPEC::RANDOM::ENGINE& rng){
+    template <typename DEV_SPEC, typename SPEC>
+    void free(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng){
     }
-    template <typename DEV_SPEC>
-    void init(devices::CPU<DEV_SPEC>& device, typename DEV_SPEC::RANDOM::ENGINE& rng, typename devices::CPU<DEV_SPEC>::index_t seed = 1){
-        using ENGINE = typename DEV_SPEC::RANDOM::ENGINE;
+    template <typename DEV_SPEC, typename SPEC>
+    void init(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng, typename devices::CPU<DEV_SPEC>::index_t seed = 1){
+        using ENGINE = devices::random::CPU::ENGINE<SPEC>;
         rng = ENGINE(static_cast<typename ENGINE::result_type>(seed+1));
     };
 }
