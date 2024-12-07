@@ -14,7 +14,7 @@
 #include <rl_tools/nn_models/random_uniform/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
-#include <rl_tools/nn/optimizers/adam/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 
 #include <rl_tools/rl/components/off_policy_runner/operations_cuda.h>
 
@@ -77,7 +77,8 @@ int main() {
     using CONFIG = typename decltype(ts)::CONFIG;
     using CORE_PARAMETERS = typename CONFIG::CORE_PARAMETERS;
     using EVAL_PARAMETERS = typename CONFIG::EVALUATION_PARAMETERS;
-    auto rng_evaluation = rlt::random::default_engine(device_evaluation, seed);
+    DEVICE_EVALUATION::SPEC::RANDOM::ENGINE rng_evaluation;
+    rlt::init(device_evaluation, rng_evaluation, seed);
     using ACTOR_TYPE_ORIG = rlt::utils::typing::remove_reference_t<decltype(rlt::get_actor(ts))>;
     using ACTOR_TYPE_INFERENCE = ACTOR_TYPE_ORIG:: template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
     using ACTOR_TYPE_EVALUATION = ACTOR_TYPE_INFERENCE:: template CHANGE_BATCH_SIZE<TI, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES>;
@@ -112,6 +113,9 @@ int main() {
     // constexpr bool CUDA_GRAPH = true;
     constexpr bool CUDA_GRAPH = false;
 
+
+
+    if constexpr(CUDA_GRAPH){
         cudaGraph_t step_graph;
         cudaGraphExec_t step_graph_exec;
         {
@@ -131,7 +135,7 @@ int main() {
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 rlt::randn(device, ts.action_noise_critic, ts.rng);
-                rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
             }
             cudaStreamEndCapture(device.stream, &critic_training_graph);
             device.graph_capture_active = false;
@@ -145,8 +149,8 @@ int main() {
             cudaStreamBeginCapture(device.stream, cudaStreamCaptureModeGlobal);
             device.graph_capture_active = true;
             // rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-            rlt::randn(device, ts.action_noise_actor, ts.rng);
-            // rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+            // rlt::randn(device, ts.action_noise_actor, ts.rng);
+            rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
             // rlt::update_critic_targets(device, ts.actor_critic);
             cudaStreamEndCapture(device.stream, &actor_training_graph);
             device.graph_capture_active = false;
@@ -154,9 +158,6 @@ int main() {
             cudaGraphInstantiate(&actor_training_graph_exec, actor_training_graph, nullptr, nullptr, 0);
             rlt::print_graph(actor_training_graph);
         }
-
-
-    if constexpr(CUDA_GRAPH){
         while(!finished){
             // Evaluation
             if(step % 1000 == 0){
@@ -200,23 +201,18 @@ int main() {
             // Training
             rlt::set_step(device, device.logger, step);
             rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-            // cudaGraphLaunch(step_graph_exec, device.stream);
             if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
                 if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
                     for(TI critic_i = 0; critic_i < 2; critic_i++){
                         rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                         rlt::randn(device, ts.action_noise_critic, ts.rng);
-                        rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                        rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
                     }
-                    // cudaGraphLaunch(critic_training_graph_exec, device.stream);
                 }
                 if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
-                    {
-                        rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                        cudaGraphLaunch(actor_training_graph_exec, device.stream);
-                        // rlt::randn(device, ts.action_noise_actor, ts.rng);
-                        rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
-                    }
+                    rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+                    rlt::randn(device, ts.action_noise_actor, ts.rng);
+                    rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                     rlt::update_critic_targets(device, ts.actor_critic);
                 }
             }

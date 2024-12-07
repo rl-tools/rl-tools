@@ -12,11 +12,11 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
-    template <typename DEV_SPEC>
-    auto default_engine(const devices::CPU<DEV_SPEC>& dev, devices::random::CPU::index_t seed = 0){
-        using RANDOM_ENGINE = std::mt19937;
-        return RANDOM_ENGINE(static_cast<RANDOM_ENGINE::result_type>(seed+1));
-    };
+    // template <typename DEV_SPEC>
+    // auto default_engine(const devices::CPU<DEV_SPEC>& dev, devices::random::CPU::index_t seed = 0){
+    //     using RANDOM_ENGINE = std::mt19937;
+    //     return RANDOM_ENGINE(static_cast<RANDOM_ENGINE::result_type>(seed+1));
+    // };
 
     template<typename T, typename RNG>
     T uniform_int_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
@@ -49,6 +49,22 @@ namespace rl_tools::random{
             }
         }
     }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools {
+    template <typename DEV_SPEC>
+    void malloc(devices::CPU<DEV_SPEC>& device, typename DEV_SPEC::RANDOM::ENGINE& rng){
+    }
+    template <typename DEV_SPEC>
+    void free(devices::CPU<DEV_SPEC>& device, typename DEV_SPEC::RANDOM::ENGINE& rng){
+    }
+    template <typename DEV_SPEC>
+    void init(devices::CPU<DEV_SPEC>& device, typename DEV_SPEC::RANDOM::ENGINE& rng, typename devices::CPU<DEV_SPEC>::index_t seed = 1){
+        using ENGINE = typename DEV_SPEC::RANDOM::ENGINE;
+        rng = ENGINE(static_cast<typename ENGINE::result_type>(seed+1));
+    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

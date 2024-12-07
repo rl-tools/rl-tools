@@ -44,13 +44,14 @@ namespace rl_tools::nn::optimizers{
             static constexpr T EPSILON = 1e-8;
             static constexpr T EPSILON_SQRT = 1e-8;
         };
-        template <typename T_T, typename T_TI, typename T_DEFAULT_PARAMETERS=DEFAULT_PARAMETERS_TENSORFLOW<T_T>>
+        template <typename T_T, typename T_TI, typename T_DEFAULT_PARAMETERS=DEFAULT_PARAMETERS_TENSORFLOW<T_T>, bool T_DYNAMIC_ALLOCATION = true>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             using DEFAULT_PARAMETERS = T_DEFAULT_PARAMETERS;
             static constexpr bool ENABLE_WEIGHT_DECAY = DEFAULT_PARAMETERS::ENABLE_WEIGHT_DECAY;
             static constexpr bool ENABLE_BIAS_LR_FACTOR = DEFAULT_PARAMETERS::ENABLE_BIAS_LR_FACTOR;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         };
     }
     template<typename T_SPEC>
@@ -70,9 +71,9 @@ namespace rl_tools::nn::optimizers{
             DEFAULT_PARAMETERS::WEIGHT_DECAY_OUTPUT,
             DEFAULT_PARAMETERS::BIAS_LR_FACTOR
         };
-        T first_order_moment_bias_correction;
-        T second_order_moment_bias_correction;
-        TI age = 1;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1>, SPEC::DYNAMIC_ALLOCATION>> first_order_moment_bias_correction;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1>, SPEC::DYNAMIC_ALLOCATION>> second_order_moment_bias_correction;
+        Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, 1>, SPEC::DYNAMIC_ALLOCATION>> age;
     };
 
 

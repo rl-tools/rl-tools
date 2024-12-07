@@ -14,7 +14,6 @@ namespace rl_tools{
         struct State{
             using CONFIG = T_CONFIG;
             using TI = typename CONFIG::TI;
-            typename CONFIG::NN::OPTIMIZER actor_optimizer, critic_optimizers[2];
             typename CONFIG::RNG rng;
             rl::components::OffPolicyRunner<typename CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
             typename CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];

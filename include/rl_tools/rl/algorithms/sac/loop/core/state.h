@@ -15,9 +15,9 @@ namespace rl_tools{
             using CONFIG = T_CONFIG;
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
-            typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
-            typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizers[2];
-            typename CONFIG::NN::ALPHA_OPTIMIZER alpha_optimizer;
+            // typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
+            // typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizers[2];
+            // typename CONFIG::NN::ALPHA_OPTIMIZER alpha_optimizer;
             typename CONFIG::RNG rng;
             rl::components::OffPolicyRunner<typename CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
             typename CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];

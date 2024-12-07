@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <ctime>
 #include <limits>
+#include <random>
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace cpu{
@@ -36,6 +38,7 @@ namespace rl_tools::devices{
     namespace random{
         struct CPU: devices::random::Generic<devices::math::CPU>, cpu::Base{
             static constexpr Type TYPE = Type::random;
+            using ENGINE = std::mt19937;
         };
     }
     namespace logging{
