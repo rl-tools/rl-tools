@@ -61,3 +61,4 @@
 /experiments_old
 /**/*.nsys-rep
 /**/*.sqlite
+/**/*.qdstrm
