@@ -47,7 +47,7 @@ namespace rl_tools{
             using NOISE_CONTAINER_TYPE = Matrix<NOISE_CONTAINER_SPEC>;
             NOISE_CONTAINER_TYPE noise;
 
-            using D_LOG_ALPHA_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, 0, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DYNAMIC_ALLOCATION>;
+            using D_LOG_ALPHA_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DYNAMIC_ALLOCATION>;
             using D_LOG_ALPHA_CONTAINER_TYPE = Matrix<D_LOG_ALPHA_CONTAINER_SPEC>;
             D_LOG_ALPHA_CONTAINER_TYPE d_log_alpha;
         };

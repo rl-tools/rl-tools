@@ -112,7 +112,6 @@ int main() {
     // constexpr bool CUDA_GRAPH = true;
     constexpr bool CUDA_GRAPH = false;
 
-    if constexpr(CUDA_GRAPH){
         cudaGraph_t step_graph;
         cudaGraphExec_t step_graph_exec;
         {
@@ -123,7 +122,6 @@ int main() {
             device.graph_capture_active = false;
             rlt::check_status(device);
             cudaGraphInstantiate(&step_graph_exec, step_graph, nullptr, nullptr, 0);
-            rlt::print_graph(step_graph);
         }
         cudaGraph_t critic_training_graph;
         cudaGraphExec_t critic_training_graph_exec;
@@ -146,18 +144,19 @@ int main() {
         {
             cudaStreamBeginCapture(device.stream, cudaStreamCaptureModeGlobal);
             device.graph_capture_active = true;
-            {
-                rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                rlt::randn(device, ts.action_noise_actor, ts.rng);
-                rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
-            }
-            rlt::update_critic_targets(device, ts.actor_critic);
+            // rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+            rlt::randn(device, ts.action_noise_actor, ts.rng);
+            // rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
+            // rlt::update_critic_targets(device, ts.actor_critic);
             cudaStreamEndCapture(device.stream, &actor_training_graph);
             device.graph_capture_active = false;
             rlt::check_status(device);
             cudaGraphInstantiate(&actor_training_graph_exec, actor_training_graph, nullptr, nullptr, 0);
+            rlt::print_graph(actor_training_graph);
         }
 
+
+    if constexpr(CUDA_GRAPH){
         while(!finished){
             // Evaluation
             if(step % 1000 == 0){
@@ -200,32 +199,25 @@ int main() {
 
             // Training
             rlt::set_step(device, device.logger, step);
-            cudaStreamSynchronize(device.stream);
             rlt::step<1>(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-            cudaStreamSynchronize(device.stream);
+            // cudaGraphLaunch(step_graph_exec, device.stream);
             if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
                 if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
-                    for(int critic_i = 0; critic_i < 2; critic_i++){
+                    for(TI critic_i = 0; critic_i < 2; critic_i++){
                         rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                        cudaStreamSynchronize(device.stream);
                         rlt::randn(device, ts.action_noise_critic, ts.rng);
-                        cudaStreamSynchronize(device.stream);
                         rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
-                        cudaStreamSynchronize(device.stream);
                     }
+                    // cudaGraphLaunch(critic_training_graph_exec, device.stream);
                 }
                 if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
                     {
                         rlt::gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                        cudaStreamSynchronize(device.stream);
-                        rlt::randn(device, ts.action_noise_actor, ts.rng);
-                        cudaStreamSynchronize(device.stream);
+                        cudaGraphLaunch(actor_training_graph_exec, device.stream);
+                        // rlt::randn(device, ts.action_noise_actor, ts.rng);
                         rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
-                        cudaStreamSynchronize(device.stream);
                     }
-                    cudaStreamSynchronize(device.stream);
                     rlt::update_critic_targets(device, ts.actor_critic);
-                    cudaStreamSynchronize(device.stream);
                 }
             }
             step++;
