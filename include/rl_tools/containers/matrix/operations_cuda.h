@@ -26,16 +26,16 @@ namespace rl_tools{
 #endif
         T *temp = nullptr;
         // auto result = cudaMalloc(&temp, SIZE_BYTES);
-        auto result = cudaMallocAsync(&temp, SIZE_BYTES, device.stream);
+        auto result = cudaMalloc(&temp, SIZE_BYTES);
+// #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
+        if (result != cudaSuccess) {
+            std::cerr << "Failed to allocate container: " << cudaGetErrorString(result) << " size: " << SIZE_BYTES << std::endl;
+        }
         matrix._data = temp;
         check_status(device);
         count_malloc(device, SIZE_BYTES);
 
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
-        if (result != cudaSuccess) {
-            std::cerr << "Failed to allocate container: " << cudaGetErrorString(result) << std::endl;
-        }
-#endif
+// #endif
     }
     template<typename DEV_SPEC, typename T, typename T_TI, T_TI SIZE_BYTES, bool T_CONST>
     void free(devices::CUDA<DEV_SPEC>& device, matrix::MatrixDynamic<T, T_TI, SIZE_BYTES, T_CONST>& matrix){
