@@ -37,8 +37,8 @@ using DEVICE_INIT = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes problems in this case (this example seems cursed)
 #endif
 using TI = typename DEVICE::index_t;
-using RNG = rlt::random::cuda::RNG<rlt::random::cuda::Specification<TI, 1024>>;
-using RNG_INIT = DEVICE_INIT::SPEC::RANDOM::ENGINE;
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
+using RNG_INIT = DEVICE_INIT::SPEC::RANDOM::ENGINE<>;
 
 template <typename T, typename TI, TI T_STEP_LIMIT>
 struct ConfigFactory{
