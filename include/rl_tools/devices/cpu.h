@@ -38,7 +38,11 @@ namespace rl_tools::devices{
     namespace random{
         struct CPU: devices::random::Generic<devices::math::CPU>, cpu::Base{
             static constexpr Type TYPE = Type::random;
-            using ENGINE = std::mt19937;
+            template <typename T_ENGINE = std::mt19937>
+            struct ENGINE: T_ENGINE{
+                template <typename... Args>
+                ENGINE(Args&&... args): T_ENGINE(std::forward<Args>(args)...){ }
+            };
         };
     }
     namespace logging{
