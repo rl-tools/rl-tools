@@ -263,7 +263,7 @@ namespace rl_tools{
         runner.previous_policy_set = true;
     }
     template <bool DETERMINISTIC, typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void gather_batch(DEVICE& device, rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void gather_batch_step(DEVICE& device, rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
         // note: make sure that the replay_buffer has at least one transition in it;
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
@@ -385,7 +385,7 @@ namespace rl_tools{
         for(TI batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             TI env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (TI) 0, (TI)(SPEC::PARAMETERS::N_ENVIRONMENTS - 1), rng);
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
-            gather_batch<DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
+            gather_batch_step<DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
         }
     }
 //    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>

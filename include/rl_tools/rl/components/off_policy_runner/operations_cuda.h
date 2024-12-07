@@ -53,7 +53,7 @@ namespace rl_tools{
                 // printf("replay buffer pointer %p\n", replay_buffer.data._data);
                 // printf("replay buffer view pointer %p\n", replay_buffer.observations._data);
                 // printf("batch pointer %p\n", batch.observations_actions_next_observations._data);
-                gather_batch<DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng_state);
+                gather_batch_step<DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng_state);
             }
         }
 
@@ -122,6 +122,9 @@ namespace rl_tools{
     template<typename DEV_SPEC, typename SPEC>
     void malloc(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
+        static_assert(!SPEC::DYNAMIC_ALLOCATION_REPLAY_BUFFER, "The replay buffer should not be dynamically allocated when using the OffPolicyRunner using CUDA");
+        static_assert(!SPEC::DYNAMIC_ALLOCATION_EPISODE_STATS, "The episode stats should not be dynamically allocated when using the OffPolicyRunner using CUDA");
+
         malloc(device, runner.buffers);
         malloc(device, runner.envs);
         malloc(device, runner.states);
@@ -132,6 +135,23 @@ namespace rl_tools{
         malloc(device, runner.replay_buffers);
         malloc(device, runner.episode_stats);
         malloc(device, runner.policy_states);
+    }
+    template<typename DEV_SPEC, typename SPEC>
+    void free(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC> &runner) {
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        static_assert(!SPEC::DYNAMIC_ALLOCATION_REPLAY_BUFFER, "The replay buffer should not be dynamically allocated when using the OffPolicyRunner using CUDA");
+        static_assert(!SPEC::DYNAMIC_ALLOCATION_EPISODE_STATS, "The episode stats should not be dynamically allocated when using the OffPolicyRunner using CUDA");
+
+        free(device, runner.buffers);
+        free(device, runner.envs);
+        free(device, runner.states);
+        free(device, runner.env_parameters);
+        free(device, runner.episode_return);
+        free(device, runner.episode_step);
+        free(device, runner.truncated);
+        free(device, runner.replay_buffers);
+        free(device, runner.episode_stats);
+        free(device, runner.policy_states);
     }
     template<typename DEV_SPEC, typename SPEC>
     void init(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC> &runner){

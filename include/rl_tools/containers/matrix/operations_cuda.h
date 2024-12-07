@@ -27,8 +27,6 @@ namespace rl_tools{
         T *temp = nullptr;
         // auto result = cudaMalloc(&temp, SIZE_BYTES);
         auto result = cudaMallocAsync(&temp, SIZE_BYTES, device.stream);
-        cudaDeviceSynchronize();
-        cudaStreamSynchronize(device.stream);
         matrix._data = temp;
         check_status(device);
         count_malloc(device, SIZE_BYTES);
@@ -111,7 +109,6 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
             cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, source_device.stream);
-            cudaStreamSynchronize(source_device.stream);
             check_status(source_device);
         }
         else{

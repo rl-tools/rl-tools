@@ -76,3 +76,4 @@ TEST(RL_TOOLS_CONTAINER_TENSOR_CUDA, MAIN){
     test<T, TI, rlt::tensor::Shape<TI, 1, 10, 10>>(device, device_cpu, epsilon);
     test<T, TI, rlt::tensor::Shape<TI, 10, 10, 10>>(device, device_cpu, epsilon);
 }
+
