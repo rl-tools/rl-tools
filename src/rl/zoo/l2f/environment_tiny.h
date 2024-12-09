@@ -28,12 +28,22 @@ namespace rl_tools::rl::zoo::l2f{
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY::PARAMETERS_SPEC;
         using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY::PARAMETERS_TYPE;
 
-        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_20_deg<PARAMETERS_SPEC>;
+        // static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+        static constexpr typename ParametersBase<PARAMETERS_SPEC>::MDP::Initialization init = {
+                0.0, // guidance
+                0.5, // position
+                1.5707963267948966 * 20.0/90.0,   // orientation
+                1,   // linear velocity
+                1,  // angular velocity
+                true,// relative rpm
+                -1,  // min rpm
+                +1,  // max rpm
+        };
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
         static constexpr REWARD_FUNCTION reward_function = {
                 false, // non-negative
                 00.10, // scale
-                01.00, // constant
+                01.10, // constant
                 00.00, // termination penalty
                 10.00, // position
                 02.50, // orientation
