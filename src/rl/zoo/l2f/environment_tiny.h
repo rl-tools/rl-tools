@@ -29,9 +29,23 @@ namespace rl_tools::rl::zoo::l2f{
         using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY::PARAMETERS_TYPE;
 
         static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_20_deg<PARAMETERS_SPEC>;
+        using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
+        static constexpr REWARD_FUNCTION reward_function = {
+                false, // non-negative
+                00.10, // scale
+                01.00, // constant
+                00.00, // termination penalty
+                10.00, // position
+                02.50, // orientation
+                01.00, // linear_velocity
+                00.00, // angular_velocity
+                00.00, // linear_acceleration
+                00.00, // angular_acceleration
+                01.00, // action
+        };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
-            ENVIRONMENT_FACTORY::reward_function,
+            reward_function,
             ENVIRONMENT_FACTORY::observation_noise,
             ENVIRONMENT_FACTORY::action_noise,
             ENVIRONMENT_FACTORY::termination
