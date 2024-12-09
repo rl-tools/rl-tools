@@ -55,10 +55,16 @@ experiments = {
     # "positive": ("experiments/2024-12-09_13-18-36/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "no-guidance": ("experiments/2024-12-09_13-22-30/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "6-layer": ("experiments/2024-12-09_13-27-00/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
-    "great_convergence": ("experiments/2024-12-09_13-30-20/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "great_convergence": ("experiments/2024-12-09_13-30-20/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "longer": ("experiments/2024-12-09_13-33-03/06548f4_zoo_environment_algorithm/l2f_sac", 12),
     # "bigger": ("experiments/2024-12-09_13-36-17/06548f4_zoo_environment_algorithm/l2f_sac", 4),
-    "rebase": ("experiments/2024-12-09_13-51-24/d9384be_zoo_environment_algorithm/l2f_sac", 0.92),
+    # "rebase": ("experiments/2024-12-09_13-51-24/d9384be_zoo_environment_algorithm/l2f_sac", 0.92),
+    # "2env": ("experiments/2024-12-09_13-57-49/d9384be_zoo_environment_algorithm/l2f_sac", 1.10),
+    # "16env": ("experiments/2024-12-09_14-01-42/d9384be_zoo_environment_algorithm/l2f_sac", 1.40),
+    # "lesswarmup": ("experiments/2024-12-09_14-04-01/d9384be_zoo_environment_algorithm/l2f_sac", 1.40),
+    "8env": ("experiments/2024-12-09_14-06-48/d9384be_zoo_environment_algorithm/l2f_sac", 1.23),
+    "low-lr": ("experiments/2024-12-09_14-12-10/d9384be_zoo_environment_algorithm/l2f_sac", 1.23),
+    "ms": ("experiments/2024-12-09_14-20-29/d9384be_zoo_environment_algorithm/l2f_sac", 0.92),
 }
 
 
