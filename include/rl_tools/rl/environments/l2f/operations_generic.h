@@ -522,16 +522,16 @@ namespace rl_tools{
             T v = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
             T phi = 2.0 * M_PI * u;
             T cos_theta = 1.0 - 2.0 * v;
-            T sin_theta = sqrt(1.0 - cos_theta*cos_theta);
-            T x = sin_theta * cos(phi);
-            T y = sin_theta * sin(phi);
+            T sin_theta = math::sqrt(device.math, 1.0 - cos_theta*cos_theta);
+            T x = sin_theta * math::cos(device.math, phi);
+            T y = sin_theta * math::sin(device.math, phi);
             T z = cos_theta;
             T angle = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
 
             // Quaternion = [cos(angle/2), sin(angle/2)*axis]
-            double half = 0.5 * angle;
-            double s = sin(half);
-            state.orientation[0] = cos(half);
+            T half = 0.5 * angle;
+            T s = math::sin(device.math, half);
+            state.orientation[0] = math::cos(device.math, half);
             state.orientation[1] = x * s;
             state.orientation[2] = y * s;
             state.orientation[3] = z * s;
