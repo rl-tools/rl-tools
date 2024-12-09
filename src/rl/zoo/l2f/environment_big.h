@@ -28,17 +28,31 @@ namespace rl_tools::rl::zoo::l2f{
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY::PARAMETERS_SPEC;
         using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY::PARAMETERS_TYPE;
 
-        static constexpr auto reward_function = [](){
-            auto reward_function = ENVIRONMENT_FACTORY::reward_function;
-//            reward_function.constant = 0;
-            reward_function.scale = 0.09;
-            reward_function.position = 20;
-            reward_function.orientation = 0.05;
-            reward_function.linear_velocity = 2.0;
-            reward_function.action = 0.0;
-//            reward_function.termination_penalty = 0;
-            return reward_function;
-        }();
+        using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
+        static constexpr REWARD_FUNCTION reward_function = {
+                false, // non-negative
+                00.10, // scale
+                01.10, // constant
+                00.00, // termination penalty
+                10.00, // position
+                02.50, // orientation
+                01.00, // linear_velocity
+                00.00, // angular_velocity
+                00.00, // linear_acceleration
+                00.00, // angular_acceleration
+                02.00, // action
+        };
+//        static constexpr auto reward_function = [](){
+//            auto reward_function = ENVIRONMENT_FACTORY::reward_function;
+////            reward_function.constant = 0;
+//            reward_function.scale = 0.09;
+//            reward_function.position = 20;
+//            reward_function.orientation = 0.05;
+//            reward_function.linear_velocity = 2.0;
+//            reward_function.action = 0.0;
+////            reward_function.termination_penalty = 0;
+//            return reward_function;
+//        }();
 
         static constexpr auto termination = [](){
             auto termination = ENVIRONMENT_FACTORY::termination;
