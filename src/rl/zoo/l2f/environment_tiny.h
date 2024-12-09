@@ -41,7 +41,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
-                01.00, // action
+                02.00, // action
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
