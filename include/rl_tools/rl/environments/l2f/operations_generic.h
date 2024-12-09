@@ -504,17 +504,38 @@ namespace rl_tools{
             }
         }
         if(parameters.mdp.init.max_angle > 0 && !guidance){
-            // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
-            do{
-                T u[3];
-                for(TI i = 0; i < 3; i++){
-                    u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
-                }
-                state.orientation[0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*math::PI<T>*u[1]);
-                state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
-                state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
-                state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
-            } while(math::abs(math_dev, 2*math::acos(math_dev, math::abs(math_dev, state.orientation[0]))) > parameters.mdp.init.max_angle);
+            // Uniform sampling on SO3 => rejection sampling for the desired angle range
+            // // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
+            // do{
+            //     T u[3];
+            //     for(TI i = 0; i < 3; i++){
+            //         u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
+            //     }
+            //     state.orientation[0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*math::PI<T>*u[1]);
+            //     state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
+            //     state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
+            //     state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
+            // } while(math::abs(math_dev, 2*math::acos(math_dev, math::abs(math_dev, state.orientation[0]))) > parameters.mdp.init.max_angle);
+
+            // Uniform sampling on the desired angle range
+            T u = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
+            T v = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
+            T phi = 2.0 * M_PI * u;
+            T cos_theta = 1.0 - 2.0 * v;
+            T sin_theta = sqrt(1.0 - cos_theta*cos_theta);
+            T x = sin_theta * cos(phi);
+            T y = sin_theta * sin(phi);
+            T z = cos_theta;
+            T angle = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
+
+            // Quaternion = [cos(angle/2), sin(angle/2)*axis]
+            double half = 0.5 * angle;
+            double s = sin(half);
+            state.orientation[0] = cos(half);
+            state.orientation[1] = x * s;
+            state.orientation[2] = y * s;
+            state.orientation[3] = z * s;
+
         }
         else{
             state.orientation[0] = 1;

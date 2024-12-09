@@ -465,6 +465,7 @@ main()
 
 
 <!--
+
 mass_thrust_no_crash = []
 mass_thrust_crash = []
 tw_ti_no_crash = []
@@ -474,7 +475,7 @@ tw_ti_scale_crash = []
 initial_position_orientation_no_crash = []
 initial_position_orientation_crash = []
 Object.keys(data).forEach(path => {
-    JSON.parse(data[path]).forEach(trajectory =>{
+    data[path].forEach(trajectory =>{
         // console.log(trajectory.parameters.dynamics.rotors[0].thrust_curve)
         const single_rotor_thrust = trajectory.parameters.dynamics.rotors[0].thrust_curve.reduce((a, c) => a + c)
         mass_thrust = {
