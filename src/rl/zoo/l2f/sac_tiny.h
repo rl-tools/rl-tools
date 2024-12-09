@@ -27,7 +27,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T TARGET_ENTROPY = -((T)4);
                 static constexpr TI SEQUENCE_LENGTH = 1;
             };
-            static constexpr TI STEP_LIMIT = 45000;
+            static constexpr TI STEP_LIMIT = 35000;
             static constexpr TI REPLAY_BUFFER_CAP = 10000;
             static constexpr TI ACTOR_NUM_LAYERS = 5;
             static constexpr TI ACTOR_HIDDEN_DIM = 16;
@@ -36,12 +36,12 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr TI CRITIC_HIDDEN_DIM = 16;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
-            static constexpr TI N_WARMUP_STEPS = 2000;
-            static constexpr TI N_WARMUP_STEPS_CRITIC = 2000;
-            static constexpr TI N_WARMUP_STEPS_ACTOR = 2000;
+            static constexpr TI N_WARMUP_STEPS = 200;
+            static constexpr TI N_WARMUP_STEPS_CRITIC = 200;
+            static constexpr TI N_WARMUP_STEPS_ACTOR = 200;
             static constexpr bool SHARED_BATCH = true;
             static constexpr bool COLLECT_EPISODE_STATS = false;
-            static constexpr TI N_ENVIRONMENTS = 16;
+            static constexpr TI N_ENVIRONMENTS = 8;
             struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
                 static constexpr T GRADIENT_CLIP_VALUE = 1;
