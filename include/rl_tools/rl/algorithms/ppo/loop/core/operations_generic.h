@@ -59,7 +59,7 @@ namespace rl_tools{
         using T = typename CONFIG::T;
         using TI = typename DEVICE::index_t;
 
-        ts.rng = random::default_engine(DEVICE{}, seed);
+        init(device, ts.rng, seed);
 
         for(TI env_i=0; env_i < CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
             init(device, ts.envs[env_i]);

@@ -41,7 +41,7 @@ namespace rl_tools{
     void init(DEVICE& device, rl::loop::steps::checkpoint::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::checkpoint::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-        ts.rng_checkpoint = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
+        init(device, ts.rng_checkpoint, seed);
     }
 
     template <typename DEVICE, typename T_CONFIG>

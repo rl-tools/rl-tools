@@ -272,7 +272,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             rlt::init(device, env_eval);
             rlt::initial_parameters(device, env_eval, env_eval_parameters);
 
-            auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
+            RNG rng;
+            rlt::init(device, rng, seed);
             rlt::Mode<rlt::mode::Evaluation<>> evaluation_mode;
             rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, eval_buffer, rng, evaluation_mode, false, true);
             rlt::free(device, evaluation_actor);
@@ -289,7 +290,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             rlt::copy(device, device, actor, evaluation_actor);
             std::stringstream step_ss;
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
-            auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
+            RNG rng;
+            rlt::init(device, rng, seed);
             rlt::rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, (ts.extrack_seed_path / "steps" / step_ss.str()).string(), evaluation_actor, rng);
             rlt::free(device, evaluation_actor);
         }
