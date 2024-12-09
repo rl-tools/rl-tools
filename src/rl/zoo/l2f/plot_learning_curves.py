@@ -40,8 +40,25 @@ experiments = {
     # "baseline": ("experiments/2024-11-26_14-33-33/c91e9c4_zoo_environment_algorithm/l2f_sac", 1.144),
     # "50k": ("experiments/2024-11-26_16-12-12/c91e9c4_zoo_environment_algorithm/l2f_sac", 0.844),
     # "50k_+1-layer": ("experiments/2024-11-26_16-15-58/c91e9c4_zoo_environment_algorithm/l2f_sac", 0.844),
-    "aftera-all": ("experiments/2024-11-26_20-35-04/d56db9c_zoo_environment_algorithm/l2f_sac/", 0.099),
-    "dt2x": ("experiments/2024-11-26_21-17-12/dfa429a_zoo_environment_algorithm/l2f_sac", 0.099)
+    # "aftera-all": ("experiments/2024-11-26_20-35-04/d56db9c_zoo_environment_algorithm/l2f_sac/", 0.99),
+    # "dt2x": ("experiments/2024-11-26_21-17-12/dfa429a_zoo_environment_algorithm/l2f_sac", 0.99),
+    "new": ("experiments/2024-12-09_12-05-42/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "new2": ("experiments/2024-12-09_12-14-24/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "new3": ("experiments/2024-12-09_12-35-07/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "fullrb": ("experiments/2024-12-09_12-43-09/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "rb5k": ("experiments/2024-12-09_12-44-11/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "rb20k": ("experiments/2024-12-09_12-45-16/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    "relu": ("experiments/2024-12-09_12-46-28/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "90deg": ("experiments/2024-12-09_13-11-13/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "tanh": ("experiments/2024-12-09_13-13-50/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "4layer": ("experiments/2024-12-09_13-15-53/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "positive": ("experiments/2024-12-09_13-18-36/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "no-guidance": ("experiments/2024-12-09_13-22-30/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "6-layer": ("experiments/2024-12-09_13-27-00/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    "great_convergence": ("experiments/2024-12-09_13-30-20/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "longer": ("experiments/2024-12-09_13-33-03/06548f4_zoo_environment_algorithm/l2f_sac", 12),
+    # "bigger": ("experiments/2024-12-09_13-36-17/06548f4_zoo_environment_algorithm/l2f_sac", 4),
+    "rebase": ("experiments/2024-12-09_13-51-24/d9384be_zoo_environment_algorithm/l2f_sac", 0.92),
 }
 
 

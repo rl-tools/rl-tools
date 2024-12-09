@@ -8,10 +8,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
-    template <typename MATH_DEV>
-    typename MATH_DEV::index_t default_engine(const devices::random::Generic<MATH_DEV>& dev, typename MATH_DEV::index_t seed = 1){
-        return 0b10101010101010101010101010101010 + seed;
-    };
+    // template <typename MATH_DEV>
+    // typename MATH_DEV::index_t default_engine(const devices::random::Generic<MATH_DEV>& dev, typename MATH_DEV::index_t seed = 1){
+    //     return 0b10101010101010101010101010101010 + seed;
+    // };
     namespace generic{
         template <typename MATH_DEV>
         constexpr typename MATH_DEV::index_t next_max(const devices::random::Generic<MATH_DEV>& dev){

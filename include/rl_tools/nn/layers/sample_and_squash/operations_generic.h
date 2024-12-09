@@ -358,7 +358,6 @@ namespace rl_tools{
         constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
         T log_alpha = get(layer.log_alpha.parameters, 0, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
-        T d_log_alpha = 0;
         {
             // logging
             T entropy = 0;

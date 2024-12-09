@@ -55,8 +55,7 @@ namespace rl_tools{
         using T = typename CONFIG::T;
         using TI = typename DEVICE::index_t;
 
-
-        ts.rng = random::default_engine(DEVICE{}, seed);
+        init(device, ts.rng, seed);
 
         init(device, ts.actor_critic, ts.rng);
 
