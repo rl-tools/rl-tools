@@ -41,6 +41,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr TI N_WARMUP_STEPS_ACTOR = 2000;
             static constexpr bool SHARED_BATCH = true;
             static constexpr bool COLLECT_EPISODE_STATS = false;
+            static constexpr TI N_ENVIRONMENTS = 16;
             struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
                 static constexpr T GRADIENT_CLIP_VALUE = 1;
