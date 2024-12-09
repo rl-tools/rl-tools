@@ -27,6 +27,8 @@ namespace rl_tools{
         malloc(device, ts.actor_buffers);
         malloc(device, ts.critic_buffers);
         malloc(device, ts.critic_buffers_gae);
+        malloc(device, ts.actor_optimizer);
+        malloc(device, ts.critic_optimizer);
         malloc(device, ts.observations_dense);
         malloc(device, ts.observation_normalizer);
         malloc(device, ts.observation_privileged_normalizer);
@@ -47,6 +49,8 @@ namespace rl_tools{
         free(device, ts.critic_buffers);
         free(device, ts.critic_buffers_gae);
         free(device, ts.observations_dense);
+        free(device, ts.actor_optimizer);
+        free(device, ts.critic_optimizer);
         free(device, ts.observation_normalizer);
         free(device, ts.observation_privileged_normalizer);
         for(auto& env: ts.envs){

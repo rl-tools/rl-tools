@@ -86,7 +86,7 @@ namespace rl_tools::rl::zoo::l2f{
             },
 //            ENVIRONMENT_FACTORY::disturbances
             typename PARAMETERS_TYPE::Disturbances{
-                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 60}, // random_force;
+                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 3}, // random_force;
                 typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 10000} // random_torque;
             }
         };

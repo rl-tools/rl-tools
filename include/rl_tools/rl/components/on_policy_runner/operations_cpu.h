@@ -38,7 +38,7 @@ namespace rl_tools::rl::components::on_policy_runner{
             for (TI thread_i = 0; thread_i < NUM_THREADS; thread_i++) {
                 threads.emplace_back([NUM_THREADS, &device, thread_i, &dataset, &runner, &actions_mean, &actions, &action_log_std, &step_i, &base](){
                     for (TI env_i = thread_i; env_i < SPEC::N_ENVIRONMENTS; env_i += NUM_THREADS) {
-                        decltype(rng) inner_rng;
+                        RNG inner_rng;
                         init(device, inner_rng, base + env_i);
                         TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
                         per_env::epilogue(device, dataset, runner, actions_mean, actions, action_log_std, inner_rng, pos, env_i);
