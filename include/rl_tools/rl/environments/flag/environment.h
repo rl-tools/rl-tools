@@ -38,7 +38,8 @@ namespace rl_tools::rl::environments::flag{
         enum class StateMachine{
             INITIAL = 0,
             FLAG_VISITED = 1,
-            ORIGIN_VISITED = 2
+            ORIGIN_VISITED = 2,
+            FLAG_VISITED_AGAIN = 3
         };
         static constexpr TI DIM = 5;
         T position[2];

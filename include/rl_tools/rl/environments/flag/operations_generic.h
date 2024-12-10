@@ -83,7 +83,12 @@ namespace rl_tools{
                 }
                 break;
             case STATE::StateMachine::ORIGIN_VISITED:
-                next_state.state_machine = STATE::StateMachine::ORIGIN_VISITED;
+                if(distance_to_flag < PARAMS::FLAG_DISTANCE_THRESHOLD){
+                    next_state.state_machine = STATE::StateMachine::FLAG_VISITED_AGAIN;
+                }
+                else{
+                    next_state.state_machine = STATE::StateMachine::ORIGIN_VISITED;
+                }
                 break;
             default:
                 std::cout << "unexpected state: " << static_cast<typename DEVICE::index_t>(next_state.state_machine) << std::endl;
@@ -109,11 +114,14 @@ namespace rl_tools{
                 break;
             case STATE::StateMachine::ORIGIN_VISITED:
                 if(state.state_machine == STATE::StateMachine::FLAG_VISITED){
-                    reward = 1000;
+                    reward = 500;
                 }
                 else{
                     reward = -distance_to_flag;
                 }
+                break;
+            case STATE::StateMachine::FLAG_VISITED_AGAIN:
+                reward = -distance_to_flag;
                 break;
             default:
                 std::cout << "unexpected state: " << static_cast<typename DEVICE::index_t>(next_state.state_machine) << std::endl;
@@ -149,6 +157,11 @@ namespace rl_tools{
                 set(observation, 0, 5, -1);
                 set(observation, 0, 6, 1);
                 break;
+            case STATE_MACHINE::FLAG_VISITED_AGAIN:
+                set(observation, 0, 4, 0);
+                set(observation, 0, 5, 0);
+                set(observation, 0, 6, 0);
+                break;
         }
     }
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
@@ -163,7 +176,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State state, RNG& rng){
-        return false;
+        return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_VISITED_AGAIN;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
