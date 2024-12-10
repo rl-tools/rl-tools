@@ -53,6 +53,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
         };
+        // this config is competitive with mlp but 15x slower
 
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
     };
