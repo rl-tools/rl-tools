@@ -21,19 +21,25 @@ namespace rl_tools{
     void malloc(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
         malloc(device, actor_critic.actor);
         malloc(device, actor_critic.actor_target);
-        malloc(device, actor_critic.critic_1);
-        malloc(device, actor_critic.critic_2);
-        malloc(device, actor_critic.critic_target_1);
-        malloc(device, actor_critic.critic_target_2);
+        malloc(device, actor_critic.critics[0]);
+        malloc(device, actor_critic.critics[1]);
+        malloc(device, actor_critic.critics_target[0]);
+        malloc(device, actor_critic.critics_target[1]);
+        malloc(device, actor_critic.actor_optimizer);
+        malloc(device, actor_critic.critic_optimizers[0]);
+        malloc(device, actor_critic.critic_optimizers[1]);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
         free(device, actor_critic.actor);
         free(device, actor_critic.actor_target);
-        free(device, actor_critic.critic_1);
-        free(device, actor_critic.critic_2);
-        free(device, actor_critic.critic_target_1);
-        free(device, actor_critic.critic_target_2);
+        free(device, actor_critic.critics[0]);
+        free(device, actor_critic.critics[1]);
+        free(device, actor_critic.critics_target[0]);
+        free(device, actor_critic.critics_target[1]);
+        free(device, actor_critic.actor_optimizer);
+        free(device, actor_critic.critic_optimizers[0]);
+        free(device, actor_critic.critic_optimizers[1]);
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
@@ -91,18 +97,18 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename RNG>
     void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
-        init_weights(device, actor_critic.critic_1, rng);
-        init_weights(device, actor_critic.critic_2, rng);
+        init_weights(device, actor_critic.critics[0], rng);
+        init_weights(device, actor_critic.critics[1], rng);
         zero_gradient(device, actor_critic.actor);
-        zero_gradient(device, actor_critic.critic_1);
-        zero_gradient(device, actor_critic.critic_2);
+        zero_gradient(device, actor_critic.critics[0]);
+        zero_gradient(device, actor_critic.critics[1]);
         reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
-        reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
-        reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
+        reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critics[0]);
+        reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critics[1]);
 
         copy(device, device, actor_critic.actor, actor_critic.actor_target);
-        copy(device, device, actor_critic.critic_1, actor_critic.critic_target_1);
-        copy(device, device, actor_critic.critic_2, actor_critic.critic_target_2);
+        copy(device, device, actor_critic.critics[0], actor_critic.critics_target[0]);
+        copy(device, device, actor_critic.critics[1], actor_critic.critics_target[1]);
     }
     template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC, typename RNG>
     void target_action_noise(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC>& target_action_noise, RNG& rng ) {
@@ -181,8 +187,8 @@ namespace rl_tools{
             mask_actions(device, batch.next_actions, training_buffers.next_actions, batch.final_step_mask, true);
         }
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
-        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, reset_mode);
-        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, reset_mode);
+        evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, reset_mode);
+        evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, reset_mode);
 
         target_action_values(device, actor_critic, batch, training_buffers);
         forward(device, critic, batch.observations_and_actions, critic_buffers, rng, reset_mode);
@@ -240,7 +246,7 @@ namespace rl_tools{
             mask_actions(device, batch.actions, training_buffers.actions, batch.final_step_mask, true);
         }
         copy(device, device, batch.observations_privileged, training_buffers.observations);
-        auto& critic = actor_critic.critic_1;
+        auto& critic = actor_critic.critics[0];
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, critic_buffers, rng, reset_mode);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL) {
             T num_final_steps = cast_reduce_sum<T>(device, batch.final_step_mask);
@@ -299,8 +305,8 @@ namespace rl_tools{
 
     template <typename DEVICE, typename SPEC>
     void update_critic_targets(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
-        rl::algorithms::td3::update_target_module(device, actor_critic.critic_1, actor_critic.critic_target_1, SPEC::PARAMETERS::CRITIC_POLYAK);
-        rl::algorithms::td3::update_target_module(device, actor_critic.critic_2, actor_critic.critic_target_2, SPEC::PARAMETERS::CRITIC_POLYAK);
+        rl::algorithms::td3::update_target_module(device, actor_critic.critics[0], actor_critic.critics_target[0], SPEC::PARAMETERS::CRITIC_POLYAK);
+        rl::algorithms::td3::update_target_module(device, actor_critic.critics[1], actor_critic.critics_target[1], SPEC::PARAMETERS::CRITIC_POLYAK);
     }
     template <typename DEVICE, typename SPEC>
     void update_actor_target(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
