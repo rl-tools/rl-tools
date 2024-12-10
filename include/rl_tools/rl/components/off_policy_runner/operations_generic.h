@@ -38,6 +38,11 @@ namespace rl_tools{
         malloc(device, episode_stats.data);
         init_views(device, episode_stats);
     }
+    template <typename DEVICE, typename T_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
+        init_views(device, episode_stats);
+        episode_stats.next_episode_i = 0;
+    }
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         malloc(device, runner.buffers);
@@ -51,14 +56,14 @@ namespace rl_tools{
         malloc(device, runner.episode_stats);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
-            replay_buffer = {}; // zero-initialize such that in debug mode the nullptr check on malloc does not trigger
             malloc(device, replay_buffer);
+            init(device, replay_buffer);
             auto& episode_stats = get(runner.episode_stats, 0, env_i);
-            episode_stats = {};
             malloc(device, episode_stats);
+            init(device, episode_stats);
             auto& env = get(runner.envs, 0, env_i);
-            env = {};
             malloc(device, env);
+            init(device, env);
         }
         malloc(device, runner.policy_states);
     }
@@ -179,10 +184,6 @@ namespace rl_tools{
             auto& parameters_target = get(runner.env_parameters, 0, env_i);
             parameters_target = parameters;
         }
-    }
-    template <typename DEVICE, typename T_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
-        episode_stats.next_episode_i = 0;
     }
     template<typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
