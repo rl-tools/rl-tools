@@ -141,6 +141,10 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_BOTTLENECK_V0)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::bottleneck_v0::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
