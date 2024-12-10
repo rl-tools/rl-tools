@@ -101,34 +101,18 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Flag<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::pendulum;
         using T = typename SPEC::T;
+        using ENVIRONMENT = rl::environments::Flag<SPEC>;
         using STATE = typename rl::environments::Flag<SPEC>::State;
         T distance_to_flag = math::sqrt(device.math, (next_state.position[0] - parameters.flag_position[0]) * (next_state.position[0] - parameters.flag_position[0]) + (next_state.position[1] - parameters.flag_position[1]) * (next_state.position[1] - parameters.flag_position[1]));
         T distance_to_origin = math::sqrt(device.math, next_state.position[0] * next_state.position[0] + next_state.position[1] * next_state.position[1]);
         T reward = 0;
-        switch(next_state.state_machine){
-            case STATE::StateMachine::INITIAL:
-                reward = -distance_to_flag;
-                break;
-            case STATE::StateMachine::FLAG_VISITED:
-                reward = -distance_to_origin;
-                break;
-            case STATE::StateMachine::ORIGIN_VISITED:
-                if(state.state_machine == STATE::StateMachine::FLAG_VISITED){
-                    reward = 500;
-                }
-                else{
-                    reward = -distance_to_flag;
-                }
-                break;
-            case STATE::StateMachine::FLAG_VISITED_AGAIN:
-                reward = -distance_to_flag;
-                break;
-            default:
-                std::cout << "unexpected state: " << static_cast<typename DEVICE::index_t>(next_state.state_machine) << std::endl;
-                std::exit(1);
-                break;
+        if(next_state.state_machine == STATE::StateMachine::FLAG_VISITED_AGAIN){
+            reward = 1000;
         }
-        return reward/100;
+        else{
+            reward = -1;
+        }
+        return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
