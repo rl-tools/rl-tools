@@ -10,16 +10,12 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::flag{
     template <typename T>
     struct DefaultParameters {
-        constexpr static T g = 10;
-        constexpr static T max_speed = 8;
-        constexpr static T max_torque = 2;
-        constexpr static T dt = 0.05;
-        constexpr static T m = 1;
-        constexpr static T l = 1;
-        constexpr static T initial_state_min_angle = -math::PI<T>;
-        constexpr static T initial_state_max_angle = math::PI<T>;
-        constexpr static T initial_state_min_speed = -1;
-        constexpr static T initial_state_max_speed = 1;
+        constexpr static T MAX_ACCELERATION = 50;
+        constexpr static T MAX_VELOCITY = 5;
+        constexpr static T FLAG_DISTANCE_THRESHOLD = 2;
+        constexpr static T DT = 0.10;
+        constexpr static T BOARD_SIZE = 10;
+        T flag_position[2];
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
     struct Specification{
@@ -29,19 +25,25 @@ namespace rl_tools::rl::environments::flag{
     };
 
     template <typename TI>
-    struct ObservationFourier{
-        static constexpr TI DIM = 3;
+    struct Observation{
+        static constexpr TI DIM = 4 + 3;
     };
     template <typename TI>
-    struct ObservationRaw{
-        static constexpr TI DIM = 2;
+    struct ObservationPrivileged{
+        static constexpr TI DIM = 4 + 3 + 2;
     };
 
     template <typename T, typename TI>
     struct State{
-        static constexpr TI DIM = 2;
-        T theta;
-        T theta_dot;
+        enum class StateMachine{
+            INITIAL = 0,
+            FLAG_VISITED = 1,
+            ORIGIN_VISITED = 2
+        };
+        static constexpr TI DIM = 5;
+        T position[2];
+        T velocity[2];
+        StateMachine state_machine;
     };
 
 }
@@ -56,11 +58,11 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = flag::State<T, TI>;
         using Parameters = typename SPEC::PARAMETERS;
-        using Observation = flag::ObservationFourier<TI>;
-        using ObservationPrivileged = Observation;
+        using Observation = flag::Observation<TI>;
+        using ObservationPrivileged = Observation; //flag::ObservationPrivileged<TI>;
         static constexpr TI N_AGENTS = 1; // single agent
-        static constexpr TI ACTION_DIM = 1;
-        static constexpr TI EPISODE_STEP_LIMIT = 200;
+        static constexpr TI ACTION_DIM = 2;
+        static constexpr TI EPISODE_STEP_LIMIT = 100;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

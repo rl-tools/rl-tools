@@ -5,24 +5,6 @@
 #include "environment.h"
 #include "../operations_generic.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::flag{
-    template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){
-        x = x < min ? min : (x > max ? max : x);
-        return x;
-    }
-    template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT T f_mod_python(const DEVICE& dev, T a, T b){
-        return a - b * math::floor(dev, a / b);
-    }
-
-    template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT T angle_normalize(const DEVICE& dev, T x){
-        return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
-    }
-}
-RL_TOOLS_NAMESPACE_WRAPPER_END
-RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void malloc(DEVICE& device, const rl::environments::Flag<SPEC>& env){ }
@@ -31,85 +13,157 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, const rl::environments::Flag<SPEC>& env){ }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, RNG& rng){ }
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, RNG& rng){
+        using T = typename SPEC::T;
+        parameters.flag_position[0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+        parameters.flag_position[1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+    }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters){ }
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters){
+        parameters.flag_position[0] = SPEC::PARAMETERS::BOARD_SIZE / 2;
+        parameters.flag_position[1] = SPEC::PARAMETERS::BOARD_SIZE / 2;
+    }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state, RNG& rng){
-        state.theta     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
-        state.theta_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
+        using T = typename SPEC::T;
+        state.position[0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+        state.position[1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+        state.velocity[0] = 0;
+        state.velocity[1] = 0;
+        state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::INITIAL;
     }
     template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state){
-        state.theta = -math::PI<typename SPEC::T>;
-        state.theta_dot = 0;
+        state.position[0] = SPEC::PARAMETERS::BOARD_SIZE / 2;
+        state.position[1] = SPEC::PARAMETERS::BOARD_SIZE / 2;
+        state.velocity[0] = 0;
+        state.velocity[1] = 0;
+        state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::INITIAL;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Flag<SPEC>::State& next_state, RNG& rng) {
         static_assert(ACTION_SPEC::ROWS == 1);
-        static_assert(ACTION_SPEC::COLS == 1);
+        static_assert(ACTION_SPEC::COLS == 2);
         using namespace rl::environments::pendulum;
-        typedef typename SPEC::T T;
-        typedef typename SPEC::PARAMETERS PARAMS;
-        T u_normalised = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
-        T u = PARAMS::max_torque * u_normalised;
-        T g = PARAMS::g;
-        T m = PARAMS::m;
-        T l = PARAMS::l;
-        T dt = PARAMS::dt;
+        using T = typename SPEC::T;
+        using PARAMS = typename SPEC::PARAMETERS;
+        using STATE = typename rl::environments::Flag<SPEC>::State;
+        T u_normalised[2];
+        u_normalised[0] = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
+        u_normalised[1] = math::clamp(device.math, get(action, 0, 1), (T)-1, (T)1);
+        T u[2];
+        u[0] = PARAMS::MAX_ACCELERATION * u_normalised[0];
+        u[1] = PARAMS::MAX_ACCELERATION * u_normalised[1];
+        next_state.position[0] = state.position[0] + state.velocity[0] * PARAMS::DT;
+        next_state.position[1] = state.position[1] + state.velocity[1] * PARAMS::DT;
+        next_state.velocity[0] = state.velocity[0] + u[0] * PARAMS::DT;
+        next_state.velocity[1] = state.velocity[1] + u[1] * PARAMS::DT;
+        next_state.position[0] = math::clamp(device.math, next_state.position[0], (T)0, PARAMS::BOARD_SIZE);
+        next_state.position[1] = math::clamp(device.math, next_state.position[1], (T)0, PARAMS::BOARD_SIZE);
+        next_state.velocity[0] = math::clamp(device.math, next_state.velocity[0], (T)-PARAMS::MAX_VELOCITY, PARAMS::MAX_VELOCITY);
+        next_state.velocity[1] = math::clamp(device.math, next_state.velocity[1], (T)-PARAMS::MAX_VELOCITY, PARAMS::MAX_VELOCITY);
 
-        u = clip(u, -PARAMS::max_torque, PARAMS::max_torque);
-
-        T newthdot = state.theta_dot + (3 * g / (2 * l) * math::sin(device.math, state.theta) + 3.0 / (m * l * l) * u) * dt;
-        newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
-        T newth = state.theta + newthdot * dt;
-
-        next_state.theta = newth;
-        next_state.theta_dot = newthdot;
-        return SPEC::PARAMETERS::dt;
+        T distance_to_flag = math::sqrt(device.math, (next_state.position[0] - parameters.flag_position[0]) * (next_state.position[0] - parameters.flag_position[0]) + (next_state.position[1] - parameters.flag_position[1]) * (next_state.position[1] - parameters.flag_position[1]));
+        T distance_to_origin = math::sqrt(device.math, next_state.position[0] * next_state.position[0] + next_state.position[1] * next_state.position[1]);
+        switch(state.state_machine){
+            case STATE::StateMachine::INITIAL:
+                if(distance_to_flag < PARAMS::FLAG_DISTANCE_THRESHOLD){
+                    next_state.state_machine = STATE::StateMachine::FLAG_VISITED;
+                }
+                else{
+                    next_state.state_machine = STATE::StateMachine::INITIAL;
+                }
+                break;
+            case STATE::StateMachine::FLAG_VISITED:
+                if(distance_to_origin < PARAMS::FLAG_DISTANCE_THRESHOLD){
+                    next_state.state_machine = STATE::StateMachine::ORIGIN_VISITED;
+                }
+                else{
+                    next_state.state_machine = STATE::StateMachine::FLAG_VISITED;
+                }
+                break;
+            case STATE::StateMachine::ORIGIN_VISITED:
+                next_state.state_machine = STATE::StateMachine::ORIGIN_VISITED;
+                break;
+            default:
+                std::cout << "unexpected state: " << static_cast<typename DEVICE::index_t>(next_state.state_machine) << std::endl;
+                std::exit(1);
+                break;
+        }
+        return SPEC::PARAMETERS::DT;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Flag<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::pendulum;
-        typedef typename SPEC::T T;
-        T angle_norm = angle_normalize(device.math, state.theta);
-        T u_normalised = get(action, 0, 0);
-        T u = SPEC::PARAMETERS::max_torque * u_normalised;
-        T costs = angle_norm * angle_norm + 0.1 * state.theta_dot * state.theta_dot + 0.001 * (u * u);
-        return -costs;
+        using T = typename SPEC::T;
+        using STATE = typename rl::environments::Flag<SPEC>::State;
+        T distance_to_flag = math::sqrt(device.math, (next_state.position[0] - parameters.flag_position[0]) * (next_state.position[0] - parameters.flag_position[0]) + (next_state.position[1] - parameters.flag_position[1]) * (next_state.position[1] - parameters.flag_position[1]));
+        T distance_to_origin = math::sqrt(device.math, next_state.position[0] * next_state.position[0] + next_state.position[1] * next_state.position[1]);
+        T reward = 0;
+        switch(next_state.state_machine){
+            case STATE::StateMachine::INITIAL:
+                reward = -distance_to_flag;
+                break;
+            case STATE::StateMachine::FLAG_VISITED:
+                reward = -distance_to_origin;
+                break;
+            case STATE::StateMachine::ORIGIN_VISITED:
+                if(state.state_machine == STATE::StateMachine::FLAG_VISITED){
+                    reward = 1000;
+                }
+                else{
+                    reward = -distance_to_flag;
+                }
+                break;
+            default:
+                std::cout << "unexpected state: " << static_cast<typename DEVICE::index_t>(next_state.state_machine) << std::endl;
+                std::exit(1);
+                break;
+        }
+        return reward/100;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::ObservationFourier<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::Observation<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 3);
-        typedef typename SPEC::T T;
-        set(observation, 0, 0, math::cos(device.math, state.theta));
-        set(observation, 0, 1, math::sin(device.math, state.theta));
-        set(observation, 0, 2, state.theta_dot);
+        static_assert(OBS_SPEC::COLS == 7);
+        using T = typename SPEC::T;
+        using STATE_MACHINE = typename rl::environments::Flag<SPEC>::State::StateMachine;
+        set(observation, 0, 0, state.position[0]);
+        set(observation, 0, 1, state.position[1]);
+        set(observation, 0, 2, state.velocity[0]);
+        set(observation, 0, 3, state.velocity[1]);
+        switch(state.state_machine){
+            case STATE_MACHINE::INITIAL:
+                set(observation, 0, 4, 1);
+                set(observation, 0, 5, -1);
+                set(observation, 0, 6, -1);
+                break;
+            case STATE_MACHINE::FLAG_VISITED:
+                set(observation, 0, 4, -1);
+                set(observation, 0, 5, 1);
+                set(observation, 0, 6, -1);
+                break;
+            case STATE_MACHINE::ORIGIN_VISITED:
+                set(observation, 0, 4, -1);
+                set(observation, 0, 5, -1);
+                set(observation, 0, 6, 1);
+                break;
+        }
     }
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::ObservationRaw<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::ObservationPrivileged<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 2);
-        typedef typename SPEC::T T;
-        set(observation, 0, 0, rl::environments::flag::angle_normalize(device.math, state.theta));
-        set(observation, 0, 1, state.theta_dot);
-    }
-    // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::State& state, typename DEVICE::index_t index){
-        if(index == 0) {
-            return state.theta;
-        }
-        else{
-            return state.theta_dot;
-        }
+        static_assert(OBS_SPEC::COLS == 9);
+        using T = typename SPEC::T;
+        auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
+        observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
+        set(observation, 0, 7, parameters.flag_position[0]);
+        set(observation, 0, 8, parameters.flag_position[1]);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State state, RNG& rng){
-        using T = typename SPEC::T;
-        return false; //random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng) > 0.9;
+        return false;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
