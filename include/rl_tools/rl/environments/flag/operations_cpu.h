@@ -39,10 +39,19 @@ namespace rl_tools{
         // Implement the functions `export async function render(ui_state, parameters, state, action)` and `export async function init(canvas, parameters, options)` and `export` them so that they are available as ES6 imports
         // Please have a look at https://studio.rl.tools which helps you create render functions interactively
         std::string ui = R"RL_TOOLS_LITERAL(
-export async function init(canvas, options){
+
+
+
+export async function init(canvas, options) {
     return {
-        ctx: canvas.getContext('2d')
+        ctx: canvas.getContext('2d'),
+        trace: []
     }
+}
+
+export async function episode_init(ui_state, parameters) {
+    // Clear previous traces
+    ui_state.trace = [];
 }
 
 export async function render(ui_state, parameters, state, action) {
@@ -50,8 +59,17 @@ export async function render(ui_state, parameters, state, action) {
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
     const canvasWidth = ctx.canvas.width;
-    const canvasHeight = ctx.canvas.height;
     const scale = canvasWidth / parameters.BOARD_SIZE;
+
+    const agentX = state.position[0] * scale;
+    const agentY = state.position[1] * scale;
+
+    // Record trace
+    ui_state.trace.push({
+        x: agentX,
+        y: agentY,
+        sm: state.state_machine
+    });
 
     // Draw board
     ctx.strokeStyle = 'black';
@@ -86,9 +104,24 @@ export async function render(ui_state, parameters, state, action) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
     ctx.fill();
 
+    // Determine current target and highlight it
+    let targetX, targetY;
+    if (state.state_machine === 0) {
+        // INITIAL: target is flag
+        targetX = flagX;
+        targetY = flagY;
+    } else {
+        // FLAG_VISITED or ORIGIN_VISITED: target is origin
+        targetX = 0;
+        targetY = 0;
+    }
+    ctx.beginPath();
+    ctx.arc(targetX, targetY, 15, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
     // Draw agent
-    const agentX = state.position[0] * scale;
-    const agentY = state.position[1] * scale;
     ctx.beginPath();
     ctx.arc(agentX, agentY, 7, 0, 2 * Math.PI);
     ctx.fillStyle = '#7DB9B6';
@@ -114,7 +147,25 @@ export async function render(ui_state, parameters, state, action) {
     ctx.strokeStyle = 'green';
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    // Draw trace with different colors depending on state machine
+    for (let i = 1; i < ui_state.trace.length; i++) {
+        const prev = ui_state.trace[i-1];
+        const curr = ui_state.trace[i];
+
+        let color = 'gray';
+        if (prev.sm === 1) color = 'purple';
+        if (prev.sm === 2) color = 'orange';
+
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(curr.x, curr.y);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
 }
+
         )RL_TOOLS_LITERAL";
         return ui;
     }
