@@ -9,10 +9,10 @@ namespace rl_tools::rl::zoo::flag::ppo{
     struct FACTORY{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            static constexpr TI N_ENVIRONMENTS = 8;
+            static constexpr TI N_ENVIRONMENTS = 16;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 256;
-            static constexpr TI BATCH_SIZE = 8*128;
-            static constexpr TI TOTAL_STEP_LIMIT = 10000000;
+            static constexpr TI BATCH_SIZE = N_ENVIRONMENTS*ON_POLICY_RUNNER_STEPS_PER_ENV;
+            static constexpr TI TOTAL_STEP_LIMIT = 100000000;
             static constexpr TI ACTOR_HIDDEN_DIM = 128;
             static constexpr TI CRITIC_HIDDEN_DIM = 128;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
@@ -20,7 +20,7 @@ namespace rl_tools::rl::zoo::flag::ppo{
             static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-                static constexpr T ALPHA = 0.001;
+                static constexpr T ALPHA = 0.0003;
             };
             static constexpr bool NORMALIZE_OBSERVATIONS = true;
             struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
