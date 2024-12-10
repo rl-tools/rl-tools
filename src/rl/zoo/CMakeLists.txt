@@ -25,6 +25,14 @@ RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_v1_td3)
 target_compile_definitions(rl_zoo_pendulum_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 target_compile_definitions(rl_zoo_pendulum_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 
+# Flag
+# SAC
+add_executable(rl_zoo_flag_sac zoo_cli.cpp zoo.cpp)
+target_link_libraries(rl_zoo_flag_sac PRIVATE RLtools::RLtools)
+RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_sac)
+target_compile_definitions(rl_zoo_flag_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
+target_compile_definitions(rl_zoo_flag_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
+
 # AcrobotSwingup-v0
 # SAC
 add_executable(rl_zoo_acrobot_swingup_v0_sac zoo_cli.cpp zoo.cpp)
