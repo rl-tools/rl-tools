@@ -32,7 +32,8 @@ using CONFIG = Config<T, TI>;
 
 int main() {
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::init(device, rng, 0);
 
 
 
