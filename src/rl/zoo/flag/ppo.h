@@ -10,13 +10,13 @@ namespace rl_tools::rl::zoo::flag::ppo{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             static constexpr TI N_ENVIRONMENTS = 8;
-            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
-            static constexpr TI BATCH_SIZE = 128;
-            static constexpr TI TOTAL_STEP_LIMIT = 1000000;
-            static constexpr TI ACTOR_HIDDEN_DIM = 16;
-            static constexpr TI CRITIC_HIDDEN_DIM = 16;
-            static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-            static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 256;
+            static constexpr TI BATCH_SIZE = 8*128;
+            static constexpr TI TOTAL_STEP_LIMIT = 10000000;
+            static constexpr TI ACTOR_HIDDEN_DIM = 128;
+            static constexpr TI CRITIC_HIDDEN_DIM = 128;
+            static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
+            static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
@@ -27,7 +27,7 @@ namespace rl_tools::rl::zoo::flag::ppo{
                 static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
                 static constexpr TI N_EPOCHS = 1;
                 static constexpr T GAMMA = 0.995;
-                static constexpr T LAMBDA = 0.95;
+                static constexpr T LAMBDA = 0.975;
                 static constexpr T INITIAL_ACTION_STD = 2.0;
             };
         };
