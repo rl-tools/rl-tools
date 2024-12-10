@@ -12,7 +12,7 @@ namespace rl_tools::rl::environments::flag{
     struct DefaultParameters {
         constexpr static T MAX_ACCELERATION = 50;
         constexpr static T MAX_VELOCITY = 5;
-        constexpr static T FLAG_DISTANCE_THRESHOLD = 2;
+        constexpr static T FLAG_DISTANCE_THRESHOLD = 1;
         constexpr static T DT = 0.10;
         constexpr static T BOARD_SIZE = 10;
         T flag_position[2];
