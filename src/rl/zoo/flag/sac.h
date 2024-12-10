@@ -12,7 +12,7 @@ namespace rl_tools::rl::zoo::flag::sac{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
                 static constexpr TI CRITIC_BATCH_SIZE = 256;
-                static constexpr T GAMMA = 0.99;
+                static constexpr T GAMMA = 0.995;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 10;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 20;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 20;
