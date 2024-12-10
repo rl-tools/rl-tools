@@ -49,7 +49,8 @@ using CONFIG = Config<T, TI>;
 
 int main(){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::init(device, rng, 0);
 
     std::string data_path, file_name;
     bool use_enwik8 = true;
@@ -106,6 +107,7 @@ int main(){
     rlt::malloc(device, input);
     rlt::malloc(device, d_output);
     rlt::malloc(device, output_target);
+    rlt::malloc(device, optimizer);
     rlt::init_weights(device, model, rng);
     rlt::reset_optimizer_state(device, optimizer, model);
     std::cout << "INPUT SHAPE";
