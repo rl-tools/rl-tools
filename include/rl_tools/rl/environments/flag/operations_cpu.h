@@ -41,7 +41,6 @@ namespace rl_tools{
         std::string ui = R"RL_TOOLS_LITERAL(
 
 
-
 export async function init(canvas, options) {
     return {
         ctx: canvas.getContext('2d'),
@@ -104,7 +103,7 @@ export async function render(ui_state, parameters, state, action) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
     ctx.fill();
 
-    // Determine current target and highlight it
+    // Determine current target and highlight it with the threshold radius
     let targetX, targetY;
     if (state.state_machine === 0) {
         // INITIAL: target is flag
@@ -116,17 +115,16 @@ export async function render(ui_state, parameters, state, action) {
         targetY = 0;
     }
     ctx.beginPath();
-    ctx.arc(targetX, targetY, 15, 0, 2 * Math.PI);
-    ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
-    ctx.lineWidth = 3;
+    ctx.arc(targetX, targetY, parameters.FLAG_DISTANCE_THRESHOLD * scale, 0, 2 * Math.PI);
+    ctx.strokeStyle = '#c93c52';
+    ctx.lineWidth = 5;
     ctx.stroke();
 
     // Draw agent
     ctx.beginPath();
-    ctx.arc(agentX, agentY, 7, 0, 2 * Math.PI);
+    ctx.arc(agentX, agentY, 35, 0, 2 * Math.PI);
     ctx.fillStyle = '#7DB9B6';
     ctx.fill();
-    ctx.stroke();
 
     // Draw velocity vector
     const velX = state.velocity[0] * scale * 0.5;
@@ -135,17 +133,17 @@ export async function render(ui_state, parameters, state, action) {
     ctx.moveTo(agentX, agentY);
     ctx.lineTo(agentX + velX, agentY + velY);
     ctx.strokeStyle = 'blue';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 5;
     ctx.stroke();
 
     // Draw action vector (scaled by MAX_ACCELERATION)
-    const accX = action[0] * parameters.MAX_ACCELERATION * scale * 0.5;
-    const accY = action[1] * parameters.MAX_ACCELERATION * scale * 0.5;
+    const accX = action[0] * parameters.MAX_ACCELERATION/(parameters.BOARD_SIZE*3) * scale * 0.5;
+    const accY = action[1] * parameters.MAX_ACCELERATION/(parameters.BOARD_SIZE*3) * scale * 0.5;
     ctx.beginPath();
     ctx.moveTo(agentX, agentY);
     ctx.lineTo(agentX + accX, agentY + accY);
     ctx.strokeStyle = 'green';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 5;
     ctx.stroke();
 
     // Draw trace with different colors depending on state machine
@@ -161,10 +159,11 @@ export async function render(ui_state, parameters, state, action) {
         ctx.moveTo(prev.x, prev.y);
         ctx.lineTo(curr.x, curr.y);
         ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 5;
         ctx.stroke();
     }
 }
+
 
         )RL_TOOLS_LITERAL";
         return ui;
