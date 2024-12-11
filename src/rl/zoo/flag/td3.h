@@ -17,7 +17,7 @@ namespace rl_tools::rl::zoo::flag::td3{
             static constexpr TI ACTOR_HIDDEN_DIM = 128;
             static constexpr TI CRITIC_NUM_LAYERS = 3;
             static constexpr TI CRITIC_HIDDEN_DIM = 128;
-            static constexpr T EXPLORATION_NOISE = 0.2;
+            static constexpr T EXPLORATION_NOISE = 0.1;
             static constexpr TI N_WARMUP_STEPS = 20000;
 
         };
