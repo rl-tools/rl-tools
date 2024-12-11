@@ -70,10 +70,10 @@ export async function render(ui_state, parameters, state, action) {
         sm: state.state_machine
     });
 
-    // Draw board
-    ctx.strokeStyle = 'black';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, parameters.BOARD_SIZE * scale, parameters.BOARD_SIZE * scale);
+//    // Draw board
+//    ctx.strokeStyle = 'black';
+//    ctx.lineWidth = 2;
+//    ctx.strokeRect(0, 0, parameters.BOARD_SIZE * scale, parameters.BOARD_SIZE * scale);
 
     // Draw flag
     const flagX = parameters.flag_position[0] * scale;
@@ -120,32 +120,6 @@ export async function render(ui_state, parameters, state, action) {
     ctx.lineWidth = 5;
     ctx.stroke();
 
-    // Draw agent
-    ctx.beginPath();
-    ctx.arc(agentX, agentY, 35, 0, 2 * Math.PI);
-    ctx.fillStyle = '#7DB9B6';
-    ctx.fill();
-
-    // Draw velocity vector
-    const velX = state.velocity[0] * scale * 0.5;
-    const velY = state.velocity[1] * scale * 0.5;
-    ctx.beginPath();
-    ctx.moveTo(agentX, agentY);
-    ctx.lineTo(agentX + velX, agentY + velY);
-    ctx.strokeStyle = 'blue';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-
-    // Draw action vector (scaled by MAX_ACCELERATION)
-    const accX = action[0] * parameters.MAX_ACCELERATION/(parameters.BOARD_SIZE*3) * scale * 0.5;
-    const accY = action[1] * parameters.MAX_ACCELERATION/(parameters.BOARD_SIZE*3) * scale * 0.5;
-    ctx.beginPath();
-    ctx.moveTo(agentX, agentY);
-    ctx.lineTo(agentX + accX, agentY + accY);
-    ctx.strokeStyle = 'green';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-
     // Draw trace with different colors depending on state machine
     for (let i = 1; i < ui_state.trace.length; i++) {
         const prev = ui_state.trace[i-1];
@@ -162,6 +136,33 @@ export async function render(ui_state, parameters, state, action) {
         ctx.lineWidth = 5;
         ctx.stroke();
     }
+
+    // Draw agent
+    ctx.beginPath();
+    ctx.arc(agentX, agentY, 35, 0, 2 * Math.PI);
+    ctx.fillStyle = '#7DB9B6';
+    ctx.fill();
+
+//    // Draw velocity vector
+//    const velX = state.velocity[0] * scale * 0.5;
+//    const velY = state.velocity[1] * scale * 0.5;
+//    ctx.beginPath();
+//    ctx.moveTo(agentX, agentY);
+//    ctx.lineTo(agentX + velX, agentY + velY);
+//    ctx.strokeStyle = 'blue';
+//    ctx.lineWidth = 5;
+//    ctx.stroke();
+//
+//    // Draw action vector (scaled by MAX_ACCELERATION)
+//    const accX = action[0] * parameters.MAX_ACCELERATION/(parameters.BOARD_SIZE*3) * scale * 0.5;
+//    const accY = action[1] * parameters.MAX_ACCELERATION/(parameters.BOARD_SIZE*3) * scale * 0.5;
+//    ctx.beginPath();
+//    ctx.moveTo(agentX, agentY);
+//    ctx.lineTo(agentX + accX, agentY + accY);
+//    ctx.strokeStyle = 'green';
+//    ctx.lineWidth = 5;
+//    ctx.stroke();
+
 }
 
 
