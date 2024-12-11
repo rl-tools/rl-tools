@@ -28,6 +28,8 @@ namespace rl_tools{
         using T = typename SPEC::T;
         state.position[0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
         state.position[1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+//        state.position[0] = SPEC::PARAMETERS::BOARD_SIZE / 2;
+//        state.position[1] = SPEC::PARAMETERS::BOARD_SIZE / 2;
         state.velocity[0] = 0;
         state.velocity[1] = 0;
         state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::INITIAL;
