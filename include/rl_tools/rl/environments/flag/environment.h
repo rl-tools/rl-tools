@@ -33,6 +33,11 @@ namespace rl_tools::rl::environments::flag{
         static constexpr TI DIM = 4 + 3 + 2;
     };
 
+    template <typename TI>
+    struct ObservationMemory{
+        static constexpr TI DIM = 4 + 3 + 2;
+    };
+
     template <typename T, typename TI>
     struct State{
         enum class StateMachine{
@@ -45,6 +50,10 @@ namespace rl_tools::rl::environments::flag{
         T position[2];
         T velocity[2];
         StateMachine state_machine;
+    };
+    template <typename T, typename TI>
+    struct StateMemory: State<T, TI>{
+        bool first_step;
     };
 
 }
@@ -63,6 +72,17 @@ namespace rl_tools::rl::environments{
         using ObservationPrivileged = Observation; //flag::ObservationPrivileged<TI>;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 2;
+        static constexpr TI EPISODE_STEP_LIMIT = 400;
+    };
+    template <typename T_SPEC>
+    struct FlagMemory: Flag<T_SPEC>{
+        // The Flag environment was meant to test memory but it is also a quite hard exploration problem. This modified environment tests the memory better by revealing the flag position at the first state. The agent also must only reach the flag once.
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using State = flag::StateMemory<T, TI>;
+        using Observation = flag::ObservationMemory<TI>;
+        using ObservationPrivileged = Observation;
         static constexpr TI EPISODE_STEP_LIMIT = 400;
     };
 }
