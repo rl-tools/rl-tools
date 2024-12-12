@@ -36,7 +36,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         template <typename CAPABILITY>
         struct Critic{
             static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
-            using INPUT_SHAPE = tensor::Shape<TI, 1, SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
+            using INPUT_SHAPE = tensor::Shape<TI, SAC_PARAMETERS::SEQUENCE_LENGTH, SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
             using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER>;
             using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
