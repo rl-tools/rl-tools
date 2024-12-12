@@ -24,9 +24,9 @@ namespace rl_tools::rl::zoo::l2f{
     using namespace rl_tools::rl::environments::l2f;
     template <typename DEVICE, typename T, typename TI>
     struct ENVIRONMENT_BIG_FACTORY{
-        using ENVIRONMENT_FACTORY = ENVIRONMENT_FACTORY<DEVICE, T, TI>;
-        using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY::PARAMETERS_SPEC;
-        using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY::PARAMETERS_TYPE;
+        using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, T, TI>;
+        using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_SPEC;
+        using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_TYPE;
 
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
         static constexpr REWARD_FUNCTION reward_function = {
@@ -55,13 +55,13 @@ namespace rl_tools::rl::zoo::l2f{
 //        }();
 
         static constexpr auto termination = [](){
-            auto termination = ENVIRONMENT_FACTORY::termination;
+            auto termination = ENVIRONMENT_FACTORY_BASE::termination;
             termination.linear_velocity_threshold = 2;
             return termination;
         }();
 
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
-            ENVIRONMENT_FACTORY::init,
+            ENVIRONMENT_FACTORY_BASE::init,
 //            [](){
 //                auto base = rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
 //                base.max_linear_velocity = 0.0;
@@ -69,9 +69,9 @@ namespace rl_tools::rl::zoo::l2f{
 //                return base;
 //            }(),
             reward_function,
-            ENVIRONMENT_FACTORY::observation_noise,
-            ENVIRONMENT_FACTORY::action_noise,
-            ENVIRONMENT_FACTORY::termination
+            ENVIRONMENT_FACTORY_BASE::observation_noise,
+            ENVIRONMENT_FACTORY_BASE::action_noise,
+            ENVIRONMENT_FACTORY_BASE::termination
         };
         static constexpr TI SIMULATION_FREQUENCY = 100;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -79,10 +79,10 @@ namespace rl_tools::rl::zoo::l2f{
         };
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
-                ENVIRONMENT_FACTORY::dynamics,
+                ENVIRONMENT_FACTORY_BASE::dynamics,
                 integration,
                 mdp,
-                ENVIRONMENT_FACTORY::domain_randomization
+                ENVIRONMENT_FACTORY_BASE::domain_randomization
             },
 //            ENVIRONMENT_FACTORY::disturbances
             typename PARAMETERS_TYPE::Disturbances{
@@ -102,7 +102,7 @@ namespace rl_tools::rl::zoo::l2f{
                             observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                                             observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
-            using OBSERVATION_TYPE_PRIVILEGED = typename ENVIRONMENT_FACTORY::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
+            using OBSERVATION_TYPE_PRIVILEGED = typename ENVIRONMENT_FACTORY_BASE::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters;

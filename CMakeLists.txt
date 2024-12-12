@@ -105,8 +105,8 @@ if(RL_TOOLS_WARNINGS_AS_ERRORS)
             -Wno-error=unused-variable
             -Wno-error=unused-but-set-variable
             -Wno-error=unused-local-typedefs
-            -Wno-error=unused-lambda-capture
-        >
+            >
+            $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wno-error=unused-lambda-capture>
     )
 endif()
 target_compile_options(rl_tools_core_definitions INTERFACE
