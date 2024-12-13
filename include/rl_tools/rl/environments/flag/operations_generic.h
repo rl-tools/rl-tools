@@ -143,6 +143,8 @@ namespace rl_tools{
             reward = -1;
         }
         return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
+        //
+        // return -math::sqrt(device.math, (next_state.position[0] - parameters.flag_position[0]) * (next_state.position[0] - parameters.flag_position[0]) + (next_state.position[1] - parameters.flag_position[1]) * (next_state.position[1] - parameters.flag_position[1]));
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>

@@ -73,7 +73,7 @@ def pretty_print(valobj, internal_dict, options):
 
     typename = valobj.GetType().GetCanonicalType().GetName()
     print(f"Typename is: {typename}")
-    tensor = parse_string(typename)
+    tensor = parse_string(str(float_ptr), typename)
     if tensor is None:
         print(f"Parse error on: {typename}")
         parse_string(valobj.type.name, verbose=True)
