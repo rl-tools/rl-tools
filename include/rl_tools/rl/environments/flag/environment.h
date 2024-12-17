@@ -83,7 +83,7 @@ namespace rl_tools::rl::environments{
         using State = flag::StateMemory<T, TI>;
         using Observation = flag::ObservationMemory<TI>;
         using ObservationPrivileged = Observation;
-        static constexpr TI EPISODE_STEP_LIMIT = 32;
+        static constexpr TI EPISODE_STEP_LIMIT = 24;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

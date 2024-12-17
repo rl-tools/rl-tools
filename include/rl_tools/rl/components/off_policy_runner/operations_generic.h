@@ -263,14 +263,22 @@ namespace rl_tools{
         runner.previous_policy = POLICY_INDEX;
         runner.previous_policy_set = true;
     }
-    template <bool DETERMINISTIC, typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void gather_batch_step(DEVICE& device, rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
+    template <bool DETERMINISTIC, typename DEVICE, typename RUNNER_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void gather_batch_step(DEVICE& device, rl::components::OffPolicyRunner<RUNNER_SPEC>& runner, rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng){
         // note: make sure that the replay_buffer has at least one transition in it;
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTH;
-        TI sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
+        // when the replay buffer is wrapping around it starts overwriting elements of some episode
+        // hence the beginning of that episode might not be available anymore
+        // hence we sample from position + MAX_EPISODE_LENGTH => wrap => position
+#ifdef RL_TOOLS_DEBUG
+        utils::assert_exit(device, replay_buffer.position > 0, "Replay buffer requires at least one element");
+#endif
+        TI eligible_sample_count = replay_buffer.full ? (SPEC::CAPACITY - RUNNER_SPEC::MAX_EPISODE_LENGTH) : replay_buffer.position;
+        TI sample_index_max = eligible_sample_count - 1;
         TI sample_index;
+        // [-----------{current_position}[MAX_EPISODE_LENGTH-----]--------------------------]
         constexpr bool RANDOM_SEQ_LENGTH = true;
         constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
         TI current_seq_length = SEQUENCE_LENGTH;
@@ -289,7 +297,21 @@ namespace rl_tools{
         bool previous_step_truncated = true;
         for(typename DEVICE::index_t seq_step_i=0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++) {
             if(previous_step_truncated){
-                sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(device.random, (TI) 0, sample_index_max, rng);
+                // if previous step was truncated we find a new sequence start
+                TI sample_offset = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(device.random, (TI) 0, sample_index_max, rng);
+                if(replay_buffer.full){
+                    sample_index = replay_buffer.position + RUNNER_SPEC::MAX_EPISODE_LENGTH + sample_offset;
+                    sample_index = sample_index % SPEC::CAPACITY;
+                }
+                else{
+                    sample_index = sample_offset;
+                }
+                if constexpr(BATCH_SPEC::ALWAYS_SAMPLE_FROM_INITIAL_STATE){
+                    TI new_sample_index = get(device, replay_buffer.episode_start, sample_index);
+//                    log(device, device.logger, "sample_index", sample_index, "new_sample_index", new_sample_index);
+                    sample_index = new_sample_index;
+                }
+
             }
 
             auto observation_target_sequence = view<0>(device, batch.observations, seq_step_i);
@@ -351,14 +373,21 @@ namespace rl_tools{
                 set(device, batch.final_step_mask, previous_step_truncated, seq_step_i-1, batch_step_i, 0);
             }
             else{
-                // seq_step_i == 0
+                // seq_step_i == 0 => use this iteration to set the mask for the final step in the sequence which will always be a final step
                 set(device, batch.final_step_mask, true, SEQUENCE_LENGTH-1, batch_step_i, 0);
             }
             bool truncated = get(replay_buffer.truncated, sample_index, 0);
             set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
+            previous_step_truncated = truncated;
             sample_index = sample_index + 1;
-            sample_index = sample_index % (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position);
-            previous_step_truncated = truncated || sample_index == 0;
+            if(replay_buffer.full){
+                sample_index = sample_index % SPEC::CAPACITY;
+            }
+            else{
+                if (sample_index >= replay_buffer.position) {
+                    previous_step_truncated = true;
+                }
+            }
             if constexpr(RANDOM_SEQ_LENGTH) {
                 if (current_seq_step == current_seq_length - 1) {
                     if(SEQUENCE_LENGTH > 1){
@@ -386,7 +415,7 @@ namespace rl_tools{
         for(TI batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             TI env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (TI) 0, (TI)(SPEC::PARAMETERS::N_ENVIRONMENTS - 1), rng);
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
-            gather_batch_step<DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
+            gather_batch_step<DETERMINISTIC>(device, runner, replay_buffer, batch, batch_step_i, rng);
         }
     }
 //    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>

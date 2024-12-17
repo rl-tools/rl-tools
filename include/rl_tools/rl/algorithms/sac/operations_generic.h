@@ -242,6 +242,7 @@ namespace rl_tools{
 #endif
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        constexpr bool CPU_DEVICE = DEVICE::DEVICE_ID == devices::DeviceId::CPU || DEVICE::DEVICE_ID == devices::DeviceId::CPU_ACCELERATE || DEVICE::DEVICE_ID == devices::DeviceId::CPU_BLAS || DEVICE::DEVICE_ID == devices::DeviceId::CPU_MKL;
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static_assert(SPEC::PARAMETERS::SEQUENCE_LENGTH == SEQUENCE_LENGTH, "Specification SEQUENCE_LENGTH should be equal to the batch sequence length");
 //        static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -284,7 +285,7 @@ namespace rl_tools{
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             cast_reduce_sum<T>(device, batch.final_step_mask, training_buffers.loss_weight);
-            if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU){
+            if constexpr(CPU_DEVICE){
                 T num_final_steps = get(device, training_buffers.loss_weight, 0);
                 utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
             }
@@ -300,7 +301,7 @@ namespace rl_tools{
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             mask_gradient(device, training_buffers.d_output, batch.final_step_mask, true);
         }
-        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU){
+        if constexpr(CPU_DEVICE){
             T output_matrix_value = get(output_matrix_view, 0, 0);
             add_scalar(device, device.logger, "critic_value", output_matrix_value, 10001);
             if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
@@ -313,7 +314,7 @@ namespace rl_tools{
             add_scalar(device, device.logger, "critic_loss", loss, 10001);
         }
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
-        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU) {
+        if constexpr(CPU_DEVICE) {
             T critic_gradient_norm = gradient_norm(device, critic);
             add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm, 10001);
         }
@@ -381,6 +382,7 @@ namespace rl_tools{
 #endif
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        constexpr bool CPU_DEVICE = DEVICE::DEVICE_ID == devices::DeviceId::CPU || DEVICE::DEVICE_ID == devices::DeviceId::CPU_ACCELERATE || DEVICE::DEVICE_ID == devices::DeviceId::CPU_BLAS || DEVICE::DEVICE_ID == devices::DeviceId::CPU_MKL;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
 //        static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
@@ -416,7 +418,7 @@ namespace rl_tools{
         // todo: evaluate only backpropagating the active values
         // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
-            if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CPU) {
+            if constexpr(CPU_DEVICE){
                 T num_final_steps = cast_reduce_sum<T>(device, batch.final_step_mask);
                 utils::assert_exit(device, num_final_steps > 0, "No reset in critic training");
             }

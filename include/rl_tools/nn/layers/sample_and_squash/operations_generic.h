@@ -6,6 +6,9 @@
 #include "../../../utils/generic/typing.h"
 #include "../../../containers/matrix/matrix.h"
 
+#include "../gru/layer.h"
+#include "../gru/operations_generic.h"
+
 
 #include "layer.h"
 
@@ -305,15 +308,11 @@ namespace rl_tools{
         d/d_mu action = d/d_action_sample tanh(action_sample) * d/d_mu action_sample
 */
         T entropy = 0;
-        bool all_d_output_zero = true;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T action = get(layer.output, batch_i, action_i); // tanh(action_sample)
             T d_mu = 0;
             T d_std = 0;
             T d_output_value = get(d_output, batch_i, action_i);
-            if(d_output_value != 0){
-                all_d_output_zero = false;
-            }
             T d_tanh_pre_activation = d_output_value * (1-action*action);
             d_mu = d_tanh_pre_activation;
             d_std = d_tanh_pre_activation * get(layer.noise, batch_i, action_i);
@@ -343,9 +342,6 @@ namespace rl_tools{
             entropy += -action_log_prob;
         }
         T d_alpha = entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
-        if(all_d_output_zero){
-            d_alpha = 0;
-        }
         T d_log_alpha = alpha*d_alpha; // d_log_alpha
         set(buffer.d_log_alpha, 0, batch_i, d_log_alpha);
     }
@@ -377,10 +373,18 @@ namespace rl_tools{
             backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
         T d_log_alpha = sum(device, buffer.d_log_alpha);
-        // add_scalar(device, device.logger, "actor_alpha", alpha, 1000);
+        add_scalar(device, device.logger, "actor_alpha", alpha, 1000);
 
         // TODO: change INTERNAL_BATCH_SIZE to sum(reset) if MASK_NON_TERMINAL is used
-        increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/INTERNAL_BATCH_SIZE); // note if changing the BATCH_SIZE to INTERNAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
+        if constexpr(mode::is<MODE, nn::layers::gru::ResetMode>){
+//            d_log_alpha /= cast_reduce_sum<T>(device, mode.reset_container);
+            TI num_resets = nn::layers::gru::mode::num_resets(device, mode);
+            d_log_alpha /= num_resets;
+        }
+        else{
+            d_log_alpha /= INTERNAL_BATCH_SIZE;
+        }
+        increment(layer.log_alpha.gradient, 0, 0, d_log_alpha); // note if changing the BATCH_SIZE to INTERNAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto output(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& l){

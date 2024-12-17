@@ -23,11 +23,13 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
         malloc(device, rb.data);
+        malloc(device, rb.episode_start);
         update_views(device, rb);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
         free(device, rb.data);
+        free(device, rb.episode_start);
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& rb) {
@@ -46,6 +48,7 @@ namespace rl_tools {
         update_views(device, rb);
         rb.full = false;
         rb.position = 0;
+        rb.current_episode_start = 0;
     }
     template <typename DEVICE, typename SPEC, typename STATE, typename OBSERVATION_SPEC, typename OBSERVATION_PRIVILEGED_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC, typename NEXT_OBSERVATION_PRIVILEGED_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
@@ -64,7 +67,11 @@ namespace rl_tools {
         set(buffer.rewards, buffer.position, 0, reward);
         set(buffer.terminated, buffer.position, 0, terminated);
         set(buffer.truncated, buffer.position, 0, truncated);
+        set(device, buffer.episode_start, buffer.current_episode_start, buffer.position);
         buffer.position = (buffer.position + 1) % SPEC::CAPACITY;
+        if(truncated){
+            buffer.current_episode_start = buffer.position;
+        }
         if(buffer.position == 0 && !buffer.full) {
             buffer.full = true;
         }
