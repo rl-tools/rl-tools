@@ -190,6 +190,15 @@ namespace rl_tools{
             bool reset_sample(const Mode<MODE>& mode, TI step_i, TI batch_sample_i){
                 return false;
             }
+            template <typename DEVICE, typename MODE, typename MODE_SPEC>
+            typename MODE_SPEC::TI num_resets(DEVICE& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode){
+                return cast_reduce_sum<typename MODE_SPEC::TI>(device, mode.reset_container);
+            }
+            template <typename DEVICE, typename MODE>
+            auto num_resets(DEVICE& device, const Mode<MODE>& mode){
+                static_assert(false, "This should not be called");
+                return 1;
+            }
         }
 
         template <auto BATCH_SIZE, typename DEVICE, typename SPEC>

@@ -65,6 +65,8 @@
 - Remove the memcopy in `containers/tensor/persist.h`
 - Check all examples with `-fsanitize=address`
 - Make `rlt::get` consistent for Matrix and Tensor (matrix should take the device as the first argument as well)
+- Rename `EPISODE_STEP_LIMIT` to `MAX_EPISODE_LENGTH`
+- Move `alpha` out of the SampleAndSquash layer and into the SAC `actor_critic` (for better masking of the gradient in the sequential case)
 
 # Features
 - Look into implementing TQC, DroQ and CrossQ

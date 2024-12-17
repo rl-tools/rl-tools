@@ -717,13 +717,13 @@ namespace rl_tools{
         return unary_associative_reduce(device, op, t);
     }
     template<typename TARGET_TYPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT TARGET_TYPE cast_reduce_sum(DEVICE& device, Tensor<SPEC>& t){
+    RL_TOOLS_FUNCTION_PLACEMENT TARGET_TYPE cast_reduce_sum(DEVICE& device, const Tensor<SPEC>& t){
         tensor::unary_reduce_operations::CastSum<TARGET_TYPE, decltype(device.math), TARGET_TYPE> op;
         op.initial_value = 0;
         return unary_associative_reduce(device, op, t);
     }
     template<typename TARGET_TYPE, typename DEVICE, typename SPEC, typename RESULT_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void cast_reduce_sum(DEVICE& device, Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void cast_reduce_sum(DEVICE& device, const Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
         static_assert(RESULT_SPEC::SHAPE::LENGTH == 1);
         static_assert(RESULT_SPEC::SHAPE::template GET<0> == 1);
         tensor::unary_reduce_operations::CastSum<TARGET_TYPE, decltype(device.math), TARGET_TYPE> op;

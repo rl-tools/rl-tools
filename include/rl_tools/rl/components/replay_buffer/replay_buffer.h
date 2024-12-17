@@ -40,6 +40,7 @@ namespace rl_tools::rl::components {
         // mem
         Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, DATA_COLS, SPEC::DYNAMIC_ALLOCATION>> data;
 
+        TI current_episode_start = 0;
         TI position = 0;
         bool full = false;
 
@@ -55,6 +56,8 @@ namespace rl_tools::rl::components {
         DATA_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
         DATA_VIEW<1> terminated;
         DATA_VIEW<1> truncated;
+
+        Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, SPEC::CAPACITY>, SPEC::DYNAMIC_ALLOCATION>> episode_start;
     };
 
     template <typename T_SPEC>

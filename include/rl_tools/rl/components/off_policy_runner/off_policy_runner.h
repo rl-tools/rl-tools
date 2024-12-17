@@ -45,6 +45,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         using T = T_T;
         using TI = T_TI;
         using ENVIRONMENT =  T_ENVIRONMENT;
+        static constexpr TI MAX_EPISODE_LENGTH = ENVIRONMENT::EPISODE_STEP_LIMIT;
         using POLICIES = T_POLICIES;
         using PARAMETERS = T_PARAMETERS;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
@@ -124,7 +125,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr typename SPEC::TI SEQUENCE_LENGTH = T_SEQUENCE_LENGTH;
         static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-
+        static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
     };
 
     template <typename T_SPEC>
