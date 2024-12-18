@@ -308,7 +308,7 @@ namespace rl_tools{
                 }
                 if constexpr(BATCH_SPEC::ALWAYS_SAMPLE_FROM_INITIAL_STATE){
                     TI new_sample_index = get(device, replay_buffer.episode_start, sample_index);
-//                    log(device, device.logger, "sample_index", sample_index, "new_sample_index", new_sample_index);
+//                    log(device, device.logger, "sample_index: ", sample_index, " => ", new_sample_index);
                     sample_index = new_sample_index;
                 }
 
@@ -367,7 +367,7 @@ namespace rl_tools{
 
             set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i, 0);
             set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i, 0);
-            set(device, batch.reset, previous_step_truncated, seq_step_i, batch_step_i, 0);
+            set(device, batch.reset, previous_step_truncated, seq_step_i, batch_step_i, 0); // reset_t = truncated_{t-1}
 
             if(seq_step_i > 0){
                 set(device, batch.final_step_mask, previous_step_truncated, seq_step_i-1, batch_step_i, 0);

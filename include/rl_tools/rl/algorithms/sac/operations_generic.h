@@ -83,8 +83,7 @@ namespace rl_tools{
         malloc(device, critic_training_buffers.next_state_action_value_input_full);
         critic_training_buffers.next_state_action_value_input = view_range(device, critic_training_buffers.next_state_action_value_input_full, 0, tensor::ViewSpec<2, BUFFERS::CRITIC_OBSERVATION_DIM + BUFFERS::ACTION_DIM>{});
         critic_training_buffers.next_observations             = view_range(device, critic_training_buffers.next_state_action_value_input_full, 0, tensor::ViewSpec<2, BUFFERS::CRITIC_OBSERVATION_DIM>{});
-        critic_training_buffers.next_actions_distribution     = view_range(device, critic_training_buffers.next_state_action_value_input_full, BUFFERS::CRITIC_OBSERVATION_DIM, tensor::ViewSpec<2, BUFFERS::ACTION_DIM*2>{});
-        critic_training_buffers.next_actions_mean             = view_range(device, critic_training_buffers.next_state_action_value_input_full, BUFFERS::CRITIC_OBSERVATION_DIM, tensor::ViewSpec<2, BUFFERS::ACTION_DIM>{});
+        critic_training_buffers.next_actions                  = view_range(device, critic_training_buffers.next_state_action_value_input_full, BUFFERS::CRITIC_OBSERVATION_DIM, tensor::ViewSpec<2, BUFFERS::ACTION_DIM>{});
         malloc(device, critic_training_buffers.action_value);
         malloc(device, critic_training_buffers.target_action_value);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -100,8 +99,7 @@ namespace rl_tools{
         free(device, critic_training_buffers.next_state_action_value_input_full);
         critic_training_buffers.next_state_action_value_input._data = nullptr;
         critic_training_buffers.next_observations._data = nullptr;
-        critic_training_buffers.next_actions_distribution._data = nullptr;
-        critic_training_buffers.next_actions_mean._data = nullptr;
+        critic_training_buffers.next_actions._data = nullptr;
         free(device, critic_training_buffers.action_value);
         free(device, critic_training_buffers.target_action_value);
         free(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -235,13 +233,15 @@ namespace rl_tools{
         using BATCH = rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>;
         using T = typename BATCH::T;
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, bool BATCH_DYNAMIC_ALLOCATION, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFER_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
-    void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE, BATCH_DYNAMIC_ALLOCATION>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename BATCH_SPEC, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFER_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
+    void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("sac::train_critic");
 #endif
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTH;
+        constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         constexpr bool CPU_DEVICE = DEVICE::DEVICE_ID == devices::DeviceId::CPU || DEVICE::DEVICE_ID == devices::DeviceId::CPU_ACCELERATE || DEVICE::DEVICE_ID == devices::DeviceId::CPU_BLAS || DEVICE::DEVICE_ID == devices::DeviceId::CPU_MKL;
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static_assert(SPEC::PARAMETERS::SEQUENCE_LENGTH == SEQUENCE_LENGTH, "Specification SEQUENCE_LENGTH should be equal to the batch sequence length");
@@ -263,10 +263,10 @@ namespace rl_tools{
         using RESET_MODE_SAS = nn::layers::gru::ResetMode<SAMPLE_AND_SQUASH_MODE, RESET_MODE_SAS_SPEC>;
         Mode<RESET_MODE_SAS> reset_mode_sas;
         reset_mode_sas.reset_container = batch.reset;
-        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng, reset_mode_sas); // forward instead of evaluate because we need the log_probabilities later in this operation
+        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions, actor_buffers, rng, reset_mode_sas); // forward instead of evaluate because we need the log_probabilities later in this operation
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             // using the original next actions for non-terminal steps
-            mask_actions(device, batch.next_actions, training_buffers.next_actions_mean, batch.final_step_mask, true);
+            mask_actions(device, batch.next_actions, training_buffers.next_actions, batch.final_step_mask, true);
         }
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
@@ -314,7 +314,7 @@ namespace rl_tools{
             add_scalar(device, device.logger, "critic_loss", loss, 10001);
         }
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
-        if constexpr(CPU_DEVICE) {
+        if constexpr(CPU_DEVICE){
             T critic_gradient_norm = gradient_norm(device, critic);
             add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm, 10001);
         }
@@ -327,7 +327,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-        evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_distribution, actor_buffers, rng);
+        evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions, actor_buffers, rng);
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
         evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
