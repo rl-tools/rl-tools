@@ -39,6 +39,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         static constexpr bool SHARED_BATCH = true;
         static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
+        static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
 
         using INITIALIZER = nn::layers::dense::DefaultInitializer<T, TI>;
 
@@ -89,6 +90,9 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, DYNAMIC_ALLOCATION>;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
+
+        using CRITIC_BATCH_SPEC = rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::SEQUENCE_LENGTH, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, CORE_PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE, DYNAMIC_ALLOCATION>;
+        using ACTOR_BATCH_SPEC = rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::SEQUENCE_LENGTH, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, DYNAMIC_ALLOCATION>;
         template <typename CONFIG>
         using State = State<CONFIG>;
     };

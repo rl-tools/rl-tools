@@ -135,16 +135,21 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using ENVIRONMENT = rl::environments::Flag<SPEC>;
         using STATE = typename rl::environments::Flag<SPEC>::State;
-        T reward = 0;
-        if(next_state.state_machine == STATE::StateMachine::FLAG_VISITED){
-            reward = 1000;
-        }
-        else{
-            reward = -1;
-        }
-        return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
+//        T reward = 0;
+//        if(next_state.state_machine == STATE::StateMachine::FLAG_VISITED){
+//            reward = 1000;
+//        }
+//        else{
+//            reward = -1;
+//        }
+//        return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
         //
         // return -math::sqrt(device.math, (next_state.position[0] - parameters.flag_position[0]) * (next_state.position[0] - parameters.flag_position[0]) + (next_state.position[1] - parameters.flag_position[1]) * (next_state.position[1] - parameters.flag_position[1]));
+        T x_diff = get(action, 0, 0) - parameters.flag_position[0] / SPEC::PARAMETERS::BOARD_SIZE;
+        T y_diff = get(action, 0, 1) - parameters.flag_position[1] / SPEC::PARAMETERS::BOARD_SIZE;
+        T distance = math::sqrt(device.math, x_diff * x_diff + y_diff * y_diff);
+        T reward = -distance;
+        return reward;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
@@ -197,15 +202,16 @@ namespace rl_tools{
         using T = typename SPEC::T;
         auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
         observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
-        if(state.first_step){
-            set(observation, 0, 7, parameters.flag_position[0]);
-            set(observation, 0, 8, parameters.flag_position[1]);
-        }
-        else{
-            set(observation, 0, 7, -1);
-            set(observation, 0, 8, -1);
-
-        }
+//        if(state.first_step){
+//            set(observation, 0, 7, parameters.flag_position[0]);
+//            set(observation, 0, 8, parameters.flag_position[1]);
+//        }
+//        else{
+//            set(observation, 0, 7, -1);
+//            set(observation, 0, 8, -1);
+//        }
+        set(observation, 0, 7, parameters.flag_position[0]);
+        set(observation, 0, 8, parameters.flag_position[1]);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State state, RNG& rng){

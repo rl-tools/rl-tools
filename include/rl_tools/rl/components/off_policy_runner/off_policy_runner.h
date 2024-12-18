@@ -119,13 +119,13 @@ namespace rl_tools::rl::components::off_policy_runner {
         Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE, T_SPEC::DYNAMIC_ALLOCATION>> truncated;
     };
 
-    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION=true>
+    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_ALWAYS_SAMPLE_FROM_INITIAL_STATE, bool T_DYNAMIC_ALLOCATION=true>
     struct SequentialBatchSpecification {
         using SPEC = T_SPEC;
         static constexpr typename SPEC::TI SEQUENCE_LENGTH = T_SEQUENCE_LENGTH;
         static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-        static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+        static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = T_ALWAYS_SAMPLE_FROM_INITIAL_STATE;
     };
 
     template <typename T_SPEC>
