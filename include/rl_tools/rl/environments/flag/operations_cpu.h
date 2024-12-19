@@ -40,7 +40,7 @@ namespace rl_tools{
         json += "\"position\":[" + std::to_string(state.position[0]) + "," + std::to_string(state.position[1]) + "],";
         json += "\"velocity\":[" + std::to_string(state.velocity[0]) + "," + std::to_string(state.velocity[1]) + "],";
         json += "\"state_machine\":" + std::to_string(static_cast<TI>(state.state_machine)) + ",";
-        json += "\"first_step\":" + std::string(state.first_step ? "true" : "false");
+        json += "\"step\":" + std::to_string(state.step);
         json += "}";
         return json;
     }
@@ -101,7 +101,7 @@ export async function render(ui_state, parameters, state, action) {
     ctx.fillStyle = 'rgba(255, 0, 0, 0.1)';
     ctx.fill();
 
-    if(!("first_step" in state)){
+    if(!("step" in state)){
         // Draw origin
         ctx.beginPath();
         ctx.arc(0, 0, 5, 0, 2 * Math.PI);

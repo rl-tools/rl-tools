@@ -34,7 +34,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, typename rl::environments::FlagMemory<SPEC>::State& state){
         initial_state(device, static_cast<const rl::environments::Flag<SPEC>&>(env), parameters, state);
-        state.first_step = true;
+        state.step = 0;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state, RNG& rng){
@@ -48,7 +48,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, typename rl::environments::FlagMemory<SPEC>::State& state, RNG& rng){
         sample_initial_state(device, static_cast<const rl::environments::Flag<SPEC>&>(env), parameters, state, rng);
-        state.first_step = true;
+        state.step = 0;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Flag<SPEC>::State& next_state, RNG& rng) {
@@ -110,7 +110,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, const typename rl::environments::FlagMemory<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::FlagMemory<SPEC>::State& next_state, RNG& rng){
         typename SPEC::T dt = step(device, static_cast<const rl::environments::Flag<SPEC>&>(env), parameters, state, action, next_state, rng);
-        next_state.first_step = false;
+        next_state.step = state.step + 1;
         return dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
@@ -200,7 +200,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
         observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
-        if(state.first_step){
+        if(state.step <= 1){
             set(observation, 0, 7, parameters.flag_position[0]);
             set(observation, 0, 8, parameters.flag_position[1]);
         }
