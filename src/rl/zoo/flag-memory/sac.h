@@ -12,11 +12,11 @@ namespace rl_tools::rl::zoo::flag_memory::sac{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 64;
                 static constexpr TI CRITIC_BATCH_SIZE = 64;
-                static constexpr T GAMMA = 0.0;
+                static constexpr T GAMMA = 0.9;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
-                static constexpr TI SEQUENCE_LENGTH = 1;
+                static constexpr TI SEQUENCE_LENGTH = ENVIRONMENT::EPISODE_STEP_LIMIT;
                 static constexpr bool ENTROPY_BONUS = true;
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
                 static constexpr T TARGET_ENTROPY = -2;
@@ -36,7 +36,7 @@ namespace rl_tools::rl::zoo::flag_memory::sac{
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr T ALPHA = 1.0;
-            static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+            static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = true;
 
             struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr T ALPHA = 1e-4;
