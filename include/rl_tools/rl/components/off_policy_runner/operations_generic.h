@@ -68,27 +68,8 @@ namespace rl_tools{
         malloc(device, runner.policy_states);
     }
     template <typename DEVICE, typename BATCH_SPEC>
-    void malloc(DEVICE& device, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch) {
-        using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
-        using SPEC = typename BATCH_SPEC::SPEC;
-        using DATA_SPEC = typename decltype(batch.observations_actions_next_observations)::SPEC;
-        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
-        malloc(device, batch.observations_actions_next_observations);
-        typename DEVICE::index_t offset = 0;
-        batch.observations                 = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                               >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
-        batch.observations_and_actions     = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>(device, batch.observations_actions_next_observations, 0, offset);
-        batch.observations_privileged      = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM_PRIVILEGED                    >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
-        batch.actions                      = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::     ACTION_DIM                               >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::ACTION_DIM;
-        batch.next_observations            = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                               >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
-        batch.next_observations_privileged = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM_PRIVILEGED                    >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
-
-        malloc(device, batch.rewards);
-        malloc(device, batch.terminated);
-        malloc(device, batch.truncated);
-    }
-    template <typename DEVICE, typename BATCH_SPEC>
     void update_views(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
-        using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
+        using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
         using SPEC = typename BATCH_SPEC::SPEC;
         using DATA_SPEC = typename decltype(batch.observations_actions_next_observations)::SPEC;
         typename DEVICE::index_t offset = 0;
@@ -99,7 +80,6 @@ namespace rl_tools{
         batch.next_observations             = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM                               >{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
         batch.next_observations_and_actions = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>{});
         batch.next_observations_privileged  = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
-        batch.next_actions                  = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
 
     }
     template <typename DEVICE, typename BATCH_SPEC>
@@ -111,7 +91,9 @@ namespace rl_tools{
         malloc(device, batch.terminated);
         malloc(device, batch.truncated);
         malloc(device, batch.reset);
+        malloc(device, batch.next_reset);
         malloc(device, batch.final_step_mask);
+        malloc(device, batch.next_final_step_mask);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
@@ -145,19 +127,6 @@ namespace rl_tools{
         free(device, runner.policy_states);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch){
-        free(device, batch.observations_actions_next_observations);
-        batch.observations.                _data = nullptr;
-        batch.observations_privileged.     _data = nullptr;
-        batch.observations_and_actions.    _data = nullptr;
-        batch.actions.                     _data = nullptr;
-        batch.next_observations.           _data = nullptr;
-        batch.next_observations_privileged._data = nullptr;
-        free(device, batch.rewards);
-        free(device, batch.terminated);
-        free(device, batch.truncated);
-    }
-    template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch){
         free(device, batch.observations_actions_next_observations);
         batch.observations.                 _data = nullptr;
@@ -167,12 +136,13 @@ namespace rl_tools{
         batch.next_observations.            _data = nullptr;
         batch.next_observations_privileged ._data = nullptr;
         batch.next_observations_and_actions._data = nullptr;
-        batch.next_actions.                 _data = nullptr;
         free(device, batch.rewards);
         free(device, batch.terminated);
         free(device, batch.truncated);
         free(device, batch.reset);
+        free(device, batch.next_reset);
         free(device, batch.final_step_mask);
+        free(device, batch.next_final_step_mask);
     }
     template<typename DEVICE, typename SPEC>
     void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
@@ -294,9 +264,43 @@ namespace rl_tools{
         }
         TI current_seq_step = 0;
 
-        bool previous_step_truncated = true;
-        for(typename DEVICE::index_t seq_step_i=0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++) {
+        bool previous_step_truncated = false;
+        bool previous_padding_step = true;
+        auto batch_sample_final_step_mask = view<0>(device, batch.final_step_mask, batch_step_i);
+        set_all(device, batch_sample_final_step_mask, false);
+        auto batch_sample_next_final_step_mask = view<0>(device, batch.next_final_step_mask, batch_step_i);
+        set_all(device, batch_sample_next_final_step_mask, false);
+        auto batch_sample_reset = view<0>(device, batch.reset, batch_step_i);
+        set_all(device, batch_sample_reset, false);
+        auto batch_sample_next_reset = view<0>(device, batch.next_reset, batch_step_i);
+        set_all(device, batch_sample_next_reset, false);
+        set(device, batch.reset, true, 0, batch_step_i, 0);
+        set(device, batch.next_reset, true, 0, batch_step_i, 0);
+        for(TI seq_step_i=0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++) {
             if(previous_step_truncated){
+
+                auto previous_observation_target_sequence = view<0>(device, batch.observations, seq_step_i);
+                auto previous_observation_target = view<0>(device, previous_observation_target_sequence, batch_step_i);
+                set_all(device, previous_observation_target, 0);
+                auto previous_action_target_sequence = view<0>(device, batch.actions, seq_step_i);
+                auto previous_action_target = view<0>(device, previous_action_target_sequence, batch_step_i);
+                set_all(device, previous_action_target, 0);
+
+                previous_step_truncated = false;
+                previous_padding_step = true;
+
+                // seq_step always > 0 because previous_step_truncated is false initially
+                set(device, batch.final_step_mask, true, seq_step_i-1, batch_step_i, 0);
+
+                set(device, batch.next_final_step_mask, true, seq_step_i, batch_step_i, 0);
+                set(device, batch.reset, true, seq_step_i, batch_step_i, 0);
+                if(seq_step_i < SEQUENCE_LENGTH - 1){
+                    set(device, batch.reset, true, seq_step_i + 1, batch_step_i, 0);
+                    set(device, batch.next_reset, true, seq_step_i + 1, batch_step_i, 0);
+                }
+                continue;
+            }
+            if(previous_padding_step){
                 // if previous step was truncated we find a new sequence start
                 TI sample_offset = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(device.random, (TI) 0, sample_index_max, rng);
                 if(replay_buffer.full){
@@ -311,7 +315,6 @@ namespace rl_tools{
 //                    log(device, device.logger, "sample_index: ", sample_index, " => ", new_sample_index);
                     sample_index = new_sample_index;
                 }
-
             }
 
             auto observation_target_sequence = view<0>(device, batch.observations, seq_step_i);
@@ -320,6 +323,11 @@ namespace rl_tools{
             auto observation_source_tensor = to_tensor(device, observation_source);
             auto observation_source_tensor_squeezed = squeeze(device, observation_source_tensor);
             copy(device, device, observation_source_tensor_squeezed, observation_target);
+            if(previous_padding_step){
+                auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i);
+                auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);
+                copy(device, device, observation_source_tensor_squeezed, next_observation_target);
+            }
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
                 auto observation_privileged_target_sequence = view<0>(device, batch.observations_privileged, seq_step_i);
@@ -328,6 +336,11 @@ namespace rl_tools{
                 auto observation_privileged_source_tensor = to_tensor(device, observation_privileged_source);
                 auto observation_privileged_source_squeezed = squeeze(device, observation_privileged_source_tensor);
                 copy(device, device, observation_privileged_source_squeezed, observation_privileged_target);
+                if(previous_padding_step){
+                    auto next_observation_privileged_target_sequence = view<0>(device, batch.next_observations_privileged, seq_step_i);
+                    auto next_observation_privileged_target = view<0>(device, next_observation_privileged_target_sequence, batch_step_i);
+                    copy(device, device, observation_privileged_source_squeezed, next_observation_privileged_target);
+                }
             }
 
             auto action_target_sequence = view<0>(device, batch.actions, seq_step_i);
@@ -337,19 +350,7 @@ namespace rl_tools{
             auto action_source_tensor_squeezed = squeeze(device, action_source_tensor);
             copy(device, device, action_source_tensor_squeezed, action_target);
 
-            if(seq_step_i >= 1 && !previous_step_truncated){
-                auto next_action_target_sequence = view<0>(device, batch.next_actions, seq_step_i-1); // <<= -1 is important!
-                auto next_action_target = view<0>(device, next_action_target_sequence, batch_step_i);
-                copy(device, device, action_source_tensor_squeezed, next_action_target);
-            }
-            else{
-                TI target_index = seq_step_i == 0 ? SEQUENCE_LENGTH-1 : seq_step_i-1;
-                auto next_action_target_sequence = view<0>(device, batch.next_actions, target_index);
-                auto next_action_target = view<0>(device, next_action_target_sequence, batch_step_i);
-                set_all(device, next_action_target, math::nan<T>(device.math)); // setting the empty slot to nan that is filled by the current actor
-            }
-
-            auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i);
+            auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i+1);
             auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);
             auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
             auto next_observation_source_tensor = to_tensor(device, next_observation_source);
@@ -357,7 +358,7 @@ namespace rl_tools{
             copy(device, device, next_observation_source_tensor_squeezed, next_observation_target);
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
-                auto next_observation_privileged_target_sequence = view<0>(device, batch.next_observations_privileged, seq_step_i);
+                auto next_observation_privileged_target_sequence = view<0>(device, batch.next_observations_privileged, seq_step_i+1);
                 auto next_observation_privileged_target = view<0>(device, next_observation_privileged_target_sequence, batch_step_i);
                 auto next_observation_privileged_source = row(device, replay_buffer.next_observations_privileged, sample_index);
                 auto next_observation_privileged_source_tensor = to_tensor(device, next_observation_privileged_source);
@@ -367,15 +368,7 @@ namespace rl_tools{
 
             set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i, 0);
             set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i, 0);
-            set(device, batch.reset, previous_step_truncated, seq_step_i, batch_step_i, 0); // reset_t = truncated_{t-1}
 
-            if(seq_step_i > 0){
-                set(device, batch.final_step_mask, previous_step_truncated, seq_step_i-1, batch_step_i, 0);
-            }
-            else{
-                // seq_step_i == 0 => use this iteration to set the mask for the final step in the sequence which will always be a final step
-                set(device, batch.final_step_mask, true, SEQUENCE_LENGTH-1, batch_step_i, 0);
-            }
             bool truncated = get(replay_buffer.truncated, sample_index, 0);
             set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
             previous_step_truncated = truncated;
@@ -388,6 +381,9 @@ namespace rl_tools{
                     previous_step_truncated = true;
                 }
             }
+            if(seq_step_i == SEQUENCE_LENGTH-2){
+                previous_step_truncated = true;
+            }
             if constexpr(RANDOM_SEQ_LENGTH) {
                 if (current_seq_step == current_seq_length - 1) {
                     if(SEQUENCE_LENGTH > 1){
@@ -396,13 +392,16 @@ namespace rl_tools{
                     else{
                         current_seq_length = SEQUENCE_LENGTH;
                     }
-                    current_seq_step = 0;
                     previous_step_truncated = true;
+                }
+                if(previous_step_truncated){
+                    current_seq_step = 0;
                 }
                 else{
                     current_seq_step += 1;
                 }
             }
+            previous_padding_step = false;
         }
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
