@@ -202,14 +202,24 @@ namespace rl_tools{
         using T = typename SPEC::T;
         auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
         observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
-//        if(state.first_step){
-//            set(observation, 0, 7, parameters.flag_position[0]);
-//            set(observation, 0, 8, parameters.flag_position[1]);
-//        }
-//        else{
-//            set(observation, 0, 7, -1);
-//            set(observation, 0, 8, -1);
-//        }
+        if(state.first_step){
+            set(observation, 0, 7, parameters.flag_position[0]);
+            set(observation, 0, 8, parameters.flag_position[1]);
+        }
+        else{
+            set(observation, 0, 7, -1);
+            set(observation, 0, 8, -1);
+        }
+//        set(observation, 0, 7, parameters.flag_position[0]);
+//        set(observation, 0, 8, parameters.flag_position[1]);
+    }
+    template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, const typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, const typename rl::environments::FlagMemory<SPEC>::State& state, const typename rl::environments::flag::ObservationMemoryPrivileged<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == 9);
+        using T = typename SPEC::T;
+        auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
+        observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
         set(observation, 0, 7, parameters.flag_position[0]);
         set(observation, 0, 8, parameters.flag_position[1]);
     }

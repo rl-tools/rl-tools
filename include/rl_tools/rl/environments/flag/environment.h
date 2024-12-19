@@ -38,6 +38,11 @@ namespace rl_tools::rl::environments::flag{
         static constexpr TI DIM = 4 + 3 + 2;
     };
 
+    template <typename TI>
+    struct ObservationMemoryPrivileged{
+        static constexpr TI DIM = 4 + 3 + 2;
+    };
+
     template <typename T, typename TI>
     struct State{
         enum class StateMachine{
@@ -82,7 +87,7 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = flag::StateMemory<T, TI>;
         using Observation = flag::ObservationMemory<TI>;
-        using ObservationPrivileged = Observation;
+        using ObservationPrivileged = flag::ObservationMemoryPrivileged<TI>;
         static constexpr TI EPISODE_STEP_LIMIT = 24;
     };
 }
