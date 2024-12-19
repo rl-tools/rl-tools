@@ -80,47 +80,8 @@ namespace rl_tools::rl::components::off_policy_runner {
         OBSERVATIONS_PRIVILEGED_TYPE next_observations_privileged;
     };
 
-
-
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION=true>
-    struct BatchSpecification {
-        using SPEC = T_SPEC;
-        static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
-        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-    };
-
-    template <typename T_SPEC>
-    struct Batch{
-        using SPEC = typename T_SPEC::SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-
-        static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
-        static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::Observation::DIM;
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = SPEC::OBSERVATION_DIM_PRIVILEGED;
-        static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
-
-        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM + OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, DATA_DIM, T_SPEC::DYNAMIC_ALLOCATION>> observations_actions_next_observations;
-
-        template<typename SPEC::TI DIM>
-        using OANO_VIEW = typename decltype(observations_actions_next_observations)::template VIEW<BATCH_SIZE, DIM>;
-
-        OANO_VIEW<OBSERVATION_DIM> observations;
-        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> observations_privileged;
-        OANO_VIEW<ACTION_DIM> actions;
-        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
-        OANO_VIEW<OBSERVATION_DIM> next_observations;
-        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
-
-        Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE, T_SPEC::DYNAMIC_ALLOCATION>> rewards;
-        Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE, T_SPEC::DYNAMIC_ALLOCATION>> terminated;
-        Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE, T_SPEC::DYNAMIC_ALLOCATION>> truncated;
-    };
-
     template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_ALWAYS_SAMPLE_FROM_INITIAL_STATE, bool T_DYNAMIC_ALLOCATION=true>
-    struct SequentialBatchSpecification {
+    struct SequentialBatchSpecification{
         using SPEC = T_SPEC;
         static constexpr typename SPEC::TI SEQUENCE_LENGTH = T_SEQUENCE_LENGTH;
         static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
@@ -153,7 +114,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         OANO_VIEW<ACTION_DIM> actions;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
         OANO_VIEW<OBSERVATION_DIM> next_observations;
-        OANO_VIEW<ACTION_DIM> next_actions;
+//        OANO_VIEW<ACTION_DIM> next_actions;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> next_observations_and_actions;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
 
@@ -161,7 +122,9 @@ namespace rl_tools::rl::components::off_policy_runner {
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> terminated;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> truncated;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> reset;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_reset;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> final_step_mask;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_final_step_mask;
     };
 
     template <typename T_T, typename T_TI, T_TI T_BUFFER_SIZE, bool T_DYNAMIC_ALLOCATION=true>

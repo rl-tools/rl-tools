@@ -136,12 +136,16 @@ namespace rl_tools{
         using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
         constexpr TI BATCH_SIZE = BATCH::BATCH_SIZE;
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
+        constexpr TI SEQUENCE_LENGTH = BATCH::SEQUENCE_LENGTH;
         auto next_state_action_value_critic_1_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_1);
         auto next_state_action_value_critic_2_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_2);
-        T min_next_state_action_value = math::min(device.math,
-                                                  get(next_state_action_value_critic_1_matrix_view, batch_step_i, 0),
-                                                  get(next_state_action_value_critic_2_matrix_view, batch_step_i, 0)
-        );
+        T value_critic_1 = 0, value_critic_2 = 0;
+        if(batch_step_i < SEQUENCE_LENGTH-1){
+            // the target values of the final step are undefined because it is a padding steps. The target observations are offset by one step, hence the +1 to get them into the right position for the MSBE (mean squared Bellman error) of the current step
+            value_critic_1 = get(next_state_action_value_critic_1_matrix_view, batch_step_i+1, 0);
+            value_critic_2 = get(next_state_action_value_critic_2_matrix_view, batch_step_i+1, 0);
+        }
+        T min_next_state_action_value = math::min(device.math, value_critic_1, value_critic_2);
         auto rewards_matrix_view = matrix_view(device, batch.rewards);
         T reward = get(rewards_matrix_view, batch_step_i, 0);
         auto terminated_matrix_view = matrix_view(device, batch.terminated);
@@ -241,6 +245,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTH;
+        static_assert(SEQUENCE_LENGTH >= 2, "currently only supports sequence length >= 2");
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         constexpr bool CPU_DEVICE = DEVICE::DEVICE_ID == devices::DeviceId::CPU || DEVICE::DEVICE_ID == devices::DeviceId::CPU_ACCELERATE || DEVICE::DEVICE_ID == devices::DeviceId::CPU_BLAS || DEVICE::DEVICE_ID == devices::DeviceId::CPU_MKL;
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
@@ -250,6 +255,7 @@ namespace rl_tools{
 //        static_assert(BATCH_SIZE == ACTOR_BUFFERS::INTERNAL_BATCH_SIZE);
         static_assert(SEQUENCE_LENGTH * BATCH_SIZE == ACTION_NOISE_SPEC::ROWS);
         static_assert(ACTION_DIM == ACTION_NOISE_SPEC::COLS);
+        static_assert(SPEC::PARAMETERS::MASK_NON_TERMINAL, "We currently assume that training is only performed on final steps. Otherwise there might be areas of the batch that are undefined memory (the current step observation is not set at the end of a sequence (in that step only the next observation is set). Additionally, the calculation of the target values assumes that there is no training on the last step because the target values are moved one step backwards to match the current MSBE");
 
         zero_gradient(device, critic);
 
@@ -259,26 +265,30 @@ namespace rl_tools{
         copy(device, device, action_noise, sample_and_squash_buffer.noise);
         using SAMPLE_AND_SQUASH_MODE = nn::layers::sample_and_squash::mode::ExternalNoise<mode::Default<>>;
 //        Mode<SAMPLE_AND_SQUASH_MODE> reset_mode, reset_mode_sas;
-        using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
+        using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.next_reset)>;
         using RESET_MODE_SAS = nn::layers::gru::ResetMode<SAMPLE_AND_SQUASH_MODE, RESET_MODE_SAS_SPEC>;
-        Mode<RESET_MODE_SAS> reset_mode_sas;
-        reset_mode_sas.reset_container = batch.reset;
-        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions, actor_buffers, rng, reset_mode_sas); // forward instead of evaluate because we need the log_probabilities later in this operation
+        Mode<RESET_MODE_SAS> next_reset_mode_sas;
+        next_reset_mode_sas.reset_container = batch.next_reset;
+        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions, actor_buffers, rng, next_reset_mode_sas); // forward instead of evaluate because we need the log_probabilities later in this operation
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             // using the original next actions for non-terminal steps
-            mask_actions(device, batch.next_actions, training_buffers.next_actions, batch.final_step_mask, true);
+            mask_actions(device, batch.actions, training_buffers.next_actions, batch.next_final_step_mask, true);
         }
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
-        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.next_reset)>;
         using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
-        Mode<RESET_MODE> reset_mode;
-        reset_mode.reset_container = batch.reset;
-        evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, reset_mode);
-        evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, reset_mode);
+        Mode<RESET_MODE> next_reset_mode;
+        next_reset_mode.reset_container = batch.next_reset;
+        evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, next_reset_mode);
+        evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, next_reset_mode);
 
         auto last_layer = get_last_layer(actor_critic.actor);
         auto next_action_log_probs = view_transpose(device, last_layer.log_probabilities);
         target_action_values(device, batch, training_buffers, next_action_log_probs, sample_and_squash_layer.log_alpha);
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.next_reset)>;
+        using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
+        Mode<RESET_MODE> reset_mode;
+        reset_mode.reset_container = batch.reset;
         forward(device, critic, batch.observations_and_actions, critic_buffers, rng, reset_mode);
         auto output_matrix_view = matrix_view(device, output(device, critic));
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
