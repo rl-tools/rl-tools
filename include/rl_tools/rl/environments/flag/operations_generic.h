@@ -135,21 +135,19 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using ENVIRONMENT = rl::environments::Flag<SPEC>;
         using STATE = typename rl::environments::Flag<SPEC>::State;
-//        T reward = 0;
-//        if(next_state.state_machine == STATE::StateMachine::FLAG_VISITED){
-//            reward = 1000;
-//        }
-//        else{
-//            reward = -1;
-//        }
-//        return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
-        //
-        // return -math::sqrt(device.math, (next_state.position[0] - parameters.flag_position[0]) * (next_state.position[0] - parameters.flag_position[0]) + (next_state.position[1] - parameters.flag_position[1]) * (next_state.position[1] - parameters.flag_position[1]));
-        T x_diff = get(action, 0, 0) - parameters.flag_position[0] / SPEC::PARAMETERS::BOARD_SIZE;
-        T y_diff = get(action, 0, 1) - parameters.flag_position[1] / SPEC::PARAMETERS::BOARD_SIZE;
-        T distance = math::sqrt(device.math, x_diff * x_diff + y_diff * y_diff);
-        T reward = -distance;
-        return reward;
+        T reward = 0;
+        if(next_state.state_machine == STATE::StateMachine::FLAG_VISITED){
+            reward = 1000;
+        }
+        else{
+            reward = -1;
+        }
+        return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
+//        T x_diff = get(action, 0, 0) - parameters.flag_position[0] / SPEC::PARAMETERS::BOARD_SIZE;
+//        T y_diff = get(action, 0, 1) - parameters.flag_position[1] / SPEC::PARAMETERS::BOARD_SIZE;
+//        T distance = math::sqrt(device.math, x_diff * x_diff + y_diff * y_diff);
+//        T reward = -distance;
+//        return reward;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
