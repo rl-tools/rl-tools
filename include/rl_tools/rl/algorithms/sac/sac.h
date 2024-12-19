@@ -18,7 +18,7 @@ namespace rl_tools::rl::algorithms::sac {
         static constexpr T ACTOR_POLYAK = 1.0 - 0.005;
         static constexpr T CRITIC_POLYAK = 1.0 - 0.005;
         static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
-        static constexpr TI SEQUENCE_LENGTH = 1;
+        static constexpr TI SEQUENCE_LENGTH = 1; // note that this implementation does only show next_observation sequences to the target actor and critic. Hence they have one step (the initial one in the sequence) less information. This makes the sequence length deterministic (otherwise it would depend on the number of resets in the batch). For most environments and for larger sequences the information gain should be negligible but for some (mostly artifiical) environments the first state matters (e.g. the FlagMemory environment). A possible mitigations is repeating the initial observation in the environment
         static constexpr bool ENTROPY_BONUS = true;
         static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
         static constexpr bool MASK_NON_TERMINAL = true;

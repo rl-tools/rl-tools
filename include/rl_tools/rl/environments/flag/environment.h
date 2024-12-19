@@ -58,7 +58,7 @@ namespace rl_tools::rl::environments::flag{
     };
     template <typename T, typename TI>
     struct StateMemory: State<T, TI>{
-        bool first_step;
+        TI step;
     };
 
 }
@@ -87,7 +87,7 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = flag::StateMemory<T, TI>;
         using Observation = flag::ObservationMemory<TI>;
-        using ObservationPrivileged = flag::ObservationMemoryPrivileged<TI>;
+        using ObservationPrivileged = Observation; //flag::ObservationMemoryPrivileged<TI>;
         static constexpr TI EPISODE_STEP_LIMIT = 24;
     };
 }
