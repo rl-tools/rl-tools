@@ -32,7 +32,21 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::CPU_OPENBLAS<DEV_SPEC>& device){
-//        openblas_set_num_threads(4);
+        init(static_cast<devices::CPU_BLAS<DEV_SPEC>&>(device));
+        using DEVICE = devices::CPU_OPENBLAS<DEV_SPEC>;
+        const char *env_var_name = "OMP_NUM_THREADS";
+        const char *value = getenv(env_var_name);
+        bool warn = true;
+        if (value != NULL) {
+            char *endptr;
+            typename DEVICE::index_t num_threads = strtol(value, &endptr, 10);
+            if (*endptr == '\0') {
+                warn = num_threads != 1;
+            }
+        }
+        if(warn){
+            std::cerr << "Warning: " << env_var_name << " is not set to 1. This may degrade performance." << std::endl;
+        }
     }
 
 }

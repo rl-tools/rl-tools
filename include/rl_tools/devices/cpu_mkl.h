@@ -33,7 +33,7 @@ namespace rl_tools{
             }
         }
         if(warn){
-            std::cerr << "Warning: " << env_var_name << " is not set to 1. This may degrate performance." << std::endl;
+            std::cerr << "Warning: " << env_var_name << " is not set to 1. This may degrade performance." << std::endl;
         }
 
     }
