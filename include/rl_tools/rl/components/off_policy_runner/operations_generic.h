@@ -350,12 +350,14 @@ namespace rl_tools{
             auto action_source_tensor_squeezed = squeeze(device, action_source_tensor);
             copy(device, device, action_source_tensor_squeezed, action_target);
 
-            auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i+1);
-            auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);
-            auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
-            auto next_observation_source_tensor = to_tensor(device, next_observation_source);
-            auto next_observation_source_tensor_squeezed = squeeze(device, next_observation_source_tensor);
-            copy(device, device, next_observation_source_tensor_squeezed, next_observation_target);
+            if (seq_step_i < SEQUENCE_LENGTH - 1){
+                auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i+1);
+                auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);
+                auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
+                auto next_observation_source_tensor = to_tensor(device, next_observation_source);
+                auto next_observation_source_tensor_squeezed = squeeze(device, next_observation_source_tensor);
+                copy(device, device, next_observation_source_tensor_squeezed, next_observation_target);
+            }
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
                 auto next_observation_privileged_target_sequence = view<0>(device, batch.next_observations_privileged, seq_step_i+1);
