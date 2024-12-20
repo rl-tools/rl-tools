@@ -12,6 +12,7 @@
 #include <ctime>
 #include <limits>
 #include <random>
+#include <iostream>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -61,9 +62,7 @@ namespace rl_tools::devices{
         std::string runs_path;
         std::string run_path;
         bool initialized = false;
-#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;
-#endif
     };
 
     using DefaultCPUSpecification = cpu::Specification<math::CPU, random::CPU, logging::CPU>;
@@ -101,9 +100,10 @@ namespace rl_tools{
     }
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
-#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         device.malloc_counter += size;
-#endif
+        if (size > 100000000){
+            std::cout << "Large malloc: " << size / 1000000 << "MB, total: " << device.malloc_counter / 1000000 << " MB" << std::endl;
+        }
     }
     template <typename SPEC>
     void check_status(devices::CPU<SPEC>& device){ }
