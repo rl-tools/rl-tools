@@ -34,7 +34,7 @@ namespace rl_tools{
     void init(devices::CPU_OPENBLAS<DEV_SPEC>& device){
         init(static_cast<devices::CPU_BLAS<DEV_SPEC>&>(device));
         using DEVICE = devices::CPU_OPENBLAS<DEV_SPEC>;
-        const char *env_var_name = "OMP_NUM_THREADS";
+        const char *env_var_name = "OPENBLAS_NUM_THREADS";
         const char *value = getenv(env_var_name);
         bool warn = true;
         if (value != NULL) {
