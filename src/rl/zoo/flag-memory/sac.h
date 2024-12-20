@@ -24,7 +24,7 @@ namespace rl_tools::rl::zoo::flag_memory::sac{
                 static constexpr bool ADAPTIVE_ALPHA = true;
             };
             static constexpr TI STEP_LIMIT = 2000000;
-            static constexpr TI N_ENVIRONMENTS = 32;
+            static constexpr TI N_ENVIRONMENTS = 4;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI N_WARMUP_STEPS = 100;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 100;
