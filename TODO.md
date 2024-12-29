@@ -67,6 +67,9 @@
 - Make `rlt::get` consistent for Matrix and Tensor (matrix should take the device as the first argument as well)
 - Rename `EPISODE_STEP_LIMIT` to `MAX_EPISODE_LENGTH`
 - Move `alpha` out of the SampleAndSquash layer and into the SAC `actor_critic` (for better masking of the gradient in the sequential case)
+- Change default mode for `rlt::evaluate` to `Evaluation` (no randomness)
+  - Trading off doing the right thing when integrating trained checkpoints for inference than preventing bugs in training code (more experienced users)
+- Enable these kinds of warnings: `warning: implicit conversion from ‘float’ to ‘double’ to match other operand of binary expression [-Wdouble-promotion]` and check if there are double promotions that waste compute
 
 # Features
 - Look into implementing TQC, DroQ and CrossQ
