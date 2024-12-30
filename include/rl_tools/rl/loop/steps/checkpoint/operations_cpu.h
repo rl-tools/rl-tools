@@ -51,8 +51,8 @@ namespace rl_tools{
     }
 
     namespace rl::loop::steps::checkpoint{
-            template <auto BATCH_SIZE, bool DYNAMIC_ALLOCATION, typename DEVICE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
-            void save_code(DEVICE& device, std::string step_folder, ACTOR_TYPE& actor_forward, RNG& rng){
+            template <auto BATCH_SIZE, typename DEVICE, typename CONFIG, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
+            void save_code(DEVICE& device, const std::string& step_folder, rl::loop::steps::checkpoint::State<CONFIG>& ts, ACTOR_TYPE& actor_forward, RNG& rng){
                 using T = typename ACTOR_TYPE::T;
                 using TI = typename DEVICE::index_t;
                 typename ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
@@ -77,6 +77,16 @@ namespace rl_tools{
                 output_ss << "\n" << "   " << "char name[] = \"" << step_folder << "\";";
                 output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
                 output_ss << "\n" << "}";
+                { // Save environment
+                    typename CONFIG::ENVIRONMENT env;
+                    typename CONFIG::ENVIRONMENT::Parameters env_parameters;
+                    malloc(device, env);
+                    init(device, env);
+                    initial_parameters(device, env, env_parameters);
+                    auto env_info = save_code_env(device, env, env_parameters, "rl_tools::checkpoint::meta::environment");
+                    free(device, env);
+                    output_ss << "\n" << env_info;
+                }
                 std::string output_string = output_ss.str();
                 bool stored_compressed = false;
 #ifdef RL_TOOLS_ENABLE_ZLIB
@@ -142,7 +152,7 @@ namespace rl_tools{
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
 #endif
-            rl::loop::steps::checkpoint::save_code<BATCH_SIZE, CONFIG::DYNAMIC_ALLOCATION>(device, step_folder.string(), evaluation_actor, ts.rng_checkpoint);
+            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, step_folder.string(), ts, evaluation_actor, ts.rng_checkpoint);
             free(device, evaluation_actor);
 
         }

@@ -14,6 +14,8 @@
 #include <rl_tools/rl/environments/l2f/parameters/init/default.h>
 #include <rl_tools/rl/environments/l2f/parameters/termination/default.h>
 
+#include <rl_tools/rl/environments/l2f/persist_code.h>
+
 
 #include "environment.h"
 #include <rl_tools/utils/generic/typing.h>

@@ -36,4 +36,23 @@ namespace rl_tools{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools {
+    template <typename DEV_SPEC, typename SPEC>
+    void malloc(devices::ARM<DEV_SPEC>& device, devices::random::ARM::ENGINE<SPEC>& rng){
+    }
+    template <typename DEV_SPEC, typename SPEC>
+    void free(devices::ARM<DEV_SPEC>& device, devices::random::ARM::ENGINE<SPEC>& rng){
+    }
+    // template <typename DEV_SPEC, typename SPEC>
+    // void init(devices::ARM<DEV_SPEC>& device, devices::random::ARM::ENGINE<SPEC>& rng, typename devices::ARM<DEV_SPEC>::index_t seed = 1){
+    //     rng = seed + 1000;
+    // };
+    template <typename DEV_SPEC, typename SPEC, typename OTHER>
+    void init(devices::ARM<DEV_SPEC>& device, devices::random::ARM::ENGINE<SPEC>& rng, OTHER seed){
+        rng.state = seed + 1000;
+    };
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
 #endif
