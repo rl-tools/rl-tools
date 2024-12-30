@@ -73,7 +73,7 @@ namespace rl_tools::rl::zoo::l2f{
             reward_function,
             ENVIRONMENT_FACTORY_BASE::observation_noise,
             ENVIRONMENT_FACTORY_BASE::action_noise,
-            ENVIRONMENT_FACTORY_BASE::termination
+            termination
         };
         static constexpr TI SIMULATION_FREQUENCY = 100;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {

@@ -26,8 +26,16 @@ namespace rl_tools{
         ss << ind << "    using TI = " << containers::persist::get_type_string<TI>() << ";\n";
         ss << ind << "    namespace parameters{\n";
         ss << ind << "        namespace mdp{\n";
+        ss << ind << "            namespace init{\n";
+        ss << ind << "                static constexpr T max_position = " << parameters.mdp.init.max_position << ";\n";;
+        ss << ind << "                static constexpr T max_angle = " << parameters.mdp.init.max_angle << ";\n";;
+        ss << ind << "                static constexpr T max_linear_velocity = " << parameters.mdp.init.max_linear_velocity << ";\n";;
+        ss << ind << "                static constexpr T max_angular_velocity = " << parameters.mdp.init.max_angular_velocity << ";\n";;
+        ss << ind << "            }\n";
         ss << ind << "            namespace termination{\n";
+        ss << ind << "                static constexpr T position_threshold = " << parameters.mdp.termination.position_threshold << ";\n";;
         ss << ind << "                static constexpr T linear_velocity_threshold = " << parameters.mdp.termination.linear_velocity_threshold << ";\n";;
+        ss << ind << "                static constexpr T angular_velocity_threshold = " << parameters.mdp.termination.angular_velocity_threshold << ";\n";;
         ss << ind << "            }\n";
         ss << ind << "        }\n";
         ss << ind << "    }\n";
