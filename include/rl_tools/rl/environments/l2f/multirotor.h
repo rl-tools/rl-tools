@@ -7,13 +7,13 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
-    template <typename T_T, typename T_TI, T_TI T_N, typename T_REWARD_FUNCTION, typename REGISTRY, REGISTRY T_MODEL>
+    template <typename T_T, typename T_TI, T_TI T_N, typename T_REWARD_FUNCTION>
     struct ParametersBaseSpecification{
         using T = T_T;
         using TI = T_TI;
         static constexpr TI N = T_N;
         using REWARD_FUNCTION = T_REWARD_FUNCTION;
-        static constexpr REGISTRY MODEL = T_MODEL;
+        // static constexpr REGISTRY MODEL = T_MODEL;
     };
     template <typename T_SPEC>
     struct ParametersBase{
