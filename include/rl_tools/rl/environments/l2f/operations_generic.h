@@ -366,6 +366,11 @@ namespace rl_tools{
             }
         }
     }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    static void sample_initial_parameters(DEVICE& device, rl::environments::MultirotorMultiTask<SPEC>& env, typename rl::environments::MultirotorMultiTask<SPEC>::Parameters& parameters, RNG& rng, bool reset = true){
+        parameters = env.parameters;
+        parameters.dynamics = SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES[0];
+    }
     template<typename DEVICE, typename T, typename STATE_TI, typename SPEC>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StateBase<T, STATE_TI>& state){
         using TI = typename DEVICE::index_t;

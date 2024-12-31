@@ -501,6 +501,10 @@ namespace rl_tools::rl::environments{
 //        using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         Parameters parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     };
+    template <typename T_SPEC>
+    struct MultirotorMultiTask: Multirotor<T_SPEC>{
+        // typename Multirotor<T_SPEC>::Parameters::Dynamics dynamics[T_SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES] = T_SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES;
+    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/registry.h"
