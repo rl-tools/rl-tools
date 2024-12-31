@@ -119,7 +119,7 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
-        using ENVIRONMENT = rl_tools::rl::environments::MultirotorMultiTask<ENVIRONMENT_SPEC>;
+        using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
