@@ -368,8 +368,12 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, rl::environments::MultirotorMultiTask<SPEC>& env, typename rl::environments::MultirotorMultiTask<SPEC>::Parameters& parameters, RNG& rng, bool reset = true){
+        using TI = typename DEVICE::index_t;
         parameters = env.parameters;
-        parameters.dynamics = SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES[0];
+        static_assert(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES >= 1);
+        auto rng_copy = rng;
+        TI index = random::uniform_int_distribution(device.random, (TI)0, (TI)(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES - 1), rng_copy);
+        parameters.dynamics = SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES[index];
     }
     template<typename DEVICE, typename T, typename STATE_TI, typename SPEC>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StateBase<T, STATE_TI>& state){
