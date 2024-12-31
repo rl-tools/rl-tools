@@ -339,6 +339,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
         rlt::free(device, device.logger);
 #endif
+        rlt::free(device, ts);
         rlt::free(device);
     }
     return 0;
