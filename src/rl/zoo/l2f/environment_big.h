@@ -79,19 +79,22 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
-        static constexpr PARAMETERS_TYPE nominal_parameters = {
-            {
-                ENVIRONMENT_FACTORY_BASE::dynamics,
-                integration,
-                mdp,
-                ENVIRONMENT_FACTORY_BASE::domain_randomization
-            },
-//            ENVIRONMENT_FACTORY::disturbances
-            typename PARAMETERS_TYPE::Disturbances{
-                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, //{0, 0.027 * 9.81 / 3}, // random_force;
-                typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
-            }
-        };
+        static constexpr PARAMETERS_TYPE nominal_parameters(const typename PARAMETERS_TYPE::Dynamics& dynamics)
+        {
+            return {
+                {
+                    dynamics,
+                    integration,
+                    mdp,
+                    ENVIRONMENT_FACTORY_BASE::domain_randomization
+                },
+    //            ENVIRONMENT_FACTORY::disturbances
+                typename PARAMETERS_TYPE::Disturbances{
+                    typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, //{0, 0.027 * 9.81 / 3}, // random_force;
+                    typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
+                }
+            };
+        }
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
@@ -107,7 +110,7 @@ namespace rl_tools::rl::zoo::l2f{
             using OBSERVATION_TYPE_PRIVILEGED = typename ENVIRONMENT_FACTORY_BASE::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
-            static constexpr auto PARAMETER_VALUES = nominal_parameters;
+            static constexpr auto PARAMETER_VALUES = nominal_parameters(ENVIRONMENT_FACTORY_BASE::dynamics);
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
