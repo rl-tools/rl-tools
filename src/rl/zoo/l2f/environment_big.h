@@ -111,10 +111,16 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters(ENVIRONMENT_FACTORY_BASE::dynamics);
+            template <rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY MODEL>
+            using DYNAMICS_PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION, rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY, MODEL>;
+            static constexpr TI N_DYNAMICS_VALUES = 1;
+            static constexpr typename PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
+                rl_tools::rl::environments::l2f::parameters::dynamics::registry<DYNAMICS_PARAMETERS_SPEC<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::x500_real>>
+            };
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
-        using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
+        using ENVIRONMENT = rl_tools::rl::environments::MultirotorMultiTask<ENVIRONMENT_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
