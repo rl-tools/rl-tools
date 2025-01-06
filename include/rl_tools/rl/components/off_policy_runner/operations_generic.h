@@ -400,7 +400,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using RUNNER = rl::components::OffPolicyRunner<SPEC>;
-        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
+        constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         for(TI batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             TI env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (TI) 0, (TI)(SPEC::PARAMETERS::N_ENVIRONMENTS - 1), rng);
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
