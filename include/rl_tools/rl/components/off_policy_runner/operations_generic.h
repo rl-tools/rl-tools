@@ -232,6 +232,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTH;
+        static_assert(SEQUENCE_LENGTH >= 2, "SEQUENCE_LENGTH must be at least 2, such that the observation and next observation can be accommodated");
         // when the replay buffer is wrapping around it starts overwriting elements of some episode
         // hence the beginning of that episode might not be available anymore
         // hence we sample from position + MAX_EPISODE_LENGTH => wrap => position
@@ -260,13 +261,13 @@ namespace rl_tools{
 
         bool previous_step_truncated = false;
         bool previous_padding_step = true;
-        auto batch_sample_final_step_mask = view<0>(device, batch.final_step_mask, batch_step_i);
+        auto batch_sample_final_step_mask = view<1>(device, batch.final_step_mask, batch_step_i);
         set_all(device, batch_sample_final_step_mask, false);
-        auto batch_sample_next_final_step_mask = view<0>(device, batch.next_final_step_mask, batch_step_i);
+        auto batch_sample_next_final_step_mask = view<1>(device, batch.next_final_step_mask, batch_step_i);
         set_all(device, batch_sample_next_final_step_mask, false);
-        auto batch_sample_reset = view<0>(device, batch.reset, batch_step_i);
+        auto batch_sample_reset = view<1>(device, batch.reset, batch_step_i);
         set_all(device, batch_sample_reset, false);
-        auto batch_sample_next_reset = view<0>(device, batch.next_reset, batch_step_i);
+        auto batch_sample_next_reset = view<1>(device, batch.next_reset, batch_step_i);
         set_all(device, batch_sample_next_reset, false);
         set(device, batch.reset, true, 0, batch_step_i, 0);
         set(device, batch.next_reset, true, 0, batch_step_i, 0);
