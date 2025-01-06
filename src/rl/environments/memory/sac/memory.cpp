@@ -134,9 +134,9 @@ int main(){
                     rlt::set(device, test_critic_input, (T)input_i, TEST_SEQUENCE_LENGTH-1, 0, 0);
                     TI count = pre_count + input_i;
                     // line search
-                    T max_value;
+                    T max_value = 0;
                     bool max_value_set = false;
-                    TI max_action;
+                    TI max_action = 0;
                     for(TI action_i = 0; action_i < 5; action_i++){
                         T action = ((T)action_i)/10;
                         rlt::set(device, test_critic_input, action, TEST_SEQUENCE_LENGTH-1, 0, 1);

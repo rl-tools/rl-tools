@@ -103,20 +103,16 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
 
-        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM + OBSERVATION_DIM + ACTION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, DATA_DIM>, DYNAMIC_ALLOCATION>> observations_actions_next_observations;
+        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, DATA_DIM>, DYNAMIC_ALLOCATION>> observations_actions;
 
         template<typename SPEC::TI DIM>
-        using OANO_VIEW = typename decltype(observations_actions_next_observations)::template VIEW_RANGE<tensor::ViewSpec<2, DIM>>;
+        using OANO_VIEW = typename decltype(observations_actions)::template VIEW_RANGE<tensor::ViewSpec<2, DIM>>;
 
         OANO_VIEW<OBSERVATION_DIM> observations;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> observations_privileged;
         OANO_VIEW<ACTION_DIM> actions;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
-        OANO_VIEW<OBSERVATION_DIM> next_observations;
-//        OANO_VIEW<ACTION_DIM> next_actions;
-        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> next_observations_and_actions;
-        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
 
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> rewards;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> terminated;

@@ -60,6 +60,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
         static constexpr T BIAS_LR_FACTOR = 1;
     };
+    static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
 };
 #ifdef BENCHMARK
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;

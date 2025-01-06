@@ -140,10 +140,10 @@ namespace rl_tools{
         auto next_state_action_value_critic_1_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_1);
         auto next_state_action_value_critic_2_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_2);
         T value_critic_1 = 0, value_critic_2 = 0;
-        if(batch_step_i < SEQUENCE_LENGTH-1){
+        if(batch_step_i / BATCH_SIZE != SEQUENCE_LENGTH-1){
             // the target values of the final step are undefined because it is a padding steps. The target observations are offset by one step, hence the +1 to get them into the right position for the MSBE (mean squared Bellman error) of the current step
-            value_critic_1 = get(next_state_action_value_critic_1_matrix_view, batch_step_i+1, 0);
-            value_critic_2 = get(next_state_action_value_critic_2_matrix_view, batch_step_i+1, 0);
+            value_critic_1 = get(next_state_action_value_critic_1_matrix_view, batch_step_i+BATCH_SIZE, 0); // + BATCH_SIZE because it is (SEQUENCE_LENGTH x BATCH_SIZE) and we want to get the value of the next step
+            value_critic_2 = get(next_state_action_value_critic_2_matrix_view, batch_step_i+BATCH_SIZE, 0);
         }
         T min_next_state_action_value = math::min(device.math, value_critic_1, value_critic_2);
         auto rewards_matrix_view = matrix_view(device, batch.rewards);
@@ -269,15 +269,15 @@ namespace rl_tools{
         using RESET_MODE_SAS = nn::layers::gru::ResetMode<SAMPLE_AND_SQUASH_MODE, RESET_MODE_SAS_SPEC>;
         Mode<RESET_MODE_SAS> next_reset_mode_sas;
         next_reset_mode_sas.reset_container = batch.next_reset;
-        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions, actor_buffers, rng, next_reset_mode_sas); // forward instead of evaluate because we need the log_probabilities later in this operation
+        forward(device, actor_critic.actor, batch.observations, training_buffers.next_actions, actor_buffers, rng, next_reset_mode_sas); // forward instead of evaluate because we need the log_probabilities later in this operation
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             // using the original next actions for non-terminal steps
             mask_actions(device, batch.actions, training_buffers.next_actions, batch.next_final_step_mask, true);
         }
-        copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
-        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.next_reset)>;
-        using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
-        Mode<RESET_MODE> next_reset_mode;
+        copy(device, device, batch.observations_privileged, training_buffers.next_observations);
+        using NEXT_RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.next_reset)>;
+        using NEXT_RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, NEXT_RESET_MODE_SPEC>;
+        Mode<NEXT_RESET_MODE> next_reset_mode;
         next_reset_mode.reset_container = batch.next_reset;
         evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, next_reset_mode);
         evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, next_reset_mode);
@@ -285,7 +285,7 @@ namespace rl_tools{
         auto last_layer = get_last_layer(actor_critic.actor);
         auto next_action_log_probs = view_transpose(device, last_layer.log_probabilities);
         target_action_values(device, batch, training_buffers, next_action_log_probs, sample_and_squash_layer.log_alpha);
-        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.next_reset)>;
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
         using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
         Mode<RESET_MODE> reset_mode;
         reset_mode.reset_container = batch.reset;

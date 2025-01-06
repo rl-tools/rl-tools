@@ -63,3 +63,4 @@
 /**/*.sqlite
 /**/*.qdstrm
 /perf.data
+/.venv
