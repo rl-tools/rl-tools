@@ -200,7 +200,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
         observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
-        if(state.step <= 1){
+        if(state.step <= 0){
             set(observation, 0, 7, parameters.flag_position[0]);
             set(observation, 0, 8, parameters.flag_position[1]);
         }
