@@ -298,7 +298,9 @@ namespace rl_tools{
                 continue;
             }
             if(previous_padding_step){
-                set(device, batch.reset, true, seq_step_i, batch_step_i, 0);
+                if(seq_step_i < PADDED_SEQUENCE_LENGTH - 1){
+                    set(device, batch.reset, true, seq_step_i, batch_step_i, 0);
+                }
                 set(device, batch.next_reset_base, true, seq_step_i, batch_step_i, 0);
                 // if previous step was truncated we find a new sequence start
                 TI sample_offset = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(device.random, (TI) 0, sample_index_max, rng);
@@ -325,7 +327,7 @@ namespace rl_tools{
             copy(device, device, observation_source_tensor_squeezed, observation_target);
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
-                auto observation_privileged_target_sequence = view<0>(device, batch.observations_privileged, seq_step_i);
+                auto observation_privileged_target_sequence = view<0>(device, batch.observations_privileged_base, seq_step_i);
                 auto observation_privileged_target = view<0>(device, observation_privileged_target_sequence, batch_step_i);
                 auto observation_privileged_source = row(device, replay_buffer.observations_privileged, sample_index);
                 auto observation_privileged_source_tensor = to_tensor(device, observation_privileged_source);
@@ -340,8 +342,10 @@ namespace rl_tools{
             auto action_source_tensor_squeezed = squeeze(device, action_source_tensor);
             copy(device, device, action_source_tensor_squeezed, action_target);
 
-            set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i, 0);
-            set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i, 0);
+            if(seq_step_i < PADDED_SEQUENCE_LENGTH - 1){
+                set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i, 0);
+                set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i, 0);
+            }
 
             bool truncated = get(replay_buffer.truncated, sample_index, 0);
 
@@ -380,9 +384,13 @@ namespace rl_tools{
                 }
             }
 
-            set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
+            if(seq_step_i < PADDED_SEQUENCE_LENGTH - 1){
+                set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
+            }
             if(truncated){
-                set(device, batch.final_step_mask, true, seq_step_i, batch_step_i, 0);
+                if(seq_step_i < PADDED_SEQUENCE_LENGTH - 1){
+                    set(device, batch.final_step_mask, true, seq_step_i, batch_step_i, 0);
+                }
                 if(seq_step_i < PADDED_SEQUENCE_LENGTH-1){
                     auto next_observation_target_sequence = view<0>(device, batch.observations_base, seq_step_i + 1);
                     auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);
@@ -392,7 +400,7 @@ namespace rl_tools{
                     copy(device, device, next_observation_source_tensor_squeezed, next_observation_target);
 
                     if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
-                        auto next_observation_privileged_target_sequence = view<0>(device, batch.observations_privileged, seq_step_i + 1);
+                        auto next_observation_privileged_target_sequence = view<0>(device, batch.observations_privileged_base, seq_step_i + 1);
                         auto next_observation_privileged_target = view<0>(device, next_observation_privileged_target_sequence, batch_step_i);
                         auto next_observation_privileged_source = row(device, replay_buffer.next_observations_privileged, sample_index);
                         auto next_observation_privileged_source_tensor = to_tensor(device, next_observation_privileged_source);
