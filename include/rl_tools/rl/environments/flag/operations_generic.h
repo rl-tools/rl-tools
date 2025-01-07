@@ -15,13 +15,17 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, RNG& rng){
         using T = typename SPEC::T;
-        parameters.flag_position[0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
-        parameters.flag_position[1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+        parameters.flag_positions[0][0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+        parameters.flag_positions[0][1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+        parameters.flag_positions[1][0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
+        parameters.flag_positions[1][1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters){
-        parameters.flag_position[0] = SPEC::PARAMETERS::BOARD_SIZE / 2;
-        parameters.flag_position[1] = SPEC::PARAMETERS::BOARD_SIZE / 2;
+        parameters.flag_positions[0][0] = SPEC::PARAMETERS::BOARD_SIZE * 1.0 / 4;
+        parameters.flag_positions[0][1] = SPEC::PARAMETERS::BOARD_SIZE * 1.0 / 4;
+        parameters.flag_positions[1][0] = SPEC::PARAMETERS::BOARD_SIZE * 3.0 / 4;
+        parameters.flag_positions[1][1] = SPEC::PARAMETERS::BOARD_SIZE * 3.0 / 4;
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state){
@@ -30,10 +34,6 @@ namespace rl_tools{
         state.velocity[0] = 0;
         state.velocity[1] = 0;
         state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::INITIAL;
-    }
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, typename rl::environments::FlagMemory<SPEC>::State& state){
-        initial_state(device, static_cast<const rl::environments::Flag<SPEC>&>(env), parameters, state);
         state.step = 0;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
@@ -44,10 +44,6 @@ namespace rl_tools{
         state.velocity[0] = 0;
         state.velocity[1] = 0;
         state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::INITIAL;
-    }
-    template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, typename rl::environments::FlagMemory<SPEC>::State& state, RNG& rng){
-        sample_initial_state(device, static_cast<const rl::environments::Flag<SPEC>&>(env), parameters, state, rng);
         state.step = 0;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
@@ -73,31 +69,23 @@ namespace rl_tools{
         next_state.velocity[0] = math::clamp(device.math, next_state.velocity[0], (T)-PARAMS::MAX_VELOCITY, PARAMS::MAX_VELOCITY);
         next_state.velocity[1] = math::clamp(device.math, next_state.velocity[1], (T)-PARAMS::MAX_VELOCITY, PARAMS::MAX_VELOCITY);
 
-        T distance_to_flag = math::sqrt(device.math, (next_state.position[0] - parameters.flag_position[0]) * (next_state.position[0] - parameters.flag_position[0]) + (next_state.position[1] - parameters.flag_position[1]) * (next_state.position[1] - parameters.flag_position[1]));
-        T distance_to_origin = math::sqrt(device.math, next_state.position[0] * next_state.position[0] + next_state.position[1] * next_state.position[1]);
+        T distance_to_flag_1 = math::sqrt(device.math, (next_state.position[0] - parameters.flag_positions[0][0]) * (next_state.position[0] - parameters.flag_positions[0][0]) + (next_state.position[1] - parameters.flag_positions[0][1]) * (next_state.position[1] - parameters.flag_positions[0][1]));
+        T distance_to_flag_2 = math::sqrt(device.math, (next_state.position[0] - parameters.flag_positions[1][0]) * (next_state.position[0] - parameters.flag_positions[1][0]) + (next_state.position[1] - parameters.flag_positions[1][1]) * (next_state.position[1] - parameters.flag_positions[1][1]));
         switch(state.state_machine){
             case STATE::StateMachine::INITIAL:
-                if(distance_to_flag < PARAMS::FLAG_DISTANCE_THRESHOLD){
-                    next_state.state_machine = STATE::StateMachine::FLAG_VISITED;
+                if(distance_to_flag_1 < PARAMS::FLAG_DISTANCE_THRESHOLD){
+                    next_state.state_machine = STATE::StateMachine::FLAG_1_VISITED;
                 }
                 else{
                     next_state.state_machine = STATE::StateMachine::INITIAL;
                 }
                 break;
-            case STATE::StateMachine::FLAG_VISITED:
-                if(distance_to_origin < PARAMS::FLAG_DISTANCE_THRESHOLD){
-                    next_state.state_machine = STATE::StateMachine::ORIGIN_VISITED;
+            case STATE::StateMachine::FLAG_1_VISITED:
+                if(distance_to_flag_2 < PARAMS::FLAG_DISTANCE_THRESHOLD){
+                    next_state.state_machine = STATE::StateMachine::FLAG_2_VISITED;
                 }
                 else{
-                    next_state.state_machine = STATE::StateMachine::FLAG_VISITED;
-                }
-                break;
-            case STATE::StateMachine::ORIGIN_VISITED:
-                if(distance_to_flag < PARAMS::FLAG_DISTANCE_THRESHOLD){
-                    next_state.state_machine = STATE::StateMachine::FLAG_VISITED_AGAIN;
-                }
-                else{
-                    next_state.state_machine = STATE::StateMachine::ORIGIN_VISITED;
+                    next_state.state_machine = STATE::StateMachine::FLAG_1_VISITED;
                 }
                 break;
             default:
@@ -105,55 +93,28 @@ namespace rl_tools{
                 std::exit(1);
                 break;
         }
+        next_state.step = state.step + 1;
         return SPEC::PARAMETERS::DT;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, const typename rl::environments::FlagMemory<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::FlagMemory<SPEC>::State& next_state, RNG& rng){
-        typename SPEC::T dt = step(device, static_cast<const rl::environments::Flag<SPEC>&>(env), parameters, state, action, next_state, rng);
-        next_state.step = state.step + 1;
-        return dt;
-    }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Flag<SPEC>::State& next_state, RNG& rng){
-        using namespace rl::environments::pendulum;
         using T = typename SPEC::T;
         using ENVIRONMENT = rl::environments::Flag<SPEC>;
         using STATE = typename rl::environments::Flag<SPEC>::State;
-        T distance_to_flag = math::sqrt(device.math, (next_state.position[0] - parameters.flag_position[0]) * (next_state.position[0] - parameters.flag_position[0]) + (next_state.position[1] - parameters.flag_position[1]) * (next_state.position[1] - parameters.flag_position[1]));
-        T distance_to_origin = math::sqrt(device.math, next_state.position[0] * next_state.position[0] + next_state.position[1] * next_state.position[1]);
         T reward = 0;
-        if(next_state.state_machine == STATE::StateMachine::FLAG_VISITED_AGAIN){
+        if(next_state.state_machine == STATE::StateMachine::FLAG_1_VISITED){
             reward = 1000;
         }
         else{
             reward = -1;
         }
         return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
-    }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, const typename rl::environments::FlagMemory<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::FlagMemory<SPEC>::State& next_state, RNG& rng){
-        using T = typename SPEC::T;
-        using ENVIRONMENT = rl::environments::Flag<SPEC>;
-        using STATE = typename rl::environments::Flag<SPEC>::State;
-        T reward = 0;
-        if(next_state.state_machine == STATE::StateMachine::FLAG_VISITED){
-            reward = 1000;
-        }
-        else{
-            reward = -1;
-        }
-        return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
-//        T x_diff = get(action, 0, 0) - parameters.flag_position[0] / SPEC::PARAMETERS::BOARD_SIZE;
-//        T y_diff = get(action, 0, 1) - parameters.flag_position[1] / SPEC::PARAMETERS::BOARD_SIZE;
-//        T distance = math::sqrt(device.math, x_diff * x_diff + y_diff * y_diff);
-//        T reward = -distance;
-//        return reward;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::Observation<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 7);
+        static_assert(OBS_SPEC::COLS == 11);
         using T = typename SPEC::T;
         using STATE_MACHINE = typename rl::environments::Flag<SPEC>::State::StateMachine;
         set(observation, 0, 0, state.position[0]);
@@ -166,68 +127,45 @@ namespace rl_tools{
                 set(observation, 0, 5, -1);
                 set(observation, 0, 6, -1);
                 break;
-            case STATE_MACHINE::FLAG_VISITED:
+            case STATE_MACHINE::FLAG_1_VISITED:
                 set(observation, 0, 4, -1);
                 set(observation, 0, 5, 1);
                 set(observation, 0, 6, -1);
                 break;
-            case STATE_MACHINE::ORIGIN_VISITED:
+            case STATE_MACHINE::FLAG_2_VISITED:
                 set(observation, 0, 4, -1);
                 set(observation, 0, 5, -1);
                 set(observation, 0, 6, 1);
                 break;
-            case STATE_MACHINE::FLAG_VISITED_AGAIN:
-                set(observation, 0, 4, 0);
-                set(observation, 0, 5, 0);
-                set(observation, 0, 6, 0);
-                break;
+        }
+        if(state.step <= 0){
+            set(observation, 0,  7, parameters.flag_positions[0][0]);
+            set(observation, 0,  8, parameters.flag_positions[0][1]);
+            set(observation, 0,  9, parameters.flag_positions[1][0]);
+            set(observation, 0, 10, parameters.flag_positions[1][1]);
+        }
+        else{
+            set(observation, 0,  7, -1);
+            set(observation, 0,  8, -1);
+            set(observation, 0,  9, -1);
+            set(observation, 0, 10, -1);
         }
     }
+
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::ObservationPrivileged<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 9);
+        static_assert(OBS_SPEC::COLS == 11);
         using T = typename SPEC::T;
-        auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
-        observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
-        set(observation, 0, 7, parameters.flag_position[0]);
-        set(observation, 0, 8, parameters.flag_position[1]);
-    }
-    template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, const typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, const typename rl::environments::FlagMemory<SPEC>::State& state, const typename rl::environments::flag::ObservationMemory<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
-        static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 9);
-        using T = typename SPEC::T;
-        auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
-        observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
-        if(state.step <= 0){
-            set(observation, 0, 7, parameters.flag_position[0]);
-            set(observation, 0, 8, parameters.flag_position[1]);
-        }
-        else{
-            set(observation, 0, 7, -1);
-            set(observation, 0, 8, -1);
-        }
-//        set(observation, 0, 7, parameters.flag_position[0]);
-//        set(observation, 0, 8, parameters.flag_position[1]);
-    }
-    template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, const typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, const typename rl::environments::FlagMemory<SPEC>::State& state, const typename rl::environments::flag::ObservationMemoryPrivileged<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
-        static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 9);
-        using T = typename SPEC::T;
-        auto observation_view = view(device, observation, matrix::ViewSpec<1, 7>{});
-        observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation_view, rng);
-        set(observation, 0, 7, parameters.flag_position[0]);
-        set(observation, 0, 8, parameters.flag_position[1]);
+        observe(device, env, parameters, state, typename rl::environments::flag::Observation<OBS_TYPE_SPEC>{}, observation, rng);
+        set(observation, 0,  7, parameters.flag_positions[0][0]);
+        set(observation, 0,  8, parameters.flag_positions[0][1]);
+        set(observation, 0,  9, parameters.flag_positions[1][0]);
+        set(observation, 0, 10, parameters.flag_positions[1][1]);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State state, RNG& rng){
-        return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_VISITED_AGAIN;
-    }
-    template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, const typename rl::environments::FlagMemory<SPEC>::State state, RNG& rng){
-        return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_VISITED;
+        return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_1_VISITED;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
