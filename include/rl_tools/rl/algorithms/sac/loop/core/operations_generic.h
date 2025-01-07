@@ -27,16 +27,45 @@ namespace rl_tools{
         malloc(device, ts.action_noise_critic);
         malloc(device, ts.critic_buffers[0]);
         malloc(device, ts.critic_buffers[1]);
+        malloc(device, ts.critic_target_buffers[0]);
+        malloc(device, ts.critic_target_buffers[1]);
         malloc(device, ts.actor_batch);
         malloc(device, ts.actor_training_buffers);
         malloc(device, ts.action_noise_actor);
         malloc(device, ts.actor_buffers_eval);
         malloc(device, ts.actor_buffers[0]);
         malloc(device, ts.actor_buffers[1]);
+        malloc(device, ts.actor_target_buffers[0]);
+        malloc(device, ts.actor_target_buffers[1]);
         for(auto& env: ts.envs){
             rl_tools::malloc(device, env);
         }
         ts.allocated = true;
+    }
+    template <typename DEVICE, typename T_CONFIG>
+    void free(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
+        free(device, ts.rng);
+        free(device, ts.actor_critic);
+        free(device, ts.off_policy_runner);
+        free(device, ts.critic_batch);
+        free(device, ts.critic_training_buffers[0]);
+        free(device, ts.critic_training_buffers[1]);
+        free(device, ts.action_noise_critic);
+        free(device, ts.critic_buffers[0]);
+        free(device, ts.critic_buffers[1]);
+        free(device, ts.critic_target_buffers[0]);
+        free(device, ts.critic_target_buffers[1]);
+        free(device, ts.actor_batch);
+        free(device, ts.actor_training_buffers);
+        free(device, ts.action_noise_actor);
+        free(device, ts.actor_buffers_eval);
+        free(device, ts.actor_buffers[0]);
+        free(device, ts.actor_buffers[1]);
+        free(device, ts.actor_target_buffers[0]);
+        free(device, ts.actor_target_buffers[1]);
+        for(auto& env: ts.envs){
+            rl_tools::free(device, env);
+        }
     }
     template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
@@ -76,27 +105,6 @@ namespace rl_tools{
         target.step = source.step;
     }
 
-    template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
-        free(device, ts.rng);
-        free(device, ts.actor_critic);
-        free(device, ts.off_policy_runner);
-        free(device, ts.critic_batch);
-        free(device, ts.critic_training_buffers[0]);
-        free(device, ts.critic_training_buffers[1]);
-        free(device, ts.action_noise_critic);
-        free(device, ts.critic_buffers[0]);
-        free(device, ts.critic_buffers[1]);
-        free(device, ts.actor_batch);
-        free(device, ts.actor_training_buffers);
-        free(device, ts.action_noise_actor);
-        free(device, ts.actor_buffers_eval);
-        free(device, ts.actor_buffers[0]);
-        free(device, ts.actor_buffers[1]);
-        for(auto& env: ts.envs){
-            rl_tools::free(device, env);
-        }
-    }
 
     template <typename DEVICE, typename T_CONFIG>
     bool step(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
@@ -126,7 +134,7 @@ namespace rl_tools{
                     gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                     randn(device, ts.action_noise_critic, ts.rng);
                 }
-                train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_target_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_target_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
             }
         }
         if(update_critic_targets_flag){

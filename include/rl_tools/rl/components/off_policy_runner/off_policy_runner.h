@@ -80,47 +80,72 @@ namespace rl_tools::rl::components::off_policy_runner {
         OBSERVATIONS_PRIVILEGED_TYPE next_observations_privileged;
     };
 
-    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_ALWAYS_SAMPLE_FROM_INITIAL_STATE, bool T_DYNAMIC_ALLOCATION=true>
+    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_ALWAYS_SAMPLE_FROM_INITIAL_STATE, bool T_INCLUDE_FIRST_STEP_IN_TARGETS, bool T_DYNAMIC_ALLOCATION=true>
     struct SequentialBatchSpecification{
         using SPEC = T_SPEC;
-        static constexpr typename SPEC::TI SEQUENCE_LENGTH = T_SEQUENCE_LENGTH;
-        static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+        using TI = typename SPEC::TI;
+        static constexpr TI SEQUENCE_LENGTHH = T_SEQUENCE_LENGTH;
+        static constexpr TI PADDED_SEQUENCE_LENGTH = SEQUENCE_LENGTHH + 1;
+        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = T_ALWAYS_SAMPLE_FROM_INITIAL_STATE;
+        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = T_INCLUDE_FIRST_STEP_IN_TARGETS;
     };
 
     template <typename T_SPEC>
     struct SequentialBatch{
-        using SPEC = typename T_SPEC::SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
+        using SPEC = T_SPEC;
+        using OPR_SPEC = typename T_SPEC::SPEC;
+        using T = typename OPR_SPEC::T;
+        using TI = typename OPR_SPEC::TI;
 
-        static constexpr TI SEQUENCE_LENGTH = T_SPEC::SEQUENCE_LENGTH;
         static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
-        static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::Observation::DIM;
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = SPEC::OBSERVATION_DIM_PRIVILEGED;
-        static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+        static constexpr TI SEQUENCE_LENGTHH = T_SPEC::SEQUENCE_LENGTHH;
+        static constexpr TI PADDED_SEQUENCE_LENGTH = T_SPEC::PADDED_SEQUENCE_LENGTH;
+        static constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::Observation::DIM;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = OPR_SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OPR_SPEC::OBSERVATION_DIM_PRIVILEGED;
+        static constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
 
-        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, DATA_DIM>, DYNAMIC_ALLOCATION>> observations_actions;
+        static constexpr TI DATA_DIM = OBSERVATION_DIM + OPR_SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, PADDED_SEQUENCE_LENGTH, BATCH_SIZE, DATA_DIM>, DYNAMIC_ALLOCATION>> observations_actions_base;
 
-        template<typename SPEC::TI DIM>
-        using OANO_VIEW = typename decltype(observations_actions)::template VIEW_RANGE<tensor::ViewSpec<2, DIM>>;
+        template<typename OPR_SPEC::TI DIM>
+        using OA_VIEW_BASE = typename decltype(observations_actions_base)::template VIEW_RANGE<tensor::ViewSpec<2, DIM>>;
 
-        OANO_VIEW<OBSERVATION_DIM> observations;
-        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> observations_privileged;
-        OANO_VIEW<ACTION_DIM> actions;
-        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
+        template<typename BASE>
+        using OA_VIEW = typename BASE::template VIEW_RANGE<tensor::ViewSpec<0, SEQUENCE_LENGTHH>>;
 
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> rewards;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> terminated;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> truncated;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> reset;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_reset;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> final_step_mask;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_final_step_mask;
+        static constexpr TI TARGET_SEQUENCE_LENGTH = T_SPEC::INCLUDE_FIRST_STEP_IN_TARGETS ? PADDED_SEQUENCE_LENGTH : SEQUENCE_LENGTHH;
+        template<typename BASE>
+        using OA_VIEW_NEXT = typename BASE::template VIEW_RANGE<tensor::ViewSpec<0, TARGET_SEQUENCE_LENGTH>>;
+
+        OA_VIEW_BASE<OBSERVATION_DIM> observations_base;
+        OA_VIEW_BASE<OPR_SPEC::OBSERVATION_DIM_PRIVILEGED> observations_privileged_base;
+        OA_VIEW_BASE<ACTION_DIM> actions_base;
+        OA_VIEW_BASE<OPR_SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions_base;
+
+        OA_VIEW <decltype(observations_base)> observations_current;
+        OA_VIEW <decltype(observations_privileged_base)> observations_privileged_current;
+        OA_VIEW <decltype(actions_base)> actions_current;
+        OA_VIEW <decltype(observations_and_actions_base)> observations_and_actions_current;
+
+        OA_VIEW_NEXT<decltype(observations_base)> observations_next;
+        OA_VIEW_NEXT<decltype(observations_privileged_base)> observations_privileged_next;
+        OA_VIEW_NEXT<decltype(actions_base)> actions_next;
+        OA_VIEW_NEXT<decltype(observations_and_actions_base)> observations_and_actions_next;
+
+        Tensor<tensor::Specification<   T, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> rewards;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> terminated;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> truncated;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> reset;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, PADDED_SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_reset_base;
+        typename decltype(next_reset_base)::template VIEW_RANGE<tensor::ViewSpec<0, TARGET_SEQUENCE_LENGTH>> next_reset;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> final_step_mask;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, PADDED_SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_final_step_mask_base;
+        typename decltype(next_final_step_mask_base)::template VIEW_RANGE<tensor::ViewSpec<0, TARGET_SEQUENCE_LENGTH>> next_final_step_mask;
+
     };
 
     template <typename T_T, typename T_TI, T_TI T_BUFFER_SIZE, bool T_DYNAMIC_ALLOCATION=true>
@@ -168,8 +193,8 @@ namespace rl_tools::rl::components{
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
         off_policy_runner::ParametersRuntime<SPEC> parameters;
-        template<typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION=true>
-        using SequentialBatch = off_policy_runner::SequentialBatch<typename off_policy_runner::SequentialBatchSpecification<SPEC, T_SEQUENCE_LENGTH, T_BATCH_SIZE, T_DYNAMIC_ALLOCATION>>;
+        // template<typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION=true>
+        // using SequentialBatch = off_policy_runner::SequentialBatch<typename off_policy_runner::SequentialBatchSpecification<SPEC, T_SEQUENCE_LENGTH, T_BATCH_SIZE, T_DYNAMIC_ALLOCATION>>;
 
         off_policy_runner::Buffers<SPEC> buffers;
 
