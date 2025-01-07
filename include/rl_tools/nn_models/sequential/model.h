@@ -34,7 +34,7 @@ namespace rl_tools::nn_models::sequential{
     //     forward
 
     template <typename SPEC>
-    constexpr auto find_output_dim() {
+    constexpr auto find_output_dim(){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
             return SPEC::CONTENT::OUTPUT_DIM;
         } else {
@@ -254,6 +254,14 @@ namespace rl_tools::nn_models::sequential{
         };
         template <typename TI, TI BATCH_SIZE>
         using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;
+        template <typename TI, TI SEQUENCE_LENGTH>
+        struct CHANGE_SEQUENCE_LENGTH_IMPL{
+            using NEW_INPUT_SHAPE = tensor::Replace<INPUT_SHAPE, SEQUENCE_LENGTH, 0>;
+            using CHANGE_SEQUENCE_LENGTH = Build<CAPABILITY, MODULE, NEW_INPUT_SHAPE>;
+        };
+        template <typename TI, TI SEQUENCE_LENGTH>
+        using CHANGE_SEQUENCE_LENGTH = typename CHANGE_SEQUENCE_LENGTH_IMPL<TI, SEQUENCE_LENGTH>::CHANGE_SEQUENCE_LENGTH;
+
         template <typename NEW_CAPABILITY>
         using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE, INPUT_SHAPE>;
     };

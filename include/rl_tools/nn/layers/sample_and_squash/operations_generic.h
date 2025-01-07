@@ -48,11 +48,13 @@ namespace rl_tools{
     void malloc(DEVICE& device, nn::layers::sample_and_squash::Buffer<SPEC>& buffer) {
         malloc(device, buffer.noise);
         malloc(device, buffer.d_log_alpha);
+        malloc(device, buffer.log_probabilities);
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::sample_and_squash::Buffer<SPEC>& buffer) {
         free(device, buffer.noise);
         free(device, buffer.d_log_alpha);
+        free(device, buffer.log_probabilities);
     }
     template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::sample_and_squash::State& state) { } // no-op
@@ -183,6 +185,7 @@ namespace rl_tools{
             T one_minus_square_plus_eps = (1-squashed*squashed + SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON);
             log_prob += random::normal_distribution::log_prob(device.random, mean, log_std_clipped, sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_square_plus_eps);
         }
+        set(buffer.log_probabilities, 0, row_i, log_prob);
 //            set(layer.log_probabilities, 0, row_i, log_prob);
     }
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>

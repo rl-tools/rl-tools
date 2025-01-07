@@ -67,29 +67,43 @@ namespace rl_tools{
         }
         malloc(device, runner.policy_states);
     }
-    template <typename DEVICE, typename BATCH_SPEC>
-    void update_views(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
-        using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
-        using SPEC = typename BATCH_SPEC::SPEC;
-        using DATA_SPEC = typename decltype(batch.observations_actions)::SPEC;
-        typename DEVICE::index_t offset = 0;
-        batch.observations                  = view_range(device, batch.observations_actions, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM>{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
-        batch.observations_and_actions      = view_range(device, batch.observations_actions, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>{});
-        batch.observations_privileged       = view_range(device, batch.observations_actions, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
-        batch.actions                       = view_range(device, batch.observations_actions, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
+    template <typename DEVICE, typename SPEC>
+    void update_views(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch) {
+        using BATCH = rl::components::off_policy_runner::SequentialBatch<SPEC>;
+        using TI = typename DEVICE::index_t;
+        TI offset = 0;
+        batch.observations_base                  = view_range(device, batch.observations_actions_base, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM>{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
+        batch.observations_and_actions_base      = view_range(device, batch.observations_actions_base, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>{});
+        batch.observations_privileged_base       = view_range(device, batch.observations_actions_base, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
+        batch.actions_base                       = view_range(device, batch.observations_actions_base, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
+
+        batch.observations_current             = view_range(device, batch.observations_base, 0, tensor::ViewSpec<0, SPEC::SEQUENCE_LENGTHH>{});
+        batch.observations_privileged_current  = view_range(device, batch.observations_privileged_base, 0, tensor::ViewSpec<0, SPEC::SEQUENCE_LENGTHH>{});
+        batch.observations_and_actions_current = view_range(device, batch.observations_and_actions_base, 0, tensor::ViewSpec<0, SPEC::SEQUENCE_LENGTHH>{});
+        batch.actions_current                  = view_range(device, batch.actions_base, 0, tensor::ViewSpec<0, SPEC::SEQUENCE_LENGTHH>{});
+
+        constexpr TI NEXT_OFFSET = SPEC::INCLUDE_FIRST_STEP_IN_TARGETS ? 0 : 1;
+        constexpr TI NEXT_SIZE = SPEC::INCLUDE_FIRST_STEP_IN_TARGETS ? SPEC::PADDED_SEQUENCE_LENGTH : SPEC::SEQUENCE_LENGTHH;
+        batch.observations_next = view_range(device, batch.observations_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
+        batch.observations_privileged_next = view_range(device, batch.observations_privileged_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
+        batch.observations_and_actions_next = view_range(device, batch.observations_and_actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
+        batch.actions_next = view_range(device, batch.actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
+
+        batch.next_reset = view_range(device, batch.next_reset_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
+        batch.next_final_step_mask = view_range(device, batch.next_final_step_mask_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
     }
     template <typename DEVICE, typename BATCH_SPEC>
     void malloc(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
-        malloc(device, batch.observations_actions);
-        update_views(device, batch);
+        malloc(device, batch.observations_actions_base);
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
         malloc(device, batch.truncated);
         malloc(device, batch.reset);
-        malloc(device, batch.next_reset);
+        malloc(device, batch.next_reset_base);
         malloc(device, batch.final_step_mask);
-        malloc(device, batch.next_final_step_mask);
+        malloc(device, batch.next_final_step_mask_base);
+        update_views(device, batch);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
@@ -133,9 +147,9 @@ namespace rl_tools{
         free(device, batch.terminated);
         free(device, batch.truncated);
         free(device, batch.reset);
-        free(device, batch.next_reset);
+        free(device, batch.next_reset_base);
         free(device, batch.final_step_mask);
-        free(device, batch.next_final_step_mask);
+        free(device, batch.next_final_step_mask_base);
     }
     template<typename DEVICE, typename SPEC>
     void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
@@ -231,8 +245,9 @@ namespace rl_tools{
         // note: make sure that the replay_buffer has at least one transition in it;
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
-        constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTH;
-        static_assert(SEQUENCE_LENGTH >= 2, "SEQUENCE_LENGTH must be at least 2, such that the observation and next observation can be accommodated");
+        constexpr TI PADDED_SEQUENCE_LENGTH = BATCH_SPEC::PADDED_SEQUENCE_LENGTH;
+        constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
+        static_assert(PADDED_SEQUENCE_LENGTH >= 2, "PADDED_SEQUENCE_LENGTHSEQUENCE_LENGTH must be at least 2, such that the observation and next observation can be accommodated");
         // when the replay buffer is wrapping around it starts overwriting elements of some episode
         // hence the beginning of that episode might not be available anymore
         // hence we sample from position + MAX_EPISODE_LENGTH => wrap => position
@@ -263,26 +278,28 @@ namespace rl_tools{
         bool previous_padding_step = true;
         auto batch_sample_final_step_mask = view<1>(device, batch.final_step_mask, batch_step_i);
         set_all(device, batch_sample_final_step_mask, false);
-        auto batch_sample_next_final_step_mask = view<1>(device, batch.next_final_step_mask, batch_step_i);
+        auto batch_sample_next_final_step_mask = view<1>(device, batch.next_final_step_mask_base, batch_step_i);
         set_all(device, batch_sample_next_final_step_mask, false);
         auto batch_sample_reset = view<1>(device, batch.reset, batch_step_i);
         set_all(device, batch_sample_reset, false);
-        auto batch_sample_next_reset = view<1>(device, batch.next_reset, batch_step_i);
+        auto batch_sample_next_reset = view<1>(device, batch.next_reset_base, batch_step_i);
         set_all(device, batch_sample_next_reset, false);
         set(device, batch.reset, true, 0, batch_step_i, 0);
-        set(device, batch.next_reset, true, 0, batch_step_i, 0);
-        for(TI seq_step_i=0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
+        set(device, batch.next_reset_base, true, 0, batch_step_i, 0);
+        for(TI seq_step_i=0; seq_step_i < PADDED_SEQUENCE_LENGTH; seq_step_i++){
             if(previous_step_truncated){
                 previous_step_truncated = false;
                 previous_padding_step = true;
 
-                set(device, batch.next_final_step_mask, true, seq_step_i, batch_step_i, 0);
-                set(device, batch.reset, true, seq_step_i, batch_step_i, 0);
+                set(device, batch.next_final_step_mask_base, true, seq_step_i, batch_step_i, 0);
+                if(seq_step_i < PADDED_SEQUENCE_LENGTH - 1){
+                    set(device, batch.reset, true, seq_step_i, batch_step_i, 0);
+                }
                 continue;
             }
             if(previous_padding_step){
                 set(device, batch.reset, true, seq_step_i, batch_step_i, 0);
-                set(device, batch.next_reset, true, seq_step_i, batch_step_i, 0);
+                set(device, batch.next_reset_base, true, seq_step_i, batch_step_i, 0);
                 // if previous step was truncated we find a new sequence start
                 TI sample_offset = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(device.random, (TI) 0, sample_index_max, rng);
                 if(replay_buffer.full){
@@ -300,7 +317,7 @@ namespace rl_tools{
             }
 
 
-            auto observation_target_sequence = view<0>(device, batch.observations, seq_step_i);
+            auto observation_target_sequence = view<0>(device, batch.observations_base, seq_step_i);
             auto observation_target = view<0>(device, observation_target_sequence, batch_step_i);
             auto observation_source = row(device, replay_buffer.observations, sample_index);
             auto observation_source_tensor = to_tensor(device, observation_source);
@@ -316,7 +333,7 @@ namespace rl_tools{
                 copy(device, device, observation_privileged_source_squeezed, observation_privileged_target);
             }
 
-            auto action_target_sequence = view<0>(device, batch.actions, seq_step_i);
+            auto action_target_sequence = view<0>(device, batch.actions_base, seq_step_i);
             auto action_target = view<0>(device, action_target_sequence, batch_step_i);
             auto action_source = row(device, replay_buffer.actions, sample_index);
             auto action_source_tensor = to_tensor(device, action_source);
@@ -335,7 +352,7 @@ namespace rl_tools{
             if(next_sample_index == replay_buffer.position){
                 truncated = true;
             }
-            if(seq_step_i == SEQUENCE_LENGTH-2){
+            if(seq_step_i == PADDED_SEQUENCE_LENGTH-2){
                 truncated = true;
             }
             if constexpr(RANDOM_SEQ_LENGTH){
@@ -366,8 +383,8 @@ namespace rl_tools{
             set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
             if(truncated){
                 set(device, batch.final_step_mask, true, seq_step_i, batch_step_i, 0);
-                if(seq_step_i < SEQUENCE_LENGTH-1){
-                    auto next_observation_target_sequence = view<0>(device, batch.observations, seq_step_i + 1);
+                if(seq_step_i < PADDED_SEQUENCE_LENGTH-1){
+                    auto next_observation_target_sequence = view<0>(device, batch.observations_base, seq_step_i + 1);
                     auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);
                     auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
                     auto next_observation_source_tensor = to_tensor(device, next_observation_source);
@@ -383,7 +400,7 @@ namespace rl_tools{
                         copy(device, device, next_observation_privileged_source_squeezed, next_observation_privileged_target);
                     }
 
-                    auto next_action_target_sequence = view<0>(device, batch.actions, seq_step_i + 1);
+                    auto next_action_target_sequence = view<0>(device, batch.actions_base, seq_step_i + 1);
                     auto next_action_target = view<0>(device, next_action_target_sequence, batch_step_i);
                     set_all(device, next_action_target, 0);
                 }
