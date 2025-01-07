@@ -22,6 +22,7 @@ namespace rl_tools::rl::zoo::flag_memory::sac{
                 static constexpr T TARGET_ENTROPY = -2;
                 static constexpr T ALPHA = 1;
                 static constexpr bool ADAPTIVE_ALPHA = true;
+                static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
             };
             static constexpr TI STEP_LIMIT = 200000;
             static constexpr TI N_ENVIRONMENTS = 32;
