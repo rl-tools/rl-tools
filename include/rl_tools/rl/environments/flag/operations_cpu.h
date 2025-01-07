@@ -19,22 +19,15 @@ namespace rl_tools{
         json += "\"MAX_ACCELERATION\":" + std::to_string(PARAMS::MAX_ACCELERATION) + ",";
         json += "\"MAX_VELOCITY\":" + std::to_string(PARAMS::MAX_VELOCITY) + ",";
         json += "\"FLAG_DISTANCE_THRESHOLD\":" + std::to_string(PARAMS::FLAG_DISTANCE_THRESHOLD) + ",";
-        json += "\"flag_position\":[" + std::to_string(parameters.flag_position[0]) + "," + std::to_string(parameters.flag_position[1]) + "]";
+        json += "\"flag_positions\":[";
+        json += "[" + std::to_string(parameters.flag_positions[0][0]) + "," + std::to_string(parameters.flag_positions[0][1]) + "],";
+        json += "[" + std::to_string(parameters.flag_positions[1][0]) + "," + std::to_string(parameters.flag_positions[1][1]) + "]";
+        json += "]";
         json += "}";
         return json;
     }
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE&, rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state){
-        using TI = typename SPEC::TI;
-        std::string json = "{";
-        json += "\"position\":[" + std::to_string(state.position[0]) + "," + std::to_string(state.position[1]) + "],";
-        json += "\"velocity\":[" + std::to_string(state.velocity[0]) + "," + std::to_string(state.velocity[1]) + "],";
-        json += "\"state_machine\":" + std::to_string(static_cast<TI>(state.state_machine));
-        json += "}";
-        return json;
-    }
-    template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE&, rl::environments::FlagMemory<SPEC>& env, typename rl::environments::FlagMemory<SPEC>::Parameters& parameters, typename rl::environments::FlagMemory<SPEC>::State& state){
         using TI = typename SPEC::TI;
         std::string json = "{";
         json += "\"position\":[" + std::to_string(state.position[0]) + "," + std::to_string(state.position[1]) + "],";
@@ -86,20 +79,29 @@ export async function render(ui_state, parameters, state, action) {
 //    ctx.lineWidth = 2;
 //    ctx.strokeRect(0, 0, parameters.BOARD_SIZE * scale, parameters.BOARD_SIZE * scale);
 
-    // Draw flag
-    const flagX = parameters.flag_position[0] * scale;
-    const flagY = parameters.flag_position[1] * scale;
-    ctx.beginPath();
-    ctx.arc(flagX, flagY, 5, 0, 2 * Math.PI);
-    ctx.fillStyle = 'red';
-    ctx.fill();
-    ctx.stroke();
 
-    // Transparent area around flag
-    ctx.beginPath();
-    ctx.arc(flagX, flagY, parameters.FLAG_DISTANCE_THRESHOLD * scale, 0, 2 * Math.PI);
-    ctx.fillStyle = 'rgba(255, 0, 0, 0.1)';
-    ctx.fill();
+    const colors = ['red', 'blue'];
+    const transparentColors = ['rgba(255, 0, 0, 0.1)', 'rgba(0, 0, 255, 0.1)'];
+
+    parameters.flag_positions.forEach(([x, y], index) => {
+      const color = colors[index] || 'red';
+      const transparentColor = transparentColors[index] || 'rgba(255, 0, 0, 0.1)';
+
+      const flagX = x * scale;
+      const flagY = y * scale;
+
+      // Draw the flag (small circle)
+      ctx.beginPath();
+      ctx.arc(flagX, flagY, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(flagX, flagY, parameters.FLAG_DISTANCE_THRESHOLD * scale, 0, 2 * Math.PI);
+      ctx.fillStyle = transparentColor;
+      ctx.fill();
+    });
 
     if(!("step" in state)){
         // Draw origin
@@ -121,12 +123,11 @@ export async function render(ui_state, parameters, state, action) {
     let targetX, targetY;
     if (state.state_machine === 0) {
         // INITIAL: target is flag
-        targetX = flagX;
-        targetY = flagY;
+        targetX = parameters.flag_positions[0][0] * scale;
+        targetY = parameters.flag_positions[0][1] * scale;
     } else {
-        // FLAG_VISITED or ORIGIN_VISITED: target is origin
-        targetX = 0;
-        targetY = 0;
+        targetX = parameters.flag_positions[1][0] * scale;
+        targetY = parameters.flag_positions[1][1] * scale;
     }
     ctx.beginPath();
     ctx.arc(targetX, targetY, parameters.FLAG_DISTANCE_THRESHOLD * scale, 0, 2 * Math.PI);
@@ -182,11 +183,6 @@ export async function render(ui_state, parameters, state, action) {
 
         )RL_TOOLS_LITERAL";
         return ui;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    std::string get_ui(DEVICE& device, rl::environments::FlagMemory<SPEC>& env){
-        return get_ui(device, static_cast<rl::environments::Flag<SPEC>&>(env));
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
