@@ -140,11 +140,8 @@ namespace rl_tools{
         auto next_state_action_value_critic_1_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_1);
         auto next_state_action_value_critic_2_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_2);
         constexpr TI TARGET_OFFSET = BATCH_SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? BATCH_SIZE : 0;
-        T value_critic_1 = 0, value_critic_2 = 0;
-        // if(batch_step_i / BATCH_SIZE != SEQUENCE_LENGTH-1){
-            // the target values of the final step are undefined because it is a padding steps. The target observations are offset by one step, hence the +1 to get them into the right position for the MSBE (mean squared Bellman error) of the current step
-        value_critic_1 = get(next_state_action_value_critic_1_matrix_view, batch_step_i+TARGET_OFFSET, 0); // + BATCH_SIZE because it is (SEQUENCE_LENGTH x BATCH_SIZE) and we want to get the value of the next step
-        value_critic_2 = get(next_state_action_value_critic_2_matrix_view, batch_step_i+TARGET_OFFSET, 0);
+        T value_critic_1 = get(next_state_action_value_critic_1_matrix_view, batch_step_i+TARGET_OFFSET, 0); // + BATCH_SIZE because it is (SEQUENCE_LENGTH x BATCH_SIZE) and we want to get the value of the next step
+        T value_critic_2 = get(next_state_action_value_critic_2_matrix_view, batch_step_i+TARGET_OFFSET, 0);
         // }
         T min_next_state_action_value = math::min(device.math, value_critic_1, value_critic_2);
         auto rewards_matrix_view = matrix_view(device, batch.rewards);
