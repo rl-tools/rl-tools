@@ -80,8 +80,11 @@ namespace rl_tools::rl::components::off_policy_runner {
         OBSERVATIONS_PRIVILEGED_TYPE next_observations_privileged;
     };
 
-    template<typename T, typename TI, TI SEQUENCE_LENGTH>
-    struct SequentialBatchParameters{
+    // the following two base types are used to warn users when they changed the sequence length but not specify custom batch sampling parameters
+    struct Dummy{};
+    struct SequentialBatchParametersDefault{};
+    template<typename T, typename TI, TI SEQUENCE_LENGTH, typename BASE=Dummy>
+    struct SequentialBatchParameters: BASE{
         static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = SEQUENCE_LENGTH > 1; // This should be false for Markovian environments (that have SEQUENCE_LENGTH == 1). For non-Markovian environments (e.g. partial observable) this should be true, especially for environments, where the first step in the environment matters (like the flag environment, where crucial information is only revealed on the first step). In that case please also make sure to configure the batch sampling accordingly: check the other BATCH_SAMPLIN_* parameters.
         static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = SEQUENCE_LENGTH > 1;
         static constexpr bool RANDOM_SEQ_LENGTH = SEQUENCE_LENGTH > 1;
