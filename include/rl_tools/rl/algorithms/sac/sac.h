@@ -29,9 +29,6 @@ namespace rl_tools::rl::algorithms::sac {
         static constexpr T LOG_STD_LOWER_BOUND = -20;
         static constexpr T LOG_STD_UPPER_BOUND = 2;
         static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
-        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = !(SEQUENCE_LENGTH == 1);
-
-
     };
 
     template<
@@ -45,7 +42,8 @@ namespace rl_tools::rl::algorithms::sac {
         typename T_ACTOR_OPTIMIZER,
         typename T_CRITIC_OPTIMIZER,
         typename T_ALPHA_OPTIMIZER,
-        typename T_PARAMETERS
+        typename T_PARAMETERS,
+        bool T_INCLUDE_FIRST_STEP_IN_TARGETS
     >
     struct Specification{
         using T = T_T;
@@ -59,6 +57,7 @@ namespace rl_tools::rl::algorithms::sac {
         using CRITIC_OPTIMIZER = T_CRITIC_OPTIMIZER;
         using ALPHA_OPTIMIZER = T_ALPHA_OPTIMIZER;
         using PARAMETERS = T_PARAMETERS;
+        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = T_INCLUDE_FIRST_STEP_IN_TARGETS;
     };
 
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
@@ -106,7 +105,7 @@ namespace rl_tools::rl::algorithms::sac {
         using TI = typename SPEC::TI;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
         static constexpr TI SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH;
-        static constexpr TI NEXT_SEQUENCE_LENGTH = SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? SEQUENCE_LENGTH + 1 : SEQUENCE_LENGTH;
+        static constexpr TI NEXT_SEQUENCE_LENGTH = SPEC::INCLUDE_FIRST_STEP_IN_TARGETS ? SEQUENCE_LENGTH + 1 : SEQUENCE_LENGTH;
         static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static constexpr TI CRITIC_OBSERVATION_DIM = get_last(typename SPEC::CRITIC_NETWORK_TYPE::INPUT_SHAPE{}) - SPEC::ENVIRONMENT::ACTION_DIM;

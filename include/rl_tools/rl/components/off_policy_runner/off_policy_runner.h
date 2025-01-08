@@ -80,7 +80,16 @@ namespace rl_tools::rl::components::off_policy_runner {
         OBSERVATIONS_PRIVILEGED_TYPE next_observations_privileged;
     };
 
-    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_ALWAYS_SAMPLE_FROM_INITIAL_STATE, bool T_INCLUDE_FIRST_STEP_IN_TARGETS, bool T_DYNAMIC_ALLOCATION=true>
+    template<typename T, typename TI, TI SEQUENCE_LENGTH>
+    struct SequentialBatchParameters{
+        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = SEQUENCE_LENGTH > 1; // This should be false for Markovian environments (that have SEQUENCE_LENGTH == 1). For non-Markovian environments (e.g. partial observable) this should be true, especially for environments, where the first step in the environment matters (like the flag environment, where crucial information is only revealed on the first step). In that case please also make sure to configure the batch sampling accordingly: check the other BATCH_SAMPLIN_* parameters.
+        static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = SEQUENCE_LENGTH > 1;
+        static constexpr bool RANDOM_SEQ_LENGTH = SEQUENCE_LENGTH > 1;
+        static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+        static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
+    };
+
+    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, typename T_PARAMETERS = SequentialBatchParameters<typename T_SPEC::T, typename T_SPEC::TI, T_SEQUENCE_LENGTH>, bool T_DYNAMIC_ALLOCATION=true>
     struct SequentialBatchSpecification{
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
@@ -88,9 +97,9 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI PADDED_SEQUENCE_LENGTH = SEQUENCE_LENGTHH + 1;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-        static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = T_ALWAYS_SAMPLE_FROM_INITIAL_STATE;
-        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = T_INCLUDE_FIRST_STEP_IN_TARGETS;
+        using PARAMETERS = T_PARAMETERS;
     };
+
 
     template <typename T_SPEC>
     struct SequentialBatch{
@@ -117,7 +126,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         template<typename BASE>
         using OA_VIEW = typename BASE::template VIEW_RANGE<tensor::ViewSpec<0, SEQUENCE_LENGTHH>>;
 
-        static constexpr TI TARGET_SEQUENCE_LENGTH = T_SPEC::INCLUDE_FIRST_STEP_IN_TARGETS ? PADDED_SEQUENCE_LENGTH : SEQUENCE_LENGTHH;
+        static constexpr TI TARGET_SEQUENCE_LENGTH = T_SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? PADDED_SEQUENCE_LENGTH : SEQUENCE_LENGTHH;
         template<typename BASE>
         using OA_VIEW_NEXT = typename BASE::template VIEW_RANGE<tensor::ViewSpec<0, TARGET_SEQUENCE_LENGTH>>;
 
