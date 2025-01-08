@@ -43,9 +43,10 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE_COMPILE){
     rlt::Tensor<rlt::tensor::Specification<T, TI, output::SHAPE>> output_imported;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    typename DEVICE::SPEC::RANDOM::ENGINE<> rng;
 
 
+    rlt::init(device, rng, 0);
     rlt::malloc(device, buffer);
     rlt::malloc(device, output_imported);
 
