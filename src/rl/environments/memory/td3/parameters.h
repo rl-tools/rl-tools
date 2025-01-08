@@ -44,6 +44,15 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParame
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
     static constexpr bool SHARED_BATCH = false;
+
+    struct BATCH_SAMPLING_PARAMETERS{
+        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = false;
+        static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+        static constexpr bool RANDOM_SEQ_LENGTH = true;
+        static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+        static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
+    };
+
     struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
         static constexpr T ALPHA = 1e-3;
         static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
@@ -56,7 +65,7 @@ using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #else
 
-using RNG = decltype(rlt::random::default_engine(DEVICE{}));
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsGRU>;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_EXTRACK_CONFIG>{
