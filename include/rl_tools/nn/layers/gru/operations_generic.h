@@ -196,7 +196,7 @@ namespace rl_tools{
             }
             template <typename DEVICE, typename MODE>
             auto num_resets(DEVICE& device, const Mode<MODE>& mode){
-                static_assert(false, "This should not be called");
+                // static_assert(false, "This should not be called");
                 return 1;
             }
         }

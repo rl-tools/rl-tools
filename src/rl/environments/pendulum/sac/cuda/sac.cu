@@ -136,7 +136,7 @@ int main() {
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 rlt::randn(device, ts.action_noise_critic, ts.rng);
-                rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_target_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_target_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
             }
             cudaStreamEndCapture(device.stream, &critic_training_graph);
             device.graph_capture_active = false;
@@ -207,7 +207,7 @@ int main() {
                     for(TI critic_i = 0; critic_i < 2; critic_i++){
                         rlt::gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                         rlt::randn(device, ts.action_noise_critic, ts.rng);
-                        rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                        rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_target_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_target_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
                     }
                 }
                 if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
