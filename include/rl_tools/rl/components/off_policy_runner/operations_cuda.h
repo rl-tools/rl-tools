@@ -53,7 +53,7 @@ namespace rl_tools{
                 // printf("replay buffer pointer %p\n", replay_buffer.data._data);
                 // printf("replay buffer view pointer %p\n", replay_buffer.observations._data);
                 // printf("batch pointer %p\n", batch.observations_actions_next_observations._data);
-                // gather_batch_step<DETERMINISTIC>(device, runner, replay_buffer, batch, batch_step_i, rng_state);
+                gather_batch_step<DETERMINISTIC>(device, runner, replay_buffer, batch, batch_step_i, rng_state);
             }
         }
 
