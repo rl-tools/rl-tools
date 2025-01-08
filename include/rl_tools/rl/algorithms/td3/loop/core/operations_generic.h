@@ -23,11 +23,15 @@ namespace rl_tools{
         malloc(device, ts.critic_training_buffers);
         malloc(device, ts.critic_buffers[0]);
         malloc(device, ts.critic_buffers[1]);
+        malloc(device, ts.critic_target_buffers[0]);
+        malloc(device, ts.critic_target_buffers[1]);
         malloc(device, ts.actor_batch);
         malloc(device, ts.actor_training_buffers);
         malloc(device, ts.actor_buffers_eval);
         malloc(device, ts.actor_buffers[0]);
         malloc(device, ts.actor_buffers[1]);
+        malloc(device, ts.actor_target_buffers[0]);
+        malloc(device, ts.actor_target_buffers[1]);
         for(auto& env: ts.envs){
             rl_tools::malloc(device, env);
         }
@@ -40,11 +44,15 @@ namespace rl_tools{
         free(device, ts.critic_training_buffers);
         free(device, ts.critic_buffers[0]);
         free(device, ts.critic_buffers[1]);
+        free(device, ts.critic_target_buffers[0]);
+        free(device, ts.critic_target_buffers[1]);
         free(device, ts.actor_batch);
         free(device, ts.actor_training_buffers);
         free(device, ts.actor_buffers_eval);
         free(device, ts.actor_buffers[0]);
         free(device, ts.actor_buffers[1]);
+        free(device, ts.actor_target_buffers[0]);
+        free(device, ts.actor_target_buffers[1]);
         for(auto& env: ts.envs){
             rl_tools::free(device, env);
         }
@@ -94,7 +102,7 @@ namespace rl_tools{
                         auto action_noise_matrix_view = matrix_view(device, ts.critic_training_buffers.target_next_action_noise);
                         target_action_noise(device, ts.actor_critic, action_noise_matrix_view, ts.rng);
                     }
-                    train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.rng);
+                    train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.actor_target_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_target_buffers[critic_i], ts.critic_training_buffers, ts.rng);
                 }
             }
             if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){

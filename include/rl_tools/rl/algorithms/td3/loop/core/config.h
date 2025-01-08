@@ -39,6 +39,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         static constexpr T EXPLORATION_NOISE = 0.1;
         static constexpr bool SHARED_BATCH = true;
 
+        using BATCH_SAMPLING_PARAMETERS = rl::components::off_policy_runner::SequentialBatchParameters<T, TI, TD3_PARAMETERS::SEQUENCE_LENGTH>;
+
         using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
     };
 
@@ -84,6 +86,10 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, T_DYNAMIC_ALLOCATION>;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
+        static constexpr TI TARGET_SEQUENCE_LENGTH = CORE_PARAMETERS::TD3_PARAMETERS::SEQUENCE_LENGTH + (CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? 1 : 0);
+
+        using CRITIC_BATCH_SPEC = rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::SEQUENCE_LENGTH, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, typename CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS, DYNAMIC_ALLOCATION>;
+        using ACTOR_BATCH_SPEC = rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::SEQUENCE_LENGTH, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, typename CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS, DYNAMIC_ALLOCATION>;
         template <typename CONFIG>
         using State = State<CONFIG>;
     };
