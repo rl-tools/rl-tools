@@ -97,6 +97,13 @@ namespace rl_tools{
                         ui_jsmf << ui;
                         std::cout << "UI written to: " << ts.extrack_seed_path / "ui.esm.js" << std::endl;
                     }
+                    std::string description = get_description(device, ts.env_eval);
+                    if(!description.empty()){
+                        std::filesystem::create_directories(ts.extrack_seed_path);
+                        std::ofstream description_file(ts.extrack_seed_path / "description.txt");
+                        description_file << description;
+                        std::cout << "Description written to: " << ts.extrack_seed_path / "description.txt" << std::endl;
+                    }
                 }
                 typename TS::SAVE_TRAJECTORIES_ACTOR_TYPE evaluation_actor;
                 malloc(device, evaluation_actor);

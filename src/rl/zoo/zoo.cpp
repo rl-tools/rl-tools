@@ -42,10 +42,9 @@
 #include "pendulum-v1/sac.h"
 #include "pendulum-v1/td3.h"
 #include "pendulum-v1/ppo.h"
+#include "flag/sac.h"
+#include "flag/td3.h"
 #include "flag/ppo.h"
-#include "flag-memory/sac.h"
-#include "flag-memory/td3.h"
-#include "flag-memory/ppo.h"
 #include "acrobot-swingup-v0/sac.h"
 #include "bottleneck-v0/ppo.h"
 #ifdef RL_TOOLS_EXPERIMENTAL
@@ -110,10 +109,6 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to ha
 using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::sac::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
-#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG_MEMORY)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::flag_memory::sac::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
-template <typename BASE>
-struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
@@ -151,10 +146,6 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::ppo::FACTORY<DEVICE, T, TI, 
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
-template <typename BASE>
-struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
-#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG_MEMORY)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::flag_memory::ppo::FACTORY<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
@@ -224,8 +215,6 @@ std::string algorithm = "ppo";
 std::string environment = "pendulum-v1";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 std::string environment = "flag";
-#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG_MEMORY)
-std::string environment = "flag-memory";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
 std::string environment = "acrobot-swingup-v0";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_BOTTLENECK_V0)

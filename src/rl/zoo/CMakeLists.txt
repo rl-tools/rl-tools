@@ -32,34 +32,12 @@ target_link_libraries(rl_zoo_flag_sac PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_sac)
 target_compile_definitions(rl_zoo_flag_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_flag_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
-
-# TD3
-add_executable(rl_zoo_flag_td3 zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_flag_td3 PRIVATE RLtools::RLtools)
-RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_td3)
-target_compile_definitions(rl_zoo_flag_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
-target_compile_definitions(rl_zoo_flag_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
-
 # PPO
 add_executable(rl_zoo_flag_ppo zoo_cli.cpp zoo.cpp)
 target_link_libraries(rl_zoo_flag_ppo PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_ppo)
 target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
-
-# Flag Memory
-# SAC
-add_executable(rl_zoo_flag_memory_sac zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_flag_memory_sac PRIVATE RLtools::RLtools)
-RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_memory_sac)
-target_compile_definitions(rl_zoo_flag_memory_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
-target_compile_definitions(rl_zoo_flag_memory_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG_MEMORY)
-# PPO
-add_executable(rl_zoo_flag_memory_ppo zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_flag_memory_ppo PRIVATE RLtools::RLtools)
-RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_memory_ppo)
-target_compile_definitions(rl_zoo_flag_memory_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
-target_compile_definitions(rl_zoo_flag_memory_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG_MEMORY)
 
 # AcrobotSwingup-v0
 # SAC
