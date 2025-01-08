@@ -105,6 +105,19 @@ namespace rl_tools{
         malloc(device, batch.next_final_step_mask_base);
         update_views(device, batch);
     }
+    template <typename DEVICE, typename BATCH_SPEC>
+    void free(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
+        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
+        free(device, batch.observations_actions_base);
+        free(device, batch.rewards);
+        free(device, batch.terminated);
+        free(device, batch.truncated);
+        free(device, batch.reset);
+        free(device, batch.next_reset_base);
+        free(device, batch.final_step_mask);
+        free(device, batch.next_final_step_mask_base);
+        update_views(device, batch);
+    }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
         free(device, buffers.observations);
@@ -135,21 +148,6 @@ namespace rl_tools{
         free(device, runner.replay_buffers);
         free(device, runner.episode_stats);
         free(device, runner.policy_states);
-    }
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch){
-        free(device, batch.observations_actions);
-        batch.observations.                 _data = nullptr;
-        batch.observations_privileged.      _data = nullptr;
-        batch.observations_and_actions.     _data = nullptr;
-        batch.actions.                      _data = nullptr;
-        free(device, batch.rewards);
-        free(device, batch.terminated);
-        free(device, batch.truncated);
-        free(device, batch.reset);
-        free(device, batch.next_reset_base);
-        free(device, batch.final_step_mask);
-        free(device, batch.next_final_step_mask_base);
     }
     template<typename DEVICE, typename SPEC>
     void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){

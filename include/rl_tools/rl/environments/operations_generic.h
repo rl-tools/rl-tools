@@ -22,6 +22,8 @@ namespace rl_tools{
     void set_truncated(DEVICE&, ENV&, PARAMS&, rl::environments::DummyUI, STATE&){};
     template <typename DEVICE, typename ENV>
     auto get_ui(DEVICE&, ENV&){return "";}
+    template <typename DEVICE, typename ENV>
+    auto get_description(DEVICE&, ENV&){return "";}
     template<typename DEVICE, typename ENVIRONMENT, typename PARAMETERS, typename STATE, typename ACTION, typename RNG>
     void log_reward(DEVICE& device, ENVIRONMENT& env, PARAMETERS& parameters, const STATE& state, ACTION& action, STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){}
 }
