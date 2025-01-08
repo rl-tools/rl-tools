@@ -22,6 +22,7 @@ class Run{
     load(node){
         this.ui_js = "ui.js" in node.children ? node.children["ui.js"] : null
         this.ui_jsm = "ui.esm.js" in node.children ? node.children["ui.esm.js"] : null
+        this.description = "description.txt" in node.children ? node.children["description.txt"] : null
         this.return = "return.json" in node.children ? node.children["return.json"] : null
         this.steps = {}
         if("steps" in node.children){

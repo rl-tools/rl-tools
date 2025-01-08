@@ -50,6 +50,22 @@ export class ShowRun{
         description.appendChild(checkpoint_label)
         description.appendChild(latest_run_checkpoint)
 
+        if(run.description){
+            description.appendChild(document.createElement("br"))
+            const description_label = document.createElement("b")
+            description_label.innerText = "Description: "
+            const description_button = document.createElement("button")
+            description_button.classList.add("info-button")
+            description_button.innerText = "i"
+            description_button.onclick = () => {
+                fetch(run.description).then(response => response.text()).then(text => {
+                    alert(text)
+                })
+            }
+            description.appendChild(description_label)
+            description.appendChild(description_button)
+        }
+
         container.appendChild(description)
 
         const trajectory_player_container = document.createElement("div")
