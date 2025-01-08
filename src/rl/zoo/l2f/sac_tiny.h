@@ -7,6 +7,7 @@
 
 // run this as MKL_NUM_THREADS=1 /usr/bin/time sudo -E nice -n-20 cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac_benchmark
 // in the best case this yields < 1s on an AMD Ryzen 9 7945HX
+// Time: 0.802s for 18bf22433e7a6b075d864088ac4768a51f72a75b when using 7945HX
 
 
 namespace rl_tools::rl::zoo::l2f::sac{
