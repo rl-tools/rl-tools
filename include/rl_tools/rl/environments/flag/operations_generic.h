@@ -102,7 +102,9 @@ namespace rl_tools{
         using ENVIRONMENT = rl::environments::Flag<SPEC>;
         using STATE = typename rl::environments::Flag<SPEC>::State;
         T reward = 0;
-        if(next_state.state_machine == STATE::StateMachine::FLAG_1_VISITED){
+        bool visited_flag_1 = state.state_machine != STATE::StateMachine::FLAG_1_VISITED && next_state.state_machine == STATE::StateMachine::FLAG_1_VISITED;
+        bool visited_flag_2 = state.state_machine != STATE::StateMachine::FLAG_2_VISITED && next_state.state_machine == STATE::StateMachine::FLAG_2_VISITED;
+        if(visited_flag_1 || visited_flag_2){
             reward = 1000;
         }
         else{
@@ -165,7 +167,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State state, RNG& rng){
-        return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_1_VISITED;
+        return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_2_VISITED;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
