@@ -82,8 +82,8 @@ namespace rl_tools{
         batch.observations_and_actions_current = view_range(device, batch.observations_and_actions_base, 0, tensor::ViewSpec<0, SPEC::SEQUENCE_LENGTHH>{});
         batch.actions_current                  = view_range(device, batch.actions_base, 0, tensor::ViewSpec<0, SPEC::SEQUENCE_LENGTHH>{});
 
-        constexpr TI NEXT_OFFSET = SPEC::INCLUDE_FIRST_STEP_IN_TARGETS ? 0 : 1;
-        constexpr TI NEXT_SIZE = SPEC::INCLUDE_FIRST_STEP_IN_TARGETS ? SPEC::PADDED_SEQUENCE_LENGTH : SPEC::SEQUENCE_LENGTHH;
+        constexpr TI NEXT_OFFSET = SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? 0 : 1;
+        constexpr TI NEXT_SIZE = SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? SPEC::PADDED_SEQUENCE_LENGTH : SPEC::SEQUENCE_LENGTHH;
         batch.observations_next = view_range(device, batch.observations_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
         batch.observations_privileged_next = view_range(device, batch.observations_privileged_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
         batch.observations_and_actions_next = view_range(device, batch.observations_and_actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
@@ -246,6 +246,7 @@ namespace rl_tools{
         constexpr TI PADDED_SEQUENCE_LENGTH = BATCH_SPEC::PADDED_SEQUENCE_LENGTH;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
         static_assert(PADDED_SEQUENCE_LENGTH >= 2, "PADDED_SEQUENCE_LENGTHSEQUENCE_LENGTH must be at least 2, such that the observation and next observation can be accommodated");
+        using PARAMETERS = typename BATCH_SPEC::PARAMETERS;
         // when the replay buffer is wrapping around it starts overwriting elements of some episode
         // hence the beginning of that episode might not be available anymore
         // hence we sample from position + MAX_EPISODE_LENGTH => wrap => position
@@ -257,11 +258,9 @@ namespace rl_tools{
         TI sample_index_max = eligible_sample_count - 1;
         TI sample_index = 0;
         // [-----------{current_position}[MAX_EPISODE_LENGTH-----]--------------------------]
-        constexpr bool RANDOM_SEQ_LENGTH = true;
-        constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
         TI current_seq_length = SEQUENCE_LENGTH;
-        if constexpr(RANDOM_SEQ_LENGTH){
-            if(random::uniform_real_distribution(device.random, 0.0, 1.0, rng) < NOMINAL_SEQUENCE_LENGTH_PROBABILITY){
+        if constexpr(PARAMETERS::RANDOM_SEQ_LENGTH){
+            if(PARAMETERS::ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY && random::uniform_real_distribution(device.random, 0.0, 1.0, rng) < PARAMETERS::NOMINAL_SEQUENCE_LENGTH_PROBABILITY){
                 current_seq_length = SEQUENCE_LENGTH;
             }
             else{
@@ -309,7 +308,7 @@ namespace rl_tools{
                 else{
                     sample_index = sample_offset;
                 }
-                if constexpr(BATCH_SPEC::ALWAYS_SAMPLE_FROM_INITIAL_STATE){
+                if constexpr(PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE){
                     TI new_sample_index = get(device, replay_buffer.episode_start, sample_index);
                     //                    log(device, device.logger, "sample_index: ", sample_index, " => ", new_sample_index);
                     sample_index = new_sample_index;
@@ -357,11 +356,11 @@ namespace rl_tools{
             if(seq_step_i == PADDED_SEQUENCE_LENGTH-2){
                 truncated = true;
             }
-            if constexpr(RANDOM_SEQ_LENGTH){
+            if constexpr(PARAMETERS::RANDOM_SEQ_LENGTH){
                 if(current_seq_step == current_seq_length - 1) {
                     truncated = true;
                     if(SEQUENCE_LENGTH > 1){
-                        if(random::uniform_real_distribution(device.random, 0.0, 1.0, rng) < NOMINAL_SEQUENCE_LENGTH_PROBABILITY){
+                        if(PARAMETERS::ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY && random::uniform_real_distribution(device.random, 0.0, 1.0, rng) < PARAMETERS::NOMINAL_SEQUENCE_LENGTH_PROBABILITY){
                             current_seq_length = SEQUENCE_LENGTH;
                         }
                         else{

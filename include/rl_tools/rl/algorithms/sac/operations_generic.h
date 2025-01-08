@@ -139,7 +139,7 @@ namespace rl_tools{
         constexpr TI SEQUENCE_LENGTH = BATCH::SEQUENCE_LENGTHH;
         auto next_state_action_value_critic_1_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_1);
         auto next_state_action_value_critic_2_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_2);
-        constexpr TI TARGET_OFFSET = BUFFER_SPEC::SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? BATCH_SIZE : 0;
+        constexpr TI TARGET_OFFSET = BATCH_SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? BATCH_SIZE : 0;
         T value_critic_1 = 0, value_critic_2 = 0;
         // if(batch_step_i / BATCH_SIZE != SEQUENCE_LENGTH-1){
             // the target values of the final step are undefined because it is a padding steps. The target observations are offset by one step, hence the +1 to get them into the right position for the MSBE (mean squared Bellman error) of the current step
@@ -254,7 +254,7 @@ namespace rl_tools{
 //        static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 //        static_assert(BATCH_SIZE == CRITIC_BUFFERS::INTERNAL_BATCH_SIZE);
 //        static_assert(BATCH_SIZE == ACTOR_BUFFERS::INTERNAL_BATCH_SIZE);
-        constexpr TI TARGET_SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH + (SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? 1 : 0);
+        constexpr TI TARGET_SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH + (BATCH_SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? 1 : 0);
         static_assert(TARGET_SEQUENCE_LENGTH * BATCH_SIZE == ACTION_NOISE_SPEC::ROWS);
         static_assert(ACTION_DIM == ACTION_NOISE_SPEC::COLS);
         static_assert(SPEC::PARAMETERS::MASK_NON_TERMINAL, "We currently assume that training is only performed on final steps. Otherwise there might be areas of the batch that are undefined memory (the current step observation is not set at the end of a sequence (in that step only the next observation is set). Additionally, the calculation of the target values assumes that there is no training on the last step because the target values are moved one step backwards to match the current MSBE");
