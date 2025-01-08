@@ -22,7 +22,6 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr T TARGET_ENTROPY = -2;
                 static constexpr T ALPHA = 1;
                 static constexpr bool ADAPTIVE_ALPHA = true;
-                static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
             };
             static constexpr TI STEP_LIMIT = 200000;
             static constexpr TI N_ENVIRONMENTS = 32;
@@ -37,7 +36,15 @@ namespace rl_tools::rl::zoo::flag::sac{
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr T ALPHA = 1.0;
-            static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = true;
+
+            // using BATCH_SAMPLING_PARAMETERS = rl::components::off_policy_runner::SequentialBatchParameters<T, TI, SAC_PARAMETERS::SEQUENCE_LENGTH>;
+            struct BATCH_SAMPLING_PARAMETERS{
+                static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
+                static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = true;
+                static constexpr bool RANDOM_SEQ_LENGTH = true;
+                static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+                static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
+            };
 
             struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr T ALPHA = 1e-4;
