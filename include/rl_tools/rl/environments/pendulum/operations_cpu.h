@@ -111,6 +111,12 @@ export async function render(ui_state, parameters, state, action) {
         )RL_TOOLS_LITERAL";
         return ui;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string get_description(DEVICE& device, rl::environments::Pendulum<SPEC>& env){
+        std::string description;
+        description += "C implementation of Pendulum-v1.";
+        return description;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
