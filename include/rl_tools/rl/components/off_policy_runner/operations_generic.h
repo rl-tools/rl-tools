@@ -253,8 +253,8 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG
         utils::assert_exit(device, replay_buffer.position > 0, "Replay buffer requires at least one element");
 #endif
-        static_assert(SPEC::CAPACITY >= RUNNER_SPEC::MAX_EPISODE_LENGTH);
-        TI eligible_sample_count = replay_buffer.full ? (SPEC::CAPACITY - RUNNER_SPEC::MAX_EPISODE_LENGTH) : replay_buffer.position;
+        static_assert(!PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE || SPEC::CAPACITY >= RUNNER_SPEC::MAX_EPISODE_LENGTH);
+        TI eligible_sample_count = replay_buffer.full ? (PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE ? (SPEC::CAPACITY - RUNNER_SPEC::MAX_EPISODE_LENGTH) : SPEC::CAPACITY) : replay_buffer.position; // if we sample from the initial state we need to invalidate the steps possibly remain after replay_buffer.position has overwritten the initial steps
         TI sample_index_max = eligible_sample_count - 1;
         TI sample_index = 0;
         // [-----------{current_position}[MAX_EPISODE_LENGTH-----]--------------------------]
