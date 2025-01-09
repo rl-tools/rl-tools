@@ -27,7 +27,7 @@ namespace rl_tools{
             rl::algorithms::sac::CriticTrainingBuffers<rl::algorithms::sac::CriticTrainingBuffersSpecification<typename CONFIG::ACTOR_CRITIC_SPEC, CONFIG::DYNAMIC_ALLOCATION>> critic_training_buffers[2];
             Matrix<matrix::Specification<T, TI, CONFIG::TARGET_SEQUENCE_LENGTH * CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM, CONFIG::DYNAMIC_ALLOCATION>> action_noise_critic;
             typename CONFIG::NN::CRITIC_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> critic_buffers[2];
-            using TARGET_CRITIC = typename utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])>::template CHANGE_SEQUENCE_LENGTH<TI, CONFIG::TARGET_SEQUENCE_LENGTH>;
+            using TARGET_CRITIC = typename rl_tools::utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])>::template CHANGE_SEQUENCE_LENGTH<TI, CONFIG::TARGET_SEQUENCE_LENGTH>;
             typename TARGET_CRITIC::template Buffer<CONFIG::DYNAMIC_ALLOCATION> critic_target_buffers[2];
             rl::components::off_policy_runner::SequentialBatch<typename CONFIG::ACTOR_BATCH_SPEC> actor_batch;
             rl::algorithms::sac::ActorTrainingBuffers<rl::algorithms::sac::ActorTrainingBuffersSpecification<typename CONFIG::ACTOR_CRITIC_TYPE::SPEC, CONFIG::DYNAMIC_ALLOCATION>> actor_training_buffers;

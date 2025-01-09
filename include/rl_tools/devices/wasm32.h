@@ -27,7 +27,10 @@ namespace rl_tools::devices{
     namespace random{
         struct WASM32:devices::random::Generic<devices::math::WASM32>, wasm32::Base{
             static constexpr Type TYPE = Type::random;
-            using State = unsigned;
+            template <typename T_ENGINE = void>
+            struct ENGINE{
+                unsigned state;
+            };
         };
     }
     namespace logging{

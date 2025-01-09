@@ -24,7 +24,7 @@ namespace rl_tools{
             rl::components::off_policy_runner::SequentialBatch<typename CONFIG::CRITIC_BATCH_SPEC> critic_batch;
             rl::algorithms::td3::CriticTrainingBuffers<rl::algorithms::td3::CriticTrainingBuffersSpecification<typename CONFIG::ACTOR_CRITIC_SPEC, CONFIG::DYNAMIC_ALLOCATION>> critic_training_buffers;
             typename CONFIG::NN::CRITIC_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> critic_buffers[2];
-            using TARGET_CRITIC = typename utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])>::template CHANGE_SEQUENCE_LENGTH<TI, CONFIG::TARGET_SEQUENCE_LENGTH>;
+            using TARGET_CRITIC = typename rl_tools::utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])>::template CHANGE_SEQUENCE_LENGTH<TI, CONFIG::TARGET_SEQUENCE_LENGTH>;
             typename TARGET_CRITIC::template Buffer<CONFIG::DYNAMIC_ALLOCATION> critic_target_buffers[2];
             rl::components::off_policy_runner::SequentialBatch<typename CONFIG::ACTOR_BATCH_SPEC> actor_batch;
 //            rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;

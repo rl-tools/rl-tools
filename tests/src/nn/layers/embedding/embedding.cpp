@@ -20,7 +20,6 @@ using EMBEDDING_LAYER = rlt::nn::layers::embedding::Layer<EMBEDDING_LAYER_CONFIG
 
 TEST(RL_TOOLS_NN_LAYERS_EMBEDDING, MAIN){
     DEVICE device;
-    // auto rng = rlt::random::default_engine(device, 0);
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     EMBEDDING_LAYER layer;
     EMBEDDING_LAYER::Buffer<> buffer;
