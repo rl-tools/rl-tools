@@ -143,8 +143,9 @@ namespace rl_tools{
     void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
         static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
         constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
-        static_assert(SAME_STRIDE);
-        if constexpr(SAME_STRIDE){
+        constexpr bool DENSE_ROW_MAJOR = tensor::dense_row_major_layout<FROM_SPEC>();
+        static_assert(SAME_STRIDE && DENSE_ROW_MAJOR, "Inter-device copy not implemented for stride mismatch, yet, use a dense layout for transfer");
+        if constexpr(SAME_STRIDE && DENSE_ROW_MAJOR){
             cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, from_device.stream);
             cudaStreamSynchronize(from_device.stream);
         }
@@ -156,8 +157,9 @@ namespace rl_tools{
     void copy(FROM_DEVICE& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
         static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
         constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
-        static_assert(SAME_STRIDE);
-        if constexpr(SAME_STRIDE){
+        constexpr bool DENSE_ROW_MAJOR = tensor::dense_row_major_layout<FROM_SPEC>();
+        static_assert(SAME_STRIDE && DENSE_ROW_MAJOR, "Inter-device copy not implemented for stride mismatch, yet, use a dense layout for transfer");
+        if constexpr(SAME_STRIDE && DENSE_ROW_MAJOR){
             cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, to_device.stream);
             cudaStreamSynchronize(to_device.stream);
         }
