@@ -103,7 +103,7 @@ simulate_parallel(DEVICE& device, const ENVIRONMENT* envs, ENVIRONMENT::Paramete
     __shared__ ENVIRONMENT this_env;
     __shared__ ENVIRONMENT::Parameters this_parameters;
     if(thread_id == 0){
-        this_env = envs[block_id * SPEC_SIMULATE::BLOCK_DIM];
+        this_env = envs[block_id];
         this_parameters = parameters[block_id * SPEC_SIMULATE::BLOCK_DIM];
     }
     __syncthreads();
@@ -150,7 +150,10 @@ int main(void) {
 
     DEVICE_CPU device_cpu;
 
-    auto rng = rlt::random::default_engine(device_cpu, 0);
+    DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device_cpu, rng);
+    rlt::init(device_cpu, rng, 0);
+
 
     ENVIRONMENT* envs_cpu = (ENVIRONMENT*)malloc(sizeof(ENVIRONMENT) * N_BLOCKS * N_THREADS);
     ENVIRONMENT::Parameters* parameters_cpu = (ENVIRONMENT::Parameters*)malloc(sizeof(ENVIRONMENT::Parameters) * N_BLOCKS * N_THREADS);
