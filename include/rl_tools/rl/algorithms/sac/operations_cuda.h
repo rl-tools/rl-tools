@@ -16,11 +16,13 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
             using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>;
             using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
-            constexpr TI BATCH_SIZE = BATCH::BATCH_SIZE;
+            constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
+            constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
+            constexpr TI N_VALUES = BATCH_SIZE * SEQUENCE_LENGTH;
             static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
             T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(log_alpha, 0, 0));
             TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(batch_step_i < BATCH_SIZE){
+            if(batch_step_i < N_VALUES){
                 target_action_values_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
             }
         }
@@ -31,8 +33,10 @@ namespace rl_tools{
         using T = typename BATCH_SPEC::SPEC::T;
         using TI = typename BATCH_SPEC::SPEC::TI;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
+        constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
+        constexpr TI N_VALUES = BATCH_SIZE * SEQUENCE_LENGTH;
         constexpr TI BLOCKSIZE_COLS = 32;
-        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(N_VALUES, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         devices::cuda::TAG<DEVICE, true> tag_device{};

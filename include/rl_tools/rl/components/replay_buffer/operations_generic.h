@@ -86,6 +86,7 @@ namespace rl_tools {
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::ReplayBuffer<SOURCE_SPEC>& source, rl::components::ReplayBuffer<TARGET_SPEC>& target) {
         copy(source_device, target_device, source.data, target.data);
+        copy(source_device, target_device, source.episode_start, target.episode_start);
         target.full = source.full;
         target.position = source.position;
     }
