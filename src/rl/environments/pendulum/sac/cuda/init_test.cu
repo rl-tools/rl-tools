@@ -64,7 +64,9 @@ int main(){
     rlt::init(device_cuda);
     LOOP_STATE ts;
     decltype(ts.actor_critic.actor) actor_cuda;
-    auto rng_cuda = rlt::random::default_engine(device_cuda);
+    DEVICE_CUDA::SPEC::RANDOM::ENGINE<> rng_cuda;
+    rlt::malloc(device_cuda, rng_cuda);
+    rlt::init(device_cuda, rng_cuda, 0);
     rlt::malloc(device_cuda, actor_cuda);
     rlt::malloc(device, ts);
     rlt::init(device, ts, 0);

@@ -257,7 +257,9 @@ int main(int argc, char** argv){
     }
     TI seed = IDENT ? 11 : arg_seed;
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, seed);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, seed);
     LOOP_STATE ts;
 #ifndef BENCHMARK
     ts.extrack_name = "dr-sac";

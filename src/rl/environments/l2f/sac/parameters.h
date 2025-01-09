@@ -99,6 +99,15 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
+
+    struct BATCH_SAMPLING_PARAMETERS{
+        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
+        static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+        static constexpr bool RANDOM_SEQ_LENGTH = true;
+        static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+        static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
+    };
+
     struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
         static constexpr T ALPHA = 1e-3;
         static constexpr bool ENABLE_BIAS_LR_FACTOR = false;

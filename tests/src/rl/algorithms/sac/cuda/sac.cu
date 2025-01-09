@@ -167,10 +167,10 @@ void test(T& return_value, T epsilon){
                         rlt::copy(device_init, device, ts_init.action_noise_critic, ts.action_noise_critic);
                     }
                     if constexpr(GPU_TRAINING) {
-                        rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
+                        rlt::train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
                     }
                     if constexpr(CPU_TRAINING){
-                        rlt::train_critic(device_init, ts_init.actor_critic, ts_init.actor_critic.critics[critic_i], ts_init.critic_batch, ts_init.actor_critic.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
+                        rlt::train_critic(device_init, ts_init.actor_critic, ts_init.actor_critic.critics[critic_i], ts_init.critic_batch, ts_init.actor_critic.critic_optimizers[critic_i], ts_init.actor_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_buffers[critic_i], ts_init.critic_training_buffers[critic_i], ts_init.action_noise_critic, ts_init.rng);
                     }
 
                     if(GPU_TRAINING && CPU_TRAINING && (step % (CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL * 100) == 0)) {
