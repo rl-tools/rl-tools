@@ -20,10 +20,13 @@ using EMBEDDING_LAYER = rlt::nn::layers::embedding::Layer<EMBEDDING_LAYER_CONFIG
 
 TEST(RL_TOOLS_NN_LAYERS_EMBEDDING, MAIN){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    // auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
     EMBEDDING_LAYER layer;
     EMBEDDING_LAYER::Buffer<> buffer;
 
+    rlt::malloc(device, rng);
+    rlt::init(device, rng);
     rlt::malloc(device, layer);
 //    rlt::init_weights(device, layer, rng);
     for(TI class_i = 0; class_i < NUM_CLASSES; class_i++){
