@@ -99,9 +99,9 @@ struct APPROXIMATOR_CONFIG{
     using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
     using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
     using CRITIC_TARGET_TYPE = typename Critic<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION_CRITIC>>::MODEL;
-    using ACTOR_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS>>;
-    using CRITIC_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS>>;
-    using ALPHA_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ALPHA_OPTIMIZER_PARAMETERS>>;
+    using ACTOR_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION_LOOP_STATE>>;
+    using CRITIC_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION_LOOP_STATE>>;
+    using ALPHA_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ALPHA_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION_LOOP_STATE>>;
 
 };
 
@@ -137,10 +137,10 @@ template <typename DEVICE, typename LOOP_STATE>
 void print_sizes(DEVICE& device, LOOP_STATE& ts){
     rlt::log(device, device.logger, "ActorCritic size: ", sizeof(ts.actor_critic));
     rlt::log(device, device.logger, "ActorCritic.actor size: ", sizeof(ts.actor_critic.actor));
-    rlt::log(device, device.logger, "ActorCritic.critic_1 size: ", sizeof(ts.actor_critic.critic_1));
-    rlt::log(device, device.logger, "ActorCritic.critic_2 size: ", sizeof(ts.actor_critic.critic_2));
-    rlt::log(device, device.logger, "ActorCritic.critic_target_1 size: ", sizeof(ts.actor_critic.critic_target_1));
-    rlt::log(device, device.logger, "ActorCritic.critic_target_2 size: ", sizeof(ts.actor_critic.critic_target_2));
+    rlt::log(device, device.logger, "ActorCritic.critics[0] size: ", sizeof(ts.actor_critic.critics[0]));
+    rlt::log(device, device.logger, "ActorCritic.critics[1] size: ", sizeof(ts.actor_critic.critics[1]));
+    rlt::log(device, device.logger, "ActorCritic.critics_target[0] size: ", sizeof(ts.actor_critic.critics_target[0]));
+    rlt::log(device, device.logger, "ActorCritic.critics_target[1] size: ", sizeof(ts.actor_critic.critics_target[1]));
     rlt::log(device, device.logger, "OffPolicyRunner size: ", sizeof(ts.off_policy_runner));
     rlt::log(device, device.logger, "OffPolicyRunner.replay_buffers size: ", sizeof(ts.off_policy_runner.replay_buffers));
     rlt::log(device, device.logger, "CriticBatch size: ", sizeof(ts.critic_batch));

@@ -16,7 +16,9 @@ void test(){
     DEVICE_MKL device_mkl;
     DEVICE_GENERIC device_generic;
     TI seed = 1;
-    auto rng = rlt::random::default_engine(device_mkl, seed);
+    DEVICE_MKL::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device_mkl, rng);
+    rlt::init(device_mkl, rng, seed);
 
 //    constexpr TI INPUT_DIM = 5;
 //    constexpr TI OUTPUT_DIM = 5;
