@@ -108,7 +108,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     TI step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
-    assert(step >= 0);
+    // assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     rlt::load(device, actor_critic.actor.content, step_group.getGroup("actor"));
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 100, 200>;
@@ -181,6 +181,13 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, FP_ACC) {
 //        std::cout << e << std::endl;
     }
 }
+struct SequentialBatchParameters{
+    static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = false;
+    static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+    static constexpr bool RANDOM_SEQ_LENGTH = false;
+    static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = false;
+    static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
+};
 TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 #ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
     UI ui;
@@ -207,17 +214,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     rlt::load(device, actor_critic.actor.content, data_file.getGroup("actor"));
     rlt::load(device, actor_critic.actor_target.content, data_file.getGroup("actor_target"));
-    rlt::load(device, actor_critic.critic_1.content, data_file.getGroup("critic_1"));
-    rlt::load(device, actor_critic.critic_target_1.content, data_file.getGroup("critic_target_1"));
-    rlt::load(device, actor_critic.critic_2.content, data_file.getGroup("critic_2"));
-    rlt::load(device, actor_critic.critic_target_2.content, data_file.getGroup("critic_target_2"));
+    rlt::load(device, actor_critic.critics[0].content, data_file.getGroup("critic_1"));
+    rlt::load(device, actor_critic.critics_target[0].content, data_file.getGroup("critic_target_1"));
+    rlt::load(device, actor_critic.critics[1].content, data_file.getGroup("critic_2"));
+    rlt::load(device, actor_critic.critics_target[1].content, data_file.getGroup("critic_target_2"));
 
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     rlt::malloc(device, off_policy_runner);
 
     rlt::reset_optimizer_state(device, actor_critic.actor_optimizer     , actor_critic.actor   );
-    rlt::reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
-    rlt::reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
+    rlt::reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critics[0]);
+    rlt::reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critics[1]);
     T mean_ratio_critic = 0;
     T mean_ratio_critic_grad = 0;
     T mean_ratio_critic_adam = 0;
@@ -228,17 +235,19 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     auto full_training_group = data_file.getGroup("full_training");
     auto steps_group = full_training_group.getGroup("steps");
     TI num_steps = std::min(steps_group.getNumberObjects(), (typename DEVICE::index_t)1000);
-    decltype(actor_critic.critic_1) pre_critic_1;
+    rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> pre_critic_1, pre_critic_2;
     rlt::malloc(device, pre_critic_1);
-    rlt::copy(device, device, actor_critic.critic_1, pre_critic_1);
+    rlt::malloc(device, pre_critic_2);
+    rlt::copy(device, device, actor_critic.critics[0], pre_critic_1);
+    rlt::copy(device, device, actor_critic.critics[1], pre_critic_2);
     decltype(actor_critic.actor) pre_actor;
     rlt::malloc(device, pre_actor);
     rlt::copy(device, device, actor_critic.actor, pre_actor);
-    decltype(actor_critic.critic_target_1) pre_critic_1_target;
+    rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])> pre_critic_1_target;
     rlt::malloc(device, pre_critic_1_target);
-    rlt::copy(device, device, actor_critic.critic_target_1, pre_critic_1_target);
+    rlt::copy(device, device, actor_critic.critics_target[0], pre_critic_1_target);
 
-    using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, 1, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
+    using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, 1, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, SequentialBatchParameters>;
     rlt::rl::components::off_policy_runner::SequentialBatch<CRITIC_BATCH_SPEC> critic_batch;
     rlt::rl::algorithms::td3::CriticTrainingBuffers<rlt::rl::algorithms::td3::CriticTrainingBuffersSpecification<ActorCriticType::SPEC>> critic_training_buffers;
     CRITIC_TYPE::Buffer<> critic_buffers[2];
@@ -247,7 +256,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     rlt::malloc(device, critic_buffers[0]);
     rlt::malloc(device, critic_buffers[1]);
 
-    using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, 1, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
+    using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, 1, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, SequentialBatchParameters>;
     rlt::rl::components::off_policy_runner::SequentialBatch<ACTOR_BATCH_SPEC> actor_batch;
     rlt::rl::algorithms::td3::ActorTrainingBuffers<rlt::rl::algorithms::td3::ActorTrainingBuffersSpecification<ActorCriticType::SPEC>> actor_training_buffers;
     ACTOR_TYPE::Buffer<> actor_buffers[2];
@@ -275,34 +284,36 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
             load(device, replay_buffer, batch);
 //            if (step_i == 0 && step_group.exist("pre_critic1")){
-//                decltype(actor_critic.critic_1) pre_critic_1_step;
+//                decltype(actor_critic.critics[0]) pre_critic_1_step;
 //                rlt::malloc(device, pre_critic_1_step);
 //                rlt::load(device, pre_critic_1_step, step_group.getGroup("pre_critic1"));
 //                rlt::reset_forward_state(device, pre_critic_1_step);
-//                rlt::reset_forward_state(device, actor_critic.critic_1);
-//                T pre_current_diff = abs_diff(device, pre_critic_1_step, actor_critic.critic_1);
+//                rlt::reset_forward_state(device, actor_critic.critics[0]);
+//                T pre_current_diff = abs_diff(device, pre_critic_1_step, actor_critic.critics[0]);
 //                ASSERT_EQ(pre_current_diff, 0);
 //                rlt::free(device, pre_critic_1_step);
 //            }
 
-            decltype(actor_critic.critic_1) post_critic_1;// = actor_critic.critic_1;
+            rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> post_critic_1, post_critic_2;// = actor_critic.critics[0];
             rlt::malloc(device, post_critic_1);
+            rlt::malloc(device, post_critic_2);
             rlt::load(device, post_critic_1.content, step_group.getGroup("critic1"));
+            rlt::load(device, post_critic_2.content, step_group.getGroup("critic2"));
 
 
             rlt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
-            rlt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_critic.critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers, rng);
+            rlt::train_critic(device, actor_critic, actor_critic.critics[0], critic_batch, actor_critic.critic_optimizers[0], actor_buffers[0], actor_buffers[0], critic_buffers[0], critic_buffers[0], critic_training_buffers, rng);
 
 
             rlt::reset_forward_state(device, pre_critic_1);
             rlt::reset_forward_state(device, post_critic_1);
-            rlt::reset_forward_state(device, actor_critic.critic_1);
+            rlt::reset_forward_state(device, actor_critic.critics[0]);
             auto reset_optimizer = actor_critic.critic_optimizers[0];
             rlt::reset_optimizer_state(device, reset_optimizer, pre_critic_1);
             rlt::reset_optimizer_state(device, reset_optimizer, post_critic_1);
-            decltype(actor_critic.critic_1) compare_critic;
+            rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> compare_critic;
             rlt::malloc(device, compare_critic);
-            rlt::copy(device, device, actor_critic.critic_1, compare_critic);
+            rlt::copy(device, device, actor_critic.critics[0], compare_critic);
             rlt::reset_optimizer_state(device, reset_optimizer, compare_critic);
 
             T pre_post_diff_per_weight = abs_diff(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
@@ -310,7 +321,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             T diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
             T pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
-            T diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1.content, actor_critic.critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
+            T diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1.content, actor_critic.critics[0].content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
             T diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
             T pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
@@ -321,14 +332,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
             if(verbose){
                 std:: cout << "    critic update" << std::endl;
-//                std::cout << "pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
-//                std::cout << "diff_target_per_weight: " << diff_target_per_weight << std::endl;
                 std::cout << "        update ratio     : " << diff_ratio << std::endl;
-//                std::cout << "pre_post_diff_grad_per_weight: " << pre_post_diff_grad_per_weight << std::endl;
-//                std::cout << "diff_target_grad_per_weight: " << diff_target_grad_per_weight << std::endl;
                 std::cout << "        update ratio grad: " << diff_ratio_grad << std::endl;
-//                std::cout << "pre_post_diff_adam_per_weight: " << pre_post_diff_adam_per_weight << std::endl;
-//                std::cout << "diff_target_adam_per_weight: " << diff_target_adam_per_weight << std::endl;
                 std::cout << "        update ratio adam: " << diff_ratio_adam << std::endl;
             }
             if(diff_ratio < 1e10){
@@ -354,9 +359,42 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 rlt::load(device, target_next_action_noise_matrix_view, step_group, "target_next_action_noise");
 
                 rlt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
-                rlt::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[1], actor_buffers[0], critic_buffers[0], critic_training_buffers, rng);
+                rlt::train_critic(device, actor_critic, actor_critic.critics[1], critic_batch, actor_critic.critic_optimizers[1], actor_buffers[0], actor_buffers[0], critic_buffers[0], critic_buffers[0], critic_training_buffers, rng);
             }
-            rlt::copy(device, device, actor_critic.critic_1, pre_critic_1);
+            {
+                rlt::reset_forward_state(device, pre_critic_1);
+                rlt::reset_forward_state(device, post_critic_1);
+                rlt::reset_forward_state(device, actor_critic.critics[0]);
+                auto reset_optimizer = actor_critic.critic_optimizers[0];
+                rlt::reset_optimizer_state(device, reset_optimizer, pre_critic_1);
+                rlt::reset_optimizer_state(device, reset_optimizer, post_critic_1);
+                rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> compare_critic;
+                rlt::malloc(device, compare_critic);
+                rlt::copy(device, device, actor_critic.critics[0], compare_critic);
+                rlt::reset_optimizer_state(device, reset_optimizer, compare_critic);
+
+                T pre_post_diff_per_weight = abs_diff(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
+                T diff_target_per_weight = abs_diff(device, post_critic_1.content, compare_critic.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
+                T diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
+
+                T pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
+                T diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1.content, actor_critic.critics[0].content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
+                T diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
+
+                T pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
+                T diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1.content, compare_critic.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
+                T diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
+
+                rlt::free(device, compare_critic);
+                rlt::copy(device, device, actor_critic.critics[0], pre_critic_1);
+
+                if(verbose){
+                    std:: cout << "    critic update" << std::endl;
+                    std::cout << "        update ratio     : " << diff_ratio << std::endl;
+                    std::cout << "        update ratio grad: " << diff_ratio_grad << std::endl;
+                    std::cout << "        update ratio adam: " << diff_ratio_adam << std::endl;
+                }
+            }
 
 //            if(false){//(step_i % 100 == 0){
 //                T diff = 0;
@@ -369,7 +407,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                    T current_value;
 //                    using current_value_layout = rlt::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, 1, 1>;
 //                    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1, current_value_layout>> current_value_matrix = {&current_value};
-//                    rlt::evaluate(device, actor_critic.critic_1, input_matrix, current_value_matrix);
+//                    rlt::evaluate(device, actor_critic.critics[0], input_matrix, current_value_matrix);
 ////                    T desired_value;
 ////                    rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
 ////                    rlt::evaluate(device, post_critic_1, input_matrix, desired_value_matrix);
@@ -486,17 +524,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 std:: cout << "    target update" << std::endl;
             }
             if (step_i == 0){
-                decltype(actor_critic.critic_target_1) pre_critic_1_target_step;
+                rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])> pre_critic_1_target_step;
                 rlt::malloc(device, pre_critic_1_target_step);
                 rlt::load(device, pre_critic_1_target_step.content, step_group.getGroup("pre_critic1_target"));
-                T pre_current_diff = abs_diff(device, pre_critic_1_target_step.content, actor_critic.critic_target_1.content);
+                T pre_current_diff = abs_diff(device, pre_critic_1_target_step.content, actor_critic.critics_target[0].content);
                 ASSERT_EQ(pre_current_diff, 0);
                 rlt::free(device, pre_critic_1_target_step);
             }
             else{
                 if (step_i >= ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE){
 
-                    decltype(actor_critic.critic_target_1) post_critic_1_target;
+                    rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])> post_critic_1_target;
                     rlt::malloc(device, post_critic_1_target);
                     rlt::load(device, post_critic_1_target.content, step_group.getGroup("critic1_target"));
 
@@ -504,7 +542,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                     rlt::update_actor_target(device, actor_critic);
 
                     T pre_post_diff_per_weight = abs_diff(device, pre_critic_1_target.content, post_critic_1_target.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
-                    T diff_target_per_weight = abs_diff(device, post_critic_1_target.content, actor_critic.critic_target_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
+                    T diff_target_per_weight = abs_diff(device, post_critic_1_target.content, actor_critic.critics_target[0].content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
                     T diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
                     if(verbose){
@@ -523,7 +561,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
                     mean_ratio_critic_target += diff_ratio;
 
-                    rlt::copy(device, device, actor_critic.critic_target_1, pre_critic_1_target);
+                    rlt::copy(device, device, actor_critic.critics_target[0], pre_critic_1_target);
 
 //                    if(true){//(step_i % 100 == 0){
 //                        T diff = 0;
@@ -534,7 +572,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                            rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> input_matrix = {input};
 //                            T current_value;
 //                            rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> current_value_matrix = {&current_value};
-//                            rlt::evaluate(device, actor_critic.critic_target_1, input_matrix, current_value_matrix);
+//                            rlt::evaluate(device, actor_critic.critics_target[0], input_matrix, current_value_matrix);
 //                            T desired_value;
 //                            rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
 //                            rlt::evaluate(device, post_critic_1_target, input_matrix, desired_value_matrix);
@@ -555,7 +593,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
             rlt::evaluate(device, env, env_parameters, ui, actor_critic.actor, result, actor_eval_buffers, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
 #ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
-            plot_policy_and_value_function<T, ENVIRONMENT, ActorCriticType::ACTOR_TYPE, ActorCriticType::CRITIC_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
+            plot_policy_and_value_function<T, ENVIRONMENT, ActorCriticType::ACTOR_TYPE, ActorCriticType::CRITIC_TYPE>(actor_critic.actor, actor_critic.critics[0], std::string("second_stage"), step_i);
 #endif
 #ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
             if(mean_return > -400){

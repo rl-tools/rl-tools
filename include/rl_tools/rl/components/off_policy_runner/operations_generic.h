@@ -98,7 +98,7 @@ namespace rl_tools{
         malloc(device, batch.observations_actions_base);
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
-        malloc(device, batch.truncated);
+        // malloc(device, batch.truncated);
         malloc(device, batch.reset);
         malloc(device, batch.next_reset_base);
         malloc(device, batch.final_step_mask);
@@ -111,7 +111,7 @@ namespace rl_tools{
         free(device, batch.observations_actions_base);
         free(device, batch.rewards);
         free(device, batch.terminated);
-        free(device, batch.truncated);
+        // free(device, batch.truncated);
         free(device, batch.reset);
         free(device, batch.next_reset_base);
         free(device, batch.final_step_mask);
@@ -357,14 +357,14 @@ namespace rl_tools{
                 truncated = true;
             }
             if constexpr(PARAMETERS::RANDOM_SEQ_LENGTH){
-                if(current_seq_step == current_seq_length - 1) {
+                if(current_seq_step == current_seq_length - 1){
                     truncated = true;
                     if(SEQUENCE_LENGTH > 1){
                         if(PARAMETERS::ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY && random::uniform_real_distribution(device.random, 0.0, 1.0, rng) < PARAMETERS::NOMINAL_SEQUENCE_LENGTH_PROBABILITY){
                             current_seq_length = SEQUENCE_LENGTH;
                         }
                         else{
-                            if constexpr(SEQUENCE_LENGTH > 1) {
+                            if constexpr(SEQUENCE_LENGTH > 1){
                                 current_seq_length = random::uniform_int_distribution(device.random, (TI) 1, SEQUENCE_LENGTH-1, rng);
                             }
                         }
@@ -382,7 +382,7 @@ namespace rl_tools{
             }
 
             if(seq_step_i < PADDED_SEQUENCE_LENGTH - 1){
-                set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
+                // set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
             }
             if(truncated){
                 if(seq_step_i < PADDED_SEQUENCE_LENGTH - 1){
