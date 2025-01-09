@@ -125,7 +125,7 @@ void train(){
 
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
-    rlt::init(device, rng, 1);
+    rlt::init(device, rng, 2);
 
     rlt::rl::environments::DummyUI ui;
 
@@ -157,10 +157,10 @@ void train(){
     std::cout << "ActorCritic size: " << sizeof(actor_critic) << std::endl;
     std::cout << "ActorCritic.actor size: " << sizeof(actor_critic.actor) << std::endl;
     std::cout << "ActorCritic.actor_target size: " << sizeof(actor_critic.actor_target) << std::endl;
-    std::cout << "ActorCritic.critic_1 size: " << sizeof(actor_critic.critic_1) << std::endl;
-    std::cout << "ActorCritic.critic_2 size: " << sizeof(actor_critic.critic_2) << std::endl;
-    std::cout << "ActorCritic.critic_target_1 size: " << sizeof(actor_critic.critic_target_1) << std::endl;
-    std::cout << "ActorCritic.critic_target_2 size: " << sizeof(actor_critic.critic_target_2) << std::endl;
+    std::cout << "ActorCritic.critics[0] size: " << sizeof(actor_critic.critics[0]) << std::endl;
+    std::cout << "ActorCritic.critics[1] size: " << sizeof(actor_critic.critics[1]) << std::endl;
+    std::cout << "ActorCritic.critics_target[0] size: " << sizeof(actor_critic.critics_target[0]) << std::endl;
+    std::cout << "ActorCritic.critics_target[1] size: " << sizeof(actor_critic.critics_target[1]) << std::endl;
     std::cout << "OffPolicyRunner size: " << sizeof(off_policy_runner) << std::endl;
     std::cout << "OffPolicyRunner.replay_buffers size: " << sizeof(off_policy_runner.replay_buffers) << std::endl;
     std::cout << "CriticBatch size: " << sizeof(critic_batch) << std::endl;
@@ -191,7 +191,7 @@ void train(){
                 auto target_next_action_noise_matrix_view = rlt::matrix_view(device, critic_training_buffers.target_next_action_noise);
                 rlt::target_action_noise(device, actor_critic, target_next_action_noise_matrix_view, rng);
                 rlt::gather_batch(device, off_policy_runner, critic_batch, rng);
-                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, critic_buffers, critic_training_buffers, rng);
+                rlt::train_critic(device, actor_critic, actor_critic.critics[critic_i], critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, actor_buffers, critic_buffers, critic_buffers, critic_training_buffers, rng);
             }
 
             if(step_i % 2 == 0){

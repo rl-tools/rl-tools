@@ -12,6 +12,8 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC>
     void malloc(devices::ARM<DEV_SPEC>& device, devices::random::ARM::ENGINE<SPEC>& rng){}
     template <typename DEV_SPEC, typename SPEC>
+    void free(devices::ARM<DEV_SPEC>& device, devices::random::ARM::ENGINE<SPEC>& rng){}
+    template <typename DEV_SPEC, typename SPEC>
     void init(devices::ARM<DEV_SPEC>& device, devices::random::ARM::ENGINE<SPEC>& rng, typename devices::ARM<DEV_SPEC>::index_t seed = 1){
         rng.state = 10000 + seed;
     };

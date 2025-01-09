@@ -11,60 +11,51 @@
 #include <limits>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::random{
-    // template <typename DEV_SPEC>
-    // auto default_engine(const devices::CPU<DEV_SPEC>& dev, devices::random::CPU::index_t seed = 0){
-    //     using RANDOM_ENGINE = std::mt19937;
-    //     return RANDOM_ENGINE(static_cast<RANDOM_ENGINE::result_type>(seed+1));
-    // };
-
-    template<typename T, typename RNG>
-    T uniform_int_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
-        return std::uniform_int_distribution<T>(low, high)(rng);
-    }
-    template <typename TI, typename RNG>
-    auto split(const devices::random::CPU& dev, TI split_id, RNG& rng){
-        // this operation should not alter the state of rng
-        RNG rng_copy = rng;
-        TI new_seed = random::uniform_int_distribution(dev, std::numeric_limits<TI>::min(), std::numeric_limits<TI>::max(), rng_copy);
-        return std::default_random_engine(new_seed + split_id);
-    }
-
-    template<typename T, typename RNG>
-    T uniform_real_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
-        static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
-        return std::uniform_real_distribution<T>(low, high)(rng);
-    }
-//    template<typename T, typename RNG>
-//    const std::normal_distribution<T> standard_normal_distribution(0, 1);
-    namespace normal_distribution{
-        template<typename T, typename RNG>
-        T sample(const devices::random::CPU& dev, T mean, T std, RNG& rng){
-            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
-            if(std == 0){
-                return mean;
-            }
-            else{
-                return std::normal_distribution<T>(mean, std)(rng);
-            }
-        }
-    }
-}
-RL_TOOLS_NAMESPACE_WRAPPER_END
-
-RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools {
+namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC>
-    void malloc(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng){
-    }
+    void malloc(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng){}
     template <typename DEV_SPEC, typename SPEC>
-    void free(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng){
-    }
+    void free(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng){}
     template <typename DEV_SPEC, typename SPEC>
     void init(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng, typename devices::CPU<DEV_SPEC>::index_t seed = 1){
         using ENGINE = devices::random::CPU::ENGINE<SPEC>;
         rng = ENGINE(static_cast<typename ENGINE::result_type>(seed+1));
     };
+    namespace random{
+        template<typename T, typename RNG>
+        T uniform_int_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
+            return std::uniform_int_distribution<T>(low, high)(rng);
+        }
+        template <typename TI, typename RNG>
+        auto split(const devices::random::CPU& dev, TI split_id, RNG& rng){
+            // this operation should not alter the state of rng
+            RNG rng_copy = rng;
+            TI new_seed = random::uniform_int_distribution(dev, std::numeric_limits<TI>::min(), std::numeric_limits<TI>::max(), rng_copy);
+            return std::default_random_engine(new_seed + split_id);
+        }
+
+        template<typename T, typename RNG>
+        T uniform_real_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
+            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+            return std::uniform_real_distribution<T>(low, high)(rng);
+        }
+    //    template<typename T, typename RNG>
+    //    const std::normal_distribution<T> standard_normal_distribution(0, 1);
+        namespace normal_distribution{
+            template<typename T, typename RNG>
+            T sample(const devices::random::CPU& dev, T mean, T std, RNG& rng){
+                static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+                if(std == 0){
+                    return mean;
+                }
+                else{
+                    return std::normal_distribution<T>(mean, std)(rng);
+                }
+            }
+        }
+
+    }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
