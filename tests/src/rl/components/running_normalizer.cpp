@@ -19,7 +19,9 @@ void test(){
     DEVICE device;
     rlt::Matrix<rlt::matrix::Specification<T, TI, ROWS, COLS>> data;
     rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, COLS>> running_normalizer;
-    auto rng = rlt::random::default_engine(DEVICE{});
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 1);
     rlt::malloc(device, data);
     rlt::malloc(device, running_normalizer);
     rlt::init(device, running_normalizer);

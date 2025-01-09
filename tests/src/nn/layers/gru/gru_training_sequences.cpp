@@ -122,7 +122,9 @@ void synthetic_sample(DEVICE& device, INPUT& input, OUTPUT& output_target, RESET
 
 int main(){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
 
     std::string data_path, file_name;
     std::string dataset_string;

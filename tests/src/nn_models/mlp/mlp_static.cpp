@@ -25,7 +25,9 @@ using MLP_STATIC = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY_ADAM_ST
 
 TEST(RL_TOOLS_NN_MODELS_MLP, STATIC){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
 
     MLP_DYNAMIC mlp_dynamic;
     MLP_DYNAMIC::Buffer<true> mlp_dynamic_buffer;

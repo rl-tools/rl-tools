@@ -25,7 +25,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 //using DEVICE = rlt::devices::DefaultCPU;
-using RNG = decltype(rlt::random::default_engine(DEVICE{}));
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = double;
 using TI = typename DEVICE::index_t;
 
@@ -48,7 +48,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr T ALPHA = 0.01;
     };
 };
-using RNG = decltype(rlt::random::default_engine(DEVICE{}));
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     TI seed = 0;

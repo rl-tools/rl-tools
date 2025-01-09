@@ -20,7 +20,9 @@ using ENV_UI = rlt::ui_server::client::UIWebSocket<ENVIRONMENT>;
 
 int main(){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     ENVIRONMENT env;
     ENVIRONMENT::Parameters env_parameters;
     ENV_UI ui;

@@ -39,7 +39,9 @@ using ACTOR = Actor<CAPABILITY>::MODEL;
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_COMPOSE, MAIN){
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE{});
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 1);
 
     ACTOR actor;
     using ACTOR_OTHER = ACTOR::CHANGE_BATCH_SIZE<TI, BATCH_SIZE_OTHER>;
