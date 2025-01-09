@@ -15,7 +15,10 @@ TEST(RL_ENVIRONMENTS_CAR, COMPARISON){
 
     DEVICE device;
     ENVIRONMENT env;
-    auto rng = rlt::random::default_engine(DEVICE{}, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
 
     ENVIRONMENT::Parameters parameters;
     ENVIRONMENT::State state, next_state;
