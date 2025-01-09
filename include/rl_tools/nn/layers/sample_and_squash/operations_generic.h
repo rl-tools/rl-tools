@@ -65,6 +65,8 @@ namespace rl_tools{
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::sample_and_squash::Buffer<SOURCE_SPEC>& source, nn::layers::sample_and_squash::Buffer<TARGET_SPEC>& target){
         copy(source_device, target_device, source.noise, target.noise);
+        copy(source_device, target_device, source.log_probabilities, target.log_probabilities);
+        copy(source_device, target_device, source.d_log_alpha, target.d_log_alpha);
     }
     template <typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, RNG& rng){ }
