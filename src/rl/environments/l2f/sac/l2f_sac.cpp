@@ -85,7 +85,9 @@ int main(){
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
     std::cout << "Sizeof training state: " << sizeof(ts) << std::endl;
-    auto myrng = rlt::random::default_engine(device, seed);
+    DEVICE::SPEC::RANDOM::ENGINE<> myrng;
+    rlt::malloc(device, myrng);
+    rlt::init(device, myrng, 0);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
