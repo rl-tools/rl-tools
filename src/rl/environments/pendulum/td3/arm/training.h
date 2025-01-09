@@ -123,7 +123,9 @@ void train(){
     DEVICE device;
     device.logger = logger;
 
-    auto rng = rlt::random::default_engine(device, 1);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 1);
 
     rlt::rl::environments::DummyUI ui;
 

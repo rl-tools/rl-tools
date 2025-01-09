@@ -36,7 +36,7 @@ constexpr bool AUTOMATIC_RESET = false;
 constexpr bool ENV_ZERO_ORIENTATION_INIT = false;
 
 using DEVICE = rlt::devices::DefaultCPU;
-using RNG = decltype(rlt::random::default_engine(DEVICE{}));
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -161,7 +161,9 @@ int main(){
 
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
 
     rlt::malloc(device, actor);
     rlt::malloc(device, actor_state);
