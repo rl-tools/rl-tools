@@ -8,7 +8,7 @@
 #include "operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::random{
+namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC>
     void malloc(devices::ARM<DEV_SPEC>& device, devices::random::ARM::ENGINE<SPEC>& rng){}
     template <typename DEV_SPEC, typename SPEC>
@@ -18,16 +18,16 @@ namespace rl_tools::random{
     namespace random{
         template<typename T, typename RNG>
         T uniform_int_distribution(const devices::random::ARM& dev, T low, T high, RNG& rng){
-            return uniform_int_distribution(devices::random::Generic<devices::math::ARM>{}, low, high, rng);
+            return uniform_int_distribution(devices::random::Generic<devices::math::ARM>{}, low, high, rng.state);
         }
         template<typename T, typename RNG>
         T uniform_real_distribution(const devices::random::ARM& dev, T low, T high, RNG& rng){
-            return uniform_real_distribution(devices::random::Generic<devices::math::ARM>{}, low, high, rng);
+            return uniform_real_distribution(devices::random::Generic<devices::math::ARM>{}, low, high, rng.state);
         }
         namespace normal_distribution{
             template<typename T, typename RNG>
             T sample(const devices::random::ARM& dev, T mean, T std, RNG& rng){
-                return sample(devices::random::Generic<devices::math::ARM>{}, mean, std, rng);
+                return sample(devices::random::Generic<devices::math::ARM>{}, mean, std, rng.state);
             }
         }
     }
