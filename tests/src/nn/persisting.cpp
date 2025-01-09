@@ -22,6 +22,7 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     NN_DEVICE device;
     OPTIMIZER optimizer;
     NetworkType network_1, network_2;
+    rlt::malloc(device, optimizer);
     rlt::malloc(device, network_1);
     rlt::malloc(device, network_2);
     std::mt19937 rng(2);

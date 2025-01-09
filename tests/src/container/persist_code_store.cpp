@@ -60,6 +60,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     using LAYER_SPEC = rlt::nn::layers::dense::Configuration<DTYPE, typename DEVICE::index_t, 3, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     rlt::nn::layers::dense::Layer<LAYER_SPEC, CAPABILITY_ADAM, INPUT_SHAPE> layer;
+    rlt::malloc(device, optimizer);
     rlt::malloc(device, layer);
     rlt::init_weights(device, layer, rng);
     rlt::zero_gradient(device, layer);

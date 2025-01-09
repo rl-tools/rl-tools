@@ -35,6 +35,8 @@ TEST(RL_TOOLS_NN_MODELS_MLP, STATIC){
     MLP_STATIC::Buffer<true> mlp_static_buffer;
     OPTIMIZER optimizer_dynamic, optimizer_static;
 
+    rlt::malloc(device, optimizer_dynamic);
+    rlt::malloc(device, optimizer_static);
     rlt::malloc(device, mlp_dynamic);
     rlt::malloc(device, mlp_dynamic_buffer);
     rlt::malloc(device, mlp_static_buffer);
