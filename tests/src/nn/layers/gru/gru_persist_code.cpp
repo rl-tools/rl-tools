@@ -67,6 +67,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
 
+    rlt::malloc(device, optimizer);
     rlt::malloc(device, gru);
     rlt::malloc(device, buffer);
     rlt::malloc(device, input);
