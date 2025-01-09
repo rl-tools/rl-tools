@@ -20,7 +20,10 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, DIM, false>> input, output;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE{});
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
+
     rlt::malloc(device, layer);
     rlt::malloc(device, buffer);
     rlt::init_weights(device, layer, rng);
@@ -44,7 +47,10 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, DIM>> input, output;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE{}, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
+
     rlt::malloc(device, layer);
     rlt::malloc(device, buffer);
     rlt::malloc(device, mean);

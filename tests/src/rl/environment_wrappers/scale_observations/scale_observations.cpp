@@ -21,7 +21,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS, IDENTITY_SCALING){
     WRAPPED_ENVIRONMENT wrapped_env;
     WRAPPED_ENVIRONMENT::State wrapped_state;
     WRAPPED_ENVIRONMENT::Parameters wrapped_parameters;
-    auto rng = rlt::random::default_engine(DEVICE{});
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
+
     auto wrapped_rng = rng;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM, false>> observation;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, WRAPPED_ENVIRONMENT::Observation::DIM, false>> wrapped_observation;
@@ -46,8 +49,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS, ACTUAL_SCALING){
     ENVIRONMENT::State state;
     WRAPPED_ENVIRONMENT wrapped_env;
     WRAPPED_ENVIRONMENT::State wrapped_state;
-    auto rng = rlt::random::default_engine(DEVICE{});
-    auto wrapped_rng = rng;
+    DEVICE::SPEC::RANDOM::ENGINE<> rng, wrapped_rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
+    wrapped_rng = rng;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM, false>> observation;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, WRAPPED_ENVIRONMENT::Observation::DIM, false>> wrapped_observation;
     rlt::initial_state(device, env, parameters, state);

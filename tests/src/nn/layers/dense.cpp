@@ -7,7 +7,7 @@ using T = float;
 using TI = typename DEVICE::index_t;
 DEVICE device;
 TI seed = 1;
-auto rng = rlt::random::default_engine(DEVICE{}, seed);
+DEVICE::SPEC::RANDOM::ENGINE<> rng;
 
 constexpr TI INPUT_DIM = 5;
 constexpr TI OUTPUT_DIM = 5;
@@ -25,6 +25,9 @@ using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, AC
 
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, seed);
 
     rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::capability::Forward<>, INPUT_SHAPE> layer;
     decltype(layer)::template Buffer<1> buffer;
@@ -50,6 +53,9 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
 }
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_TIMING) {
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, seed);
     rlt::Matrix<rlt::matrix::Specification<T, TI, 100, 100>> input;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 100, 100>> output;
     rlt::malloc(device, input);

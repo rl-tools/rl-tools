@@ -40,7 +40,9 @@ int main(){
     GRU::State<true> gru_state;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     GRU gru;
     GRU::Buffer<true> buffer;
     rlt::Mode<rlt::mode::Evaluation<>> mode;
