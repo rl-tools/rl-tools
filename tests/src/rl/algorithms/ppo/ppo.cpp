@@ -32,7 +32,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     {
         static constexpr T ALPHA = 0.001;
     };
-    auto rng = rlt::random::default_engine(DEVICE{}, 10);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 10);
+
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
@@ -42,6 +45,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     prl::CRITIC_BUFFERS critic_buffers;
     prl::CRITIC_BUFFERS_ALL critic_buffers_all;
 
+    rlt::malloc(device, actor_optimizer);
+    rlt::malloc(device, critic_optimizer);
     rlt::malloc(device, ppo);
     rlt::malloc(device, ppo_buffers);
     rlt::malloc(device, on_policy_runner_dataset);
