@@ -92,7 +92,9 @@ int main() {
     NN_DEVICE nn_device;
     rlt::malloc(device, off_policy_runner);
     rlt::malloc(device, actor_critic);
-    auto rng = rlt::random::default_engine(device);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng);
     rlt::init(device, actor_critic, rng);
 
     rlt::rl::environments::DummyUI ui;
@@ -136,7 +138,7 @@ int main() {
                 auto target_next_action_noise_matrix_view = rlt::matrix_view(device, critic_training_buffers.target_next_action_noise);
                 rlt::target_action_noise(device, actor_critic, target_next_action_noise_matrix_view, rng);
                 rlt::gather_batch(device, off_policy_runner, critic_batch, rng);
-                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers, rng);
+                rlt::train_critic(device, actor_critic, actor_critic.critics[critic_i], critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers[critic_i], actor_buffers[critic_i], critic_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers, rng);
             }
             if(step_i % 2 == 0){
                 rlt::gather_batch(device, off_policy_runner, actor_batch, rng);

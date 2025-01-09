@@ -94,7 +94,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         static constexpr TI TARGET_SEQUENCE_LENGTH = CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH + (CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? 1 : 0);
 
         static constexpr TI DEFAULT_SEQUENCE_LENGTH = DefaultParameters<T, TI, ENVIRONMENT>::SAC_PARAMETERS::SEQUENCE_LENGTH;
-        static constexpr bool USING_DEFAULT_BATCH_SAMPLING_PARAMETERS = utils::typing::is_base_of_v<components::off_policy_runner::SequentialBatchParametersDefault, typename CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS>;
+        static constexpr bool USING_DEFAULT_BATCH_SAMPLING_PARAMETERS = rl_tools::utils::typing::is_base_of_v<components::off_policy_runner::SequentialBatchParametersDefault, typename CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS>;
         static_assert(CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH == DEFAULT_SEQUENCE_LENGTH || !USING_DEFAULT_BATCH_SAMPLING_PARAMETERS, "When setting a custom sequence length, please study and set custom batch sampling parameters.");
 
         using CRITIC_BATCH_SPEC = rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::SEQUENCE_LENGTH, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, typename CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS, DYNAMIC_ALLOCATION>;
