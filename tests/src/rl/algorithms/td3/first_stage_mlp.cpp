@@ -527,9 +527,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 //    first_stage_second_stage::OPTIMIZER optimizer;
     first_stage_second_stage::NN_DEVICE nn_device;
     first_stage_second_stage::ActorCriticType actor_critic;
-//    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
-//    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
-//    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.actor_optimizer.parameters.epsilon_sqrt = 0;
+    actor_critic.critic_optimizers[0].parameters.epsilon_sqrt = 0;
+    actor_critic.critic_optimizers[1].parameters.epsilon_sqrt = 0;
     rlt::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
@@ -650,8 +650,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     std::cout << "mean_ratio: " << mean_ratio << std::endl;
     std::cout << "mean_ratio_grad: " << mean_ratio_grad << std::endl;
     std::cout << "mean_ratio_adam: " << mean_ratio_adam << std::endl;
-    ASSERT_GT(mean_ratio, 1e-15); // TANH introduces a lot of inaccuracy
-    ASSERT_GT(mean_ratio_grad, 1e-15);
-    ASSERT_GT(mean_ratio_adam, 1e-15);
+    ASSERT_GT(mean_ratio, 1e15); // TANH introduces a lot of inaccuracy
+    ASSERT_GT(mean_ratio_grad, 1e15);
+    ASSERT_GT(mean_ratio_adam, 1e15);
     rlt::free(device, replay_buffer);
 }
