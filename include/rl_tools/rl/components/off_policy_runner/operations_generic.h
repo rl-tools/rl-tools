@@ -84,13 +84,13 @@ namespace rl_tools{
 
         constexpr TI NEXT_OFFSET = SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? 0 : 1;
         constexpr TI NEXT_SIZE = SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? SPEC::PADDED_SEQUENCE_LENGTH : SPEC::SEQUENCE_LENGTHH;
-        batch.observations_next = view_range(device, batch.observations_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
-        batch.observations_privileged_next = view_range(device, batch.observations_privileged_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
-        batch.observations_and_actions_next = view_range(device, batch.observations_and_actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
-        batch.actions_next = view_range(device, batch.actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
+        batch.observations_next._data = view_range(device, batch.observations_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
+        batch.observations_privileged_next._data = view_range(device, batch.observations_privileged_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
+        batch.observations_and_actions_next._data = view_range(device, batch.observations_and_actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
+        batch.actions_next._data = view_range(device, batch.actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
 
-        batch.next_reset = view_range(device, batch.next_reset_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
-        batch.next_final_step_mask = view_range(device, batch.next_final_step_mask_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{});
+        batch.next_reset._data = view_range(device, batch.next_reset_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
+        batch.next_final_step_mask._data = view_range(device, batch.next_final_step_mask_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
     }
     template <typename DEVICE, typename BATCH_SPEC>
     void malloc(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
@@ -437,12 +437,14 @@ namespace rl_tools{
 //    }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::SequentialBatch<SOURCE_SPEC>& source, rl::components::off_policy_runner::SequentialBatch<TARGET_SPEC>& target){
-        copy(source_device, target_device, source.observations_actions, target.observations_actions);
+        copy(source_device, target_device, source.observations_actions_base, target.observations_actions_base);
         copy(source_device, target_device, source.rewards, target.rewards);
         copy(source_device, target_device, source.terminated, target.terminated);
-        copy(source_device, target_device, source.truncated, target.truncated);
+        // copy(source_device, target_device, source.truncated, target.truncated);
         copy(source_device, target_device, source.reset, target.reset);
+        copy(source_device, target_device, source.next_reset_base, target.next_reset_base);
         copy(source_device, target_device, source.final_step_mask, target.final_step_mask);
+        copy(source_device, target_device, source.next_final_step_mask_base, target.next_final_step_mask_base);
     }
     template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     typename SOURCE_SPEC::SPEC::T abs_diff(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SOURCE_SPEC>& source, rl::components::off_policy_runner::SequentialBatch<TARGET_SPEC>& target) {

@@ -53,7 +53,9 @@ using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     TI seed = 0;
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, seed);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, seed);
     using APPROXIMATORS = rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
@@ -73,6 +75,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::print(device, ACTOR::OUTPUT_SHAPE{});
     std::cout << std::endl;
 
+    rlt::malloc(device, actor_optimizer);
+    rlt::malloc(device, critic_optimizer);
     rlt::malloc(device, actor);
     rlt::malloc(device, actor_buffer);
     rlt::malloc(device, critic);

@@ -406,7 +406,9 @@ void test_matrix_multiplication_mkl_generic(){
     using DEVICE_GENERIC = rlt::devices::DefaultCPU;
     DEVICE_MKL device_mkl;
     DEVICE_GENERIC device;
-    auto rng = rlt::random::default_engine(device);
+    DEVICE_GENERIC::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     rlt::Matrix<rlt::matrix::Specification<T, TI, M, K>> A;
     rlt::Matrix<rlt::matrix::Specification<T, TI, K, N>> B;
     rlt::Matrix<rlt::matrix::Specification<T, TI, M, N>> C, C_target;

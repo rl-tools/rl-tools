@@ -73,6 +73,7 @@ int main(){
     rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
     rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
 
+    rlt::malloc(device, optimizer);
     rlt::malloc(device, network);
     rlt::malloc(device, buffers);
     rlt::malloc(device, x_train);
@@ -94,7 +95,9 @@ int main(){
 
 
     rlt::reset_optimizer_state(device, optimizer, network);
-    auto rng = rlt::random::default_engine(device, 2);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 2);
     rlt::init_weights(device, network, rng);
 
     constexpr TI NUM_BATCHES = DATASET_SIZE_TRAIN / BATCH_SIZE;

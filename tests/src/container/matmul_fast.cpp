@@ -44,7 +44,9 @@ template <TI M, TI N, TI K, TI ITERATIONS, bool DYNAMIC_ALLOCATION>
 void matmul(){
     DEVICE device;
     DEVICE_MKL device_mkl;
-    auto rng = rlt::random::default_engine(device);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
 
     rlt::Matrix<rlt::matrix::Specification<T, TI, M, K, DYNAMIC_ALLOCATION>> A;
     rlt::Matrix<rlt::matrix::Specification<T, TI, K, N, DYNAMIC_ALLOCATION>> B;
