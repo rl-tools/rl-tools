@@ -20,7 +20,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
 
     DEVICE device;
     using TI = typename DEVICE::index_t;
-    auto rng = rlt::random::default_engine(DEVICE{}, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
     for(typename DEVICE::index_t episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){

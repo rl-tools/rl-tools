@@ -84,7 +84,9 @@ protected:
         rlt::malloc(device, expected_output_input_layer);
         rlt::malloc(device, expected_output_output_layer);
         rlt::malloc(device, output_target);
-        auto rng = rlt::random::default_engine(DEVICE{});
+        DEVICE::SPEC::RANDOM::ENGINE<> rng;
+        rlt::malloc(device, rng);
+        rlt::init(device, rng, 1);
         rlt::malloc(device, network);
         rlt::malloc(device, network_buffers);
         rlt::malloc(device, d_input);

@@ -27,7 +27,9 @@ using TI = typename DEVICE::index_t;
 rlt::Matrix<rlt::matrix::Specification<T, TI, 2, 2>> A, B, C, C_mkl;
 DEVICE device;
 DEVICE_MKL device_mkl;
-auto rng = rlt::random::default_engine(DEVICE{}, 1);
+DEVICE::SPEC::RANDOM::ENGINE<> rng;
+rlt::malloc(device, rng);
+rlt::init(device, rng, 1);
 
 rlt::malloc(device, A);
 rlt::malloc(device, B);

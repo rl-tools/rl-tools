@@ -26,7 +26,9 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH
     rlt::malloc(device, output);
     rlt::malloc(device, buffer);
 
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
     rlt::copy(device, device, rl_tools_export::noise::container, buffer.content_buffer.next_content_buffer.buffer.noise);
@@ -52,7 +54,8 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH
     rlt::malloc(device, output);
     rlt::malloc(device, buffer);
 
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+rlt::malloc(device, rng); rlt::init(device, rng, 0);
 
     const rl_tools_export::model::TYPE module = rl_tools_export::model::factory_function(); // MSVC fix:
     rlt::evaluate(device, module, rl_tools_export::input::container, output, buffer, rng);

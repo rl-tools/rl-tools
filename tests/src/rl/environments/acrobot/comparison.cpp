@@ -20,7 +20,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE{}, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
     for(TI episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){

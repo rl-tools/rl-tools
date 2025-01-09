@@ -8,7 +8,7 @@
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using RNG = decltype(rlt::random::default_engine(DEVICE{}));
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -42,7 +42,9 @@ using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_
 
 int main() {
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::OUTPUT_SHAPE>> output;
     MODEL model;
