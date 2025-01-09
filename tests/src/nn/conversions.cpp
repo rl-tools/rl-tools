@@ -66,7 +66,9 @@ TEST(RL_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     rlt::malloc(device2, layer22);
     rlt::malloc(device2, layer222);
 
-    auto rng = rlt::random::default_engine(device2);
+    Device2::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device2, rng);
+    rlt::init(device2, rng, 0);
     rlt::init_weights(device2, layer2, rng);
     rlt::init_weights(device2, layer22, rng);
     rlt::init_weights(device2, layer222, rng);

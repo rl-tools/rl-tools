@@ -41,7 +41,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     OPTIMIZER optimizer;
     MLP policy;
     rlt::malloc(device, policy);
-    auto rng = rlt::random::default_engine(DEVICE{}, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     rlt::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;
     rlt::malloc(device, off_policy_runner);
@@ -59,7 +61,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
 TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
     DEVICE device;
     EXPLORATION_POLICY policy;
-    auto rng = rlt::random::default_engine(DEVICE{}, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     OffPolicyRunner off_policy_runner;
     rlt::malloc(device, off_policy_runner);
     ENVIRONMENT envs[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];
@@ -84,7 +88,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
         rlt::add(device, replay_buffer, state, observation, observation, action, reward, next_state, observation, observation, terminated, truncated);
     }
     constexpr TI SEQUENCE_LENGTH = 10;
-    OffPolicyRunner::SequentialBatch<SEQUENCE_LENGTH, BATCH_SIZE> batch;
+    rlt::rl::components::off_policy_runner::SequentialBatch<rlt::rl::components::off_policy_runner::SequentialBatchSpecification<OffPolicyRunnerSpec, SEQUENCE_LENGTH, BATCH_SIZE>> batch;
     rlt::malloc(device, batch);
 
     rlt::gather_batch(device, off_policy_runner, batch, rng);
@@ -97,9 +101,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
             if(seq_step_i > 0 && !reset){
                 ASSERT_EQ(previous_number+1, (TI)reward);
             }
-            T action = rlt::get(device, batch.actions, seq_step_i, batch_i, 0);
-            T observation = rlt::get(device, batch.observations, seq_step_i, batch_i, 0);
-            T observation_priv = rlt::get(device, batch.observations_privileged, seq_step_i, batch_i, 0);
+            T action = rlt::get(device, batch.actions_current, seq_step_i, batch_i, 0);
+            T observation = rlt::get(device, batch.observations_current, seq_step_i, batch_i, 0);
+            T observation_priv = rlt::get(device, batch.observations_privileged_current, seq_step_i, batch_i, 0);
             std::cout << "roa: " << reward << " | " << observation << " | " << observation_priv << " | " << action << " reset: " << reset << std::endl;
             previous_number = reward;
         }
