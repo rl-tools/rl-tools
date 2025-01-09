@@ -308,13 +308,18 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::reset_forward_state(device, pre_critic_1);
             rlt::reset_forward_state(device, post_critic_1);
             rlt::reset_forward_state(device, actor_critic.critics[0]);
-            auto reset_optimizer = actor_critic.critic_optimizers[0];
-            rlt::reset_optimizer_state(device, reset_optimizer, pre_critic_1);
-            rlt::reset_optimizer_state(device, reset_optimizer, post_critic_1);
             rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> compare_critic;
             rlt::malloc(device, compare_critic);
             rlt::copy(device, device, actor_critic.critics[0], compare_critic);
-            rlt::reset_optimizer_state(device, reset_optimizer, compare_critic);
+
+            {
+                rlt::utils::typing::remove_reference_t<decltype(actor_critic.critic_optimizers[0])> reset_optimizer;
+                rlt::malloc(device, reset_optimizer);
+                rlt::reset_optimizer_state(device, reset_optimizer, pre_critic_1);
+                rlt::reset_optimizer_state(device, reset_optimizer, post_critic_1);
+                rlt::reset_optimizer_state(device, reset_optimizer, compare_critic);
+                rlt::free(device, reset_optimizer);
+            }
 
             T pre_post_diff_per_weight = abs_diff(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
             T diff_target_per_weight = abs_diff(device, post_critic_1.content, compare_critic.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
@@ -360,40 +365,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
                 rlt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
                 rlt::train_critic(device, actor_critic, actor_critic.critics[1], critic_batch, actor_critic.critic_optimizers[1], actor_buffers[0], actor_buffers[0], critic_buffers[0], critic_buffers[0], critic_training_buffers, rng);
-            }
-            {
-                rlt::reset_forward_state(device, pre_critic_1);
-                rlt::reset_forward_state(device, post_critic_1);
-                rlt::reset_forward_state(device, actor_critic.critics[0]);
-                auto reset_optimizer = actor_critic.critic_optimizers[0];
-                rlt::reset_optimizer_state(device, reset_optimizer, pre_critic_1);
-                rlt::reset_optimizer_state(device, reset_optimizer, post_critic_1);
-                rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> compare_critic;
-                rlt::malloc(device, compare_critic);
-                rlt::copy(device, device, actor_critic.critics[0], compare_critic);
-                rlt::reset_optimizer_state(device, reset_optimizer, compare_critic);
-
-                T pre_post_diff_per_weight = abs_diff(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
-                T diff_target_per_weight = abs_diff(device, post_critic_1.content, compare_critic.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
-                T diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
-
-                T pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
-                T diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1.content, actor_critic.critics[0].content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
-                T diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
-
-                T pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1.content, post_critic_1.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
-                T diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1.content, compare_critic.content)/ActorCriticType::SPEC::CRITIC_TYPE::CONTENT::NUM_WEIGHTS;
-                T diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
-
-                rlt::free(device, compare_critic);
-                rlt::copy(device, device, actor_critic.critics[0], pre_critic_1);
-
-                if(verbose){
-                    std:: cout << "    critic update" << std::endl;
-                    std::cout << "        update ratio     : " << diff_ratio << std::endl;
-                    std::cout << "        update ratio grad: " << diff_ratio_grad << std::endl;
-                    std::cout << "        update ratio adam: " << diff_ratio_adam << std::endl;
-                }
             }
 
 //            if(false){//(step_i % 100 == 0){
@@ -464,13 +435,18 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::reset_forward_state(device, pre_actor);
             rlt::reset_forward_state(device, post_actor);
             rlt::reset_forward_state(device, actor_critic.actor);
-            auto reset_optimizer = actor_critic.actor_optimizer;
-            rlt::reset_optimizer_state(device, reset_optimizer, pre_actor);
-            rlt::reset_optimizer_state(device, reset_optimizer, post_actor);
             decltype(actor_critic.actor) compare_actor;
             rlt::malloc(device, compare_actor);
             rlt::copy(device, device, actor_critic.actor, compare_actor);
-            rlt::reset_optimizer_state(device, reset_optimizer, compare_actor);
+
+            {
+                rlt::utils::typing::remove_reference_t<decltype(actor_critic.critic_optimizers[0])> reset_optimizer;
+                rlt::malloc(device, reset_optimizer);
+                rlt::reset_optimizer_state(device, reset_optimizer, pre_actor);
+                rlt::reset_optimizer_state(device, reset_optimizer, post_actor);
+                rlt::reset_optimizer_state(device, reset_optimizer, compare_actor);
+                rlt::free(device, reset_optimizer);
+            }
 
             T pre_post_diff_per_weight = abs_diff(device, pre_actor.content, post_actor.content)/ActorCriticType::SPEC::ACTOR_TYPE::CONTENT::NUM_WEIGHTS;
             T diff_target_per_weight = abs_diff(device, post_actor.content, compare_actor.content)/ActorCriticType::SPEC::ACTOR_TYPE::CONTENT::NUM_WEIGHTS;
