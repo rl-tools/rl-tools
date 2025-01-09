@@ -35,7 +35,7 @@ namespace rlt = rl_tools;
 #include "approximators.h"
 
 using DEVICE = rlt::devices::DefaultCPU;
-using RNG = decltype(rlt::random::default_engine(DEVICE{}));
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -43,7 +43,9 @@ using TI = typename DEVICE::index_t;
 
 int main(){
     DEVICE device;
-    auto rng = rlt::random::default_engine(device, 0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     std::string checkpoint = "experiments/2024-08-28_11-19-30/e64577b_sequential_algorithm_environment/sac_memory/0001/steps/000000000010000/checkpoint.h5";
     using CONFIG = ConfigApproximatorsSequential<T, TI, SEQUENCE_LENGTH, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
     using CAPABILITY = rlt::nn::capability::Forward<>;

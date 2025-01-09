@@ -25,7 +25,7 @@
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultARM;
-using RNG = decltype(rlt::random::default_engine(DEVICE{}));
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 static constexpr bool DYNAMIC_ALLOCATION = false;
