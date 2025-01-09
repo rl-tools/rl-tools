@@ -243,7 +243,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, CPU_TRAINING) {
     using T = float;
     constexpr T epsilon = 1e-8;
     T return_value;
-    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    test<T, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
     ASSERT_GE(return_value, -200);
 }
 
@@ -258,7 +258,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_ROLLOUT) {
     using T = double;
     constexpr T epsilon = 1e-10;
     T return_value;
-    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    test<T, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
     ASSERT_GE(return_value, -200);
 }
 
@@ -273,7 +273,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_INIT_GPU_ACTOR_ROLLOUT_GPU_EVALUATION)
     using T = double;
     constexpr T epsilon = 1e-8;
     T return_value;
-    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    test<T, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
     ASSERT_GE(return_value, -200);
 }
 
@@ -288,7 +288,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, FULL_GPU_TRAINING) {
     using T = double;
     constexpr T epsilon = 1e10;
     T return_value;
-    test<T, 10000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    test<T, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
     ASSERT_GE(return_value, -200);
 }
 

@@ -96,7 +96,10 @@ namespace rl_tools{
         using FROM_DEVICE = devices::CUDA<FROM_DEV_SPEC>;
         using TI = typename FROM_DEVICE::index_t;
         static_assert(tensor::same_dimensions<FROM_SPEC, TO_SPEC>());
-        if constexpr(!tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>()){
+        if constexpr(tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>() && tensor::dense_row_major_layout<FROM_SPEC>()){
+            cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, from_device.stream);
+        }
+        else{
             if constexpr(FROM_SPEC::SHAPE::LENGTH > 2){
                 for(TI i=0; i < get<0>(typename FROM_SPEC::SHAPE{}); ++i){
                     auto next_from = view(from_device, from, i);
@@ -134,9 +137,6 @@ namespace rl_tools{
                     check_status(from_device);
                 }
             }
-        }
-        else{
-            cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, from_device.stream);
         }
     }
     template<typename FROM_DEV_SPEC, typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
