@@ -10,6 +10,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC>
+    void malloc(devices::WASM32<DEV_SPEC>& device, devices::random::WASM32::ENGINE<SPEC>& rng){}
+    template <typename DEV_SPEC, typename SPEC>
     void init(devices::WASM32<DEV_SPEC>& device, devices::random::WASM32::ENGINE<SPEC>& rng, typename devices::WASM32<DEV_SPEC>::index_t seed = 1){
         rng.state = 10000 + seed;
     };

@@ -31,6 +31,10 @@ namespace rl_tools::devices{
     namespace random{
         struct ARM: devices::random::Generic<typename math::ARM>, arm::Base{
             static constexpr Type TYPE = Type::random;
+            template <typename T_ENGINE = void>
+            struct ENGINE{
+                unsigned state;
+            };
         };
     }
     namespace logging{

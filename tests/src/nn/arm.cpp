@@ -28,7 +28,9 @@ void test_mlp_evaluate() {
     using TI = typename DEVICE::index_t;
     DEVICE device;
     DEVICE_ARM device_arm;
-    auto rng = rlt::random::default_engine(DEVICE{});
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     using INPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, INPUT_DIM>;
     using CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;
     using MLP = rlt::nn_models::mlp::NeuralNetwork<CONFIG, rlt::nn::capability::Forward<>, INPUT_SHAPE>;
@@ -74,7 +76,9 @@ void test_mlp_forward() {
     DEVICE device;
     DEVICE_ARM device_arm;
     using TI = typename DEVICE::index_t;
-    auto rng = rlt::random::default_engine(DEVICE{});
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     using INPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, INPUT_DIM>;
     using CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;
     using TYPE = rlt::nn_models::mlp::NeuralNetwork<CONFIG, rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, INPUT_SHAPE>;
