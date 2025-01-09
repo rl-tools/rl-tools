@@ -69,13 +69,15 @@ void test_correctness(){
     using T = typename CONFIG::T;
     using TI = typename CONFIG::TI;
 
-    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    typename DEVICE::SPEC::RANDOM::template ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::INPUT_SHAPE>> input, d_input, d_input_sequential, d_input_only, d_input_sequential_only;
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::MODEL::OUTPUT_SHAPE>> output, output_eval, d_output, output_sequential, output_sequential_eval;
 
+    rlt::malloc(device, optimizer);
+    rlt::malloc(device, sequential_optimizer);
     rlt::malloc(device, input);
     rlt::malloc(device, d_input);
     rlt::malloc(device, d_input_only);
