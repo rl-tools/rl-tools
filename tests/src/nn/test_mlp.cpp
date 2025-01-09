@@ -201,6 +201,7 @@ typedef RL_TOOLS_NN_MLP_BACKWARD_PASS RL_TOOLS_NN_MLP_ADAM_UPDATE;
 TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::malloc(device, optimizer);
     optimizer.parameters.epsilon_sqrt = 0;
 //    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
     using TI = typename DEVICE::index_t;
@@ -296,6 +297,7 @@ protected:
 TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::malloc(device, optimizer);
     optimizer.parameters.epsilon_sqrt = 0;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
@@ -373,6 +375,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::malloc(device, optimizer);
     constexpr TI n_batches = 10;
     for(TI batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
         this->reset();
@@ -482,6 +485,7 @@ protected:
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::malloc(device, optimizer);
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr TI n_epochs = 3;
@@ -589,6 +593,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::malloc(device, optimizer);
     NN_DEVICE device;
     NetworkType network;
     rlt::malloc(device, network);
