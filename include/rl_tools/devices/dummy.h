@@ -22,7 +22,10 @@ namespace rl_tools::devices{
     namespace random{
         struct Dummy:devices::random::Generic<devices::math::Dummy>, dummy::Base{
             static constexpr Type TYPE = Type::random;
-            using State = unsigned;
+            template <typename T_ENGINE = void>
+            struct ENGINE{
+                unsigned state;
+            };
         };
     }
     namespace logging{
