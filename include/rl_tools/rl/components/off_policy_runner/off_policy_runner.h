@@ -150,7 +150,7 @@ namespace rl_tools::rl::components::off_policy_runner {
 
         Tensor<tensor::Specification<   T, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> rewards;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> terminated;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> truncated;
+        // Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> truncated;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTHH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> reset;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, PADDED_SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_reset_base;
         typename decltype(next_reset_base)::template VIEW_RANGE<tensor::ViewSpec<0, TARGET_SEQUENCE_LENGTH>> next_reset;
