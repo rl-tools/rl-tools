@@ -32,13 +32,6 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr bool COLLECT_EPISODE_STATS = false;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
         static constexpr bool SAMPLE_PARAMETERS = true;
-
-        static constexpr T EXPLORATION_NOISE = 0.1;
-    };
-    template <typename SPEC>
-    struct ParametersRuntime{
-        using T = typename SPEC::T;
-        T exploration_noise = SPEC::PARAMETERS::EXPLORATION_NOISE;
     };
     template<typename T_T, typename T_TI, typename T_ENVIRONMENT, typename T_POLICIES, typename T_PARAMETERS, bool T_DYNAMIC_ALLOCATION=true>
     struct Specification{
@@ -202,11 +195,6 @@ namespace rl_tools::rl::components{
         using REPLAY_BUFFER_WITH_STATES_SPEC = replay_buffer::SpecificationWithStates<ENVIRONMENT, REPLAY_BUFFER_SPEC>;
         using REPLAY_BUFFER_TYPE = ReplayBufferWithStates<REPLAY_BUFFER_WITH_STATES_SPEC>;
         static constexpr TI N_ENVIRONMENTS = SPEC::PARAMETERS::N_ENVIRONMENTS;
-//        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
-
-        off_policy_runner::ParametersRuntime<SPEC> parameters;
-        // template<typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, bool T_DYNAMIC_ALLOCATION=true>
-        // using SequentialBatch = off_policy_runner::SequentialBatch<typename off_policy_runner::SequentialBatchSpecification<SPEC, T_SEQUENCE_LENGTH, T_BATCH_SIZE, T_DYNAMIC_ALLOCATION>>;
 
         off_policy_runner::Buffers<SPEC> buffers;
 
