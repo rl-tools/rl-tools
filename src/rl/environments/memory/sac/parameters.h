@@ -49,7 +49,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI N_ENVIRONMENTS = 1;
 
     struct BATCH_SAMPLING_PARAMETERS{
-        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = false;
+        static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
         static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
         static constexpr bool RANDOM_SEQ_LENGTH = true;
         static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
