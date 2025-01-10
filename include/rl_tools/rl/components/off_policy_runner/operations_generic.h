@@ -285,6 +285,7 @@ namespace rl_tools{
         set_all(device, batch_sample_next_reset, false);
         set(device, batch.reset, true, 0, batch_step_i, 0);
         set(device, batch.next_reset_base, true, 0, batch_step_i, 0);
+        set(device, batch.next_reset, true, 0, batch_step_i, 0);
         for(TI seq_step_i=0; seq_step_i < PADDED_SEQUENCE_LENGTH; seq_step_i++){
             if(previous_step_truncated){
                 previous_step_truncated = false;
