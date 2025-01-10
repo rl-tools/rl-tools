@@ -17,7 +17,7 @@ def load_experiment(experiment, time, lower_percentile=0, upper_percentile=100):
                     if not steps_set:
                         steps.append(evaluation_step["step"])
                         returns.append([])
-                    returns[i].append(evaluation_step["returns"])
+                    returns[i].append(np.mean(evaluation_step["returns"]))
             steps_set = True
 
     returns = np.array(returns)
@@ -29,7 +29,7 @@ def load_experiment(experiment, time, lower_percentile=0, upper_percentile=100):
     wall_time = steps/(steps.max() / time)
     upper_percentile_values = np.percentile(returns, upper_percentile, axis=1)
     lower_percentile_values = np.percentile(returns, lower_percentile, axis=1)
-    iqm_mask = np.logical_and(returns > lower_percentile_values[:, None], returns < upper_percentile_values[:, None])
+    iqm_mask = np.logical_and(returns >= lower_percentile_values[:, None], returns <= upper_percentile_values[:, None])
     iqm_data = np.where(iqm_mask, returns, np.nan)
     iqm_mean_returns = np.nanmean(iqm_data, axis=1)
     iqm_std_returns = np.nanstd(iqm_data, axis=1)
