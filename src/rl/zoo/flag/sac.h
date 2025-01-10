@@ -10,9 +10,9 @@ namespace rl_tools::rl::zoo::flag::sac{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
-                static constexpr TI ACTOR_BATCH_SIZE = 64;
-                static constexpr TI CRITIC_BATCH_SIZE = 64;
-                static constexpr T GAMMA = 0.9;
+                static constexpr TI ACTOR_BATCH_SIZE = 32;
+                static constexpr TI CRITIC_BATCH_SIZE = 32;
+                static constexpr T GAMMA = 0.95;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
