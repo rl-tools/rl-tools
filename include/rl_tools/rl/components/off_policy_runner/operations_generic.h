@@ -86,7 +86,6 @@ namespace rl_tools{
         constexpr TI NEXT_SIZE = SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? SPEC::PADDED_SEQUENCE_LENGTH : SPEC::SEQUENCE_LENGTHH;
         batch.observations_next._data = view_range(device, batch.observations_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
         batch.observations_privileged_next._data = view_range(device, batch.observations_privileged_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
-        batch.observations_and_actions_next._data = view_range(device, batch.observations_and_actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
         batch.actions_next._data = view_range(device, batch.actions_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
 
         batch.next_reset._data = view_range(device, batch.next_reset_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
@@ -251,7 +250,10 @@ namespace rl_tools{
         // hence the beginning of that episode might not be available anymore
         // hence we sample from position + MAX_EPISODE_LENGTH => wrap => position
 #ifdef RL_TOOLS_DEBUG
-        utils::assert_exit(device, replay_buffer.position > 0, "Replay buffer requires at least one element");
+        utils::assert_exit(device, replay_buffer.full || replay_buffer.position > 0, "Replay buffer requires at least one element");
+        if constexpr(PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE){
+            utils::assert_exit(device, replay_buffer.full || replay_buffer.position > RUNNER_SPEC::MAX_EPISODE_LENGTH, "Replay buffer requires at least RUNNER_SPEC::MAX_EPISODE_LENGTH elements");
+        }
 #endif
         static_assert(!PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE || SPEC::CAPACITY >= RUNNER_SPEC::MAX_EPISODE_LENGTH);
         TI eligible_sample_count = replay_buffer.full ? (PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE ? (SPEC::CAPACITY - RUNNER_SPEC::MAX_EPISODE_LENGTH) : SPEC::CAPACITY) : replay_buffer.position; // if we sample from the initial state we need to invalidate the steps possibly remain after replay_buffer.position has overwritten the initial steps
