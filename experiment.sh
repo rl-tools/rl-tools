@@ -1,13 +1,3 @@
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 10
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 11
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 12
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 13
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 14
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 15
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 16
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 17
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 18
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac_gamma_95 -s 19
 /home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac -s 110
 /home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac -s 111
 /home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_flag_sac -s 112
