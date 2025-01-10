@@ -40,8 +40,10 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI STEP_LIMIT = 200000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr TI ACTOR_HIDDEN_DIM = MEMORY ? (MEMORY_LONG ? 64 : 16) : 32;
+    static constexpr TI ACTOR_NUM_LAYERS = 4;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = ACTOR_HIDDEN_DIM;
+    static constexpr TI CRITIC_NUM_LAYERS = 4;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = ACTOR_ACTIVATION_FUNCTION;
     static constexpr bool SHARED_BATCH = false;
     static constexpr TI N_ENVIRONMENTS = 1;
