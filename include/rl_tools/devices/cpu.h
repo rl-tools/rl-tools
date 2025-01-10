@@ -58,9 +58,6 @@ namespace rl_tools::devices{
         typename SPEC::MATH math;
         typename SPEC::RANDOM random;
         typename SPEC::LOGGING logger;
-        std::string run_name;
-        std::string runs_path;
-        std::string run_path;
         bool initialized = false;
         index_t malloc_counter = 0;
     };
@@ -88,13 +85,6 @@ namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::CPU<DEV_SPEC>& device){
         if(!device.initialized){
-            time_t now;
-            time(&now);
-            char buf[sizeof "0000-00-00T00:00:00Z"];
-            strftime(buf, sizeof buf, "%FT%TZ", localtime(&now));
-            device.run_name = devices::cpu::sanitize_file_name(buf);
-            device.runs_path = std::string("runs");
-            device.run_path = device.runs_path + "/" + device.run_name;
             device.initialized = true;
         }
     }
