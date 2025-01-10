@@ -8,8 +8,8 @@ def load_experiment(experiment, time, lower_percentile=0, upper_percentile=100):
     steps_set = False
     returns = []
 
-    for seed in os.listdir(experiment):
-        run_path = os.path.join(experiment, seed)
+    for run_path in experiment if isinstance(experiment, list) else map(lambda x: os.path.join(experiment, x), os.listdir(experiment)):
+        # run_path = os.path.join(experiment, seed)
         if os.path.exists(os.path.join(run_path, "return.json.set")):
             with open(os.path.join(run_path, "return.json")) as f:
                 results = json.load(f)
@@ -42,13 +42,13 @@ experiments = {
     # "50k_+1-layer": ("experiments/2024-11-26_16-15-58/c91e9c4_zoo_environment_algorithm/l2f_sac", 0.844),
     # "aftera-all": ("experiments/2024-11-26_20-35-04/d56db9c_zoo_environment_algorithm/l2f_sac/", 0.99),
     # "dt2x": ("experiments/2024-11-26_21-17-12/dfa429a_zoo_environment_algorithm/l2f_sac", 0.99),
-    "new": ("experiments/2024-12-09_12-05-42/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "new": ("experiments/2024-12-09_12-05-42/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "new2": ("experiments/2024-12-09_12-14-24/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "new3": ("experiments/2024-12-09_12-35-07/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "fullrb": ("experiments/2024-12-09_12-43-09/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "rb5k": ("experiments/2024-12-09_12-44-11/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "rb20k": ("experiments/2024-12-09_12-45-16/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
-    "relu": ("experiments/2024-12-09_12-46-28/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
+    # "relu": ("experiments/2024-12-09_12-46-28/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "90deg": ("experiments/2024-12-09_13-11-13/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "tanh": ("experiments/2024-12-09_13-13-50/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
     # "4layer": ("experiments/2024-12-09_13-15-53/06548f4_zoo_environment_algorithm/l2f_sac", 0.99),
@@ -62,9 +62,33 @@ experiments = {
     # "2env": ("experiments/2024-12-09_13-57-49/d9384be_zoo_environment_algorithm/l2f_sac", 1.10),
     # "16env": ("experiments/2024-12-09_14-01-42/d9384be_zoo_environment_algorithm/l2f_sac", 1.40),
     # "lesswarmup": ("experiments/2024-12-09_14-04-01/d9384be_zoo_environment_algorithm/l2f_sac", 1.40),
-    "8env": ("experiments/2024-12-09_14-06-48/d9384be_zoo_environment_algorithm/l2f_sac", 1.23),
-    "low-lr": ("experiments/2024-12-09_14-12-10/d9384be_zoo_environment_algorithm/l2f_sac", 1.23),
-    "ms": ("experiments/2024-12-09_14-20-29/d9384be_zoo_environment_algorithm/l2f_sac", 0.92),
+    # "8env": ("experiments/2024-12-09_14-06-48/d9384be_zoo_environment_algorithm/l2f_sac", 1.23),
+    # "low-lr": ("experiments/2024-12-09_14-12-10/d9384be_zoo_environment_algorithm/l2f_sac", 1.23),
+    # "ms": ("experiments/2024-12-09_14-20-29/d9384be_zoo_environment_algorithm/l2f_sac", 0.92),
+    "0.90": ([
+        "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0110",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0111",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0112",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0113",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0114",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0115",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0116",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0117",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0118",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0119",
+    ], 20*60),
+    "0.95": ([
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0010",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0011",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0012",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0013",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0014",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0015",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0016",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0017",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0018",
+         "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0019",
+    ], 20*60)
 }
 
 
