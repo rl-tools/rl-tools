@@ -70,26 +70,23 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace devices::cpu{
-        void display_compile_options(){
+        void display_compile_options() {
             bool isOptimal = true;
             const char* ANSI_RED = "\033[31m";
             const char* ANSI_GREEN = "\033[32m";
             const char* ANSI_YELLOW = "\033[33m";
             const char* ANSI_RESET = "\033[0m";
 
-            std::cerr << "Compiliation Options:" << std::endl;
-
+            // Check debug mode
             bool isDebug =
             #if defined(_DEBUG) || defined(DEBUG)
                 true;
             #else
                 false;
             #endif
-            std::cerr << ((!isDebug) ? ANSI_GREEN : ANSI_RED) << "["
-                      << ((!isDebug) ? "OK" : "NOT OK") << "]" << ANSI_RESET
-                      << " Debug Mode: " << (isDebug ? "Yes" : "No") << std::endl;
             if (isDebug) isOptimal = false;
 
+            // Check optimization
             bool maxOpt =
             #if defined(_MSC_VER)
                 #if defined(_FULL_OPTIMIZATION)
@@ -106,75 +103,82 @@ namespace rl_tools{
             #else
                 false;
             #endif
-            std::cerr << (maxOpt ? ANSI_GREEN : ANSI_RED) << "["
-                      << (maxOpt ? "OK" : "NOT OK") << "]" << ANSI_RESET
-                      << " Optimization: " << (maxOpt ? "Yes" : "No") << std::endl;
             if (!maxOpt) isOptimal = false;
 
-            // Fast math check
+            // Check fast math
             bool fastMath =
             #if defined(__FAST_MATH__) || defined(_M_FP_FAST)
                 true;
             #else
                 false;
             #endif
-            std::cerr << (fastMath ? ANSI_GREEN : ANSI_RED) << "["
-                      << (fastMath ? "OK" : "NOT OK") << "]" << ANSI_RESET
-                      << " Fast Math: " << (fastMath ? "Yes" : "No") << std::endl;
             if (!fastMath) isOptimal = false;
 
-            // Optimization level
-            std::cerr << "Optimization Level: "
-            #if defined(_MSC_VER)
-                #if defined(_FULL_OPTIMIZATION)
-                      << "Full (/Ox)"
-                #elif defined(_OPTIMIZATION_FULL)
-                      << "Full (/O2)"
-                #elif defined(_OPTIMIZATION_SPEED)
-                      << "Speed (/O2)"
-                #elif defined(_OPTIMIZATION_DEBUG)
-                      << "Debug (/Od)"
-                #else
-                      << "Unknown"
-                #endif
+            if (!isOptimal) {
+                std::cerr << "Compiliation Options:" << std::endl;
 
-            #elif defined(__clang__)
-                #if defined(__OPTIMIZE__)
-                    #if defined(__OPTIMIZE_SIZE__)
-                          << "-Os"
-                    #elif (__OPTIMIZE__ == 1)
-                          << "-O1"
-                    #elif (__OPTIMIZE__ == 2)
-                          << "-O2"
-                    #elif (__OPTIMIZE__ == 3)
-                          << "-O3"
+                // Output debug status
+                std::cerr << ((!isDebug) ? ANSI_GREEN : ANSI_RED) << "["
+                          << ((!isDebug) ? "OK" : "NOT OK") << "]" << ANSI_RESET
+                          << " Debug Mode: " << (isDebug ? "Yes" : "No") << std::endl;
+
+                // Output optimization status
+                std::cerr << (maxOpt ? ANSI_GREEN : ANSI_RED) << "["
+                          << (maxOpt ? "OK" : "NOT OK") << "]" << ANSI_RESET
+                          << " Optimization: " << (maxOpt ? "Yes" : "No") << std::endl;
+
+                // Output fast math status
+                std::cerr << (fastMath ? ANSI_GREEN : ANSI_RED) << "["
+                          << (fastMath ? "OK" : "NOT OK") << "]" << ANSI_RESET
+                          << " Fast Math: " << (fastMath ? "Yes" : "No") << std::endl;
+
+                // Output optimization level
+                std::cerr << "Optimization Level: "
+                #if defined(_MSC_VER)
+                    #if defined(_FULL_OPTIMIZATION)
+                          << "Full (/Ox)"
+                    #elif defined(_OPTIMIZATION_FULL)
+                          << "Full (/O2)"
+                    #elif defined(_OPTIMIZATION_SPEED)
+                          << "Speed (/O2)"
+                    #elif defined(_OPTIMIZATION_DEBUG)
+                          << "Debug (/Od)"
                     #else
-                          << "Unknown level"
+                          << "Unknown"
+                    #endif
+                #elif defined(__clang__)
+                    #if defined(__OPTIMIZE__)
+                        #if defined(__OPTIMIZE_SIZE__)
+                              << "-Os"
+                        #elif (__OPTIMIZE__ == 1)
+                              << "-O1"
+                        #elif (__OPTIMIZE__ == 2)
+                              << "-O2"
+                        #elif (__OPTIMIZE__ == 3)
+                              << "-O3"
+                        #else
+                              << "Unknown level"
+                        #endif
+                    #else
+                          << "-O0"
                     #endif
                 #else
-                      << "-O0"
+                          << "Unknown"
                 #endif
-            #else
-                      << "Unknown"
-            #endif
-                      << std::endl;
+                          << std::endl;
 
-            if (!isOptimal) {
                 std::cerr << ANSI_YELLOW << "WARNING: Non-optimal configuration detected!"
                           << ANSI_RESET << std::endl;
                 std::cerr << "For maximum performance, compile with:" << std::endl;
                 #if defined(_MSC_VER)
                     std::cerr << "MSVC: /O2 /fp:fast /DNDEBUG" << std::endl;
                 #elif defined(__GNUC__) || defined(__clang__)
-                    std::cerr << "GCC/Clang: -O3 -ffast-math -DNDEBUG" << std::endl;
+                    std::cerr << "GCC/Clang: -Ofast (or -DCMAKE_BUILD_TYPE=Release)" << std::endl;
                 #else
                     std::cerr << "Unknown compiler: please consult compiler documentation" << std::endl;
                 #endif
-            } else {
-                std::cerr << ANSI_GREEN << "Configuration appears to be good for maximum performance."
-                          << ANSI_RESET << std::endl;
+                std::cerr << std::endl;
             }
-            std::cerr << std::endl;
         }
     }
     template <typename DEV_SPEC>
