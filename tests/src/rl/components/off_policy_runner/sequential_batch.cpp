@@ -29,20 +29,18 @@ using OFF_POLICY_RUNNER = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER
 
 constexpr TI SEQUENCE_LENGTH = 10;
 constexpr TI BATCH_SIZE = 1;
-struct SEQUENTIAL_BATCH_PARAMETERS_INCLUSIVE{
-    static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
-    static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
-    static constexpr bool RANDOM_SEQ_LENGTH = true;
-    static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
-    static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
+
+template <bool T_INCLUDE_FIRST_STEP_IN_TARGETS, bool T_ALWAYS_SAMPLE_FROM_INITIAL_STATE, bool T_RANDOM_SEQ_LENGTH, bool T_ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY, TI T_NOMINAL_SEQUENCE_LENGTH_PROBABILITY>
+struct SequentialBatchParameters{
+    static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = T_INCLUDE_FIRST_STEP_IN_TARGETS;
+    static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = T_ALWAYS_SAMPLE_FROM_INITIAL_STATE;
+    static constexpr bool RANDOM_SEQ_LENGTH = T_RANDOM_SEQ_LENGTH;
+    static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = T_ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY;
+    static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = T_NOMINAL_SEQUENCE_LENGTH_PROBABILITY / 100.0;
 };
-struct SEQUENTIAL_BATCH_PARAMETERS_EXCLUSIVE: SEQUENTIAL_BATCH_PARAMETERS_INCLUSIVE{
-    static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = false;
-};
-using SEQUENTIAL_BATCH_SPEC_INCLUSIVE = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, 10, BATCH_SIZE, SEQUENTIAL_BATCH_PARAMETERS_INCLUSIVE>;
-using SEQUENTIAL_BATCH_SPEC_EXCLUSIVE = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, 10, BATCH_SIZE, SEQUENTIAL_BATCH_PARAMETERS_EXCLUSIVE>;
-using SEQUENTIAL_BATCH_INCLUSIVE = rlt::rl::components::off_policy_runner::SequentialBatch<SEQUENTIAL_BATCH_SPEC_INCLUSIVE>;
-using SEQUENTIAL_BATCH_EXCLUSIVE = rlt::rl::components::off_policy_runner::SequentialBatch<SEQUENTIAL_BATCH_SPEC_EXCLUSIVE>;
+
+template <bool T_INCLUDE_FIRST_STEP_IN_TARGETS, bool T_ALWAYS_SAMPLE_FROM_INITIAL_STATE, bool T_RANDOM_SEQ_LENGTH, bool T_ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY, TI T_NOMINAL_SEQUENCE_LENGTH_PROBABILITY>
+using SEQUENTIAL_BATCH = rlt::rl::components::off_policy_runner::SequentialBatch<rlt::rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, 10, BATCH_SIZE, SequentialBatchParameters<T_INCLUDE_FIRST_STEP_IN_TARGETS, T_ALWAYS_SAMPLE_FROM_INITIAL_STATE, T_RANDOM_SEQ_LENGTH, T_ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY, T_NOMINAL_SEQUENCE_LENGTH_PROBABILITY>>>;
 
 enum class SequenceState{
     FIRST_STEP,
@@ -52,18 +50,17 @@ enum class SequenceState{
 };
 
 template <typename DEVICE, typename BATCH>
-void check_batch(DEVICE& device, BATCH& batch){
+void check_one_batch(DEVICE& device, BATCH& batch){
     constexpr bool EXCLUSIVE = !BATCH::SPEC::PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS;
     for (TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
         SequenceState state = SequenceState::FIRST_STEP;
         for (TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH + 1; seq_step_i++){
-            T observation = rlt::get(device, batch.observations_current, seq_step_i, batch_step_i, 0);
             bool reset = seq_step_i < SEQUENCE_LENGTH ? rlt::get(device, batch.reset, seq_step_i, batch_step_i, 0) : true;
             bool next_reset = rlt::get(device, batch.next_reset_base, seq_step_i, batch_step_i, 0);
             bool final_step_mask = seq_step_i < SEQUENCE_LENGTH ? rlt::get(device, batch.final_step_mask, seq_step_i, batch_step_i, 0) : false;
             bool next_final_step_mask = rlt::get(device, batch.next_final_step_mask_base, seq_step_i, batch_step_i, 0);
             switch(state){
-            case SequenceState::FIRST_STEP:
+                case SequenceState::FIRST_STEP:
                     rlt::utils::assert_exit(device, reset, "reset");
                     rlt::utils::assert_exit(device, next_reset, "next_reset");
                     rlt::utils::assert_exit(device, !next_final_step_mask, "!next_final_step_mask");
@@ -78,12 +75,35 @@ void check_batch(DEVICE& device, BATCH& batch){
                     rlt::utils::assert_exit(device, (EXCLUSIVE && (seq_step_i == 1 && next_reset)) || !next_reset, "!next_reset");
                     rlt::utils::assert_exit(device, next_final_step_mask, "next_final_step_mask");
                     break;
-            case SequenceState::DEAD:
+                case SequenceState::DEAD:
                     std::cout << "Reached DEAD state" << std::endl;
                     rlt::utils::assert_exit(device, reset, "reset");
                     rlt::utils::assert_exit(device, next_reset, "next_reset");
                     rlt::utils::assert_exit(device, !final_step_mask, "!final_step_mask");
                     rlt::utils::assert_exit(device, !next_final_step_mask, "!next_final_step_mask");
+                    break;
+            }
+            switch(state){
+                case SequenceState::FIRST_STEP:{
+                        if constexpr(BATCH::SPEC::PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE){
+                            T observation = rlt::get(device, batch.observations_current, seq_step_i, batch_step_i, 0);
+                            rlt::utils::assert_exit(device, observation == 0, "observation == 0");
+                        }
+                    }
+                    break;
+                case SequenceState::IN_SEQUENCE:{
+                        T observation = rlt::get(device, batch.observations_current, seq_step_i, batch_step_i, 0);
+                        T previous_observation = rlt::get(device, batch.observations_current, seq_step_i-1, batch_step_i, 0);
+                        rlt::utils::assert_exit(device, observation == previous_observation + 1, "observation == previous_observation + 1");
+                    }
+                    break;
+                case SequenceState::PADDING:{
+                        T observation = rlt::get(device, batch.observations_current, seq_step_i, batch_step_i, 0);
+                        T previous_observation = rlt::get(device, batch.observations_current, seq_step_i-1, batch_step_i, 0);
+                        rlt::utils::assert_exit(device, observation == previous_observation + 1, "observation == previous_observation + 1");
+                    }
+                    break;
+                case SequenceState::DEAD:
                     break;
             }
             SequenceState next_state;
@@ -113,6 +133,26 @@ void check_batch(DEVICE& device, BATCH& batch){
     }
 
 }
+template <typename DEVICE, typename BATCH, typename RNG>
+void check_batch(DEVICE& device, BATCH& batch, RNG& rng){
+    OFF_POLICY_RUNNER off_policy_runner;
+    EXPLORATION_POLICY policy;
+    EXPLORATION_POLICY::Buffer<> policy_buffer;
+    rlt::malloc(device, off_policy_runner);
+    rlt::malloc(device, batch);
+    rlt::malloc(device, policy_buffer);
+    rlt::init(device, off_policy_runner);
+    for(TI step_i = 0; step_i < 1000; step_i++){
+        rlt::step<0>(device, off_policy_runner, policy, policy_buffer, rng);
+    }
+    for(TI batch_i = 0; batch_i < 100000; batch_i++){
+        rlt::gather_batch(device, off_policy_runner, batch, rng);
+        check_one_batch(device, batch);
+    }
+    rlt::free(device, off_policy_runner);
+    rlt::free(device, batch);
+    rlt::free(device, policy_buffer);
+}
 
 TEST(RL_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_SQUENTIAL_BATCH, TEST){
     DEVICE device;
@@ -120,25 +160,40 @@ TEST(RL_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_SQUENTIAL_BATCH, TEST){
     rlt::init(device);
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
-    OFF_POLICY_RUNNER off_policy_runner;
-    SEQUENTIAL_BATCH_INCLUSIVE inclusive_batch;
-    SEQUENTIAL_BATCH_EXCLUSIVE exclusive_batch;
-    EXPLORATION_POLICY policy;
-    EXPLORATION_POLICY::Buffer<> policy_buffer;
-    rlt::malloc(device, off_policy_runner);
-    rlt::malloc(device, inclusive_batch);
-    rlt::malloc(device, exclusive_batch);
-    rlt::malloc(device, policy_buffer);
-    rlt::init(device, off_policy_runner);
-    for(TI step_i = 0; step_i < 1000; step_i++){
-        rlt::step<0>(device, off_policy_runner, policy, policy_buffer, rng);
+    {
+        constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
+        constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = true;
+        constexpr bool RANDOM_SEQ_LENGTH = true;
+        constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+        constexpr TI NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 50;
+        SEQUENTIAL_BATCH<INCLUDE_FIRST_STEP_IN_TARGETS, ALWAYS_SAMPLE_FROM_INITIAL_STATE, RANDOM_SEQ_LENGTH, ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY, NOMINAL_SEQUENCE_LENGTH_PROBABILITY> batch;
+        check_batch(device, batch, rng);
     }
-    for(TI batch_i = 0; batch_i < 100000; batch_i++){
-        rlt::gather_batch(device, off_policy_runner, inclusive_batch, rng);
-        check_batch(device, inclusive_batch);
+    {
+        constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = false;
+        constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = true;
+        constexpr bool RANDOM_SEQ_LENGTH = true;
+        constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+        constexpr TI NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 50;
+        SEQUENTIAL_BATCH<INCLUDE_FIRST_STEP_IN_TARGETS, ALWAYS_SAMPLE_FROM_INITIAL_STATE, RANDOM_SEQ_LENGTH, ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY, NOMINAL_SEQUENCE_LENGTH_PROBABILITY> batch;
+        check_batch(device, batch, rng);
     }
-    for(TI batch_i = 0; batch_i < 100000; batch_i++){
-        rlt::gather_batch(device, off_policy_runner, exclusive_batch, rng);
-        check_batch(device, exclusive_batch);
+    {
+        constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
+        constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+        constexpr bool RANDOM_SEQ_LENGTH = true;
+        constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+        constexpr TI NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 50;
+        SEQUENTIAL_BATCH<INCLUDE_FIRST_STEP_IN_TARGETS, ALWAYS_SAMPLE_FROM_INITIAL_STATE, RANDOM_SEQ_LENGTH, ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY, NOMINAL_SEQUENCE_LENGTH_PROBABILITY> batch;
+        check_batch(device, batch, rng);
+    }
+    {
+        constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
+        constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+        constexpr bool RANDOM_SEQ_LENGTH = false;
+        constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+        constexpr TI NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 50;
+        SEQUENTIAL_BATCH<INCLUDE_FIRST_STEP_IN_TARGETS, ALWAYS_SAMPLE_FROM_INITIAL_STATE, RANDOM_SEQ_LENGTH, ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY, NOMINAL_SEQUENCE_LENGTH_PROBABILITY> batch;
+        check_batch(device, batch, rng);
     }
 }
