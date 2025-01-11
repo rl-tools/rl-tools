@@ -154,7 +154,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
 
     rlt::malloc(device, actor_critic);
 
-    std::mt19937 rng(0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     rlt::init(device, actor_critic, rng);
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     rlt::load(device, actor_critic.critics[0], data_file.getGroup("critic_1"));
@@ -222,7 +224,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     rlt::malloc(device, optimizer);
 
 
-    std::mt19937 rng(0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     rlt::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
@@ -342,7 +346,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     actor_critic.critic_optimizers[1].parameters.epsilon_sqrt = 0;
     rlt::malloc(device, actor_critic);
 
-    std::mt19937 rng(0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     rlt::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
@@ -532,7 +538,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     actor_critic.critic_optimizers[1].parameters.epsilon_sqrt = 0;
     rlt::malloc(device, actor_critic);
 
-    std::mt19937 rng(0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     rlt::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);

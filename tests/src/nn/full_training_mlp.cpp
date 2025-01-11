@@ -93,7 +93,9 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     //    this->reset();
     rlt::reset_optimizer_state(device, optimizer, network);
 //    typename DEVICE::index_t rng = 2;
-    std::mt19937 rng(2);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 2);
     rlt::init_weights(device, network, rng);
 
     TI n_iter = X_train.size() / BATCH_SIZE;

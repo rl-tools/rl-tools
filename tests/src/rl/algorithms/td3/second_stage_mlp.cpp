@@ -102,7 +102,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, eval_buffers);
 
-    std::mt19937 rng(0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
 
     rlt::rl::environments::DummyUI ui;
 
@@ -203,7 +205,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, actor_eval_buffers);
 
-    std::mt19937 rng(0);
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
     rlt::init(device, actor_critic,rng);
 
 

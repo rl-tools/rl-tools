@@ -25,7 +25,9 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     rlt::malloc(device, optimizer);
     rlt::malloc(device, network_1);
     rlt::malloc(device, network_2);
-    std::mt19937 rng(2);
+    NN_DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 2);
     rlt::init_weights(device, network_1, rng);
     rlt::init_weights(device, network_2, rng);
     rlt::reset_forward_state(device, network_1);
