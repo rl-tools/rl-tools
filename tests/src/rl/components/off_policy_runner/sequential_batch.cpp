@@ -126,6 +126,7 @@ void check_one_batch(DEVICE& device, BATCH& batch){
                     }
                     break;
                 case SequenceState::DEAD:
+                    next_state = SequenceState::DEAD;
                     break;
             }
             state = next_state;

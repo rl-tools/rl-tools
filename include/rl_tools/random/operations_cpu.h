@@ -19,25 +19,18 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC>
     void init(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC>& rng, typename devices::CPU<DEV_SPEC>::index_t seed = 1){
         using ENGINE = devices::random::CPU::ENGINE<SPEC>;
-        rng = ENGINE(static_cast<typename ENGINE::result_type>(seed+1));
+        rng.engine = typename ENGINE::TYPE(static_cast<typename ENGINE::TYPE::result_type>(seed+1));
     };
     namespace random{
         template<typename T, typename RNG>
         T uniform_int_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
-            return std::uniform_int_distribution<T>(low, high)(rng);
-        }
-        template <typename TI, typename RNG>
-        auto split(const devices::random::CPU& dev, TI split_id, RNG& rng){
-            // this operation should not alter the state of rng
-            RNG rng_copy = rng;
-            TI new_seed = random::uniform_int_distribution(dev, std::numeric_limits<TI>::min(), std::numeric_limits<TI>::max(), rng_copy);
-            return std::default_random_engine(new_seed + split_id);
+            return std::uniform_int_distribution<T>(low, high)(rng.engine);
         }
 
         template<typename T, typename RNG>
         T uniform_real_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
-            return std::uniform_real_distribution<T>(low, high)(rng);
+            return std::uniform_real_distribution<T>(low, high)(rng.engine);
         }
     //    template<typename T, typename RNG>
     //    const std::normal_distribution<T> standard_normal_distribution(0, 1);
@@ -49,7 +42,7 @@ namespace rl_tools{
                     return mean;
                 }
                 else{
-                    return std::normal_distribution<T>(mean, std)(rng);
+                    return std::normal_distribution<T>(mean, std)(rng.engine);
                 }
             }
         }

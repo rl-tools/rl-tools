@@ -89,7 +89,7 @@ int main(){
         auto output = dataset_string.substr(offset+1, CONFIG::PARAMS::SEQUENCE_LENGTH);
         dataset.emplace_back(std::tuple(input, output));
     }
-    std::shuffle(dataset.begin(), dataset.end(), rng);
+    std::shuffle(dataset.begin(), dataset.end(), rng.engine);
     std::cout << "Dataset size: " << dataset.size() << std::endl;
     std::cout << "Dataset sample: " << std::endl;
     for(TI i=0; i < 10; i++){
@@ -114,7 +114,7 @@ int main(){
     rlt::print(device, decltype(input)::SPEC::SHAPE{});
     std::cout << std::endl;
     for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
-        std::shuffle(dataset.begin(), dataset.end(), rng);
+        std::shuffle(dataset.begin(), dataset.end(), rng.engine);
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
         for(TI sample_i=0; sample_i < dataset.size() - CONFIG::PARAMS::BATCH_SIZE; sample_i += CONFIG::PARAMS::BATCH_SIZE){

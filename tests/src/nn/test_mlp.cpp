@@ -602,7 +602,9 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     constexpr TI n_epochs = 3;
 //    this->reset();
     rlt::reset_optimizer_state(device, optimizer, network);
-    std::mt19937 rng(2);
+    NN_DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 2);
     rlt::init_weights(device, network, rng);
 
     constexpr TI batch_size = 32;
