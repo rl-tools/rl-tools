@@ -1,4 +1,4 @@
-#define DEBUG_BARE
+// #define DEBUG_BARE
 #ifdef DEBUG_BARE
 #include <iostream>
 #endif
