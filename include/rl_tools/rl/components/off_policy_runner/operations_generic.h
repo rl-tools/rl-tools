@@ -249,7 +249,7 @@ namespace rl_tools{
         // when the replay buffer is wrapping around it starts overwriting elements of some episode
         // hence the beginning of that episode might not be available anymore
         // hence we sample from position + MAX_EPISODE_LENGTH => wrap => position
-#ifdef RL_TOOLS_DEBUG
+#if defined(RL_TOOLS_DEBUG) && !defined(__CUDA_ARCH__)
         utils::assert_exit(device, replay_buffer.full || replay_buffer.position > 0, "Replay buffer requires at least one element");
         if constexpr(PARAMETERS::ALWAYS_SAMPLE_FROM_INITIAL_STATE){
             utils::assert_exit(device, replay_buffer.full || replay_buffer.position > RUNNER_SPEC::MAX_EPISODE_LENGTH, "Replay buffer requires at least RUNNER_SPEC::MAX_EPISODE_LENGTH elements");
