@@ -23,6 +23,7 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
+constexpr bool DYNAMIC_ALLOCATION = true;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
@@ -38,7 +39,7 @@ namespace config{
             static constexpr TI CRITIC_NUM_LAYERS = 3;
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
         };
-        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION>
         struct ConfigApproximatorsSequential{
             template <typename CAPABILITY>
             struct ACTOR{
@@ -101,11 +102,11 @@ namespace config{
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
             using ALPHA_OPTIMIZER = nn::optimizers::Adam<ALPHA_OPTIMIZER_SPEC>;
 
-            using ACTOR_TYPE = typename ACTOR<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
-            using CRITIC_TYPE = typename CRITIC<nn::capability::Gradient<nn::parameters::Adam>>::MODEL;
-            using CRITIC_TARGET_TYPE = typename CRITIC<nn::capability::Forward<>>::MODEL;
+            using ACTOR_TYPE = typename ACTOR<nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>>::MODEL;
+            using CRITIC_TYPE = typename CRITIC<nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>>::MODEL;
+            using CRITIC_TARGET_TYPE = typename CRITIC<nn::capability::Forward<DYNAMIC_ALLOCATION>>::MODEL;
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, T_ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsSequential>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, T_ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsSequential, DYNAMIC_ALLOCATION>;
         struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
             static constexpr TI NUM_EVALUATION_EPISODES = 100;
         };

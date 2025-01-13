@@ -12,7 +12,7 @@
 
 namespace rl_tools::rl::zoo::l2f::sac{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI, typename RNG>
+    template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
         using ENVIRONMENT = typename ENVIRONMENT_TINY_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
@@ -60,7 +60,6 @@ namespace rl_tools::rl::zoo::l2f::sac{
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
         };
-        static constexpr bool DYNAMIC_ALLOCATION = true;
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, true>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
     };
 }

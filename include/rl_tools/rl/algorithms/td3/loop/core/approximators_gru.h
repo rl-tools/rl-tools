@@ -67,7 +67,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
         using CRITIC_TARGET_TYPE = typename Critic<nn::capability::Forward<>>::MODEL;
         using ACTOR_TARGET_TYPE = typename Actor<nn::capability::Forward<>>::MODEL;
-        using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+        using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
     };

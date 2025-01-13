@@ -51,18 +51,18 @@ namespace rl_tools{
     }
 
     namespace rl::loop::steps::checkpoint{
-            template <auto BATCH_SIZE, typename DEVICE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
+            template <auto BATCH_SIZE, bool DYNAMIC_ALLOCATION, typename DEVICE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
             void save_code(DEVICE& device, std::string step_folder, ACTOR_TYPE& actor_forward, RNG& rng){
                 using T = typename ACTOR_TYPE::T;
                 using TI = typename DEVICE::index_t;
-                typename ACTOR_TYPE::template Buffer<> actor_buffer;
+                typename ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
                 malloc(device, actor_buffer);
                 auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
                 std::stringstream output_ss;
                 output_ss << actor_weights;
                 {
-                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>>> input;
-                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>>> output;
+                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> input;
+                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> output;
                     malloc(device, input);
                     malloc(device, output);
                     randn(device, input, rng);
@@ -123,7 +123,7 @@ namespace rl_tools{
             static constexpr TI BATCH_SIZE = 13;
             using INPUT_SHAPE = tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>;
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
-            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<>>;
+            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<CONFIG::DYNAMIC_ALLOCATION>>;
             EVALUATION_ACTOR_TYPE evaluation_actor;
             malloc(device, evaluation_actor);
             copy(device, device, actor, evaluation_actor);
@@ -142,7 +142,7 @@ namespace rl_tools{
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
 #endif
-            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, step_folder.string(), evaluation_actor, ts.rng_checkpoint);
+            rl::loop::steps::checkpoint::save_code<BATCH_SIZE, CONFIG::DYNAMIC_ALLOCATION>(device, step_folder.string(), evaluation_actor, ts.rng_checkpoint);
             free(device, evaluation_actor);
 
         }

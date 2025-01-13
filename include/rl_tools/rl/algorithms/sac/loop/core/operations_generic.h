@@ -101,7 +101,7 @@ namespace rl_tools{
         copy(device_source, device_target, source.actor_buffers[0], target.actor_buffers[0]);
         copy(device_source, device_target, source.actor_buffers[1], target.actor_buffers[1]);
 //        target.rng = source.rng;
-        target.off_policy_runner.parameters.exploration_noise = source.off_policy_runner.parameters.exploration_noise;
+        // target.off_policy_runner.parameters.exploration_noise = source.off_policy_runner.parameters.exploration_noise;
         target.step = source.step;
     }
 

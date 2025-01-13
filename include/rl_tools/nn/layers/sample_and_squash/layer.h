@@ -34,7 +34,7 @@ namespace rl_tools{
         struct State{};
 
         template <typename T_TI, typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
-        struct BufferSpecification {
+        struct BufferSpecification{
             using TI = T_TI;
             using SPEC = T_SPEC;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
@@ -43,15 +43,15 @@ namespace rl_tools{
         template <typename BUFFER_SPEC>
         struct Buffer{
             using LAYER_SPEC = typename BUFFER_SPEC::SPEC;
-            using NOISE_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM, LAYER_SPEC::DYNAMIC_ALLOCATION>;
+            using NOISE_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using NOISE_CONTAINER_TYPE = Matrix<NOISE_CONTAINER_SPEC>;
             NOISE_CONTAINER_TYPE noise;
 
-            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename LAYER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DYNAMIC_ALLOCATION>;
+            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename LAYER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using LOG_PROBABILITIES_CONTAINER_TYPE = Matrix<LOG_PROBABILITIES_CONTAINER_SPEC>;
             LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
 
-            using D_LOG_ALPHA_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DYNAMIC_ALLOCATION>;
+            using D_LOG_ALPHA_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using D_LOG_ALPHA_CONTAINER_TYPE = Matrix<D_LOG_ALPHA_CONTAINER_SPEC>;
             D_LOG_ALPHA_CONTAINER_TYPE d_log_alpha;
         };

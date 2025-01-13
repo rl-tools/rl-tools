@@ -66,7 +66,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI CRITIC_NUM_LAYERS = 3;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
 };
-template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION>
 struct APPROXIMATOR_CONFIG{
     template <typename CAPABILITY>
     struct Actor{
