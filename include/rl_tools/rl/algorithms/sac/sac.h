@@ -123,7 +123,6 @@ namespace rl_tools::rl::algorithms::sac {
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_state_action_value_critic_2;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>, DYNAMIC_ALLOCATION>> d_input;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> d_output;
-        // Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_action_log_probs;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1>, DYNAMIC_ALLOCATION>> loss_weight;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH * BATCH_SIZE>, DYNAMIC_ALLOCATION>> next_action_log_probs;
     };
@@ -134,20 +133,13 @@ namespace rl_tools::rl::algorithms::sac {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-//        T target_next_action_noise_std = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD;
-//        T target_next_action_noise_clip = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP;
-
         typename SPEC::ACTOR_NETWORK_TYPE actor;
-//        using ACTOR_VIEW = nn_models::output_view::MODEL<nn_models::output_view::MODEL_VIEW_SPEC<TI, typename SPEC::ACTOR_NETWORK_TYPE, 0, SPEC::ENVIRONMENT::ACTION_DIM>>;
-//        ACTOR_VIEW actor_view;
-
         typename SPEC::CRITIC_NETWORK_TYPE critics[2];
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critics_target[2];
 
         typename SPEC::ACTOR_OPTIMIZER actor_optimizer;
         typename SPEC::CRITIC_OPTIMIZER critic_optimizers[2];
         typename SPEC::ALPHA_OPTIMIZER alpha_optimizer;
-//        ActorCritic(): actor_view(actor){};
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
