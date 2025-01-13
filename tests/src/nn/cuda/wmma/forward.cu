@@ -12,6 +12,7 @@
 #include <cuda_runtime.h>
 #include <mma.h>
 #include <stdio.h>
+#include <chrono>
 namespace rlt = rl_tools;
 
 using namespace nvcuda;
@@ -89,10 +90,14 @@ struct NORNG{};
 
 template <typename INPUT, typename OUTPUT, typename BUFFER>
 __global__ void evaluate_fused(NETWORK nn, INPUT input, OUTPUT output, BUFFER buffer){
+    __shared__ NETWORK_STATIC nn_shared;
     if(threadIdx.x == 0){
         CUDA_FUSED device;
         NORNG rng;
-        rlt::evaluate(device, nn, input, output, buffer, rng);
+        rlt::copy(device, device, nn, nn_shared);
+        for (TI i = 0; i < 1000; i++){
+            rlt::evaluate(device, nn_shared, input, output, buffer, rng);
+        }
     }
 }
 
@@ -130,17 +135,31 @@ int main() {
     rlt::init_weights(device_cuda, nn_cuda, rng_cuda);
     rlt::copy(device_cuda, device_cpu, nn_cuda, nn_cpu);
 
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
     evaluate_fused<<<1, 32>>>(nn_cuda, input_cuda, output_cuda, buffer_cuda);
+    cudaEventRecord(stop);
     cudaDeviceSynchronize();
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("Time: %f ms\n", milliseconds/1000);
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
         fprintf(stderr, "ERROR: %s\n", cudaGetErrorString(error));
     }
+    auto start_cpu = std::chrono::high_resolution_clock::now();
     rlt::evaluate(device_cpu, nn_cpu, input_cpu, output_cpu, buffer_cpu, rng_cpu);
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end_cpu - start_cpu;
+    printf("Time: %f ms\n", elapsed_seconds.count() * 1000);
+
 
     rlt::copy(device_cuda, device_cpu, output_cuda, output_cuda_cpu);
     T diff = rlt::abs_diff(device_cpu, output_cpu, output_cuda_cpu);
     rlt::print(device_cpu, output_cuda_cpu);
-    printf("Difference: %f\n", diff);
+    printf("Difference Output: %f\n", diff);
+
 }
 

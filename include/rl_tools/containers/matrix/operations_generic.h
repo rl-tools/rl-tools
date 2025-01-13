@@ -888,6 +888,18 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
         return acc;
     }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
+        using TI = typename SOURCE_DEVICE::index_t;
+        using T = typename SPEC_1::T;
+        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+        for (TI row_i=0; row_i < SPEC_1::ROWS; row_i++){
+            for (TI col_i=0; col_i < SPEC_1::COLS; col_i++){
+                T value = get(source, row_i, col_i);
+                set(target, row_i, col_i, value);
+            }
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
