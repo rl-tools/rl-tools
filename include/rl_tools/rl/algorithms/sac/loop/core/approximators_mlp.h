@@ -7,7 +7,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::sac::loop::core{
     // The approximator config sets up any types that support the usual rl_tools::forward and rl_tools::backward operations (can be custom as well)
     // We provide approximators based on the sequential and mlp models. The latter (mlp) allows for a variable number of layers, but is restricted to a uniform hidden layer size while the former allows for arbitrary layers to be combined in a sequential manner. Both support compile-time autodiff
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION=true>
     struct ConfigApproximatorsMLP{
         using SAC_PARAMETERS = typename PARAMETERS::SAC_PARAMETERS;
         template <typename CAPABILITY>
@@ -46,17 +46,17 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
-        using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS>;
-        using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS>;
-        using ALPHA_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ALPHA_OPTIMIZER_PARAMETERS>;
+        using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
+        using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
+        using ALPHA_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ALPHA_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
         using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
         using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
         using ALPHA_OPTIMIZER = nn::optimizers::Adam<ALPHA_OPTIMIZER_SPEC>;
-        using CAPABILITY_ACTOR = nn::capability::Gradient<nn::parameters::Adam>;
-        using CAPABILITY_CRITIC = nn::capability::Gradient<nn::parameters::Adam>;
+        using CAPABILITY_ACTOR = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
+        using CAPABILITY_CRITIC = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
         using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
         using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
-        using CRITIC_TARGET_TYPE = typename Critic<nn::capability::Forward<>>::MODEL;
+        using CRITIC_TARGET_TYPE = typename Critic<nn::capability::Forward<DYNAMIC_ALLOCATION>>::MODEL;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

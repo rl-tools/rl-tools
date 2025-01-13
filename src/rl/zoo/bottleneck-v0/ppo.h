@@ -6,7 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::bottleneck_v0::ppo{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI, typename RNG>
+    template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
@@ -34,7 +34,7 @@ namespace rl_tools::rl::zoo::bottleneck_v0::ppo{
 //                static constexpr bool ADAPTIVE_LEARNING_RATE = true;
             };
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent, DYNAMIC_ALLOCATION>;
         template <typename BASE>
         struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{
 //            static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT_PARAMETERS::DT;

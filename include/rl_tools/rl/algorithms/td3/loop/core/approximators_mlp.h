@@ -44,7 +44,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
-        using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+        using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
 
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 

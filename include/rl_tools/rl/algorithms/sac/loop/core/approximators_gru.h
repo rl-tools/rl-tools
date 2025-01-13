@@ -5,7 +5,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::sac::loop::core{
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION=true>
     struct ConfigApproximatorsGRU{
         static constexpr bool USE_GRU = true;
         using SAC_PARAMETERS = typename PARAMETERS::SAC_PARAMETERS;
@@ -67,14 +67,14 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             using MODEL = nn_models::sequential::Build<CAPABILITY, SELECTED_MODULE, INPUT_SHAPE>;
         };
 
-        using CAPABILITY_ACTOR = nn::capability::Gradient<nn::parameters::Adam>;
-        using CAPABILITY_CRITIC = nn::capability::Gradient<nn::parameters::Adam>;
+        using CAPABILITY_ACTOR = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
+        using CAPABILITY_CRITIC = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
         using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
         using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
-        using CRITIC_TARGET_TYPE = typename Critic<nn::capability::Forward<>>::MODEL;
-        using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS>;
-        using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS>;
-        using ALPHA_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ALPHA_OPTIMIZER_PARAMETERS>;
+        using CRITIC_TARGET_TYPE = typename Critic<nn::capability::Forward<DYNAMIC_ALLOCATION>>::MODEL;
+        using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
+        using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
+        using ALPHA_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::ALPHA_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
         using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
         using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
         using ALPHA_OPTIMIZER = nn::optimizers::Adam<ALPHA_OPTIMIZER_SPEC>;
