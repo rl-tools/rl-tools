@@ -23,7 +23,7 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr T ALPHA = 1;
                 static constexpr bool ADAPTIVE_ALPHA = true;
             };
-            static constexpr TI STEP_LIMIT = 200000;
+            static constexpr TI STEP_LIMIT = 400000;
             static constexpr TI N_ENVIRONMENTS = 32;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI N_WARMUP_STEPS = 100;
