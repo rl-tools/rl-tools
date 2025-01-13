@@ -26,30 +26,30 @@ namespace rl_tools{
         free(device, p.gradient);
     }
     template<typename DEVICE, typename CONTAINER>
-    void zero_gradient(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& container) {
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& container) {
         set_all(device, container.gradient, 0);
     }
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::parameters::Plain::instance<SOURCE_SPEC>& source, nn::parameters::Plain::instance<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::parameters::Plain::instance<SOURCE_SPEC>& source, nn::parameters::Plain::instance<TARGET_SPEC>& target){
         copy(source_device, target_device, source.parameters, target.parameters);
     }
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::parameters::Gradient::instance<SOURCE_SPEC>& source, nn::parameters::Gradient::instance<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::parameters::Gradient::instance<SOURCE_SPEC>& source, nn::parameters::Gradient::instance<TARGET_SPEC>& target){
         copy(source_device, target_device, (nn::parameters::Plain::instance<SOURCE_SPEC>&) source, (nn::parameters::Plain::instance<TARGET_SPEC>&) target);
         copy(source_device, target_device, source.gradient, target.gradient);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Plain::instance<SPEC_1>& p1, const nn::parameters::Plain::instance<SPEC_2>& p2){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Plain::instance<SPEC_1>& p1, const nn::parameters::Plain::instance<SPEC_2>& p2){
         typename SPEC_1::CONTAINER::T acc = 0;
         acc += abs_diff(device, p1.parameters, p2.parameters);
         return acc;
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Gradient::instance<SPEC_1>& p1, const nn::parameters::Gradient::instance<SPEC_2>& p2){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Gradient::instance<SPEC_1>& p1, const nn::parameters::Gradient::instance<SPEC_2>& p2){
         typename SPEC_1::CONTAINER::T acc = 0;
         acc += abs_diff(device, (nn::parameters::Plain::instance<SPEC_1>&) p1, (nn::parameters::Plain::instance<SPEC_2>&) p2);
         acc += abs_diff(device, p1.gradient, p2.gradient);
@@ -57,13 +57,13 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename MODE = Mode<mode::Default<>>>
-    bool is_nan(DEVICE& device, const nn::parameters::Plain::instance<SPEC>& p, const Mode<MODE>& mode = {}){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::parameters::Plain::instance<SPEC>& p, const Mode<MODE>& mode = {}){
         return is_nan(device, p.parameters, mode);
     }
 
 
     template<typename DEVICE, typename SPEC, typename MODE = Mode<mode::Default<>>>
-    bool is_nan(DEVICE& device, const nn::parameters::Gradient::instance<SPEC>& p, const Mode<MODE>& mode = {}){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::parameters::Gradient::instance<SPEC>& p, const Mode<MODE>& mode = {}){
         bool upstream_nan = is_nan(device, static_cast<const nn::parameters::Plain::instance<SPEC>&>(p), mode);
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return upstream_nan;
@@ -71,7 +71,7 @@ namespace rl_tools{
         return upstream_nan || is_nan(device, p.gradient, mode);
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::CONTAINER::T gradient_norm(DEVICE& device, const nn::parameters::Gradient::instance<SPEC>& parameter){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::CONTAINER::T gradient_norm(DEVICE& device, const nn::parameters::Gradient::instance<SPEC>& parameter){
         return squared_sum(device, parameter.gradient);
     }
 }
