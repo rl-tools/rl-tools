@@ -5,3 +5,6 @@ set(CMAKE_CXX_STANDARD  17)
 
 add_executable(test_nn_cuda_wmma wmma.cu)
 target_link_libraries(test_nn_cuda_wmma PRIVATE RLtools::Minimal)
+
+add_executable(test_nn_cuda_wmma_forward forward.cu)
+target_link_libraries(test_nn_cuda_wmma_forward PRIVATE RLtools::Minimal)
