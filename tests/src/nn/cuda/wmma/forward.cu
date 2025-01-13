@@ -1,6 +1,11 @@
+
+#define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 #define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/operations/cuda.h>
+#include <rl_tools/nn/layers/operations_cuda.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <cuda_bf16.h>
@@ -40,8 +45,7 @@ __global__ void wmma_kernel(__nv_bfloat16* global_a, __nv_bfloat16* global_b, fl
     wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
     wmma::store_matrix_sync(&global_c[0], c_frag, N, wmma::mem_row_major);
 }
-
-using DEVICE_CUDA = rlt::devices::DefaultCPU;
+using DEVICE_CUDA = rlt::devices::DefaultCUDA;
 using DEVICE_CPU = rlt::devices::DefaultCPU;
 using T = float;
 using TI = DEVICE_CUDA::index_t;
@@ -59,7 +63,8 @@ constexpr TI OUTPUT_DIM = 16;
 constexpr TI HIDDEN_DIM = 16;
 constexpr TI NUM_LAYERS = 3;
 
-using CAPABILITY = rlt::nn::capability::Forward<>;
+using CAPABILITY = rlt::nn::capability::Forward<true>;
+using CAPABILITY_STATIC = rlt::nn::capability::Forward<false>;
 namespace network_builder{
     using namespace rlt;
     using INPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
@@ -69,9 +74,29 @@ namespace network_builder{
     using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
     using MODULE_CHAIN = Module<MLP>;
     using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+    using MODEL_STATIC = nn_models::sequential::Build<CAPABILITY_STATIC, MODULE_CHAIN, INPUT_SHAPE>;
 };
 
 using NETWORK = network_builder::MODEL;
+using NETWORK_STATIC = network_builder::MODEL_STATIC;
+
+
+struct CUDA_FUSED{
+    using index_t = DEVICE_CUDA::index_t;
+    using SPEC = DEVICE_CUDA::SPEC;
+};
+struct NORNG{};
+
+template <typename INPUT, typename OUTPUT, typename BUFFER>
+__global__ void evaluate_fused(NETWORK nn, INPUT input, OUTPUT output, BUFFER buffer){
+    if(threadIdx.x == 0){
+        // CUDA_FUSED device;
+        // NORNG rng;
+        printf("input %f\n", *input._data);
+        // rlt::evaluate(device, nn, input, output, buffer, rng);
+    }
+}
+
 
 int main() {
     DEVICE_CUDA device_cuda;
@@ -106,13 +131,23 @@ int main() {
     rlt::init_weights(device_cuda, nn_cuda, rng_cuda);
     rlt::copy(device_cuda, device_cpu, nn_cuda, nn_cpu);
 
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        fprintf(stderr, "ERROR: %s\n", cudaGetErrorString(error));
+    }
     rlt::evaluate(device_cuda, nn_cuda, input_cuda, output_cuda, buffer_cuda, rng_cuda);
+    // evaluate_fused<<<1, 32>>>(nn_cuda, input_cuda, output_cuda, buffer_cuda);
+    cudaDeviceSynchronize();
+    error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        fprintf(stderr, "ERROR: %s\n", cudaGetErrorString(error));
+    }
     rlt::evaluate(device_cpu, nn_cpu, input_cpu, output_cpu, buffer_cpu, rng_cpu);
 
     rlt::copy(device_cuda, device_cpu, output_cuda, output_cuda_cpu);
 
     T diff = rlt::abs_diff(device_cpu, output_cpu, output_cuda_cpu);
-    rlt::print(device_cpu, output_cpu);
+    // rlt::print(device_cpu, output_cuda_cpu);
     printf("Difference: %f\n", diff);
 }
 

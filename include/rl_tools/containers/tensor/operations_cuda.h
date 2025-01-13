@@ -9,7 +9,8 @@
 #include "operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools{
+namespace rl_tools
+{
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEV_SPEC, typename T, typename T_TI, T_TI SIZE, bool CONST>
     void malloc(devices::CUDA<DEV_SPEC>& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
@@ -382,6 +383,46 @@ namespace rl_tools{
         operation.scale = scale;
         operation.reciprocal = reciprocal;
         unary_operation(device, operation, t);
+    }
+    namespace tensor::kernels{
+        template<typename DEVICE, typename SPEC, typename RNG>
+        __global__
+        void randn(DEVICE device, Tensor<SPEC> t, RNG rng){
+            static_assert(length(typename SPEC::SHAPE{}) == 1);
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC::T;
+            constexpr TI SIZE = get<0>(typename SPEC::SHAPE{});
+            static_assert(RNG::NUM_RNGS >= SIZE);
+            TI step_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(step_i < SIZE){
+                auto& my_rng = get(rng.states, 0, step_i);
+                T value = random::normal_distribution::sample(device.random, (T)0, (T)1, my_rng);
+                set(device, t, value, step_i);
+            }
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC, typename RNG>
+    void randn(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, RNG& rng){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) > 1){
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+                auto next = view(device, t, i);
+                randn(device, next, rng);
+            }
+        }
+        else{
+            constexpr TI BLOCKSIZE = 32;
+            constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
+            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE);
+            dim3 grid(N_BLOCKS);
+            dim3 block(BLOCKSIZE);
+            devices::cuda::TAG<DEVICE, true> tag_device{};
+            tensor::kernels::randn<<<grid, block, 0, device.stream>>>(tag_device, t, rng);
+            check_status(device);
+
+        }
     }
 
 }
