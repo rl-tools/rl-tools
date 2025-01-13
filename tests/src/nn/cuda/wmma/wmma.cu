@@ -93,7 +93,6 @@ int main() {
     cudaFree(c);
     free(b_cpu);
     free(c_cpu);
-
     return 0;
 }
 
