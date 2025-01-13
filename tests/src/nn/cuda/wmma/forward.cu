@@ -90,10 +90,9 @@ struct NORNG{};
 template <typename INPUT, typename OUTPUT, typename BUFFER>
 __global__ void evaluate_fused(NETWORK nn, INPUT input, OUTPUT output, BUFFER buffer){
     if(threadIdx.x == 0){
-        // CUDA_FUSED device;
-        // NORNG rng;
-        printf("input %f\n", *input._data);
-        // rlt::evaluate(device, nn, input, output, buffer, rng);
+        CUDA_FUSED device;
+        NORNG rng;
+        rlt::evaluate(device, nn, input, output, buffer, rng);
     }
 }
 
@@ -131,23 +130,17 @@ int main() {
     rlt::init_weights(device_cuda, nn_cuda, rng_cuda);
     rlt::copy(device_cuda, device_cpu, nn_cuda, nn_cpu);
 
-    cudaError_t error = cudaGetLastError();
-    if (error != cudaSuccess) {
-        fprintf(stderr, "ERROR: %s\n", cudaGetErrorString(error));
-    }
-    rlt::evaluate(device_cuda, nn_cuda, input_cuda, output_cuda, buffer_cuda, rng_cuda);
-    // evaluate_fused<<<1, 32>>>(nn_cuda, input_cuda, output_cuda, buffer_cuda);
+    evaluate_fused<<<1, 32>>>(nn_cuda, input_cuda, output_cuda, buffer_cuda);
     cudaDeviceSynchronize();
-    error = cudaGetLastError();
+    cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
         fprintf(stderr, "ERROR: %s\n", cudaGetErrorString(error));
     }
     rlt::evaluate(device_cpu, nn_cpu, input_cpu, output_cpu, buffer_cpu, rng_cpu);
 
     rlt::copy(device_cuda, device_cpu, output_cuda, output_cuda_cpu);
-
     T diff = rlt::abs_diff(device_cpu, output_cpu, output_cuda_cpu);
-    // rlt::print(device_cpu, output_cuda_cpu);
+    rlt::print(device_cpu, output_cuda_cpu);
     printf("Difference: %f\n", diff);
 }
 
