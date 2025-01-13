@@ -38,3 +38,7 @@ gtest_discover_tests(test_nn_cuda_basics)
 #        PRIVATE
 #        CUTLASS
 #)
+
+
+
+add_subdirectory(wmma)
