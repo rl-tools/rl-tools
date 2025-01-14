@@ -1,13 +1,9 @@
 
 #define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 #define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
+#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/operations/cuda.h>
-#include <rl_tools/nn/layers/operations_cuda.h>
-#include <rl_tools/nn_models/mlp/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
-#include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include <mma.h>
@@ -46,23 +42,53 @@ __global__ void wmma_kernel(__nv_bfloat16* global_a, __nv_bfloat16* global_b, fl
     wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
     wmma::store_matrix_sync(&global_c[0], c_frag, N, wmma::mem_row_major);
 }
+
 using DEVICE_CUDA = rlt::devices::DefaultCUDA;
+struct CUDA_FUSED{
+    using index_t = DEVICE_CUDA::index_t;
+    using SPEC = DEVICE_CUDA::SPEC;
+};
+struct NORNG{};
+
+#include <rl_tools/nn/layers/dense/layer.h>
+
+namespace rl_tools{
+    template<typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(CUDA_FUSED& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        // Warning do not use the same buffer for input and output!
+        using TI = typename CUDA_FUSED::index_t;
+        constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
+                set(output, batch_i, output_i, get(layer.biases.parameters, 0, output_i));
+                for(TI input_i = 0; input_i < LAYER_SPEC::INPUT_DIM; input_i++) {
+                    increment(output, batch_i, output_i, get(layer.weights.parameters, output_i, input_i) * get(input, batch_i, input_i));
+                }
+                set(output, batch_i, output_i, activation<typename CUDA_FUSED::SPEC::MATH, typename LAYER_SPEC::T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, batch_i, output_i)));
+            }
+        }
+    }
+}
+
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/layers/dense/operations_cuda.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
+
 using DEVICE_CPU = rlt::devices::DefaultCPU;
 using DEVICE_BLAS = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
 using TI = DEVICE_CUDA::index_t;
 constexpr bool DYNAMIC_ALLOCATION = true;
-using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
-using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
-using LOOP_CORE_PARAMETERS = rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>;
 using RNG_CUDA = DEVICE_CUDA::SPEC::RANDOM::ENGINE<>;
 using RNG_CPU = DEVICE_CPU::SPEC::RANDOM::ENGINE<>;
 
 constexpr TI SEQUENCE_LENGTH = 1;
-constexpr TI BATCH_SIZE = 32;
-constexpr TI INPUT_DIM = 32;
-constexpr TI OUTPUT_DIM = 32;
-constexpr TI HIDDEN_DIM = 32;
+constexpr TI BATCH_SIZE = 16;
+constexpr TI INPUT_DIM = 16;
+constexpr TI OUTPUT_DIM = 16;
+constexpr TI HIDDEN_DIM = 16;
 constexpr TI NUM_LAYERS = 3;
 
 using CAPABILITY = rlt::nn::capability::Forward<true>;
@@ -82,12 +108,6 @@ namespace network_builder{
 using NETWORK = network_builder::MODEL;
 using NETWORK_STATIC = network_builder::MODEL_STATIC;
 
-
-struct CUDA_FUSED{
-    using index_t = DEVICE_CUDA::index_t;
-    using SPEC = DEVICE_CUDA::SPEC;
-};
-struct NORNG{};
 
 template <typename INPUT, typename OUTPUT, typename BUFFER>
 __global__ void evaluate_fused(NETWORK nn, INPUT input, OUTPUT output, BUFFER buffer){
