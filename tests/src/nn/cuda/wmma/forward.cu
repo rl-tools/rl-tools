@@ -85,10 +85,11 @@ using RNG_CUDA = DEVICE_CUDA::SPEC::RANDOM::ENGINE<>;
 using RNG_CPU = DEVICE_CPU::SPEC::RANDOM::ENGINE<>;
 
 constexpr TI SEQUENCE_LENGTH = 1;
-constexpr TI BATCH_SIZE = 16;
-constexpr TI INPUT_DIM = 16;
-constexpr TI OUTPUT_DIM = 16;
-constexpr TI HIDDEN_DIM = 16;
+constexpr TI DIM = 16;
+constexpr TI BATCH_SIZE = DIM;
+constexpr TI INPUT_DIM = DIM;
+constexpr TI OUTPUT_DIM = DIM;
+constexpr TI HIDDEN_DIM = DIM;
 constexpr TI NUM_LAYERS = 3;
 
 using CAPABILITY = rlt::nn::capability::Forward<true>;
@@ -112,16 +113,17 @@ using NETWORK_STATIC = network_builder::MODEL_STATIC;
 template <typename INPUT, typename OUTPUT, typename BUFFER>
 __global__ void evaluate_fused(NETWORK nn, INPUT input, OUTPUT output, BUFFER buffer){
     __shared__ NETWORK_STATIC nn_shared;
+    __shared__ NETWORK::Buffer<false> buffer_shared;
     __shared__ rlt::Tensor<rlt::tensor::Specification<T, TI, NETWORK::INPUT_SHAPE, false>> input_shared;
     __shared__ rlt::Tensor<rlt::tensor::Specification<T, TI, NETWORK::OUTPUT_SHAPE, false>> output_shared;
-    if(threadIdx.x == 0){
+    if(threadIdx.x < 32){
         CUDA_FUSED device;
         NORNG rng;
         rlt::copy(device, device, nn, nn_shared);
         rlt::copy(device, device, input, input_shared);
         rlt::copy(device, device, output, output_shared);
         for (TI i = 0; i < 1000; i++){
-            rlt::evaluate(device, nn_shared, input_shared, output_shared, buffer, rng);
+            rlt::evaluate(device, nn_shared, input_shared, output_shared, buffer_shared, rng);
         }
         rlt::copy(device, device, output_shared, output);
     }
