@@ -23,7 +23,7 @@ namespace rl_tools{
             T gain;
             if constexpr(INITIALIZER_SPEC::INIT_LEGACY){
                 T negative_slope = math::sqrt(device.math, (T)5);
-                gain = math::sqrt(device.math, (T)2.0 / (1 + negative_slope * negative_slope));
+                gain = math::sqrt(device.math, (T)2.0 / ((T)1.0 + negative_slope * negative_slope));
             }
             else{
                 gain = math::sqrt(device.math, (T)2.0) * INITIALIZER_SPEC::SCALE;
@@ -31,7 +31,7 @@ namespace rl_tools{
             T fan = SPEC::INPUT_DIM;
             T std = gain / math::sqrt(device.math, fan);
             T weight_bound = math::sqrt(device.math, (T)3.0) * std;
-            T bias_bound = 1/math::sqrt(device.math, (T)SPEC::INPUT_DIM);
+            T bias_bound = (T)1.0/math::sqrt(device.math, (T)SPEC::INPUT_DIM);
             TI output_pos = blockIdx.x * blockDim.x + threadIdx.x;
             static_assert(RNG::NUM_RNGS >= SPEC::OUTPUT_DIM);
             if(output_pos < SPEC::OUTPUT_DIM){

@@ -25,13 +25,16 @@ namespace rl_tools::random{
 
     template<typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
-        static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>, "Only float and double are supported");
+        // static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>, "Only float and double are supported");
         if constexpr(utils::typing::is_same_v<T, float>){
             return curand_uniform(&rng) * (high - low) + low;
         }
         else{
             if constexpr(utils::typing::is_same_v<T, double>){
                 return curand_uniform_double(&rng) * (high - low) + low;
+            }
+            else{
+                return (T)curand_uniform(&rng) * (high - low) + low;
             }
         }
         return 0;
@@ -44,7 +47,7 @@ namespace rl_tools::random{
     namespace normal_distribution{
         template<typename T, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::CUDA& dev, T mean, T std, RNG& rng){
-            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+            // static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             if constexpr(utils::typing::is_same_v<T, float>){
                 return curand_normal(&rng) * std + mean;
             }
@@ -53,7 +56,7 @@ namespace rl_tools::random{
                     return curand_normal_double(&rng) * std + mean;
                 }
                 else{
-                    return 0;
+                    return ((T)curand_normal(&rng)) * std + mean;
                 }
             }
         }
