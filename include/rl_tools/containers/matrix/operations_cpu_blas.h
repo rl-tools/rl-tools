@@ -30,6 +30,18 @@ namespace rl_tools{
             cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, A._data, row_pitch(A), B._data, row_pitch(B), beta, output._data, row_pitch(output));
         }
     }
+    template<typename SOURCE_DEVICE_SPEC, typename TARGET_DEVICE_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(devices::CPU_BLAS<SOURCE_DEVICE_SPEC>& source_device, devices::CPU_BLAS<TARGET_DEVICE_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
+        copy(static_cast<devices::CPU<SOURCE_DEVICE_SPEC>&>(source_device), static_cast<devices::CPU<TARGET_DEVICE_SPEC>&>(target_device), source, target);
+    }
+    template<typename SOURCE_DEVICE_SPEC, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(devices::CPU_BLAS<SOURCE_DEVICE_SPEC>& source_device, TARGET_DEVICE& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
+        copy(static_cast<devices::CPU<SOURCE_DEVICE_SPEC>&>(source_device), target_device, source, target);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, devices::CPU_BLAS<TARGET_DEVICE_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
+        copy(source_device, static_cast<devices::CPU<TARGET_DEVICE_SPEC>&>(target_device), source, target);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
