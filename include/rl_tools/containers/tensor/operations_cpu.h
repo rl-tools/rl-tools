@@ -11,6 +11,7 @@ namespace rl_tools{
     template<typename DEV_SPEC, typename SPEC>
     void print(devices::CPU<DEV_SPEC>& device, const Tensor<SPEC>& tensor, bool python_literal=false, typename DEV_SPEC::index_t level=0){
         using TI = typename DEV_SPEC::index_t;
+        using T = typename SPEC::T;
         if constexpr(length(typename SPEC::SHAPE{}) == 1){
             std::cout << (python_literal ? "[" : "");
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
@@ -27,8 +28,14 @@ namespace rl_tools{
                 for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
                     std::cout << (python_literal ? "[" : "");
                     for(TI j=0; j < get<1>(typename SPEC::SHAPE{}); j++){
-                        auto number = get(device, tensor, i, j);
-                        std::cout <<  std::setw(15) << std::scientific << std::setprecision(6) << number;
+                        T number = get(device, tensor, i, j);
+                        std::cout <<  std::setw(15) << std::scientific << std::setprecision(6);
+                        if constexpr (utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>){
+                            std::cout << number;
+                        }
+                        else{
+                            std::cout << (float)number;
+                        }
                         if(python_literal){
                             std::cout << ", ";
                         }

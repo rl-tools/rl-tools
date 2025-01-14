@@ -98,7 +98,17 @@ namespace rl_tools::math {
     }
     template<typename T>
     T abs(const devices::math::CPU&, T x){
-        return std::abs(x);
+        if constexpr (utils::typing::is_same_v<T, float>){
+            return std::fabs(x);
+        }
+        else{
+            if constexpr (utils::typing::is_same_v<T, double>){
+                return std::abs(x);
+            }
+            else{
+                return (T)std::abs((float)x);
+            }
+        }
     }
     template<typename T>
     T nan(const devices::math::CPU&){

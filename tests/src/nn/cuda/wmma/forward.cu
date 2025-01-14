@@ -1,7 +1,7 @@
 
 #define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 #define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
-#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+// #define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/operations/cuda.h>
 #include <cuda_bf16.h>
@@ -78,7 +78,7 @@ namespace rl_tools{
 
 using DEVICE_CPU = rlt::devices::DefaultCPU;
 using DEVICE_BLAS = rlt::devices::DEVICE_FACTORY<>;
-using T = float;
+using T = __nv_bfloat16;
 using TI = DEVICE_CUDA::index_t;
 constexpr bool DYNAMIC_ALLOCATION = true;
 using RNG_CUDA = DEVICE_CUDA::SPEC::RANDOM::ENGINE<>;

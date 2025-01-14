@@ -16,7 +16,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::math {
     namespace cuda {
         template<typename T>
-        constexpr bool check = utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>;
+        constexpr bool check = utils::typing::is_same_v<T, __nv_bfloat16> || utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>;
     }
 
     // CUDA std
@@ -26,7 +26,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::sqrtf(x);
         } else {
-            return ::sqrt(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::sqrt(x);
+            } else {
+                return ::hsqrt(x);
+            }
         }
     }
 
@@ -36,7 +40,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::tanhf(x);
         } else {
-            return ::tanh(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::tanh(x);
+            } else {
+                return (T)::tanhf((float)x);
+            }
         }
     }
 
@@ -46,7 +54,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::expf(x);
         } else {
-            return ::exp(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::exp(x);
+            } else {
+                return ::hexp(x);
+            }
         }
     }
 
@@ -56,16 +68,24 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::sinf(x);
         } else {
-            return ::sin(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::sin(x);
+            } else {
+                return ::hsin(x);
+            }
         }
     }
     template<typename T>
     RL_TOOLS_FUNCTION_PLACEMENT T asin(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
-            return ::asin(x);
+            return ::asinf(x);
         } else {
-            return ::asin(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::asin(x);
+            } else {
+                return (T)::asinf((float)x);
+            }
         }
     }
 
@@ -75,7 +95,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::cosf(x);
         } else {
-            return ::cos(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::cos(x);
+            } else {
+                return ::hcos(x);
+            }
         }
     }
 
@@ -85,7 +109,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::acosf(x);
         } else {
-            return ::acos(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::acos(x);
+            } else {
+                return (T)::acosf((float)x);
+            }
         }
     }
 
@@ -93,10 +121,14 @@ namespace rl_tools::math {
     RL_TOOLS_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA &, const TX x, const TY y) {
         static_assert(cuda::check<TX>, "CUDA math only supports float and double");
         static_assert(cuda::check<TY>, "CUDA math only supports float and double");
-        if constexpr (utils::typing::is_same_v<TX, double> || utils::typing::is_same_v<TY, double>) {
-            return ::pow(x, y);
-        } else {
+        if constexpr (utils::typing::is_same_v<TX, float> && utils::typing::is_same_v<TY, float>) {
             return ::powf(x, y);
+        } else {
+            if constexpr (utils::typing::is_same_v<TX, double> || utils::typing::is_same_v<TY, double>) {
+                return ::pow(x, y);
+            } else {
+                return (TX)::powf((float)x, (float)y);
+            }
         }
     }
 
@@ -106,7 +138,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::logf(x);
         } else {
-            return ::log(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::log(x);
+            } else {
+                return ::hlog(x);
+            }
         }
     }
 
@@ -116,7 +152,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::floorf(x);
         } else {
-            return ::floor(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::floor(x);
+            } else {
+                return ::hfloor(x);
+            }
         }
     }
 
@@ -124,9 +164,13 @@ namespace rl_tools::math {
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
-            return ::isnan(x);
+            return ::isnanf(x);
         } else {
-            return ::isnan(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::isnan(x);
+            } else {
+                return ::__hisnan(x);
+            }
         }
     }
 
@@ -136,7 +180,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::fmin(max, ::fmax(x, min));
         } else {
-            return ::min(max, ::max(x, min));
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::min(max, ::fmax(x, min));
+            } else {
+                return ::__hmin(max, ::__hmax(x, min));
+            }
         }
     }
     template<typename T>
@@ -145,7 +193,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::fmin(a, b);
         } else {
-            return ::min(a, b);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::min(a, b);
+            } else {
+                return ::__hmin(a, b);
+            }
         }
     }
     template<typename T>
@@ -154,7 +206,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::fmax(a, b);
         } else {
-            return ::max(a, b);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::max(a, b);
+            } else {
+                return ::__hmax(a, b);
+            }
         }
     }
     template<typename T>
@@ -163,7 +219,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::fabs(x);
         } else {
-            return ::abs(x);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::abs(x);
+            } else {
+                return ::__habs(x);
+            }
         }
     }
     template<typename T>
@@ -190,7 +250,11 @@ namespace rl_tools::math {
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::atan2f(a, b);
         } else {
-            return ::atan2(a, b);
+            if constexpr (utils::typing::is_same_v<T, double>) {
+                return ::atan2(a, b);
+            } else {
+                return (T)::atan2f((float)a, (float)b);
+            }
         }
     }
 
