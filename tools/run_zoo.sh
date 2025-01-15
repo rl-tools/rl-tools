@@ -1,5 +1,5 @@
 # note this should be run from the project dir
-# usage: ./tools/run.sh /home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac 20
+# usage: ./tools/run.sh /home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac [start-seed] [end-seed] [num-processes]
 if [ "$#" -ne 4 ]; then
     echo "Usage: $0 <path-to-executable> <start-seed> <end-seed> <num-processes>"
     exit 1
