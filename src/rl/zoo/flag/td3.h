@@ -9,27 +9,31 @@ namespace rl_tools::rl::zoo::flag::td3{
     struct FACTORY{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+            static constexpr T NOISE_MULTIPLIER = 2;
             struct TD3_PARAMETERS: rl::algorithms::td3::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 32;
                 static constexpr TI CRITIC_BATCH_SIZE = 32;
-                static constexpr T GAMMA = 0.95;
+                static constexpr T GAMMA = 0.9;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
                 static constexpr TI SEQUENCE_LENGTH = ENVIRONMENT::EPISODE_STEP_LIMIT;
+                static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2 * NOISE_MULTIPLIER;
+                static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5 * NOISE_MULTIPLIER;
             };
             static constexpr TI STEP_LIMIT = 400000;
             static constexpr TI N_ENVIRONMENTS = 32;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI N_WARMUP_STEPS = 100;
-            static constexpr TI N_WARMUP_STEPS_CRITIC = 100;
-            static constexpr TI N_WARMUP_STEPS_ACTOR = 100;
+            static constexpr TI N_WARMUP_STEPS = 10000;
+            static constexpr TI N_WARMUP_STEPS_CRITIC = 10000;
+            static constexpr TI N_WARMUP_STEPS_ACTOR = 20000;
             static constexpr TI ACTOR_NUM_LAYERS = 4;
             static constexpr TI ACTOR_HIDDEN_DIM = 32;
             static constexpr TI CRITIC_NUM_LAYERS = 4;
             static constexpr TI CRITIC_HIDDEN_DIM = 32;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr T EXPLORATION_NOISE = 0.1 * NOISE_MULTIPLIER;
 
             // using BATCH_SAMPLING_PARAMETERS = rl::components::off_policy_runner::SequentialBatchParameters<T, TI, SAC_PARAMETERS::SEQUENCE_LENGTH>;
             struct BATCH_SAMPLING_PARAMETERS{
