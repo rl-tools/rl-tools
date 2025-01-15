@@ -89,36 +89,40 @@ namespace rl_tools{
             typename CONFIG::EXPLORATION_POLICY::template Buffer<> exploration_policy_buffer;
             step<0>(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng);
         }
-        if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH){
-                gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                auto action_noise_matrix_view = matrix_view(device, ts.critic_training_buffers.target_next_action_noise);
-                target_action_noise(device, ts.actor_critic, action_noise_matrix_view, ts.rng);
-            }
-            if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
-                for(int critic_i = 0; critic_i < 2; critic_i++){
-                    if constexpr(!CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
-                        gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                        auto action_noise_matrix_view = matrix_view(device, ts.critic_training_buffers.target_next_action_noise);
-                        target_action_noise(device, ts.actor_critic, action_noise_matrix_view, ts.rng);
-                    }
-                    train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.actor_target_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_target_buffers[critic_i], ts.critic_training_buffers, ts.rng);
+
+        bool train_critic_flag = ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS_CRITIC && ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0;
+        bool update_critic_targets_flag = ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS_CRITIC && ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0;
+        bool train_actor_flag = ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS_ACTOR && ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0;
+        bool update_actor_targets_flag = ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS_ACTOR && ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0;
+
+        if(CONFIG::CORE_PARAMETERS::SHARED_BATCH && (train_critic_flag || train_actor_flag)){
+            gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+            auto action_noise_matrix_view = matrix_view(device, ts.critic_training_buffers.target_next_action_noise);
+            target_action_noise(device, ts.actor_critic, action_noise_matrix_view, ts.rng);
+        }
+        if(train_critic_flag){
+            for(int critic_i = 0; critic_i < 2; critic_i++){
+                if constexpr(!CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
+                    gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+                    auto action_noise_matrix_view = matrix_view(device, ts.critic_training_buffers.target_next_action_noise);
+                    target_action_noise(device, ts.actor_critic, action_noise_matrix_view, ts.rng);
                 }
+                train_critic(device, ts.actor_critic, ts.actor_critic.critics[critic_i], ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.actor_target_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_target_buffers[critic_i], ts.critic_training_buffers, ts.rng);
             }
-            if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
-                if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
-                    train_actor(device, ts.actor_critic, ts.critic_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
-                }
-                else{
-                    gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                    train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
-                }
+        }
+        if(update_critic_targets_flag){
+            update_critic_targets(device, ts.actor_critic);
+        }
+        if(update_actor_targets_flag){
+            update_actor_target(device, ts.actor_critic);
+        }
+        if(train_actor_flag){
+            if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
+                train_actor(device, ts.actor_critic, ts.critic_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
             }
-            if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0){
-                update_critic_targets(device, ts.actor_critic);
-            }
-            if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0){
-                update_actor_target(device, ts.actor_critic);
+            else{
+                gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+                train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
             }
         }
         ts.step++;
