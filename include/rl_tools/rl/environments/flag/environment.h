@@ -13,7 +13,7 @@ namespace rl_tools::rl::environments::flag{
         constexpr static T MAX_ACCELERATION = 50;
         constexpr static T MAX_VELOCITY = 5;
         constexpr static T FLAG_DISTANCE_THRESHOLD = 1;
-        constexpr static T DT = 0.10;
+        constexpr static T DT = 0.03;
         constexpr static T BOARD_SIZE = 10;
         T flag_positions[2][2];
     };
@@ -64,7 +64,7 @@ namespace rl_tools::rl::environments{
         using ObservationPrivileged = Observation; //flag::ObservationPrivileged<TI>;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 2;
-        static constexpr TI EPISODE_STEP_LIMIT = 36;
+        static constexpr TI EPISODE_STEP_LIMIT = 100;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
