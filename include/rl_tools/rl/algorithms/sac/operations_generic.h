@@ -80,10 +80,9 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
-        malloc(device, critic_training_buffers.next_state_action_value_input_full);
-        critic_training_buffers.next_state_action_value_input = view_range(device, critic_training_buffers.next_state_action_value_input_full, 0, tensor::ViewSpec<2, BUFFERS::CRITIC_OBSERVATION_DIM + BUFFERS::ACTION_DIM>{});
-        critic_training_buffers.next_observations             = view_range(device, critic_training_buffers.next_state_action_value_input_full, 0, tensor::ViewSpec<2, BUFFERS::CRITIC_OBSERVATION_DIM>{});
-        critic_training_buffers.next_actions                  = view_range(device, critic_training_buffers.next_state_action_value_input_full, BUFFERS::CRITIC_OBSERVATION_DIM, tensor::ViewSpec<2, BUFFERS::ACTION_DIM>{});
+        malloc(device, critic_training_buffers.next_state_action_value_input);
+        critic_training_buffers.next_observations             = view_range(device, critic_training_buffers.next_state_action_value_input, 0, tensor::ViewSpec<2, BUFFERS::CRITIC_OBSERVATION_DIM>{});
+        critic_training_buffers.next_actions                  = view_range(device, critic_training_buffers.next_state_action_value_input, BUFFERS::CRITIC_OBSERVATION_DIM, tensor::ViewSpec<2, BUFFERS::ACTION_DIM>{});
         malloc(device, critic_training_buffers.action_value);
         malloc(device, critic_training_buffers.target_action_value);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -96,8 +95,7 @@ namespace rl_tools{
 
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
-        free(device, critic_training_buffers.next_state_action_value_input_full);
-        critic_training_buffers.next_state_action_value_input._data = nullptr;
+        free(device, critic_training_buffers.next_state_action_value_input);
         critic_training_buffers.next_observations._data = nullptr;
         critic_training_buffers.next_actions._data = nullptr;
         free(device, critic_training_buffers.action_value);
