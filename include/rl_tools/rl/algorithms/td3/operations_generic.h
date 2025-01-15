@@ -189,7 +189,7 @@ namespace rl_tools{
         evaluate(device, actor_critic.actor_target, batch.observations_next, training_buffers.next_actions, actor_target_buffers, rng, reset_mode);
         noisy_next_actions(device, training_buffers);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
-            mask_actions(device, batch.actions_next, training_buffers.next_actions, batch.final_step_mask, true);
+            mask_actions(device, batch.actions_next, training_buffers.next_actions, batch.next_final_step_mask, true);
         }
         copy(device, device, batch.observations_privileged_next, training_buffers.next_observations);
         evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_target_buffers, rng, reset_mode);

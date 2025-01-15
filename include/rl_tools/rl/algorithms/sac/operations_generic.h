@@ -198,6 +198,8 @@ namespace rl_tools{
         using T = typename SOURCE_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
+        static_assert(SEQUENCE_LENGTH == get<0>(typename TARGET_SPEC::SHAPE{}));
+        static_assert(SEQUENCE_LENGTH == get<0>(typename MASK_SPEC::SHAPE{}));
         for(TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
             mask_actions_step(device, source, target, mask, seq_step_i, invert_mask);
         }
