@@ -113,9 +113,6 @@ namespace rl_tools{
         if(update_critic_targets_flag){
             update_critic_targets(device, ts.actor_critic);
         }
-        if(update_actor_targets_flag){
-            update_actor_target(device, ts.actor_critic);
-        }
         if(train_actor_flag){
             if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
                 train_actor(device, ts.actor_critic, ts.critic_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
@@ -124,6 +121,9 @@ namespace rl_tools{
                 gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
                 train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
             }
+        }
+        if(update_actor_targets_flag){
+            update_actor_target(device, ts.actor_critic);
         }
         ts.step++;
         if(ts.step > CONFIG::CORE_PARAMETERS::STEP_LIMIT){
