@@ -34,7 +34,7 @@ namespace rl_tools::rl::algorithms::td3 {
         typename T_CRITIC_TARGET_TYPE,
         typename T_OPTIMIZER,
         typename T_PARAMETERS,
-        bool T_INCLUDE_FIRST_STEP_IN_TARGETS
+        bool T_INCLUDE_FIRST_STEP_IN_TARGETS = false
     >
     struct Specification {
         using T = T_T;
