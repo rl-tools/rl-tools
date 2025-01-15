@@ -182,20 +182,24 @@ namespace rl_tools{
 
         zero_gradient(device, critic);
 
-        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.next_reset)>;
-        using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
-        Mode<RESET_MODE> reset_mode;
-        reset_mode.reset_container = batch.next_reset;
-        evaluate(device, actor_critic.actor_target, batch.observations_next, training_buffers.next_actions, actor_target_buffers, rng, reset_mode);
+        using NEXT_RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.next_reset)>;
+        using NEXT_RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, NEXT_RESET_MODE_SPEC>;
+        Mode<NEXT_RESET_MODE> next_reset_mode;
+        next_reset_mode.reset_container = batch.next_reset;
+        evaluate(device, actor_critic.actor_target, batch.observations_next, training_buffers.next_actions, actor_target_buffers, rng, next_reset_mode);
         noisy_next_actions(device, training_buffers);
         if constexpr(SPEC::PARAMETERS::MASK_NON_TERMINAL){
             mask_actions(device, batch.actions_next, training_buffers.next_actions, batch.next_final_step_mask, true);
         }
         copy(device, device, batch.observations_privileged_next, training_buffers.next_observations);
-        evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_target_buffers, rng, reset_mode);
-        evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_target_buffers, rng, reset_mode);
+        evaluate(device, actor_critic.critics_target[0], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_target_buffers, rng, next_reset_mode);
+        evaluate(device, actor_critic.critics_target[1], training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_target_buffers, rng, next_reset_mode);
 
         target_action_values(device, actor_critic, batch, training_buffers);
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<TI, decltype(batch.reset)>;
+        using RESET_MODE = nn::layers::gru::ResetMode<mode::Default<>, RESET_MODE_SPEC>;
+        Mode<RESET_MODE> reset_mode;
+        reset_mode.reset_container = batch.reset;
         forward(device, critic, batch.observations_and_actions_current, critic_buffers, rng, reset_mode);
         {
             T loss_weight = 1;
