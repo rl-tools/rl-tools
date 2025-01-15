@@ -91,6 +91,7 @@ experiments = {
     # ], 20*60),
     "hcloud": ("experiments/2025-01-12_14-13-23/0883109_zoo_environment_algorithm/flag_sac", 20*60),
     "macos": ("experiments/2025-01-12_23-15-40/437a469_zoo_environment_algorithm/flag_sac", 20*60),
+    "hcloud2": ("experiments/2025-01-13_05-52-40/9500097_zoo_environment_algorithm/flag_sac", 20*60)
     # "0.98": ("experiments/2025-01-10_14-45-12/78dd508_zoo_environment_algorithm/flag_sac", 20*60),
 }
 
@@ -106,46 +107,46 @@ combinations = [
 
 
 
-# cols = 3
-# fig, axes = plt.subplots(2, cols, figsize=(12, 10))
+cols = 3
+fig, axes = plt.subplots(2, cols, figsize=(12, 10))
 
-# for idx, (use_wall_time, (iqm_lower_percentile, iqm_upper_percentile)) in enumerate(combinations):
-#     ax = axes[idx // cols, idx % cols]
-#     for experiment_name, experiment in experiments.items():
-#         steps, wall_time, mean_returns, std_returns, returns = load_experiment(*experiment, lower_percentile=iqm_lower_percentile, upper_percentile=iqm_upper_percentile)
-#         x = wall_time if use_wall_time else steps
-#         ax.plot(x, mean_returns, label=experiment_name)
-#         ax.fill_between(x, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
+for idx, (use_wall_time, (iqm_lower_percentile, iqm_upper_percentile)) in enumerate(combinations):
+    ax = axes[idx // cols, idx % cols]
+    for experiment_name, experiment in experiments.items():
+        steps, wall_time, mean_returns, std_returns, returns = load_experiment(*experiment, lower_percentile=iqm_lower_percentile, upper_percentile=iqm_upper_percentile)
+        x = wall_time if use_wall_time else steps
+        ax.plot(x, mean_returns, label=experiment_name)
+        ax.fill_between(x, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
     
-#     xlabel = "Time [s]" if use_wall_time else "Step"
-#     ylabel = "Returns"
-#     title = f"Learning Curve ({'Wall Time' if use_wall_time else 'Steps'}, {f'IQM({iqm_lower_percentile}%:{iqm_upper_percentile}%)'})"
+    xlabel = "Time [s]" if use_wall_time else "Step"
+    ylabel = "Returns"
+    title = f"Learning Curve ({'Wall Time' if use_wall_time else 'Steps'}, {f'IQM({iqm_lower_percentile}%:{iqm_upper_percentile}%)'})"
     
-#     ax.set_xlabel(xlabel)
-#     ax.set_ylabel(ylabel)
-#     ax.set_title(title)
-#     ax.legend()
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend()
 
-# plt.tight_layout()
-# plt.show()
-
-
-# plt.figure()
-# for experiment_name, experiment in experiments.items():
-#     steps, wall_time, mean_returns, std_returns, returns = load_experiment(*experiment)
-#     plt.hist(returns[-1], bins=5, density=True, label=experiment_name)
-# plt.legend()
-# plt.show()
-
-
-plt.figure(figsize=(10, 6))
-
-for idx, (experiment_name, experiment) in enumerate(experiments.items()):
-    steps, wall_time, mean_returns, std_returns, returns = load_experiment(*experiment)
-    plt.hist(returns[-1], bins=10, density=True, label=experiment_name, alpha=0.5, histtype='bar')
-
-plt.legend()
-plt.xlabel('Returns')
-plt.ylabel('Density')
-plt.title('Distribution of Returns by Experiment')
+plt.tight_layout()
 plt.show()
+
+
+plt.figure()
+for experiment_name, experiment in experiments.items():
+    steps, wall_time, mean_returns, std_returns, returns = load_experiment(*experiment)
+    plt.hist(returns[-1], bins=5, density=True, label=experiment_name)
+plt.legend()
+plt.show()
+
+
+# plt.figure(figsize=(10, 6))
+
+# for idx, (experiment_name, experiment) in enumerate(experiments.items()):
+#     steps, wall_time, mean_returns, std_returns, returns = load_experiment(*experiment)
+#     plt.hist(returns[-1], bins=10, density=True, label=experiment_name, alpha=0.5, histtype='bar')
+
+# plt.legend()
+# plt.xlabel('Returns')
+# plt.ylabel('Density')
+# plt.title('Distribution of Returns by Experiment')
+# plt.show()
