@@ -14,9 +14,20 @@ if(UNIX)
     add_custom_command(
             OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
             DEPENDS ${GIT_DIFF_PROJECT_SOURCES}
-            COMMAND ${CMAKE_COMMAND} -E echo "namespace rl_tools::extrack::git{ extern const char* const diff = R\"git_diff(" > ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "namespace rl_tools::extrack::git{" > ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
             COMMAND git diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\"; }" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    )git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --word-diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    )git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff_staged = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --cached >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    )git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff_staged = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --cached --word-diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    )git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "}" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
             COMMENT "Generating git diff source"
             VERBATIM
