@@ -64,3 +64,5 @@
 /**/*.qdstrm
 /perf.data
 /.venv
+/**/.ipynb_checkpoints
+/**/*.ipynb
