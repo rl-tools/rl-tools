@@ -82,6 +82,7 @@
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
+#include <rl_tools/rl/loop/steps/nn_analytics/operations_cpu.h>
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
@@ -203,10 +204,15 @@ struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<r
     static constexpr TI NUM_EPISODES = 100;
 };
 using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVALUATION_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
+struct LOOP_NN_ANALYTICS_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl::loop::steps::nn_analytics::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>>{
+    static constexpr TI INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_SAVE_TRAJECTORIES;
+    static constexpr TI INTERVAL = INTERVAL_TEMP == 0 ? 1 : INTERVAL_TEMP;
+};
+using LOOP_NN_ANALYTICS_CONFIG = rlt::rl::loop::steps::nn_analytics::Config<LOOP_SAVE_TRAJECTORIES_CONFIG, LOOP_NN_ANALYTICS_PARAMETERS>;
 #ifdef RL_TOOLS_RL_ZOO_BENCHMARK
 using LOOP_CONFIG = LOOP_EXTRACK_CONFIG;
 #else
-using LOOP_CONFIG = LOOP_SAVE_TRAJECTORIES_CONFIG;
+using LOOP_CONFIG = LOOP_NN_ANALYTICS_CONFIG;
 #endif
 
 #if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
