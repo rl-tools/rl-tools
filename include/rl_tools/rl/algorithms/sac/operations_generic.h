@@ -554,7 +554,7 @@ namespace rl_tools{
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target){
-        copy(source_device, target_device, source.next_state_action_value_input_full, target.next_state_action_value_input_full);
+        copy(source_device, target_device, source.next_state_action_value_input, target.next_state_action_value_input);
         copy(source_device, target_device, source.action_value, target.action_value);
         copy(source_device, target_device, source.target_action_value, target.target_action_value);
         copy(source_device, target_device, source.next_state_action_value_critic_1, target.next_state_action_value_critic_1);
