@@ -1,7 +1,7 @@
 #include "../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_V2_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_MODELS_SEQUENTIAL_V2_MODEL_H
+#define RL_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
 
 #include "../../utils/generic/typing.h"
 #include "../../nn/nn.h"

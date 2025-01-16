@@ -155,6 +155,12 @@ namespace rl_tools {
         auto code = save_code_split(device, layer, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string forward_state_and_gradient_to_json(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer) {
+        std::string data;
+        data += "{}";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

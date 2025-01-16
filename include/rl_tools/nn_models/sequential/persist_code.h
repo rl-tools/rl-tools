@@ -1,7 +1,7 @@
 #include "../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_V2_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_MODELS_SEQUENTIAL_V2_PERSIST_CODE_H
+#define RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_H
 #include "../../containers/matrix/persist_code.h"
 #include "../../persist/code.h"
 #include "../../nn/persist_code.h"
@@ -103,6 +103,22 @@ namespace rl_tools{
     std::string save_code(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& network, std::string name, bool const_declaration = false, typename DEVICE::index_t indent = 0) {
         auto code = save_code_split(device, network, name, const_declaration, indent);
         return code.header + code.body;
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string forward_state_and_gradient_to_json(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model, typename DEVICE::index_t layer_i = 0) {
+        std::string data;
+        if(layer_i == 0){
+            data += "{\"layers\":[";
+        }
+        data += forward_state_and_gradient_to_json(device, model.content);
+        if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            data += ", ";
+            data += forward_state_and_gradient_to_json(device, model.next_module, layer_i + 1);
+        }
+        if(layer_i == 0){
+            data += "]}";
+        }
+        return data;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
