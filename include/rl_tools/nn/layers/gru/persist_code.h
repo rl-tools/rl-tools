@@ -179,6 +179,21 @@ namespace rl_tools {
         auto code = save_code_split(device, layer, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string nn_analytics(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer) {
+        std::string data;
+        data += "{";
+        data += "\"weights_input\": " + nn_analytics(device, layer.weights_input) + ", ";
+        data += "\"biases_input\": " + nn_analytics(device, layer.biases_input) + ", ";
+        data += "\"weights_hidden\": " + nn_analytics(device, layer.weights_hidden) + ", ";
+        data += "\"biases_hidden\": " + nn_analytics(device, layer.biases_hidden) + ", ";
+        data += "\"initial_hidden_state\": " + nn_analytics(device, layer.initial_hidden_state) + ", ";
+        data += "\"n_pre_pre_activation\": " + json(device, layer.n_pre_pre_activation) + ", ";
+        data += "\"post_activation\": " + json(device, layer.post_activation) + ", ";
+        data += "\"output\": " + json(device, layer.output);
+        data += "}";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
