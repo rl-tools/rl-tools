@@ -89,6 +89,27 @@ namespace rl_tools{
         auto code = save_code_split(device, m, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, Matrix<SPEC>& m){
+        using TI = typename DEVICE::index_t;
+        std::string data;
+        data += "[";
+        for(TI i=0; i < SPEC::ROWS; i++){
+            if(i > 0){
+                data += ", ";
+            }
+            data += "[";
+            for(TI j=0; j < SPEC::COLS; j++){
+                if(j > 0){
+                    data += ", ";
+                }
+                data += std::to_string(get(m, i, j));
+            }
+            data += "]";
+        }
+        data += "]";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

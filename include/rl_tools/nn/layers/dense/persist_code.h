@@ -176,9 +176,14 @@ namespace rl_tools {
         return code.header + code.body;
     }
     template <typename DEVICE, typename SPEC>
-    std::string forward_state_and_gradient_to_json(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
+    std::string nn_analytics(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
         std::string data;
-        data += "{}";
+        data += "{";
+        data += "\"weights\": " + nn_analytics(device, layer.weights) + ", ";
+        data += "\"biases\": " + nn_analytics(device, layer.weights) + ", ";
+        data += "\"pre_activations\": " + json(device, layer.pre_activations) + ", ";
+        data += "\"output\": " + json(device, layer.output);
+        data += "}";
         return data;
     }
 }

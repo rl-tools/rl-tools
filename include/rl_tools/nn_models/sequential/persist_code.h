@@ -105,15 +105,15 @@ namespace rl_tools{
         return code.header + code.body;
     }
     template <typename DEVICE, typename SPEC>
-    std::string forward_state_and_gradient_to_json(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model, typename DEVICE::index_t layer_i = 0) {
+    std::string nn_analytics(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model, typename DEVICE::index_t layer_i = 0) {
         std::string data;
         if(layer_i == 0){
             data += "{\"layers\":[";
         }
-        data += forward_state_and_gradient_to_json(device, model.content);
+        data += nn_analytics(device, model.content);
         if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             data += ", ";
-            data += forward_state_and_gradient_to_json(device, model.next_module, layer_i + 1);
+            data += nn_analytics(device, model.next_module, layer_i + 1);
         }
         if(layer_i == 0){
             data += "]}";

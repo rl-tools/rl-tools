@@ -156,7 +156,7 @@ namespace rl_tools {
         return code.header + code.body;
     }
     template <typename DEVICE, typename SPEC>
-    std::string forward_state_and_gradient_to_json(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer) {
+    std::string nn_analytics(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer) {
         std::string data;
         data += "{}";
         return data;
