@@ -9,7 +9,7 @@ namespace rl_tools::rl::zoo::flag::td3{
     struct FACTORY{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            static constexpr T NOISE_MULTIPLIER = 0.25;
+            static constexpr T NOISE_MULTIPLIER = 1;
             struct TD3_PARAMETERS: rl::algorithms::td3::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 32;
                 static constexpr TI CRITIC_BATCH_SIZE = 32;
