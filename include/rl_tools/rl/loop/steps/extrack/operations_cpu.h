@@ -16,6 +16,11 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+#ifdef RL_TOOLS_EXTRACK_GIT_DIFF
+    namespace extrack::git{
+        extern const char* const diff;
+    }
+#endif
     template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::loop::steps::extrack::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::extrack::State<T_CONFIG>;
@@ -49,6 +54,15 @@ namespace rl_tools{
         }
         std::cerr << "Seed: " << seed << std::endl;
         std::cerr << "Extrack Experiment: " << ts.extrack_seed_path << std::endl;
+
+#ifdef RL_TOOLS_EXTRACK_GIT_DIFF
+        std::filesystem::create_directories(ts.extrack_seed_path);
+        std::ofstream diff_file(ts.extrack_seed_path / "diff.txt");
+        std::cout << extrack::git::diff << std::endl;
+        diff_file << extrack::git::diff;
+        diff_file.close();
+#endif
+
     }
 
 
