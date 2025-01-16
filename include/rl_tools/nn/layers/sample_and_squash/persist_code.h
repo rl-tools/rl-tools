@@ -158,7 +158,13 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     std::string nn_analytics(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer) {
         std::string data;
-        data += "{}";
+        data += "{";
+        data += "\"log_alpha\": " + nn_analytics(device, layer.log_alpha) + ", ";
+        data += "\"pre_squashing\": " + json(device, layer.pre_squashing) + ", ";
+        data += "\"noise\": " + json(device, layer.noise) + ", ";
+        data += "\"log_probabilities\": " + json(device, layer.log_probabilities) + ", ";
+        data += "\"output\": " + json(device, layer.output);
+        data += "}";
         return data;
     }
 }

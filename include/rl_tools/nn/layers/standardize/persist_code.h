@@ -136,6 +136,16 @@ namespace rl_tools {
         auto code = save_code_split(device, layer, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string nn_analytics(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer) {
+        std::string data;
+        data += "{";
+        data += "\"mean\": " + nn_analytics(device, layer.mean) + ", ";
+        data += "\"precision\": " + nn_analytics(device, layer.precision) + ", ";
+        data += "\"output\": " + json(device, layer.output);
+        data += "}";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

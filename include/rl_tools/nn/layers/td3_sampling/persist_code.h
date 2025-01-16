@@ -151,6 +151,15 @@ namespace rl_tools {
         auto code = save_code_split(device, layer, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string nn_analytics(DEVICE& device, nn::layers::td3_sampling::LayerGradient<SPEC>& layer) {
+        std::string data;
+        data += "{";
+        data += "\"pre_clip\": " + json(device, layer.pre_clip) + ", ";
+        data += "\"output\": " + json(device, layer.output);
+        data += "}";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

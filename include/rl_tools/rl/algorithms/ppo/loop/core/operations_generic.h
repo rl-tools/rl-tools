@@ -160,6 +160,27 @@ namespace rl_tools{
 //        log(device, typename CONFIG::NEXT{});
     }
 
+    // the following operations are for nn_analytics iterating the neural networks
+    template <auto INDEX, typename DEVICE, typename T_CONFIG>
+    constexpr auto& get_nn(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+        static_assert(INDEX < T_CONFIG::NUM_NNS, "Index out of bounds, there are only 2 neural networks in the PPO");
+        if constexpr(INDEX == 0){
+            return ts.ppo.actor;
+        }
+        else{
+            return ts.ppo.critic;
+        }
+    }
+    template <auto INDEX, typename DEVICE, typename T_CONFIG>
+    constexpr auto& get_nn_name(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+        static_assert(INDEX < T_CONFIG::NUM_NNS, "Index out of bounds, there are only 2 neural networks in the PPO");
+        if constexpr(INDEX == 0){
+            return "actor";
+        }
+        else{
+            return "critic";
+        }
+    }
 
 
 }
