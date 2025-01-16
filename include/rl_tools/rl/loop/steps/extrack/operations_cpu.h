@@ -19,6 +19,9 @@ namespace rl_tools{
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
     namespace extrack::git{
         extern const char* const diff;
+        extern const char* const word_diff;
+        extern const char* const diff_staged;
+        extern const char* const word_diff_staged;
     }
 #endif
     template <typename DEVICE, typename T_CONFIG>
@@ -56,11 +59,28 @@ namespace rl_tools{
         std::cerr << "Extrack Experiment: " << ts.extrack_seed_path << std::endl;
 
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
-        std::filesystem::create_directories(ts.extrack_seed_path);
-        std::ofstream diff_file(ts.extrack_seed_path / "diff.txt");
-        std::cout << extrack::git::diff << std::endl;
-        diff_file << extrack::git::diff;
-        diff_file.close();
+        std::filesystem::path git_path = ts.extrack_seed_path / "git";
+        std::filesystem::create_directories(git_path);
+        {
+            std::ofstream diff_file(git_path / "diff.txt");
+            diff_file << extrack::git::diff;
+            diff_file.close();
+        }
+        {
+            std::ofstream diff_file(git_path / "word_diff.txt");
+            diff_file << extrack::git::word_diff;
+            diff_file.close();
+        }
+        {
+            std::ofstream diff_file(git_path / "diff_staged.txt");
+            diff_file << extrack::git::diff_staged;
+            diff_file.close();
+        }
+        {
+            std::ofstream diff_file(git_path / "word_diff_staged.txt");
+            diff_file << extrack::git::word_diff_staged;
+            diff_file.close();
+        }
 #endif
 
     }
