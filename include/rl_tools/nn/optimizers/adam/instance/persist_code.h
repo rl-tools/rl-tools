@@ -47,6 +47,16 @@ namespace rl_tools{
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }
+    template <typename DEVICE, typename CONTAINER>
+    std::string nn_analytics(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& p) {
+        std::string data;
+        data += "{";
+        data += nn_analytics(device, static_cast<nn::parameters::Gradient::instance<CONTAINER>&>(p), true) + ", ";
+        data += "\"gradient_first_order_moment\": " + json(device, p.gradient_first_order_moment) + ", ";
+        data += "\"gradient_second_order_moment\": " + json(device, p.gradient_second_order_moment);
+        data += "}";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

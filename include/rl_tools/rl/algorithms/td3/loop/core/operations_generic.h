@@ -133,6 +133,37 @@ namespace rl_tools{
             return finished;
         }
     }
+    // the following operations are for nn_analytics iterating the neural networks
+    template <auto INDEX, typename DEVICE, typename T_CONFIG>
+    constexpr auto& get_nn(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+        static_assert(INDEX < T_CONFIG::NUM_NNS, "Index out of bounds, there are only 3 neural networks in the TD3");
+        if constexpr(INDEX == 0){
+            return ts.actor_critic.actor;
+        }
+        else{
+            if constexpr(INDEX == 1){
+                return ts.actor_critic.critics[0];
+            }
+            else{
+                return ts.actor_critic.critics[1];
+            }
+        }
+    }
+    template <auto INDEX, typename DEVICE, typename T_CONFIG>
+    constexpr auto& get_nn_name(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+        static_assert(INDEX < T_CONFIG::NUM_NNS, "Index out of bounds, there are only 3 neural networks in the TD3");
+        if constexpr(INDEX == 0){
+            return "actor";
+        }
+        else{
+            if constexpr(INDEX == 1){
+                return "critic[0]";
+            }
+            else{
+                return "critic[1]";
+            }
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
