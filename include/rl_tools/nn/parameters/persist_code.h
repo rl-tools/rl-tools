@@ -96,6 +96,15 @@ namespace rl_tools {
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }
+    template <typename DEVICE, typename CONTAINER>
+    std::string nn_analytics(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& p) {
+        std::string data;
+        data += "{";
+        data += "\"parameters\": " + json(device, p.parameters) + ", ";
+        data += "\"gradient\": " + json(device, p.gradient);
+        data += "}";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

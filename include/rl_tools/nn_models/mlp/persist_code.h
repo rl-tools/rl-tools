@@ -122,18 +122,18 @@ namespace rl_tools{
         return code.header + code.body;
     }
     template <typename DEVICE, typename SPEC>
-    std::string forward_state_and_gradient_to_json(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& nn) {
+    std::string nn_analytics(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& nn) {
         std::string data;
         data += "{";
         data += "   \"type\": \"mlp\",";
         data += "   \"layers\": [";
-        data += forward_state_and_gradient_to_json(device, nn.input_layer);
+        data += nn_analytics(device, nn.input_layer);
         for(typename DEVICE::index_t layer_i=0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             data += ", ";
-            data += forward_state_and_gradient_to_json(device, nn.hidden_layers[layer_i]);
+            data += nn_analytics(device, nn.hidden_layers[layer_i]);
         }
         data += ", ";
-        data += forward_state_and_gradient_to_json(device, nn.output_layer);
+        data += nn_analytics(device, nn.output_layer);
         data += "]";
         data += "}";
         return data;
