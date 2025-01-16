@@ -18,6 +18,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
     namespace extrack::git{
+        extern const char* const commit;
         extern const char* const diff;
         extern const char* const word_diff;
         extern const char* const diff_staged;
@@ -61,6 +62,11 @@ namespace rl_tools{
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
         std::filesystem::path git_path = ts.extrack_seed_path / "git";
         std::filesystem::create_directories(git_path);
+        {
+            std::ofstream diff_file(git_path / "commit.txt");
+            diff_file << extrack::git::commit;
+            diff_file.close();
+        }
         {
             std::ofstream diff_file(git_path / "diff.txt");
             diff_file << extrack::git::diff;
