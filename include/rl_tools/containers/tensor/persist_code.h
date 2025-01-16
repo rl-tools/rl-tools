@@ -74,6 +74,31 @@ namespace rl_tools{
         auto code = save_code_split(device, m, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, Tensor<SPEC>& m){
+        using TI = typename DEVICE::index_t;
+        std::string data;
+        data += "[";
+        if constexpr(SPEC::SHAPE::LENGTH > 1){
+            for(TI i=0; i < SPEC::SHAPE::template GET<0>; ++i){
+                if (i != 0){
+                    data += ", ";
+                }
+                auto next_m = view(device, m, i);
+                data += json(device, next_m);
+            }
+        }
+        else{
+            for(TI i=0; i < SPEC::SHAPE::template GET<0>; i++){
+                if (i != 0){
+                    data += ", ";
+                }
+                data += std::to_string(get(device, m, i));
+            }
+        }
+        data += "]";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
