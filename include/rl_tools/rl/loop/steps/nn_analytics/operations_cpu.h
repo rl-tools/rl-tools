@@ -36,6 +36,32 @@ namespace rl_tools{
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
 
+    namespace rl::loop::steps::nn_analytics{
+        template <auto INDEX, typename DEVICE, typename TS>
+        std::string accumulate_nns(DEVICE& device, TS& ts){
+            using TI = typename DEVICE::index_t;
+            constexpr TI N = TS::CONFIG::NUM_NNS;
+            static_assert(N >= 1);
+            std::string data;
+            if(INDEX == 0){
+                data += "{";
+            }
+            if(INDEX < N){
+                auto& nn = get_nn<INDEX>(device, ts);
+                std::string name = get_nn_name<INDEX>(device, ts);
+                data += "\"" + name + "\": " + rl_tools::nn_analytics(device, nn);
+            }
+            if constexpr(INDEX < N - 1){
+                data += ",";
+                data += accumulate_nns<INDEX + 1>(device, ts);
+            }
+            if (INDEX == 0){
+                data += "}";
+            }
+            return data;
+        }
+    }
+
     template <typename DEVICE, typename CONFIG>
     bool step(DEVICE& device, rl::loop::steps::nn_analytics::State<CONFIG>& ts){
         using TS = rl::loop::steps::nn_analytics::State<CONFIG>;
@@ -47,7 +73,7 @@ namespace rl_tools{
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
             std::filesystem::path step_path = ts.extrack_seed_path / "steps" / step_ss.str();
             std::filesystem::create_directories(step_path);
-            std::string data = nn_analytics(device, ts.actor_critic.actor);
+            auto data = rl::loop::steps::nn_analytics::accumulate_nns<0>(device, ts);
 #ifndef RL_TOOLS_ENABLE_ZLIB
                 std::string file_extension = "json";
                 std::string data_output = trajectories_json;
