@@ -121,6 +121,23 @@ namespace rl_tools{
         auto code = save_code_split(device, network, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string forward_state_and_gradient_to_json(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& nn) {
+        std::string data;
+        data += "{";
+        data += "   \"type\": \"mlp\",";
+        data += "   \"layers\": [";
+        data += forward_state_and_gradient_to_json(device, nn.input_layer);
+        for(typename DEVICE::index_t layer_i=0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
+            data += ", ";
+            data += forward_state_and_gradient_to_json(device, nn.hidden_layers[layer_i]);
+        }
+        data += ", ";
+        data += forward_state_and_gradient_to_json(device, nn.output_layer);
+        data += "]";
+        data += "}";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
