@@ -24,8 +24,8 @@ struct Config{
     using EMBEDDING_LAYER = rlt::nn::layers::embedding::BindSpecification<EMBEDDING_LAYER_SPEC>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
     using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
-    using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
-    using GRU2 = rlt::nn::layers::gru::BindConfiguration<GRU2_CONFIG>;
+//    using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
+//    using GRU2 = rlt::nn::layers::gru::BindConfiguration<GRU2_CONFIG>;
     using DOWN_PROJECTION_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::EMBEDDING_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
     using DOWN_PROJECTION_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DOWN_PROJECTION_LAYER_CONFIG>;
     using DENSE_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
@@ -34,7 +34,8 @@ struct Config{
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
     using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
-    using MODULE_CHAIN = Module<EMBEDDING_LAYER, Module<GRU, Module<GRU2, Module<DOWN_PROJECTION_LAYER_TEMPLATE, Module<DENSE_LAYER_TEMPLATE>>>>>;
+//    using MODULE_CHAIN = Module<EMBEDDING_LAYER, Module<GRU, Module<GRU2, Module<DOWN_PROJECTION_LAYER_TEMPLATE, Module<DENSE_LAYER_TEMPLATE>>>>>;
+    using MODULE_CHAIN = Module<EMBEDDING_LAYER, Module<GRU, Module<DOWN_PROJECTION_LAYER_TEMPLATE, Module<DENSE_LAYER_TEMPLATE>>>>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 
