@@ -8,6 +8,7 @@
 #else
 #include <rl_tools/operations/cpu.h>
 #endif
+#include <rl_tools/random/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/embedding/operations_generic.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
@@ -49,9 +50,23 @@ using T = float;
 
 using CONFIG = Config<T, TI>;
 
+template <typename RandomIt, typename RNG>
+void shuffle(RandomIt first, RandomIt last, RNG& rng) {
+    using diff_t = typename std::iterator_traits<RandomIt>::difference_type;
+    diff_t size = last - first;
+    if (size <= 1) {
+        return;
+    }
+    for (diff_t i = size - 1; i > 0; --i) {
+        std::uniform_int_distribution<diff_t> dist(0, i);
+        diff_t j = dist(rng.engine);
+        std::swap(first[i], first[j]);
+    }
+}
+
 int main(){
     DEVICE device;
-    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    typename DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::init(device, rng, 0);
 
     std::string data_path, file_name;
@@ -84,7 +99,7 @@ int main(){
         auto output = dataset_string.substr(offset+1, CONFIG::PARAMS::SEQUENCE_LENGTH);
         dataset.emplace_back(std::tuple(input, output));
     }
-    std::shuffle(dataset.begin(), dataset.end(), rng.engine);
+    shuffle(dataset.begin(), dataset.end(), rng);
     std::cout << "Dataset size: " << dataset.size() << std::endl;
     std::cout << "Dataset sample: " << std::endl;
     for(TI i=0; i < 10; i++){
@@ -109,7 +124,7 @@ int main(){
     rlt::print(device, decltype(input)::SPEC::SHAPE{});
     std::cout << std::endl;
     for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
-        std::shuffle(dataset.begin(), dataset.end(), rng.engine);
+        shuffle(dataset.begin(), dataset.end(), rng);
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
         for(TI sample_i=0; sample_i < dataset.size() - CONFIG::PARAMS::BATCH_SIZE; sample_i += CONFIG::PARAMS::BATCH_SIZE){
