@@ -64,7 +64,11 @@ int main(){
             data_path = "/mnt/c/Users/Jonas/Downloads/" + file_name;
         }
         else {
-            data_path = "/home/jonas/Downloads/" + file_name;
+            const char* home = std::getenv("HOME");
+            if(!home){
+                throw std::runtime_error("HOME environment variable not set");
+            }
+            data_path = std::string(home) + "/Downloads/" + file_name;
         }
     }
     if(!std::filesystem::exists(data_path)){
