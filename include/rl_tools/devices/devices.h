@@ -47,6 +47,11 @@ namespace rl_tools::devices{
         struct Generic{
             static constexpr Type TYPE = Type::random;
             using MATH_DEVICE = T_MATH_DEVICE;
+            template <typename T_ENGINE = void>
+            struct ENGINE{
+                using STATE_TYPE = typename MATH_DEVICE::index_t;
+                STATE_TYPE state;
+            };
         };
     }
     namespace math{
