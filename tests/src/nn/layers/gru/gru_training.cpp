@@ -53,13 +53,7 @@ int main(){
     rlt::init(device, rng, 0);
 
     std::string data_path, file_name;
-    bool use_enwik8 = true;
-    if(use_enwik8){
-        file_name = "enwik8.small.zip";
-    }
-    else{
-        file_name = "00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
-    }
+    file_name = "enwik8.small";
     if(std::filesystem::exists("/Users")) {
         data_path = "/Users/jonas/Downloads/" + file_name;
     }
@@ -76,12 +70,7 @@ int main(){
         return 1;
     }
     std::string dataset_string;
-    if(use_enwik8){
-        dataset_string = load_dataset_enwik8<TI>(data_path);
-    }
-    else{
-        dataset_string = load_dataset_wikipedia_plaintext<TI>(data_path);
-    }
+    dataset_string = load_dataset_enwik8<TI>(data_path);
 
     std::vector<std::tuple<std::string, std::string>> dataset;
     for(TI offset=0; offset < dataset_string.size() - CONFIG::PARAMS::SEQUENCE_LENGTH - 1; offset++){

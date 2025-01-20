@@ -76,7 +76,7 @@ namespace rl_tools{
             auto data = rl::loop::steps::nn_analytics::accumulate_nns<0>(device, ts);
 #ifndef RL_TOOLS_ENABLE_ZLIB
                 std::string file_extension = "json";
-                std::string data_output = trajectories_json;
+                std::string data_output = data;
 #else
                 std::string file_extension = "json.gz";
                 std::vector<uint8_t> data_output;
