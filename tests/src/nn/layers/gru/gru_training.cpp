@@ -50,16 +50,15 @@ using T = float;
 
 using CONFIG = Config<T, TI>;
 
-template <typename RandomIt, typename RNG>
-void shuffle(RandomIt first, RandomIt last, RNG& rng) {
+template <typename DEVICE, typename RandomIt, typename RNG>
+void shuffle(DEVICE& device, RandomIt first, RandomIt last, RNG& rng) {
     using diff_t = typename std::iterator_traits<RandomIt>::difference_type;
     diff_t size = last - first;
     if (size <= 1) {
         return;
     }
     for (diff_t i = size - 1; i > 0; --i) {
-        std::uniform_int_distribution<diff_t> dist(0, i);
-        diff_t j = dist(rng.engine);
+        diff_t j = rlt::random::uniform_int_distribution(device.random, (diff_t)0, i, rng);
         std::swap(first[i], first[j]);
     }
 }
@@ -99,7 +98,7 @@ int main(){
         auto output = dataset_string.substr(offset+1, CONFIG::PARAMS::SEQUENCE_LENGTH);
         dataset.emplace_back(std::tuple(input, output));
     }
-    shuffle(dataset.begin(), dataset.end(), rng);
+    shuffle(device, dataset.begin(), dataset.end(), rng);
     std::cout << "Dataset size: " << dataset.size() << std::endl;
     std::cout << "Dataset sample: " << std::endl;
     for(TI i=0; i < 10; i++){
@@ -124,7 +123,7 @@ int main(){
     rlt::print(device, decltype(input)::SPEC::SHAPE{});
     std::cout << std::endl;
     for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
-        shuffle(dataset.begin(), dataset.end(), rng);
+        shuffle(device, dataset.begin(), dataset.end(), rng);
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
         for(TI sample_i=0; sample_i < dataset.size() - CONFIG::PARAMS::BATCH_SIZE; sample_i += CONFIG::PARAMS::BATCH_SIZE){
