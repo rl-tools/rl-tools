@@ -20,12 +20,14 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
+#ifdef RL_TOOLS_ENABLE_HDF5
 #include <rl_tools/containers/tensor/persist.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/embedding/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
+#endif
 #include "dataset.h"
 
 namespace rlt = rl_tools;
@@ -112,6 +114,7 @@ int main(){
 #endif
             if(sample_i % 10000 == 0){
                 //checkpoint
+#ifdef RL_TOOLS_ENABLE_HDF5
                 std::filesystem::path FILE_PATH = "model_checkpoint.h5";
                 {
                     std::cout << "Checkpointing" << std::endl;
@@ -129,6 +132,7 @@ int main(){
                     rlt::utils::assert_exit(device, abs_diff < 1e-6, "Checkpoint failed");
                     rlt::free(device, model_copy);
                 }
+#endif
             }
 
             for(TI batch_i = 0; batch_i < CONFIG::PARAMS::BATCH_SIZE; batch_i++){
