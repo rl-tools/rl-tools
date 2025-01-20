@@ -41,7 +41,11 @@ namespace rlt = rl_tools;
 
 
 #ifdef MUX
-using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using MATH_DEVICE = rlt::devices::math::CPU;
+using RANDOM_DEVICE = rlt::devices::random::Generic<rlt::devices::math::CPU>;
+using DEVICE_SPEC = rlt::devices::cpu::Specification<MATH_DEVICE, RANDOM_DEVICE, rlt::LOGGER_FACTORY<>>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<DEVICE_SPEC>;
+//using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 #else
 using DEVICE = rlt::devices::DefaultCPU;
 #endif
