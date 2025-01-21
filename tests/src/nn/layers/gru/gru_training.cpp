@@ -162,8 +162,16 @@ int main(){
 
             for(TI batch_i = 0; batch_i < CONFIG::PARAMS::BATCH_SIZE; batch_i++){
                 for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
-                    rlt::set(device, input, std::get<0>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i, 0);
-                    rlt::set(device, output_target, std::get<1>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i, 0);
+                    char input_char = std::get<0>(dataset[sample_i + batch_i])[sequence_i];
+                    char output_char = std::get<1>(dataset[sample_i + batch_i])[sequence_i];
+                    if(input_char < 0) {
+                        input_char = '?';
+                    }
+                    if(output_char < 0) {
+                        output_char = '?';
+                    }
+                    rlt::set(device, input, input_char, sequence_i, batch_i, 0);
+                    rlt::set(device, output_target, output_char, sequence_i, batch_i, 0);
                 }
             }
             {
