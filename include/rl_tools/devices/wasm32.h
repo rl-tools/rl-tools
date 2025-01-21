@@ -29,7 +29,7 @@ namespace rl_tools::devices{
             static constexpr Type TYPE = Type::random;
             template <typename T_ENGINE = void>
             struct ENGINE{
-                unsigned state;
+                unsigned int state;
             };
         };
     }

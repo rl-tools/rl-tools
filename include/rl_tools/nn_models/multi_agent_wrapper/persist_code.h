@@ -63,6 +63,16 @@ namespace rl_tools{
         auto code = save_code_split(device, module, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string nn_analytics(DEVICE& device, nn_models::multi_agent_wrapper::ModuleGradient<SPEC>& nn) {
+        std::string data;
+        data += "{";
+        data += "   \"type\": \"multi_agent_wrapper\",";
+        data += "   \"inner\": ";
+        data += nn_analytics(device, nn.content);
+        data += "}";
+        return data;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
