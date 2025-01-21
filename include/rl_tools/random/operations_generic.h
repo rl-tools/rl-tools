@@ -24,7 +24,7 @@ namespace rl_tools{
             }
             template<typename MATH_DEV, typename RNG>
             void next(const devices::random::Generic<MATH_DEV>& dev, RNG& rng){
-                static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
+                // static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
                 rng.state ^= (rng.state << 13);
                 rng.state ^= (rng.state >> 17);
                 rng.state ^= (rng.state << 5);
@@ -41,7 +41,7 @@ namespace rl_tools{
 
         template<typename MATH_DEV, typename T, typename RNG>
         T uniform_int_distribution(const devices::random::Generic<MATH_DEV>& dev, T low, T high, RNG& rng){
-            static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
+            // static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
             using TI = typename MATH_DEV::index_t;
             TI range = static_cast<typename MATH_DEV::index_t>(high - low) + 1;
             generic::next(dev, rng);
@@ -50,7 +50,7 @@ namespace rl_tools{
         }
         template<typename MATH_DEV, typename T, typename RNG>
         T uniform_real_distribution(const devices::random::Generic<MATH_DEV>& dev, T low, T high, RNG& rng){
-            static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
+            // static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
             static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
             generic::next(dev, rng);
             return (rng.state / static_cast<T>(generic::next_max(dev))) * (high - low) + low;
@@ -58,7 +58,7 @@ namespace rl_tools{
         namespace normal_distribution{
             template<typename MATH_DEV, typename T, typename RNG>
             RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::Generic<MATH_DEV>& dev, T mean, T std, RNG& rng){
-                static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
+                // static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
                 static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
                 generic::next(dev, rng);
                 T u1 = rng.state / static_cast<T>(generic::next_max(dev));

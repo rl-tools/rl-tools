@@ -37,16 +37,16 @@ namespace rl_tools{
 
         template<typename T, typename RNG>
         T uniform_int_distribution(const devices::random::WASM32& dev, T low, T high, RNG& rng){
-            return uniform_int_distribution(devices::random::Generic<devices::math::WASM32>{}, low, high, rng.state);
+            return uniform_int_distribution(devices::random::Generic<devices::math::WASM32>{}, low, high, rng);
         }
         template<typename T, typename RNG>
         T uniform_real_distribution(const devices::random::WASM32& dev, T low, T high, RNG& rng){
-            return uniform_real_distribution(devices::random::Generic<devices::math::WASM32>{}, low, high, rng.state);
+            return uniform_real_distribution(devices::random::Generic<devices::math::WASM32>{}, low, high, rng);
         }
         namespace normal_distribution{
             template<typename T, typename RNG>
             T sample(const devices::random::WASM32& dev, T mean, T std, RNG& rng){
-                return sample(devices::random::Generic<devices::math::WASM32>{}, mean, std, rng.state);
+                return sample(devices::random::Generic<devices::math::WASM32>{}, mean, std, rng);
             }
         }
     }

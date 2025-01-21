@@ -20,16 +20,16 @@ namespace rl_tools{
     namespace random{
         template<typename T, typename RNG>
         T uniform_int_distribution(const devices::random::ARM& dev, T low, T high, RNG& rng){
-            return uniform_int_distribution(devices::random::Generic<devices::math::ARM>{}, low, high, rng.state);
+            return uniform_int_distribution(devices::random::Generic<devices::math::ARM>{}, low, high, rng);
         }
         template<typename T, typename RNG>
         T uniform_real_distribution(const devices::random::ARM& dev, T low, T high, RNG& rng){
-            return uniform_real_distribution(devices::random::Generic<devices::math::ARM>{}, low, high, rng.state);
+            return uniform_real_distribution(devices::random::Generic<devices::math::ARM>{}, low, high, rng);
         }
         namespace normal_distribution{
             template<typename T, typename RNG>
             T sample(const devices::random::ARM& dev, T mean, T std, RNG& rng){
-                return sample(devices::random::Generic<devices::math::ARM>{}, mean, std, rng.state);
+                return sample(devices::random::Generic<devices::math::ARM>{}, mean, std, rng);
             }
         }
     }
