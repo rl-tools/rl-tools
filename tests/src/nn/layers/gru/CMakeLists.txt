@@ -33,7 +33,6 @@ target_compile_definitions(test_nn_layers_gru PRIVATE -DRL_TOOLS_DEBUG_CONTAINER
 
 endif()
 
-if(RL_TOOLS_ENABLE_ZLIB AND RL_TOOLS_ENABLE_CJSON AND RL_TOOLS_ENABLE_HDF5)
 add_executable(
         test_nn_layers_gru_training
         gru_training.cpp
@@ -42,7 +41,6 @@ target_link_libraries(
         test_nn_layers_gru_training
         PRIVATE
         RLtools::RLtools
-        cjson
 )
 add_executable(
         test_nn_layers_gru_training_sequences
@@ -52,7 +50,6 @@ target_link_libraries(
         test_nn_layers_gru_training_sequences
         PRIVATE
         RLtools::RLtools
-        cjson
 )
 if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
     target_compile_options(test_nn_layers_gru_training PRIVATE -Ofast -march=native)
@@ -62,7 +59,6 @@ endif()
 #    target_include_directories(test_nn_layers_gru_training PRIVATE ${PROJECT_SOURCE_DIR}/external/tracy/public/tracy)
 #    target_compile_definitions(test_nn_layers_gru_training PRIVATE RL_TOOLS_ENABLE_TRACY)
 #endif()
-endif()
 
 add_executable(
         test_nn_layers_gru_blas
