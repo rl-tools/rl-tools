@@ -86,6 +86,9 @@ int main(){
             if(!home){
                 throw std::runtime_error("HOME environment variable not set");
             }
+            else{
+                std::cout << "Home is: " << home << std::endl;
+            }
             data_path = std::string(home) + "/Downloads/" + file_name;
         }
     }
