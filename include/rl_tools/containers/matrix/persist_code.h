@@ -91,6 +91,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, Matrix<SPEC>& m){
+        using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         std::string data;
         data += "[";
@@ -103,7 +104,13 @@ namespace rl_tools{
                 if(j > 0){
                     data += ", ";
                 }
-                data += std::to_string(get(m, i, j));
+                T value = get(m, i, j);
+                if (math::is_nan(device.math, value)) {
+                    data += "null";
+                }
+                else{
+                    data += std::to_string(value);
+                }
             }
             data += "]";
         }
