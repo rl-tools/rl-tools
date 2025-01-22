@@ -76,6 +76,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, Tensor<SPEC>& m){
+        using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         std::string data;
         data += "[";
@@ -90,10 +91,16 @@ namespace rl_tools{
         }
         else{
             for(TI i=0; i < SPEC::SHAPE::template GET<0>; i++){
+                T value = get(device, m, i);
                 if (i != 0){
                     data += ", ";
                 }
-                data += std::to_string(get(device, m, i));
+                if (math::is_nan(device.math, value)) {
+                    data += "null";
+                }
+                else{
+                    data += std::to_string(value);
+                }
             }
         }
         data += "]";

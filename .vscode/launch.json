@@ -117,6 +117,15 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "src/rl/zoo/nn_analytics.py",
+            "type": "python",
+            "request": "launch",
+            "program": "src/rl/zoo/nn_analytics.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }
