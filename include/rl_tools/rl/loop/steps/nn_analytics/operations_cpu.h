@@ -66,9 +66,9 @@ namespace rl_tools{
     bool step(DEVICE& device, rl::loop::steps::nn_analytics::State<CONFIG>& ts){
         using TS = rl::loop::steps::nn_analytics::State<CONFIG>;
         using TI = typename CONFIG::TI;
-        using PARAMETERS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
+        using PARAMETERS = typename CONFIG::NN_ANALYTICS_PARAMETERS;
         using STATE = rl::loop::steps::nn_analytics::State<CONFIG>;
-        if(ts.step % PARAMETERS::INTERVAL == 0){
+        if(ts.step % PARAMETERS::INTERVAL == 0 && (ts.step == 0 || ts.step >= PARAMETERS::WARMUP_STEPS)){
             std::stringstream step_ss;
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
             std::filesystem::path step_path = ts.extrack_seed_path / "steps" / step_ss.str();

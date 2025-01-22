@@ -15,6 +15,7 @@ namespace rl_tools::rl::loop::steps::nn_analytics{
     struct Parameters{
         using TAG = ParametersTag;
         static constexpr TI INTERVAL = 1000;
+        static constexpr TI WARMUP_STEPS = 0;
     };
     struct ConfigTag{};
     template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>>
