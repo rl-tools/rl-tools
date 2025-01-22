@@ -20,9 +20,13 @@ namespace rl_tools{
     namespace extrack::git{
         extern const char* const commit;
         extern const char* const diff;
+        extern const char* const diff_color;
         extern const char* const word_diff;
+        extern const char* const word_diff_color;
         extern const char* const diff_staged;
+        extern const char* const diff_staged_color;
         extern const char* const word_diff_staged;
+        extern const char* const word_diff_staged_color;
     }
 #endif
     template <typename DEVICE, typename T_CONFIG>
@@ -73,8 +77,18 @@ namespace rl_tools{
             diff_file.close();
         }
         {
+            std::ofstream diff_file(git_path / "diff_color.txt");
+            diff_file << extrack::git::diff_color;
+            diff_file.close();
+        }
+        {
             std::ofstream diff_file(git_path / "word_diff.txt");
             diff_file << extrack::git::word_diff;
+            diff_file.close();
+        }
+        {
+            std::ofstream diff_file(git_path / "word_diff_color.txt");
+            diff_file << extrack::git::word_diff_color;
             diff_file.close();
         }
         {
@@ -83,8 +97,18 @@ namespace rl_tools{
             diff_file.close();
         }
         {
+            std::ofstream diff_file(git_path / "diff_staged_color.txt");
+            diff_file << extrack::git::diff_staged_color;
+            diff_file.close();
+        }
+        {
             std::ofstream diff_file(git_path / "word_diff_staged.txt");
             diff_file << extrack::git::word_diff_staged;
+            diff_file.close();
+        }
+        {
+            std::ofstream diff_file(git_path / "word_diff_staged_color.txt");
+            diff_file << extrack::git::word_diff_staged_color;
             diff_file.close();
         }
 #endif
