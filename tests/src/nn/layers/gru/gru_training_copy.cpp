@@ -55,6 +55,8 @@ using T = float;
 using CONFIG = Config<T, TI, true>;
 using PARAMS = typename CONFIG::PARAMS;
 
+constexpr TI N_EPOCH = 1;
+
 template <typename DEVICE, typename RandomIt, typename RNG>
 void shuffle(DEVICE& device, RandomIt first, RandomIt last, RNG& rng) {
     using diff_t = typename std::iterator_traits<RandomIt>::difference_type;
@@ -74,7 +76,7 @@ int main(){
     rlt::init(device, rng, 0);
 
     std::vector<std::tuple<std::string, std::string>> dataset;
-    constexpr TI DATASET_SIZE = 10000;
+    constexpr TI DATASET_SIZE = 1000000;
     static_assert(PARAMS::MEM_DELAY > 1);
     std::string padding(PARAMS::MEM_DELAY, '0');
     for(TI offset=0; offset < DATASET_SIZE; offset++){
@@ -111,7 +113,7 @@ int main(){
     std::cout << "INPUT SHAPE";
     rlt::print(device, decltype(input)::SPEC::SHAPE{});
     std::cout << std::endl;
-    for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
+    for(TI epoch_i=0; epoch_i < N_EPOCH; epoch_i++){
         shuffle(device, dataset.begin(), dataset.end(), rng);
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
