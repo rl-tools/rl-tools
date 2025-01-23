@@ -44,6 +44,11 @@ target_link_libraries(
 )
 target_compile_options(test_nn_layers_gru_training PRIVATE -fsanitize=address -fno-omit-frame-pointer)
 target_link_options(test_nn_layers_gru_training PRIVATE -fsanitize=address)
+
+
+add_executable(test_nn_layers_gru_training_copy gru_training_copy.cpp)
+target_link_libraries(test_nn_layers_gru_training_copy PRIVATE RLtools::RLtools)
+
 add_executable(
         test_nn_layers_gru_training_sequences
         gru_training_sequences.cpp

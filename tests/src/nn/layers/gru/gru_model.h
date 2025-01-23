@@ -1,6 +1,6 @@
 
 
-template <typename T, typename TI>
+template <typename T, typename TI, bool COPY_FLAG=false>
 struct Config{
     struct BASE{
         static constexpr TI NUM_CLASSES = 2<<7;
@@ -15,9 +15,17 @@ struct Config{
         static constexpr TI EMBEDDING_DIM = 64;
         static constexpr TI HIDDEN_DIM = 256;
     };
+    struct COPY: BASE{
+        static constexpr TI NUM_CLASSES = 4;
+        static constexpr TI MEM_SIZE = 4;
+        static constexpr TI MEM_DELAY = 50;
+        static constexpr TI SEQUENCE_LENGTH = MEM_SIZE + MEM_DELAY + MEM_SIZE;
+        static constexpr TI EMBEDDING_DIM = 32;
+        static constexpr TI HIDDEN_DIM = 32;
+    };
 
 //    using PARAMS = BASE;
-    using PARAMS = USEFUL;
+    using PARAMS = rlt::utils::typing::conditional_t<COPY_FLAG, COPY, USEFUL>;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Configuration<T, TI, PARAMS::NUM_CLASSES, PARAMS::EMBEDDING_DIM>;
