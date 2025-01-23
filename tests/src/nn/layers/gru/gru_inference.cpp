@@ -64,7 +64,11 @@ int main() {
         for(TI batch_i = 0; batch_i < CONFIG::PARAMS::BATCH_SIZE; batch_i++){
             for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
                 if(sequence_i < input_string.size()) {
-                    rlt::set(device, input, input_string[sequence_i], sequence_i, batch_i, 0);
+                    char input_char = input_string[sequence_i];
+                    if(input_char < 0) {
+                        input_char = '?';
+                    }
+                    rlt::set(device, input, input_char, sequence_i, batch_i, 0);
                 }
             }
         }
