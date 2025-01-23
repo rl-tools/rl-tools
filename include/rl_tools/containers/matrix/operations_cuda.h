@@ -241,7 +241,7 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
 
             constexpr T alpha = 1;
-            constexpr T beta = 0;
+            constexpr T beta = ACCUMULATE ? 1 : 0;
             constexpr auto m = OUTPUT_SPEC::ROWS;
             constexpr auto k = INPUT_SPEC_A::COLS;
             constexpr auto n = OUTPUT_SPEC::COLS;
