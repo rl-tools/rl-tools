@@ -20,9 +20,9 @@ namespace rlt = rl_tools;
 
 struct SPEC{};
 using RESET_MODE = rlt::Mode<rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, rlt::nn::layers::gru::ResetModeSpecification<int, int>>>;
-static_assert(rlt::nn::layers::gru::mode::can_reset_sample<SPEC>(RESET_MODE{}) == true);
+static_assert(rlt::nn::layers::gru::mode::can_reset_sample<RESET_MODE>::VALUE == true);
 using DEFAULT_MODE = rlt::Mode<rlt::mode::Default<>>;
-static_assert(rlt::nn::layers::gru::mode::can_reset_sample<SPEC>(DEFAULT_MODE{}) == false);
+static_assert(rlt::nn::layers::gru::mode::can_reset_sample<DEFAULT_MODE>::VALUE == false);
 
 TEST(RL_TOOLS_NN_LAYERS_GRU, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     using DEVICE = rlt::devices::DefaultCPU;

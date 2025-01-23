@@ -147,11 +147,11 @@ namespace rl_tools{
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::embedding::LayerBackward<SOURCE_SPEC>& source, nn::layers::embedding::LayerBackward<TARGET_SPEC>& target){
-        copy(source_device, target_device, static_cast<nn::layers::embedding::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::embedding::LayerForward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, static_cast<const nn::layers::embedding::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::embedding::LayerForward<TARGET_SPEC>&>(target));
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::embedding::LayerGradient<SOURCE_SPEC>& source, nn::layers::embedding::LayerGradient<TARGET_SPEC>& target){
-        copy(source_device, target_device, static_cast<nn::layers::embedding::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::embedding::LayerBackward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, static_cast<const nn::layers::embedding::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::embedding::LayerBackward<TARGET_SPEC>&>(target));
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::embedding::LayerForward<SPEC_2>& l2) {

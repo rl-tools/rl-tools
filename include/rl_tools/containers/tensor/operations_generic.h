@@ -109,7 +109,7 @@ namespace rl_tools{
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
         using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, true, NEW_STRIDE, true>;
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) && !defined(__CUDA_ARCH__)
         utils::assert_exit(device, index < SPEC::SHAPE::template GET<DIM>, "Index out of bounds");
 #endif
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
@@ -123,7 +123,7 @@ namespace rl_tools{
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
         using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, true, NEW_STRIDE, false>;
-#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) && !defined(__CUDA_ARCH__)
         utils::assert_exit(device, index < SPEC::SHAPE::template GET<DIM>, "Index out of bounds");
 #endif
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
