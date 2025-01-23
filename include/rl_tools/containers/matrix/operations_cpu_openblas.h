@@ -11,7 +11,11 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
     void multiply(devices::CPU_OPENBLAS<DEV_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
-        multiply((devices::CPU_BLAS<DEV_SPEC>&)device, A, B, output);
+        multiply(static_cast<devices::CPU_BLAS<DEV_SPEC>&>(device), A, B, output);
+    }
+    template<typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply_accumulate(devices::CPU_OPENBLAS<DEV_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
+        multiply_accumulate(static_cast<devices::CPU_BLAS<DEV_SPEC>&>(device), A, B, output);
     }
     template<typename SOURCE_DEVICE_SPEC, typename TARGET_DEVICE_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(devices::CPU_OPENBLAS<SOURCE_DEVICE_SPEC>& source_device, devices::CPU_OPENBLAS<TARGET_DEVICE_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){

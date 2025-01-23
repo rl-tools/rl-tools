@@ -844,7 +844,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         free(device, output);
         return result;
     }
-    template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    template<bool ACCUMULATE, typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
     void multiply_generic(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
         static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
         static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
@@ -856,6 +856,9 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         for(TI row_i = 0; row_i < OUTPUT_SPEC::ROWS; row_i++){
             for(TI col_i = 0; col_i < OUTPUT_SPEC::COLS; col_i++){
                 T acc = 0;
+                if constexpr(ACCUMULATE){
+                    acc = get(output, row_i, col_i);
+                }
                 for(TI k = 0; k < INPUT_SPEC_A::COLS; k++){
                     acc += get(A, row_i, k) * get(B, k, col_i);
                 }
@@ -865,7 +868,11 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
     template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
     void multiply(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
-        multiply_generic(device, A, B, output);
+        multiply_generic<false>(device, A, B, output);
+    }
+    template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply_accumulate(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
+        multiply_generic<true>(device, A, B, output);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto matrix_view(DEVICE& device, Matrix<SPEC>& m){

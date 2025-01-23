@@ -874,8 +874,6 @@ namespace rl_tools{
         reduce_sum<false>(device, input, output);
     }
 
-
-#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
@@ -884,17 +882,10 @@ namespace rl_tools{
         static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
         static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
         static_assert(get<1>(typename SPEC_2::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
-        using T = typename SPEC_1::T;
-        using TI = typename DEVICE::index_t;
-        for(TI row_i=0; row_i < get<0>(typename SPEC_1::SHAPE{}); ++row_i){
-            for(TI col_j=0; col_j < get<1>(typename SPEC_2::SHAPE{}); ++col_j){
-                T acc = 0;
-                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
-                    acc += get(device, t1, row_i, k) * get(device, t2, k, col_j);
-                }
-                set(device, result, acc, row_i, col_j);
-            }
-        }
+        auto a = matrix_view(device, t1);
+        auto b = matrix_view(device, t2);
+        auto c = matrix_view(device, result);
+        multiply(device, a, b, c);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
@@ -904,18 +895,53 @@ namespace rl_tools{
         static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
         static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
         static_assert(get<1>(typename SPEC_2::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
-        using T = typename SPEC_1::T;
-        using TI = typename DEVICE::index_t;
-        for(TI row_i=0; row_i < get<0>(typename SPEC_1::SHAPE{}); ++row_i){
-            for(TI col_j=0; col_j < get<1>(typename SPEC_2::SHAPE{}); ++col_j){
-                T acc = get(device, result, row_i, col_j);
-                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
-                    acc += get(device, t1, row_i, k) * get(device, t2, k, col_j);
-                }
-                set(device, result, acc, row_i, col_j);
-            }
-        }
+        auto a = matrix_view(device, t1);
+        auto b = matrix_view(device, t2);
+        auto c = matrix_view(device, result);
+        multiply_accumulate(device, a, b, c);
     }
+
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+    // template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    // void matrix_multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    //     static_assert(length(typename SPEC_1::SHAPE{}) == 2);
+    //     static_assert(length(typename SPEC_2::SHAPE{}) == 2);
+    //     static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
+    //     static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
+    //     static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
+    //     static_assert(get<1>(typename SPEC_2::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
+    //     using T = typename SPEC_1::T;
+    //     using TI = typename DEVICE::index_t;
+    //     for(TI row_i=0; row_i < get<0>(typename SPEC_1::SHAPE{}); ++row_i){
+    //         for(TI col_j=0; col_j < get<1>(typename SPEC_2::SHAPE{}); ++col_j){
+    //             T acc = 0;
+    //             for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
+    //                 acc += get(device, t1, row_i, k) * get(device, t2, k, col_j);
+    //             }
+    //             set(device, result, acc, row_i, col_j);
+    //         }
+    //     }
+    // }
+    // template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    // void matrix_multiply_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    //     static_assert(length(typename SPEC_1::SHAPE{}) == 2);
+    //     static_assert(length(typename SPEC_2::SHAPE{}) == 2);
+    //     static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
+    //     static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
+    //     static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
+    //     static_assert(get<1>(typename SPEC_2::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
+    //     using T = typename SPEC_1::T;
+    //     using TI = typename DEVICE::index_t;
+    //     for(TI row_i=0; row_i < get<0>(typename SPEC_1::SHAPE{}); ++row_i){
+    //         for(TI col_j=0; col_j < get<1>(typename SPEC_2::SHAPE{}); ++col_j){
+    //             T acc = get(device, result, row_i, col_j);
+    //             for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
+    //                 acc += get(device, t1, row_i, k) * get(device, t2, k, col_j);
+    //             }
+    //             set(device, result, acc, row_i, col_j);
+    //         }
+    //     }
+    // }
 #endif
 //    template<typename DEVICE, typename SPEC, typename = utils::typing::enable_if_t<length(typename SPEC::SHAPE{}) == 2, typename SPEC::TI>>
 //    auto matrix_view(DEVICE& device, Tensor<SPEC>& t){
