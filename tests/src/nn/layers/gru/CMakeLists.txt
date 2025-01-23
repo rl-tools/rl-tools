@@ -122,16 +122,11 @@ target_link_libraries(
 gtest_discover_tests(test_nn_layers_gru_persist_code_compile)
 
 if(RL_TOOLS_ENABLE_HDF5)
-    add_executable(
-            test_nn_layers_gru_inference
-            gru_inference.cpp
-    )
-    target_link_libraries(
-            test_nn_layers_gru_inference
-            PRIVATE
-            RLtools::RLtools
-            RLtools::Test
-    )
+    add_executable(test_nn_layers_gru_inference gru_inference.cpp)
+    target_link_libraries(test_nn_layers_gru_inference PRIVATE RLtools::RLtools RLtools::Test)
+
+    add_executable(test_nn_layers_gru_validation gru_validation.cpp)
+    target_link_libraries(test_nn_layers_gru_validation PRIVATE RLtools::RLtools)
 endif()
 
 add_executable(test_nn_layers_gru_online_evaluation online_evaluation.cpp)
@@ -141,3 +136,9 @@ gtest_discover_tests(test_nn_layers_gru_online_evaluation)
 add_executable(test_nn_layers_gru_reset gru_reset.cpp)
 target_link_libraries(test_nn_layers_gru_reset PRIVATE RLtools::RLtools RLtools::Test)
 gtest_discover_tests(test_nn_layers_gru_reset)
+
+
+
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    add_subdirectory(cuda)
+endif()

@@ -424,6 +424,46 @@ namespace rl_tools
 
         }
     }
+    namespace tensor::kernels{
+        template<typename DEVICE, typename SPEC, typename RNG>
+        __global__
+        void rand(DEVICE device, Tensor<SPEC> t, RNG rng, typename SPEC::T min, typename SPEC::T max){
+            static_assert(SPEC::SHAPE::LENGTH == 1);
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC::T;
+            constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
+            static_assert(RNG::NUM_RNGS >= SIZE);
+            TI step_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(step_i < SIZE){
+                auto& my_rng = get(rng.states, 0, step_i);
+                T value = random::uniform_real_distribution(device.random, min, max, my_rng);
+                set(device, t, value, step_i);
+            }
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC, typename RNG>
+    void rand(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, RNG& rng, typename SPEC::T min=0, typename SPEC::T max=1){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) > 1){
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+                auto next = view(device, t, i);
+                rand(device, next, rng, min, max);
+            }
+        }
+        else{
+            constexpr TI BLOCKSIZE = 32;
+            constexpr TI SIZE = SPEC::SHAPE::template GET<0>;
+            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE);
+            dim3 grid(N_BLOCKS);
+            dim3 block(BLOCKSIZE);
+            devices::cuda::TAG<DEVICE, true> tag_device{};
+            tensor::kernels::rand<<<grid, block, 0, device.stream>>>(tag_device, t, rng, min, max);
+            check_status(device);
+
+        }
+    }
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
