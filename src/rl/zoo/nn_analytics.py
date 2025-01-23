@@ -1,7 +1,12 @@
 import os, gzip, json, numpy as np
 import matplotlib.pyplot as plt
-path = "experiments/2025-01-22_16-30-16/786af4a_zoo_environment_algorithm/flag_sac/0010/steps/000000000000101/nn_analytics.json.gz"
-with gzip.open(path, 'rb') as f:
+run_path = "experiments/2025-01-22_17-37-04/786af4a_zoo_environment_algorithm/flag_sac/0010"
+steps_path = os.path.join(run_path, "steps")
+print(f"Steps ({steps_path}): ")
+list(map(print, os.listdir(steps_path)))
+step_path = os.path.join(steps_path, "000000000040000")
+nn_analytics_file = os.path.join(step_path, "nn_analytics.json.gz")
+with gzip.open(nn_analytics_file, 'rb') as f:
     data_string = f.read()
     data = json.loads(data_string)
 
