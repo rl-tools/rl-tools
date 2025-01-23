@@ -18,7 +18,7 @@ struct Config{
     struct COPY: BASE{
         static constexpr TI NUM_CLASSES = 4;
         static constexpr TI MEM_SIZE = 4;
-        static constexpr TI MEM_DELAY = 50;
+        static constexpr TI MEM_DELAY = 100;
         static constexpr TI SEQUENCE_LENGTH = MEM_SIZE + MEM_DELAY + MEM_SIZE;
         static constexpr TI EMBEDDING_DIM = 32;
         static constexpr TI HIDDEN_DIM = 32;

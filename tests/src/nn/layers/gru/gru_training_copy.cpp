@@ -210,7 +210,7 @@ int main(){
                             bool correct = output_index == max_logit_index;
                             num_correct += correct;
                             num_considered++;
-                            std::cout << input_char << " -> " << output_char << " (" << output_char_pred << ")" << (correct ? "✅" : "❌") << std::endl;
+                            std::cout << input_char << " -> " << output_char << " (" << output_char_pred << ")" << (correct ? "✅" : "❌") << " logit " << max_logit << std::endl;
                         }
                     }
                 }
@@ -222,7 +222,9 @@ int main(){
             T elapsed_print = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - last_print).count() / 1000.0;
             if(sample_i % 100 == 0){
             // if(elapsed_print > 0.2 || sample_i % 10000 == 0){
-                T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits_matrix_view, output_target_matrix_view);
+                auto relevant_output_logits_matrix_view = rlt::view(device, output_logits_matrix_view, rlt::matrix::ViewSpec<PARAMS::MEM_SIZE * PARAMS::BATCH_SIZE, PARAMS::NUM_CLASSES>{}, (PARAMS::MEM_SIZE + PARAMS::MEM_DELAY) * PARAMS::BATCH_SIZE, 0);
+                auto relevant_output_target_matrix_view = rlt::view(device, output_target_matrix_view, rlt::matrix::ViewSpec<PARAMS::MEM_SIZE * PARAMS::BATCH_SIZE, 1>{}, (PARAMS::MEM_SIZE + PARAMS::MEM_DELAY) * PARAMS::BATCH_SIZE, 0);
+                T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, relevant_output_logits_matrix_view, relevant_output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
                 std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/PARAMS::BATCH_SIZE << " (" << sample_i/PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
             }
