@@ -33,6 +33,9 @@ using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
 using GRU = GRU_TEMPLATE::Layer<CAPABILITY, INPUT_SHAPE>;
 
+#define DEV
+
+#ifndef DEV
 TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_HELPERS_CUBLAS_SGEMM){
     cublasHandle_t handle;
     cublasCreate(&handle);
@@ -214,40 +217,44 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_HELPERS_CUDA){
     test_gru_helper_cuda<100, 10, 100>();
 }
 
-// TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_CUDA){
-//     DEVICE_CPU device_cpu;
-//     DEVICE_GPU device_gpu;
-//     DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng_cpu;
-//     DEVICE_GPU::SPEC::RANDOM::ENGINE<> rng_gpu;
-//     GRU gru_cpu, gru_gpu;
-//     GRU::Buffer<> gru_buffer_cpu, gru_buffer_gpu;
-//     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU::INPUT_SHAPE>> input_cpu, input_gpu;
-//     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU::OUTPUT_SHAPE>> output_cpu, output_gpu;
-//
-//     rlt::init(device_cpu);
-//     rlt::init(device_gpu);
-//
-//     rlt::malloc(device_cpu, rng_cpu);
-//     rlt::malloc(device_gpu, rng_gpu);
-//     rlt::malloc(device_cpu, gru_cpu);
-//     rlt::malloc(device_gpu, gru_gpu);
-//     rlt::malloc(device_cpu, gru_buffer_cpu);
-//     rlt::malloc(device_gpu, gru_buffer_gpu);
-//     rlt::malloc(device_cpu, input_cpu);
-//     rlt::malloc(device_gpu, input_gpu);
-//     rlt::malloc(device_cpu, output_cpu);
-//     rlt::malloc(device_gpu, output_gpu);
-//
-//     rlt::init(device_cpu, rng_cpu, 0);
-//     rlt::init(device_gpu, rng_gpu, 0);
-//
-//     rlt::init_weights(device_gpu, gru_gpu, rng_gpu);
-//     rlt::copy(device_gpu, device_cpu, gru_gpu, gru_cpu);
-//     rlt::randn(device_gpu, input_gpu, rng_gpu);
-//     rlt::copy(device_gpu, device_cpu, input_gpu, input_cpu);
-//
-//     rlt::evaluate(device_cpu, gru_cpu, input_cpu, output_cpu, gru_buffer_cpu, rng_cpu);
-//     rlt::evaluate(device_gpu, gru_gpu, input_gpu, output_gpu, gru_buffer_gpu, rng_gpu);
-//
-//     rlt::print(device_cpu, output_cpu);
-// }
+#else
+
+TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_CUDA){
+    DEVICE_CPU device_cpu;
+    DEVICE_GPU device_gpu;
+    DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng_cpu;
+    DEVICE_GPU::SPEC::RANDOM::ENGINE<> rng_gpu;
+    GRU gru_cpu, gru_gpu;
+    GRU::Buffer<> gru_buffer_cpu, gru_buffer_gpu;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU::INPUT_SHAPE>> input_cpu, input_gpu;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU::OUTPUT_SHAPE>> output_cpu, output_gpu;
+
+    rlt::init(device_cpu);
+    rlt::init(device_gpu);
+
+    rlt::malloc(device_cpu, rng_cpu);
+    rlt::malloc(device_gpu, rng_gpu);
+    rlt::malloc(device_cpu, gru_cpu);
+    rlt::malloc(device_gpu, gru_gpu);
+    rlt::malloc(device_cpu, gru_buffer_cpu);
+    rlt::malloc(device_gpu, gru_buffer_gpu);
+    rlt::malloc(device_cpu, input_cpu);
+    rlt::malloc(device_gpu, input_gpu);
+    rlt::malloc(device_cpu, output_cpu);
+    rlt::malloc(device_gpu, output_gpu);
+
+    rlt::init(device_cpu, rng_cpu, 0);
+    rlt::init(device_gpu, rng_gpu, 0);
+
+    rlt::init_weights(device_gpu, gru_gpu, rng_gpu);
+    rlt::copy(device_gpu, device_cpu, gru_gpu, gru_cpu);
+    rlt::randn(device_gpu, input_gpu, rng_gpu);
+    rlt::copy(device_gpu, device_cpu, input_gpu, input_cpu);
+
+    // rlt::evaluate(device_cpu, gru_cpu, input_cpu, output_cpu, gru_buffer_cpu, rng_cpu);
+    rlt::evaluate(device_gpu, gru_gpu, input_gpu, output_gpu, gru_buffer_gpu, rng_gpu);
+
+    rlt::print(device_cpu, output_cpu);
+}
+
+#endif
