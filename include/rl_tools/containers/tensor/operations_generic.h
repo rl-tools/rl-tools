@@ -304,32 +304,6 @@ namespace rl_tools{
             static constexpr auto OPERATION = T_OPERATION;
             PARAMETER parameter;
         };
-        namespace operations::binary{
-            struct Add: Operation{
-                template <typename DEVICE, typename T>
-                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Add& parameter, T a, T b){
-                    return a + b;
-                }
-            };
-            struct Subtract: Operation{
-                template <typename DEVICE, typename T>
-                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Subtract& parameter, T a, T b){
-                    return a - b;
-                }
-            };
-            struct Multiply: Operation{
-                template <typename DEVICE, typename T>
-                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Multiply& parameter, T a, T b){
-                    return a * b;
-                }
-            };
-            struct Divide: Operation{
-                template <typename DEVICE, typename T>
-                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Divide parameter, T a, T b){
-                    return a / b;
-                }
-            };
-        }
         namespace operations::unary{
             struct Negate: Operation {
                 template <typename DEVICE, typename T>
@@ -410,11 +384,40 @@ namespace rl_tools{
                 }
             };
         }
-        namespace ternary_operations{
+        namespace operations::binary{
+            struct Add: Operation{
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Add& parameter, T a, T b){
+                    return a + b;
+                }
+            };
+            struct Subtract: Operation{
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Subtract& parameter, T a, T b){
+                    return a - b;
+                }
+            };
+            struct Multiply: Operation{
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Multiply& parameter, T a, T b){
+                    return a * b;
+                }
+            };
+            struct Divide: Operation{
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Divide parameter, T a, T b){
+                    return a / b;
+                }
+            };
+        }
+        namespace operations::ternary{
             template <typename T>
-            RL_TOOLS_FUNCTION_PLACEMENT T multiply_accumulate(T a, T b, T acc){
-                return acc + a * b;
-            }
+            struct MultiplyAccumulate: Operation{
+                template <typename DEVICE, typename T_T>
+                RL_TOOLS_FUNCTION_PLACEMENT T_T static operation(DEVICE& device, const MultiplyAccumulate<T_T>& parameter, T_T a, T_T b, T_T acc){
+                    return acc + a * b;
+                }
+            };
         }
         template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE, auto T_UNARY_REDUCE_OPERATION>
         struct UnaryReduceOperation{
@@ -750,37 +753,10 @@ namespace rl_tools{
         return unary_associative_reduce(device, op, t);
     }
 
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, auto TERNARY_OPERATION, typename OPERATION_PARAMETER>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename SPEC_OUT, typename OPERATION>
+    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        using BOP = tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>;
-        static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
-        static_assert(tensor::same_dimensions<SPEC_1, SPEC_OUT>());
-        if constexpr(length(typename SPEC_1::SHAPE{}) > 1){
-            for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
-                auto next_t1 = view(device, t1, i);
-                auto next_t2 = view(device, t2, i);
-                auto next_result = view(device, result, i);
-                ternary_operation(device, BOP{}, next_t1, next_t2, next_result);
-            }
-        }
-        else{
-            for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
-                T t1_value = get(device, t1, i);
-                T t2_value = get(device, t2, i);
-                T t3_value = get(device, result, i);
-                T result_value = TERNARY_OPERATION(t1_value, t2_value, t3_value);
-                set(device, result, result_value, i);
-            }
-        }
-    }
-
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename SPEC_OUT, auto TERNARY_OPERATION, typename OPERATION_PARAMETER>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
-        using T = typename SPEC_1::T;
-        using TI = typename DEVICE::index_t;
-        using BOP = tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
         static_assert(tensor::same_dimensions<SPEC_2, SPEC_3>());
         static_assert(tensor::same_dimensions<SPEC_3, SPEC_OUT>());
@@ -790,7 +766,7 @@ namespace rl_tools{
                 auto next_t2 = view(device, t2, i);
                 auto next_t3 = view(device, t3, i);
                 auto next_result = view(device, result, i);
-                ternary_operation(device, BOP{}, next_t1, next_t2, next_t3, next_result);
+                ternary_operation(device, op, next_t1, next_t2, next_t3, next_result);
             }
         }
         else{
@@ -798,17 +774,21 @@ namespace rl_tools{
                 T t1_value = get(device, t1, i);
                 T t2_value = get(device, t2, i);
                 T t3_value = get(device, t3, i);
-                T result_value = TERNARY_OPERATION(t1_value, t2_value, t3_value);
+                T result_value = OPERATION::operation(device, op, t1_value, t2_value, t3_value);
                 set(device, result, result_value, i);
             }
         }
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, typename OPERATION>
+    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+        ternary_operation(device, op, t1, t2, result, result);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT void multiply_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("tensor::multiply_accumulate");
 #endif
-        ternary_operation(device, tensor::OperationLegacy<tensor::ternary_operations::multiply_accumulate<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, t_output);
+        ternary_operation(device, tensor::operations::ternary::MultiplyAccumulate<typename SPEC_1::T>{}, t1, t2, t_output);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_REDUCE_OPERATION, auto BINARY_ASSOCIATIVE_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE1, typename CURRENT_TYPE2, typename OPERATION_PARAMETER>
