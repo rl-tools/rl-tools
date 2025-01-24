@@ -34,7 +34,7 @@ using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
 using GRU = GRU_TEMPLATE::Layer<CAPABILITY, INPUT_SHAPE>;
 
-// #define DEV
+#define DEV
 
 #ifndef DEV
 TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_HELPERS_CUBLAS_SGEMM){
@@ -225,10 +225,9 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_CUDA){
     DEVICE_GPU device_gpu;
     DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng_cpu;
     DEVICE_GPU::SPEC::RANDOM::ENGINE<> rng_gpu;
-    GRU gru_cpu, gru_gpu;
-    GRU::Buffer<> gru_buffer_cpu, gru_buffer_gpu;
+    GRU gru_cpu, gru_gpu, gru_gpu_cpu;
+    GRU::Buffer<> gru_buffer_cpu, gru_buffer_gpu, gru_buffer_gpu_cpu;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU::INPUT_SHAPE>> input_cpu, input_gpu;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU::OUTPUT_SHAPE>> output_gpu_cpu;
 
     rlt::init(device_cpu);
     rlt::init(device_gpu);
@@ -237,11 +236,12 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_CUDA){
     rlt::malloc(device_gpu, rng_gpu);
     rlt::malloc(device_cpu, gru_cpu);
     rlt::malloc(device_gpu, gru_gpu);
+    rlt::malloc(device_cpu, gru_gpu_cpu);
     rlt::malloc(device_cpu, gru_buffer_cpu);
     rlt::malloc(device_gpu, gru_buffer_gpu);
+    rlt::malloc(device_cpu, gru_buffer_gpu_cpu);
     rlt::malloc(device_cpu, input_cpu);
     rlt::malloc(device_gpu, input_gpu);
-    rlt::malloc(device_cpu, output_gpu_cpu);
 
     rlt::init(device_cpu, rng_cpu, 0);
     rlt::init(device_gpu, rng_gpu, 0);
@@ -253,11 +253,13 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_CUDA){
 
     rlt::forward(device_cpu, gru_cpu, input_cpu, gru_buffer_cpu, rng_cpu);
     rlt::forward(device_gpu, gru_gpu, input_gpu, gru_buffer_gpu, rng_gpu);
-    rlt::copy(device_gpu, device_cpu, gru_gpu.output, output_gpu_cpu);
+    // rlt::copy(device_cpu, device_gpu, gru_cpu, gru_gpu);
+    rlt::copy(device_gpu, device_cpu, gru_buffer_gpu, gru_buffer_gpu_cpu);
+    rlt::copy(device_gpu, device_cpu, gru_gpu, gru_gpu_cpu);
 
     rlt::print(device_cpu, gru_cpu.output);
-    rlt::print(device_cpu, output_gpu_cpu);
-    T abs_diff = rlt::abs_diff(device_cpu, gru_cpu.output, output_gpu_cpu);
+    rlt::print(device_cpu, gru_gpu_cpu.output);
+    T abs_diff = rlt::abs_diff(device_cpu, gru_cpu.output, gru_gpu_cpu.output);
     std::cout << "abs_diff: " << abs_diff << std::endl;
     ASSERT_LT(abs_diff, EPSILON);
 }
