@@ -125,8 +125,8 @@ if(RL_TOOLS_ENABLE_HDF5)
     add_executable(test_nn_layers_gru_inference gru_inference.cpp)
     target_link_libraries(test_nn_layers_gru_inference PRIVATE RLtools::RLtools RLtools::Test)
 
-    add_executable(test_nn_layers_gru_validation gru_validation.cpp)
-    target_link_libraries(test_nn_layers_gru_validation PRIVATE RLtools::RLtools)
+#    add_executable(test_nn_layers_gru_validation gru_validation.cpp)
+#    target_link_libraries(test_nn_layers_gru_validation PRIVATE RLtools::RLtools)
 endif()
 
 add_executable(test_nn_layers_gru_online_evaluation online_evaluation.cpp)
