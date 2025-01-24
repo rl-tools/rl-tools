@@ -301,7 +301,7 @@ namespace rl_tools{
             }
         }
         else{
-            multiply_generic(device, A, B, C);
+            multiply_generic<false>(device, A, B, C);
         }
     }
 }
