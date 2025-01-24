@@ -3,6 +3,7 @@
 #include <rl_tools/random/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/embedding/operations_generic.h>
+#include <rl_tools/nn/layers/gru/helper_operations_cuda.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/loss_functions/categorical_cross_entropy/operations_generic.h>
@@ -65,8 +66,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_CUDA){
     rlt::randn(device_gpu, input_gpu, rng_gpu);
     rlt::copy(device_gpu, device_cpu, input_gpu, input_cpu);
 
-    rlt::Mode<rlt::mode::Default<>> mode_cpu;
-    rlt::evaluate(device_cpu, gru_cpu, input_cpu, output_cpu, gru_buffer_cpu, rng_cpu, mode_cpu);
+    rlt::evaluate(device_cpu, gru_cpu, input_cpu, output_cpu, gru_buffer_cpu, rng_cpu);
+    // rlt::evaluate(device_gpu, gru_gpu, input_gpu, output_gpu, gru_buffer_gpu, rng_gpu);
 
     rlt::print(device_cpu, output_cpu);
 }

@@ -234,11 +234,18 @@ namespace rl_tools{
             static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
             static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
             static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
-            static_assert(INPUT_SPEC_A::COL_PITCH == 1); // dense row-major
-            static_assert(INPUT_SPEC_B::COL_PITCH == 1); // dense row-major
+            static_assert(INPUT_SPEC_A::ROW_PITCH == 1 || INPUT_SPEC_A::COL_PITCH == 1); // dense row- or column-major
+            static_assert(INPUT_SPEC_B::ROW_PITCH == 1 || INPUT_SPEC_B::COL_PITCH == 1); // dense row- or column-major
 
             using T = typename OUTPUT_SPEC::T;
             using TI = typename DEVICE::index_t;
+
+
+            constexpr auto A_TRANSPOSE = INPUT_SPEC_A::COL_PITCH == 1 ? CUBLAS_OP_N : CUBLAS_OP_T;
+            constexpr auto B_TRANSPOSE = INPUT_SPEC_B::COL_PITCH == 1 ? CUBLAS_OP_N : CUBLAS_OP_T;
+
+            constexpr TI A_PITCH = A_TRANSPOSE == CUBLAS_OP_N ? INPUT_SPEC_A::ROW_PITCH : INPUT_SPEC_A::COL_PITCH;
+            constexpr TI B_PITCH = B_TRANSPOSE == CUBLAS_OP_N ? INPUT_SPEC_B::ROW_PITCH : INPUT_SPEC_B::COL_PITCH;
 
             constexpr T alpha = 1;
             constexpr T beta = ACCUMULATE ? 1 : 0;
@@ -246,6 +253,7 @@ namespace rl_tools{
             constexpr auto k = INPUT_SPEC_A::COLS;
             constexpr auto n = OUTPUT_SPEC::COLS;
 
+            // NOTE: cuBLAS uses the column-major format
             // A is m x k
             // B is k x n
             // output is m x n
@@ -256,10 +264,10 @@ namespace rl_tools{
 
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, B._data, row_pitch(B), A._data, row_pitch(A),&beta, output._data, row_pitch(output));
+                stat = cublasSgemm(device.handle, B_TRANSPOSE, A_TRANSPOSE, n, m, k, &alpha, B._data, B_PITCH, A._data, A_PITCH,&beta, output._data, row_pitch(output));
             }
             else{
-                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, B._data, row_pitch(B), A._data, row_pitch(A),&beta, output._data, row_pitch(output));
+                stat = cublasDgemm(device.handle, B_TRANSPOSE, A_TRANSPOSE, n, m, k, &alpha, B._data, B_PITCH, A._data, A_PITCH,&beta, output._data, row_pitch(output));
             }
             if(stat != CUBLAS_STATUS_SUCCESS){
                 std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
