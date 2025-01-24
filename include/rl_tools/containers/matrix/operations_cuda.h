@@ -240,7 +240,6 @@ namespace rl_tools{
             using T = typename OUTPUT_SPEC::T;
             using TI = typename DEVICE::index_t;
 
-
             constexpr bool A_ROW_MAJOR = INPUT_SPEC_A::ROW_PITCH >= INPUT_SPEC_A::COLS;
             constexpr bool B_ROW_MAJOR = INPUT_SPEC_B::ROW_PITCH >= INPUT_SPEC_B::COLS;
             constexpr auto A_TRANSPOSE = A_ROW_MAJOR ? CUBLAS_OP_N : CUBLAS_OP_T;
