@@ -12,11 +12,17 @@ namespace rl_tools{
             static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
             static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
             static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
-            static_assert(INPUT_SPEC_A::COL_PITCH == 1); // dense row-major
-            static_assert(INPUT_SPEC_B::COL_PITCH == 1); // dense row-major
+            static_assert(INPUT_SPEC_A::ROW_PITCH == 1 || INPUT_SPEC_A::COL_PITCH == 1); // dense row- or column-major
+            static_assert(INPUT_SPEC_B::ROW_PITCH == 1 || INPUT_SPEC_B::COL_PITCH == 1); // dense row- or column-major
 
             using T = typename OUTPUT_SPEC::T;
             using TI = typename DEV_SPEC::index_t;
+
+            constexpr auto A_TRANSPOSE = INPUT_SPEC_A::COL_PITCH == 1 ? CblasNoTrans : CblasTrans;
+            constexpr auto B_TRANSPOSE = INPUT_SPEC_B::COL_PITCH == 1 ? CblasNoTrans : CblasTrans;
+
+            constexpr TI A_PITCH = A_TRANSPOSE == CblasNoTrans ? INPUT_SPEC_A::ROW_PITCH : INPUT_SPEC_A::COL_PITCH;
+            constexpr TI B_PITCH = B_TRANSPOSE == CblasNoTrans ? INPUT_SPEC_B::ROW_PITCH : INPUT_SPEC_B::COL_PITCH;
 
             constexpr T alpha = 1;
             constexpr T beta = ACCUMULATE ? 1 : 0;
@@ -25,10 +31,10 @@ namespace rl_tools{
             constexpr auto n = OUTPUT_SPEC::COLS;
 
             if constexpr(utils::typing::is_same_v<T, float>){
-                cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, A._data, row_pitch(A), B._data, row_pitch(B), beta, output._data, row_pitch(output));
+                cblas_sgemm(CblasRowMajor, A_TRANSPOSE, B_TRANSPOSE, m, n, k, alpha, A._data, A_PITCH, B._data, B_PITCH, beta, output._data, row_pitch(output));
             }
             else{
-                cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, A._data, row_pitch(A), B._data, row_pitch(B), beta, output._data, row_pitch(output));
+                cblas_dgemm(CblasRowMajor, A_TRANSPOSE, B_TRANSPOSE, m, n, k, alpha, A._data, A_PITCH, B._data, B_PITCH, beta, output._data, row_pitch(output));
             }
         }
     }

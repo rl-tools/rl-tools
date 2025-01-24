@@ -4,7 +4,6 @@
 #define RL_TOOLS_NN_LAYERS_GRU_HELPER_OPERATIONS_GENERIC_H
 
 #include "layer.h"
-#include <rl_tools/nn/parameters/operations_generic.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru::helper{
@@ -69,15 +68,6 @@ namespace rl_tools::nn::layers::gru::helper{
         }
         auto t1_transpose = permute(device, t1, tensor::PermutationSpec<1, 0>{});
         matrix_multiply_accumulate(device, t2, t1_transpose, result);
-//        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
-//            for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
-//                T acc = get(device, result, j, i) + get(device, bias, i);
-//                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
-//                    acc += get(device, t1, i, k) * get(device, t2, j, k);
-//                }
-//                set(device, result, acc, j, i);
-//            }
-//        }
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
@@ -109,21 +99,21 @@ namespace rl_tools::nn::layers::gru::helper{
 
     namespace unary_operations{
         template <typename DEVICE, typename PARAMETER, typename T>
-        T d_sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
+        RL_TOOLS_FUNCTION_PLACEMENT T d_sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
             T s = sigmoid(device, parameter, a);
             return s * (1 - s);
         }
         template <typename DEVICE, typename PARAMETER, typename T>
-        T d_sigmoid_post_activation(DEVICE& device, const PARAMETER& parameter, T s){
+        RL_TOOLS_FUNCTION_PLACEMENT T d_sigmoid_post_activation(DEVICE& device, const PARAMETER& parameter, T s){
             return s * (1 - s);
         }
         template <typename DEVICE, typename PARAMETER, typename T>
-        T d_tanh(DEVICE& device, const PARAMETER& parameter, T a){
+        RL_TOOLS_FUNCTION_PLACEMENT T d_tanh(DEVICE& device, const PARAMETER& parameter, T a){
             T t = tanh(device, parameter, a);// todo: make version that can take advantage of a stored value so that tanh does not have to be calculated again
             return 1 - t * t;
         }
         template <typename DEVICE, typename PARAMETER, typename T>
-        T d_tanh_post_activation(DEVICE& device, const PARAMETER& parameter, T t){
+        RL_TOOLS_FUNCTION_PLACEMENT T d_tanh_post_activation(DEVICE& device, const PARAMETER& parameter, T t){
             return 1 - t * t;
         }
     }

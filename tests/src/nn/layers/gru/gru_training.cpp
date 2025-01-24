@@ -45,7 +45,6 @@ using MATH_DEVICE = rlt::devices::math::CPU;
 using RANDOM_DEVICE = rlt::devices::random::Generic<rlt::devices::math::CPU>;
 using DEVICE_SPEC = rlt::devices::cpu::Specification<MATH_DEVICE, RANDOM_DEVICE, rlt::LOGGER_FACTORY<>>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEVICE_SPEC>;
-//using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 #else
 using DEVICE = rlt::devices::DefaultCPU;
 #endif
@@ -72,35 +71,24 @@ int main(){
     typename DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::init(device, rng, 0);
 
-    std::string data_path, file_name;
-    file_name = "enwik8.small";
-    if(std::filesystem::exists("/Users")) {
-        data_path = "/Users/jonas/Downloads/" + file_name;
-    }
-    else{
-        if(std::filesystem::exists("/mnt/c/Users")) {
-            data_path = "/mnt/c/Users/Jonas/Downloads/" + file_name;
-        }
-        else {
-            const char* home = std::getenv("HOME");
-            if(!home){
-                throw std::runtime_error("HOME environment variable not set");
-            }
-            else{
-                std::cout << "Home is: " << home << std::endl;
-            }
-            data_path = std::string(home) + "/Downloads/" + file_name;
-        }
-    }
+    std::string data_path = "data/enwik8/enwik8-training.txt";
     if(!std::filesystem::exists(data_path)){
         std::cerr << "Data path does not exist: " << data_path << std::endl;
         return 1;
     }
     std::string dataset_string;
-    dataset_string = load_dataset_enwik8<TI>(data_path);
+    std::ifstream file(data_path);
+    if(!file.is_open()){
+        std::cerr << "Failed to open file: " << data_path << std::endl;
+        std::exit(-1);
+    }
+    std::string line;
+    while(std::getline(file, line)){
+        dataset_string += line;
+    }
 
     std::vector<std::tuple<std::string, std::string>> dataset;
-    for(TI offset=0; offset < dataset_string.size() - CONFIG::PARAMS::SEQUENCE_LENGTH - 1; offset++){
+    for(TI offset=0; offset < dataset_string.size() - CONFIG::PARAMS::SEQUENCE_LENGTH - 1; offset += CONFIG::PARAMS::SEQUENCE_LENGTH){
         auto input = dataset_string.substr(offset, CONFIG::PARAMS::SEQUENCE_LENGTH);
         auto output = dataset_string.substr(offset+1, CONFIG::PARAMS::SEQUENCE_LENGTH);
         dataset.emplace_back(std::tuple(input, output));
@@ -196,7 +184,7 @@ int main(){
             // if(elapsed_print > 0.2 || sample_i % 10000 == 0){
                 T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits_matrix_view, output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
-                std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
+                std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << " Bits-per-byte: " << loss/rlt::math::log(device.math, (T)2) << std::endl;
             }
             rlt::zero_gradient(device, model);
             {
