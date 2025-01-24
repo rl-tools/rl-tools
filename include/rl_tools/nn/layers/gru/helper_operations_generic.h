@@ -72,7 +72,8 @@ namespace rl_tools::nn::layers::gru::helper{
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
     void matrix_multiply_broadcast_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
-        // broadcasts t2 and bias
+        // t2_expand = expand_along_cols(t2)
+        // result^T = t1 t2_expand + bias
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::matrix_multiply_broadcast_transpose_bias");
 #endif
