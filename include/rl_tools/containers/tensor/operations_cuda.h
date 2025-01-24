@@ -356,9 +356,102 @@ namespace rl_tools
         unary_operation(device, operation, t);
     }
     namespace tensor::kernels {
-        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_3, auto TERNARY_OPERATION, typename OPERATION_PARAMETER, typename SPEC_OUTPUT>
+        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename OPERATION, typename SPEC_OUTPUT>
         __global__
-        void ternary_operation(devices::CUDA<DEV_SPEC> device, const tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER> op, Tensor<SPEC_1> t1, Tensor<SPEC_2> t2, Tensor<SPEC_3> t3, Tensor<SPEC_OUTPUT> output) {
+        void binary_operation(devices::CUDA<DEV_SPEC> device, const OPERATION op, Tensor<SPEC_1> t1, Tensor<SPEC_2> t2, Tensor<SPEC_OUTPUT> output) {
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC_1::T;
+            using TI = typename DEVICE::index_t;
+            static_assert(SPEC_1::SHAPE::LENGTH == 1);
+            constexpr TI SIZE = SPEC_1::SHAPE::template GET<0>;
+            TI thread_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if (thread_i < SIZE) {
+                T t1_value = get(device, t1, thread_i);
+                T t2_value = get(device, t2, thread_i);
+                T result_value = OPERATION::operation(device, op, t1_value, t2_value);
+                set(device, output, result_value, thread_i);
+            }
+        }
+        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename OPERATION, typename SPEC_OUTPUT>
+        __global__
+        void binary_operation2d(devices::CUDA<DEV_SPEC> device, const OPERATION op, Tensor<SPEC_1> t1, Tensor<SPEC_2> t2, Tensor<SPEC_OUTPUT> output) {
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC_1::T;
+            using TI = typename DEVICE::index_t;
+            static_assert(SPEC_1::SHAPE::LENGTH == 2);
+            constexpr TI ROW_SIZE = SPEC_1::SHAPE::template GET<0>;
+            constexpr TI COL_SIZE = SPEC_1::SHAPE::template GET<1>;
+            static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
+            static_assert(tensor::same_dimensions<SPEC_1, SPEC_OUTPUT>());
+            TI row_i = threadIdx.x + blockIdx.x * blockDim.x;
+            TI col_i = threadIdx.y + blockIdx.y * blockDim.y;
+            if (row_i < ROW_SIZE && col_i < COL_SIZE) {
+                T t1_value = get(device, t1, row_i, col_i);
+                T t2_value = get(device, t2, row_i, col_i);
+                T result_value = OPERATION::operation(device, op, t1_value, t2_value);
+                set(device, output, result_value, row_i, col_i);
+            }
+        }
+    }
+
+    // Unary operation when on Host device
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename OPERATION, typename SPEC_OUTPUT,
+        typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
+    void binary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& output){
+        static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
+        static_assert(tensor::same_dimensions<SPEC_1, SPEC_OUTPUT>());
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename SPEC_1::T;
+        using TI = typename DEVICE::index_t;
+        if constexpr(SPEC_1::SHAPE::LENGTH > 2){
+            for(TI i=0; i < SPEC_1::SHAPE::template GET<0>; ++i){
+                auto next_t1 = view(device, t1, i);
+                auto next_t2 = view(device, t2, i);
+                auto next_output = view(device, output, i);
+                unary_operation(device, op, next_t1, next_t2, next_output);
+            }
+        }
+        else
+        {
+            if constexpr(SPEC_1::SHAPE::LENGTH == 2){
+                using DEVICE = devices::CUDA<DEV_SPEC>;
+                using T = typename SPEC_1::T;
+                using TI = typename SPEC_1::TI;
+                constexpr TI BLOCKSIZE_COLS = 8;
+                constexpr TI ROW_SIZE = SPEC_1::SHAPE::template GET<0>;
+                constexpr TI COL_SIZE = SPEC_1::SHAPE::template GET<1>;
+                constexpr TI N_BLOCKS_ROWS = RL_TOOLS_DEVICES_CUDA_CEIL(ROW_SIZE, BLOCKSIZE_COLS);
+                constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(COL_SIZE, BLOCKSIZE_COLS);
+                dim3 grid(N_BLOCKS_ROWS, N_BLOCKS_COLS);
+                dim3 block(BLOCKSIZE_COLS, BLOCKSIZE_COLS);
+                devices::cuda::TAG<DEVICE, true> tag_device{};
+                tensor::kernels::binary_operation2d<<<grid, block, 0, device.stream>>>(tag_device, op, t1, t2, output);
+                check_status(device);
+            }
+            else{
+                using DEVICE = devices::CUDA<DEV_SPEC>;
+                using T = typename SPEC_1::T;
+                using TI = typename SPEC_1::TI;
+                constexpr TI BLOCKSIZE_COLS = 32;
+                constexpr TI SIZE = SPEC_1::SHAPE::template GET<0>;
+                constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SIZE, BLOCKSIZE_COLS);
+                dim3 grid(N_BLOCKS_COLS);
+                dim3 block(BLOCKSIZE_COLS);
+                devices::cuda::TAG<DEVICE, true> tag_device{};
+                tensor::kernels::binary_operation<<<grid, block, 0, device.stream>>>(tag_device, op, t1, t2, output);
+                check_status(device);
+            }
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC_1, typename OPERATION, typename SPEC_OUTPUT,
+        typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
+    void binary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_OUTPUT>& output){
+        binary_operation(device, op, t1, output, output);
+    }
+    namespace tensor::kernels {
+        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename OPERATION, typename SPEC_OUTPUT>
+        __global__
+        void ternary_operation(devices::CUDA<DEV_SPEC> device, const OPERATION op, Tensor<SPEC_1> t1, Tensor<SPEC_2> t2, Tensor<SPEC_3> t3, Tensor<SPEC_OUTPUT> output) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC_1::T;
             using TI = typename DEVICE::index_t;
@@ -369,13 +462,13 @@ namespace rl_tools
                 T t1_value = get(device, t1, thread_i);
                 T t2_value = get(device, t2, thread_i);
                 T t3_value = get(device, t3, thread_i);
-                T result_value = TERNARY_OPERATION(t1_value, t2_value, t3_value);
+                T result_value = OPERATION::operation(device, op, t1_value, t2_value, t3_value);
                 set(device, output, result_value, thread_i);
             }
         }
-        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_3, auto TERNARY_OPERATION, typename OPERATION_PARAMETER, typename SPEC_OUTPUT>
+        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename OPERATION, typename SPEC_OUTPUT>
         __global__
-        void ternary_operation2d(devices::CUDA<DEV_SPEC> device, const tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER> op, Tensor<SPEC_1> t1, Tensor<SPEC_2> t2, Tensor<SPEC_3> t3, Tensor<SPEC_OUTPUT> output) {
+        void ternary_operation2d(devices::CUDA<DEV_SPEC> device, const OPERATION op, Tensor<SPEC_1> t1, Tensor<SPEC_2> t2, Tensor<SPEC_3> t3, Tensor<SPEC_OUTPUT> output) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC_1::T;
             using TI = typename DEVICE::index_t;
@@ -389,16 +482,16 @@ namespace rl_tools
                 T t1_value = get(device, t1, row_i, col_i);
                 T t2_value = get(device, t2, row_i, col_i);
                 T t3_value = get(device, t3, row_i, col_i);
-                T result_value = TERNARY_OPERATION(t1_value, t2_value, t3_value);
+                T result_value = OPERATION::operation(device, op, t1_value, t2_value, t3_value);
                 set(device, output, result_value, row_i, col_i);
             }
         }
     }
 
     // Unary operation when on Host device
-    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename SPEC_OUT, auto TERNARY_OPERATION, typename OPERATION_PARAMETER,
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename SPEC_OUT, typename OPERATION,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    void ternary_operation(devices::CUDA<DEV_SPEC>& device, const tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
+    void ternary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
@@ -446,9 +539,9 @@ namespace rl_tools
             }
         }
     }
-    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, auto TERNARY_OPERATION, typename OPERATION_PARAMETER,
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, typename OPERATION,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(devices::CUDA<DEV_SPEC>& device, const tensor::OperationLegacy<TERNARY_OPERATION, OPERATION_PARAMETER>& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         ternary_operation(device, op, t1, t2, result, result);
     }
     namespace tensor::kernels{

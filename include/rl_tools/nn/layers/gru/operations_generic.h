@@ -135,14 +135,19 @@ namespace rl_tools{
         static_assert(get<1>(typename SPEC_OUTPUT::SHAPE{}) == get<1>(typename SPEC_1::SHAPE{}));
         using TI = typename DEVICE::index_t;
         using T = typename SPEC_1::T;
-        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
-            for(TI j=0; j < get<1>(typename SPEC_1::SHAPE{}); j++){
-                T t1_value = get(device, t1, i, j);
-                T t2_value = get(device, t2, j);
-                T t_output_value = get(device, t_output, i, j);
-                set(device, t_output, t1_value * t2_value + t_output_value, i, j);
-            }
-        }
+        // for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
+        //     for(TI j=0; j < get<1>(typename SPEC_1::SHAPE{}); j++){
+        //         T t1_value = get(device, t1, i, j);
+        //         T t2_value = get(device, t2, j);
+        //         T t_output_value = get(device, t_output, i, j);
+        //         set(device, t_output, t1_value * t2_value + t_output_value, i, j);
+        //     }
+        // }
+        using NEW_SHAPE = tensor::Shape<TI, SPEC_1::SHAPE::template GET<0>, SPEC_2::SHAPE::template GET<0>>;;
+        using NEW_STRIDE = tensor::Stride<TI, 0, SPEC_2::STRIDE::template GET<0>>;
+        using NEW_SPEC = tensor::Specification<typename SPEC_2::T, typename SPEC_2::TI, NEW_SHAPE, true, NEW_STRIDE, true>;
+        const Tensor<NEW_SPEC> t2_broadcasted{{data(t2)}};
+        multiply_accumulate(device, t1, t2_broadcasted, t_output);
     }
 
     namespace nn::layers::gru{
@@ -429,18 +434,21 @@ namespace rl_tools{
             }
         }
     }
-    namespace tensor::ternary_operations{
+    namespace tensor::operations::ternary{
         template <typename T>
-        T multiply_subtract(T factor, T a, T b){
-            return factor * (a-b);
-        }
+        struct MultiplySubtract: Operation{
+            template <typename DEVICE, typename T_T>
+            RL_TOOLS_FUNCTION_PLACEMENT T_T static operation(DEVICE& device, const MultiplySubtract<T_T>& parameter, T_T factor, T_T a, T_T b){
+                return factor * (a-b);
+            }
+        };
     }
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void multiply_subtract(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::multiply_subtract");
 #endif
-        ternary_operation(device, tensor::OperationLegacy<tensor::ternary_operations::multiply_subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, factor, t1, t2, result);
+        ternary_operation(device, tensor::operations::ternary::MultiplySubtract<typename SPEC_1::T>{}, factor, t1, t2, result);
     }
 
 #ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
@@ -537,18 +545,25 @@ namespace rl_tools{
         _reset_optimizer_state(device, layer.initial_hidden_state, optimizer);
     }
 
-    namespace tensor::ternary_operations{
+    namespace tensor::operations::ternary{
+        // template <typename T>
+        // T multiply_one_minus_times_d_tanh_post_activation(T factor, T one_minus, T tanh_post_activation){
+        //     return factor * (1-one_minus) * (1-tanh_post_activation*tanh_post_activation);
+        // }
         template <typename T>
-        T multiply_one_minus_times_d_tanh_post_activation(T factor, T one_minus, T tanh_post_activation){
-            return factor * (1-one_minus) * (1-tanh_post_activation*tanh_post_activation);
-        }
+        struct MultiplyOneMinusTimesDTanhPostActivation: Operation{
+            template <typename DEVICE, typename T_T>
+            RL_TOOLS_FUNCTION_PLACEMENT T_T static operation(DEVICE& device, const MultiplyOneMinusTimesDTanhPostActivation<T_T>& parameter, T_T factor, T_T one_minus, T_T tanh_post_activation){
+                return factor * (1-one_minus) * (1-tanh_post_activation*tanh_post_activation);
+            }
+        };
     }
 
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_OM, typename SPEC_TANH, typename SPEC_RESULT>
     void multiply_one_minus_times_d_tanh_post_activation(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_OM>& one_minus, Tensor<SPEC_TANH>& tanh_post_activation, Tensor<SPEC_RESULT>& result){
         using T = typename SPEC_FACTOR::T;
         using PARAMETER = T;
-        tensor::OperationLegacy<tensor::ternary_operations::multiply_one_minus_times_d_tanh_post_activation<T>, PARAMETER> op{};
+        tensor::operations::ternary::MultiplyOneMinusTimesDTanhPostActivation<T> op{};
         ternary_operation(device, op, factor, one_minus, tanh_post_activation, result);
     }
     namespace tensor::operations::binary{

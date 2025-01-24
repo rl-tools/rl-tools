@@ -754,7 +754,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename SPEC_OUT, typename OPERATION>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const OPERATION& op, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
@@ -780,11 +780,11 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, typename OPERATION>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(DEVICE& device, const OPERATION& op, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         ternary_operation(device, op, t1, t2, result, result);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
-    RL_TOOLS_FUNCTION_PLACEMENT void multiply_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+    RL_TOOLS_FUNCTION_PLACEMENT void multiply_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("tensor::multiply_accumulate");
 #endif
