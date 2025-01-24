@@ -177,11 +177,11 @@ namespace rl_tools{
             }
 
             template <typename SPEC, typename MODE, typename MODE_SPEC>
-            constexpr bool can_reset_sample(const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode){
+            constexpr bool can_reset_sample(const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>){
                 return true;
             }
             template <typename SPEC, typename MODE>
-            constexpr bool can_reset_sample(const Mode<MODE>& mode){
+            constexpr bool can_reset_sample(const Mode<MODE>){
                 return false;
             }
 
@@ -235,7 +235,7 @@ namespace rl_tools{
 
 
 //        constexpr bool STEP_BY_STEP = mode::is<MODE, nn::layers::gru::StepByStepMode>;
-        constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(decltype(mode){});
+        constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(utils::typing::remove_reference_t<decltype(mode)>{});
         for(TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
             bool reset_full_batch = nn::layers::gru::mode::reset_full_batch<LAYER_SPEC>(mode) || (step_i == 0);
 #ifdef RL_TOOLS_ENABLE_TRACY
