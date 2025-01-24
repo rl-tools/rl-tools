@@ -18,11 +18,13 @@ namespace rl_tools{
             using T = typename OUTPUT_SPEC::T;
             using TI = typename DEV_SPEC::index_t;
 
-            constexpr auto A_TRANSPOSE = INPUT_SPEC_A::COL_PITCH == 1 ? CblasNoTrans : CblasTrans;
-            constexpr auto B_TRANSPOSE = INPUT_SPEC_B::COL_PITCH == 1 ? CblasNoTrans : CblasTrans;
+            constexpr bool A_ROW_MAJOR = INPUT_SPEC_A::ROW_PITCH >= INPUT_SPEC_A::COLS;
+            constexpr bool B_ROW_MAJOR = INPUT_SPEC_B::ROW_PITCH >= INPUT_SPEC_B::COLS;
+            constexpr auto A_TRANSPOSE = A_ROW_MAJOR ? CblasNoTrans : CblasTrans;
+            constexpr auto B_TRANSPOSE = B_ROW_MAJOR ? CblasNoTrans : CblasTrans;
 
-            constexpr TI A_PITCH = A_TRANSPOSE == CblasNoTrans ? INPUT_SPEC_A::ROW_PITCH : INPUT_SPEC_A::COL_PITCH;
-            constexpr TI B_PITCH = B_TRANSPOSE == CblasNoTrans ? INPUT_SPEC_B::ROW_PITCH : INPUT_SPEC_B::COL_PITCH;
+            constexpr TI A_PITCH = A_ROW_MAJOR ? INPUT_SPEC_A::ROW_PITCH : INPUT_SPEC_A::COL_PITCH;
+            constexpr TI B_PITCH = B_ROW_MAJOR ? INPUT_SPEC_B::ROW_PITCH : INPUT_SPEC_B::COL_PITCH;
 
             constexpr T alpha = 1;
             constexpr T beta = ACCUMULATE ? 1 : 0;
