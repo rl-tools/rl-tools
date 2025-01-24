@@ -241,8 +241,8 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
 
 
-            constexpr auto A_TRANSPOSE = INPUT_SPEC_A::COL_PITCH == 1 ? CUBLAS_OP_N : CUBLAS_OP_T;
-            constexpr auto B_TRANSPOSE = INPUT_SPEC_B::COL_PITCH == 1 ? CUBLAS_OP_N : CUBLAS_OP_T;
+            constexpr auto A_TRANSPOSE = INPUT_SPEC_A::ROW_PITCH >= INPUT_SPEC_A::COLS ? CUBLAS_OP_N : CUBLAS_OP_T;
+            constexpr auto B_TRANSPOSE = INPUT_SPEC_B::ROW_PITCH >= INPUT_SPEC_B::COLS ? CUBLAS_OP_N : CUBLAS_OP_T;
 
             constexpr TI A_PITCH = A_TRANSPOSE == CUBLAS_OP_N ? INPUT_SPEC_A::ROW_PITCH : INPUT_SPEC_A::COL_PITCH;
             constexpr TI B_PITCH = B_TRANSPOSE == CUBLAS_OP_N ? INPUT_SPEC_B::ROW_PITCH : INPUT_SPEC_B::COL_PITCH;

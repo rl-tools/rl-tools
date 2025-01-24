@@ -16,13 +16,14 @@ namespace rl_tools::nn::layers::gru::helper{
             using TI     = typename DEVICE::index_t;
             using T      = typename SPEC_BIAS::T;
 
-            constexpr TI HIDDEN_DIM = SPEC_BIAS::SHAPE:: template GET<0>;
-            constexpr TI BATCH_SIZE = SPEC_OUT::SHAPE:: template GET<0>;
+            constexpr TI ROWS = SPEC_OUT::SHAPE::template GET<0>;
+            constexpr TI COLS = SPEC_OUT::SHAPE::template GET<1>;
+            static_assert(SPEC_BIAS::SHAPE::template GET<0> == COLS);
 
             TI i = blockIdx.x * blockDim.x + threadIdx.x;
             TI j = blockIdx.y * blockDim.y + threadIdx.y;
 
-            if (i < BATCH_SIZE && j < HIDDEN_DIM) {
+            if (i < ROWS && j < COLS) {
                 T value = get(device, bias, j);
                 set(device, result, value, i, j);
             }
@@ -187,8 +188,8 @@ namespace rl_tools::nn::layers::gru::helper{
             using TI = typename DEVICE::index_t;
             using T = typename SPEC_1::T;
             static_assert(SPEC_1::SHAPE::LENGTH == 2);
-            constexpr TI ROWS = SPEC_1::SHAPE:: template GET<0>;
-            constexpr TI COLS = SPEC_OUT::SHAPE:: template GET<1>;
+            constexpr TI ROWS = SPEC_OUT::SHAPE:: template GET<1>;
+            constexpr TI COLS = SPEC_OUT::SHAPE:: template GET<0>;
             static_assert(SPEC_2::SHAPE::LENGTH == 1); // only one row
             constexpr TI INNER = SPEC_1::SHAPE:: template GET<1>;
             static_assert(INNER == SPEC_2::SHAPE:: template GET<0>);
@@ -224,7 +225,7 @@ namespace rl_tools::nn::layers::gru::helper{
         using TI = typename DEVICE::index_t;
 
         constexpr TI BLOCKSIZE = 32;
-        constexpr TI ROWS = SPEC_1::SHAPE:: template GET<0>;
+        constexpr TI ROWS = SPEC_OUT::SHAPE:: template GET<1>;
         constexpr TI COLS = SPEC_OUT::SHAPE:: template GET<0>;
         constexpr TI N_BLOCKS_ROWS = RL_TOOLS_DEVICES_CUDA_CEIL(ROWS, BLOCKSIZE);
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(COLS, BLOCKSIZE);
