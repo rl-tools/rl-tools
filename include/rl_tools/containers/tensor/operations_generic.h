@@ -991,17 +991,25 @@ namespace rl_tools{
             return _matrix_view_one_dim(device, t);
         }
         else{
-            static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
-            static_assert(tensor::dense_row_major_layout<SPEC, true>(), "Stride must be row major for creating a matrix view");
-            using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
-            constexpr TI TOTAL_ROWS = get<0>(PROD{});
-            using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
-            const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, true>> view{{data(t)}};
-            return view;
+            if constexpr (N_DIM == 2){
+                using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, SPEC::STRIDE::template GET<0>, SPEC::STRIDE::template GET<1>>;
+                const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::SHAPE::template GET<0>, SPEC::SHAPE::template GET<1>, true, LAYOUT, true>> view{{data(t)}};
+                return view;
+            }
+            else{
+                static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+                static_assert(tensor::dense_row_major_layout<SPEC, true>(), "Stride must be row major for creating a matrix view");
+                using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
+                constexpr TI TOTAL_ROWS = get<0>(PROD{});
+                using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
+                const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, true>> view{{data(t)}};
+                return view;
+            }
         }
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto matrix_view(DEVICE& device, Tensor<SPEC>& t){
+    RL_TOOLS_FUNCTION_PLACEMENT auto matrix_view(DEVICE& device, Tensor<SPEC>& t)
+    {
         // broadcasting over the first N-1 dimensions => M x N x K => (M*N) x K
         using TI = typename SPEC::TI;
         constexpr TI N_DIM = length(typename SPEC::SHAPE{});
@@ -1009,13 +1017,20 @@ namespace rl_tools{
             return _matrix_view_one_dim(device, t);
         }
         else{
-            static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
-            static_assert(tensor::dense_row_major_layout<SPEC, true>(), "Stride must be row major for creating a matrix view");
-            using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
-            constexpr TI TOTAL_ROWS = get<0>(PROD{});
-            using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
-            const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, false>> view{{data(t)}};
-            return view;
+            if constexpr (N_DIM == 2){
+                using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, SPEC::STRIDE::template GET<0>, SPEC::STRIDE::template GET<1>>;
+                const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::SHAPE::template GET<0>, SPEC::SHAPE::template GET<1>, true, LAYOUT, false>> view{{data(t)}};
+                return view;
+            }
+            else{
+                static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+                static_assert(tensor::dense_row_major_layout<SPEC, true>(), "Stride must be row major for creating a matrix view");
+                using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
+                constexpr TI TOTAL_ROWS = get<0>(PROD{});
+                using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
+                const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, false>> view{{data(t)}};
+                return view;
+            }
         }
     }
     template<typename DEVICE, typename SPEC, typename RESHAPE>
