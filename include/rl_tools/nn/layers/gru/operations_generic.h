@@ -798,7 +798,21 @@ namespace rl_tools{
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::gru::LayerGradient<SOURCE_SPEC>& source, nn::layers::gru::LayerGradient<TARGET_SPEC>& target){
-        copy(source_device, target_device, static_cast<const nn::layers::gru::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::gru::LayerForward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, static_cast<const nn::layers::gru::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::gru::LayerBackward<TARGET_SPEC>&>(target));
+    }
+
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::gru::buffers::Evaluation<SOURCE_SPEC>& source, nn::layers::gru::buffers::Evaluation<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.post_activation, target.post_activation);
+        copy(source_device, target_device, source.n_pre_pre_activation, target.n_pre_pre_activation);
+        copy(source_device, target_device, source.step_by_step_output, target.step_by_step_output);
+        copy(source_device, target_device, source.previous_output_scratch, target.previous_output_scratch);
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::gru::buffers::Backward<SOURCE_SPEC>& source, nn::layers::gru::buffers::Backward<TARGET_SPEC>& target){
+        copy(source_device, target_device, static_cast<const nn::layers::gru::buffers::Evaluation<SOURCE_SPEC>&>(source), static_cast<nn::layers::gru::buffers::Evaluation<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, source.buffer, target.buffer);
+        copy(source_device, target_device, source.buffer2, target.buffer2);
     }
 
     template <typename DEVICE, typename SPEC>
