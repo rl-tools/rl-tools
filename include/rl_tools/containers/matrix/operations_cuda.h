@@ -241,11 +241,13 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
 
 
-            constexpr auto A_TRANSPOSE = INPUT_SPEC_A::ROW_PITCH >= INPUT_SPEC_A::COLS ? CUBLAS_OP_N : CUBLAS_OP_T;
-            constexpr auto B_TRANSPOSE = INPUT_SPEC_B::ROW_PITCH >= INPUT_SPEC_B::COLS ? CUBLAS_OP_N : CUBLAS_OP_T;
+            constexpr bool A_ROW_MAJOR = INPUT_SPEC_A::ROW_PITCH >= INPUT_SPEC_A::COLS;
+            constexpr bool B_ROW_MAJOR = INPUT_SPEC_B::ROW_PITCH >= INPUT_SPEC_B::COLS;
+            constexpr auto A_TRANSPOSE = A_ROW_MAJOR ? CUBLAS_OP_N : CUBLAS_OP_T;
+            constexpr auto B_TRANSPOSE = B_ROW_MAJOR ? CUBLAS_OP_N : CUBLAS_OP_T;
 
-            constexpr TI A_PITCH = A_TRANSPOSE == CUBLAS_OP_N ? INPUT_SPEC_A::ROW_PITCH : INPUT_SPEC_A::COL_PITCH;
-            constexpr TI B_PITCH = B_TRANSPOSE == CUBLAS_OP_N ? INPUT_SPEC_B::ROW_PITCH : INPUT_SPEC_B::COL_PITCH;
+            constexpr TI A_PITCH = A_ROW_MAJOR ? INPUT_SPEC_A::ROW_PITCH : INPUT_SPEC_A::COL_PITCH;
+            constexpr TI B_PITCH = B_ROW_MAJOR ? INPUT_SPEC_B::ROW_PITCH : INPUT_SPEC_B::COL_PITCH;
 
             constexpr T alpha = 1;
             constexpr T beta = ACCUMULATE ? 1 : 0;
