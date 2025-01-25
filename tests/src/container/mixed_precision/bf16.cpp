@@ -1,92 +1,12 @@
+// #define RL_TOOLS_NAMESPACE_WRAPPER test
+
+#include <rl_tools/numeric_types/bf16.h>
+namespace rlt = rl_tools;
+
 #include <gtest/gtest.h>
 
-class bfloat16{
-public:
-    std::uint16_t value;
-    bfloat16() = default;
-    explicit bfloat16(float f){
-        std::uint32_t bits;
-        std::memcpy(&bits, &f, sizeof(bits));
-        std::uint16_t top = static_cast<std::uint16_t>(bits >> 16);
-        std::uint16_t lower = static_cast<std::uint16_t>(bits & 0xFFFF);
-        if (lower > 0x8000 || (lower == 0x8000 && (top & 1) != 0)) {
-            top++;
-        }
-        value = top;
-    }
-    explicit operator float() const{
-        std::uint32_t bits = static_cast<std::uint32_t>(value) << 16;
-        float f;
-        std::memcpy(&f, &bits, sizeof(f));
-        return f;
-    }
-    bfloat16 operator+(const bfloat16 &other) const{
-        float lhs = static_cast<float>(*this);
-        float rhs = static_cast<float>(other);
-        float sum = lhs + rhs;
-        return bfloat16(sum);
-    }
-    bfloat16 operator-(const bfloat16 &other) const{
-        float lhs = static_cast<float>(*this);
-        float rhs = static_cast<float>(other);
-        float sum = lhs - rhs;
-        return bfloat16(sum);
-    }
-    bfloat16 operator*(const bfloat16 &other) const{
-        float lhs = static_cast<float>(*this);
-        float rhs = static_cast<float>(other);
-        float sum = lhs * rhs;
-        return bfloat16(sum);
-    }
-    bfloat16 operator/(const bfloat16 &other) const{
-        float lhs = static_cast<float>(*this);
-        float rhs = static_cast<float>(other);
-        float sum = lhs / rhs;
-        return bfloat16(sum);
-    }
-    bool operator==(const bfloat16 &other) const{
-        return (value == other.value);
-    }
-    bool operator>(const bfloat16 &other) const{
-        float lhs = static_cast<float>(*this);
-        float rhs = static_cast<float>(other);
-        return lhs > rhs;
-    }
-    bool operator<(const bfloat16 &other) const {
-        float lhs = static_cast<float>(*this);
-        float rhs = static_cast<float>(other);
-        return lhs < rhs;
-    }
-    bool operator>=(const bfloat16 &other) const {
-        float lhs = static_cast<float>(*this);
-        float rhs = static_cast<float>(other);
-        return lhs >= rhs;
-    }
-    bool operator<=(const bfloat16 &other) const {
-        float lhs = static_cast<float>(*this);
-        float rhs = static_cast<float>(other);
-        return lhs <= rhs;
-    }
-    bfloat16& operator+=(const bfloat16 &other){
-        *this = *this + other;
-        return *this;
-    }
-    bfloat16& operator-=(const bfloat16 &other){
-        *this = *this - other;
-        return *this;
-    }
-    bfloat16& operator*=(const bfloat16 &other){
-        *this = *this * other;
-        return *this;
-    }
-    bfloat16& operator/=(const bfloat16 &other){
-        *this = *this / other;
-        return *this;
-    }
-};
-
 using _T = __bf16;
-using T = bfloat16;
+using T = rlt::numeric_types::bfloat16;
 #include <cstdint>
 #include <cstring>  // for std::memcpy
 #include <cmath>
@@ -95,20 +15,20 @@ using T = bfloat16;
 static_assert(sizeof(_T) == 2);
 static_assert(sizeof(T) == 2);
 
-bool sign(bfloat16 x) {
+bool sign(rlt::numeric_types::bfloat16 x) {
     uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
     bool sign = (x_ptr[0] >> 15) & 1;
     return sign;
 }
 
-uint16_t exponent(bfloat16 x) {
+uint16_t exponent(rlt::numeric_types::bfloat16 x) {
     uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
     uint16_t exponent_pre = (x_ptr[0] & 0b0111111110000000) >> 7;
     std::cout << "exponent pre: " << std::bitset<8>(exponent_pre) << " value: " << exponent_pre << std::endl;
     int16_t exponent = static_cast<int32_t>(exponent_pre) - 127;
     return exponent;
 }
-uint16_t mantissa(bfloat16 x) {
+uint16_t mantissa(rlt::numeric_types::bfloat16 x) {
     uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
     uint16_t mantissa_pre = x_ptr[0] & 0b0000000001111111;
     std::cout << "mantissa pre: " << std::bitset<7>(mantissa_pre) << " value: " << mantissa_pre + 128 << std::endl;
@@ -116,19 +36,19 @@ uint16_t mantissa(bfloat16 x) {
     return mantissa;
 }
 
-bool compare(bfloat16 x, __bf16 y) {
+bool compare(rlt::numeric_types::bfloat16 x, __bf16 y) {
     uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
     uint16_t* y_ptr = reinterpret_cast<uint16_t*>(&y);
     return std::bitset<16>(*x_ptr) == std::bitset<16>(*y_ptr);
 }
 
 TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MAIN) {
-    T a = bfloat16(1000.0), b = bfloat16(0.1);
+    T a = rlt::bfloat16_from_float(1000.0), b = rlt::bfloat16_from_float(0.1);
     _T _a = 1000.0, _b = 0.1;
-    a += bfloat16(1);
-    ASSERT_EQ((float)a, 1000);
+    a += rlt::bfloat16_from_float(1);
+    ASSERT_EQ(rlt::bfloat16_to_float(a), 1000);
     _a += __bf16(1);
-    ASSERT_EQ((float)a, (float)_a);
+    ASSERT_EQ(rlt::bfloat16_to_float(a), (float)_a);
     ASSERT_TRUE(compare(a, _a));
     static_assert(0b1111101000 == 1000);
     ASSERT_EQ(mantissa(a), 0b11111010);
