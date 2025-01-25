@@ -95,3 +95,4 @@ target_link_libraries(test_container_matmul_fast RLtools::RLtools)
 
 
 add_subdirectory(tensor)
+add_subdirectory(mixed_precision)

@@ -1,0 +1,3 @@
+add_executable(test_container_mixed_precision_bf16 bf16.cpp)
+target_link_libraries(test_container_mixed_precision_bf16 PRIVATE RLtools::Backend RLtools::Test)
+gtest_discover_tests(test_container_mixed_precision_bf16)
