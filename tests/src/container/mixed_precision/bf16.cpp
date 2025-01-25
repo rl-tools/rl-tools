@@ -116,23 +116,30 @@ uint16_t mantissa(bfloat16 x) {
     return mantissa;
 }
 
+bool compare(bfloat16 x, __bf16 y) {
+    uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
+    uint16_t* y_ptr = reinterpret_cast<uint16_t*>(&y);
+    return std::bitset<16>(*x_ptr) == std::bitset<16>(*y_ptr);
+}
+
 TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MAIN) {
     T a = bfloat16(1000.0), b = bfloat16(0.1);
     _T _a = 1000.0, _b = 0.1;
-    uint16_t* a_ptr = reinterpret_cast<uint16_t*>(&a);
-    uint16_t* _a_ptr = reinterpret_cast<uint16_t*>(&_a);
-    uint16_t* b_ptr = reinterpret_cast<uint16_t*>(&b);
-    uint16_t* _b_ptr = reinterpret_cast<uint16_t*>(&_b);
-    ASSERT_EQ(std::bitset<16>(*a_ptr), std::bitset<16>(*_a_ptr));
-    ASSERT_EQ(std::bitset<16>(*b_ptr), std::bitset<16>(*_b_ptr));
     a += bfloat16(1);
-    _a += __bf16(1);
     ASSERT_EQ((float)a, 1000);
+    _a += __bf16(1);
     ASSERT_EQ((float)a, (float)_a);
+    ASSERT_TRUE(compare(a, _a));
     static_assert(0b1111101000 == 1000);
     ASSERT_EQ(mantissa(a), 0b11111010);
     ASSERT_EQ(sign(a), false);
     ASSERT_EQ(exponent(a), 9);
+
+
+    ASSERT_TRUE(compare(a + b, _a + _b));
+    ASSERT_TRUE(compare(a - b, _a - _b));
+    ASSERT_TRUE(compare(a * b, _a * _b));
+    ASSERT_TRUE(compare(a / b, _a / _b));
 
 
 }
