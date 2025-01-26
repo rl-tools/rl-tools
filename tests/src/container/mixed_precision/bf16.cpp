@@ -1,6 +1,7 @@
 // #define RL_TOOLS_NAMESPACE_WRAPPER test
-
 #include <rl_tools/numeric_types/bf16.h>
+#include <rl_tools/operations/cpu.h>
+namespace rlt = rl_tools;
 namespace rlt = rl_tools;
 
 #include <gtest/gtest.h>
@@ -43,12 +44,12 @@ bool compare(rlt::numeric_types::bfloat16 x, __bf16 y) {
 }
 
 TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MAIN) {
-    T a = rlt::bfloat16_from_float(1000.0), b = rlt::bfloat16_from_float(0.1);
+    T a = 1000.0, b = 0.1;
     _T _a = 1000.0, _b = 0.1;
-    a += rlt::bfloat16_from_float(1);
-    ASSERT_EQ(rlt::bfloat16_to_float(a), 1000);
+    a += rlt::numeric_types::bfloat16(1);
+    ASSERT_EQ(static_cast<float>(a), 1000);
     _a += __bf16(1);
-    ASSERT_EQ(rlt::bfloat16_to_float(a), (float)_a);
+    ASSERT_EQ(static_cast<float>(a), (float)_a);
     ASSERT_TRUE(compare(a, _a));
     static_assert(0b1111101000 == 1000);
     ASSERT_EQ(mantissa(a), 0b11111010);
@@ -60,6 +61,90 @@ TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MAIN) {
     ASSERT_TRUE(compare(a - b, _a - _b));
     ASSERT_TRUE(compare(a * b, _a * _b));
     ASSERT_TRUE(compare(a / b, _a / _b));
+}
 
+template <typename DEVICE, typename DEVICE::index_t M, typename DEVICE::index_t N, typename DEVICE::index_t K>
+std::tuple<double, double, double> test(DEVICE& device){
+    using TI = typename DEVICE::index_t;
+    constexpr TI UNIDIM = 128;
+    using T_FP32 = float;
+    using T_FP64 = double;
+    using T_BF16 = rlt::numeric_types::bfloat16;
+    typename DEVICE::SPEC::RANDOM::template ENGINE<> rng;
+    rlt::Matrix<rlt::matrix::Specification<T_BF16, TI, M, K>> A_BF16;
+    rlt::Matrix<rlt::matrix::Specification<T_BF16, TI, K, N>> B_BF16;
+    rlt::Matrix<rlt::matrix::Specification<T_BF16, TI, M, N>> C_BF16;
+    rlt::Matrix<rlt::matrix::Specification<T_FP32, TI, M, K>> A_FP32;
+    rlt::Matrix<rlt::matrix::Specification<T_FP32, TI, K, N>> B_FP32;
+    rlt::Matrix<rlt::matrix::Specification<T_FP32, TI, M, N>> C_FP32, C_BF16_FP32_ACC;
+    rlt::Matrix<rlt::matrix::Specification<T_FP64, TI, M, K>> A_FP64;
+    rlt::Matrix<rlt::matrix::Specification<T_FP64, TI, K, N>> B_FP64;
+    rlt::Matrix<rlt::matrix::Specification<T_FP64, TI, M, N>> C_FP64, C_BF16_FP64, C_FP32_FP64;
+    rlt::malloc(device, A_BF16);
+    rlt::malloc(device, B_BF16);
+    rlt::malloc(device, C_BF16);
+    rlt::malloc(device, A_FP32);
+    rlt::malloc(device, B_FP32);
+    rlt::malloc(device, C_FP32);
+    rlt::malloc(device, C_BF16_FP32_ACC);
+    rlt::malloc(device, A_FP64);
+    rlt::malloc(device, B_FP64);
+    rlt::malloc(device, C_FP64);
+    rlt::malloc(device, C_BF16_FP64);
+    rlt::malloc(device, C_FP32_FP64);
+
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
+    rlt::randn(device, A_FP64, rng);
+    rlt::randn(device, B_FP64, rng);
+    rlt::copy(device, device, A_FP64, A_FP32);
+    rlt::copy(device, device, B_FP64, B_FP32);
+    rlt::copy(device, device, A_FP64, A_BF16);
+    rlt::copy(device, device, B_FP64, B_BF16);
+    rlt::multiply(device, A_BF16, B_BF16, C_BF16);
+    rlt::multiply(device, A_BF16, B_BF16, C_BF16_FP32_ACC);
+    rlt::multiply(device, A_FP32, B_FP32, C_FP32);
+    rlt::multiply(device, A_FP64, B_FP64, C_FP64);
+    rlt::copy(device, device, C_BF16, C_BF16_FP64);
+    rlt::copy(device, device, C_FP32, C_FP32_FP64);
+
+    double diff_bf16_mul_bf16_acc = rlt::abs_diff(device, C_FP64, C_BF16_FP64);
+    double diff_bf16_mul_fp32_acc = rlt::abs_diff(device, C_FP64, C_BF16_FP32_ACC);
+    double diff_fp32_mul_fp32_acc = rlt::abs_diff(device, C_FP64, C_FP32);
+    double diff_bf16_mul_bf16_acc_per_element = diff_bf16_mul_bf16_acc / (M * N);
+    double diff_bf16_mul_fp32_acc_per_element = diff_bf16_mul_fp32_acc / (M * N);
+    double diff_fp32_mul_fp32_acc_per_element = diff_fp32_mul_fp32_acc / (M * N);
+    return {diff_bf16_mul_bf16_acc_per_element, diff_bf16_mul_fp32_acc_per_element, diff_fp32_mul_fp32_acc_per_element};
+}
+
+template <typename DEVICE, typename DEVICE::index_t N, typename DEVICE::index_t I = 0>
+auto iterate(DEVICE& device) {
+    using TI = typename DEVICE::index_t;
+    constexpr TI UNIDIM = I == 0 ? 1 : 2 << I;
+    std::vector<std::tuple<double, double, double>> results;
+    results.push_back(test<DEVICE, UNIDIM, UNIDIM, UNIDIM>(device));
+    if constexpr (I < N) {
+        auto future_results = iterate<DEVICE, N, I + 1>(device);
+        results.insert(results.end(), future_results.begin(), future_results.end());
+    }
+    return results;
+}
+
+TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MATMUL){
+    using DEVICE = rlt::devices::DefaultCPU;
+    DEVICE device;
+    using TI = typename DEVICE::index_t;
+
+
+    auto results = iterate<DEVICE, 10>(device);
+
+    TI iteration = 0;
+    for (auto [diff_bf16_mul_bf16_acc_per_element, diff_bf16_mul_fp32_acc_per_element, diff_fp32_mul_fp32_acc_per_element] : results) {
+        std::cout << "Iteration: N M K: " << (iteration == 0 ? 1 : 2 << iteration) << std::endl;
+        std::cout << "    bf16 mul, bf16 accumulation: diff: " << diff_bf16_mul_bf16_acc_per_element << std::endl;
+        std::cout << "    bf16 mul, fp32 accumulation: diff: " << diff_bf16_mul_fp32_acc_per_element << std::endl;
+        std::cout << "    fp32 mul, fp32 accumulation: diff: " << diff_fp32_mul_fp32_acc_per_element << std::endl;
+        iteration++;
+    }
 
 }
