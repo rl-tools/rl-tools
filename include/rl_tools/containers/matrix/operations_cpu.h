@@ -82,23 +82,25 @@ namespace rl_tools{
         }
         return result;
     }
-    template<typename DEVICE_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
-    void multiply_naive(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C){
-        static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
-        static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
-        static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
+    template<typename DEVICE_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_C>
+    void multiply_naive(devices::CPU<DEVICE_SPEC>& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C){
+        static_assert(SPEC_A::ROWS == SPEC_C::ROWS);
+        static_assert(SPEC_A::COLS == SPEC_B::ROWS);
+        static_assert(SPEC_B::COLS == SPEC_C::COLS);
         using DEVICE = devices::CPU<DEVICE_SPEC>;
 
-        using T = typename OUTPUT_SPEC::T;
+        using TA = typename SPEC_A::T;
+        using TB = typename SPEC_B::T;
+        using TC = typename SPEC_C::T;
         using TI = typename DEVICE::index_t;
 
-        constexpr TI M = INPUT_SPEC_A::ROWS;
-        constexpr TI N = INPUT_SPEC_B::COLS;
-        constexpr TI K = INPUT_SPEC_A::COLS;
+        constexpr TI M = SPEC_A::ROWS;
+        constexpr TI N = SPEC_B::COLS;
+        constexpr TI K = SPEC_A::COLS;
 
-        const T * RL_TOOLS_RESTRICT A_data = A._data;
-        const T * RL_TOOLS_RESTRICT B_data = B._data;
-        T * RL_TOOLS_RESTRICT C_data = C._data;
+        const TA * RL_TOOLS_RESTRICT A_data = A._data;
+        const TB * RL_TOOLS_RESTRICT B_data = B._data;
+        TC * RL_TOOLS_RESTRICT C_data = C._data;
 
         for (TI i = 0; i < M * N; ++i) {
             C_data[i] = 0.0f;
@@ -106,31 +108,33 @@ namespace rl_tools{
 
         for (TI i = 0; i < M; ++i) {
             for (TI k_idx = 0; k_idx < K; ++k_idx) {
-                T A_val = A_data[i * K + k_idx];
+                TA A_val = A_data[i * K + k_idx];
                 for (TI j = 0; j < N; ++j) {
                     C_data[i * N + j] += A_val * B_data[k_idx * N + j];
                 }
             }
         }
     }
-    template<typename DEVICE_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
-    void multiply_tiled(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C) {
-        static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
-        static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
-        static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
+    template<typename DEVICE_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_C>
+    void multiply_tiled(devices::CPU<DEVICE_SPEC>& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C) {
+        static_assert(SPEC_A::ROWS == SPEC_C::ROWS);
+        static_assert(SPEC_A::COLS == SPEC_B::ROWS);
+        static_assert(SPEC_B::COLS == SPEC_C::COLS);
         using DEVICE = devices::CPU<DEVICE_SPEC>;
 
-        using T = typename OUTPUT_SPEC::T;
+        using TA = typename SPEC_A::T;
+        using TB = typename SPEC_B::T;
+        using TC = typename SPEC_C::T;
         using TI = typename DEVICE::index_t;
 
-        constexpr TI M = INPUT_SPEC_A::ROWS;
-        constexpr TI N = INPUT_SPEC_B::COLS;
-        constexpr TI K = INPUT_SPEC_A::COLS;
+        constexpr TI M = SPEC_A::ROWS;
+        constexpr TI N = SPEC_B::COLS;
+        constexpr TI K = SPEC_A::COLS;
         constexpr TI blockSize = 32;
 
-        const T * RL_TOOLS_RESTRICT A_data = A._data;
-        const T * RL_TOOLS_RESTRICT B_data = B._data;
-        T * RL_TOOLS_RESTRICT C_data = C._data;
+        const TA * RL_TOOLS_RESTRICT A_data = A._data;
+        const TB * RL_TOOLS_RESTRICT B_data = B._data;
+        TC * RL_TOOLS_RESTRICT C_data = C._data;
 
         // Initialize C to zero
         for (TI i = 0; i < M * N; ++i) {
@@ -145,7 +149,7 @@ namespace rl_tools{
                     TI j_end = (jj + blockSize > N) ? N : jj + blockSize;
                     for (TI i = ii; i < i_end; ++i) {
                         for (TI k_idx = kk; k_idx < k_end; ++k_idx) {
-                            T A_val = A_data[i * K + k_idx];
+                            TA A_val = A_data[i * K + k_idx];
                             for (TI j = jj; j < j_end; ++j) {
                                 C_data[i * N + j] += A_val * B_data[k_idx * N + j];
                             }
