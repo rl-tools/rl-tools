@@ -84,6 +84,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
+            static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
             static constexpr TI CLOSED_FORM = false;
