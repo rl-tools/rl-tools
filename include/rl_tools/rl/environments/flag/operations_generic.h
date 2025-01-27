@@ -100,17 +100,19 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Flag<SPEC>::State& next_state, RNG& rng){
         using T = typename SPEC::T;
         using ENVIRONMENT = rl::environments::Flag<SPEC>;
+        using PARAMETERS = typename ENVIRONMENT::Parameters;
         using STATE = typename rl::environments::Flag<SPEC>::State;
         T reward = 0;
         bool visited_flag_1 = state.state_machine != STATE::StateMachine::FLAG_1_VISITED && next_state.state_machine == STATE::StateMachine::FLAG_1_VISITED;
         bool visited_flag_2 = state.state_machine != STATE::StateMachine::FLAG_2_VISITED && next_state.state_machine == STATE::StateMachine::FLAG_2_VISITED;
         if(visited_flag_1 || visited_flag_2){
-            reward = 1000;
+            reward = 1.0 * PARAMETERS::REWARD_SCALE;
         }
         else{
-            reward = -1;
+            static_assert(ENVIRONMENT::EPISODE_STEP_LIMIT > 2);
+            // reward = -1.0/(ENVIRONMENT::EPISODE_STEP_LIMIT - 2);
         }
-        return reward/ENVIRONMENT::EPISODE_STEP_LIMIT;
+        return reward;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>

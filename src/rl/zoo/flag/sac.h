@@ -12,7 +12,7 @@ namespace rl_tools::rl::zoo::flag::sac{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 32;
                 static constexpr TI CRITIC_BATCH_SIZE = 32;
-                static constexpr T GAMMA = 0.95;
+                static constexpr T GAMMA = 0.975;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
@@ -23,12 +23,12 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr T ALPHA = 1;
                 static constexpr bool ADAPTIVE_ALPHA = true;
             };
-            static constexpr TI STEP_LIMIT = 400000;
-            static constexpr TI N_ENVIRONMENTS = 32;
+            static constexpr TI STEP_LIMIT = 1000000;
+            static constexpr TI N_ENVIRONMENTS = 1;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI N_WARMUP_STEPS = 100;
-            static constexpr TI N_WARMUP_STEPS_CRITIC = 100;
-            static constexpr TI N_WARMUP_STEPS_ACTOR = 100;
+            static constexpr TI N_WARMUP_STEPS = 100000;
+            static constexpr TI N_WARMUP_STEPS_CRITIC = 100000;
+            static constexpr TI N_WARMUP_STEPS_ACTOR = 100000;
             static constexpr TI ACTOR_NUM_LAYERS = 4;
             static constexpr TI ACTOR_HIDDEN_DIM = 32;
             static constexpr TI CRITIC_NUM_LAYERS = 4;
