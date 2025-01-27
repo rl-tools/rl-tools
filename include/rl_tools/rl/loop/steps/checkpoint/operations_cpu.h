@@ -55,14 +55,14 @@ namespace rl_tools{
             void save_code(DEVICE& device, const std::string& step_folder, rl::loop::steps::checkpoint::State<CONFIG>& ts, ACTOR_TYPE& actor_forward, RNG& rng){
                 using T = typename ACTOR_TYPE::T;
                 using TI = typename DEVICE::index_t;
-                typename ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
+                typename ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffer;
                 malloc(device, actor_buffer);
                 auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
                 std::stringstream output_ss;
                 output_ss << actor_weights;
                 {
-                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> input;
-                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> output;
+                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>, CONFIG::DYNAMIC_ALLOCATION>> input;
+                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>, CONFIG::DYNAMIC_ALLOCATION>> output;
                     malloc(device, input);
                     malloc(device, output);
                     randn(device, input, rng);
