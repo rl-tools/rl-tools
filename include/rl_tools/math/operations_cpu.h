@@ -68,7 +68,7 @@ namespace rl_tools::math {
         return std::acos(x);
     }
     template<typename TX, typename TY>
-    auto pow(const devices::math::CPU&, const TX x, const TY y) {
+    constexpr auto pow(const devices::math::CPU&, const TX x, const TY y) {
         return std::pow(x, y);
     }
     template<typename T>
