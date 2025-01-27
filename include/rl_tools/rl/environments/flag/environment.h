@@ -18,6 +18,7 @@ namespace rl_tools::rl::environments::flag{
         constexpr static T EPISODE_TIME = 4;
         constexpr static T DT = EPISODE_TIME / MAX_EPISODE_LENGTH;
         constexpr static T REWARD_SCALE = 1000;
+        constexpr static bool SAMPLE_INITIAL_STATE_WITH_FLAG_1_VISITED = true;
         T flag_positions[2][2];
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T, T_TI>>
