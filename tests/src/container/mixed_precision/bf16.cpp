@@ -5,6 +5,7 @@ namespace rlt = rl_tools;
 namespace rlt = rl_tools;
 
 #include <gtest/gtest.h>
+#include <bitset>
 
 using _T = __bf16;
 using T = rlt::numeric_types::bfloat16;
@@ -45,7 +46,7 @@ bool compare(rlt::numeric_types::bfloat16 x, __bf16 y) {
 
 TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MAIN) {
     T a = 1000.0, b = 0.1;
-    _T _a = 1000.0, _b = 0.1;
+    _T _a = __bf16(1000.0), _b = __bf16(0.1);
     a += rlt::numeric_types::bfloat16(1);
     ASSERT_EQ(static_cast<float>(a), 1000);
     _a += __bf16(1);
