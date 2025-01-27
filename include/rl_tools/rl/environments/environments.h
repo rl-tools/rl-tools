@@ -7,6 +7,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments{
     template <typename T_T, typename T_TI>
     struct Environment{
+        static constexpr bool PREVENT_DEFAULT = false;
         static constexpr T_TI N_AGENTS = 1;
     };
     struct DummyUI{};

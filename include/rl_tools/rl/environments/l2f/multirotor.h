@@ -517,7 +517,8 @@ namespace rl_tools::rl::environments{
     };
     template <typename T_SPEC>
     struct MultirotorMultiTask: Multirotor<T_SPEC>{
-        // typename Multirotor<T_SPEC>::Parameters::Dynamics dynamics[T_SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES] = T_SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES;
+        static constexpr bool PREVENT_DEFAULT = true;
+        // just a tag for dispatch
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

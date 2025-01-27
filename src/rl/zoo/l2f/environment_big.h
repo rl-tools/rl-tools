@@ -3,7 +3,9 @@
 #pragma once
 #define RL_TOOLS_RL_ZOO_L2F_ENVIRONMENT_BIG_H
 
+#include <rl_tools/rl/environments/l2f/operations_multitask_generic_forward.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
+#include <rl_tools/rl/environments/l2f/operations_multitask_generic.h>
 #include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared.h>
 #include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
 #include <rl_tools/rl/environments/l2f/parameters/default.h>
@@ -97,6 +99,7 @@ namespace rl_tools::rl::zoo::l2f{
         }
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
+            static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
             static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
             static constexpr TI CLOSED_FORM = false;
@@ -121,7 +124,7 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
-        using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
+        using ENVIRONMENT = rl_tools::rl::environments::MultirotorMultiTask<ENVIRONMENT_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
