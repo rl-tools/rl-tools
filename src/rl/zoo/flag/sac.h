@@ -7,8 +7,10 @@ namespace rl_tools::rl::zoo::flag::sac{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
+        static constexpr bool SEQUENCE_MODELS = false;
         static constexpr TI MAX_EPISODE_LENGTH = 100;
-        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI, MAX_EPISODE_LENGTH>::ENVIRONMENT;
+        static constexpr bool PRIVILEGED_OBSERVATION = true;
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI, MAX_EPISODE_LENGTH, PRIVILEGED_OBSERVATION>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 32;
@@ -17,7 +19,7 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
-                static constexpr TI SEQUENCE_LENGTH = 1; //ENVIRONMENT::EPISODE_STEP_LIMIT;
+                static constexpr TI SEQUENCE_LENGTH = SEQUENCE_MODELS ? ENVIRONMENT::EPISODE_STEP_LIMIT : 1;
                 static constexpr bool ENTROPY_BONUS = true;
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
                 static constexpr T TARGET_ENTROPY = -2;
@@ -40,8 +42,8 @@ namespace rl_tools::rl::zoo::flag::sac{
 
             // using BATCH_SAMPLING_PARAMETERS = rl::components::off_policy_runner::SequentialBatchParameters<T, TI, SAC_PARAMETERS::SEQUENCE_LENGTH>;
             struct BATCH_SAMPLING_PARAMETERS{
-                static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
-                static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+                static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = SEQUENCE_MODELS;
+                static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = SEQUENCE_MODELS;
                 static constexpr bool RANDOM_SEQ_LENGTH = true;
                 static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
                 static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
@@ -57,7 +59,7 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr T ALPHA = 1e-3;
             };
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

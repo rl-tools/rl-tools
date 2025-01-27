@@ -8,8 +8,8 @@ endfunction()
 if(UNIX)
     file(GLOB_RECURSE GIT_DIFF_PROJECT_SOURCES
             CONFIGURE_DEPENDS
-            "${CMAKE_PROJECT_SOURCE_DIR}/src/*"
-            "${CMAKE_PROJECT_SOURCE_DIR}/include/*"
+            "${PROJECT_SOURCE_DIR}/src/*"
+            "${PROJECT_SOURCE_DIR}/include/*"
     )
     add_custom_command(
             OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
