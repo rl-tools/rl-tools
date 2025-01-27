@@ -7,15 +7,15 @@ namespace rl_tools::rl::zoo::flag::sac{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
-        static constexpr bool SEQUENCE_MODELS = false;
-        static constexpr TI MAX_EPISODE_LENGTH = 100;
-        static constexpr bool PRIVILEGED_OBSERVATION = true;
+        static constexpr bool SEQUENCE_MODELS = true;
+        static constexpr TI MAX_EPISODE_LENGTH = 36;
+        static constexpr bool PRIVILEGED_OBSERVATION = false;
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI, MAX_EPISODE_LENGTH, PRIVILEGED_OBSERVATION>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 32;
                 static constexpr TI CRITIC_BATCH_SIZE = 32;
-                static constexpr T GAMMA = math::pow(typename DEVICE::SPEC::MATH{}, 0.975, 100.0 / MAX_EPISODE_LENGTH);
+                static constexpr T GAMMA = math::pow(typename DEVICE::SPEC::MATH{}, 0.95, 36.0 / MAX_EPISODE_LENGTH);
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
@@ -26,8 +26,8 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr T ALPHA = 1;
                 static constexpr bool ADAPTIVE_ALPHA = true;
             };
-            static constexpr TI STEP_LIMIT = 200000;
-            static constexpr TI N_ENVIRONMENTS = 1;
+            static constexpr TI STEP_LIMIT = 400000;
+            static constexpr TI N_ENVIRONMENTS = 32;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI N_WARMUP_STEPS = 1000;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
@@ -50,7 +50,7 @@ namespace rl_tools::rl::zoo::flag::sac{
             };
 
             struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-                static constexpr T ALPHA = 1e-3;
+                static constexpr T ALPHA = 1e-4;
             };
             struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr T ALPHA = 1e-3;
