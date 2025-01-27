@@ -25,13 +25,10 @@ async function main(){
     const button = document.createElement("button")
     button.innerText = "reset"
     container.appendChild(button)
-    ui_state = await ui.init(canvas, {devicePixelRatio: window.devicePixelRatio, showAxes: true})
+    ui_state = await ui.init(canvas, {devicePixelRatio: window.devicePixelRatio})
     if(ui_state.cursor_grab){
         canvas.style.cursor = "grab"
     }
-    const scale = 1
-    ui_state.origin_coordinate_system = new ui.CoordinateSystem([0, 0, 0], 1 * scale, 0.01 * scale)
-    ui_state.simulator.add(ui_state.origin_coordinate_system.get())
     const drones = await Promise.all(training_step_data.map(async trajectory => {
         const parameters = trajectory.parameters
         parameters.ui = {
@@ -47,7 +44,6 @@ async function main(){
     let dt = rollover_dt
     let current_step = 0;
     let last_animation_frame = new Date()
-
     button.addEventListener('click', () => {
         current_step = 0;
         dt = rollover_dt;
