@@ -10,7 +10,7 @@ namespace rl_tools::rl::zoo::flag{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI>
     struct ENVIRONMENT_FACTORY{
-        using ENVIRONMENT_SPEC = rlt::rl::environments::flag::Specification<T, TI, rlt::rl::environments::flag::DefaultParameters<T>>;
+        using ENVIRONMENT_SPEC = rlt::rl::environments::flag::Specification<T, TI, rlt::rl::environments::flag::DefaultParameters<T, TI>>;
         using ENVIRONMENT = rlt::rl::environments::Flag<ENVIRONMENT_SPEC>;
     };
 }
