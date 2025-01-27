@@ -8,7 +8,7 @@ namespace rl_tools::rl::zoo::flag::sac{
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
         static constexpr bool SEQUENCE_MODELS = true;
-        static constexpr TI MAX_EPISODE_LENGTH = 36;
+        static constexpr TI MAX_EPISODE_LENGTH = 100;
         static constexpr bool PRIVILEGED_OBSERVATION = false;
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI, MAX_EPISODE_LENGTH, PRIVILEGED_OBSERVATION>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
@@ -46,7 +46,7 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = SEQUENCE_MODELS;
                 static constexpr bool RANDOM_SEQ_LENGTH = true;
                 static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
-                static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
+                static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.1;
             };
 
             struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
