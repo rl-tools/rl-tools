@@ -39,11 +39,22 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
+        using PARAMETERS = typename rl::environments::Flag<SPEC>::Parameters;
         state.position[0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
         state.position[1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
         state.velocity[0] = 0;
         state.velocity[1] = 0;
-        state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::INITIAL;
+        if constexpr(PARAMETERS::SAMPLE_INITIAL_STATE_WITH_FLAG_1_VISITED){
+            if(random::uniform_int_distribution(device.random, 0, 1, rng) == 0){
+                state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::INITIAL;
+            }
+            else{
+                state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::FLAG_1_VISITED;
+            }
+        }
+        else{
+            state.state_machine = rl::environments::Flag<SPEC>::State::StateMachine::INITIAL;
+        }
         state.step = 0;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
