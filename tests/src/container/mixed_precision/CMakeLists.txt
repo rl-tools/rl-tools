@@ -4,6 +4,3 @@ add_executable(test_container_mixed_precision_bf16 bf16.cpp)
 target_link_libraries(test_container_mixed_precision_bf16 PRIVATE RLtools::Backend RLtools::Test Python3::Python)
 target_include_directories(test_container_mixed_precision_bf16 PRIVATE ${Python3_INCLUDE_DIRS})
 gtest_discover_tests(test_container_mixed_precision_bf16)
-
-add_executable(test_container_mixed_precision_python_plot python_plot.cpp)
-target_link_libraries(test_container_mixed_precision_python_plot PRIVATE RLtools::Backend RLtools::Test Python3::Python)
