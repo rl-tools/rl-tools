@@ -8,7 +8,7 @@ namespace rl_tools::rl::zoo::flag::sac{
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
         static constexpr bool SEQUENCE_MODELS = true;
-        static constexpr TI MAX_EPISODE_LENGTH = 100;
+        static constexpr TI MAX_EPISODE_LENGTH = 200;
         static constexpr bool PRIVILEGED_OBSERVATION = false;
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI, MAX_EPISODE_LENGTH, PRIVILEGED_OBSERVATION>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
@@ -27,7 +27,7 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr bool ADAPTIVE_ALPHA = true;
             };
             static constexpr TI STEP_LIMIT = 400000;
-            static constexpr TI N_ENVIRONMENTS = 32;
+            static constexpr TI N_ENVIRONMENTS = 128;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI N_WARMUP_STEPS = 1000;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
