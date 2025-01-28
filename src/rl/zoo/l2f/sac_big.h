@@ -8,6 +8,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
+        static constexpr bool SEQUENTIAL_MODEL = false;
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
@@ -20,7 +21,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
                 static constexpr T TARGET_ENTROPY = -((T)4);
-                static constexpr TI SEQUENCE_LENGTH = 1;
+                static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL_MODEL ? 16 : 1;
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
             };
             static constexpr TI STEP_LIMIT = 2000000;
@@ -52,9 +53,19 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T ALPHA = 3e-4;
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
+            struct BATCH_SAMPLING_PARAMETERS{
+                static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = SEQUENTIAL_MODEL;
+                static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
+                static constexpr bool RANDOM_SEQ_LENGTH = SEQUENTIAL_MODEL;
+                static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+                static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.1;
+            };
         };
         // this config is competitive with mlp but 15x slower
 
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rl_tools::utils::typing::conditional_t<SEQUENTIAL_MODEL,
+            rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>,
+            rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>
+        >;
     };
 }
