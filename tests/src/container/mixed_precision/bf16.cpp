@@ -13,6 +13,68 @@ using T = rlt::numeric_types::bfloat16;
 #include <cmath>
 #include <iostream>
 
+#define DEV
+
+#define RL_TOOLS_ENABLE_PYTHON3
+
+#ifdef RL_TOOLS_ENABLE_PYTHON3
+#include <vector>
+#include <string>
+#include <Python.h>
+void plot_init() {
+}
+void plot_finalize() {
+}
+void plot(const std::map<std::string, std::pair<std::vector<double>, std::vector<double>>>& series, bool scatter = false){
+    Py_Initialize();
+    PyRun_SimpleString(R"(
+import matplotlib.pyplot as plt
+import numpy as np
+
+def scatter_plot(series_dict, scatter):
+    plt.figure()
+    for label, (x, y) in series_dict.items():
+        if scatter:
+            plt.scatter(x, y, label=label)
+        else:
+            plt.plot(x, y, label=label)
+    plt.legend()
+    plt.show()
+)");
+    PyObject* pDict = PyDict_New();
+    for(const auto& [label, vectors] : series) {
+        const auto& [x, y] = vectors;
+        PyObject* pX = PyList_New(x.size());
+        PyObject* pY = PyList_New(y.size());
+
+        for(size_t i = 0; i < x.size(); i++) {
+            PyList_SetItem(pX, i, PyFloat_FromDouble(x[i]));
+            PyList_SetItem(pY, i, PyFloat_FromDouble(y[i]));
+        }
+        PyObject* pXYTuple = PyTuple_New(2);
+        PyTuple_SetItem(pXYTuple, 0, pX);
+        PyTuple_SetItem(pXYTuple, 1, pY);
+        PyDict_SetItem(pDict, PyUnicode_FromString(label.c_str()), pXYTuple);
+        Py_DECREF(pXYTuple);
+    }
+    PyObject* pFunc = PyObject_GetAttrString(PyImport_AddModule("__main__"), "scatter_plot");
+    PyObject* pArgs = PyTuple_New(2);
+    PyTuple_SetItem(pArgs, 0, pDict);
+    PyObject* pScatter = scatter ? Py_True : Py_False;
+    PyTuple_SetItem(pArgs, 1, pScatter);
+    PyObject_CallObject(pFunc, pArgs);
+    Py_DECREF(pArgs);
+    Py_DECREF(pFunc);
+    Py_Finalize();
+}
+void scatter(const std::map<std::string, std::pair<std::vector<double>, std::vector<double>>>& series) {
+    plot(series, true);
+}
+#endif
+
+#ifndef DEV
+#else
+
 static_assert(sizeof(_T) == 2);
 static_assert(sizeof(T) == 2);
 
@@ -139,12 +201,26 @@ TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MATMUL){
     auto results = iterate<DEVICE, 10>(device);
 
     TI iteration = 0;
+    std::vector<double> horizontal, bf16_bf16, bf16_fp32, fp32_fp32;
     for (auto [diff_bf16_mul_bf16_acc_per_element, diff_bf16_mul_fp32_acc_per_element, diff_fp32_mul_fp32_acc_per_element] : results) {
         std::cout << "Iteration: N M K: " << (iteration == 0 ? 1 : 2 << iteration) << std::endl;
         std::cout << "    bf16 mul, bf16 accumulation: diff: " << diff_bf16_mul_bf16_acc_per_element << std::endl;
         std::cout << "    bf16 mul, fp32 accumulation: diff: " << diff_bf16_mul_fp32_acc_per_element << std::endl;
         std::cout << "    fp32 mul, fp32 accumulation: diff: " << diff_fp32_mul_fp32_acc_per_element << std::endl;
+        TI N = iteration == 0 ? 1 : 2 << iteration;
+        horizontal.push_back(N);
+        bf16_bf16.push_back(diff_bf16_mul_bf16_acc_per_element / sqrt((double)N));
+        bf16_fp32.push_back(diff_bf16_mul_fp32_acc_per_element / sqrt((double)N));
+        fp32_fp32.push_back(diff_fp32_mul_fp32_acc_per_element / sqrt((double)N));
         iteration++;
     }
-
+    std::map<std::string, std::pair<std::vector<double>, std::vector<double>>> data = {
+    // {"bf16 bf16", {horizontal, bf16_bf16}},
+    {"bf16 fp32", {horizontal, bf16_fp32}},
+    {"fp32 fp32", {horizontal, fp32_fp32}},
+    };
+    plot(data);
 }
+
+
+#endif
