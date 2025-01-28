@@ -517,9 +517,12 @@ namespace rl_tools::rl::environments{
     };
     template <typename T_SPEC>
     struct MultirotorMultiTask: Multirotor<T_SPEC>{
-        static constexpr bool PREVENT_DEFAULT = true;
         // just a tag for dispatch
     };
+    template <typename SPEC>
+    constexpr bool PREVENT_DEFAULT(MultirotorMultiTask<SPEC>){
+        return true;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/registry.h"

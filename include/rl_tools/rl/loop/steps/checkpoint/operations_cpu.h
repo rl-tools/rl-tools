@@ -51,8 +51,9 @@ namespace rl_tools{
     }
 
     namespace rl::loop::steps::checkpoint{
-            template <auto BATCH_SIZE, typename DEVICE, typename CONFIG, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
-            void save_code(DEVICE& device, const std::string& step_folder, rl::loop::steps::checkpoint::State<CONFIG>& ts, ACTOR_TYPE& actor_forward, RNG& rng){
+            template <auto BATCH_SIZE, typename DEVICE, typename STATE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
+            void save_code(DEVICE& device, const std::string step_folder, STATE& ts, ACTOR_TYPE& actor_forward, RNG& rng){
+                using CONFIG = typename STATE::CONFIG;
                 using T = typename ACTOR_TYPE::T;
                 using TI = typename DEVICE::index_t;
                 typename ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffer;
