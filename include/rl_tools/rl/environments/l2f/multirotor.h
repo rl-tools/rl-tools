@@ -5,6 +5,8 @@
 
 #include "../../../utils/generic/typing.h"
 
+#include "../environments.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
     template <typename T_T, typename T_TI, T_TI T_N, typename T_REWARD_FUNCTION>
@@ -520,9 +522,7 @@ namespace rl_tools::rl::environments{
         // just a tag for dispatch
     };
     template <typename SPEC>
-    constexpr bool PREVENT_DEFAULT(MultirotorMultiTask<SPEC>){
-        return true;
-    }
+    struct PREVENT_DEFAULT_GET_UI<MultirotorMultiTask<SPEC>> : rl_tools::utils::typing::true_type {};
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/registry.h"
