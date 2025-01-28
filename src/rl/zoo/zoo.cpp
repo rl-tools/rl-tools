@@ -332,7 +332,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
             RNG rng;
             rlt::init(device, rng, seed);
-            rlt::rl::loop::steps::checkpoint::save_code<BATCH_SIZE, DYNAMIC_ALLOCATION>(device, (ts.extrack_seed_path / "steps" / step_ss.str()).string(), evaluation_actor, rng);
+            rlt::rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, (ts.extrack_seed_path / "steps" / step_ss.str()).string(), ts, evaluation_actor, rng);
             rlt::free(device, evaluation_actor);
         }
 #endif

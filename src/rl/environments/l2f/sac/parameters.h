@@ -16,6 +16,7 @@ namespace env_param_builder{
     struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI, ENV_CONFIG>{
         using PARENT = typename rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI, ENV_CONFIG>;
         struct ENVIRONMENT_STATIC_PARAMETERS{
+            static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 1;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
             static constexpr bool CLOSED_FORM = false;

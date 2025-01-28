@@ -32,6 +32,7 @@ namespace builder {
     using namespace rlt::rl::environments::l2f;
     using namespace rlt::rl::environments::l2f::observation;
     struct ENVIRONMENT_STATIC_PARAMETERS{
+        static constexpr TI_GPU N_SUBSTEPS = 1;
         static constexpr TI_GPU ACTION_HISTORY_LENGTH = 16;
         static constexpr TI_GPU CLOSED_FORM = false;
         using STATE_BASE = StateBase<T, TI_GPU>;

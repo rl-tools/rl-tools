@@ -24,6 +24,7 @@ namespace static_parameter_builder{
     using namespace rl_tools::rl::environments::l2f;
     static constexpr bool CLOSED_FORM = true;
     struct ENVIRONMENT_STATIC_PARAMETERS{
+        static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI ACTION_HISTORY_LENGTH = 16;
         static constexpr TI EPISODE_STEP_LIMIT = 500;
         using STATE_BASE = StateBase<T, TI>;
