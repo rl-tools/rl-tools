@@ -74,7 +74,7 @@ namespace rl_tools::rl::zoo::l2f{
 //            }(),
             reward_function,
             { // observation_noise
-                0.0, // position
+                0.0,// position
                 0.0, // orientation
                 0.0, // linear_velocity
                 0.0, // angular_velocity
@@ -106,7 +106,7 @@ namespace rl_tools::rl::zoo::l2f{
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
-            static constexpr TI ACTION_HISTORY_LENGTH = 16;
+            static constexpr TI ACTION_HISTORY_LENGTH = 1;
             static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
             static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = StateBase<T, TI>;
@@ -114,17 +114,19 @@ namespace rl_tools::rl::zoo::l2f{
             using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
-                    observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH,
-                    observation::ParametersMass<observation::ParametersMassSpecification<T, TI
-            >>>>>>>>>>>>;
+                    observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI
+                    // observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
+                    // observation::ParametersMass<observation::ParametersMassSpecification<T, TI
+            >>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters(ENVIRONMENT_FACTORY_BASE::dynamics);
             static constexpr TI N_DYNAMICS_VALUES = 2;
             static constexpr typename PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
-                rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::x500_real, PARAMETERS_SPEC>,
+                // rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>,
+                // rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::x500_real, PARAMETERS_SPEC>,
+                rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>,
                 rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>
             };
         };

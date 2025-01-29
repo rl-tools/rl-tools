@@ -8,7 +8,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
-        static constexpr bool SEQUENTIAL_MODEL = false;
+        static constexpr bool SEQUENTIAL_MODEL = true;
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
@@ -21,14 +21,14 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
                 static constexpr T TARGET_ENTROPY = -((T)4);
-                static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL_MODEL ? 100 : 1;
+                static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL_MODEL ? 16 : 1;
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = true;
             };
             static constexpr TI N_ENVIRONMENTS = SEQUENTIAL_MODEL ? SAC_PARAMETERS::SEQUENCE_LENGTH : 1;
-            static constexpr TI STEP_LIMIT = SEQUENTIAL_MODEL ? 200000 : 2000000;
+            static constexpr TI STEP_LIMIT = SEQUENTIAL_MODEL ? 2000000 : 2000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = SEQUENTIAL_MODEL ? 4 : 3;
-            static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 128: 32;
+            static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 32: 32;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI CRITIC_NUM_LAYERS = SEQUENTIAL_MODEL ? 4 : 3;
             static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 128 : 256;
@@ -45,7 +45,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T WEIGHT_DECAY = 0.0001;
             };
             struct ACTOR_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
-                static constexpr T ALPHA = 3e-4;
+                static constexpr T ALPHA = 1e-4;
             };
             struct CRITIC_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
                 static constexpr T ALPHA = 3e-4;
