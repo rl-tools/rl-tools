@@ -96,7 +96,32 @@
                 return false
             })
             // const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
-            const run = runs_with_steps[0]
+            let selected_runs = runs_with_steps
+            if(params.has('experiment') === true){
+                const potential_selected_runs = runs_with_steps.filter(run => run.config.experiment === params.get('experiment'))
+                if(potential_selected_runs.length > 0){
+                    selected_runs = potential_selected_runs
+                }
+            }
+            if(params.has("experiment_name") === true){
+                const potential_selected_runs = runs_with_steps.filter(run => run.config.name === params.get('experiment_name'))
+                if(potential_selected_runs.length > 0){
+                    selected_runs = potential_selected_runs
+                }
+            }
+            if(params.has("experiment_population_values") === true){
+                const potential_selected_runs = runs_with_steps.filter(run => run.config.population_values === params.get('experiment_population_values'))
+                if(potential_selected_runs.length > 0){
+                    selected_runs = potential_selected_runs
+                }
+            }
+            if(params.has("experiment_seed") === true){
+                const potential_selected_runs = runs_with_steps.filter(run => parseInt(run.config.seed) === parseInt(params.get('experiment_seed')))
+                if(potential_selected_runs.length > 0){
+                    selected_runs = potential_selected_runs
+                }
+            }
+            const run = selected_runs[0]
             const latest_run_container = document.getElementById('latest-run-container')
             const show_run = new ShowRun(latest_run_container, run, latest_run_size)
         })
@@ -168,6 +193,17 @@
         <div class="zoo-container-container">
             <div id="zoo-container" class="zoo-container-container-element"></div>
         </div>
+    </div>
+
+    <div>
+        <h3>Usage</h3>
+        <div>Latest run container size: <i>?latest-run-size=800</i></div>
+        <div>Specify ExTrack experiments folder path: <i>?experiments=../../experiments/</i></div>
+        <div>Filter by experiment name: <i>?experiment=2025-01-29_14-55-20</i></div>
+        <div>Filter by experiment name: <i>?experiment_name=zoo</i></div>
+        <div>Filter by experiment population values: <i>?experiment_population_values=l2f_sac</i></div>
+        <div>Filter by experiment seed: <i>?experiment_seed=0</i></div>
+
     </div>
 
 </body>
