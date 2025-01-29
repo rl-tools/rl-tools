@@ -73,7 +73,13 @@ namespace rl_tools::rl::zoo::l2f{
 //                return base;
 //            }(),
             reward_function,
-            ENVIRONMENT_FACTORY_BASE::observation_noise,
+            { // observation_noise
+                0.0, // position
+                0.0, // orientation
+                0.0, // linear_velocity
+                0.0, // angular_velocity
+                0.0, // imu acceleration
+            },
             ENVIRONMENT_FACTORY_BASE::action_noise,
             termination
         };
