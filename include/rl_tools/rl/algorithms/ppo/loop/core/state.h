@@ -24,7 +24,6 @@ namespace rl_tools{
             typename CONFIG::ON_POLICY_RUNNER_TYPE on_policy_runner;
             typename CONFIG::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
             typename CONFIG::ACTOR_EVAL_BUFFERS actor_eval_buffers;
-            typename CONFIG::PPO_TYPE::SPEC::ACTOR_TYPE::template Buffer<1> actor_deterministic_evaluation_buffers;
             typename CONFIG::ACTOR_BUFFERS actor_buffers;
             typename CONFIG::CRITIC_BUFFERS critic_buffers;
             typename CONFIG::CRITIC_BUFFERS_GAE critic_buffers_gae;
