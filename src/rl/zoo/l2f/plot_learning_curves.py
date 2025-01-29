@@ -89,9 +89,8 @@ experiments = {
     #      "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0018",
     #      "experiments/2025-01-10_13-11-25/60ee5b2_zoo_environment_algorithm/flag_sac/0019",
     # ], 20*60),
-    "hcloud": ("experiments/2025-01-12_14-13-23/0883109_zoo_environment_algorithm/flag_sac", 20*60),
-    "macos": ("experiments/2025-01-12_23-15-40/437a469_zoo_environment_algorithm/flag_sac", 20*60),
-    "hcloud2": ("experiments/2025-01-13_05-52-40/9500097_zoo_environment_algorithm/flag_sac", 20*60)
+    "old": ("experiments/2025-01-28_19-06-49/b09c43f_zoo_environment_algorithm/l2f_sac", 20*60),
+    "new": ("experiments/2025-01-28_19-36-18/1bc11bc_zoo_environment_algorithm/l2f_sac", 20*60)
     # "0.98": ("experiments/2025-01-10_14-45-12/78dd508_zoo_environment_algorithm/flag_sac", 20*60),
 }
 
