@@ -36,6 +36,15 @@ namespace rl_tools::rl::environments::pendulum {
     struct ObservationRaw{
         static constexpr TI DIM = 2;
     };
+    template <typename TI>
+    struct ObservationPosition{
+        static constexpr TI DIM = 2;
+    };
+    template <typename TI>
+    struct ObservationVelocity{
+        static constexpr TI DIM = 1;
+    };
+
 
     template <typename T, typename TI>
     struct State{
@@ -67,6 +76,12 @@ namespace rl_tools::rl::environments{
         using PENDULUM = Pendulum<T_SPEC>;
         using Observation = pendulum::ObservationRaw<typename PENDULUM::TI>;
         using ObservationPrivileged = pendulum::ObservationFourier<typename PENDULUM::TI>;
+    };
+    template <typename T_SPEC>
+    struct PendulumPositionOnly: Pendulum<T_SPEC>{
+    };
+    template <typename T_SPEC>
+    struct PendulumVelocityOnly: Pendulum<T_SPEC>{
     };
 
 }
