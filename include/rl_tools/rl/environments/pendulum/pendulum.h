@@ -80,9 +80,17 @@ namespace rl_tools::rl::environments{
     template <typename T_SPEC>
     struct PendulumPositionOnly: Pendulum<T_SPEC>{
     };
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_UI<PendulumPositionOnly<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumPositionOnly<SPEC>>: rl_tools::utils::typing::true_type{};
     template <typename T_SPEC>
     struct PendulumVelocityOnly: Pendulum<T_SPEC>{
     };
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_UI<PendulumVelocityOnly<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumVelocityOnly<SPEC>>: rl_tools::utils::typing::true_type{};
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
