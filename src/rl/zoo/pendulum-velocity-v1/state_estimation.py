@@ -4,13 +4,135 @@ import matplotlib.pyplot as plt
 
 def load(filename):
     with h5py.File(filename, 'r') as f:
-        print(list(f["0"].keys()))
-        return {k:f["0"][k][:] for k in ['actions', 'full', 'next_observations', 'observations', 'position', 'rewards', 'terminated', 'truncated', 'episode_start']}
+        for rb_i, rb in f.items():
+            assert rb["full"][0] == 1
+            assert rb["position"][0] == 0
+            yield {k:f["0"][k][:] for k in ['actions', 'next_observations', 'observations', 'rewards', 'terminated', 'truncated', 'episode_start']}
 
-old = load("replay_buffer_old.h5")
-new = load("replay_buffer.h5")
+rbs = list(load("replay_buffer.h5"))
 
-assert (old["observations"] == new["observations"]).all()
-assert (old["episode_start"] == new["episode_start"]).all()
+WARMUP_STEPS = 100
+EPISODE_LENGTH = 200
+REPLAY_BUFFER_SIZE = rbs[0]["observations"].shape[0]
+NUM_SEQUENCES = (REPLAY_BUFFER_SIZE - WARMUP_STEPS) // EPISODE_LENGTH
 
-print("end")
+
+X = []
+Y = []
+
+for rb in rbs:
+    expected_truncated = np.zeros_like(rb["truncated"])
+    expected_truncated[np.arange(WARMUP_STEPS - 1, expected_truncated.shape[0], step=EPISODE_LENGTH), 0] = 1
+    assert np.all(rb["truncated"] == expected_truncated)
+    rb_full_sequences = {k:v[WARMUP_STEPS:WARMUP_STEPS + NUM_SEQUENCES*EPISODE_LENGTH].reshape(NUM_SEQUENCES, EPISODE_LENGTH, v.shape[-1]) for k, v in rb.items() if k != "episode_start"}
+    assert rb_full_sequences["truncated"][:, -1, 0].sum() == rb_full_sequences["truncated"].sum() # all truncateds should be last steps of the episodes
+
+    obs = rb_full_sequences["observations"][:, :, 2:]
+    actions = rb_full_sequences["actions"]
+    x = np.concatenate([obs, actions], axis=-1)
+    y = rb_full_sequences["next_observations"][:, :, :2]
+
+    X.append(x)
+    Y.append(y)
+
+X = np.concatenate(X, axis=0)
+Y = np.concatenate(Y, axis=0)
+
+
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset, random_split
+
+X = torch.tensor(X, dtype=torch.float32)
+Y = torch.tensor(Y, dtype=torch.float32)
+
+indices = np.arange(len(X))
+np.random.shuffle(indices)
+X = X[indices]
+Y = Y[indices]
+
+dataset = TensorDataset(X, Y)
+train_size = int(0.8 * len(dataset))
+val_size = len(dataset) - train_size
+train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+batch_size = 32
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+class GRUPredictor(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, n_layers=1):
+        super().__init__()
+        self.gru = nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+        
+    def forward(self, x):
+        out, _ = self.gru(x)  # (batch_size, seq_len, hidden_dim)
+        return self.fc(out)   # (batch_size, seq_len, output_dim)
+
+FEATURE_DIM = X.shape[-1]
+TARGET_DIM = Y.shape[-1]
+HIDDEN_DIM = 128
+N_LAYERS = 2
+
+model = GRUPredictor(FEATURE_DIM, HIDDEN_DIM, TARGET_DIM, N_LAYERS)
+model = torch.compile(model)
+criterion = nn.MSELoss()
+optimizer = optim.AdamW(model.parameters(), lr=0.001)
+
+num_epochs = 50
+best_val_loss = float('inf')
+patience = 5
+patience_counter = 0
+
+train = True
+if train: 
+    for epoch in range(num_epochs):
+        model.train()
+        train_loss = 0.0
+        for inputs, targets in train_loader:
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item() * inputs.size(0)
+        
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for inputs, targets in val_loader:
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
+                val_loss += loss.item() * inputs.size(0)
+        
+        train_loss = train_loss / len(train_loader.dataset)
+        val_loss = val_loss / len(val_loader.dataset)
+        
+        print(f'Epoch {epoch+1:03}')
+        print(f'Train Loss: {train_loss:.5f} | Val Loss: {val_loss:.5f}')
+        
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            torch.save(model.state_dict(), 'best_model.pth')
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print("Early stopping!")
+                break
+
+model.load_state_dict(torch.load('best_model.pth'))
+
+test_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+for example_x, example_y in test_loader:
+    pred_y = model(example_x)
+    plt.plot(example_y[0, :, 0].numpy(), label="y")
+    plt.plot(example_y[0, :, 1].numpy(), label="x")
+    plt.plot(pred_y[0, :, 0].detach().numpy(), label="pred_y")
+    plt.plot(pred_y[0, :, 1].detach().numpy(), label="pred_x")
+    plt.legend()
+    plt.show()
+print("done")

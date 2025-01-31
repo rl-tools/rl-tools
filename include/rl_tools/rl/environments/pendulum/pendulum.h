@@ -55,6 +55,11 @@ namespace rl_tools::rl::environments::pendulum {
         T theta_dot;
     };
 
+    template <typename T, typename TI>
+    struct StateLastAction: State<T, TI>{
+        T last_action;
+    };
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
