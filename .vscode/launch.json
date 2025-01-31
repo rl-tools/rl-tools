@@ -135,6 +135,9 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
+            "env": {
+                "OMP_NUM_THREADS": "1"
+            }
         }
     ]
 }

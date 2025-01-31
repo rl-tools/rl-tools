@@ -6,6 +6,7 @@
 #include "replay_buffer.h"
 
 #include "../../../containers/matrix/persist.h"
+#include "../../../containers/tensor/persist.h"
 #include <highfive/H5Group.hpp>
 #include <vector>
 
@@ -44,6 +45,8 @@ namespace rl_tools{
         load(device, rb.next_observations, group, "next_observations");
         load(device, rb.terminated, group, "terminated");
         load(device, rb.truncated, group, "truncated");
+
+        load(device, rb.episode_start, group, "episode_start");
 
         std::vector<decltype(rb.position)> position;
         group.getDataSet("position").read(position);

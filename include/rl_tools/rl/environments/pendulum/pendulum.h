@@ -48,15 +48,25 @@ namespace rl_tools::rl::environments::pendulum {
     };
 
 
-    template <typename T, typename TI>
+    template <typename T_T, typename T_TI>
+    struct StateSpecification{
+        using T = T_T;
+        using TI = T_TI;
+    };
+    template <typename T_SPEC>
     struct State{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         static constexpr TI DIM = 2;
         T theta;
         T theta_dot;
     };
 
-    template <typename T, typename TI>
-    struct StateLastAction: State<T, TI>{
+    template <typename T_SPEC>
+    struct StateLastAction: State<T_SPEC>{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
         T last_action;
     };
 
@@ -70,7 +80,7 @@ namespace rl_tools::rl::environments{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using State = pendulum::State<T, TI>;
+        using State = pendulum::State<pendulum::StateSpecification<T, TI>>;
         using Parameters = typename SPEC::PARAMETERS;
         using Observation = pendulum::ObservationFourier<TI>;
         using ObservationPrivileged = Observation;
@@ -86,6 +96,9 @@ namespace rl_tools::rl::environments{
     };
     template <typename T_SPEC>
     struct PendulumPosition: Pendulum<T_SPEC>{
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::TI;
+        using State = pendulum::StateLastAction<pendulum::StateSpecification<T, TI>>;
         using Observation = pendulum::ObservationPosition<typename T_SPEC::TI>;
         using ObservationPrivileged = Observation;
     };
@@ -95,6 +108,9 @@ namespace rl_tools::rl::environments{
     struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumPosition<SPEC>>: rl_tools::utils::typing::true_type{};
     template <typename T_SPEC>
     struct PendulumVelocity: Pendulum<T_SPEC>{
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::TI;
+        using State = pendulum::StateLastAction<pendulum::StateSpecification<T, TI>>;
         using Observation = pendulum::ObservationVelocity<typename T_SPEC::TI>;
         using ObservationPrivileged = Observation;
     };

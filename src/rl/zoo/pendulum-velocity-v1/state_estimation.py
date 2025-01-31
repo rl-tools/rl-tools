@@ -28,8 +28,9 @@ for rb in rbs:
     assert rb_full_sequences["truncated"][:, -1, 0].sum() == rb_full_sequences["truncated"].sum() # all truncateds should be last steps of the episodes
 
     obs = rb_full_sequences["observations"][:, :, 2:]
-    actions = rb_full_sequences["actions"]
-    x = np.concatenate([obs, actions], axis=-1)
+    # actions = rb_full_sequences["actions"]
+    # x = np.concatenate([obs, actions], axis=-1)
+    x = obs
     y = rb_full_sequences["next_observations"][:, :, :2]
 
     X.append(x)
@@ -74,8 +75,8 @@ class GRUPredictor(nn.Module):
 
 FEATURE_DIM = X.shape[-1]
 TARGET_DIM = Y.shape[-1]
-HIDDEN_DIM = 128
-N_LAYERS = 2
+HIDDEN_DIM = 32
+N_LAYERS = 1
 
 model = GRUPredictor(FEATURE_DIM, HIDDEN_DIM, TARGET_DIM, N_LAYERS)
 model = torch.compile(model)
@@ -87,7 +88,7 @@ best_val_loss = float('inf')
 patience = 5
 patience_counter = 0
 
-train = True
+train = False
 if train: 
     for epoch in range(num_epochs):
         model.train()
@@ -125,6 +126,32 @@ if train:
                 break
 
 model.load_state_dict(torch.load('best_model.pth'))
+
+
+import h5py
+
+with h5py.File('replay_buffer_gru.h5', 'w') as f:
+    test_input, test_output_target = val_dataset[:20]
+    test_output = model(test_input)
+    m = f.create_group('model')
+    l = m.create_group("layers")
+    g = l.create_group('0')
+    g.create_group('weights_input').create_dataset('parameters', data=model.gru.weight_ih_l0.cpu().detach().numpy())
+    g.create_group('weights_hidden').create_dataset('parameters', data=model.gru.weight_hh_l0.cpu().detach().numpy())
+    g.create_group('biases_input').create_dataset('parameters', data=model.gru.bias_ih_l0.cpu().detach().numpy())
+    g.create_group('biases_hidden').create_dataset('parameters', data=model.gru.bias_hh_l0.cpu().detach().numpy())
+    g.create_group('initial_hidden_state').create_dataset('parameters', data=np.zeros((HIDDEN_DIM,)))
+
+    d = l.create_group('1')
+    d.create_group('weights').create_dataset('parameters', data=model.fc.weight.cpu().detach().numpy())
+    d.create_group('biases').create_dataset('parameters', data=model.fc.bias.cpu().detach().numpy().reshape(1, -1))
+
+    t = f.create_group('test')
+    t.create_dataset('input', data=test_input.permute(1, 0, 2).cpu().detach().numpy())
+    t.create_dataset('output', data=test_output.permute(1, 0, 2).cpu().detach().numpy())
+
+print("Saved GRU parameters to replay_buffer_gru.h5")
+
 
 test_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 for example_x, example_y in test_loader:

@@ -50,7 +50,10 @@ namespace rl_tools {
             utils::assert_exit(device, vector.size() == SPEC::SIZE, "Vector size mismatch");
             std::vector<T> buffer(SPEC::SIZE);
             for (TI i = 0; i < SPEC::SIZE; i++) {
-                buffer[i] = vector[i];
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                buffer[i] = static_cast<VT>(vector[i]); // this is usually not called but mightt still make issues because the datatype is compile-time dispatched on the hdf5 side
+#pragma GCC diagnostic pop
             }
             std::memcpy(data(tensor), buffer.data(), SPEC::SIZE * sizeof(T));
         }
@@ -100,24 +103,60 @@ namespace rl_tools {
             auto data_type = dataset.getDataType();
             auto data_type_class = data_type.getClass();
             auto data_type_size = data_type.getSize();
-            utils::assert_exit(device, data_type_class == HighFive::DataTypeClass::Float, "Only Float is currently supported");
+            utils::assert_exit(device, data_type_class == HighFive::DataTypeClass::Float || data_type_class == HighFive::DataTypeClass::Integer, "Only Float and Int are currently supported");
             utils::assert_exit(device, data_type_size == 4 || data_type_size == 8, "Only Float32 and Float64 are currently supported");
             utils::assert_exit(device, dataset.getStorageSize() == data_type_size * SPEC::SIZE, "Storage size mismatch");
-            if(data_type_size == 4){
-                std::vector<float> buffer(SPEC::SIZE);
-                dataset.read(buffer.data()); // we use the .data() pointer here because otherwise HighFive will complain about a multi-dimensional dataset. In this way we can load (the assumedly dense data directly)
-                from_flat_vector(device, buffer, tensor);
-            }
-            else{
-                if(data_type_size == 8){
-                    std::vector<double> buffer(SPEC::SIZE);
+            if (data_type_class == HighFive::DataTypeClass::Float){
+                if(data_type_size == 4){
+                    std::vector<float> buffer(SPEC::SIZE);
                     dataset.read(buffer.data());
                     from_flat_vector(device, buffer, tensor);
                 }
                 else{
-                    utils::assert_exit(device, false, "Unsupported data type size");
+                    if(data_type_size == 8){
+                        std::vector<double> buffer(SPEC::SIZE);
+                        dataset.read(buffer.data());
+                        from_flat_vector(device, buffer, tensor);
+                    }
+                    else{
+                        utils::assert_exit(device, false, "Unsupported data type size");
+                    }
                 }
             }
+            else{
+                if(data_type_class == HighFive::DataTypeClass::Integer){
+                    if(data_type_size == 4){
+                        std::vector<int32_t> buffer(SPEC::SIZE);
+                        dataset.read(buffer.data());
+                        from_flat_vector(device, buffer, tensor);
+                    }
+                    else{
+                        if(data_type_size == 8){
+                            std::vector<int64_t> buffer(SPEC::SIZE);
+                            dataset.read(buffer.data());
+                            from_flat_vector(device, buffer, tensor);
+                        }
+                        else{
+                            utils::assert_exit(device, false, "Unsupported data type size");
+                        }
+                    }
+                }
+            }
+            // if(data_type_size == 4){
+            //     std::vector<float> buffer(SPEC::SIZE);
+            //     dataset.read(buffer.data()); // we use the .data() pointer here because otherwise HighFive will complain about a multi-dimensional dataset. In this way we can load (the assumedly dense data directly)
+            //     from_flat_vector(device, buffer, tensor);
+            // }
+            // else{
+            //     if(data_type_size == 8){
+            //         std::vector<double> buffer(SPEC::SIZE);
+            //         dataset.read(buffer.data());
+            //         from_flat_vector(device, buffer, tensor);
+            //     }
+            //     else{
+            //         utils::assert_exit(device, false, "Unsupported data type size");
+            //     }
+            // }
         }
     }
 }
