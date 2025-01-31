@@ -80,23 +80,23 @@ namespace rl_tools::rl::environments{
         using ObservationPrivileged = pendulum::ObservationFourier<typename PENDULUM::TI>;
     };
     template <typename T_SPEC>
-    struct PendulumPositionOnly: Pendulum<T_SPEC>{
+    struct PendulumPosition: Pendulum<T_SPEC>{
         using Observation = pendulum::ObservationPosition<typename T_SPEC::TI>;
         using ObservationPrivileged = Observation;
     };
     template <typename SPEC>
-    struct PREVENT_DEFAULT_GET_UI<PendulumPositionOnly<SPEC>>: rl_tools::utils::typing::true_type{};
+    struct PREVENT_DEFAULT_GET_UI<PendulumPosition<SPEC>>: rl_tools::utils::typing::true_type{};
     template <typename SPEC>
-    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumPositionOnly<SPEC>>: rl_tools::utils::typing::true_type{};
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumPosition<SPEC>>: rl_tools::utils::typing::true_type{};
     template <typename T_SPEC>
-    struct PendulumVelocityOnly: Pendulum<T_SPEC>{
+    struct PendulumVelocity: Pendulum<T_SPEC>{
         using Observation = pendulum::ObservationVelocity<typename T_SPEC::TI>;
         using ObservationPrivileged = Observation;
     };
     template <typename SPEC>
-    struct PREVENT_DEFAULT_GET_UI<PendulumVelocityOnly<SPEC>>: rl_tools::utils::typing::true_type{};
+    struct PREVENT_DEFAULT_GET_UI<PendulumVelocity<SPEC>>: rl_tools::utils::typing::true_type{};
     template <typename SPEC>
-    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumVelocityOnly<SPEC>>: rl_tools::utils::typing::true_type{};
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumVelocity<SPEC>>: rl_tools::utils::typing::true_type{};
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

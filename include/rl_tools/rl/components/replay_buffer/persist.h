@@ -23,6 +23,8 @@ namespace rl_tools{
         save(device, rb.terminated, group, "terminated");
         save(device, rb.truncated, group, "truncated");
 
+        save(device, rb.episode_start, group, "episode_start");
+
         std::vector<decltype(rb.position)> position;
         position.push_back(rb.position);
         group.createDataSet("position", position);

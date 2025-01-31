@@ -126,6 +126,15 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "src/rl/zoo/pendulum-velocity-v1/state_estimation.py",
+            "type": "python",
+            "request": "launch",
+            "program": "src/rl/zoo/pendulum-velocity-v1/state_estimation.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }

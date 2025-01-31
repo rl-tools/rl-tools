@@ -12,16 +12,16 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::sac{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 100;
                 static constexpr TI CRITIC_BATCH_SIZE = 100;
-                static constexpr TI SEQUENCE_LENGTH = ENVIRONMENT::EPISODE_STEP_LIMIT;
+                static constexpr TI SEQUENCE_LENGTH = 30;
             };
-            static constexpr TI STEP_LIMIT = 20000;
+            static constexpr TI STEP_LIMIT = 200000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI ACTOR_NUM_LAYERS = 3;
-            static constexpr TI ACTOR_HIDDEN_DIM = 64;
-            static constexpr TI CRITIC_NUM_LAYERS = 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = 64;
+            static constexpr TI ACTOR_NUM_LAYERS = 4;
+            static constexpr TI ACTOR_HIDDEN_DIM = 16;
+            static constexpr TI CRITIC_NUM_LAYERS = 4;
+            static constexpr TI CRITIC_HIDDEN_DIM = 32;
             static constexpr T ALPHA = 1.0;
-            static constexpr TI N_ENVIRONMENTS = 64;
+            static constexpr TI N_ENVIRONMENTS = 32;
             struct BATCH_SAMPLING_PARAMETERS{
                 static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
                 static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
