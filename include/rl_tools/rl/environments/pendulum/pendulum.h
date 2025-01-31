@@ -20,6 +20,8 @@ namespace rl_tools::rl::environments::pendulum {
         constexpr static T initial_state_max_angle = math::PI<T>;
         constexpr static T initial_state_min_speed = -1;
         constexpr static T initial_state_max_speed = 1;
+        constexpr static T OBSERVATION_NOISE_POSITION = 0.0;
+        constexpr static T OBSERVATION_NOISE_VELOCITY = 0.0;
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
     struct Specification{
@@ -79,6 +81,8 @@ namespace rl_tools::rl::environments{
     };
     template <typename T_SPEC>
     struct PendulumPositionOnly: Pendulum<T_SPEC>{
+        using Observation = pendulum::ObservationPosition<typename T_SPEC::TI>;
+        using ObservationPrivileged = Observation;
     };
     template <typename SPEC>
     struct PREVENT_DEFAULT_GET_UI<PendulumPositionOnly<SPEC>>: rl_tools::utils::typing::true_type{};
@@ -86,6 +90,8 @@ namespace rl_tools::rl::environments{
     struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumPositionOnly<SPEC>>: rl_tools::utils::typing::true_type{};
     template <typename T_SPEC>
     struct PendulumVelocityOnly: Pendulum<T_SPEC>{
+        using Observation = pendulum::ObservationVelocity<typename T_SPEC::TI>;
+        using ObservationPrivileged = Observation;
     };
     template <typename SPEC>
     struct PREVENT_DEFAULT_GET_UI<PendulumVelocityOnly<SPEC>>: rl_tools::utils::typing::true_type{};

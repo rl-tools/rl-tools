@@ -87,6 +87,16 @@ namespace rl_tools{
         set(observation, 0, 0, math::cos(device.math, state.theta));
         set(observation, 0, 1, math::sin(device.math, state.theta));
         set(observation, 0, 2, state.theta_dot);
+        if constexpr(parameters.OBSERVATION_NOISE_POSITION > 0){
+            T noise_cos = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_POSITION, rng);
+            increment(observation, 0, 0, noise_cos);
+            T noise_sin = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_POSITION, rng);
+            increment(observation, 0, 1, noise_sin);
+        }
+        if constexpr(parameters.OBSERVATION_NOISE_VELOCITY > 0){
+            T noise_velocity = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_VELOCITY, rng);
+            increment(observation, 0, 2, noise_velocity);
+        }
     }
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::Pendulum<SPEC>::State& state, const typename rl::environments::pendulum::ObservationRaw<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
@@ -103,13 +113,25 @@ namespace rl_tools{
         typedef typename SPEC::T T;
         set(observation, 0, 0, math::cos(device.math, state.theta));
         set(observation, 0, 1, math::sin(device.math, state.theta));
+        if constexpr(parameters.OBSERVATION_NOISE_POSITION > 0){
+            T noise_cos = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_POSITION, rng);
+            increment(observation, 0, 0, noise_cos);
+            T noise_sin = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_POSITION, rng);
+            increment(observation, 0, 1, noise_sin);
+        }
     }
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::Pendulum<SPEC>::State& state, const typename rl::environments::pendulum::ObservationVelocity<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+        using ENVIRONMENT = rl::environments::Pendulum<SPEC>;
+        using PARAMETERS = typename ENVIRONMENT::Parameters;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 1);
-        typedef typename SPEC::T T;
+        using T = typename SPEC::T;
         set(observation, 0, 0, state.theta_dot);
+        if constexpr(PARAMETERS::OBSERVATION_NOISE_VELOCITY > 0){
+            T noise_velocity = random::normal_distribution::sample(device.random, (T)0, PARAMETERS::OBSERVATION_NOISE_VELOCITY, rng);
+            increment(observation, 0, 0, noise_velocity);
+        }
     }
     // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
     template<typename DEVICE, typename SPEC>
