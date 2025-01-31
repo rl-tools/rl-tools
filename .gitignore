@@ -66,3 +66,4 @@
 /.venv
 /**/.ipynb_checkpoints
 /**/*.ipynb
+/**/*.pth

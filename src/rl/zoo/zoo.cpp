@@ -42,7 +42,7 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
 
 // Environment Configurations
-#include "pendulum-v1/sac.h"
+#include "pendulum-v1/sac_state_estimation_dataset.h"
 #include "pendulum-v1/td3.h"
 #include "pendulum-v1/ppo.h"
 #include "pendulum-velocity-v1/sac.h"
@@ -347,9 +347,11 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #ifdef RL_TOOLS_EXPERIMENTAL
         {
             HighFive::File replay_buffer_file("replay_buffer.h5", HighFive::File::Overwrite);
-            auto& rb = rlt::get(ts.off_policy_runner.replay_buffers, 0, 0);
-            auto group = replay_buffer_file.createGroup(std::to_string(0));
-            rlt::save(device, rb, group);
+            for (TI rb_i = 0; rb_i < decltype(ts.off_policy_runner)::SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++){
+                auto& rb = rlt::get(ts.off_policy_runner.replay_buffers, 0, rb_i);
+                auto group = replay_buffer_file.createGroup(std::to_string(rb_i));
+                rlt::save(device, rb, group);
+            }
         }
 #endif
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
