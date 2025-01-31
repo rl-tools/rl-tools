@@ -344,7 +344,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             rlt::free(device, evaluation_actor);
         }
 #endif
-#ifdef RL_TOOLS_EXPERIMENTAL
+#if defined(RL_TOOLS_EXPERIMENTAL) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC) && defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
         {
             HighFive::File replay_buffer_file("replay_buffer.h5", HighFive::File::Overwrite);
             for (TI rb_i = 0; rb_i < decltype(ts.off_policy_runner)::SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++){
