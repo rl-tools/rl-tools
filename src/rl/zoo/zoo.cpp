@@ -27,6 +27,7 @@
 #include <rl_tools/nn_models/mlp/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
+#include <rl_tools/rl/components/replay_buffer/persist.h>
 #endif
 
 #include <rl_tools/containers/tensor/persist_code.h>
@@ -341,6 +342,14 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             rlt::init(device, rng, seed);
             rlt::rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, (ts.extrack_seed_path / "steps" / step_ss.str()).string(), ts, evaluation_actor, rng);
             rlt::free(device, evaluation_actor);
+        }
+#endif
+#ifdef RL_TOOLS_EXPERIMENTAL
+        {
+            HighFive::File replay_buffer_file("replay_buffer.h5", HighFive::File::Overwrite);
+            auto& rb = rlt::get(ts.off_policy_runner.replay_buffers, 0, 0);
+            auto group = replay_buffer_file.createGroup(std::to_string(0));
+            rlt::save(device, rb, group);
         }
 #endif
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
