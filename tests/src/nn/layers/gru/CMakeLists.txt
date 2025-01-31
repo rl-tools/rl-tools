@@ -132,3 +132,6 @@ gtest_discover_tests(test_nn_layers_gru_reset)
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     add_subdirectory(cuda)
 endif()
+
+
+add_subdirectory(load_state_estimator)

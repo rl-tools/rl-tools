@@ -162,7 +162,3 @@ endif()
 
 add_executable(rl_zoo_load_checkpoint_code load_checkpoint_code.cpp)
 target_link_libraries(rl_zoo_load_checkpoint_code PRIVATE RLtools::RLtools)
-
-
-
-add_subdirectory(pendulum-velocity-v1)

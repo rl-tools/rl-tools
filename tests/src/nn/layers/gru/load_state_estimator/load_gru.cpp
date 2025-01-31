@@ -37,9 +37,14 @@ using CAPABILITY = rlt::nn::capability::Forward<>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
 using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 
+#include "../../../../utils/utils.h"
+
+#include <gtest/gtest.h>
 
 
-int main(){
+constexpr T EPSILON = 1e-7;
+
+TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_STATE_ESTIMATOR){
     DEVICE device;
     MODEL model;
     MODEL::Buffer<> buffer;
@@ -55,16 +60,20 @@ int main(){
     rlt::malloc(device, buffer);
 
     rlt::init(device, rng);
-    HighFive::File replay_buffer_file("replay_buffer_gru.h5", HighFive::File::ReadOnly);
-    auto model_group = replay_buffer_file.getGroup("model");
+    std::string DATA_FILE_NAME = "load_gru_pytorch_model.h5";
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
+    std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
+    auto file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadOnly);
+    auto model_group = file.getGroup("model");
     rlt::load(device, model, model_group);
-    rlt::load(device, input, replay_buffer_file.getGroup("test"), "input");
-    rlt::load(device, output_target, replay_buffer_file.getGroup("test"), "output");
+    rlt::load(device, input, file.getGroup("test"), "input");
+    rlt::load(device, output_target, file.getGroup("test"), "output");
     rlt::evaluate(device, model, input, output, buffer, rng);
 
 
     T diff = rlt::abs_diff(device, output, output_target);
-    rlt::log(device, device.logger, "Diff: ", diff / decltype(output)::SPEC::SIZE);
-
-    return 0;
+    T diff_per_var = diff / decltype(output)::SPEC::SIZE;
+    rlt::log(device, device.logger, "Diff: ", diff_per_var);
+    ASSERT_LT(diff_per_var, EPSILON);
 }

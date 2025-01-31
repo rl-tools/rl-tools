@@ -1,3 +1,0 @@
-
-add_executable(rl_zoo_pendulum_velocity_v1_load_gru load_gru.cpp)
-target_link_libraries(rl_zoo_pendulum_velocity_v1_load_gru PRIVATE RLtools::RLtools)
