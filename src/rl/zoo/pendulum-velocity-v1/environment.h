@@ -7,11 +7,13 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::pendulum_velocity_v1{
-    namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI>
     struct ENVIRONMENT_FACTORY{
-        using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
-        using ENVIRONMENT = rlt::rl::environments::PendulumVelocityOnly<ENVIRONMENT_SPEC>;
+        struct ENVIRONMENT_PARAMETERS: environments::pendulum::DefaultParameters<T>{
+            constexpr static T OBSERVATION_NOISE_VELOCITY = 0.0;
+        };
+        using ENVIRONMENT_SPEC = environments::pendulum::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
+        using ENVIRONMENT = environments::PendulumVelocityOnly<ENVIRONMENT_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
