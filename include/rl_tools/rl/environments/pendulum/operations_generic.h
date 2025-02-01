@@ -101,17 +101,18 @@ namespace rl_tools{
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 3);
         typedef typename SPEC::T T;
+        using PARAMETERS = utils::typing::remove_reference_t<decltype(parameters)>;
         set(observation, 0, 0, math::cos(device.math, state.theta));
         set(observation, 0, 1, math::sin(device.math, state.theta));
         set(observation, 0, 2, state.theta_dot);
-        if constexpr(parameters.OBSERVATION_NOISE_POSITION > 0){
-            T noise_cos = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_POSITION, rng);
+        if constexpr(PARAMETERS::OBSERVATION_NOISE_POSITION > 0){
+            T noise_cos = random::normal_distribution::sample(device.random, (T)0, PARAMETERS::OBSERVATION_NOISE_POSITION, rng);
             increment(observation, 0, 0, noise_cos);
-            T noise_sin = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_POSITION, rng);
+            T noise_sin = random::normal_distribution::sample(device.random, (T)0, PARAMETERS::OBSERVATION_NOISE_POSITION, rng);
             increment(observation, 0, 1, noise_sin);
         }
-        if constexpr(parameters.OBSERVATION_NOISE_VELOCITY > 0){
-            T noise_velocity = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_VELOCITY, rng);
+        if constexpr(PARAMETERS::OBSERVATION_NOISE_VELOCITY > 0){
+            T noise_velocity = random::normal_distribution::sample(device.random, (T)0, PARAMETERS::OBSERVATION_NOISE_VELOCITY, rng);
             increment(observation, 0, 2, noise_velocity);
         }
     }
@@ -128,12 +129,13 @@ namespace rl_tools{
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 2);
         typedef typename SPEC::T T;
+        using PARAMETERS = utils::typing::remove_reference_t<decltype(parameters)>;
         set(observation, 0, 0, math::cos(device.math, state.theta));
         set(observation, 0, 1, math::sin(device.math, state.theta));
-        if constexpr(parameters.OBSERVATION_NOISE_POSITION > 0){
-            T noise_cos = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_POSITION, rng);
+        if constexpr(PARAMETERS::OBSERVATION_NOISE_POSITION > 0){
+            T noise_cos = random::normal_distribution::sample(device.random, (T)0, PARAMETERS::OBSERVATION_NOISE_POSITION, rng);
             increment(observation, 0, 0, noise_cos);
-            T noise_sin = random::normal_distribution::sample(device.random, (T)0, parameters.OBSERVATION_NOISE_POSITION, rng);
+            T noise_sin = random::normal_distribution::sample(device.random, (T)0, PARAMETERS::OBSERVATION_NOISE_POSITION, rng);
             increment(observation, 0, 1, noise_sin);
         }
     }
