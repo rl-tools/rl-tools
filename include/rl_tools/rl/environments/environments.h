@@ -9,6 +9,13 @@ namespace rl_tools::rl::environments{
     struct Environment{
         static constexpr T_TI N_AGENTS = 1;
     };
+
+    template <typename ENV>
+    struct PREVENT_DEFAULT : rl_tools::utils::typing::false_type {};
+    template <typename ENV>
+    struct PREVENT_DEFAULT_GET_UI : rl_tools::utils::typing::conditional_t<PREVENT_DEFAULT<ENV>::value, rl_tools::utils::typing::true_type, rl_tools::utils::typing::false_type> {};
+    template <typename ENV>
+    struct PREVENT_DEFAULT_GET_DESCRIPTION : rl_tools::utils::typing::conditional_t<PREVENT_DEFAULT<ENV>::value, rl_tools::utils::typing::true_type, rl_tools::utils::typing::false_type> {};
     struct DummyUI{};
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

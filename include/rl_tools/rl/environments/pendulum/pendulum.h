@@ -20,6 +20,8 @@ namespace rl_tools::rl::environments::pendulum {
         constexpr static T initial_state_max_angle = math::PI<T>;
         constexpr static T initial_state_min_speed = -1;
         constexpr static T initial_state_max_speed = 1;
+        constexpr static T OBSERVATION_NOISE_POSITION = 0.0;
+        constexpr static T OBSERVATION_NOISE_VELOCITY = 0.0;
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
     struct Specification{
@@ -36,12 +38,36 @@ namespace rl_tools::rl::environments::pendulum {
     struct ObservationRaw{
         static constexpr TI DIM = 2;
     };
+    template <typename TI>
+    struct ObservationPosition{
+        static constexpr TI DIM = 2;
+    };
+    template <typename TI>
+    struct ObservationVelocity{
+        static constexpr TI DIM = 1;
+    };
 
-    template <typename T, typename TI>
+
+    template <typename T_T, typename T_TI>
+    struct StateSpecification{
+        using T = T_T;
+        using TI = T_TI;
+    };
+    template <typename T_SPEC>
     struct State{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         static constexpr TI DIM = 2;
         T theta;
         T theta_dot;
+    };
+
+    template <typename T_SPEC>
+    struct StateLastAction: State<T_SPEC>{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        T last_action;
     };
 
 }
@@ -54,7 +80,7 @@ namespace rl_tools::rl::environments{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using State = pendulum::State<T, TI>;
+        using State = pendulum::State<pendulum::StateSpecification<T, TI>>;
         using Parameters = typename SPEC::PARAMETERS;
         using Observation = pendulum::ObservationFourier<TI>;
         using ObservationPrivileged = Observation;
@@ -68,6 +94,30 @@ namespace rl_tools::rl::environments{
         using Observation = pendulum::ObservationRaw<typename PENDULUM::TI>;
         using ObservationPrivileged = pendulum::ObservationFourier<typename PENDULUM::TI>;
     };
+    template <typename T_SPEC>
+    struct PendulumPosition: Pendulum<T_SPEC>{
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::TI;
+        using State = pendulum::StateLastAction<pendulum::StateSpecification<T, TI>>;
+        using Observation = pendulum::ObservationPosition<typename T_SPEC::TI>;
+        using ObservationPrivileged = Observation;
+    };
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_UI<PendulumPosition<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumPosition<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename T_SPEC>
+    struct PendulumVelocity: Pendulum<T_SPEC>{
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::TI;
+        using State = pendulum::StateLastAction<pendulum::StateSpecification<T, TI>>;
+        using Observation = pendulum::ObservationVelocity<typename T_SPEC::TI>;
+        using ObservationPrivileged = Observation;
+    };
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_UI<PendulumVelocity<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumVelocity<SPEC>>: rl_tools::utils::typing::true_type{};
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

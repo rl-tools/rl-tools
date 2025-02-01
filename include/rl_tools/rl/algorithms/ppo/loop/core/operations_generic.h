@@ -23,7 +23,6 @@ namespace rl_tools{
         malloc(device, ts.on_policy_runner_dataset);
         malloc(device, ts.on_policy_runner);
         malloc(device, ts.actor_eval_buffers);
-        malloc(device, ts.actor_deterministic_evaluation_buffers);
         malloc(device, ts.actor_buffers);
         malloc(device, ts.critic_buffers);
         malloc(device, ts.critic_buffers_gae);
@@ -44,7 +43,6 @@ namespace rl_tools{
         free(device, ts.on_policy_runner_dataset);
         free(device, ts.on_policy_runner);
         free(device, ts.actor_eval_buffers);
-        free(device, ts.actor_deterministic_evaluation_buffers);
         free(device, ts.actor_buffers);
         free(device, ts.critic_buffers);
         free(device, ts.critic_buffers_gae);

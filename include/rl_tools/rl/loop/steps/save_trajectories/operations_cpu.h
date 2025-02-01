@@ -39,7 +39,6 @@ namespace rl_tools{
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         delete ts.save_trajectories_buffer;
         free(device, ts.actor_deterministic_save_trajectories_buffers);
-        free(device, ts.actor_deterministic_evaluation_buffers);
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
 

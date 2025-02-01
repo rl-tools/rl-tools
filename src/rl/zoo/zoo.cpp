@@ -27,6 +27,7 @@
 #include <rl_tools/nn_models/mlp/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
+#include <rl_tools/rl/components/replay_buffer/persist.h>
 #endif
 
 #include <rl_tools/containers/tensor/persist_code.h>
@@ -41,9 +42,10 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
 
 // Environment Configurations
-#include "pendulum-v1/sac.h"
+#include "pendulum-v1/sac_state_estimation_dataset.h"
 #include "pendulum-v1/td3.h"
 #include "pendulum-v1/ppo.h"
+#include "pendulum-velocity-v1/sac.h"
 #include "flag/sac.h"
 #include "flag/td3.h"
 #include "flag/ppo.h"
@@ -111,6 +113,10 @@ static_assert(!DYNAMIC_ALLOCATION, "Dynamic memory allocations are disabled, but
 #if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_velocity_v1::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
@@ -231,6 +237,8 @@ std::string algorithm = "ppo";
 #endif
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 std::string environment = "pendulum-v1";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
+std::string environment = "pendulum-velocity-v1";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 std::string environment = "flag";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
@@ -334,6 +342,16 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             rlt::init(device, rng, seed);
             rlt::rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, (ts.extrack_seed_path / "steps" / step_ss.str()).string(), ts, evaluation_actor, rng);
             rlt::free(device, evaluation_actor);
+        }
+#endif
+#if defined(RL_TOOLS_EXPERIMENTAL) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC) && defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
+        {
+            HighFive::File replay_buffer_file("replay_buffer.h5", HighFive::File::Overwrite);
+            for (TI rb_i = 0; rb_i < decltype(ts.off_policy_runner)::SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++){
+                auto& rb = rlt::get(ts.off_policy_runner.replay_buffers, 0, rb_i);
+                auto group = replay_buffer_file.createGroup(std::to_string(rb_i));
+                rlt::save(device, rb, group);
+            }
         }
 #endif
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
