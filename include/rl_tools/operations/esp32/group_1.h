@@ -5,7 +5,7 @@
 #if defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_ESP32_GROUP_1)
     #define RL_TOOLS_OPERATIONS_ESP32_GROUP_1
     #include "../../devices/esp32.h"
-    #include "../../utils/generic/typing.h"
+    #include "../../numeric_types/policy.h"
 //    #include "../../utils/assert/declarations_esp32.h"
     #include "../../math/operations_esp32.h"
 //    #include "../../logging/operations_esp32.h"
