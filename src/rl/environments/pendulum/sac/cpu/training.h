@@ -61,7 +61,7 @@ void run(TI seed = 0){
     LOOP_STATE ts;
     rlt::malloc(device, ts);
     rlt::init(device, ts, 0);
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
         rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
     while(!rlt::step(device, ts)){
