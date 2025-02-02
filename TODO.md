@@ -70,6 +70,7 @@
 - Change default mode for `rlt::evaluate` to `Evaluation` (no randomness)
   - Trading off doing the right thing when integrating trained checkpoints for inference than preventing bugs in training code (more experienced users)
 - Enable these kinds of warnings: `warning: implicit conversion from ‘float’ to ‘double’ to match other operand of binary expression [-Wdouble-promotion]` and check if there are double promotions that waste compute
+- Integrate the Tensorboard logger initialization into the LOOP better (takes path from the extrack step, but kinda needs to be initialized outside)
 
 # Features
 - Look into implementing TQC, DroQ and CrossQ

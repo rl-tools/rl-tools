@@ -40,8 +40,6 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, std::filesystem::path run_dir){
-        // the path is passed through the (CPU) device since the CPU device always supports the stdlib with std::string etc.
-        utils::assert_exit(device, device.initialized, "CPU Device not initialized, can't init tensorboard logger");
         if (!std::filesystem::is_directory(run_dir) || !std::filesystem::exists(run_dir)) {
             std::filesystem::create_directories(run_dir);
         }
