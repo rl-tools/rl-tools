@@ -20,6 +20,13 @@
 
 namespace rlt = rl_tools;
 
+
+struct TestTag{};
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
+static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<TestTag>, float>);
+
+
+
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
