@@ -32,6 +32,7 @@ namespace rl_tools{
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
         init(device, ts.rng_save_trajectories, seed);
         ts.save_trajectories_ui_written = false;
+        ts.save_trajectories_this_step = false;
     }
 
     template <typename DEVICE, typename T_CONFIG>
@@ -86,7 +87,8 @@ namespace rl_tools{
         using PARAMETERS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
         using STATE = rl::loop::steps::save_trajectories::State<CONFIG>;
         if constexpr(PARAMETERS::SAVE_TRAJECTORIES == true){
-            if(ts.step % PARAMETERS::INTERVAL == 0){
+            if(ts.step % PARAMETERS::INTERVAL == 0 || ts.save_trajectories_this_step){
+                ts.save_trajectories_this_step = false;
                 if(!ts.save_trajectories_ui_written){
                     ts.save_trajectories_ui_written = true;
                     std::string ui = get_ui(device, ts.env_eval);
