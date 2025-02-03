@@ -88,6 +88,11 @@
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <signal.h>
+#include <unistd.h>
+#endif
+
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using SUPER_DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -254,7 +259,23 @@ std::string environment = "l2f";
 #endif
 // ---------------------------------------------------------------------------------------
 
+#if defined(__unix__) || defined(__APPLE__)
+volatile sig_atomic_t signal_flag = false;
+void signal_handler(int signal_number){
+    signal_flag = true;
+};
+#else
+bool signal_flag = false;
+#endif
+
 int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
+#if defined(__unix__) || defined(__APPLE__)
+    std::cerr << "PID: " << getpid() << std::endl;
+    if (signal(SIGUSR1, signal_handler) == SIG_ERR) {
+        perror("Error setting up signal handler");
+        exit(EXIT_FAILURE);
+    }
+#endif
     using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
     DEVICE device;
     static_assert(sizeof(LOOP_STATE) < 100000000);
@@ -287,6 +308,10 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
 #endif
         while(!rlt::step(device, ts)){
+            if(signal_flag){
+                ts.evaluate_this_step = true;
+            }
+            signal_flag = false;
         }
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
         std::filesystem::create_directories(ts.extrack_seed_path);

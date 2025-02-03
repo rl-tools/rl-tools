@@ -24,6 +24,7 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         typename SAVE_TRAJECTORIES_ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_deterministic_save_trajectories_buffers;
         typename CONFIG::UI ui_save_trajectories;
         bool save_trajectories_ui_written = false;
+        bool save_trajectories_this_step = false;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
