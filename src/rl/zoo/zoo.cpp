@@ -313,12 +313,14 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
 #endif
         while(!rlt::step(device, ts)){
+#ifndef RL_TOOLS_RL_ZOO_BENCHMARK
             if(signal_flag){
                 ts.evaluate_this_step = true;
                 ts.checkpoint_this_step = true;
                 ts.save_trajectories_this_step = true;
             }
             signal_flag = false;
+#endif
         }
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
         std::filesystem::create_directories(ts.extrack_seed_path);
@@ -376,16 +378,16 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             rlt::free(device, evaluation_actor);
         }
 #endif
-#if defined(RL_TOOLS_EXPERIMENTAL) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC) && defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
-        {
-            HighFive::File replay_buffer_file("replay_buffer.h5", HighFive::File::Overwrite);
-            for (TI rb_i = 0; rb_i < decltype(ts.off_policy_runner)::SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++){
-                auto& rb = rlt::get(ts.off_policy_runner.replay_buffers, 0, rb_i);
-                auto group = replay_buffer_file.createGroup(std::to_string(rb_i));
-                rlt::save(device, rb, group);
-            }
-        }
-#endif
+// #if defined(RL_TOOLS_EXPERIMENTAL) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC) && defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
+//         {
+//             HighFive::File replay_buffer_file("replay_buffer.h5", HighFive::File::Overwrite);
+//             for (TI rb_i = 0; rb_i < decltype(ts.off_policy_runner)::SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++){
+//                 auto& rb = rlt::get(ts.off_policy_runner.replay_buffers, 0, rb_i);
+//                 auto group = replay_buffer_file.createGroup(std::to_string(rb_i));
+//                 rlt::save(device, rb, group);
+//             }
+//         }
+// #endif
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
         rlt::free(device, device.logger);
 #endif
