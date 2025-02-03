@@ -34,6 +34,15 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::sac{
                 static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = false;
                 static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.1;
             };
+            struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+                static constexpr T ALPHA = 1e-4;
+            };
+            struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+                static constexpr T ALPHA = 1e-3;
+            };
+            struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+                static constexpr T ALPHA = 1e-3;
+            };
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
     };
