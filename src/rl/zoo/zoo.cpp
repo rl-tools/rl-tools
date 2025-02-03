@@ -270,7 +270,7 @@ bool signal_flag = false;
 
 int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
 #if defined(__unix__) || defined(__APPLE__)
-    std::cerr << "PID: " << getpid() << std::endl;
+    std::cerr << "PID: " << getpid() << "(use kill -SIGUSR1 " << getpid() << " to create evaluate, create a checkpoint and save trajectories on demand)" << std::endl;
     if (signal(SIGUSR1, signal_handler) == SIG_ERR) {
         perror("Error setting up signal handler");
         exit(EXIT_FAILURE);
@@ -310,6 +310,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         while(!rlt::step(device, ts)){
             if(signal_flag){
                 ts.evaluate_this_step = true;
+                ts.checkpoint_this_step = true;
+                ts.save_trajectories_this_step = true;
             }
             signal_flag = false;
         }
