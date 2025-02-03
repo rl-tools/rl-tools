@@ -10,9 +10,9 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::sac{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
-                static constexpr TI ACTOR_BATCH_SIZE = 256;
-                static constexpr TI CRITIC_BATCH_SIZE = 256;
-                static constexpr TI SEQUENCE_LENGTH = 200;
+                static constexpr TI ACTOR_BATCH_SIZE = 100;
+                static constexpr TI CRITIC_BATCH_SIZE = 100;
+                static constexpr TI SEQUENCE_LENGTH = 100;
                 // static constexpr TI CRITIC_TRAINING_INTERVAL = ENVIRONMENT::EPISODE_STEP_LIMIT;
                 // static constexpr TI ACTOR_TRAINING_INTERVAL = ENVIRONMENT::EPISODE_STEP_LIMIT;
             };
@@ -22,16 +22,16 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::sac{
             // static constexpr TI N_WARMUP_STEPS_CRITIC = N_WARMUP_STEPS;
             // static constexpr TI N_WARMUP_STEPS_ACTOR = N_WARMUP_STEPS;
             static constexpr TI ACTOR_NUM_LAYERS = 4;
-            static constexpr TI ACTOR_HIDDEN_DIM = 32;
+            static constexpr TI ACTOR_HIDDEN_DIM = 16;
             static constexpr TI CRITIC_NUM_LAYERS = 4;
-            static constexpr TI CRITIC_HIDDEN_DIM = 64;
+            static constexpr TI CRITIC_HIDDEN_DIM = 32;
             static constexpr T ALPHA = 1.0;
             static constexpr TI N_ENVIRONMENTS = 32;
             struct BATCH_SAMPLING_PARAMETERS{
                 static constexpr bool INCLUDE_FIRST_STEP_IN_TARGETS = true;
                 static constexpr bool ALWAYS_SAMPLE_FROM_INITIAL_STATE = false;
                 static constexpr bool RANDOM_SEQ_LENGTH = true;
-                static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = true;
+                static constexpr bool ENABLE_NOMINAL_SEQUENCE_LENGTH_PROBABILITY = false;
                 static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.1;
             };
             struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
