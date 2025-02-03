@@ -12,11 +12,11 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::sac{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 100;
                 static constexpr TI CRITIC_BATCH_SIZE = 100;
-                static constexpr TI SEQUENCE_LENGTH = 30;
+                static constexpr TI SEQUENCE_LENGTH = 100;
                 // static constexpr TI CRITIC_TRAINING_INTERVAL = ENVIRONMENT::EPISODE_STEP_LIMIT;
                 // static constexpr TI ACTOR_TRAINING_INTERVAL = ENVIRONMENT::EPISODE_STEP_LIMIT;
             };
-            static constexpr TI STEP_LIMIT = 200000;
+            static constexpr TI STEP_LIMIT = 500000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             // static constexpr TI N_WARMUP_STEPS = 20000;
             // static constexpr TI N_WARMUP_STEPS_CRITIC = N_WARMUP_STEPS;

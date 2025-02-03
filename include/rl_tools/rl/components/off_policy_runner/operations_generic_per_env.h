@@ -45,15 +45,15 @@ namespace rl_tools::rl::components::off_policy_runner{
             sample_initial_state(device, env, parameters, state, rng);
             set(runner.episode_step, 0, env_i, 0);
             set(runner.episode_return, 0, env_i, 0);
-            // auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
-            // if (replay_buffer.full || replay_buffer.position > 0){
-            //     TI previous_position = replay_buffer.position - 1;
-            //     if (replay_buffer.position == 0){
-            //         previous_position = SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY - 1;
-            //     }
-            //     set(replay_buffer.truncated, previous_position, 0, true);
-            //     replay_buffer.current_episode_start = replay_buffer.position;
-            // }
+            auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
+            if (replay_buffer.full || replay_buffer.position > 0){
+                TI previous_position = replay_buffer.position - 1;
+                if (replay_buffer.position == 0){
+                    previous_position = SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY - 1;
+                }
+                set(replay_buffer.truncated, previous_position, 0, true);
+                replay_buffer.current_episode_start = replay_buffer.position;
+            }
         }
         auto observation            = view<DEVICE, typename decltype(runner.buffers.observations           )::SPEC, 1, ENVIRONMENT::Observation::DIM           >(device, runner.buffers.observations           , env_i, 0);
         auto observation_privileged = view<DEVICE, typename decltype(runner.buffers.observations_privileged)::SPEC, 1, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, runner.buffers.observations_privileged, env_i, 0);
