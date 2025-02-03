@@ -46,6 +46,7 @@
 #include "pendulum-v1/td3.h"
 #include "pendulum-v1/ppo.h"
 #include "pendulum-velocity-v1/sac.h"
+#include "pendulum-velocity-v1/td3.h"
 #include "flag/sac.h"
 #include "flag/td3.h"
 #include "flag/ppo.h"
@@ -144,6 +145,10 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::td3::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_velocity_v1::td3::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::td3::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
@@ -271,7 +276,7 @@ bool signal_flag = false;
 int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
 #if defined(__unix__) || defined(__APPLE__)
     std::cerr << "PID: " << getpid() << "(use kill -SIGUSR1 " << getpid() << " to create evaluate, create a checkpoint and save trajectories on demand)" << std::endl;
-    if (signal(SIGUSR1, signal_handler) == SIG_ERR) {
+    if (signal(SIGUSR1, signal_handler) == SIG_ERR){
         perror("Error setting up signal handler");
         exit(EXIT_FAILURE);
     }
