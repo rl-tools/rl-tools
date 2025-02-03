@@ -165,5 +165,5 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     target_compile_definitions(rl_zoo_ant_v4_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
 endif()
 
-add_executable(rl_zoo_load_checkpoint_code load_checkpoint_code.cpp)
-target_link_libraries(rl_zoo_load_checkpoint_code PRIVATE RLtools::RLtools)
+#add_executable(rl_zoo_load_checkpoint_code load_checkpoint_code.cpp)
+#target_link_libraries(rl_zoo_load_checkpoint_code PRIVATE RLtools::RLtools)
