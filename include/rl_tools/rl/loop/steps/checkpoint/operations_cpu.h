@@ -128,7 +128,7 @@ namespace rl_tools{
             ts.checkpoint_this_step = false;
             std::stringstream step_ss;
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
-            std::filesystem::path step_folder = ts.extrack_seed_path / "steps" / step_ss.str();
+            std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();
             std::filesystem::create_directories(step_folder);
             std::filesystem::path checkpoint_path = step_folder / "checkpoint.h5";
             auto& actor = get_actor(ts);

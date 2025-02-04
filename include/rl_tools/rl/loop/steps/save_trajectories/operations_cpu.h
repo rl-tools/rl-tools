@@ -93,17 +93,17 @@ namespace rl_tools{
                     ts.save_trajectories_ui_written = true;
                     std::string ui = get_ui(device, ts.env_eval);
                     if(!ui.empty()){
-                        std::filesystem::create_directories(ts.extrack_seed_path);
-                        std::ofstream ui_jsmf(ts.extrack_seed_path / "ui.esm.js");
+                        std::filesystem::create_directories(ts.extrack_paths.seed);
+                        std::ofstream ui_jsmf(ts.extrack_paths.seed / "ui.esm.js");
                         ui_jsmf << ui;
-                        std::cout << "UI written to: " << ts.extrack_seed_path / "ui.esm.js" << std::endl;
+                        std::cout << "UI written to: " << ts.extrack_paths.seed / "ui.esm.js" << std::endl;
                     }
                     std::string description = get_description(device, ts.env_eval);
                     if(!description.empty()){
-                        std::filesystem::create_directories(ts.extrack_seed_path);
-                        std::ofstream description_file(ts.extrack_seed_path / "description.txt");
+                        std::filesystem::create_directories(ts.extrack_paths.seed);
+                        std::ofstream description_file(ts.extrack_paths.seed / "description.txt");
                         description_file << description;
-                        std::cout << "Description written to: " << ts.extrack_seed_path / "description.txt" << std::endl;
+                        std::cout << "Description written to: " << ts.extrack_paths.seed / "description.txt" << std::endl;
                     }
                 }
                 typename TS::SAVE_TRAJECTORIES_ACTOR_TYPE evaluation_actor;
@@ -132,7 +132,7 @@ namespace rl_tools{
                 {
                     std::stringstream step_ss;
                     step_ss << std::setw(15) << std::setfill('0') << ts.step;
-                    std::filesystem::path step_folder = ts.extrack_seed_path / "steps" / step_ss.str();
+                    std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();
                     std::filesystem::create_directories(step_folder);
                     std::filesystem::path trajectories_path = step_folder / ("trajectories." + file_extension);
                     std::cerr << "Saving Trajectories at step: " << ts.step << " to: " << trajectories_path << std::endl;

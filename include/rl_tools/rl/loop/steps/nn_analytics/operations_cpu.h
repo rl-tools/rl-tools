@@ -71,7 +71,7 @@ namespace rl_tools{
         if(ts.step % PARAMETERS::INTERVAL == 0 && (ts.step == 0 || ts.step >= PARAMETERS::WARMUP_STEPS)){
             std::stringstream step_ss;
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
-            std::filesystem::path step_path = ts.extrack_seed_path / "steps" / step_ss.str();
+            std::filesystem::path step_path = ts.extrack_paths.seed / "steps" / step_ss.str();
             std::filesystem::create_directories(step_path);
             auto data = rl::loop::steps::nn_analytics::accumulate_nns<0>(device, ts);
 #ifndef RL_TOOLS_ENABLE_ZLIB

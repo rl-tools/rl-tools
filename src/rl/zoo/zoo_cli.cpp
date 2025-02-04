@@ -3,13 +3,13 @@
 #endif
 #include <iostream>
 #include <string>
-#include <rl_tools/rl/loop/steps/extrack/utils/operations_cpu.h>
+#include <rl_tools/utils/extrack/extrack.h>
 int zoo(int, int, std::string, std::string, std::string, std::string);
 int main(int argc, char** argv) {
     int seed = 0;
     int n_seeds = 1;
     std::string extrack_base_path = "";
-    std::string extrack_experiment = rl_tools::rl::loop::steps::extrack::utils::get_timestamp_string();
+    std::string extrack_experiment = rl_tools::utils::extrack::get_timestamp_string();
     std::string extrack_experiment_path = "";
     std::string config_path = "";
     #ifdef RL_TOOLS_ENABLE_CLI11

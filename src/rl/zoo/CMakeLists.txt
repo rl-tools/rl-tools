@@ -15,7 +15,7 @@ if(UNIX)
             OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
             DEPENDS ${GIT_DIFF_PROJECT_SOURCES}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack
-            COMMAND ${CMAKE_COMMAND} -E echo "namespace rl_tools::extrack::git{" > ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "namespace rl_tools::utils::extrack::git{" > ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
             COMMAND ${CMAKE_COMMAND} -E echo_append "    extern const char* const commit = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
             COMMAND git rev-parse HEAD >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
             COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp

@@ -1,0 +1,69 @@
+#include <rl_tools/rl_tools.h>
+
+#include "../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_UTILS_EXTRACK_EXTRACK_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_UTILS_EXTRACK_EXTRACK_H
+
+#include <iostream>
+#include <chrono>
+#include <iomanip>
+#include <ctime>
+#include <sstream>
+#include <filesystem>
+
+#include <cstdlib>
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools{
+    namespace utils::extrack{
+#ifdef RL_TOOLS_EXTRACK_GIT_DIFF
+        namespace git{
+            extern const char* const commit;
+            extern const char* const diff;
+            extern const char* const diff_color;
+            extern const char* const word_diff;
+            extern const char* const word_diff_color;
+            extern const char* const diff_staged;
+            extern const char* const diff_staged_color;
+            extern const char* const word_diff_staged;
+            extern const char* const word_diff_staged_color;
+        }
+#endif
+
+        struct Config{
+            std::filesystem::path base_path = "experiments";
+            std::string experiment;
+            std::string name = "default";
+            std::string population_variates = "default";
+            std::string population_values = "default";
+        };
+        struct Paths{
+            std::filesystem::path experiment;
+            std::filesystem::path setup;
+            std::filesystem::path config;
+            std::filesystem::path seed;
+        };
+        template <typename DUMMY = bool>
+        std::string get_timestamp_string(){
+            // equivalent to date '+%Y-%m-%d_%H-%M-%S'
+            auto now = std::chrono::system_clock::now();
+            std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+            std::tm now_local;
+
+#if defined(_WIN32) || defined(_WIN64)
+            localtime_s(&now_local, &now_c);
+#else
+            localtime_r(&now_c, &now_local);
+#endif
+            std::stringstream ss;
+            ss << std::put_time(&now_local, "%Y-%m-%d_%H-%M-%S");
+
+            return ss.str();
+        }
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif
+
