@@ -39,14 +39,15 @@ int main() {
 
 
     rlt::utils::extrack::Path run;
-    run.attributes["algorithm"] = "gru-enwik";
+    run.name = "gru-enwik";
+    run.step = std::to_string(600000);
     run.require_checkpoint = true;
     bool found_run = rlt::find_latest_run(device, "experiments", run);
-    bool found_checkpoint = rlt::find_latest_checkpoint(device, run);
-    if(found_run && found_checkpoint){
+    if(found_run){
         std::cout << "found run: " << run.checkpoint_path << std::endl;
     }
     else{
+        std::cout << "could not find run: " << run.checkpoint_path << std::endl;
         std::exit(1);
     }
 
@@ -78,6 +79,7 @@ int main() {
         if(input_string.size() > CONFIG::PARAMS::SEQUENCE_LENGTH){
             input_string = input_string.substr(input_string.size() - CONFIG::PARAMS::SEQUENCE_LENGTH, CONFIG::PARAMS::SEQUENCE_LENGTH);
         }
+        rlt::set_all(device, input, 0);
         for(TI batch_i = 0; batch_i < CONFIG::PARAMS::BATCH_SIZE; batch_i++){
             for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
                 if(sequence_i < input_string.size()) {

@@ -161,42 +161,48 @@ namespace rl_tools{
                 for (auto& setup : setups){
                     if(setup.is_directory()){
                         parse_setup(device, setup.path().filename(), current_path);
-                        std::vector<std::filesystem::directory_entry> configs{std::filesystem::directory_iterator(setup), std::filesystem::directory_iterator()};
-                        std::sort(configs.begin(), configs.end());
-                        for (auto& config : configs){
-                            parse_config(device, config.path().filename(), current_path);
-                            bool matches_query = true;
-                            for (const auto& [key, value] : query.attributes){
-                                auto it = current_path.attributes.find(key);
-                                if (it != current_path.attributes.end() && it->second != value) {
-                                    matches_query = false;
-                                    break;
+                        if((query.commit.empty() || query.commit == current_path.commit) && (query.name.empty() || query.name == current_path.name)){
+                            std::vector<std::filesystem::directory_entry> configs{std::filesystem::directory_iterator(setup), std::filesystem::directory_iterator()};
+                            std::sort(configs.begin(), configs.end());
+                            for (auto& config : configs){
+                                parse_config(device, config.path().filename(), current_path);
+                                bool matches_query = true;
+                                for (const auto& [key, value] : query.attributes){
+                                    auto it = current_path.attributes.find(key);
+                                    if (it == current_path.attributes.end() || it->second != value) {
+                                        matches_query = false;
+                                        break;
+                                    }
                                 }
-                            }
-                            if(config.is_directory() && matches_query){
-                                std::vector<std::filesystem::directory_entry> seeds{std::filesystem::directory_iterator(config), std::filesystem::directory_iterator()};
-                                std::sort(seeds.begin(), seeds.end());
-                                for (auto& seed : seeds){
-                                    if(seed.is_directory()){
-                                        bool has_checkpoint = false;
-                                        auto steps_path = seed.path() / "steps";
-                                        if (std::filesystem::exists(steps_path) && std::filesystem::is_directory(steps_path)){
-                                            std::vector<std::filesystem::directory_entry> steps{std::filesystem::directory_iterator(steps_path), std::filesystem::directory_iterator()};
-                                            std::sort(steps.begin(), steps.end());
-                                            for (auto& step : steps){
-                                                if(step.is_directory()){
-                                                    if(std::filesystem::exists(step.path() / "checkpoint.h5")){
-                                                        has_checkpoint = true;
-                                                        break;
+                                if(config.is_directory() && matches_query){
+                                    std::vector<std::filesystem::directory_entry> seeds{std::filesystem::directory_iterator(config), std::filesystem::directory_iterator()};
+                                    std::sort(seeds.begin(), seeds.end());
+                                    for (auto& seed : seeds){
+                                        if(seed.is_directory()){
+                                            if(query.seed.empty() || std::stoull(query.seed) == std::stoull(seed.path().filename())){
+                                                bool has_checkpoint = false;
+                                                auto steps_path = seed.path() / "steps";
+                                                if (std::filesystem::exists(steps_path) && std::filesystem::is_directory(steps_path)){
+                                                    std::vector<std::filesystem::directory_entry> steps{std::filesystem::directory_iterator(steps_path), std::filesystem::directory_iterator()};
+                                                    std::sort(steps.begin(), steps.end());
+                                                    for (auto& step : steps){
+                                                        if(step.is_directory()){
+                                                            if(query.step.empty() || std::stoull(query.step) == std::stoull(step.path().filename())){
+                                                                if(std::filesystem::exists(step.path() / "checkpoint.h5")){
+                                                                    has_checkpoint = true;
+                                                                    current_path.checkpoint_path = step.path() / "checkpoint.h5";
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
+                                                current_path.seed = seed.path().filename();
+                                                current_path.path = seed.path();
+                                                if(!query.require_checkpoint || has_checkpoint){
+                                                    p_query = current_path;
+                                                    found = true;
+                                                }
                                             }
-                                        }
-                                        current_path.seed = seed.path().filename();
-                                        current_path.path = seed.path();
-                                        if(!query.require_checkpoint || has_checkpoint){
-                                            p_query = current_path;
-                                            found = true;
                                         }
                                     }
                                 }
@@ -204,6 +210,33 @@ namespace rl_tools{
                         }
                     }
                 }
+            }
+        }
+        if(!found){
+            std::cout << "Could not find run for query:" << std::endl;
+            if(!query.experiment.empty()){
+                std::cout << "\tExperiment: " << query.experiment << std::endl;
+            }
+            if(!query.commit.empty()){
+                std::cout << "\tCommit: " << query.commit << std::endl;
+            }
+            if(!query.name.empty()){
+                std::cout << "\tName: " << query.name << std::endl;
+            }
+            if (!query.attributes.empty()){
+                std::cout << "\tAttributes: " << std::endl;
+                for (const auto& [key, value] : query.attributes){
+                    std::cout << "\t\t" << key << ": " << value << std::endl;
+                }
+            }
+            if(!query.seed.empty()){
+                std::cout << "\tSeed: " << query.seed << std::endl;
+            }
+            if(!query.step.empty()){
+                std::cout << "\tStep: " << query.step << std::endl;
+            }
+            if(query.require_checkpoint){
+                std::cout << "\tRequire checkpoint: true" << std::endl;
             }
         }
         return found;
