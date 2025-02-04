@@ -263,16 +263,16 @@ int main(int argc, char** argv){
     rlt::init(device, rng, seed);
     LOOP_STATE ts;
 #ifndef BENCHMARK
-    ts.extrack_name = "dr-sac";
-    ts.extrack_population_variates = "algorithm_environment_zero-init";
-    ts.extrack_population_values = "sac_l2f_" + std::string((ZERO_ANGLE_INIT ? "true" : "false"));
+    ts.extrack_config.name = "dr-sac";
+    ts.extrack_config.population_variates = "algorithm_environment_zero-init";
+    ts.extrack_config.population_values = "sac_l2f_" + std::string((ZERO_ANGLE_INIT ? "true" : "false"));
 #endif
     rlt::malloc(device);
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD)
-    rlt::init(device, device.logger, ts.extrack_seed_path);
+    rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
     std::string parameters_json;
     if constexpr(!SAMPLE_ENV_PARAMETERS) {
@@ -314,8 +314,8 @@ int main(int argc, char** argv){
         }
     }
 #ifndef BENCHMARK
-    std::filesystem::create_directories(ts.extrack_seed_path);
-    std::ofstream return_file(ts.extrack_seed_path / "return.json");
+    std::filesystem::create_directories(ts.extrack_paths.seed);
+    std::ofstream return_file(ts.extrack_paths.seed / "return.json");
     return_file << "{";
     if constexpr(!SAMPLE_ENV_PARAMETERS) {
         return_file << "\"parameters\": " << parameters_json << ", ";
@@ -331,7 +331,7 @@ int main(int argc, char** argv){
     }
     return_file << "]";
     return_file << "}";
-    std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
+    std::ofstream return_file_confirmation(ts.extrack_paths.seed / "return.json.set");
     return_file_confirmation.close();
 #endif
 }
