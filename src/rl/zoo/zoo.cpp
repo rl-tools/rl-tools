@@ -288,24 +288,24 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 //    rlt::utils::assert_exit(device, num_seeds > 0, "Number of seeds must be greater than 0.");
     for(TI seed = initial_seed; seed < (TI)num_seeds; seed++){
         LOOP_STATE ts;
-        ts.extrack_name = "zoo";
+        ts.extrack_config.name = "zoo";
         if(extrack_base_path != ""){
-            ts.extrack_base_path = extrack_base_path;
+            ts.extrack_config.base_path = extrack_base_path;
         }
         if(extrack_experiment != ""){
-            ts.extrack_experiment = extrack_experiment;
+            ts.extrack_config.experiment = extrack_experiment;
         }
-        ts.extrack_population_variates = "environment_algorithm";
-        ts.extrack_population_values = environment + "_" + algorithm;
+        ts.extrack_config.population_variates = "environment_algorithm";
+        ts.extrack_config.population_values = environment + "_" + algorithm;
         if(extrack_experiment_path != ""){
-            ts.extrack_experiment = extrack_experiment_path;
+            ts.extrack_config.experiment = extrack_experiment_path;
         }
         rlt::malloc(device);
         rlt::init(device);
         rlt::malloc(device, ts);
         rlt::init(device, ts, seed);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
-        rlt::init(device, device.logger, ts.extrack_seed_path);
+        rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
         std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
@@ -323,8 +323,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #endif
         }
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
-        std::filesystem::create_directories(ts.extrack_seed_path);
-        std::ofstream return_file(ts.extrack_seed_path / "return.json");
+        std::filesystem::create_directories(ts.extrack_paths.seed);
+        std::ofstream return_file(ts.extrack_paths.seed / "return.json");
         return_file << "[";
         for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
             auto& result = get(ts.evaluation_results, 0, evaluation_i);
@@ -334,7 +334,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             }
         }
         return_file << "]";
-        std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
+        std::ofstream return_file_confirmation(ts.extrack_paths.seed / "return.json.set");
         return_file_confirmation.close();
 #else
         {
