@@ -14,6 +14,8 @@
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 
+#include <rl_tools/utils/extrack/operations_cpu.h>
+
 namespace rlt = rl_tools;
 
 #include "gru_model.h"
@@ -36,6 +38,21 @@ int main() {
     rlt::init(device, rng, 0);
 
 
+    rlt::utils::extrack::Path run;
+    run.attributes["algorithm"] = "gru-enwik";
+    run.require_checkpoint = true;
+    bool found_run = rlt::find_latest_run(device, "experiments", run);
+    bool found_checkpoint = rlt::find_latest_checkpoint(device, run);
+    if(found_run && found_checkpoint){
+        std::cout << "found run: " << run.checkpoint_path << std::endl;
+    }
+    else{
+        std::exit(1);
+    }
+
+
+
+
 
     typename CONFIG::MODEL model;
     typename CONFIG::MODEL::Buffer<> buffer;
@@ -45,7 +62,7 @@ int main() {
     rlt::malloc(device, model);
     rlt::malloc(device, buffer);
     rlt::malloc(device, input);
-    std::filesystem::path FILE_PATH = "model_checkpoint.h5";
+    std::filesystem::path FILE_PATH = run.checkpoint_path;
 
     {
         auto file = HighFive::File(FILE_PATH.string(), HighFive::File::ReadOnly);
@@ -104,8 +121,6 @@ int main() {
 //        std::cout << input_string << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
-
-
-
     return 0;
 }
+

@@ -46,6 +46,19 @@ namespace rl_tools{
             std::filesystem::path config;
             std::filesystem::path seed;
         };
+        struct Path{
+            std::filesystem::path path;
+            std::string experiment;
+            std::string commit;
+            std::string name;
+            std::vector<std::string> population_variates;
+            std::vector<std::string> population_values;
+            std::map<std::string, std::string> attributes;
+            std::string seed;
+            std::string step;
+            bool require_checkpoint = false;
+            std::filesystem::path checkpoint_path;
+        };
         template <typename DUMMY = bool>
         std::string get_timestamp_string(){
             // equivalent to date '+%Y-%m-%d_%H-%M-%S'
