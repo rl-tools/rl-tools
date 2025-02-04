@@ -220,7 +220,7 @@ TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MATMUL){
     {"bf16 fp32", {horizontal, bf16_fp32}},
     {"fp32 fp32", {horizontal, fp32_fp32}},
     };
-    plot(data);
+    // plot(data);
 }
 
 

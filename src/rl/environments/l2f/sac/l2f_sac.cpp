@@ -77,9 +77,9 @@ int main(){
     TI seed = 1;
     DEVICE device;
     LOOP_STATE ts;
-    ts.extrack_name = "sequential";
-    ts.extrack_population_variates = "algorithm_environment_seq-len";
-    ts.extrack_population_values = std::string("sac_l2f_") + std::to_string(SEQUENCE_LENGTH);
+    ts.extrack_config.name = "sequential";
+    ts.extrack_config.population_variates = "algorithm_environment_seq-len";
+    ts.extrack_config.population_values = std::string("sac_l2f_") + std::to_string(SEQUENCE_LENGTH);
     rlt::malloc(device);
     rlt::init(device);
     rlt::malloc(device, ts);
@@ -89,7 +89,7 @@ int main(){
     rlt::malloc(device, myrng);
     rlt::init(device, myrng, 0);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
-    rlt::init(device, device.logger, ts.extrack_seed_path);
+    rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
     bool done = false;
     while(!done){

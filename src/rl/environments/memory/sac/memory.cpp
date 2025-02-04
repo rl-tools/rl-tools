@@ -67,9 +67,9 @@ int main(){
     TI seed = 1;
     DEVICE device;
     LOOP_STATE ts;
-    ts.extrack_name = "sequential";
-    ts.extrack_population_variates = "algorithm_environment";
-    ts.extrack_population_values = "sac_memory";
+    ts.extrack_config.name = "sequential";
+    ts.extrack_config.population_variates = "algorithm_environment";
+    ts.extrack_config.population_values = "sac_memory";
     rlt::malloc(device);
     rlt::init(device);
     rlt::malloc(device, ts);
@@ -77,7 +77,7 @@ int main(){
     DEVICE::SPEC::RANDOM::ENGINE<> myrng;
     rlt::init(device, myrng, seed);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
-    rlt::init(device, device.logger, ts.extrack_seed_path);
+    rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
     bool done = false;
     while(!done){
