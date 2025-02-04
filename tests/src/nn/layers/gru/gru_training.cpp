@@ -21,6 +21,8 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
+#include <rl_tools/utils/extrack/operations_cpu.h>
+
 #ifdef RL_TOOLS_ENABLE_HDF5
 #include <rl_tools/containers/tensor/persist.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
@@ -69,7 +71,13 @@ void shuffle(DEVICE& device, RandomIt first, RandomIt last, RNG& rng) {
 int main(){
     DEVICE device;
     typename DEVICE::SPEC::RANDOM::ENGINE<> rng;
-    rlt::init(device, rng, 0);
+    TI seed = 0;
+    rlt::init(device, rng, seed);
+    rlt::utils::extrack::Config<TI> extrack_config;
+    extrack_config.name = "gru-enwik";
+    rlt::utils::extrack::Paths extrack_paths;
+
+    rlt::init(device, extrack_config, extrack_paths, seed);
 
     std::string data_path = "data/enwik8/enwik8-training.txt";
     if(!std::filesystem::exists(data_path)){

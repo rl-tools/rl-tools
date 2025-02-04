@@ -31,12 +31,14 @@ namespace rl_tools{
         }
 #endif
 
+        template <typename TI>
         struct Config{
             std::filesystem::path base_path = "experiments";
             std::string experiment;
             std::string name = "default";
             std::string population_variates = "default";
             std::string population_values = "default";
+            TI step_width = 15;
         };
         struct Paths{
             std::filesystem::path experiment;
