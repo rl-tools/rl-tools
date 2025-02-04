@@ -72,12 +72,16 @@ int main(){
     DEVICE device;
     typename DEVICE::SPEC::RANDOM::ENGINE<> rng;
     TI seed = 0;
+    rlt::init(device);
     rlt::init(device, rng, seed);
     rlt::utils::extrack::Config<TI> extrack_config;
     extrack_config.name = "gru-enwik";
     rlt::utils::extrack::Paths extrack_paths;
 
     rlt::init(device, extrack_config, extrack_paths, seed);
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+        rlt::init(device, device.logger, extrack_paths.seed);
+#endif
 
     std::string data_path = "data/enwik8/enwik8-training.txt";
     if(!std::filesystem::exists(data_path)){
@@ -130,22 +134,25 @@ int main(){
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
         for(TI sample_i=0; sample_i < dataset.size() - CONFIG::PARAMS::BATCH_SIZE; sample_i += CONFIG::PARAMS::BATCH_SIZE){
+            TI global_sample_i = epoch_i * ((TI)((dataset.size() - CONFIG::PARAMS::BATCH_SIZE) / CONFIG::PARAMS::BATCH_SIZE)) * CONFIG::PARAMS::BATCH_SIZE + sample_i;
+            rlt::set_step(device, device.logger, global_sample_i);
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
 #endif
             if(sample_i % 10000 == 0){
                 //checkpoint
 #ifdef RL_TOOLS_ENABLE_HDF5
-                std::filesystem::path FILE_PATH = "model_checkpoint.h5";
+                auto checkpoint_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, sample_i);
+                std::filesystem::path checkpoint_path = checkpoint_folder / "checkpoint.h5";
                 {
                     std::cout << "Checkpointing" << std::endl;
-                    auto file = HighFive::File(FILE_PATH, HighFive::File::Overwrite);
+                    auto file = HighFive::File(checkpoint_path, HighFive::File::Overwrite);
                     rlt::zero_gradient(device, model);
                     rlt::reset_forward_state(device, model);
                     rlt::save(device, model, file.createGroup("checkpoint"));
                 }
                 if(sample_i == 0 || sample_i == CONFIG::PARAMS::BATCH_SIZE){ // reload check
-                    auto file = HighFive::File(FILE_PATH, HighFive::File::ReadOnly);
+                    auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
                     CONFIG::MODEL model_copy;
                     rlt::malloc(device, model_copy);
                     rlt::load(device, model_copy, file.getGroup("checkpoint"));
@@ -192,7 +199,9 @@ int main(){
             // if(elapsed_print > 0.2 || sample_i % 10000 == 0){
                 T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits_matrix_view, output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
-                std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << " Bits-per-byte: " << loss/rlt::math::log(device.math, (T)2) << std::endl;
+                std::cout << "Global Sample: " << global_sample_i << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << " Bits-per-byte: " << loss/rlt::math::log(device.math, (T)2) << std::endl;
+                rlt::add_scalar(device, device.logger, "loss", loss);
+                rlt::add_scalar(device, device.logger, "bits_per_byte", loss/rlt::math::log(device.math, (T)2));
             }
             rlt::zero_gradient(device, model);
             {
