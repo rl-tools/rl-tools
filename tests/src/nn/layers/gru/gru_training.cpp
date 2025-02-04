@@ -89,13 +89,13 @@ int main(){
         return 1;
     }
     std::string dataset_string;
-    std::ifstream file(data_path);
-    if(!file.is_open()){
+    std::ifstream data_file(data_path);
+    if(!data_file.is_open()){
         std::cerr << "Failed to open file: " << data_path << std::endl;
         std::exit(-1);
     }
     std::string line;
-    while(std::getline(file, line)){
+    while(std::getline(data_file, line)){
         dataset_string += line;
     }
 
@@ -129,11 +129,41 @@ int main(){
     std::cout << "INPUT SHAPE";
     rlt::print(device, decltype(input)::SPEC::SHAPE{});
     std::cout << std::endl;
-    for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
-        shuffle(device, dataset.begin(), dataset.end(), rng);
+    std::filesystem::path resume_checkpoint;
+    // std::filesystem::path resume_checkpoint = "experiments/2025-02-04_12-58-53/b68dd6d_gru-enwik_default/default/0000/steps/000000000000000/checkpoint.h5";
+    TI epoch_i = 0;
+    TI sample_i = 0;
+    bool resuming_from_checkpoint = false;
+    decltype(rng.state) shuffle_rng_state_checkpoint;
+    if (!resume_checkpoint.empty()){
+        auto file = HighFive::File(resume_checkpoint, HighFive::File::ReadOnly);
+        auto checkpoint_group = file.getGroup("checkpoint");
+        rlt::load(device, model, checkpoint_group);
+        epoch_i = checkpoint_group.getAttribute("epoch").read<TI>();
+        sample_i = checkpoint_group.getAttribute("sample_i").read<TI>();
+        resuming_from_checkpoint = true;
+        auto rng_state_string = checkpoint_group.getAttribute("rng_state").read<std::string>();
+        rng.state = std::stoull(rng_state_string);
+        auto shuffle_rng_state_string = checkpoint_group.getAttribute("shuffle_rng_state").read<std::string>();
+        shuffle_rng_state_checkpoint = std::stoull(shuffle_rng_state_string);
+        rlt::set(device, optimizer.age, checkpoint_group.getAttribute("optimizer_state").read<TI>(), 0);
+    }
+    for(; epoch_i < 1000; epoch_i++){
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
-        for(TI sample_i=0; sample_i < dataset.size() - CONFIG::PARAMS::BATCH_SIZE; sample_i += CONFIG::PARAMS::BATCH_SIZE){
+        decltype(rng) shuffle_rng = rng;
+        if (!resuming_from_checkpoint){
+            sample_i = 0;
+        }
+        else{
+            resuming_from_checkpoint = false;
+            shuffle_rng.state = shuffle_rng_state_checkpoint;
+        }
+        decltype(rng.state) shuffle_rng_state = shuffle_rng.state;
+        std::vector<TI> dataset_indices(dataset.size());
+        std::iota(dataset_indices.begin(), dataset_indices.end(), 0);
+        shuffle(device, dataset_indices.begin(), dataset_indices.end(), shuffle_rng);
+        for(; sample_i < dataset.size() - CONFIG::PARAMS::BATCH_SIZE; sample_i += CONFIG::PARAMS::BATCH_SIZE){
             TI global_sample_i = epoch_i * ((TI)((dataset.size() - CONFIG::PARAMS::BATCH_SIZE) / CONFIG::PARAMS::BATCH_SIZE)) * CONFIG::PARAMS::BATCH_SIZE + sample_i;
             rlt::set_step(device, device.logger, global_sample_i);
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -145,17 +175,24 @@ int main(){
                 auto checkpoint_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, sample_i);
                 std::filesystem::path checkpoint_path = checkpoint_folder / "checkpoint.h5";
                 {
-                    std::cout << "Checkpointing" << std::endl;
+                    std::cout << "Checkpointing to: " << checkpoint_path << std::endl;
                     auto file = HighFive::File(checkpoint_path, HighFive::File::Overwrite);
                     rlt::zero_gradient(device, model);
                     rlt::reset_forward_state(device, model);
-                    rlt::save(device, model, file.createGroup("checkpoint"));
+                    auto checkpoint_group = file.createGroup("checkpoint");
+                    checkpoint_group.createAttribute("epoch", epoch_i);
+                    checkpoint_group.createAttribute("sample_i", sample_i);
+                    checkpoint_group.createAttribute("rng_state", std::to_string(rng.state));
+                    checkpoint_group.createAttribute("shuffle_rng_state", std::to_string(shuffle_rng_state));
+                    checkpoint_group.createAttribute("optimizer_state", rlt::get(device, optimizer.age, 0));
+                    rlt::save(device, model, checkpoint_group);
                 }
                 if(sample_i == 0 || sample_i == CONFIG::PARAMS::BATCH_SIZE){ // reload check
                     auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
                     CONFIG::MODEL model_copy;
                     rlt::malloc(device, model_copy);
-                    rlt::load(device, model_copy, file.getGroup("checkpoint"));
+                    auto checkpoint_group = file.getGroup("checkpoint");
+                    rlt::load(device, model_copy, checkpoint_group);
                     T abs_diff = rlt::abs_diff(device, model, model_copy);
                     rlt::utils::assert_exit(device, abs_diff < 1e-6, "Checkpoint failed");
                     rlt::free(device, model_copy);
@@ -165,8 +202,9 @@ int main(){
 
             for(TI batch_i = 0; batch_i < CONFIG::PARAMS::BATCH_SIZE; batch_i++){
                 for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
-                    char input_char = std::get<0>(dataset[sample_i + batch_i])[sequence_i];
-                    char output_char = std::get<1>(dataset[sample_i + batch_i])[sequence_i];
+                    TI actual_sample_i = dataset_indices[sample_i + batch_i];
+                    char input_char = std::get<0>(dataset[actual_sample_i])[sequence_i];
+                    char output_char = std::get<1>(dataset[actual_sample_i])[sequence_i];
                     if(input_char < 0) {
                         input_char = '?';
                     }
@@ -199,7 +237,7 @@ int main(){
             // if(elapsed_print > 0.2 || sample_i % 10000 == 0){
                 T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits_matrix_view, output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
-                std::cout << "Global Sample: " << global_sample_i << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << " Bits-per-byte: " << loss/rlt::math::log(device.math, (T)2) << std::endl;
+                std::cout << "Global Sample: " << global_sample_i << " Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << " Bits-per-byte: " << loss/rlt::math::log(device.math, (T)2) << std::endl;
                 rlt::add_scalar(device, device.logger, "loss", loss);
                 rlt::add_scalar(device, device.logger, "bits_per_byte", loss/rlt::math::log(device.math, (T)2));
             }
