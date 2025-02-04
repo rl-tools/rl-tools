@@ -107,6 +107,126 @@ namespace rl_tools{
         std::filesystem::create_directories(step_folder);
         return step_folder;
     }
+    template <typename DEVICE>
+    void parse_setup(DEVICE& device, std::string setup, utils::extrack::Path& path){
+        using TI = typename DEVICE::index_t;
+        std::vector<std::string> parts;
+        std::string part;
+        std::stringstream ss(setup);
+        while(std::getline(ss, part, '_')){
+            parts.push_back(part);
+        }
+        utils::assert_exit(device, parts.size() >= 3, "Invalid setup: " + setup);
+        path.commit = parts[0];
+        path.name = parts[1];
+        path.population_variates.clear();
+        for(TI i = 2; i < parts.size(); i++){
+            path.population_variates.push_back(parts[i]);
+        }
+    }
+    template <typename DEVICE>
+    void parse_config(DEVICE& device, std::string config, utils::extrack::Path& path){
+        using TI = typename DEVICE::index_t;
+        std::vector<std::string> parts;
+        std::string part;
+        std::stringstream ss(config);
+        while(std::getline(ss, part, '_')){
+            parts.push_back(part);
+        }
+        utils::assert_exit(device, parts.size() >= 1, "Invalid config: " + config);
+        utils::assert_exit(device, parts.size() == path.population_variates.size(), "Population variates <-> values mismatch" + config);
+        path.population_values.clear();
+        path.attributes.clear();
+        for(TI i = 0; i < parts.size(); i++){
+            path.population_values.push_back(parts[i]);
+            path.attributes[path.population_variates[i]] = parts[i];
+        }
+    }
+    template <typename DEVICE>
+    bool find_latest_run(DEVICE& device, std::filesystem::path experiments_path, utils::extrack::Path& p_query){
+        std::vector<std::filesystem::directory_entry> experiments{std::filesystem::directory_iterator(experiments_path), std::filesystem::directory_iterator()};
+        std::sort(experiments.begin(), experiments.end());
+        std::vector<std::string> exclude_filenames = {"index.txt", "index_directories.txt", "index_files.txt"};
+        auto in = [](const std::vector<std::string>& exclude_filenames, const std::filesystem::path& path){
+            return std::find(exclude_filenames.begin(), exclude_filenames.end(), path.filename()) != exclude_filenames.end();
+        };
+        bool found = false;
+        utils::extrack::Path query = p_query;
+        utils::extrack::Path current_path;
+        for (auto& experiment : experiments){
+            if(!in(exclude_filenames, experiment.path().filename()) && experiment.is_directory() && (query.experiment.empty() || experiment.path().filename() == query.experiment)){
+                current_path.experiment = experiment.path().filename();
+                std::vector<std::filesystem::directory_entry> setups{std::filesystem::directory_iterator(experiment), std::filesystem::directory_iterator()};
+                std::sort(setups.begin(), setups.end());
+                for (auto& setup : setups){
+                    if(setup.is_directory()){
+                        parse_setup(device, setup.path().filename(), current_path);
+                        std::vector<std::filesystem::directory_entry> configs{std::filesystem::directory_iterator(setup), std::filesystem::directory_iterator()};
+                        std::sort(configs.begin(), configs.end());
+                        for (auto& config : configs){
+                            parse_config(device, config.path().filename(), current_path);
+                            bool matches_query = true;
+                            for (const auto& [key, value] : query.attributes){
+                                auto it = current_path.attributes.find(key);
+                                if (it != current_path.attributes.end() && it->second != value) {
+                                    matches_query = false;
+                                    break;
+                                }
+                            }
+                            if(config.is_directory() && matches_query){
+                                std::vector<std::filesystem::directory_entry> seeds{std::filesystem::directory_iterator(config), std::filesystem::directory_iterator()};
+                                std::sort(seeds.begin(), seeds.end());
+                                for (auto& seed : seeds){
+                                    if(seed.is_directory()){
+                                        bool has_checkpoint = false;
+                                        auto steps_path = seed.path() / "steps";
+                                        if (std::filesystem::exists(steps_path) && std::filesystem::is_directory(steps_path)){
+                                            std::vector<std::filesystem::directory_entry> steps{std::filesystem::directory_iterator(steps_path), std::filesystem::directory_iterator()};
+                                            std::sort(steps.begin(), steps.end());
+                                            for (auto& step : steps){
+                                                if(step.is_directory()){
+                                                    if(std::filesystem::exists(step.path() / "checkpoint.h5")){
+                                                        has_checkpoint = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        current_path.seed = seed.path().filename();
+                                        current_path.path = seed.path();
+                                        if(!query.require_checkpoint || has_checkpoint){
+                                            p_query = current_path;
+                                            found = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return found;
+    }
+    template <typename DEVICE>
+    bool find_latest_checkpoint(DEVICE& device, utils::extrack::Path& p_query){
+        utils::extrack::Path query = p_query;
+        std::vector<std::filesystem::directory_entry> steps{std::filesystem::directory_iterator(query.path / "steps"), std::filesystem::directory_iterator()};
+        std::sort(steps.begin(), steps.end());
+        bool found = false;
+        utils::extrack::Path current_path = query;
+        for (auto& step : steps){
+            if(step.is_directory()){
+                if(std::filesystem::exists(step.path() / "checkpoint.h5")){
+                    current_path.step = step.path().filename();
+                    current_path.checkpoint_path = step.path() / "checkpoint.h5";
+                    p_query = current_path;
+                    found = true;
+                }
+            }
+        }
+        return found;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

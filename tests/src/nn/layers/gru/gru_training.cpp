@@ -129,8 +129,8 @@ int main(){
     std::cout << "INPUT SHAPE";
     rlt::print(device, decltype(input)::SPEC::SHAPE{});
     std::cout << std::endl;
-    std::filesystem::path resume_checkpoint;
-    // std::filesystem::path resume_checkpoint = "experiments/2025-02-04_12-58-53/b68dd6d_gru-enwik_default/default/0000/steps/000000000000000/checkpoint.h5";
+    // std::filesystem::path resume_checkpoint;
+    std::filesystem::path resume_checkpoint = "experiments/2025-02-04_15-11-42/2895169_gru-enwik_default/default/0000/steps/000000000600000/checkpoint.h5";
     TI epoch_i = 0;
     TI sample_i = 0;
     bool resuming_from_checkpoint = false;
@@ -172,7 +172,7 @@ int main(){
             if(sample_i % 10000 == 0){
                 //checkpoint
 #ifdef RL_TOOLS_ENABLE_HDF5
-                auto checkpoint_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, sample_i);
+                auto checkpoint_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, global_sample_i);
                 std::filesystem::path checkpoint_path = checkpoint_folder / "checkpoint.h5";
                 {
                     std::cout << "Checkpointing to: " << checkpoint_path << std::endl;
