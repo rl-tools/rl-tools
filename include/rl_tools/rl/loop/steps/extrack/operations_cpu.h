@@ -20,9 +20,7 @@ namespace rl_tools{
     void init(DEVICE& device, rl::loop::steps::extrack::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::extrack::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-
-        init(device, ts.extrack_paths, ts.extrack_config, seed);
-
+        init(device, ts.extrack_config, ts.extrack_paths, seed);
     }
 
 

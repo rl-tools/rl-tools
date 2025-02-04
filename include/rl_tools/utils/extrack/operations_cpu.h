@@ -17,8 +17,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE>
-    void init(DEVICE& device, utils::extrack::Paths& paths, utils::extrack::Config& config, typename DEVICE::index_t seed = 0){
+    template <typename DEVICE, typename TI>
+    void init(DEVICE& device, utils::extrack::Config<TI>& config, utils::extrack::Paths& paths, typename DEVICE::index_t seed = 0){
         if(paths.experiment.empty()){
             utils::assert_exit(device, !config.base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
             if(config.experiment.empty()){
@@ -98,6 +98,14 @@ namespace rl_tools{
         }
 #endif
 
+    }
+    template <typename DEVICE, typename TI>
+    std::filesystem::path get_step_folder(DEVICE& device, utils::extrack::Config<TI>& config, utils::extrack::Paths& paths, typename DEVICE::index_t step){
+        std::stringstream step_ss;
+        step_ss << std::setw(config.step_width) << std::setfill('0') << step;
+        std::filesystem::path step_folder = paths.seed / "steps" / step_ss.str();
+        std::filesystem::create_directories(step_folder);
+        return step_folder;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

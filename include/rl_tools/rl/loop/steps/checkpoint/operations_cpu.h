@@ -126,10 +126,7 @@ namespace rl_tools{
         using STATE = rl::loop::steps::checkpoint::State<CONFIG>;
         if(ts.step % CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0 || ts.checkpoint_this_step){
             ts.checkpoint_this_step = false;
-            std::stringstream step_ss;
-            step_ss << std::setw(15) << std::setfill('0') << ts.step;
-            std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();
-            std::filesystem::create_directories(step_folder);
+            auto step_folder = get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
             std::filesystem::path checkpoint_path = step_folder / "checkpoint.h5";
             auto& actor = get_actor(ts);
             using ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE;

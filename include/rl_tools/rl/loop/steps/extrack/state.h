@@ -14,7 +14,7 @@ namespace rl_tools::rl::loop::steps::extrack{
     struct State: T_NEXT {
         using CONFIG = T_CONFIG;
         using NEXT = T_NEXT;
-        rl_tools::utils::extrack::Config extrack_config;
+        rl_tools::utils::extrack::Config<typename T_CONFIG::TI> extrack_config;
         rl_tools::utils::extrack::Paths extrack_paths;
     };
 }
