@@ -15,7 +15,8 @@ namespace rl_tools::rl::zoo::l2f::ppo{
     struct FACTORY{
         static constexpr bool SEQUETIAL_MODEL = false;
         static constexpr bool MOTOR_DELAY = true;
-        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, SEQUETIAL_MODEL, MOTOR_DELAY>::ENVIRONMENT;
+        static constexpr bool THRASH_MARKOV = false;
+        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, SEQUETIAL_MODEL, MOTOR_DELAY, THRASH_MARKOV>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             static constexpr TI STEP_LIMIT = 6000; // ~2.5M env steps
