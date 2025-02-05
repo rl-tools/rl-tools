@@ -42,7 +42,8 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
 
 // Environment Configurations
-#include "pendulum-v1/sac_state_estimation_dataset.h"
+#include "pendulum-v1/sac.h"
+// #include "pendulum-v1/sac_state_estimation_dataset.h"
 #include "pendulum-v1/td3.h"
 #include "pendulum-v1/ppo.h"
 #include "pendulum-velocity-v1/sac.h"

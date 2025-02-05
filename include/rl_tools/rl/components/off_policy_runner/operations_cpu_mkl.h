@@ -11,9 +11,9 @@ namespace rl_tools::rl::components::off_policy_runner{
     void prologue(devices::CPU_MKL<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
         prologue((devices::CPU<DEV_SPEC>&)device, runner, rng);
     }
-    template<typename DEV_SPEC, typename SPEC, typename RNG>
-    void epilogue(devices::CPU_MKL<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
-        epilogue((devices::CPU<DEV_SPEC>&)device, runner, rng);
+    template<typename DEV_SPEC, typename SPEC, typename POLICY, typename RNG>
+    void epilogue(devices::CPU_MKL<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, const POLICY& policy, RNG& rng){
+        epilogue(static_cast<devices::CPU<DEV_SPEC>&>(device), runner, policy, rng);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

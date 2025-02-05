@@ -12,6 +12,9 @@
 #include <ctime>
 #include <sstream>
 #include <filesystem>
+#include <fstream>
+#include <string>
+#include <algorithm>
 
 #include <cstdlib>
 
