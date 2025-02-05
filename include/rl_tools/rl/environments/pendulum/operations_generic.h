@@ -152,6 +152,20 @@ namespace rl_tools{
             increment(observation, 0, 0, noise_velocity);
         }
     }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateLastAction<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationVelocityLastAction<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+        using ENVIRONMENT = rl::environments::Pendulum<SPEC>;
+        using PARAMETERS = typename ENVIRONMENT::Parameters;
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == 2);
+        using T = typename SPEC::T;
+        set(observation, 0, 0, state.theta_dot);
+        set(observation, 0, 1, state.last_action);
+        if constexpr(PARAMETERS::OBSERVATION_NOISE_VELOCITY > 0){
+            T noise_velocity = random::normal_distribution::sample(device.random, (T)0, PARAMETERS::OBSERVATION_NOISE_VELOCITY, rng);
+            increment(observation, 0, 0, noise_velocity);
+        }
+    }
     // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<STATE_SPEC>& state, typename DEVICE::index_t index){

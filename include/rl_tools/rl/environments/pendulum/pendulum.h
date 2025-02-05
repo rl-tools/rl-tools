@@ -46,6 +46,10 @@ namespace rl_tools::rl::environments::pendulum {
     struct ObservationVelocity{
         static constexpr TI DIM = 1;
     };
+    template <typename TI>
+    struct ObservationVelocityLastAction{
+        static constexpr TI DIM = 2;
+    };
 
 
     template <typename T_T, typename T_TI>
@@ -110,7 +114,7 @@ namespace rl_tools::rl::environments{
     struct PendulumVelocity: Pendulum<T_SPEC>{
         using T = typename T_SPEC::T;
         using TI = typename T_SPEC::TI;
-        using State = pendulum::StateLastAction<pendulum::StateSpecification<T, TI>>;
+        using State = pendulum::State<pendulum::StateSpecification<T, TI>>;
         using Observation = pendulum::ObservationVelocity<typename T_SPEC::TI>;
         using ObservationPrivileged = Observation;
     };
@@ -118,6 +122,18 @@ namespace rl_tools::rl::environments{
     struct PREVENT_DEFAULT_GET_UI<PendulumVelocity<SPEC>>: rl_tools::utils::typing::true_type{};
     template <typename SPEC>
     struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumVelocity<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename T_SPEC>
+    struct PendulumVelocityLastAction: Pendulum<T_SPEC>{
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::TI;
+        using State = pendulum::StateLastAction<pendulum::StateSpecification<T, TI>>;
+        using Observation = pendulum::ObservationVelocityLastAction<typename T_SPEC::TI>;
+        using ObservationPrivileged = Observation;
+    };
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_UI<PendulumVelocityLastAction<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumVelocityLastAction<SPEC>>: rl_tools::utils::typing::true_type{};
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
