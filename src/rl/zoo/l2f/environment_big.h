@@ -26,7 +26,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::l2f{
     namespace rlt = rl_tools;
     using namespace rl_tools::rl::environments::l2f;
-    template <typename DEVICE, typename T, typename TI, bool SEQUENTIAL_MODEL>
+    template <typename DEVICE, typename T, typename TI, bool SEQUENTIAL_MODEL, bool MOTOR_DELAY>
     struct ENVIRONMENT_BIG_FACTORY{
         using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, T, TI>;
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_SPEC;
@@ -110,14 +110,16 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
             static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = StateBase<T, TI>;
-            using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
+            using STATE_TYPE_MOTOR_DELAY = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
+            using STATE_TYPE_NO_MOTOR_DELAY = StateRandomForce<T, TI, STATE_BASE>;
+            using STATE_TYPE = rl_tools::utils::typing::conditional_t<MOTOR_DELAY, STATE_TYPE_MOTOR_DELAY, STATE_TYPE_NO_MOTOR_DELAY>;
             using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
+                    rl_tools::utils::typing::conditional_t<MOTOR_DELAY, observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>, observation::LastComponent<TI>>
                     // observation::ParametersMass<observation::ParametersMassSpecification<T, TI
-            >>>>>>>>>>;
+            >>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
