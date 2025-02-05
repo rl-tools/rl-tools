@@ -36,9 +36,9 @@ namespace rl_tools{
         for (TI i = 0; i < PARAM_SPEC::N; i++) {
             json += "{";
             json += "\"thrust_curve\": [";
-            json += std::to_string(parameters.rotor_thrust_coefficients[0]) + ", ";
-            json += std::to_string(parameters.rotor_thrust_coefficients[1]) + ", ";
-            json += std::to_string(parameters.rotor_thrust_coefficients[2]);
+            json += std::to_string(parameters.rotor_thrust_coefficients[i][0]) + ", ";
+            json += std::to_string(parameters.rotor_thrust_coefficients[i][1]) + ", ";
+            json += std::to_string(parameters.rotor_thrust_coefficients[i][2]);
             json += "], ";
             json += "\"torque_constant\": " + std::to_string(parameters.rotor_torque_constant) + ", ";
             json += "\"pose\": {";
@@ -161,9 +161,9 @@ namespace rl_tools{
         for (TI i = 0; i < PARAM_SPEC::N; i++){
             json += "{";
             json += "\"thrust_curve\": [";
-            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[0]) + ", ";
-            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[1]) + ", ";
-            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[2]);
+            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[i][0]) + ", ";
+            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[i][1]) + ", ";
+            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[i][2]);
             json += "], ";
             json += "\"pose\": {";
             json += "\"position\": [" + std::to_string(parameters.dynamics.rotor_positions[i][0]) + ", " + std::to_string(parameters.dynamics.rotor_positions[i][1]) + ", " + std::to_string(parameters.dynamics.rotor_positions[i][2]) + "], ";

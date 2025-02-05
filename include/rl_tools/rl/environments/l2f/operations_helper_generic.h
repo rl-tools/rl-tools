@@ -27,8 +27,10 @@ namespace rl_tools{
             T rotor_distance_perturbed = math::sqrt(device.math, perturbed.rotor_positions[rotor_i][0] * perturbed.rotor_positions[rotor_i][0] + perturbed.rotor_positions[rotor_i][1] * perturbed.rotor_positions[rotor_i][1] + perturbed.rotor_positions[rotor_i][2] * perturbed.rotor_positions[rotor_i][2]);
             log(device, device.logger, "Rotor distance[", rotor_i, "]: ", rotor_distance_nominal, " -> ", rotor_distance_perturbed, " (", percentage_change(rotor_distance_nominal, rotor_distance_perturbed), "%)");
         }
-        for (TI i = 0; i < 3; ++i) {
-            log(device, device.logger, "Rotor thrust coefficient[", i, "]: ", nominal.rotor_thrust_coefficients[i], " -> ", perturbed.rotor_thrust_coefficients[i], " (", percentage_change(nominal.rotor_thrust_coefficients[i], perturbed.rotor_thrust_coefficients[i]), "%)");
+        for (TI rotor_i = 0; rotor_i < PARAMETERS::N; ++rotor_i){
+            for (TI i = 0; i < 3; ++i) {
+                log(device, device.logger, "Rotor ", rotor_i, " thrust coefficient[", i, "]: ", nominal.rotor_thrust_coefficients[rotor_i][i], " -> ", perturbed.rotor_thrust_coefficients[rotor_i][i], " (", percentage_change(nominal.rotor_thrust_coefficients[rotor_i][i], perturbed.rotor_thrust_coefficients[rotor_i][i]), "%)");
+            }
         }
         log(device, device.logger, "Rotor torque constant: ", nominal.rotor_torque_constant, " -> ", perturbed.rotor_torque_constant, " (", percentage_change(nominal.rotor_torque_constant, perturbed.rotor_torque_constant), "%)");
         log(device, device.logger, "Motor time constant: ", nominal.motor_time_constant, " -> ", perturbed.motor_time_constant, " (", percentage_change(nominal.motor_time_constant, perturbed.motor_time_constant), "%)");

@@ -111,9 +111,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
     parameters.dynamics.J_inv[0][0] = 1.0 / parameters.dynamics.J[0][0];
     parameters.dynamics.J_inv[1][1] = 1.0 / parameters.dynamics.J[1][1];
     parameters.dynamics.J_inv[2][2] = 1.0 / parameters.dynamics.J[2][2];
-    parameters.dynamics.rotor_thrust_coefficients[0] = j["dynamics"]["thrust_curve"]["data"][0];
-    parameters.dynamics.rotor_thrust_coefficients[1] = j["dynamics"]["thrust_curve"]["data"][1];
-    parameters.dynamics.rotor_thrust_coefficients[2] = j["dynamics"]["thrust_curve"]["data"][2];
+    for (TI rotor_i = 0; rotor_i < ENVIRONMENT::Parameters::N; rotor_i++){
+        parameters.dynamics.rotor_thrust_coefficients[rotor_i][0] = j["dynamics"]["thrust_curve"]["data"][rotor_i][0];
+        parameters.dynamics.rotor_thrust_coefficients[rotor_i][1] = j["dynamics"]["thrust_curve"]["data"][rotor_i][1];
+        parameters.dynamics.rotor_thrust_coefficients[rotor_i][2] = j["dynamics"]["thrust_curve"]["data"][rotor_i][2];
+    }
     parameters.dynamics.rotor_torque_constant = j["dynamics"]["torque_constant"];
     parameters.dynamics.action_limit.min = 0;
     parameters.dynamics.action_limit.max = 1;

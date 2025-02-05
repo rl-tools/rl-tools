@@ -23,7 +23,8 @@ namespace rl_tools::rl::environments::l2f{
         using T = typename SPEC::T;
         static constexpr typename SPEC::TI N = SPEC::N;
 
-        struct Dynamics{
+        struct Dynamics
+        {
             struct ActionLimit{
                 T min;
                 T max;
@@ -31,7 +32,7 @@ namespace rl_tools::rl::environments::l2f{
             T rotor_positions[N][3];
             T rotor_thrust_directions[N][3];
             T rotor_torque_directions[N][3];
-            T rotor_thrust_coefficients[3];
+            T rotor_thrust_coefficients[N][3];
             T rotor_torque_constant;
             T mass;
             T gravity[3];
