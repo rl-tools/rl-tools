@@ -171,7 +171,7 @@ namespace rl_tools::rl::environments::l2f {
         for(typename DEVICE::index_t i_rotor = 0; i_rotor < 4; i_rotor++){
             // flops: 3 + 1 + 3 + 3 + 3 + 4 + 6 = 23
             T rpm = action[i_rotor];
-            T thrust_magnitude = params.dynamics.rotor_thrust_coefficients[0] + params.dynamics.rotor_thrust_coefficients[1] * rpm + params.dynamics.rotor_thrust_coefficients[2] * rpm * rpm;
+            T thrust_magnitude = params.dynamics.rotor_thrust_coefficients[i_rotor][0] + params.dynamics.rotor_thrust_coefficients[i_rotor][1] * rpm + params.dynamics.rotor_thrust_coefficients[i_rotor][2] * rpm * rpm;
             T rotor_thrust[3];
             rl_tools::utils::vector_operations::scalar_multiply<DEVICE, T, 3>(params.dynamics.rotor_thrust_directions[i_rotor], thrust_magnitude, rotor_thrust);
             rl_tools::utils::vector_operations::add_accumulate<DEVICE, T, 3>(rotor_thrust, thrust);
@@ -289,6 +289,7 @@ namespace rl_tools{
     static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, RNG& rng, bool reset = true){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        using PARAMETERS = typename rl::environments::Multirotor<SPEC>::Parameters;
         if(reset){
             initial_parameters(device, env, parameters);
         }
@@ -304,7 +305,7 @@ namespace rl_tools{
          *  7. Adjust inertia to fit the sampled torque to inertia ratio
          */
         T max_action = parameters.dynamics.action_limit.max;
-        T max_thrust_nominal = parameters.dynamics.rotor_thrust_coefficients[0] + parameters.dynamics.rotor_thrust_coefficients[1] * max_action + parameters.dynamics.rotor_thrust_coefficients[2] * max_action * max_action;
+        T max_thrust_nominal = parameters.dynamics.rotor_thrust_coefficients[0][0] + parameters.dynamics.rotor_thrust_coefficients[0][1] * max_action + parameters.dynamics.rotor_thrust_coefficients[0][2] * max_action * max_action;
         T gravity_norm = math::sqrt(device.math, parameters.dynamics.gravity[0] * parameters.dynamics.gravity[0] + parameters.dynamics.gravity[1] * parameters.dynamics.gravity[1] + parameters.dynamics.gravity[2] * parameters.dynamics.gravity[2]);
         T thrust_to_weight_nominal = 4 * max_thrust_nominal / (parameters.dynamics.mass * gravity_norm); // this assumes all the rotors are pointing into the same direction
 
@@ -326,10 +327,12 @@ namespace rl_tools{
             parameters.dynamics.mass = mass_new;
         }
         T factor_thrust_coefficients = factor_thrust_to_weight * factor_mass;
-        for(TI order_i = 0; order_i < 3; order_i++){
-            parameters.dynamics.rotor_thrust_coefficients[order_i] *= factor_thrust_coefficients;
+        for(TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
+            for(TI order_i = 0; order_i < 3; order_i++){
+                parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] *= factor_thrust_coefficients;
+            }
         }
-        T max_thrust = parameters.dynamics.rotor_thrust_coefficients[0] + parameters.dynamics.rotor_thrust_coefficients[1] * max_action + parameters.dynamics.rotor_thrust_coefficients[2] * max_action * max_action;
+        T max_thrust = parameters.dynamics.rotor_thrust_coefficients[0][0] + parameters.dynamics.rotor_thrust_coefficients[0][1] * max_action + parameters.dynamics.rotor_thrust_coefficients[0][2] * max_action * max_action;
         T first_rotor_distance_nominal = math::sqrt(device.math, parameters.dynamics.rotor_positions[0][0] * parameters.dynamics.rotor_positions[0][0] + parameters.dynamics.rotor_positions[0][1] * parameters.dynamics.rotor_positions[0][1] + parameters.dynamics.rotor_positions[0][2] * parameters.dynamics.rotor_positions[0][2]);
         T max_torque = first_rotor_distance_nominal * 1.414213562373095 * max_thrust; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
         T x_inertia = parameters.dynamics.J[0][0];

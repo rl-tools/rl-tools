@@ -50,9 +50,10 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             },
             // thrust constants
             {
-                0,
-                0,
-                8.74
+                {0, 0, 8.74},
+                {0, 0, 8.74},
+                {0, 0, 8.74},
+                {0, 0, 8.74}
             },
             // torque constant
 //            0.025126582278481014,

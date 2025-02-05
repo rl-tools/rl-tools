@@ -47,7 +47,12 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
                 {0, 0, +1},
             },
             // thrust constants
-            {0, 0, 15.926119900619797},
+            {
+                {0, 0, 15.926119900619797},
+                {0, 0, 15.926119900619797},
+                {0, 0, 15.926119900619797},
+                {0, 0, 15.926119900619797}
+            },
             // torque constant
             1.0847e-1,
             // mass vehicle

@@ -8,7 +8,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
-        static constexpr bool SEQUENTIAL_MODEL = true;
+        static constexpr bool SEQUENTIAL_MODEL = false;
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
