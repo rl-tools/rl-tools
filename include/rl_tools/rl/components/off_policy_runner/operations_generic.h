@@ -160,7 +160,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
+    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
         truncate_all(device, runner);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);

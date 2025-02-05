@@ -11,6 +11,8 @@
 #include <ctime>
 #include <sstream>
 #include <filesystem>
+#include <map>
+#include <vector>
 
 #include <cstdlib>
 
