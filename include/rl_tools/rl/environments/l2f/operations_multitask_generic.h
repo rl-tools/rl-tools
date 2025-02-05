@@ -22,18 +22,20 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, rl::environments::MultirotorMultiTask<SPEC>& env, typename rl::environments::MultirotorMultiTask<SPEC>::Parameters& parameters, RNG& rng, bool reset){
         using TI = typename DEVICE::index_t;
+        using T = typename SPEC::T;
+        using PARAMETERS = typename rl::environments::MultirotorMultiTask<SPEC>::Parameters;
         parameters = env.parameters;
         static_assert(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES >= 1);
         TI index = random::uniform_int_distribution(device.random, (TI)0, (TI)(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES - 1), rng);
         parameters.dynamics = SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES[index];
-        // // hack
-        // for(TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
-        //     for(TI order_i = 0; order_i < 3; order_i++){
-        //
-        //         T normal = random::normal_distribution::sample(device.random, (T)0, (T)0.1, rng);
-        //         parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] *= normal;
-        //     }
-        // }
+        if constexpr(SPEC::STATIC_PARAMETERS::RANDOMIZE_THRUST_CURVES){
+            for(TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
+                for(TI order_i = 0; order_i < 3; order_i++){
+                    T normal = random::normal_distribution::sample(device.random, (T)0, (T)0.1, rng);
+                    parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] *= (1.0 + normal);
+                }
+            }
+        }
     }
 
     namespace rl::environments::l2f::observations{
@@ -45,6 +47,24 @@ namespace rl_tools{
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
             set(observation, 0, 0, parameters.dynamics.mass);
+            auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+        }
+        template<typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::Multirotor<SPEC>::State& state, rl::environments::l2f::observation::ParametersThrustCurves<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            using PARAMETERS = typename rl::environments::Multirotor<SPEC>::Parameters;
+            static_assert(PARAMETERS::N == OBSERVATION_SPEC::N);
+            using OBSERVATION = rl::environments::l2f::observation::ParametersThrustCurves<OBSERVATION_SPEC>;
+            static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
+            static_assert(OBS_SPEC::ROWS == 1);
+            for (TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
+                for (TI order_i = 0; order_i < 3; order_i++){
+                    set(observation, 0, rotor_i * 3 + order_i, parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i]);
+                }
+            }
+            static_assert(OBSERVATION::CURRENT_DIM == 12);
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }

@@ -141,7 +141,24 @@ namespace rl_tools::rl::environments::l2f{
     namespace observation{
         template <typename T_TI>
         struct LastComponent{
+            static constexpr T_TI CURRENT_DIM = 0;
             static constexpr T_TI DIM = 0;
+        };
+        template <typename T_TI, bool T_ENABLE, typename T_CURRENT_COMPONENT, typename T_NEXT_COMPONENT=LastComponent<T_TI>>
+        struct MultiplexSpecification{
+            using TI = T_TI;
+            static constexpr bool ENABLE = T_ENABLE;
+            using CURRENT_COMPONENT = T_CURRENT_COMPONENT;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        };
+        template <typename SPEC>
+        struct Multiplex{
+            using TI = typename SPEC::TI;
+            static constexpr bool ENABLE = SPEC::ENABLE;
+            using CURRENT_COMPONENT = typename SPEC::CURRENT_COMPONENT;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr TI CURRENT_DIM = ENABLE ? CURRENT_COMPONENT::CURRENT_DIM : 0;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
         template <typename T_TI>
         struct NONE{
@@ -363,6 +380,21 @@ namespace rl_tools::rl::environments::l2f{
             using TI = typename SPEC::TI;
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 1;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+        };
+        template <typename T_T, typename T_TI, T_TI T_N, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct ParametersThrustCurvesSpecification {
+            using T = T_T;
+            using TI = T_TI;
+            static constexpr TI N = T_N;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        };
+        template <typename SPEC>
+        struct ParametersThrustCurves{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr TI CURRENT_DIM = SPEC::N * 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
     }

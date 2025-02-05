@@ -10,7 +10,8 @@ namespace rl_tools::rl::zoo::l2f::sac{
     struct FACTORY{
         static constexpr bool SEQUENTIAL_MODEL = false;
         static constexpr bool MOTOR_DELAY = true;
-        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL, MOTOR_DELAY>::ENVIRONMENT;
+        static constexpr bool THRASH_MARKOV = false;
+        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL, MOTOR_DELAY, THRASH_MARKOV>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 256;
