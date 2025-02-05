@@ -13,7 +13,8 @@ namespace rl_tools::rl::zoo::l2f::ppo{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
-        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI>::ENVIRONMENT;
+        static constexpr bool SEQUETIAL_MODEL = false;
+        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, SEQUETIAL_MODEL>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             static constexpr TI STEP_LIMIT = 6000; // ~2.5M env steps
