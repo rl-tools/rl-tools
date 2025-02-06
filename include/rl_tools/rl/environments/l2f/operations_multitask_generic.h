@@ -28,11 +28,12 @@ namespace rl_tools{
         static_assert(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES >= 1);
         TI index = random::uniform_int_distribution(device.random, (TI)0, (TI)(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES - 1), rng);
         parameters.dynamics = SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES[index];
+        static_assert(SPEC::STATIC_PARAMETERS::RANDOMIZE_THRUST_CURVES);
         if constexpr(SPEC::STATIC_PARAMETERS::RANDOMIZE_THRUST_CURVES){
             for(TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
+                T factor = random::uniform_real_distribution(device.random, (T)1.0, (T)4.0, rng);
                 for(TI order_i = 0; order_i < 3; order_i++){
-                    T normal = random::normal_distribution::sample(device.random, (T)0, (T)0.1, rng);
-                    parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] *= (1.0 + normal);
+                    parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] *= factor;
                 }
             }
         }
@@ -64,7 +65,6 @@ namespace rl_tools{
                     set(observation, 0, rotor_i * 3 + order_i, parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i]);
                 }
             }
-            static_assert(OBSERVATION::CURRENT_DIM == 12);
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
