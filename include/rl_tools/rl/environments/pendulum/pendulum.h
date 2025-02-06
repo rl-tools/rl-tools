@@ -50,6 +50,14 @@ namespace rl_tools::rl::environments::pendulum {
     struct ObservationVelocityLastAction{
         static constexpr TI DIM = 2;
     };
+    template <typename TI>
+    struct ObservationMultiTask{
+        static constexpr TI DIM = 3 + 1;
+    };
+    template <typename TI>
+    struct ObservationMeta{
+        static constexpr TI DIM = 3 + 1;
+    };
 
 
     template <typename T_T, typename T_TI>
@@ -72,6 +80,14 @@ namespace rl_tools::rl::environments::pendulum {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         T last_action;
+    };
+    template <typename T_SPEC>
+    struct StateMultiTask: State<T_SPEC>{
+        bool invert_action;
+    };
+    template <typename T_SPEC>
+    struct StateMeta: StateLastAction<T_SPEC>{
+        bool invert_action;
     };
 
 }
@@ -134,6 +150,32 @@ namespace rl_tools::rl::environments{
     struct PREVENT_DEFAULT_GET_UI<PendulumVelocityLastAction<SPEC>>: rl_tools::utils::typing::true_type{};
     template <typename SPEC>
     struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumVelocityLastAction<SPEC>>: rl_tools::utils::typing::true_type{};
+
+    template <typename T_SPEC>
+    struct PendulumMultiTask: Pendulum<T_SPEC>{
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::TI;
+        using State = pendulum::StateMultiTask<pendulum::StateSpecification<T, TI>>;
+        using Observation = pendulum::ObservationMultiTask<typename T_SPEC::TI>;
+        using ObservationPrivileged = Observation;
+    };
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_UI<PendulumMultiTask<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumMultiTask<SPEC>>: rl_tools::utils::typing::true_type{};
+
+    template <typename T_SPEC>
+    struct PendulumMeta: Pendulum<T_SPEC>{
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::TI;
+        using State = pendulum::StateMeta<pendulum::StateSpecification<T, TI>>;
+        using Observation = pendulum::ObservationMeta<typename T_SPEC::TI>;
+        using ObservationPrivileged = Observation;
+    };
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_UI<PendulumMeta<SPEC>>: rl_tools::utils::typing::true_type{};
+    template <typename SPEC>
+    struct PREVENT_DEFAULT_GET_DESCRIPTION<PendulumMeta<SPEC>>: rl_tools::utils::typing::true_type{};
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
