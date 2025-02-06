@@ -54,6 +54,11 @@ namespace rl_tools{
         sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state), rng);
         state.last_action = 0;
     }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state, RNG& rng){
+        sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state), rng);
+        state.invert_action = random::uniform_int_distribution(device.random, 0, 1, rng) == 1;
+    }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::pendulum::State<STATE_SPEC>& next_state, RNG& rng) {
         static_assert(ACTION_SPEC::ROWS == 1);
@@ -83,6 +88,27 @@ namespace rl_tools{
         using T = typename SPEC::T;
         T dt = step(device, env, parameters, static_cast<const typename rl::environments::pendulum::State<STATE_SPEC>&>(state), action, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(next_state), rng);
         next_state.last_action = get(action, 0, 0);
+        return dt;
+    }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& next_state, RNG& rng){
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        Matrix<matrix::Specification<T, TI, 1, 1, false>> modified_action;
+        set(modified_action, 0, 0, state.invert_action ? -get(action, 0, 0) : get(action, 0, 0));
+        T dt = step(device, env, parameters, static_cast<const typename rl::environments::pendulum::State<STATE_SPEC>&>(state), modified_action, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(next_state), rng);
+        next_state.invert_action = state.invert_action;
+        return dt;
+    }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& next_state, RNG& rng){
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        Matrix<matrix::Specification<T, TI, 1, 1, false>> modified_action;
+        set(modified_action, 0, 0, state.invert_action ? -get(action, 0, 0) : get(action, 0, 0));
+        T dt = step(device, env, parameters, static_cast<const typename rl::environments::pendulum::State<STATE_SPEC>&>(state), modified_action, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(next_state), rng);
+        next_state.last_action = get(action, 0, 0);
+        next_state.invert_action = state.invert_action;
         return dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename STATE_SPEC, typename RNG>
@@ -165,6 +191,28 @@ namespace rl_tools{
             T noise_velocity = random::normal_distribution::sample(device.random, (T)0, PARAMETERS::OBSERVATION_NOISE_VELOCITY, rng);
             increment(observation, 0, 0, noise_velocity);
         }
+    }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationMultiTask<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+        using ENVIRONMENT = rl::environments::Pendulum<SPEC>;
+        using PARAMETERS = typename ENVIRONMENT::Parameters;
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == 3 + 1);
+        using T = typename SPEC::T;
+        auto upstream_view = view(device, observation, matrix::ViewSpec<1, 3>{}, 0, 0);
+        observe(device, env, parameters, state, typename rl::environments::pendulum::ObservationFourier<OBS_TYPE_SPEC>{}, upstream_view, rng);
+        set(observation, 0, 3, state.invert_action ? -1 : 1);
+    }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationMeta<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+        using ENVIRONMENT = rl::environments::Pendulum<SPEC>;
+        using PARAMETERS = typename ENVIRONMENT::Parameters;
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == 3 + 1);
+        using T = typename SPEC::T;
+        auto upstream_view = view(device, observation, matrix::ViewSpec<1, 3>{}, 0, 0);
+        observe(device, env, parameters, state, typename rl::environments::pendulum::ObservationFourier<OBS_TYPE_SPEC>{}, upstream_view, rng);
+        set(observation, 0, 3, state.last_action);
     }
     // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
