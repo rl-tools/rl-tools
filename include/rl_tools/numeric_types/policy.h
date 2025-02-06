@@ -24,8 +24,9 @@ namespace rl_tools::numeric_types{
             typename LookupType<TAG, DEFAULT, REST_USE_CASES...>::T
         >;
     };
-    template<typename DEFAULT, typename... USE_CASES>
+    template<typename T_DEFAULT, typename... USE_CASES>
     struct Policy{
+        using DEFAULT = T_DEFAULT;
         template<typename TAG>
         using GET = typename LookupType<TAG, DEFAULT, USE_CASES...>::T;
     };

@@ -147,7 +147,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate_per_sample(DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using PARAMETERS = typename SPEC::PARAMETERS;
         T log_prob = 0;
         for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
@@ -198,7 +198,6 @@ namespace rl_tools{
         static_assert(OUTPUT_SPEC::COLS == SPEC::DIM);
         static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
         using PARAMETERS = typename SPEC::PARAMETERS;
         for(TI row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
             evaluate_per_sample(device, layer, input, output, buffer, rng, row_i, mode);
@@ -212,7 +211,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void forward_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         // copy of the evaluate but with the log_probabilities commented in
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>;
         using PARAMETERS = typename SPEC::PARAMETERS;
         T log_prob = 0;
         for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
@@ -263,7 +262,7 @@ namespace rl_tools{
     void forward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(INPUT_SPEC::COLS == 2*SPEC::DIM);
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>;
         using PARAMETERS = typename SPEC::PARAMETERS;
         {
             // logging
@@ -287,8 +286,8 @@ namespace rl_tools{
         utils::assert_exit(device, false, "Not implemented");
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        using T = typename SPEC::T;
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, typename SPEC::TYPE_POLICY::DEFAULT alpha, typename DEVICE::index_t batch_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
         using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
@@ -357,12 +356,12 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;
         using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
         constexpr TI BATCH_SIZE = LAYER::SPEC::INTERNAL_BATCH_SIZE;
         constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
-        T log_alpha = get(layer.log_alpha.parameters, 0, 0);
+        T log_alpha = get(device, layer.log_alpha.parameters, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
         {
             // logging
@@ -394,7 +393,7 @@ namespace rl_tools{
         else{
             d_log_alpha /= INTERNAL_BATCH_SIZE;
         }
-        increment(layer.log_alpha.gradient, 0, 0, d_log_alpha); // note if changing the BATCH_SIZE to INTERNAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
+        increment(device, layer.log_alpha.gradient, d_log_alpha, 0); // note if changing the BATCH_SIZE to INTERNAL_BATCH_SIZE (loss: mean over BATCH & sum over SEQ_LEN vs mean over BATCH & mean over SEQ_LEN) mind to also change it in the sac/operations_generic.h
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto output(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& l){
@@ -482,7 +481,7 @@ namespace rl_tools{
         return upstream_nan || is_nan(device, l.log_probabilities, mode) || is_nan(device, l.output, mode);
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T gradient_norm(DEVICE& device, const nn::layers::sample_and_squash::LayerGradient<SPEC>& layer) {
+    auto gradient_norm(DEVICE& device, const nn::layers::sample_and_squash::LayerGradient<SPEC>& layer) {
         return 0;
     }
 }

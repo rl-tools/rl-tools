@@ -899,7 +899,7 @@ namespace rl_tools{
         return tensor;
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T gradient_norm(DEVICE& device, const nn::layers::gru::LayerGradient<SPEC>& layer) {
+    auto gradient_norm(DEVICE& device, const nn::layers::gru::LayerGradient<SPEC>& layer) {
         return gradient_norm(device, layer.weights_input) + gradient_norm(device, layer.weights_hidden) + gradient_norm(device, layer.biases_input) + gradient_norm(device, layer.biases_hidden) + gradient_norm(device, layer.initial_hidden_state);
     }
 }

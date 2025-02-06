@@ -480,8 +480,8 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T gradient_norm(DEVICE& device, const nn_models::sequential::ModuleForward<SPEC>& model, bool initial = true){
-        using T = typename SPEC::T;
+    RL_TOOLS_FUNCTION_PLACEMENT auto gradient_norm(DEVICE& device, const nn_models::sequential::ModuleForward<SPEC>& model, bool initial = true){
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         T return_value = gradient_norm(device, model.content);
         if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>) {
             return_value += gradient_norm(device, model.next_module, false);
