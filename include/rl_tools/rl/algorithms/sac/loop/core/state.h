@@ -13,7 +13,8 @@ namespace rl_tools{
         template<typename T_CONFIG>
         struct State{
             using CONFIG = T_CONFIG;
-            using T = typename CONFIG::T;
+            using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
+            using T_INPUT = typename TYPE_POLICY::template GET<nn::numeric_types::categories::Input>;
             using TI = typename CONFIG::TI;
             // typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
             // typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizers[2];
@@ -25,13 +26,13 @@ namespace rl_tools{
             typename CONFIG::ACTOR_CRITIC_TYPE actor_critic;
             rl::components::off_policy_runner::SequentialBatch<typename CONFIG::CRITIC_BATCH_SPEC> critic_batch;
             rl::algorithms::sac::CriticTrainingBuffers<rl::algorithms::sac::CriticTrainingBuffersSpecification<typename CONFIG::ACTOR_CRITIC_SPEC, CONFIG::DYNAMIC_ALLOCATION>> critic_training_buffers[2];
-            Matrix<matrix::Specification<T, TI, CONFIG::TARGET_SEQUENCE_LENGTH * CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM, CONFIG::DYNAMIC_ALLOCATION>> action_noise_critic;
+            Matrix<matrix::Specification<T_INPUT, TI, CONFIG::TARGET_SEQUENCE_LENGTH * CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM, CONFIG::DYNAMIC_ALLOCATION>> action_noise_critic;
             typename CONFIG::NN::CRITIC_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> critic_buffers[2];
             using TARGET_CRITIC = typename rl_tools::utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])>::template CHANGE_SEQUENCE_LENGTH<TI, CONFIG::TARGET_SEQUENCE_LENGTH>;
             typename TARGET_CRITIC::template Buffer<CONFIG::DYNAMIC_ALLOCATION> critic_target_buffers[2];
             rl::components::off_policy_runner::SequentialBatch<typename CONFIG::ACTOR_BATCH_SPEC> actor_batch;
             rl::algorithms::sac::ActorTrainingBuffers<rl::algorithms::sac::ActorTrainingBuffersSpecification<typename CONFIG::ACTOR_CRITIC_TYPE::SPEC, CONFIG::DYNAMIC_ALLOCATION>> actor_training_buffers;
-            Matrix<matrix::Specification<T, TI, CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH * CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM, CONFIG::DYNAMIC_ALLOCATION>> action_noise_actor;
+            Matrix<matrix::Specification<T_INPUT, TI, CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH * CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM, CONFIG::DYNAMIC_ALLOCATION>> action_noise_actor;
             typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffers[2];
             using TARGET_ACTOR = typename decltype(actor_critic.actor)::template CHANGE_SEQUENCE_LENGTH<TI, CONFIG::TARGET_SEQUENCE_LENGTH>;
             typename TARGET_ACTOR::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_target_buffers[2];

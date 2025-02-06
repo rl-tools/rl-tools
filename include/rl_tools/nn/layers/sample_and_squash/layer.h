@@ -20,8 +20,9 @@ namespace rl_tools{
                 // this mode uses the noise from the Buffer for debugging / no-side-effect inference
             };
         }
-        template <typename T>
+        template <typename TYPE_POLICY>
         struct DefaultParameters{
+            using T = typename TYPE_POLICY::DEFAULT;
             static constexpr T LOG_STD_LOWER_BOUND = -20;
             static constexpr T LOG_STD_UPPER_BOUND = 2;
             static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
@@ -42,22 +43,23 @@ namespace rl_tools{
 
         template <typename BUFFER_SPEC>
         struct Buffer{
+            using T_BUFFER = typename BUFFER_SPEC::SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Buffer>;
             using LAYER_SPEC = typename BUFFER_SPEC::SPEC;
-            using NOISE_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using NOISE_CONTAINER_SPEC = matrix::Specification<T_BUFFER, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using NOISE_CONTAINER_TYPE = Matrix<NOISE_CONTAINER_SPEC>;
             NOISE_CONTAINER_TYPE noise;
 
-            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename LAYER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<T_BUFFER, typename LAYER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using LOG_PROBABILITIES_CONTAINER_TYPE = Matrix<LOG_PROBABILITIES_CONTAINER_SPEC>;
             LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
 
-            using D_LOG_ALPHA_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using D_LOG_ALPHA_CONTAINER_SPEC = matrix::Specification<T_BUFFER, typename BUFFER_SPEC::TI, 1, LAYER_SPEC::INTERNAL_BATCH_SIZE, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using D_LOG_ALPHA_CONTAINER_TYPE = Matrix<D_LOG_ALPHA_CONTAINER_SPEC>;
             D_LOG_ALPHA_CONTAINER_TYPE d_log_alpha;
         };
-        template<typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
+        template<typename T_TYPE_POLICY, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_TYPE_POLICY>>
         struct Configuration {
-            using T = T_T;
+            using TYPE_POLICY = T_TYPE_POLICY;
             using TI = T_TI;
             using PARAMETERS = T_PARAMETERS;
         };
@@ -66,7 +68,7 @@ namespace rl_tools{
             using CONFIG = T_CONFIG;
             using CAPABILITY = T_CAPABILITY;
             using INPUT_SHAPE = T_INPUT_SHAPE;
-            using T = typename CONFIG::T;
+            using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
             using TI = typename CONFIG::TI;
             static constexpr TI DIM_2X = get_last(INPUT_SHAPE{});
             static_assert(DIM_2X % 2 == 0, "Sample and squash layer: The dimension of the input shape must be divisible by 2.");
@@ -82,7 +84,7 @@ namespace rl_tools{
         template <typename T_SPEC>
         struct LayerForward{
             using SPEC = T_SPEC;
-            using T = typename SPEC::T;
+            using TYPE_POLICY = typename SPEC::TYPE_POLICY;
             using TI = typename SPEC::TI;
             static constexpr TI DIM = SPEC::DIM;
             static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
@@ -105,22 +107,25 @@ namespace rl_tools{
         struct LayerBackward: public LayerForward<SPEC> {
 //            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
             // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
-            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
+            using ACTIVATION_TYPE = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Activation>;
+            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
             using PRE_ACTIVATIONS_CONTAINER_TYPE = Matrix<PRE_ACTIVATIONS_CONTAINER_SPEC>;
             PRE_ACTIVATIONS_CONTAINER_TYPE pre_squashing, noise;
         };
         template<typename SPEC>
         struct LayerGradient: public LayerBackward<SPEC> {
+            using TI = typename SPEC::TI;
 //            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
-            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::INTERNAL_BATCH_SIZE, SPEC::DYNAMIC_ALLOCATION>;
+            using ACTIVATION_TYPE = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Activation>;
+            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, 1, SPEC::INTERNAL_BATCH_SIZE, SPEC::DYNAMIC_ALLOCATION>;
             using LOG_PROBABILITIES_CONTAINER_TYPE = Matrix<LOG_PROBABILITIES_CONTAINER_SPEC>;
             LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
-            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
+            using OUTPUT_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
             using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
             OUTPUT_CONTAINER_TYPE output;
-            using ALPHA_CONTAINER = Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, 1, SPEC::DYNAMIC_ALLOCATION>>;
-            using ALPHA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<ALPHA_CONTAINER, nn::parameters::categories::Biases, nn::parameters::groups::Normal>;
-            typename SPEC::PARAMETER_TYPE::template instance<ALPHA_PARAMETER_SPEC> log_alpha;
+            using ALPHA_SHAPE = tensor::Shape<TI, 1>;
+            using ALPHA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<typename SPEC::TYPE_POLICY, TI, ALPHA_SHAPE, nn::parameters::categories::Biases, nn::parameters::groups::Normal, SPEC::DYNAMIC_ALLOCATION>;
+            typename SPEC::PARAMETER_TYPE::template Instance<ALPHA_PARAMETER_SPEC> log_alpha;
         };
         template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
         using Layer =

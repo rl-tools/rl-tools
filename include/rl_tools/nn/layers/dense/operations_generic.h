@@ -56,7 +56,7 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng){
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         T gain;
         if constexpr(INITIALIZER_SPEC::INIT_LEGACY){
@@ -72,13 +72,13 @@ namespace rl_tools{
         T bias_bound = 1/math::sqrt(device.math, (T)SPEC::INPUT_DIM);
         for(TI i = 0; i < SPEC::OUTPUT_DIM; i++) {
             if constexpr(INITIALIZER_SPEC::INIT_LEGACY) {
-                set(layer.biases.parameters, 0, i, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng));
+                set(device, layer.biases.parameters, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng), i);
             }
             else{
-                set(layer.biases.parameters, 0, i, 0);
+                set(device, layer.biases.parameters, 0, i);
             }
             for(TI j = 0; j < SPEC::INPUT_DIM; j++) {
-                set(layer.weights.parameters, i, j, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng));
+                set(device, layer.weights.parameters, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng), i, j);
             }
         }
     }
@@ -93,14 +93,15 @@ namespace rl_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // Warning do not use the same buffer for input and output!
         using TI = typename DEVICE::index_t;
+        using ACCUMULATOR_TYPE = typename OUTPUT_SPEC::T;
         constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
-                set(output, batch_i, output_i, get(layer.biases.parameters, 0, output_i));
+                set(output, batch_i, output_i, get(device, layer.biases.parameters, output_i));
                 for(TI input_i = 0; input_i < LAYER_SPEC::INPUT_DIM; input_i++) {
-                    increment(output, batch_i, output_i, get(layer.weights.parameters, output_i, input_i) * get(input, batch_i, input_i));
+                    increment(output, batch_i, output_i, get(device, layer.weights.parameters, output_i, input_i) * get(input, batch_i, input_i));
                 }
-                set(output, batch_i, output_i, activation<typename DEVICE::SPEC::MATH, typename LAYER_SPEC::T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, batch_i, output_i)));
+                set(output, batch_i, output_i, activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, batch_i, output_i)));
             }
         }
     }
@@ -110,16 +111,16 @@ namespace rl_tools{
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using ACCUMULATOR_TYPE = typename OUTPUT_SPEC::T;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI i = 0; i < LAYER_SPEC::OUTPUT_DIM; i++) {
-                set(layer.pre_activations, batch_i, i, get(layer.biases.parameters, 0, i));
+                set(layer.pre_activations, batch_i, i, get(device, layer.biases.parameters, i));
                 for(TI j = 0; j < LAYER_SPEC::INPUT_DIM; j++) {
-                    increment(layer.pre_activations, batch_i, i, get(layer.weights.parameters, i, j) * get(input, batch_i, j));
+                    increment(layer.pre_activations, batch_i, i, get(device, layer.weights.parameters, i, j) * get(input, batch_i, j));
                 }
-                set(output, batch_i, i, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, i)));
+                set(output, batch_i, i, activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, i)));
             }
         }
     }
@@ -145,16 +146,16 @@ namespace rl_tools{
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         using SPEC = LAYER_SPEC;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {
-                typename SPEC::T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
                 for(TI input_j = 0; input_j < SPEC::INPUT_DIM; input_j++) {
                     if(output_i == 0){
                         set(d_input, batch_i, input_j, 0);
                     }
-                    increment(d_input, batch_i, input_j, get(layer.weights.parameters, output_i, input_j) * d_pre_activation);
+                    increment(d_input, batch_i, input_j, get(device, layer.weights.parameters, output_i, input_j) * d_pre_activation);
                 }
             }
         }
@@ -168,15 +169,15 @@ namespace rl_tools{
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using GRADIENT_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
-                T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
-                increment(layer.biases.gradient, 0, output_i, d_pre_activation);
+                GRADIENT_TYPE d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, GRADIENT_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                increment(device, layer.biases.gradient, d_pre_activation, output_i);
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
-                    increment(layer.weights.gradient, output_i, input_i, d_pre_activation * get(input, batch_i, input_i));
+                    increment(device, layer.weights.gradient, d_pre_activation * get(input, batch_i, input_i), output_i, input_i);
                 }
             }
         }
@@ -191,19 +192,19 @@ namespace rl_tools{
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using GRADIENT_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
-                T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
-                increment(layer.biases.gradient, 0, output_i, d_pre_activation);
+                GRADIENT_TYPE d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, GRADIENT_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                increment(device, layer.biases.gradient, d_pre_activation, output_i);
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
                     if(output_i == 0){
                         set(d_input, batch_i, input_i, 0);
                     }
-                    increment(d_input, batch_i, input_i, get(layer.weights.parameters, output_i, input_i) * d_pre_activation);
-                    increment(layer.weights.gradient, output_i, input_i, d_pre_activation * get(input, batch_i, input_i));
+                    increment(d_input, batch_i, input_i, get(device, layer.weights.parameters, output_i, input_i) * d_pre_activation);
+                    increment(device, layer.weights.gradient, d_pre_activation * get(input, batch_i, input_i), output_i, input_i);
                 }
             }
         }
@@ -386,7 +387,7 @@ namespace rl_tools{
         backward_full(device, layer, matrix_view_input, matrix_view_d_output, matrix_view_d_input, buffer, mode);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T gradient_norm(DEVICE& device, const nn::layers::dense::LayerGradient<SPEC>& layer) {
+    RL_TOOLS_FUNCTION_PLACEMENT auto gradient_norm(DEVICE& device, const nn::layers::dense::LayerGradient<SPEC>& layer) {
         return gradient_norm(device, layer.weights) + gradient_norm(device, layer.biases);
     }
 }

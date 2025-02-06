@@ -65,8 +65,8 @@ namespace rl_tools {
             static_assert(INPUT_SPEC::COLS == MODEL_SPEC::INPUT_DIM);
             static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
             static_assert(OUTPUT_SPEC::COLS == MODEL_SPEC::OUTPUT_DIM);
-            static_assert(utils::typing::is_same_v<typename MODEL_SPEC::T, typename INPUT_SPEC::T>);
-            static_assert(utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
+            // static_assert(utils::typing::is_same_v<typename MODEL_SPEC::T, typename INPUT_SPEC::T>);
+            // static_assert(utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
             return true;
         }
         template <typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
@@ -132,12 +132,11 @@ namespace rl_tools {
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
         static_assert(BUFFER_MODEL_SPEC::INTERNAL_BATCH_SIZE == BATCH_SIZE);
         static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
-        using T = typename MODEL_SPEC::T;
         using TI = typename DEVICE::index_t;
 
         backward_input(device, network.output_layer, d_output, buffer.tick, buffer.layer_buffer, mode);
-        for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
-            typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
+        for (TI layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
+            TI layer_i = layer_i_plus_one - 1;
             if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
                 backward_input(device, network.hidden_layers[layer_i], buffer.tick, buffer.tock, buffer.layer_buffer, mode);
             } else {
@@ -206,7 +205,6 @@ namespace rl_tools {
 
     template<typename DEVICE, typename SPEC, typename ADAM_PARAMETERS>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& network, nn::optimizers::Adam<ADAM_PARAMETERS>& optimizer) {
-        using T = typename SPEC::T;
         update(device, network.input_layer, optimizer);
         for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             update(device, network.hidden_layers[layer_i], optimizer);
@@ -344,9 +342,9 @@ namespace rl_tools{
         backward_full(device, model, matrix_view_input, matrix_view_d_output, matrix_view_d_input, buffer, mode);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T gradient_norm(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<SPEC>& model){
+    RL_TOOLS_FUNCTION_PLACEMENT auto gradient_norm(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<SPEC>& model){
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         T return_value = 0;
         return_value += gradient_norm(device, model.input_layer);
         for(TI layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){

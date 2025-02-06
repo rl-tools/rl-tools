@@ -59,7 +59,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, template <typename> typename DATA, typename POLICY_EVALUATION_BUFFERS, typename MODE>
     void evaluate(DEVICE& device, ENVIRONMENT& env_init, typename ENVIRONMENT::Parameters& input_parameters, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, const Mode<MODE>& mode, bool deterministic = false, bool sample_environment_parameters = true){
-        using T = typename POLICY::T;
+        using T = typename POLICY::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI INPUT_DIM = get_last(typename POLICY::INPUT_SHAPE{});
         constexpr TI OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});

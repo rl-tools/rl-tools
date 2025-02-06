@@ -29,7 +29,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using NEXT = T_NEXT;
         using EVALUATION_PARAMETERS = T_PARAMETERS;
         using UI = T_UI;
-        using T = typename NEXT::T;
+        using T = typename NEXT::TYPE_POLICY::DEFAULT;
         using TI = typename NEXT::TI;
         using EVALUATION_SPEC = rl::utils::evaluation::Specification<T, TI, typename NEXT::ENVIRONMENT_EVALUATION, EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>;
         using EVALUATION_RESULT_SPEC = rl::utils::evaluation::Specification<T, TI, typename NEXT::ENVIRONMENT_EVALUATION, EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>;
