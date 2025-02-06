@@ -1,8 +1,8 @@
 // #define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
 
-// #ifdef RL_TOOLS_RL_ZOO_BENCHMARK
+#ifdef RL_TOOLS_RL_ZOO_BENCHMARK
 #undef RL_TOOLS_ENABLE_TENSORBOARD
-// #endif
+#endif
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -132,7 +132,7 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to ha
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_MULTITASK_V1)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_multitask_v1::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
-struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: rlt::rl::zoo::pendulum_multitask_v1::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
@@ -375,7 +375,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             RNG rng;
             rlt::init(device, rng, seed);
             rlt::Mode<rlt::mode::Evaluation<>> evaluation_mode;
-            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, eval_buffer, rng, evaluation_mode, false, true);
+            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, eval_buffer, rng, evaluation_mode, LOOP_CONFIG::EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE, true);
             rlt::free(device, evaluation_actor);
             rlt::log(device, device.logger, "Seed: ", seed, " Step: ", ts.step, "/", LOOP_CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
         }
