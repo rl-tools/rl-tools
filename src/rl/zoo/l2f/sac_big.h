@@ -5,15 +5,15 @@
 #include <rl_tools/utils/generic/typing.h>
 
 namespace rl_tools::rl::zoo::l2f::sac{
-    namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
         static constexpr bool SEQUENTIAL_MODEL = false;
-        static constexpr bool MOTOR_DELAY = true;
-        static constexpr bool THRASH_MARKOV = false;
-        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL, MOTOR_DELAY, THRASH_MARKOV>::ENVIRONMENT;
-        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
+        static constexpr bool MOTOR_DELAY = false;
+        static constexpr bool THRASH_MARKOV = true;
+        static constexpr bool OBSERVE_THRASH_MARKOV = true;
+        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL, MOTOR_DELAY, THRASH_MARKOV, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
+        struct LOOP_CORE_PARAMETERS: algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+            struct SAC_PARAMETERS: algorithms::sac::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 256;
                 static constexpr TI CRITIC_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 256;
                 static constexpr TI TRAINING_INTERVAL = SEQUENTIAL_MODEL ? 1 : 16;
@@ -31,16 +31,16 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = SEQUENTIAL_MODEL ? 4 : 3;
             static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 32: 32;
-            static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI CRITIC_NUM_LAYERS = SEQUENTIAL_MODEL ? 4 : 3;
             static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 128 : 256;
-            static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;
             static constexpr TI N_WARMUP_STEPS = 10000; // Exploration executed with a uniform random policy for N_WARMUP_STEPS steps
             static constexpr TI N_WARMUP_STEPS_CRITIC = 10000; // Number of steps before critic training starts
             static constexpr TI N_WARMUP_STEPS_ACTOR = 10000; // Number of steps before actor training starts
-            struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct OPTIMIZER_PARAMETERS_COMMON: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
                 static constexpr T GRADIENT_CLIP_VALUE = 1;
                 static constexpr bool ENABLE_WEIGHT_DECAY = false;
@@ -67,8 +67,8 @@ namespace rl_tools::rl::zoo::l2f::sac{
         // this config is competitive with mlp but 15x slower
 
         using LOOP_CORE_CONFIG = rl_tools::utils::typing::conditional_t<SEQUENTIAL_MODEL,
-            rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>,
-            rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>
+            algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>,
+            algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>
         >;
     };
 }
