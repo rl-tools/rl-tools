@@ -286,6 +286,12 @@ namespace rl_tools{
         }
     }
 
+    template<typename DEVICE, typename SPEC, typename TII, typename... INDICES> //, typename utils::typing::enable_if_t<tensor::RANK_LARGER_THAN<typename SPEC::SHAPE, 1>>* = nullptr>
+    RL_TOOLS_FUNCTION_PLACEMENT void increment(DEVICE& device, Tensor<SPEC>& tensor, typename SPEC::T value, const TII index, const INDICES... indices){
+        typename SPEC::T current = get(device, tensor, index, indices...);
+        set(device, tensor, current + value, index, indices...);
+    }
+
     template<typename FROM_DEVICE, typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(FROM_DEVICE& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
         using TI = typename FROM_DEVICE::index_t;

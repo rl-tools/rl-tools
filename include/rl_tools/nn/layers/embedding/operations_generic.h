@@ -205,7 +205,7 @@ namespace rl_tools{
         return tensor;
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T gradient_norm(DEVICE& device, const nn::layers::embedding::LayerGradient<SPEC>& layer) {
+    auto gradient_norm(DEVICE& device, const nn::layers::embedding::LayerGradient<SPEC>& layer) {
         return gradient_norm(device, layer.weights);
     }
 }

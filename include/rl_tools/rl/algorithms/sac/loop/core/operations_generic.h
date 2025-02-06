@@ -71,7 +71,7 @@ namespace rl_tools{
     void init(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         utils::assert_exit(device, ts.allocated, "State not allocated");
         using CONFIG = T_CONFIG;
-        using T = typename CONFIG::T;
+        // using T = typename CONFIG::T;
         using TI = typename DEVICE::index_t;
 
         init(device, ts.rng, seed);

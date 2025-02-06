@@ -23,8 +23,9 @@ namespace rl_tools::nn::optimizers{
             T weight_decay_output;
             T bias_lr_factor;
         };
-        template <typename T>
+        template <typename TYPE_POLICY>
         struct DEFAULT_PARAMETERS_TENSORFLOW{
+            using T = typename TYPE_POLICY::DEFAULT;
             static constexpr T ALPHA = 0.001;
             static constexpr T BETA_1 = 0.9;
             static constexpr T BETA_2 = 0.999;
@@ -39,14 +40,15 @@ namespace rl_tools::nn::optimizers{
             static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
             static constexpr T GRADIENT_CLIP_VALUE = 1;
         };
-        template <typename T>
-        struct DEFAULT_PARAMETERS_PYTORCH: DEFAULT_PARAMETERS_TENSORFLOW<T>{
+        template <typename TYPE_POLICY>
+        struct DEFAULT_PARAMETERS_PYTORCH: DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
+            using T = typename TYPE_POLICY::DEFAULT;
             static constexpr T EPSILON = 1e-8;
             static constexpr T EPSILON_SQRT = 1e-8;
         };
-        template <typename T_T, typename T_TI, typename T_DEFAULT_PARAMETERS=DEFAULT_PARAMETERS_TENSORFLOW<T_T>, bool T_DYNAMIC_ALLOCATION = true>
+        template <typename T_TYPE_POLICY, typename T_TI, typename T_DEFAULT_PARAMETERS=DEFAULT_PARAMETERS_TENSORFLOW<T_TYPE_POLICY>, bool T_DYNAMIC_ALLOCATION = true>
         struct Specification{
-            using T = T_T;
+            using T = typename T_TYPE_POLICY::DEFAULT;
             using TI = T_TI;
             using DEFAULT_PARAMETERS = T_DEFAULT_PARAMETERS;
             static constexpr bool ENABLE_WEIGHT_DECAY = DEFAULT_PARAMETERS::ENABLE_WEIGHT_DECAY;
@@ -82,18 +84,22 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters {
     struct Adam{
-        template <typename T_CONTAINER, typename T_GROUP_TAG, typename T_CATEGORY_TAG>
-        struct spec {
-            using CONTAINER = T_CONTAINER;
+        template <typename T_TYPE_POLICY, typename T_TI, typename T_SHAPE, typename T_GROUP_TAG, typename T_CATEGORY_TAG, bool T_DYNAMIC_ALLOCATION>
+        struct Specification{
+            using TYPE_POLICY = T_TYPE_POLICY;
+            using TI = T_TI;
+            using SHAPE = T_SHAPE;
             using GROUP_TAG = T_GROUP_TAG;
             using CATEGORY_TAG = T_CATEGORY_TAG;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         };
         template <typename T_SPEC>
-        struct instance: Gradient::instance<T_SPEC>{
+        struct Instance: Gradient::Instance<T_SPEC>{
             using SPEC = T_SPEC;
-            using CONTAINER = typename SPEC::CONTAINER;
-            CONTAINER gradient_first_order_moment;
-            CONTAINER gradient_second_order_moment;
+            using T = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::OptimizerState>;
+            using TENSOR_SPEC = tensor::Specification<T, typename SPEC::TI, typename SPEC::SHAPE>;
+            Tensor<TENSOR_SPEC> gradient_first_order_moment;
+            Tensor<TENSOR_SPEC> gradient_second_order_moment;
         };
     };
 }

@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_MODELS_MLP_NETWORK_H
 
 #include "../../nn/nn.h"
+#include "../../nn/numeric_types.h"
 #include "../../nn/parameters/parameters.h"
 #include "../../nn/optimizers/sgd/sgd.h"
 #include "../../nn/optimizers/adam/adam.h"
@@ -12,9 +13,9 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp {
-    template <typename T_T, typename T_TI, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>, bool T_IS_INPUT=true, bool T_IS_OUTPUT=true>
+    template <typename T_TYPE_POLICY, typename T_TI, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_TYPE_POLICY, T_TI>, bool T_IS_INPUT=true, bool T_IS_OUTPUT=true>
     struct Configuration{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr T_TI NUM_LAYERS = T_NUM_LAYERS; // The input and output layers count towards the total number of layers
@@ -34,7 +35,7 @@ namespace rl_tools::nn_models::mlp {
         using CONFIG = T_CONFIG;
         using CAPABILITY = T_CAPABILITY;
         using INPUT_SHAPE = T_INPUT_SHAPE;
-        using T = typename CONFIG::T;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename CONFIG::TI;
         static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
         template <typename NEW_INPUT_SHAPE>
@@ -43,9 +44,9 @@ namespace rl_tools::nn_models::mlp {
         static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<INPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the INTERNAL_BATCH_SIZE accounts for all leading dimensions.
         static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_DIM * INPUT_DIM + CONFIG::OUTPUT_DIM;
 
-        using INPUT_LAYER_CONFIG  = nn::layers::dense::Configuration<T, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, utils::typing::conditional_t<CONFIG::IS_INPUT, nn::parameters::groups::Input, nn::parameters::groups::Normal>>;
-        using HIDDEN_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, nn::parameters::groups::Normal>;
-        using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<T, TI, CONFIG::OUTPUT_DIM, CONFIG::OUTPUT_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, utils::typing::conditional_t<CONFIG::IS_OUTPUT ,nn::parameters::groups::Output, nn::parameters::groups::Normal>>;
+        using INPUT_LAYER_CONFIG  = nn::layers::dense::Configuration<TYPE_POLICY, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, utils::typing::conditional_t<CONFIG::IS_INPUT, nn::parameters::groups::Input, nn::parameters::groups::Normal>>;
+        using HIDDEN_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, CONFIG::HIDDEN_DIM, CONFIG::HIDDEN_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, nn::parameters::groups::Normal>;
+        using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, CONFIG::OUTPUT_DIM, CONFIG::OUTPUT_ACTIVATION_FUNCTION, typename CONFIG::LAYER_INITIALIZER, utils::typing::conditional_t<CONFIG::IS_OUTPUT ,nn::parameters::groups::Output, nn::parameters::groups::Normal>>;
         using INPUT_LAYER = nn::layers::dense::Layer<INPUT_LAYER_CONFIG, CAPABILITY, INPUT_SHAPE>;
         using HIDDEN_LAYER = nn::layers::dense::Layer<HIDDEN_LAYER_CONFIG, CAPABILITY, typename INPUT_LAYER::SPEC::OUTPUT_SHAPE>;
         using OUTPUT_LAYER = nn::layers::dense::Layer<OUTPUT_LAYER_CONFIG, CAPABILITY, typename HIDDEN_LAYER::SPEC::OUTPUT_SHAPE>;
@@ -53,8 +54,8 @@ namespace rl_tools::nn_models::mlp {
 
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
-            utils::typing::is_same_v<typename SPEC_1::T, typename SPEC_2::T>
-            && SPEC_1::INPUT_DIM == SPEC_2::INPUT_DIM
+            // utils::typing::is_same_v<typename SPEC_1::T, typename SPEC_2::T>
+            SPEC_1::INPUT_DIM == SPEC_2::INPUT_DIM
             && SPEC_1::OUTPUT_DIM == SPEC_2::OUTPUT_DIM
             && SPEC_1::NUM_LAYERS == SPEC_2::NUM_LAYERS
             && SPEC_1::HIDDEN_DIM == SPEC_2::HIDDEN_DIM;
@@ -81,13 +82,18 @@ namespace rl_tools::nn_models::mlp {
         static constexpr TI DIM = SPEC::HIDDEN_DIM;
     };
 
+    struct BuffersTag {
+        using CATEGORY = nn::numeric_types::categories::Accumulator;
+    };
+
     template<typename T_BUFFER_SPEC>
     struct NeuralNetworkBuffers{
         using BUFFER_SPEC = T_BUFFER_SPEC;
         using MLP_SPEC = typename BUFFER_SPEC::SPEC;
-        using T = typename MLP_SPEC::T;
+        using TYPE_POLICY = typename MLP_SPEC::TYPE_POLICY;
         using TI = typename MLP_SPEC::TI;
         static constexpr TI INTERNAL_BATCH_SIZE = T_BUFFER_SPEC::INTERNAL_BATCH_SIZE;
+        using T = typename MLP_SPEC::TYPE_POLICY::template GET<BuffersTag>;
         using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, INTERNAL_BATCH_SIZE, BUFFER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
         using TICK_TOCK_CONTAINER_TYPE = Matrix<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
@@ -99,7 +105,7 @@ namespace rl_tools::nn_models::mlp {
     template<typename T_SPEC>
     struct NeuralNetworkForward{
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         // Could be dependent on the capability but in this case the buffer-requirements of forward and backward are the same
 

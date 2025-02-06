@@ -29,13 +29,13 @@ static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<TestTag>, float>);
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
-using T = float;
+using T_DEFAULT = float;
 using TI = typename DEVICE::index_t;
 
-using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T_DEFAULT, TI, rlt::rl::environments::pendulum::DefaultParameters<T_DEFAULT>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM>{
         static constexpr TI ACTOR_BATCH_SIZE = 100;
         static constexpr TI CRITIC_BATCH_SIZE = 100;
     };
@@ -46,14 +46,14 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
 };
 #ifdef BENCHMARK
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #else
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
-struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_EXTRACK_CONFIG>{
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, LOOP_EXTRACK_CONFIG>{
     static constexpr TI EVALUATION_EPISODES = 100;
 };
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_EXTRACK_CONFIG, LOOP_EVAL_PARAMETERS>;

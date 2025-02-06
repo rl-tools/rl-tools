@@ -3,6 +3,8 @@
 #pragma once
 #define RL_TOOLS_NN_PARAMETERS_PARAMETERS_H
 
+#include "../../nn/numeric_types.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters{
     namespace mode{
@@ -31,31 +33,39 @@ namespace rl_tools::nn::parameters{
 
     struct Plain{
         // todo: evaluate replacing the instance mechanism with a tag similar to the container type tags
-        template <typename T_CONTAINER, typename T_GROUP_TAG, typename T_CATEGORY_TAG>
-        struct spec {
-            using CONTAINER = T_CONTAINER;
+        template <typename T_TYPE_POLICY, typename T_TI, typename T_SHAPE, typename T_GROUP_TAG, typename T_CATEGORY_TAG, bool T_DYNAMIC_ALLOCATION>
+        struct Specification{
+            using TYPE_POLICY = T_TYPE_POLICY;
+            using TI = T_TI;
+            using SHAPE = T_SHAPE;
             using GROUP_TAG = T_GROUP_TAG;
             using CATEGORY_TAG = T_CATEGORY_TAG;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         };
         template <typename T_SPEC>
-        struct instance{
+        struct Instance{
             using SPEC = T_SPEC;
-            using CONTAINER = typename SPEC::CONTAINER;
-            CONTAINER parameters;
+            using T = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Parameter>;
+            using TENSOR_SPEC = tensor::Specification<T, typename SPEC::TI, typename SPEC::SHAPE>;
+            Tensor<TENSOR_SPEC> parameters;
         };
     };
     struct Gradient{
-        template <typename T_CONTAINER, typename T_GROUP_TAG, typename T_CATEGORY_TAG>
-        struct spec {
-            using CONTAINER = T_CONTAINER;
+        template <typename T_TYPE_POLICY, typename T_TI, typename T_SHAPE, typename T_GROUP_TAG, typename T_CATEGORY_TAG, bool T_DYNAMIC_ALLOCATION>
+        struct Specification{
+            using TYPE_POLICY = T_TYPE_POLICY;
+            using TI = T_TI;
+            using SHAPE = T_SHAPE;
             using GROUP_TAG = T_GROUP_TAG;
             using CATEGORY_TAG = T_CATEGORY_TAG;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         };
         template <typename T_SPEC>
-        struct instance: Plain::instance<T_SPEC>{
+        struct Instance: Plain::Instance<T_SPEC>{
             using SPEC = T_SPEC;
-            using CONTAINER = typename SPEC::CONTAINER;
-            CONTAINER gradient;
+            using T = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
+            using TENSOR_SPEC = tensor::Specification<T, typename SPEC::TI, typename SPEC::SHAPE>;
+            Tensor<TENSOR_SPEC> gradient;
         };
     };
 }

@@ -128,7 +128,7 @@ namespace rl_tools{
     template <typename DEVICE, typename BATCH_SPEC, typename BUFFER_SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER, typename TI_SAMPLE>
     RL_TOOLS_FUNCTION_PLACEMENT void target_action_values_per_sample(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<BUFFER_SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER alpha, TI_SAMPLE batch_step_i){
         using SPEC = typename BUFFER_SPEC::SPEC;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<BUFFER_SPEC>;
         using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
@@ -161,14 +161,14 @@ namespace rl_tools{
     template <typename DEVICE, typename BATCH_SPEC, typename TRAINING_BUFFER_SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER>
     void target_action_values(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER& log_alpha) {
         using SPEC = typename TRAINING_BUFFER_SPEC::SPEC;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>;
         using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
         constexpr TI BATCH_SIZE = BATCH::BATCH_SIZE;
         constexpr TI SEQUENCE_LENGTH = BATCH::SEQUENCE_LENGTHH;
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
-        T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(log_alpha.parameters, 0, 0));
+        T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(device, log_alpha.parameters, 0));
         for(TI batch_step_i = 0; batch_step_i < SEQUENCE_LENGTH * BATCH_SIZE; batch_step_i++){
             target_action_values_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
         }
@@ -240,7 +240,7 @@ namespace rl_tools{
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("sac::train_critic");
 #endif
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
         // static_assert(SEQUENCE_LENGTH >= 2, "currently only supports sequence length >= 2");
@@ -357,7 +357,7 @@ namespace rl_tools{
         auto critic_2_output = output(device, actor_critic.critics[1]);
         auto critic_2_output_matrix_view = matrix_view(device, critic_2_output);
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         constexpr TI CRITIC_INPUT_DIM = get_last(typename SPEC::CRITIC_NETWORK_TYPE::INPUT_SHAPE{});
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
@@ -392,7 +392,7 @@ namespace rl_tools{
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("sac::train_actor");
 #endif
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr bool CPU_DEVICE = DEVICE::DEVICE_ID == devices::DeviceId::CPU || DEVICE::DEVICE_ID == devices::DeviceId::CPU_ACCELERATE || DEVICE::DEVICE_ID == devices::DeviceId::CPU_BLAS || DEVICE::DEVICE_ID == devices::DeviceId::CPU_MKL;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
@@ -481,12 +481,12 @@ namespace rl_tools{
 
     namespace rl::algorithms::sac{
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn::layers::dense::LayerForward<SOURCE_SPEC>& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
+        void update_target_module(DEVICE& device, const  nn::layers::dense::LayerForward<SOURCE_SPEC>& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
             rl_tools::utils::polyak::update(device, source.weights.parameters, target.weights.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.biases.parameters , target.biases.parameters , polyak);
         }
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
+        void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
             rl_tools::utils::polyak::update(device, source.weights_input.parameters, target.weights_input.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.biases_input.parameters, target.biases_input.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.weights_hidden.parameters, target.weights_hidden.parameters, polyak);
