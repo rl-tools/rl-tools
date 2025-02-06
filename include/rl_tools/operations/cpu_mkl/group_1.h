@@ -6,6 +6,7 @@
     #define RL_TOOLS_OPERATIONS_CPU_MKL_GROUP_1
     #include <mkl.h>
     #include "../../devices/cpu_mkl.h"
+    #include "../../numeric_types/policy.h"
     #include "../../utils/assert/declarations_cpu.h"
     #include "../../math/operations_cpu.h"
     #include "../../logging/operations_cpu.h"

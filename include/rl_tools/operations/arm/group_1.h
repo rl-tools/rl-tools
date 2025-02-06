@@ -6,6 +6,7 @@
 #if defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_ARM_GROUP_1)
     #define RL_TOOLS_OPERATIONS_ARM_GROUP_1
     #include "../../devices/arm.h"
+    #include "../../numeric_types/policy.h"
 //    #include "../../utils/assert/declarations_arm.h"
     #include "../../math/operations_arm.h"
     #include "../../logging/operations_arm.h"

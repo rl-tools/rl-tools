@@ -10,13 +10,22 @@
 
 
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>
+#include <rl_tools/rl/loop/steps/extrack/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
+#include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 namespace rlt = rl_tools;
+
+
+struct TestTag{};
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
+static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<TestTag>, float>);
+
+
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
@@ -43,10 +52,11 @@ using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #else
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
-struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
+using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_EXTRACK_CONFIG>{
     static constexpr TI EVALUATION_EPISODES = 100;
 };
-using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS>;
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_EXTRACK_CONFIG, LOOP_EVAL_PARAMETERS>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #endif
@@ -58,6 +68,9 @@ void run(TI seed = 0){
     LOOP_STATE ts;
     rlt::malloc(device, ts);
     rlt::init(device, ts, 0);
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+        rlt::init(device, device.logger, ts.extrack_seed_path);
+#endif
     while(!rlt::step(device, ts)){
 #ifndef BENCHMARK
         if(ts.step == 5000){
@@ -68,6 +81,7 @@ void run(TI seed = 0){
         std::this_thread::sleep_for(std::chrono::duration<T>(8.072980403900147e-05)); // python gymnasium Pendulum-v1 step time
 #endif
     }
+    rlt::free(device, device.logger);
     rlt::free(device, ts);
 }
 
