@@ -59,6 +59,11 @@ namespace rl_tools{
         sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state), rng);
         state.invert_action = random::uniform_int_distribution(device.random, 0, 1, rng) == 1;
     }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state, RNG& rng){
+        sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state), rng);
+        state.invert_action = random::uniform_int_distribution(device.random, 0, 1, rng) == 1;
+    }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::pendulum::State<STATE_SPEC>& next_state, RNG& rng) {
         static_assert(ACTION_SPEC::ROWS == 1);
