@@ -1,8 +1,8 @@
 // #define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
 
-#ifdef RL_TOOLS_RL_ZOO_BENCHMARK
+// #ifdef RL_TOOLS_RL_ZOO_BENCHMARK
 #undef RL_TOOLS_ENABLE_TENSORBOARD
-#endif
+// #endif
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
