@@ -324,8 +324,10 @@ namespace rl_tools{
         }
         backward(device, critic, batch.observations_and_actions_current, training_buffers.d_output, critic_buffers, reset_mode);
         if constexpr(CPU_DEVICE){
-            T critic_gradient_norm = gradient_norm(device, critic);
-            add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm);
+            if (get_step(device, device.logger) % 101 == 0){
+                T critic_gradient_norm = gradient_norm(device, critic);
+                add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm);
+            }
         }
         step(device, optimizer, critic);
     }
