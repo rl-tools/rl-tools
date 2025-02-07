@@ -56,6 +56,13 @@
         .file-select option {
             padding: 8px 12px;
         }
+        .presets {
+            /*display: flex;*/
+            /*justify-content: space-between;*/
+            /*align-items: flex-start;*/
+            margin-bottom: 20px;
+            gap: 20px;
+        }
         #editor {
             width: 100%;
             height: 400px;
@@ -157,6 +164,14 @@
             </div>
         </div>
     </div>
+    <div class="presets">
+        <span style="margin-right: 0.2em;">Presets: </span>
+        <span class="presets-span">
+            <button class="preset-button" onclick='load_preset("general_action_trajectory", "Action Trajectory")'>Action Trajectory</button>
+            <button class="preset-button" onclick='load_preset("l2f_distribution", "L2F Distribution")'>L2F Distribution</button>
+            <button class="preset-button" onclick='load_preset("l2f_visualization", "L2F Visualization")'>L2F Visualization</button>
+        </span>
+    </div>
     <div id="editor"></div>
     <div id="output" class="output"></div>
     <div id="output2" class="output" style="display: none;">
@@ -171,6 +186,8 @@
         VIM_MODE: 'editor_vim_mode',
         SELECTED_FILES: 'selected_files'
     };
+
+    let load_preset = null
 
     async function fetchAndProcessIndex() {
         try {
@@ -198,6 +215,16 @@
             fontSize: '14px',
             showPrintMargin: false,
         });
+
+        load_preset = (preset_id, preset_name) => {
+            if(confirm(`Do you want to load the preset "${preset_name}" (id: "${preset_id}")?`)){
+                fetch(`./terminal/${preset_id}.js`)
+                    .then(res => res.text())
+                    .then(text => {
+                        editor.setValue(text, -1);
+                    })
+            }
+        }
 
         const savedCode = localStorage.getItem(STORAGE_KEYS.CODE) || `// Selected files data is available as 'data' object
 // Keys are file paths, values are file contents

@@ -22,6 +22,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         T linear_acceleration;
         T angular_acceleration;
         T action;
+        T d_action;
         struct Components{
             T orientation_cost;
             T position_cost;
@@ -30,6 +31,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             T linear_acc_cost;
             T angular_acc_cost;
             T action_cost;
+            T d_action_cost;
             T weighted_cost;
             T scaled_weighted_cost;
             T reward;
@@ -53,13 +55,17 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         components.angular_acc_cost = math::sqrt(device.math, angular_acc[0] * angular_acc[0] + angular_acc[1] * angular_acc[1] + angular_acc[2] * angular_acc[2]) / parameters.integration.dt;
 
         T action_diff[ACTION_DIM];
+        components.d_action_cost = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T action_throttle_relative = (get(action, 0, action_i) + (T)1.0)/(T)2.0;
             action_diff[action_i] = action_throttle_relative - parameters.dynamics.hovering_throttle_relative;
+            T d_action_value = get(action, 0, action_i) - state.last_action[action_i];
+            components.d_action_cost += d_action_value * d_action_value;
         }
         components.action_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         components.action_cost *= components.action_cost;
-        components.weighted_cost = reward_parameters.position * components.position_cost + reward_parameters.orientation * components.orientation_cost + reward_parameters.linear_velocity * components.linear_vel_cost + reward_parameters.angular_velocity * components.angular_vel_cost + reward_parameters.linear_acceleration * components.linear_acc_cost + reward_parameters.angular_acceleration * components.angular_acc_cost + reward_parameters.action * components.action_cost;
+        components.d_action_cost = math::sqrt(device.math, components.d_action_cost);
+        components.weighted_cost = reward_parameters.position * components.position_cost + reward_parameters.orientation * components.orientation_cost + reward_parameters.linear_velocity * components.linear_vel_cost + reward_parameters.angular_velocity * components.angular_vel_cost + reward_parameters.linear_acceleration * components.linear_acc_cost + reward_parameters.angular_acceleration * components.angular_acc_cost + reward_parameters.action * components.action_cost + reward_parameters.d_action * components.d_action_cost;
         bool terminated_flag = terminated(device, env, parameters, next_state, rng);
         components.scaled_weighted_cost = reward_parameters.scale * components.weighted_cost;
 

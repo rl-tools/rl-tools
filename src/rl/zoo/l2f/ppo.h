@@ -16,7 +16,7 @@ namespace rl_tools::rl::zoo::l2f::ppo{
         static constexpr bool SEQUETIAL_MODEL = false;
         static constexpr bool MOTOR_DELAY = false;
         static constexpr bool THRASH_MARKOV = true;
-        static constexpr bool OBSERVE_THRASH_MARKOV = false;
+        static constexpr bool OBSERVE_THRASH_MARKOV = true;
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, SEQUETIAL_MODEL, MOTOR_DELAY, THRASH_MARKOV, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{

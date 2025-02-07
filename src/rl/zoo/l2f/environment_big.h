@@ -44,7 +44,8 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
-                02.00, // action
+                00.00, // action
+                10.00, // d_action
         };
 //        static constexpr auto reward_function = [](){
 //            auto reward_function = ENVIRONMENT_FACTORY::reward_function;
