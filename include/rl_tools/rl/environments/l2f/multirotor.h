@@ -412,6 +412,16 @@ namespace rl_tools::rl::environments::l2f{
         T angular_velocity[3];
     };
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    struct StateLastAction: T_NEXT_COMPONENT{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI ACTION_DIM = 4;
+        static constexpr TI DIM = ACTION_DIM + NEXT_COMPONENT::DIM;
+        T last_action[ACTION_DIM];
+    };
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
     struct StateLinearAcceleration: T_NEXT_COMPONENT{
         using T = T_T;
         T linear_acceleration[3]; // this is just to save computation when simulating IMU measurements. Wihtout this we would need to recalculate the acceleration in the observation operation. This is not part of the minimal state in the sense that the transition dynamics are independent of the acceleration given the other parts of the state and the action

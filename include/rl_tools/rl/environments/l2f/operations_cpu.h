@@ -349,6 +349,13 @@ class State{
 
 export class Drone{
   constructor(model, origin, displayIMUCoordinateSystem, displayActions){
+    const url = window.location.href;
+    const urlObj = new URL(url);
+    const params = new URLSearchParams(urlObj.search);
+    if(params.has('L2FDisplayActions') === true){
+        displayActions = params.get('L2FDisplayActions') === "true";
+    }
+
     // console.log(model)
     this.origin = origin
     this.model = model
@@ -557,6 +564,12 @@ export async function render_multi(ui_state, parameters, steps){
   steps.map((step, i) => {
     ui_state.drones[i].droneFrame.position.set(...step.state.position)
     ui_state.drones[i].droneFrame.quaternion.copy(new THREE.Quaternion(step.state.orientation[1], step.state.orientation[2], step.state.orientation[3], step.state.orientation[0]).normalize())
+    for(let j = 0; j < 4; j++){
+      const forceArrow = ui_state.drones[i].rotors[j].forceArrow
+      const force_magnitude = step.action[j]
+      forceArrow.setDirection(new THREE.Vector3(0, 0, force_magnitude))
+      forceArrow.setLength(Math.cbrt(ui_state.drones[i].scale)/10)
+    }
   })
   update_camera(ui_state)
 }
