@@ -14,11 +14,30 @@ namespace rl_tools{
     std::string json(DEVICE&, rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters){
         return "{}";
     }
-    template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE&, rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::Pendulum<SPEC>::State& state){
+    template <typename DEVICE, typename SPEC, typename STATE_SPEC>
+    std::string json(DEVICE&, rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::State<STATE_SPEC>& state){
         std::string json = "{";
         json += "\"theta\":" + std::to_string(state.theta) + ",";
         json += "\"theta_dot\":" + std::to_string(state.theta_dot);
+        json += "}";
+        return json;
+    }
+    template <typename DEVICE, typename SPEC, typename STATE_SPEC>
+    std::string json(DEVICE&, rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state){
+        std::string json = "{";
+        json += "\"theta\":" + std::to_string(state.theta) + ",";
+        json += "\"theta_dot\":" + std::to_string(state.theta_dot);
+        json += "\"invert_action\":" + std::to_string(state.invert_action);
+        json += "}";
+        return json;
+    }
+    template <typename DEVICE, typename SPEC, typename STATE_SPEC>
+    std::string json(DEVICE&, rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state){
+        std::string json = "{";
+        json += "\"theta\":" + std::to_string(state.theta) + ",";
+        json += "\"theta_dot\":" + std::to_string(state.theta_dot) + ",";
+        json += "\"invert_action\":" + std::to_string(state.invert_action) + ",";
+        json += "\"last_action\":" + std::to_string(state.last_action);
         json += "}";
         return json;
     }

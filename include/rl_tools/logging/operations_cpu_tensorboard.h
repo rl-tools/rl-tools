@@ -58,6 +58,10 @@ namespace rl_tools{
     void set_step(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, typename DEVICE::index_t step){
         logger.step = step;
     }
+    template <typename DEVICE, typename SPEC>
+    typename DEVICE::index_t get_step(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger){
+        return logger.step;
+    }
     template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE, typename CADANCE_TYPE, typename SPEC>
     void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence){
         std::lock_guard<std::mutex> lock(logger.mutex);
