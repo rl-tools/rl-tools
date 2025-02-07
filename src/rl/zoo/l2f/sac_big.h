@@ -22,7 +22,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
-                static constexpr T TARGET_ENTROPY = -((T)4);
+                static constexpr T TARGET_ENTROPY = -((T)1);
                 static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL_MODEL ? 16 : 1;
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
             };
@@ -53,7 +53,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T ALPHA = 3e-4;
             };
             struct ALPHA_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
-                static constexpr T ALPHA = 3e-4;
+                static constexpr T ALPHA = 1e-4;
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
             struct BATCH_SAMPLING_PARAMETERS{
