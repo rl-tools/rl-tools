@@ -1,4 +1,9 @@
 // #define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+
+#ifdef RL_TOOLS_ENABLE_TRACY
+#include "Tracy.hpp"
+#endif
 
 #ifdef RL_TOOLS_RL_ZOO_BENCHMARK
 #undef RL_TOOLS_ENABLE_TENSORBOARD
@@ -331,6 +336,9 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
 #endif
         while(!rlt::step(device, ts)){
+#ifdef RL_TOOLS_ENABLE_TRACY
+            FrameMark;
+#endif
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
             if(signal_flag){
                 ts.evaluate_this_step = true;
