@@ -61,7 +61,14 @@ namespace rl_tools{
             static_assert(OBS_SPEC::ROWS == 1);
             for (TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
                 for (TI order_i = 0; order_i < 3; order_i++){
-                    set(observation, 0, rotor_i * 3 + order_i, parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i]);
+                    T value = parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i];
+                    if (order_i < 2){
+                        value *= 100;
+                    }
+                    else{
+                        value *= 10;
+                    }
+                    set(observation, 0, rotor_i * 3 + order_i, value);
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);

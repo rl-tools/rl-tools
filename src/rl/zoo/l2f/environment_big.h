@@ -41,7 +41,7 @@ namespace rl_tools::rl::zoo::l2f{
                 10.00, // position
                 02.50, // orientation
                 01.00, // linear_velocity
-                00.00, // angular_velocity
+                00.20, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
                 02.00, // action
