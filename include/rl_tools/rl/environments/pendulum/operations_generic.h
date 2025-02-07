@@ -44,6 +44,16 @@ namespace rl_tools{
         initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state));
         state.last_action = 0;
     }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state){
+        initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state));
+        state.invert_action = false;
+    }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state){
+        sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::StateLastAction<STATE_SPEC>&>(state));
+        state.invert_action = false;
+    }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::State<STATE_SPEC>& state, RNG& rng){
         state.theta     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
@@ -61,7 +71,8 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state, RNG& rng){
-        sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state), rng);
+        sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::StateLastAction<STATE_SPEC>&>(state), rng);
+        // initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::StateLastAction<STATE_SPEC>&>(state));
         state.invert_action = random::uniform_int_distribution(device.random, 0, 1, rng) == 1;
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>

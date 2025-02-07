@@ -110,7 +110,7 @@ namespace rl_tools{
                 malloc(device, evaluation_actor);
                 auto actor = get_actor(ts);
                 copy(device, device, actor, evaluation_actor);
-                evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_save_trajectories_buffers, ts.rng_save_trajectories, ts.evaluation_mode, false, CONFIG::EVALUATION_PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
+                evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_save_trajectories_buffers, ts.rng_save_trajectories, ts.evaluation_mode, CONFIG::EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE, CONFIG::EVALUATION_PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
                 free(device, evaluation_actor);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
