@@ -35,17 +35,17 @@ namespace rl_tools::rl::zoo::l2f{
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
         static constexpr REWARD_FUNCTION reward_function = {
                 false, // non-negative
-                00.10, // scale
-                01.10, // constant
+                01.00, // scale
+                01.50, // constant
                 00.00, // termination penalty
-                10.00, // position
-                02.50, // orientation
-                01.00, // linear_velocity
+                01.00, // position
+                00.10, // orientation
+                00.00, // linear_velocity
                 00.00, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
                 00.00, // action
-                10.00, // d_action
+                01.00, // d_action
         };
 //        static constexpr auto reward_function = [](){
 //            auto reward_function = ENVIRONMENT_FACTORY::reward_function;

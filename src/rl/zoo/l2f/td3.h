@@ -8,7 +8,11 @@ namespace rl_tools::rl::zoo::l2f::td3{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
-        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
+        static constexpr bool SEQUETIAL_MODEL = false;
+        static constexpr bool MOTOR_DELAY = false;
+        static constexpr bool THRASH_MARKOV = true;
+        static constexpr bool OBSERVE_THRASH_MARKOV = true;
+        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, SEQUETIAL_MODEL, MOTOR_DELAY, THRASH_MARKOV, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
