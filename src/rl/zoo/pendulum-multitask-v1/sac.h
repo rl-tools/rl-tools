@@ -14,7 +14,7 @@ namespace rl_tools::rl::zoo::pendulum_multitask_v1::sac{
                 static constexpr TI CRITIC_BATCH_SIZE = 100;
                 static constexpr TI SEQUENCE_LENGTH = 20;
             };
-            static constexpr TI STEP_LIMIT = 50000;
+            static constexpr TI STEP_LIMIT = 100000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI N_WARMUP_STEPS = 1000;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
