@@ -21,7 +21,7 @@ namespace rl_tools::rl::components::off_policy_runner{
 #ifdef __CUDA_ARCH__
             printf("GPU: Episode return: %f\n", episode_return);
 #else
-            std::cout << "CPU: Episode return: " << episode_return << std::endl;
+            // std::cout << "CPU: Episode return: " << episode_return << std::endl;
             add_scalar(device, device.logger, "off_policy_runner/episode_return", get(runner.episode_return, 0, env_i));
             add_scalar(device, device.logger, "off_policy_runner/episode_step", get(runner.episode_step, 0, env_i));
 #endif
