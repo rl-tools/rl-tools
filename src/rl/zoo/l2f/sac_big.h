@@ -16,7 +16,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
             struct SAC_PARAMETERS: algorithms::sac::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 256;
                 static constexpr TI CRITIC_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 256;
-                static constexpr TI TRAINING_INTERVAL = SEQUENTIAL_MODEL ? 1 : 1;
+                static constexpr TI TRAINING_INTERVAL = SEQUENTIAL_MODEL ? 1 : 16;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
@@ -27,14 +27,14 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
             };
             static constexpr TI N_ENVIRONMENTS = SEQUENTIAL_MODEL ? SAC_PARAMETERS::SEQUENCE_LENGTH : 1;
-            static constexpr TI STEP_LIMIT = SEQUENTIAL_MODEL ? 2000000 : 200000;
+            static constexpr TI STEP_LIMIT = SEQUENTIAL_MODEL ? 2000000 : 4000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = SEQUENTIAL_MODEL ? 4 : 3;
-            static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 32: 32;
-            static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 32: 256;
+            static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI CRITIC_NUM_LAYERS = SEQUENTIAL_MODEL ? 4 : 3;
             static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 128 : 256;
-            static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;
             static constexpr TI N_WARMUP_STEPS = 0; // Exploration executed with a uniform random policy for N_WARMUP_STEPS steps
@@ -47,7 +47,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr T WEIGHT_DECAY = 0.0001;
             };
             struct ACTOR_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
-                static constexpr T ALPHA = 1e-4;
+                static constexpr T ALPHA = 3e-4;
             };
             struct CRITIC_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
                 static constexpr T ALPHA = 3e-4;

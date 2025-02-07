@@ -84,7 +84,7 @@ namespace rl_tools::rl::components::off_policy_runner{
         step(device, env, parameters, state, action, next_state, rng);
 
         T reward_value = reward(device, env, parameters, state, action, next_state, rng);
-        // log_reward(device, env, parameters, state, action, next_state, rng, 331);
+        log_reward(device, env, parameters, state, action, next_state, rng, 331);
 
         observe(device, env, parameters, next_state, typename ENVIRONMENT::Observation{}, next_observation, rng);
         if constexpr(SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS) {
