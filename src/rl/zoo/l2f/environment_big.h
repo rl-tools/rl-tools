@@ -111,7 +111,7 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI CLOSED_FORM = false;
             static constexpr bool RANDOMIZE_THRUST_CURVES = THRASH_MARKOV;
             static constexpr bool OBSERVE_THRUST_CURVES = THRASH_MARKOV && OBSERVE_THRASH_MARKOV;
-            using STATE_BASE = StateBase<T, TI>;
+            using STATE_BASE = StateLastAction<T, TI, StateBase<T, TI>>;
             using STATE_TYPE_MOTOR_DELAY = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
             using STATE_TYPE_NO_MOTOR_DELAY = StateRandomForce<T, TI, STATE_BASE>;
             using STATE_TYPE = rl_tools::utils::typing::conditional_t<MOTOR_DELAY, STATE_TYPE_MOTOR_DELAY, STATE_TYPE_NO_MOTOR_DELAY>;
