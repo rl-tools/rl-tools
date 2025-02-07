@@ -22,7 +22,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
-                static constexpr T TARGET_ENTROPY = -((T)1);
+                static constexpr T TARGET_ENTROPY = -((T)2);
                 static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL_MODEL ? 16 : 1;
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
             };
