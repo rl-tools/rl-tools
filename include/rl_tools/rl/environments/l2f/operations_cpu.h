@@ -219,7 +219,9 @@ namespace rl_tools{
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateBase<STATE_T, STATE_TI>& state){
         std::string json = "{";
         json += "\"position\": [" + std::to_string(state.position[0]) + ", " + std::to_string(state.position[1]) + ", " + std::to_string(state.position[2]) + "], ";
-        json += "\"orientation\": [" + std::to_string(state.orientation[0]) + ", " + std::to_string(state.orientation[1]) + ", " + std::to_string(state.orientation[2]) + ", " + std::to_string(state.orientation[3]) + "]";
+        json += "\"orientation\": [" + std::to_string(state.orientation[0]) + ", " + std::to_string(state.orientation[1]) + ", " + std::to_string(state.orientation[2]) + ", " + std::to_string(state.orientation[3]) + "], ";
+        json += "\"linear_velocity\": [" + std::to_string(state.linear_velocity[0]) + ", " + std::to_string(state.linear_velocity[1]) + ", " + std::to_string(state.linear_velocity[2]) + "], ";
+        json += "\"angular_velocity\": [" + std::to_string(state.angular_velocity[0]) + ", " + std::to_string(state.angular_velocity[1]) + ", " + std::to_string(state.angular_velocity[2]) + "]";
         json += "}";
         return json;
     }
