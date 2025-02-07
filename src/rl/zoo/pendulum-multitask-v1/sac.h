@@ -34,7 +34,7 @@ namespace rl_tools::rl::zoo::pendulum_multitask_v1::sac{
             };
             struct OPTIMIZER_PARAMETERS_COMMON: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = true;
-                static constexpr T GRADIENT_CLIP_VALUE = 0.01;
+                static constexpr T GRADIENT_CLIP_VALUE = 0.001;
                 static constexpr bool ENABLE_WEIGHT_DECAY = false;
                 static constexpr T WEIGHT_DECAY = 0.0001;
             };
