@@ -14,15 +14,15 @@ namespace rl_tools::rl::zoo::l2f::ppo{
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
         static constexpr bool SEQUETIAL_MODEL = false;
-        static constexpr bool MOTOR_DELAY = true;
+        static constexpr bool MOTOR_DELAY = false;
         static constexpr bool THRASH_MARKOV = true;
-        static constexpr bool OBSERVE_THRASH_MARKOV = false;
+        static constexpr bool OBSERVE_THRASH_MARKOV = true;
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, SEQUETIAL_MODEL, MOTOR_DELAY, THRASH_MARKOV, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             static constexpr TI STEP_LIMIT = 6000; // ~2.5M env steps
 
-            static constexpr TI ACTOR_HIDDEN_DIM = 64;
+            static constexpr TI ACTOR_HIDDEN_DIM = 32;
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             static constexpr TI N_ENVIRONMENTS = 64;
