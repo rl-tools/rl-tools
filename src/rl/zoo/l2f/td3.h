@@ -22,8 +22,8 @@ namespace rl_tools::rl::zoo::l2f::td3{
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2 * TRAINING_INTERVAL;
-                static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
-                static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
+                static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
+                static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.1;
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
             };

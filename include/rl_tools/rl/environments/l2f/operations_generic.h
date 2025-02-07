@@ -688,11 +688,11 @@ namespace rl_tools{
 
             for(TI i = 0; i < 3; i++){
                 if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
-                    set(observation, 0, i, state.position[i]);
+                    set(observation, 0, i, state.position[i] * 10);
                 }
                 else{
                     T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.position, rng);
-                    set(observation, 0, i, state.position[i] + noise);
+                    set(observation, 0, i, state.position[i] * 10 + noise);
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
