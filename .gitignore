@@ -58,7 +58,7 @@
 /**/*.out
 /**/*.pdf
 /**/*.tar.gz
-/experiments_old
+/experiments*
 /**/*.nsys-rep
 /**/*.sqlite
 /**/*.qdstrm
