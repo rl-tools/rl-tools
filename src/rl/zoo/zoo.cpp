@@ -383,7 +383,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             RNG rng;
             rlt::init(device, rng, seed);
             rlt::Mode<rlt::mode::Evaluation<>> evaluation_mode;
-            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, eval_buffer, rng, evaluation_mode, LOOP_CONFIG::EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE, true);
+            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, eval_buffer, rng, evaluation_mode, LOOP_EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE, true);
             rlt::free(device, evaluation_actor);
             rlt::log(device, device.logger, "Seed: ", seed, " Step: ", ts.step, "/", LOOP_CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
         }

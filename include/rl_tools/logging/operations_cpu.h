@@ -65,7 +65,7 @@ namespace rl_tools{
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::CPU& logger, typename DEVICE::index_t step){ /* noop */ }
     template <typename DEVICE>
-    typename DEVICE::index_t get_step(DEVICE& device, devices::logging::CPU& logger){ /* noop */ }
+    typename DEVICE::index_t get_step(DEVICE& device, devices::logging::CPU& logger){return 0;}
     template <typename DEVICE, typename ARG_1, typename ARG_2>
     void construct(DEVICE& device, devices::logging::CPU& logger, ARG_1, ARG_2){ /* noop */ }
     template <typename DEVICE>
