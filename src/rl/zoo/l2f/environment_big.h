@@ -26,7 +26,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::l2f{
     namespace rlt = rl_tools;
     using namespace rl_tools::rl::environments::l2f;
-    template <typename DEVICE, typename T, typename TI, bool SEQUENTIAL_MODEL, bool MOTOR_DELAY, bool THRASH_MARKOV, bool OBSERVE_THRASH_MARKOV>
+    template <typename DEVICE, typename T, typename TI, bool SEQUENTIAL_MODEL, bool MOTOR_DELAY, bool T_RANDOMIZE_MOTOR_MAPPING, bool T_RANDOMIZE_THRUST_CURVES, bool OBSERVE_THRASH_MARKOV>
     struct ENVIRONMENT_BIG_FACTORY{
         using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, T, TI>;
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_SPEC;
@@ -75,11 +75,11 @@ namespace rl_tools::rl::zoo::l2f{
 //            }(),
             reward_function,
             { // observation_noise
-                0.0,// position
-                0.0, // orientation
-                0.0, // linear_velocity
-                0.0, // angular_velocity
-                0.0, // imu acceleration
+                0.00,// position
+                0.00, // orientation
+                0.00, // linear_velocity
+                0.00, // angular_velocity
+                0.00, // imu acceleration
             },
             ENVIRONMENT_FACTORY_BASE::action_noise,
             termination
@@ -110,8 +110,10 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI ACTION_HISTORY_LENGTH = SEQUENTIAL_MODEL ? 1 : 16;
             static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
             static constexpr TI CLOSED_FORM = false;
-            static constexpr bool RANDOMIZE_THRUST_CURVES = THRASH_MARKOV;
-            static constexpr bool OBSERVE_THRUST_CURVES = THRASH_MARKOV && OBSERVE_THRASH_MARKOV;
+            static constexpr bool RANDOMIZE_THRUST_CURVES = T_RANDOMIZE_THRUST_CURVES;
+            static constexpr bool RANDOMIZE_MOTOR_MAPPING = T_RANDOMIZE_MOTOR_MAPPING;
+            static constexpr bool OBSERVE_THRUST_CURVES = T_RANDOMIZE_THRUST_CURVES && OBSERVE_THRASH_MARKOV;
+            static constexpr bool OBSERVE_MOTOR_POSITIONS = T_RANDOMIZE_MOTOR_MAPPING && OBSERVE_THRASH_MARKOV;
             using STATE_BASE = StateLastAction<T, TI, StateBase<T, TI>>;
             using STATE_TYPE_MOTOR_DELAY = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
             using STATE_TYPE_NO_MOTOR_DELAY = StateRandomForce<T, TI, STATE_BASE>;
@@ -121,9 +123,10 @@ namespace rl_tools::rl::zoo::l2f{
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_THRUST_CURVES, observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, PARAMETERS_TYPE::N>>,
+                    observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_MOTOR_POSITIONS, observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, PARAMETERS_TYPE::N>>,
                     rl_tools::utils::typing::conditional_t<MOTOR_DELAY, observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>, observation::LastComponent<TI>>
                     // observation::ParametersMass<observation::ParametersMassSpecification<T, TI
-            >>>>>>>>>>;
+            >>>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
