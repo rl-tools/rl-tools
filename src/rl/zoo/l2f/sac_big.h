@@ -14,8 +14,8 @@ namespace rl_tools::rl::zoo::l2f::sac{
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL, MOTOR_DELAY, THRASH_MARKOV, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: algorithms::sac::DefaultParameters<T, TI>{
-                static constexpr TI ACTOR_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 128;
-                static constexpr TI CRITIC_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 128;
+                static constexpr TI ACTOR_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 64;
+                static constexpr TI CRITIC_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 64;
                 static constexpr TI TRAINING_INTERVAL = SEQUENTIAL_MODEL ? 1 : 16;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
