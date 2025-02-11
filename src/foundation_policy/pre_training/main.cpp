@@ -72,52 +72,16 @@ using TI = typename DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
-constexpr TI NUM_CHECKPOINTS = 10;
-constexpr TI NUM_EVALUATIONS = 100;
-constexpr TI NUM_SAVE_TRAJECTORIES = 10;
-#ifdef RL_TOOLS_RL_ZOO_ALGORITHM_PPO
-static constexpr TI TIMING_INTERVAL = 10;
-#else
-static constexpr TI TIMING_INTERVAL = 10000;
-#endif
-
-using LOOP_CORE_CONFIG = builder::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG, rlt::rl::loop::steps::timing::Parameters<TI, TIMING_INTERVAL>>;
-using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>;
-struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
-    static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
-    static constexpr TI CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL_TEMP == 0 ? 1 : CHECKPOINT_INTERVAL_TEMP;
+struct OPTIONS{
+    static constexpr bool SEQUENTIAL_MODEL = false;
+    static constexpr bool MOTOR_DELAY = false;
+    static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
+    static constexpr bool RANDOMIZE_THRUST_CURVES = false;
+    static constexpr bool OBSERVE_THRASH_MARKOV = false;
+    static constexpr bool SAMPLE_INITIAL_PARAMETERS = false;
 };
-using LOOP_CHECKPOINT_CONFIG = rlt::rl::loop::steps::checkpoint::Config<LOOP_EXTRACK_CONFIG, LOOP_CHECKPOINT_PARAMETERS>;
-struct LOOP_EVALUATION_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
-    static constexpr TI EVALUATION_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_EVALUATIONS;
-    static constexpr TI EVALUATION_INTERVAL = EVALUATION_INTERVAL_TEMP == 0 ? 1 : EVALUATION_INTERVAL_TEMP;
-    static constexpr TI NUM_EVALUATION_EPISODES = 100;
-    static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
-};
-using LOOP_EVALUATION_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CHECKPOINT_CONFIG, LOOP_EVALUATION_PARAMETERS>;
-struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectories::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
-    static constexpr TI INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_SAVE_TRAJECTORIES;
-    static constexpr TI INTERVAL = INTERVAL_TEMP == 0 ? 1 : INTERVAL_TEMP;
-    static constexpr TI NUM_EPISODES = 100;
-};
-using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVALUATION_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
-struct LOOP_NN_ANALYTICS_PARAMETERS: rlt::rl::loop::steps::nn_analytics::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
-    static constexpr TI INTERVAL_TEMP = LOOP_SAVE_TRAJECTORIES_PARAMETERS::INTERVAL;
-    static constexpr TI INTERVAL = INTERVAL_TEMP == 0 ? 1 : INTERVAL_TEMP;
-#if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC) || defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
-    static constexpr TI WARMUP_STEPS = LOOP_CORE_CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS_ACTOR;
-#else
-    static constexpr TI WARMUP_STEPS = 0;
-#endif
-};
-using LOOP_NN_ANALYTICS_CONFIG = rlt::rl::loop::steps::nn_analytics::Config<LOOP_SAVE_TRAJECTORIES_CONFIG, LOOP_NN_ANALYTICS_PARAMETERS>;
-#ifdef RL_TOOLS_RL_ZOO_BENCHMARK
-using LOOP_CONFIG = LOOP_EXTRACK_CONFIG;
-#else
-using LOOP_CONFIG = LOOP_NN_ANALYTICS_CONFIG;
-#endif
-
+using LOOP_CORE_CONFIG = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using LOOP_CONFIG = builder::LOOP_ASSEMBLY<LOOP_CORE_CONFIG>::LOOP_CONFIG;
 
 int main(int argc, char** argv){
     DEVICE device;
@@ -133,10 +97,12 @@ int main(int argc, char** argv){
     rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
 
-    // for (TI env_i = 0; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
-    //     auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
-    //     rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG, true>(device, env, env.parameters, rng);
-    // }
+    auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
+    rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG, true>(device, base_env, base_env.parameters, rng);
+    for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
+        auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
+        env.parameters = base_env.parameters;
+    }
 
     while(!rlt::step(device, ts)){
     }
