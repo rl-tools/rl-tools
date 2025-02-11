@@ -273,7 +273,7 @@ namespace rl_tools{
                 else{
                     using NEXT_SHAPE = PopFront<SHAPE>;
                     using NEXT_STRIDE = PopFront<STRIDE>;
-                    return (STRIDE::VALUE == get<0>(NEXT_STRIDE{}) * get<0>(NEXT_SHAPE{})) && _dense_row_major_layout_shape<NEXT_SHAPE, NEXT_STRIDE, RELAX_MAJOR>();
+                    return (STRIDE::VALUE == NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST || (RELAX_MAJOR && (STRIDE::VALUE >= NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST))) && _dense_row_major_layout_shape<NEXT_SHAPE, NEXT_STRIDE, false>();
                 }
             }
         }

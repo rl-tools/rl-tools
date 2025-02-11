@@ -70,6 +70,9 @@ namespace rl_tools{
             std::cout << VALUE << ", ";
             print(device, NEXT_ELEMENT{}, level+1, python_literal);
         }
+        if (level==0){
+            std::cout << std::endl;
+        }
     }
     template<typename DEV_SPEC, typename SPEC>
     void print_serial(devices::CPU<DEV_SPEC>& device, const Tensor<SPEC>& tensor, bool print_index = false){
