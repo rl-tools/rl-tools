@@ -19,7 +19,7 @@
 namespace builder{
     using namespace rl_tools;
     using namespace rl_tools::rl::environments::l2f;
-    template <typename DEVICE, typename T, typename TI, bool SEQUENTIAL_MODEL, bool MOTOR_DELAY, bool T_RANDOMIZE_MOTOR_MAPPING, bool T_RANDOMIZE_THRUST_CURVES, bool OBSERVE_THRASH_MARKOV>
+    template <typename DEVICE, typename T, typename TI, bool SEQUENTIAL_MODEL, bool MOTOR_DELAY, bool T_RANDOMIZE_MOTOR_MAPPING, bool T_RANDOMIZE_THRUST_CURVES, bool OBSERVE_THRASH_MARKOV, bool T_SAMPLE_INITIAL_PARAMETERS>
     struct ENVIRONMENT_FACTORY{
 
         static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
@@ -133,8 +133,7 @@ namespace builder{
             };
         };
 
-        static constexpr bool SAMPLE_INITIAL_PARAMETERS = true;
-        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::MultiTaskSpecification<T, TI, ENVIRONMENT_STATIC_PARAMETERS, SAMPLE_INITIAL_PARAMETERS>;
+        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::MultiTaskSpecification<T, TI, ENVIRONMENT_STATIC_PARAMETERS, T_SAMPLE_INITIAL_PARAMETERS>;
         using ENVIRONMENT = rl_tools::rl::environments::MultirotorMultiTask<ENVIRONMENT_SPEC>;
         static_assert(rl::environments::PREVENT_DEFAULT_GET_UI<ENVIRONMENT>::value);
     };
