@@ -16,7 +16,7 @@ namespace rl_tools::rl::zoo::l2f::ppo{
         static constexpr bool SEQUETIAL_MODEL = false;
         static constexpr bool MOTOR_DELAY = false;
         static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
-        static constexpr bool RANDOMIZE_THRUST_CURVES = false;
+        static constexpr bool RANDOMIZE_THRUST_CURVES = true;
         static constexpr bool OBSERVE_THRASH_MARKOV = true;
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, SEQUETIAL_MODEL, MOTOR_DELAY, RANDOMIZE_MOTOR_MAPPING, RANDOMIZE_THRUST_CURVES, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
 
