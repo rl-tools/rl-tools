@@ -18,7 +18,7 @@
 // forward declarations for the multi-task quadrotor such that the observe funcations can be called by the generic operations of the default quadrotor
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC, typename RNG>
+    template<typename DEVICE, typename SPEC, typename RNG, bool T_OVERWRITE=false>
     static void sample_initial_parameters(DEVICE& device, rl::environments::MultirotorMultiTask<SPEC>& env, typename rl::environments::MultirotorMultiTask<SPEC>::Parameters& parameters, RNG& rng, bool reset = true);
     namespace rl::environments::l2f::observations{
         template<typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>

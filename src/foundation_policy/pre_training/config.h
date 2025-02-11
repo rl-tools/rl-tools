@@ -27,13 +27,13 @@ namespace builder{
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
             };
             static constexpr TI N_ENVIRONMENTS = SEQUENTIAL_MODEL ? 8 : 1;
-            static constexpr TI STEP_LIMIT = SEQUENTIAL_MODEL ? 2000000 : 10000000;
+            static constexpr TI STEP_LIMIT = SEQUENTIAL_MODEL ? 2000000 : 5000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = SEQUENTIAL_MODEL ? 3 : 3;
             static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 64: 64;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI CRITIC_NUM_LAYERS = SEQUENTIAL_MODEL ? 3 : 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 64 : 256;
+            static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 64 : 64;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;
