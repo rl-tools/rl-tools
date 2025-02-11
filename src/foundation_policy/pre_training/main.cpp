@@ -133,6 +133,11 @@ int main(int argc, char** argv){
     rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
 
+    // for (TI env_i = 0; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
+    //     auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
+    //     rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG, true>(device, env, env.parameters, rng);
+    // }
+
     while(!rlt::step(device, ts)){
     }
     return 0;

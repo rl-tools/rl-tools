@@ -19,7 +19,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC, typename RNG>
+    template<typename DEVICE, typename SPEC, typename RNG, bool T_OVERWRITE>
     static void sample_initial_parameters(DEVICE& device, rl::environments::MultirotorMultiTask<SPEC>& env, typename rl::environments::MultirotorMultiTask<SPEC>::Parameters& parameters, RNG& rng, bool reset){
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
