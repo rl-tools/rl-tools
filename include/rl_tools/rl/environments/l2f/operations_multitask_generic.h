@@ -25,7 +25,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using PARAMETERS = typename rl::environments::MultirotorMultiTask<SPEC>::Parameters;
         parameters = env.parameters;
-        if constexpr(SPEC::SAMPLE_INITIAL_PARAMETERS){
+        if constexpr(T_OVERWRITE || SPEC::SAMPLE_INITIAL_PARAMETERS){
             static_assert(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES >= 1);
             TI index = random::uniform_int_distribution(device.random, (TI)0, (TI)(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES - 1), rng);
             parameters.dynamics = SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES[index];

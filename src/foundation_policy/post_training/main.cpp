@@ -33,7 +33,7 @@
 #include <rl_tools/nn_models/sequential/persist_code.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
 
-#include "environment.h"
+#include "../pre_training/environment.h"
 
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 
@@ -46,7 +46,7 @@
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
-#include "config.h"
+#include "../pre_training/config.h"
 
 namespace rlt = rl_tools;
 
@@ -56,7 +56,7 @@ using TI = typename DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
-struct OPTIONS{
+struct OPTIONS_PRE_TRAINING{
     static constexpr bool SEQUENTIAL_MODEL = false;
     static constexpr bool MOTOR_DELAY = false;
     static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
@@ -64,8 +64,10 @@ struct OPTIONS{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool SAMPLE_INITIAL_PARAMETERS = false;
 };
-using LOOP_CORE_CONFIG = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
-using LOOP_CONFIG = builder::LOOP_ASSEMBLY<LOOP_CORE_CONFIG>::LOOP_CONFIG;
+struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
+};
+using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG_POST_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 
 int main(int argc, char** argv){
     DEVICE device;
@@ -74,21 +76,41 @@ int main(int argc, char** argv){
     rlt::malloc(device, rng);
     TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
     rlt::init(device, rng, seed);
-    typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
+    typename LOOP_CORE_CONFIG_PRE_TRAINING::template State <LOOP_CORE_CONFIG_PRE_TRAINING> ts;
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
-    rlt::init(device, device.logger, ts.extrack_paths.seed);
-#endif
-
     auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
-    rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG, false>(device, base_env, base_env.parameters, rng);
-    for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
+    rlt::sample_initial_parameters<DEVICE, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT::SPEC, RNG, false>(device, base_env, base_env.parameters, rng);
+    for (TI env_i = 1; env_i < LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
         auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
         env.parameters = base_env.parameters;
     }
 
-    while(!rlt::step(device, ts)){
-    }
+    std::filesystem::path checkpoint_path = "experiments/2025-02-11_17-03-35/f98ad54_default_default/default/0000/steps/000000002000000/checkpoint.h5";
+    auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::ReadOnly);
+
+    constexpr TI NUM_EPISODES = 100;
+    rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT, NUM_EPISODES, LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT>> result;
+    auto* data = new rlt::rl::utils::evaluation::Data<decltype(result)::SPEC>;
+    using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_PRE_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
+    using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION>>;
+    rlt::rl::environments::DummyUI ui;
+    EVALUATION_ACTOR_TYPE evaluation_actor;
+    EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
+    rlt::malloc(device, evaluation_actor);
+    rlt::malloc(device, eval_buffer);
+    rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));
+
+    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
+    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
+    rlt::init(device, env_eval);
+    rlt::initial_parameters(device, env_eval, env_eval_parameters);
+
+    rlt::init(device, rng, seed);
+    rlt::Mode<rlt::mode::Evaluation<>> evaluation_mode;
+    rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
+    rlt::free(device, evaluation_actor);
+    delete data;
+    rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
     return 0;
 }
