@@ -70,7 +70,6 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
 using TI = typename DEVICE::index_t;
 using T = float;
-constexpr TI BASE_SEED = 0;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
 constexpr TI NUM_CHECKPOINTS = 10;
@@ -120,12 +119,12 @@ using LOOP_CONFIG = LOOP_NN_ANALYTICS_CONFIG;
 #endif
 
 
-int main(){
+int main(int argc, char** argv){
     DEVICE device;
     RNG rng;
     rlt::init(device);
     rlt::malloc(device, rng);
-    TI seed = BASE_SEED;
+    TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
     rlt::init(device, rng, seed);
     typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
     rlt::malloc(device, ts);

@@ -7,9 +7,9 @@ namespace builder{
     struct FACTORY{
         static constexpr bool SEQUENTIAL_MODEL = false;
         static constexpr bool MOTOR_DELAY = false;
-        static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
-        static constexpr bool RANDOMIZE_THRUST_CURVES = true;
-        static constexpr bool OBSERVE_THRASH_MARKOV = true;
+        static constexpr bool RANDOMIZE_MOTOR_MAPPING = false;
+        static constexpr bool RANDOMIZE_THRUST_CURVES = false;
+        static constexpr bool OBSERVE_THRASH_MARKOV = false;
         using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL, MOTOR_DELAY, RANDOMIZE_MOTOR_MAPPING, RANDOMIZE_THRUST_CURVES, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI>{
@@ -33,7 +33,7 @@ namespace builder{
             static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 64: 64;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI CRITIC_NUM_LAYERS = SEQUENTIAL_MODEL ? 3 : 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 64 : 64;
+            static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 64 : 256;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;
