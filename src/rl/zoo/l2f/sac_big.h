@@ -7,11 +7,11 @@
 namespace rl_tools::rl::zoo::l2f::sac{
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
-        static constexpr bool SEQUENTIAL_MODEL = false;
+        static constexpr bool SEQUENTIAL_MODEL = true;
         static constexpr bool MOTOR_DELAY = false;
         static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
         static constexpr bool RANDOMIZE_THRUST_CURVES = true;
-        static constexpr bool OBSERVE_THRASH_MARKOV = true;
+        static constexpr bool OBSERVE_THRASH_MARKOV = false;
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL, MOTOR_DELAY, RANDOMIZE_MOTOR_MAPPING, RANDOMIZE_THRUST_CURVES, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: algorithms::sac::DefaultParameters<T, TI>{
@@ -25,17 +25,17 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr bool IGNORE_TERMINATION = false;
                 // static constexpr T ALPHA = 0.05;
                 static constexpr T TARGET_ENTROPY = -((T)2);
-                static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL_MODEL ? 16 : 1;
+                static constexpr TI SEQUENCE_LENGTH = SEQUENTIAL_MODEL ? 50 : 1;
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
             };
-            static constexpr TI N_ENVIRONMENTS = SEQUENTIAL_MODEL ? SAC_PARAMETERS::SEQUENCE_LENGTH : 1;
+            static constexpr TI N_ENVIRONMENTS = SEQUENTIAL_MODEL ? 8 : 1;
             static constexpr TI STEP_LIMIT = SEQUENTIAL_MODEL ? 2000000 : 10000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI ACTOR_NUM_LAYERS = SEQUENTIAL_MODEL ? 4 : 3;
-            static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 32: 256;
+            static constexpr TI ACTOR_NUM_LAYERS = SEQUENTIAL_MODEL ? 3 : 3;
+            static constexpr TI ACTOR_HIDDEN_DIM = SEQUENTIAL_MODEL ? 64: 64;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
-            static constexpr TI CRITIC_NUM_LAYERS = SEQUENTIAL_MODEL ? 4 : 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 128 : 256;
+            static constexpr TI CRITIC_NUM_LAYERS = SEQUENTIAL_MODEL ? 3 : 3;
+            static constexpr TI CRITIC_HIDDEN_DIM = SEQUENTIAL_MODEL ? 64 : 64;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;
