@@ -8,6 +8,8 @@ namespace rl_tools{
     namespace tensor{
         struct FinalElement{
             static constexpr auto LENGTH = 0;
+            static constexpr auto FIRST = 0;
+            static constexpr auto LAST = 0;
             template <auto N>
             struct GET {
                 static_assert(N == 0, "Index out of bounds in FinalElement");
@@ -39,6 +41,9 @@ namespace rl_tools{
 
             template <TI N>
             static constexpr TI GET = GET_IMPL<TI, Element<T_TI, T_VALUE, T_NEXT_ELEMENT>, N>::VALUE();
+
+            static constexpr TI FIRST = VALUE;
+            static constexpr TI LAST = GET<LENGTH-1>;
         };
 
 
