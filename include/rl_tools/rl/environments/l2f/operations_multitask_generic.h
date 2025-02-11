@@ -101,9 +101,10 @@ namespace rl_tools{
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
             for (TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
-                set(observation, 0, rotor_i * 3 + 0, parameters.dynamics.rotor_positions[rotor_i][0]);
-                set(observation, 0, rotor_i * 3 + 1, parameters.dynamics.rotor_positions[rotor_i][1]);
-                set(observation, 0, rotor_i * 3 + 2, parameters.dynamics.rotor_positions[rotor_i][2]);
+                T factor = 1.0 / 0.04;
+                set(observation, 0, rotor_i * 3 + 0, parameters.dynamics.rotor_positions[rotor_i][0] * factor);
+                set(observation, 0, rotor_i * 3 + 1, parameters.dynamics.rotor_positions[rotor_i][1] * factor);
+                set(observation, 0, rotor_i * 3 + 2, parameters.dynamics.rotor_positions[rotor_i][2] * factor);
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
