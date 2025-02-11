@@ -574,6 +574,12 @@ namespace rl_tools::rl::environments{
 //        using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         Parameters parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     };
+    namespace l2f{
+        template <typename T_T, typename T_TI, typename T_PARAMETERS, bool T_SAMPLE_INITIAL_PARAMETERS = true>
+        struct MultiTaskSpecification: Specification<T_T, T_TI, T_PARAMETERS>{
+            static constexpr bool SAMPLE_INITIAL_PARAMETERS = T_SAMPLE_INITIAL_PARAMETERS;
+        };
+    }
     template <typename T_SPEC>
     struct MultirotorMultiTask: Multirotor<T_SPEC>{
         // just a tag for dispatch
