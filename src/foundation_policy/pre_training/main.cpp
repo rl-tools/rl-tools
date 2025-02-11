@@ -37,22 +37,8 @@
 
 #include "environment.h"
 
-
-// Algorithm Loops
-#include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
-#if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
-#else
-#if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
-#else
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#endif
-#endif
-#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 
-// Additional Loop steps
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
