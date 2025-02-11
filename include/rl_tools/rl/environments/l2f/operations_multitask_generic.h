@@ -40,18 +40,21 @@ namespace rl_tools{
             static_assert(PARAMETERS::N == 4);
             TI mapping[PARAMETERS::N] = {0, 1, 2, 3};
             for(TI motor_i = 0; motor_i < PARAMETERS::N; motor_i++){
-                TI random_index = random::uniform_int_distribution(device.random, (TI)0, (TI)(PARAMETERS::N - 1), rng);
+                TI random_index = random::uniform_int_distribution(device.random, (TI)motor_i, (TI)(PARAMETERS::N - 1), rng);
                 TI previous = mapping[motor_i];
                 mapping[motor_i] = mapping[random_index];
                 mapping[random_index] = previous;
             }
+            auto new_dynamics = parameters.dynamics;
             for(TI motor_i = 0; motor_i < PARAMETERS::N; motor_i++){
                 for(TI axis_i=0; axis_i < 3; axis_i++){
-                    parameters.dynamics.rotor_positions[mapping[motor_i]][axis_i] = parameters.dynamics.rotor_positions[motor_i][axis_i];
-                    parameters.dynamics.rotor_thrust_directions[mapping[motor_i]][axis_i] = parameters.dynamics.rotor_thrust_directions[motor_i][axis_i];
-                    parameters.dynamics.rotor_torque_directions[mapping[motor_i]][axis_i] = parameters.dynamics.rotor_torque_directions[motor_i][axis_i];
+                    new_dynamics.rotor_positions[mapping[motor_i]][axis_i] = parameters.dynamics.rotor_positions[motor_i][axis_i];
+                    new_dynamics.rotor_thrust_directions[mapping[motor_i]][axis_i] = parameters.dynamics.rotor_thrust_directions[motor_i][axis_i];
+                    new_dynamics.rotor_torque_directions[mapping[motor_i]][axis_i] = parameters.dynamics.rotor_torque_directions[motor_i][axis_i];
+                    new_dynamics.rotor_thrust_coefficients[mapping[motor_i]][axis_i] = parameters.dynamics.rotor_thrust_coefficients[motor_i][axis_i];
                 }
             }
+            parameters.dynamics = new_dynamics;
         }
     }
 

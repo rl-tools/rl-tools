@@ -23,8 +23,7 @@ namespace rl_tools::rl::environments::l2f{
         using T = typename SPEC::T;
         static constexpr typename SPEC::TI N = SPEC::N;
 
-        struct Dynamics
-        {
+        struct Dynamics{
             struct ActionLimit{
                 T min;
                 T max;
