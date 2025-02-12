@@ -8,12 +8,12 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename MATH_DEV, typename SPEC>
-    void malloc(const devices::random::Generic<MATH_DEV>& dev, typename devices::random::Generic<MATH_DEV>::template ENGINE<SPEC>& rng){}
-    template <typename MATH_DEV, typename SPEC>
-    void free(const devices::random::Generic<MATH_DEV>& dev, typename devices::random::Generic<MATH_DEV>::template ENGINE<SPEC>& rng){}
-    template <template <typename DEV_SPEC> typename DEVICE, typename DEV_SPEC>
-    void init(const DEVICE<DEV_SPEC>& dev, typename devices::random::Generic<typename DEV_SPEC::MATH>::template ENGINE<void>& rng, typename DEV_SPEC::MATH::index_t seed = 1){
+    template <typename DEVICE, typename SPEC>
+    void malloc(const DEVICE& dev, devices::generic::random::ENGINE<SPEC>& rng){}
+    template <typename DEVICE, typename SPEC>
+    void free(const DEVICE& dev, devices::generic::random::ENGINE<SPEC>& rng){}
+    template <template <typename DEV_SPEC> typename DEVICE, typename DEV_SPEC, typename SPEC>
+    void init(const DEVICE<DEV_SPEC>& dev, devices::generic::random::ENGINE<SPEC>& rng, typename DEV_SPEC::MATH::index_t seed = 1){
         rng.state = 0b10101010101010101010101010101010 + seed;
     };
     namespace random{

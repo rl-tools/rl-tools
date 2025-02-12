@@ -46,12 +46,15 @@
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
+#include <rl_tools/random/operations_generic.h>
+
 #include "config.h"
 
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
+using RNG_PARAMS = rlt::devices::random::Generic<DEVICE::SPEC::MATH>::ENGINE<>;
 using TI = typename DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
@@ -70,10 +73,13 @@ using LOOP_CONFIG = builder::LOOP_ASSEMBLY<LOOP_CORE_CONFIG>::LOOP_CONFIG;
 int main(int argc, char** argv){
     DEVICE device;
     RNG rng;
+    RNG_PARAMS rng_params;
     rlt::init(device);
     rlt::malloc(device, rng);
+    rlt::malloc(device, rng_params);
     TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
     rlt::init(device, rng, seed);
+    rlt::init(device, rng_params, seed);
     typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
