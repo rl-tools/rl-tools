@@ -46,15 +46,14 @@
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
-#include <rl_tools/random/operations_generic.h>
-
 #include "config.h"
 
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
-using RNG_PARAMS = rlt::devices::random::Generic<DEVICE::SPEC::MATH>::ENGINE<>;
+using RNG_PARAMS_DEVICE = rlt::devices::random::Generic<DEVICE::SPEC::MATH>;
+using RNG_PARAMS = RNG_PARAMS_DEVICE::ENGINE<>;
 using TI = typename DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
@@ -67,7 +66,8 @@ struct OPTIONS{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool SAMPLE_INITIAL_PARAMETERS = false;
 };
-using LOOP_CORE_CONFIG = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using FACTORY = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS, DYNAMIC_ALLOCATION>;
+using LOOP_CORE_CONFIG = FACTORY::LOOP_CORE_CONFIG;
 using LOOP_CONFIG = builder::LOOP_ASSEMBLY<LOOP_CORE_CONFIG>::LOOP_CONFIG;
 
 int main(int argc, char** argv){
@@ -86,13 +86,18 @@ int main(int argc, char** argv){
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
+    // warmup
+    for(TI i=0; i < FACTORY::RNG_PARAMS_WARMUP_STEPS; i++){
+        rlt::random::normal_distribution::sample(RNG_PARAMS_DEVICE{}, (T)0, (T)1, rng_params);
+    }
 
     auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
-    rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG_PARAMS, false>(device, base_env, base_env.parameters, rng_params);
+    rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
     for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
         auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
         env.parameters = base_env.parameters;
     }
+    ts.env_eval.parameters = base_env.parameters;
 
     while(!rlt::step(device, ts)){
     }
