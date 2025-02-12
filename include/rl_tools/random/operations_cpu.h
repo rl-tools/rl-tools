@@ -22,21 +22,21 @@ namespace rl_tools{
         rng.engine = typename ENGINE::TYPE(static_cast<typename ENGINE::TYPE::result_type>(seed+1));
     };
     namespace random{
-        template<typename T, typename RNG>
-        T uniform_int_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
+        template<typename T, typename SPEC>
+        T uniform_int_distribution(const devices::random::CPU& dev, T low, T high, devices::random::CPU::ENGINE<SPEC>& rng){
             return std::uniform_int_distribution<T>(low, high)(rng.engine);
         }
 
-        template<typename T, typename RNG>
-        T uniform_real_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
+        template<typename T, typename SPEC>
+        T uniform_real_distribution(const devices::random::CPU& dev, T low, T high, devices::random::CPU::ENGINE<SPEC>& rng){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             return std::uniform_real_distribution<T>(low, high)(rng.engine);
         }
     //    template<typename T, typename RNG>
     //    const std::normal_distribution<T> standard_normal_distribution(0, 1);
         namespace normal_distribution{
-            template<typename T, typename RNG>
-            T sample(const devices::random::CPU& dev, T mean, T std, RNG& rng){
+            template<typename T, typename SPEC>
+            T sample(const devices::random::CPU& dev, T mean, T std, devices::random::CPU::ENGINE<SPEC>& rng){
                 static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
                 if(std == 0){
                     return mean;
