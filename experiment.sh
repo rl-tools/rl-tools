@@ -1,10 +1,20 @@
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 10
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 11
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 12
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 13
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 14
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 15
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 16
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 17
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 18
-/home/jonas/rl-tools/cmake-build-release/src/rl/zoo/rl_zoo_l2f_sac -s 19
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 0
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 1
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 2
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 3
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 4
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 5
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 6
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 7
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 8
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 9
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 10
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 11
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 12
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 13
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 14
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 15
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 16
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 17
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 18
+/home/jonas/rl-tools/cmake-build-release/src/foundation_policy/foundation_policy_pre_training 19
