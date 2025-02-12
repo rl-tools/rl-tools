@@ -88,7 +88,7 @@ int main(int argc, char** argv){
 #endif
 
     auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
-    rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG, false>(device, base_env, base_env.parameters, rng);
+    rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG_PARAMS, false>(device, base_env, base_env.parameters, rng_params);
     for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
         auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
         env.parameters = base_env.parameters;
