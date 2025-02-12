@@ -264,16 +264,16 @@ namespace rl_tools{
                 return false;
             }
             if constexpr(length(STRIDE{}) == 1){
-                return RELAX_MAJOR || get<0>(STRIDE{}) == 1;
+                return RELAX_MAJOR || STRIDE::FIRST == 1;
             }
             else{
-                if constexpr(RELAX_MAJOR && length(STRIDE{}) == 2){
-                    return get<0>(STRIDE{}) >= get<1>(STRIDE{}) * get<1>(SHAPE{});
+                if constexpr(RELAX_MAJOR && STRIDE::LENGTH == 2){
+                    return STRIDE::FIRST >= STRIDE::template GET<1> * SHAPE::template GET<1>;
                 }
                 else{
                     using NEXT_SHAPE = PopFront<SHAPE>;
                     using NEXT_STRIDE = PopFront<STRIDE>;
-                    return (STRIDE::VALUE == NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST || (RELAX_MAJOR && (STRIDE::VALUE >= NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST))) && _dense_row_major_layout_shape<NEXT_SHAPE, NEXT_STRIDE, false>();
+                    return (STRIDE::VALUE == NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST || ((SHAPE::FIRST == 1) && (STRIDE::VALUE >= NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST))) && _dense_row_major_layout_shape<NEXT_SHAPE, NEXT_STRIDE, RELAX_MAJOR>();
                 }
             }
         }
