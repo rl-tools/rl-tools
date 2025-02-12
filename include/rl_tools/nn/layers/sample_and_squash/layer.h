@@ -19,6 +19,12 @@ namespace rl_tools{
                 using BASE = T_BASE;
                 // this mode uses the noise from the Buffer for debugging / no-side-effect inference
             };
+            template <typename T_BASE, typename T_SPEC = bool>
+            struct DisableEntropy{
+                using SPEC = T_SPEC;
+                using BASE = T_BASE;
+                // this mode uses the noise from the Buffer for debugging / no-side-effect inference
+            };
         }
         template <typename T>
         struct DefaultParameters{

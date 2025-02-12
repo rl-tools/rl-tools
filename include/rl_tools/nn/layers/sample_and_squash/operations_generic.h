@@ -312,6 +312,9 @@ namespace rl_tools{
         d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
         d/d_mu action = d/d_action_sample tanh(action_sample) * d/d_mu action_sample
 */
+        if constexpr(mode::is<MODE, nn::layers::sample_and_squash::mode::DisableEntropy>){
+            alpha = 0;
+        }
         T entropy = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T action = get(layer.output, batch_i, action_i); // tanh(action_sample)
