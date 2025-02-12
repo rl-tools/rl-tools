@@ -69,7 +69,7 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
 using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 using LOOP_CORE_CONFIG_POST_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-    static constexpr T ALPHA = 0.0001;
+    static constexpr T ALPHA = 0.001;
 };
 
 int main(int argc, char** argv){
@@ -158,7 +158,7 @@ int main(int argc, char** argv){
     TI N = current_index;
     rlt::init_weights(device, ts.actor_critic.actor, rng);
     rlt::reset_optimizer_state(device, actor_optimizer, ts.actor_critic.actor);
-    for (TI epoch_i = 0; epoch_i < 1; epoch_i++){
+    for (TI epoch_i = 0; epoch_i < 100; epoch_i++){
         for (TI sample_i=0; sample_i<N; sample_i++){
             TI target_index = rlt::random::uniform_int_distribution(device.random, sample_i, N - 1, rng);
             auto input = rlt::view(device, dataset_input, sample_i);
@@ -192,17 +192,38 @@ int main(int argc, char** argv){
             rlt::backward(device, ts.actor_critic.actor, input, d_output, ts.actor_buffers[0], evaluation_mode);
             rlt::step(device, actor_optimizer, ts.actor_critic.actor);
         }
+        // {
+        //     auto output_target = rlt::view_range(device, dataset_output_target_3d, (N / BATCH_SIZE - 1) * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+        //     std::cout << "Target: " << std::endl;
+        //     rlt::print(device, output_target);
+        //     std::cout << "Output: " << std::endl;
+        //     rlt::print(device, rlt::output(device, ts.actor_critic.actor));
+        //     std::cout << "Diff: " << std::endl;
+        //     std::cout << rlt::abs_diff(device, rlt::output(device, ts.actor_critic.actor), output_target) << std::endl;;
+        // }
         {
-            auto output_target = rlt::view_range(device, dataset_output_target_3d, (N / BATCH_SIZE - 1) * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-            std::cout << "Target: " << std::endl;
-            rlt::print(device, output_target);
-            std::cout << "Output: " << std::endl;
-            rlt::print(device, rlt::output(device, ts.actor_critic.actor));
-            std::cout << "Diff: " << std::endl;
-            std::cout << rlt::abs_diff(device, rlt::output(device, ts.actor_critic.actor), output_target) << std::endl;;
+            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_PRE_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
+            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION>>;
+            rlt::rl::environments::DummyUI ui;
+            EVALUATION_ACTOR_TYPE evaluation_actor;
+            EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
+            rlt::malloc(device, evaluation_actor);
+            rlt::malloc(device, eval_buffer);
+            rlt::copy(device, device, ts.actor_critic.actor, evaluation_actor);
+
+            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
+            rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
+            rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
+            rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
+            rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result.episode_length_std);
+            rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
+            rlt::free(device, evaluation_actor);
+            rlt::free(device, eval_buffer);
         }
     }
     delete data;
     rlt::free(device, evaluation_actor);
+    rlt::free(device, device.logger);
+    rlt::free(device);
     return 0;
 }
