@@ -84,7 +84,10 @@ namespace rl_tools::rl::components::off_policy_runner{
         step(device, env, parameters, state, action, next_state, rng);
 
         T reward_value = reward(device, env, parameters, state, action, next_state, rng);
+
+#if !defined(__CUDA_ARCH__) // this is a hack but convenient right now, would be good to add a "null-dispatch" for cuda or even better: add a device logger in cuda
         log_reward(device, env, parameters, state, action, next_state, rng, 331);
+#endif
 
         observe(device, env, parameters, next_state, typename ENVIRONMENT::Observation{}, next_observation, rng);
         if constexpr(SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS) {
