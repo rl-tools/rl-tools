@@ -33,13 +33,14 @@ namespace builder{
             using STATE_TYPE_MOTOR_DELAY = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
             using STATE_TYPE_NO_MOTOR_DELAY = StateRandomForce<T, TI, STATE_BASE>;
             using STATE_TYPE = rl_tools::utils::typing::conditional_t<OPTIONS::MOTOR_DELAY, STATE_TYPE_MOTOR_DELAY, STATE_TYPE_NO_MOTOR_DELAY>;
+            static_assert(!OPTIONS::ACTION_HISTORY || OPTIONS::MOTOR_DELAY, "Action history implies motor delay");
             using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_THRUST_CURVES, observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, BASE_ENV::PARAMETERS_TYPE::N>>,
                     observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_MOTOR_POSITIONS, observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, BASE_ENV::PARAMETERS_TYPE::N>>,
-                    rl_tools::utils::typing::conditional_t<OPTIONS::MOTOR_DELAY, observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>, observation::LastComponent<TI>>
+                    rl_tools::utils::typing::conditional_t<OPTIONS::ACTION_HISTORY, observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>, observation::LastComponent<TI>>
                     // observation::ParametersMass<observation::ParametersMassSpecification<T, TI
             >>>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
@@ -48,7 +49,7 @@ namespace builder{
             static constexpr auto PARAMETER_VALUES = BASE_ENV::nominal_parameters;
             static constexpr TI N_DYNAMICS_VALUES = 1;
             static constexpr typename BASE_ENV::PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
-                rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, BASE_ENV::PARAMETERS_SPEC>
+                rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, typename BASE_ENV::PARAMETERS_SPEC>
             };
         };
 
