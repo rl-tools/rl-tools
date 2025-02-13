@@ -20,6 +20,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    // note usage examples in ./extrack.h
     template <typename DEVICE, typename TI>
     void init(DEVICE& device, utils::extrack::Config<TI>& config, utils::extrack::Paths& paths, typename DEVICE::index_t seed = 0){
         if(paths.experiment.empty()){

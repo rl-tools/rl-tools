@@ -33,6 +33,26 @@ namespace rl_tools{
         }
 #endif
 
+        // How does this work:
+        /*
+        // Example training setup (using the Loop step):
+            rlt::malloc(device, ts);
+            ts.extrack_config.name = "foundation-policy-pre-training";
+            ts.extrack_config.population_variates = "motor-mapping_thrust-curves_rng-warmup";
+            ts.extrack_config.population_values = std::string(OPTIONS::RANDOMIZE_MOTOR_MAPPING ? "true" : "false") + "_" + (OPTIONS::RANDOMIZE_THRUST_CURVES ? "true" : "false") + "_" + std::to_string(FACTORY::RNG_PARAMS_WARMUP_STEPS);
+            rlt::init(device, ts, seed);
+
+        // Example query:
+            rlt::utils::extrack::Path checkpoint_path;
+            checkpoint_path.experiment = "2025-02-13_11-30-07";
+            checkpoint_path.name = "foundation-policy-pre-training";
+            rlt::find_latest_run(device, "experiments", checkpoint_path);
+            if (!rlt::find_latest_checkpoint(device, checkpoint_path)){
+                std::cerr << "No checkpoint found for " << checkpoint_path.experiment << std::endl;
+                return 1;
+            }
+
+         */
         template <typename TI>
         struct Config{
             std::filesystem::path base_path = "experiments";
