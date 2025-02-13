@@ -81,6 +81,10 @@ int main(int argc, char** argv){
     TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
     rlt::init(device, rng, seed);
     rlt::init(device, rng_params, seed);
+    // warmup
+    for(TI i=0; i < FACTORY::RNG_PARAMS_WARMUP_STEPS; i++){
+        rlt::random::uniform_int_distribution(RNG_PARAMS_DEVICE{}, 0, 1, rng_params);
+    }
     typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
     rlt::malloc(device, ts);
     ts.extrack_config.name = "foundation-policy-pre-training";
@@ -90,10 +94,6 @@ int main(int argc, char** argv){
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
-    // warmup
-    for(TI i=0; i < FACTORY::RNG_PARAMS_WARMUP_STEPS; i++){
-        rlt::random::uniform_int_distribution(RNG_PARAMS_DEVICE{}, 0, 1, rng_params);
-    }
 
     auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
     rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
