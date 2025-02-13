@@ -74,7 +74,32 @@ using LOOP_CORE_CONFIG_POST_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTI
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
     static constexpr T ALPHA = 0.0001;
 };
+// constants parameters
+constexpr TI NUM_EPISODES = 100;
+constexpr TI N_EPOCH = 1000;
+constexpr TI N_PRE_TRAINING_SEEDS = 50;
+constexpr TI SEQUENCE_LENGTH = 1;
+constexpr TI BATCH_SIZE = 32;
+// constants derived
+constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
 
+// typedefs
+using ENVIRONMENT = LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT;
+using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
+using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+using MODULE_CHAIN = Module<MLP>;
+using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, DYNAMIC_ALLOCATION>;
+using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+using EVAL_MODE = rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>>;
+using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>>;
+using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
+using INPUT_SHAPE_DATASET = rlt::tensor::Replace<INPUT_SHAPE, DATASET_SIZE, 1>;
+using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, DATASET_SIZE, 1>;
+using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT, NUM_EPISODES, LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT>>;
+using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
 
 template <TI NUM_EPISODES, typename RESULT, typename DATA>
 auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, typename DEVICE::index_t seed, RESULT& result, DATA& data){
@@ -160,31 +185,6 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
 // note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
 
 int main(int argc, char** argv){
-    // std::vector<std::filesystem::path> checkpoint_paths;
-    // for (TI seed = 0; seed < 50; seed++){
-    //     std::stringstream ss;
-    //     ss << "experiments/2025-02-11_17-03-35/f98ad54_default_default/default/" << std::setfill('0') << std::setw(4) << seed << "/steps/000000002000000/checkpoint.h5";
-    //     checkpoint_paths.push_back(ss.str());
-    // }
-
-    // constants parameters
-    constexpr TI NUM_EPISODES = 100;
-    constexpr TI N_EPOCH = 100;
-    constexpr TI N_PRE_TRAINING_SEEDS = 50;
-    // constants derived
-    constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
-
-    // typedefs
-    using ACTOR = LOOP_CORE_CONFIG_POST_TRAINING::NN::ACTOR_TYPE;
-    using EVAL_MODE = rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>>;
-    using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>>;
-    using INPUT_SHAPE = ACTOR::INPUT_SHAPE;
-    using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
-    using INPUT_SHAPE_DATASET = rlt::tensor::Replace<INPUT_SHAPE, DATASET_SIZE, 1>;
-    using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, DATASET_SIZE, 1>;
-    using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT, NUM_EPISODES, LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT>>;
-    using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
-
     // declarations
     DEVICE device;
     RNG rng;
@@ -296,7 +296,7 @@ int main(int argc, char** argv){
         //     std::cout << rlt::abs_diff(device, rlt::output(device, ts.actor_critic.actor), output_target) << std::endl;;
         // }
         {
-            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_POST_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
+            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_POST_TRAINING::DYNAMIC_ALLOCATION>>;
             rlt::rl::environments::DummyUI ui;
             EVALUATION_ACTOR_TYPE evaluation_actor;
