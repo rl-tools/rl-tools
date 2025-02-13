@@ -69,8 +69,7 @@ struct OPTIONS_PRE_TRAINING{
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = true;
 };
-using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
-using LOOP_CORE_CONFIG_POST_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_POST_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
     static constexpr T ALPHA = 0.0001;
 };
@@ -80,11 +79,9 @@ constexpr TI N_EPOCH = 1000;
 constexpr TI N_PRE_TRAINING_SEEDS = 50;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
-// constants derived
-constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
 
 // typedefs
-using ENVIRONMENT = LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT;
+using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY<DEVICE, T, TI, OPTIONS_POST_TRAINING::SEQUENTIAL_MODEL, OPTIONS_POST_TRAINING::MOTOR_DELAY, OPTIONS_POST_TRAINING::RANDOMIZE_MOTOR_MAPPING, OPTIONS_POST_TRAINING::RANDOMIZE_THRUST_CURVES, OPTIONS_POST_TRAINING::OBSERVE_THRASH_MARKOV, OPTIONS_POST_TRAINING::SAMPLE_INITIAL_PARAMETERS>::ENVIRONMENT;
 using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
 using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
@@ -96,14 +93,20 @@ using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_
 using EVAL_MODE = rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>>;
 using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
+using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
+using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
+
+// constants derived
+constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
+
+// typedefs derived
 using INPUT_SHAPE_DATASET = rlt::tensor::Replace<INPUT_SHAPE, DATASET_SIZE, 1>;
 using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, DATASET_SIZE, 1>;
-using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT, NUM_EPISODES, LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT>>;
-using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
 
 template <TI NUM_EPISODES, typename RESULT, typename DATA>
 auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, typename DEVICE::index_t seed, RESULT& result, DATA& data){
 
+    using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
     RNG_PARAMS rng_params;
     {
         rlt::malloc(device, rng_params);
@@ -151,20 +154,20 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
 
 
     TI initial_index = current_index;
-    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
-    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
+    ENVIRONMENT env_eval;
+    ENVIRONMENT::Parameters env_eval_parameters;
     rlt::init(device, env_eval);
     env_eval.parameters = base_parameters;
     rlt::initial_parameters(device, env_eval, env_eval_parameters);
 
     for (TI episode_i = 0; episode_i < DATA::SPEC::N_EPISODES; episode_i++){
         TI current_step_i;
-        for (current_step_i = 0; current_step_i < LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT; current_step_i++){
+        for (current_step_i = 0; current_step_i < ENVIRONMENT::EPISODE_STEP_LIMIT; current_step_i++){
             auto observation_tensor = rlt::view(device, input, current_index + current_step_i);
             auto action_tensor = rlt::view(device, output, current_index + current_step_i);
             auto observation = rlt::matrix_view(device, observation_tensor);
             auto action = rlt::matrix_view(device, action_tensor);
-            rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT::Observation{}, observation, rng);
+            rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], ENVIRONMENT::Observation{}, observation, rng);
             for (TI action_i=0; action_i < OUTPUT_SPEC::SHAPE::LAST; action_i++){
                 rlt::set(action, 0, action_i, data.actions[episode_i][current_step_i][action_i]);
             }
@@ -297,16 +300,16 @@ int main(int argc, char** argv){
         // }
         {
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
-            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_POST_TRAINING::DYNAMIC_ALLOCATION>>;
+            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
             rlt::rl::environments::DummyUI ui;
             EVALUATION_ACTOR_TYPE evaluation_actor;
-            EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_POST_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
+            EVALUATION_ACTOR_TYPE::Buffer<DYNAMIC_ALLOCATION> eval_buffer;
             rlt::malloc(device, evaluation_actor);
             rlt::malloc(device, eval_buffer);
             rlt::copy(device, device, actor, evaluation_actor);
 
-            typename LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT_EVALUATION env_eval;
-            typename LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
+            ENVIRONMENT env_eval;
+            ENVIRONMENT::Parameters env_eval_parameters;
             rlt::init(device, env_eval);
             rlt::sample_initial_parameters(device, env_eval, env_eval_parameters, rng);
             rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
