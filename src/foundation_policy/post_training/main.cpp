@@ -75,6 +75,81 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 
 
+template <TI NUM_EPISODES, typename RESULT, typename DATA>
+auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, typename DEVICE::index_t seed, RESULT& result, DATA& data){
+
+    RNG_PARAMS rng_params;
+    {
+        rlt::malloc(device, rng_params);
+        rlt::init(device, rng_params, seed);
+        // warmup
+        for(TI i=0; i < (TI)std::stoi(checkpoint_path.attributes["rng-warmup"]); i++){
+            rlt::random::uniform_int_distribution(RNG_PARAMS_DEVICE{}, 0, 1, rng_params);
+        }
+        rlt::free(device, rng_params);
+    }
+    auto actor_file = HighFive::File(checkpoint_path.checkpoint_path.string(), HighFive::File::ReadOnly);
+    LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT base_env;
+    rlt::sample_initial_parameters<DEVICE, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
+
+    using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_PRE_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
+    using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION>>;
+    rlt::rl::environments::DummyUI ui;
+    EVALUATION_ACTOR_TYPE evaluation_actor;
+    typename EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
+    rlt::malloc(device, evaluation_actor);
+    rlt::malloc(device, eval_buffer);
+    rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));
+
+    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
+    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
+    rlt::init(device, env_eval);
+    env_eval.parameters = base_env.parameters;
+    rlt::initial_parameters(device, env_eval, env_eval_parameters);
+
+    RNG rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, seed);
+    rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>> evaluation_mode;
+    rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
+
+    rlt::free(device, evaluation_actor);
+    rlt::free(device, eval_buffer);
+    rlt::free(device, rng);
+    return base_env.parameters;
+}
+
+
+template <typename DATA, typename INPUT_SPEC, typename OUTPUT_SPEC, typename PARAMS, typename RNG>
+void add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, TI& current_index, PARAMS& base_parameters, RNG& rng){
+
+
+    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
+    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
+    rlt::init(device, env_eval);
+    env_eval.parameters = base_parameters;
+    rlt::initial_parameters(device, env_eval, env_eval_parameters);
+
+    for (TI episode_i = 0; episode_i < DATA::SPEC::N_EPISODES; episode_i++){
+        TI current_step_i;
+        for (current_step_i = 0; current_step_i < LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT; current_step_i++){
+            auto observation_tensor = rlt::view(device, input, current_index + current_step_i);
+            auto action_tensor = rlt::view(device, output, current_index + current_step_i);
+            auto observation = rlt::matrix_view(device, observation_tensor);
+            auto action = rlt::matrix_view(device, action_tensor);
+            rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT::Observation{}, observation, rng);
+            for (TI action_i=0; action_i < OUTPUT_SPEC::SHAPE::LAST; action_i++){
+                rlt::set(action, 0, action_i, data.actions[episode_i][current_step_i][action_i]);
+            }
+            if (data.terminated[episode_i][current_step_i]){
+                break;
+            }
+        }
+        current_index += current_step_i;
+    }
+}
+
+
 
 // note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
 
@@ -86,13 +161,60 @@ int main(int argc, char** argv){
     //     checkpoint_paths.push_back(ss.str());
     // }
 
+    // constants parameters
+    constexpr TI NUM_EPISODES = 100;
+    constexpr TI N_PRE_TRAINING_SEEDS = 50;
+    // constants derived
+    constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
+
+    // typedefs
+    using ACTOR = LOOP_CORE_CONFIG_POST_TRAINING::NN::ACTOR_TYPE;
+    using EVAL_MODE = rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>>;
+    using INPUT_SHAPE = ACTOR::INPUT_SHAPE;
+    using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
+    using INPUT_SHAPE_DATASET = rlt::tensor::Replace<INPUT_SHAPE, DATASET_SIZE, 1>;
+    using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, DATASET_SIZE, 1>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
+
+    // declarations
     DEVICE device;
     RNG rng;
-    RNG_PARAMS rng_params;
+    ACTOR actor;
+    ACTOR::Buffer<> actor_buffer;
+    EVAL_MODE evaluation_mode;
+    OPTIMIZER actor_optimizer;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_DATASET>> dataset_input_3d;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE_DATASET>> dataset_output_target_3d;
+
+    // device init
     rlt::init(device);
 
-    TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
+    // malloc
+    rlt::malloc(device, rng);
+    rlt::malloc(device, actor_optimizer);
+    rlt::malloc(device, actor);
+    rlt::malloc(device, actor_buffer);
+    rlt::malloc(device, dataset_input_3d);
+    rlt::malloc(device, dataset_output_target_3d);
+    rlt::malloc(device, d_output);
 
+    // views
+    auto dataset_input = rlt::view(device, dataset_input_3d, 0);
+    auto dataset_output_target = rlt::view(device, dataset_output_target_3d, 0);
+
+    // init
+    TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
+    TI current_index = 0;
+
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+    auto timestamp_string = rlt::utils::extrack::get_timestamp_string();
+    rlt::init(device, device.logger, "logs/" + timestamp_string);
+#endif
+    rlt::init(device, rng, seed);
+    rlt::init_weights(device, actor, rng);
+
+    //work
     rlt::utils::extrack::Path checkpoint_path;
     checkpoint_path.experiment = "2025-02-13_11-30-07";
     checkpoint_path.name = "foundation-policy-pre-training";
@@ -102,96 +224,16 @@ int main(int argc, char** argv){
         std::cerr << "No checkpoint found for " << checkpoint_path.experiment << std::endl;
         return 1;
     }
-    rlt::malloc(device, rng_params);
-    rlt::init(device, rng_params, seed);
-    // warmup
-    for(TI i=0; i < (TI)std::stoi(checkpoint_path.attributes["rng-warmup"]); i++){
-        rlt::random::uniform_int_distribution(RNG_PARAMS_DEVICE{}, 0, 1, rng_params);
-    }
-
-
     std::cout << "Found checkpoint: " << checkpoint_path.checkpoint_path << std::endl;
 
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
-    auto timestamp_string = rlt::utils::extrack::get_timestamp_string();
-    rlt::init(device, device.logger, "logs/" + timestamp_string);
-#endif
-    rlt::malloc(device, rng);
-    rlt::init(device, rng, seed);
-    // typename LOOP_CORE_CONFIG_PRE_TRAINING::template State <LOOP_CORE_CONFIG_PRE_TRAINING> ts;
-    // rlt::malloc(device, ts);
-    // rlt::init(device, ts, seed);
-    LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT base_env;
-    rlt::sample_initial_parameters<DEVICE, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
-
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>> actor_optimizer;
-    rlt::malloc(device, actor_optimizer);
-
-    LOOP_CORE_CONFIG_POST_TRAINING::NN::ACTOR_TYPE actor;
-    decltype(actor)::Buffer<> actor_buffer;
-    rlt::malloc(device, actor);
-    rlt::malloc(device, actor_buffer);
-    rlt::init_weights(device, actor, rng);
-
-    auto actor_file = HighFive::File(checkpoint_path.checkpoint_path.string(), HighFive::File::ReadOnly);
-
-    constexpr TI NUM_EPISODES = 100;
     rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT, NUM_EPISODES, LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT>> result;
     auto* data = new rlt::rl::utils::evaluation::Data<decltype(result)::SPEC>;
-    using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_PRE_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
-    using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION>>;
-    rlt::rl::environments::DummyUI ui;
-    EVALUATION_ACTOR_TYPE evaluation_actor;
-    EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
-    rlt::malloc(device, evaluation_actor);
-    rlt::malloc(device, eval_buffer);
-    rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));
-
-    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
-    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
-    rlt::init(device, env_eval);
-    env_eval.parameters = base_env.parameters;
-    rlt::initial_parameters(device, env_eval, env_eval_parameters);
-
-    rlt::init(device, rng, seed);
-    rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>> evaluation_mode;
-    rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
+    auto base_parameters = generate_data<NUM_EPISODES>(device, checkpoint_path, seed, result, data);
     rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
 
-    using INPUT_SHAPE = decltype(actor)::INPUT_SHAPE;
-    using OUTPUT_SHAPE = decltype(actor)::OUTPUT_SHAPE;
-    // using INPUT_SHAPE = decltype(evaluation_actor)::INPUT_SHAPE;
-    // using OUTPUT_SHAPE = decltype(evaluation_actor)::OUTPUT_SHAPE;
-    using INPUT_SHAPE_DATASET = rlt::tensor::Replace<INPUT_SHAPE, NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT, 1>;
-    using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT, 1>;
+    add_to_dataset(device, *data, dataset_input, dataset_output_target, current_index, base_parameters, rng);
 
-    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_DATASET>> dataset_input_3d;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE_DATASET>> dataset_output_target_3d;
-    rlt::malloc(device, dataset_input_3d);
-    rlt::malloc(device, dataset_output_target_3d);
-    auto dataset_input = rlt::view(device, dataset_input_3d, 0);
-    auto dataset_output_target = rlt::view(device, dataset_output_target_3d, 0);
 
-    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
-    rlt::malloc(device, d_output);
-    TI current_index = 0;
-    for (TI episode_i = 0; episode_i < NUM_EPISODES; episode_i++){
-        TI current_step_i;
-        for (current_step_i = 0; current_step_i < LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT; current_step_i++){
-            auto observation_tensor = rlt::view(device, dataset_input, current_index + current_step_i);
-            auto action_tensor = rlt::view(device, dataset_output_target, current_index + current_step_i);
-            auto observation = rlt::matrix_view(device, observation_tensor);
-            auto action = rlt::matrix_view(device, action_tensor);
-            rlt::observe(device, env_eval, env_eval_parameters, data->states[episode_i][current_step_i], LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT::Observation{}, observation, rng);
-            for (TI action_i=0; action_i < OUTPUT_SHAPE::LAST; action_i++){
-                rlt::set(action, 0, action_i, data->actions[episode_i][current_step_i][action_i]);
-            }
-            if (data->terminated[episode_i][current_step_i]){
-                break;
-            }
-        }
-        current_index += current_step_i;
-    }
     TI N = current_index;
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < 100; epoch_i++){
@@ -249,6 +291,11 @@ int main(int argc, char** argv){
             rlt::malloc(device, eval_buffer);
             rlt::copy(device, device, actor, evaluation_actor);
 
+            typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
+            typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
+            rlt::init(device, env_eval);
+            env_eval.parameters = base_parameters;
+            rlt::initial_parameters(device, env_eval, env_eval_parameters);
             rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
             rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
             rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
@@ -260,7 +307,7 @@ int main(int argc, char** argv){
         }
     }
     delete data;
-    rlt::free(device, evaluation_actor);
+    rlt::free(device, actor);
     rlt::free(device, device.logger);
     rlt::free(device);
     return 0;
