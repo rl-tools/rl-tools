@@ -5,7 +5,7 @@
 namespace builder{
     template <typename DEVICE, typename T, typename TI, typename RNG, typename OPTIONS, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
-        using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY<DEVICE, T, TI, OPTIONS::SEQUENTIAL_MODEL, OPTIONS::MOTOR_DELAY, OPTIONS::RANDOMIZE_MOTOR_MAPPING, OPTIONS::RANDOMIZE_THRUST_CURVES, OPTIONS::OBSERVE_THRASH_MARKOV, OPTIONS::SAMPLE_INITIAL_PARAMETERS>::ENVIRONMENT;
+        using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY<DEVICE, T, TI, OPTIONS>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = OPTIONS::SEQUENTIAL_MODEL ? 64 : 128;
