@@ -61,6 +61,7 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 struct OPTIONS_PRE_TRAINING{
     static constexpr bool SEQUENTIAL_MODEL = false;
     static constexpr bool MOTOR_DELAY = false;
+    static constexpr bool ACTION_HISTORY = false;
     static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
     static constexpr bool RANDOMIZE_THRUST_CURVES = false;
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
@@ -68,6 +69,8 @@ struct OPTIONS_PRE_TRAINING{
 };
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = true;
+    static constexpr bool MOTOR_DELAY = true;
+    static constexpr bool ACTION_HISTORY = true;
 };
 
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
@@ -243,6 +246,10 @@ int main(int argc, char** argv){
         }
         std::cout << "Found checkpoint: " << checkpoint_path.checkpoint_path << std::endl;
         auto base_parameters = generate_data<NUM_EPISODES>(device, checkpoint_path, seed_i, result, data);
+        if (result.returns_mean < SOLVED_RETURN){
+            std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
+            return 1;
+        }
         rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
         TI num_added = add_to_dataset(device, *data, dataset_input, dataset_output_target, current_index, base_parameters, rng);
         if (num_added == 0){
