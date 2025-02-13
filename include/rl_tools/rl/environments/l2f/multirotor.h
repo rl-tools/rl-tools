@@ -413,11 +413,18 @@ namespace rl_tools::rl::environments::l2f{
         };
     }
 
-
-    template <typename T_T, typename T_TI>
-    struct StateBase{
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = void>
+    struct StateSpecification{
         using T = T_T;
         using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+
+    template <typename T_SPEC>
+    struct StateBase{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI DIM = 13;
         T position[3];
@@ -425,61 +432,85 @@ namespace rl_tools::rl::environments::l2f{
         T linear_velocity[3];
         T angular_velocity[3];
     };
-    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
-    struct StateLastAction: T_NEXT_COMPONENT{
-        using T = T_T;
-        using TI = T_TI;
-        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    template <typename T_SPEC>
+    struct StateLastAction: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI ACTION_DIM = 4;
         static constexpr TI DIM = ACTION_DIM + NEXT_COMPONENT::DIM;
         T last_action[ACTION_DIM];
     };
-    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
-    struct StateLinearAcceleration: T_NEXT_COMPONENT{
-        using T = T_T;
+    template <typename T_SPEC>
+    struct StateLinearAcceleration: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         T linear_acceleration[3]; // this is just to save computation when simulating IMU measurements. Wihtout this we would need to recalculate the acceleration in the observation operation. This is not part of the minimal state in the sense that the transition dynamics are independent of the acceleration given the other parts of the state and the action
     };
 
-    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
-    struct StatePoseErrorIntegral: T_NEXT_COMPONENT{
-        using NEXT_COMPONENT = T_NEXT_COMPONENT;
-        using T = T_T;
-        using TI = T_TI;
+    template <typename T_SPEC>
+    struct StatePoseErrorIntegral: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI DIM = 2;
         T position_integral;
         T orientation_integral;
     };
-    template <typename T_T, typename T_TI, bool T_CLOSED_FORM, typename T_NEXT_COMPONENT>
-    struct StateRotors: T_NEXT_COMPONENT{
+    template <typename T_T, typename T_TI, bool T_CLOSED_FORM = false, typename T_NEXT_COMPONENT = void>
+    struct StateRotorsSpecification{
         using T = T_T;
         using TI = T_TI;
-        using NEXT_COMPONENT = T_NEXT_COMPONENT;
         static constexpr bool CLOSED_FORM = T_CLOSED_FORM;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename T_SPEC>
+    struct StateRotors: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool CLOSED_FORM = SPEC::CLOSED_FORM;
         static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI PARENT_DIM = NEXT_COMPONENT::DIM;
         static constexpr TI DIM = PARENT_DIM + 4;
         T rpm[4];
     };
     template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, bool T_CLOSED_FORM, typename T_NEXT_COMPONENT>
-    struct StateRotorsHistory: StateRotors<T_T, T_TI, T_CLOSED_FORM, T_NEXT_COMPONENT>{
+    struct StateRotorsHistorySpecification{
         using T = T_T;
         using TI = T_TI;
-        using NEXT_COMPONENT = StateRotors<T, TI, T_CLOSED_FORM, T_NEXT_COMPONENT>;
-        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr bool CLOSED_FORM = T_CLOSED_FORM;
         static constexpr TI HISTORY_LENGTH = T_HISTORY_LENGTH;
-        static constexpr TI PARENT_DIM = StateRotors<T, TI, T_CLOSED_FORM, NEXT_COMPONENT>::DIM;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+
+    template <typename T_SPEC>
+    struct StateRotorsHistory: StateRotors<T_SPEC>{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = StateRotors<SPEC>;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI HISTORY_LENGTH = SPEC::HISTORY_LENGTH;
+        static constexpr TI PARENT_DIM = StateRotors<SPEC>::DIM;
         static constexpr TI ACTION_DIM = 4;
         static constexpr TI DIM = PARENT_DIM + HISTORY_LENGTH * ACTION_DIM;
         TI current_step;
         T action_history[HISTORY_LENGTH][4];
     };
-    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
-    struct StateRandomForce: T_NEXT_COMPONENT{
-        using T = T_T;
-        using TI = T_TI;
-        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    template <typename T_SPEC>
+    struct StateRandomForce: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;
         T force[3];
@@ -493,7 +524,7 @@ namespace rl_tools::rl::environments::l2f{
 //        static constexpr LatentStateType LATENT_STATE_TYPE = LatentStateType::Empty;
 //        static constexpr StateType STATE_TYPE = StateType::Base;
 //        static constexpr ObservationType OBSERVATION_TYPE = ObservationType::Normal;
-        using STATE_TYPE = StateBase<T, TI>;
+        using STATE_TYPE = StateBase<StateSpecification<T, TI>>;
         using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                                  observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                                  observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
