@@ -118,20 +118,21 @@ int main(int argc, char** argv){
 #endif
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
-    typename LOOP_CORE_CONFIG_PRE_TRAINING::template State <LOOP_CORE_CONFIG_PRE_TRAINING> ts;
-    rlt::malloc(device, ts);
-    rlt::init(device, ts, seed);
-    auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
+    // typename LOOP_CORE_CONFIG_PRE_TRAINING::template State <LOOP_CORE_CONFIG_PRE_TRAINING> ts;
+    // rlt::malloc(device, ts);
+    // rlt::init(device, ts, seed);
+    LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT base_env;
     rlt::sample_initial_parameters<DEVICE, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
-    for (TI env_i = 1; env_i < LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
-        auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
-        env.parameters = base_env.parameters;
-    }
 
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>> actor_optimizer;
     rlt::malloc(device, actor_optimizer);
 
-    // std::filesystem::path checkpoint_path = "experiments/2025-02-11_17-03-35/f98ad54_default_default/default/0000/steps/000000002000000/checkpoint.h5";
+    LOOP_CORE_CONFIG_POST_TRAINING::NN::ACTOR_TYPE actor;
+    decltype(actor)::Buffer<> actor_buffer;
+    rlt::malloc(device, actor);
+    rlt::malloc(device, actor_buffer);
+    rlt::init_weights(device, actor, rng);
+
     auto actor_file = HighFive::File(checkpoint_path.checkpoint_path.string(), HighFive::File::ReadOnly);
 
     constexpr TI NUM_EPISODES = 100;
@@ -157,18 +158,23 @@ int main(int argc, char** argv){
     rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
     rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
 
-    using INPUT_SHAPE = decltype(ts.actor_critic.actor)::INPUT_SHAPE;
-    using OUTPUT_SHAPE = decltype(ts.actor_critic.actor)::OUTPUT_SHAPE;
+    using INPUT_SHAPE = decltype(actor)::INPUT_SHAPE;
+    using INPUT_SHAPE_PRE_TRAINING = decltype(evaluation_actor)::INPUT_SHAPE;
+    using OUTPUT_SHAPE = decltype(actor)::OUTPUT_SHAPE;
     // using INPUT_SHAPE = decltype(evaluation_actor)::INPUT_SHAPE;
     // using OUTPUT_SHAPE = decltype(evaluation_actor)::OUTPUT_SHAPE;
     using INPUT_SHAPE_DATASET = rlt::tensor::Replace<INPUT_SHAPE, NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT, 1>;
+    using INPUT_SHAPE_DATASET_PRE_TRAINING = rlt::tensor::Replace<INPUT_SHAPE, NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT, 1>;
     using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT, 1>;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_DATASET>> dataset_input_3d;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_DATASET_PRE_TRAINING>> dataset_input_pre_training_3d;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE_DATASET>> dataset_output_target_3d;
     rlt::malloc(device, dataset_input_3d);
+    rlt::malloc(device, dataset_input_pre_training_3d);
     rlt::malloc(device, dataset_output_target_3d);
     auto dataset_input = rlt::view(device, dataset_input_3d, 0);
+    auto dataset_input_pre_training = rlt::view(device, dataset_input_pre_training_3d, 0);
     auto dataset_output_target = rlt::view(device, dataset_output_target_3d, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
@@ -177,11 +183,14 @@ int main(int argc, char** argv){
     for (TI episode_i = 0; episode_i < NUM_EPISODES; episode_i++){
         TI current_step_i;
         for (current_step_i = 0; current_step_i < LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT; current_step_i++){
+            auto observation_pre_training_tensor = rlt::view(device, dataset_input_pre_training, current_index + current_step_i);
             auto observation_tensor = rlt::view(device, dataset_input, current_index + current_step_i);
             auto action_tensor = rlt::view(device, dataset_output_target, current_index + current_step_i);
+            auto observation_pre_training = rlt::matrix_view(device, observation_pre_training_tensor);
             auto observation = rlt::matrix_view(device, observation_tensor);
             auto action = rlt::matrix_view(device, action_tensor);
-            rlt::observe(device, env_eval, env_eval_parameters, data->states[episode_i][current_step_i], decltype(env_eval)::Observation{}, observation, rng);
+            rlt::observe(device, env_eval, env_eval_parameters, data->states[episode_i][current_step_i], decltype(env_eval)::Observation{}, observation_pre_training, rng);
+            rlt::observe(device, env_eval, env_eval_parameters, data->states[episode_i][current_step_i], LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT::Observation{}, observation, rng);
             for (TI action_i=0; action_i < OUTPUT_SHAPE::LAST; action_i++){
                 rlt::set(action, 0, action_i, data->actions[episode_i][current_step_i][action_i]);
             }
@@ -192,8 +201,7 @@ int main(int argc, char** argv){
         current_index += current_step_i;
     }
     TI N = current_index;
-    rlt::init_weights(device, ts.actor_critic.actor, rng);
-    rlt::reset_optimizer_state(device, actor_optimizer, ts.actor_critic.actor);
+    rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < 100; epoch_i++){
         for (TI sample_i=0; sample_i<N; sample_i++){
             TI target_index = rlt::random::uniform_int_distribution(device.random, sample_i, N - 1, rng);
@@ -214,9 +222,9 @@ int main(int argc, char** argv){
         for (TI batch_i = 0; batch_i < N / BATCH_SIZE; batch_i++){
             auto input = rlt::view_range(device, dataset_input_3d, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
             auto output_target = rlt::view_range(device, dataset_output_target_3d, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-            rlt::forward(device, ts.actor_critic.actor, input, ts.actor_buffers[0], rng, evaluation_mode);
+            rlt::forward(device, actor, input, actor_buffer, rng, evaluation_mode);
             // rlt::evaluate(device, evaluation_actor, input, output, eval_buffer, rng, evaluation_mode);
-            auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, ts.actor_critic.actor));
+            auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, actor));
             auto output_target_matrix_view = rlt::matrix_view(device, output_target);
             auto d_output_matrix_view = rlt::matrix_view(device, d_output);
             rlt::nn::loss_functions::mse::gradient(device, output_matrix_view, output_target_matrix_view, d_output_matrix_view);
@@ -224,9 +232,9 @@ int main(int argc, char** argv){
             rlt::set_step(device, device.logger, epoch_i * (N/BATCH_SIZE) + batch_i);
             rlt::add_scalar(device, device.logger, "loss", loss);
             std::cout << "Epoch: " << epoch_i << " Loss: " << loss << std::endl;
-            rlt::zero_gradient(device, ts.actor_critic.actor);
-            rlt::backward(device, ts.actor_critic.actor, input, d_output, ts.actor_buffers[0], evaluation_mode);
-            rlt::step(device, actor_optimizer, ts.actor_critic.actor);
+            rlt::zero_gradient(device, actor);
+            rlt::backward(device, actor, input, d_output, actor_buffer, evaluation_mode);
+            rlt::step(device, actor_optimizer, actor);
         }
         // {
         //     auto output_target = rlt::view_range(device, dataset_output_target_3d, (N / BATCH_SIZE - 1) * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
@@ -245,7 +253,7 @@ int main(int argc, char** argv){
             EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
             rlt::malloc(device, evaluation_actor);
             rlt::malloc(device, eval_buffer);
-            rlt::copy(device, device, ts.actor_critic.actor, evaluation_actor);
+            rlt::copy(device, device, actor, evaluation_actor);
 
             rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
             rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
