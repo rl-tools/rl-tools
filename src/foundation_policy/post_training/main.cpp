@@ -289,15 +289,6 @@ int main(int argc, char** argv){
             rlt::backward(device, actor, input, d_output, actor_buffer, evaluation_mode);
             rlt::step(device, actor_optimizer, actor);
         }
-        // {
-        //     auto output_target = rlt::view_range(device, dataset_output_target_3d, (N / BATCH_SIZE - 1) * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-        //     std::cout << "Target: " << std::endl;
-        //     rlt::print(device, output_target);
-        //     std::cout << "Output: " << std::endl;
-        //     rlt::print(device, rlt::output(device, ts.actor_critic.actor));
-        //     std::cout << "Diff: " << std::endl;
-        //     std::cout << rlt::abs_diff(device, rlt::output(device, ts.actor_critic.actor), output_target) << std::endl;;
-        // }
         {
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
