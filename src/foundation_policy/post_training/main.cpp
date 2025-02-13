@@ -81,7 +81,7 @@ constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
 
 // typedefs
-using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
+using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
 using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
 using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
