@@ -69,6 +69,7 @@ struct OPTIONS{
 using FACTORY = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS, DYNAMIC_ALLOCATION>;
 using LOOP_CORE_CONFIG = FACTORY::LOOP_CORE_CONFIG;
 using LOOP_CONFIG = builder::LOOP_ASSEMBLY<LOOP_CORE_CONFIG>::LOOP_CONFIG;
+// note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
 
 int main(int argc, char** argv){
     DEVICE device;
@@ -82,13 +83,16 @@ int main(int argc, char** argv){
     rlt::init(device, rng_params, seed);
     typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
     rlt::malloc(device, ts);
+    ts.extrack_config.name = "foundation-policy-pre-training";
+    ts.extrack_config.population_variates = "motor-mapping_thrust-curves_rng-warmup";
+    ts.extrack_config.population_values = std::string(OPTIONS::RANDOMIZE_MOTOR_MAPPING ? "true" : "false") + "_" + (OPTIONS::RANDOMIZE_THRUST_CURVES ? "true" : "false") + "_" + std::to_string(FACTORY::RNG_PARAMS_WARMUP_STEPS);
     rlt::init(device, ts, seed);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
     // warmup
     for(TI i=0; i < FACTORY::RNG_PARAMS_WARMUP_STEPS; i++){
-        rlt::random::normal_distribution::sample(RNG_PARAMS_DEVICE{}, (T)0, (T)1, rng_params);
+        rlt::random::uniform_int_distribution(RNG_PARAMS_DEVICE{}, 0, 1, rng_params);
     }
 
     auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
