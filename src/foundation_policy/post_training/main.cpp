@@ -175,7 +175,8 @@ int main(int argc, char** argv){
     using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
     using INPUT_SHAPE_DATASET = rlt::tensor::Replace<INPUT_SHAPE, DATASET_SIZE, 1>;
     using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, DATASET_SIZE, 1>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
+    using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT, NUM_EPISODES, LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT>>;
+    using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
 
     // declarations
     DEVICE device;
@@ -186,6 +187,9 @@ int main(int argc, char** argv){
     OPTIMIZER actor_optimizer;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_DATASET>> dataset_input_3d;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE_DATASET>> dataset_output_target_3d;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
+    RESULT result;
+    DATA* data;
 
     // device init
     rlt::init(device);
@@ -198,6 +202,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, dataset_input_3d);
     rlt::malloc(device, dataset_output_target_3d);
     rlt::malloc(device, d_output);
+    data = new DATA;
 
     // views
     auto dataset_input = rlt::view(device, dataset_input_3d, 0);
@@ -226,8 +231,6 @@ int main(int argc, char** argv){
     }
     std::cout << "Found checkpoint: " << checkpoint_path.checkpoint_path << std::endl;
 
-    rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT, NUM_EPISODES, LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT>> result;
-    auto* data = new rlt::rl::utils::evaluation::Data<decltype(result)::SPEC>;
     auto base_parameters = generate_data<NUM_EPISODES>(device, checkpoint_path, seed, result, data);
     rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
 
@@ -306,9 +309,14 @@ int main(int argc, char** argv){
             rlt::free(device, eval_buffer);
         }
     }
-    delete data;
+    // malloc
+    rlt::free(device, rng);
+    rlt::free(device, actor_optimizer);
     rlt::free(device, actor);
-    rlt::free(device, device.logger);
-    rlt::free(device);
+    rlt::free(device, actor_buffer);
+    rlt::free(device, dataset_input_3d);
+    rlt::free(device, dataset_output_target_3d);
+    rlt::free(device, d_output);
+    delete data;
     return 0;
 }
