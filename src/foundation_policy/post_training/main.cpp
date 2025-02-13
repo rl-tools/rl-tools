@@ -67,9 +67,10 @@ struct OPTIONS_PRE_TRAINING{
     static constexpr bool SAMPLE_INITIAL_PARAMETERS = false;
 };
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
+    static constexpr bool OBSERVE_THRASH_MARKOV = true;
 };
 using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
-using LOOP_CORE_CONFIG_POST_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG_POST_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_POST_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
     static constexpr T ALPHA = 0.001;
 };
@@ -121,9 +122,10 @@ auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, ty
 
 
 template <typename DATA, typename INPUT_SPEC, typename OUTPUT_SPEC, typename PARAMS, typename RNG>
-void add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, TI& current_index, PARAMS& base_parameters, RNG& rng){
+TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, TI& current_index, PARAMS& base_parameters, RNG& rng){
 
 
+    TI initial_index = current_index;
     typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
     typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
     rlt::init(device, env_eval);
@@ -146,7 +148,11 @@ void add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, 
             }
         }
         current_index += current_step_i;
+        if (current_index >= INPUT_SPEC::SHAPE::FIRST){
+            return current_index - initial_index;
+        }
     }
+    return current_index - initial_index;
 }
 
 
@@ -163,6 +169,7 @@ int main(int argc, char** argv){
 
     // constants parameters
     constexpr TI NUM_EPISODES = 100;
+    constexpr TI N_EPOCH = 100;
     constexpr TI N_PRE_TRAINING_SEEDS = 50;
     // constants derived
     constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * LOOP_CORE_CONFIG_PRE_TRAINING::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
@@ -223,23 +230,27 @@ int main(int argc, char** argv){
     rlt::utils::extrack::Path checkpoint_path;
     checkpoint_path.experiment = "2025-02-13_11-30-07";
     checkpoint_path.name = "foundation-policy-pre-training";
-    checkpoint_path.seed = std::to_string(seed);
-    rlt::find_latest_run(device, "experiments", checkpoint_path);
-    if (!rlt::find_latest_checkpoint(device, checkpoint_path)){
-        std::cerr << "No checkpoint found for " << checkpoint_path.experiment << std::endl;
-        return 1;
+
+    for (TI seed_i = 0; seed_i < 50; seed_i++){
+        checkpoint_path.seed = std::to_string(seed_i);
+        rlt::find_latest_run(device, "experiments", checkpoint_path);
+        if (!rlt::find_latest_checkpoint(device, checkpoint_path)){
+            std::cerr << "No checkpoint found for " << checkpoint_path.experiment << std::endl;
+            return 1;
+        }
+        std::cout << "Found checkpoint: " << checkpoint_path.checkpoint_path << std::endl;
+        auto base_parameters = generate_data<NUM_EPISODES>(device, checkpoint_path, seed_i, result, data);
+        rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
+        TI num_added = add_to_dataset(device, *data, dataset_input, dataset_output_target, current_index, base_parameters, rng);
+        if (num_added == 0){
+            std::cout << "Dataset full after " << seed_i << " seeds" << std::endl;
+            break;
+        }
     }
-    std::cout << "Found checkpoint: " << checkpoint_path.checkpoint_path << std::endl;
-
-    auto base_parameters = generate_data<NUM_EPISODES>(device, checkpoint_path, seed, result, data);
-    rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
-
-    add_to_dataset(device, *data, dataset_input, dataset_output_target, current_index, base_parameters, rng);
-
 
     TI N = current_index;
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
-    for (TI epoch_i = 0; epoch_i < 100; epoch_i++){
+    for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         for (TI sample_i=0; sample_i<N; sample_i++){
             TI target_index = rlt::random::uniform_int_distribution(device.random, sample_i, N - 1, rng);
             auto input = rlt::view(device, dataset_input, sample_i);
@@ -285,26 +296,26 @@ int main(int argc, char** argv){
         //     std::cout << rlt::abs_diff(device, rlt::output(device, ts.actor_critic.actor), output_target) << std::endl;;
         // }
         {
-            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_PRE_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
-            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION>>;
+            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_POST_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
+            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_POST_TRAINING::DYNAMIC_ALLOCATION>>;
             rlt::rl::environments::DummyUI ui;
             EVALUATION_ACTOR_TYPE evaluation_actor;
-            EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
+            EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_POST_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
             rlt::malloc(device, evaluation_actor);
             rlt::malloc(device, eval_buffer);
             rlt::copy(device, device, actor, evaluation_actor);
 
-            typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
-            typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
+            typename LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT_EVALUATION env_eval;
+            typename LOOP_CORE_CONFIG_POST_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
             rlt::init(device, env_eval);
-            env_eval.parameters = base_parameters;
-            rlt::initial_parameters(device, env_eval, env_eval_parameters);
+            rlt::sample_initial_parameters(device, env_eval, env_eval_parameters, rng);
             rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
             rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
             rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
             rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
             rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result.episode_length_std);
             rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
+
             rlt::free(device, evaluation_actor);
             rlt::free(device, eval_buffer);
         }
