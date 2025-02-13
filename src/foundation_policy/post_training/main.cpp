@@ -33,7 +33,7 @@
 #include <rl_tools/nn_models/sequential/persist_code.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
 
-#include "../pre_training/environment.h"
+#include "environment.h"
 
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 
