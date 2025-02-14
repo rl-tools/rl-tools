@@ -20,9 +20,9 @@ namespace env_param_builder{
             static constexpr TI ACTION_HISTORY_LENGTH = 1;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
             static constexpr bool CLOSED_FORM = false;
-            using STATE_BASE = StateLinearAcceleration<T, TI, StateBase<T, TI>>;
-            using STATE_TYPE_NORMAL = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
-            using STATE_TYPE_PARTIAL_OBSERVED = StateRotors<T, TI, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
+            using STATE_BASE = StateLinearAcceleration<StateSpecification<T, TI, StateBase<StateSpecification<T, TI>>>>;
+            using STATE_TYPE_NORMAL = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
+            using STATE_TYPE_PARTIAL_OBSERVED = StateRotors<StateRotorsSpecification<T, TI, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
             using OBSERVATION_TYPE_NORMAL = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,

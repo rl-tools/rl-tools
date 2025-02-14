@@ -3,7 +3,9 @@
 #pragma once
 #define RL_TOOLS_RL_ZOO_L2F_ENVIRONMENT_H
 
+#include <rl_tools/rl/environments/l2f/operations_multitask_generic_forward.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
+#include <rl_tools/rl/environments/l2f/operations_multitask_generic.h>
 #include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared.h>
 #include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
 #include <rl_tools/rl/environments/l2f/parameters/default.h>

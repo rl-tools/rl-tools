@@ -1,6 +1,8 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/l2f/parameters/default.h>
+#include <rl_tools/rl/environments/l2f/operations_multitask_generic_forward.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
+#include <rl_tools/rl/environments/l2f/operations_multitask_generic.h>
 
 #include <nlohmann/json.hpp>
 #include <fstream>
