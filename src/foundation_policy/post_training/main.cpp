@@ -60,9 +60,9 @@ using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
-    static constexpr bool OBSERVE_THRASH_MARKOV = true;
+    static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
-    static constexpr bool ACTION_HISTORY = false;
+    static constexpr bool ACTION_HISTORY = true;
 };
 
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
@@ -232,10 +232,10 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-02-13_11-30-07";
+    checkpoint_path.experiment = "2025-02-14_17-02-20";
     checkpoint_path.name = "foundation-policy-pre-training";
 
-    for (TI seed_i = 0; seed_i < 50; seed_i++){
+    for (TI seed_i = 0; seed_i < 1; seed_i++){
         checkpoint_path.seed = std::to_string(seed_i);
         rlt::find_latest_run(device, "experiments", checkpoint_path);
         if (!rlt::find_latest_checkpoint(device, checkpoint_path)){
