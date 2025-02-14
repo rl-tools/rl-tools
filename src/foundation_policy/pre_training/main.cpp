@@ -47,6 +47,7 @@
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
 #include "config.h"
+#include "options.h"
 
 namespace rlt = rl_tools;
 
@@ -58,14 +59,8 @@ using TI = typename DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
-struct OPTIONS{
-    static constexpr bool SEQUENTIAL_MODEL = false;
-    static constexpr bool MOTOR_DELAY = false;
-    static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
-    static constexpr bool RANDOMIZE_THRUST_CURVES = false;
-    static constexpr bool OBSERVE_THRASH_MARKOV = false;
-    static constexpr bool SAMPLE_INITIAL_PARAMETERS = false;
-};
+using OPTIONS = OPTIONS_PRE_TRAINING;
+
 using FACTORY = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS, DYNAMIC_ALLOCATION>;
 using LOOP_CORE_CONFIG = FACTORY::LOOP_CORE_CONFIG;
 using LOOP_CONFIG = builder::LOOP_ASSEMBLY<LOOP_CORE_CONFIG>::LOOP_CONFIG;
