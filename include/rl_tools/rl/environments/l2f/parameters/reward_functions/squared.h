@@ -37,8 +37,8 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             T reward;
         };
     };
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG, typename STATE_T, typename STATE_TI>
-    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& reward_parameters, const rl::environments::l2f::StateBase<STATE_T, STATE_TI>& state, const Matrix<ACTION_SPEC>& action,  const rl::environments::l2f::StateBase<STATE_T, STATE_TI>& next_state, typename rl::environments::l2f::parameters::reward_functions::Squared<T>::Components& components, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& reward_parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action,  const rl::environments::l2f::StateBase<STATE_SPEC>& next_state, typename rl::environments::l2f::parameters::reward_functions::Squared<T>::Components& components, RNG& rng){
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
 //        components.orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::abs(device.math, 2 * math::acos(device.math, quaternion_w));
@@ -61,11 +61,11 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         components.action_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         components.action_cost *= components.action_cost;
     }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG, typename STATE_T, typename STATE_TI, typename NEXT_STATE_COMPONENT>
-    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& reward_parameters, const rl::environments::l2f::StateLastAction<STATE_T, STATE_TI, NEXT_STATE_COMPONENT>& state, const Matrix<ACTION_SPEC>& action,  const rl::environments::l2f::StateLastAction<STATE_T, STATE_TI, NEXT_STATE_COMPONENT>& next_state, typename rl::environments::l2f::parameters::reward_functions::Squared<T>::Components& components, RNG& rng) {
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::parameters::reward_functions::Squared<T>& reward_parameters, const rl::environments::l2f::StateLastAction<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action,  const rl::environments::l2f::StateLastAction<STATE_SPEC>& next_state, typename rl::environments::l2f::parameters::reward_functions::Squared<T>::Components& components, RNG& rng) {
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
-        reward_components(device, env, parameters, reward_parameters, static_cast<const NEXT_STATE_COMPONENT&>(state), action, static_cast<const NEXT_STATE_COMPONENT&>(next_state), components, rng);
+        reward_components(device, env, parameters, reward_parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(next_state), components, rng);
         components.d_action_cost = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T d_action_value = get(action, 0, action_i) - state.last_action[action_i];
