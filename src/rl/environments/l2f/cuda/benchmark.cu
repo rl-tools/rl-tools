@@ -35,8 +35,8 @@ namespace builder {
         static constexpr TI_GPU N_SUBSTEPS = 1;
         static constexpr TI_GPU ACTION_HISTORY_LENGTH = 16;
         static constexpr TI_GPU CLOSED_FORM = false;
-        using STATE_BASE = StateBase<T, TI_GPU>;
-        using STATE_TYPE = StateRotors<T, TI_GPU, CLOSED_FORM, StateRandomForce<T, TI_GPU, STATE_BASE>>;
+        using STATE_BASE = StateBase<StateSpecification<T, TI_GPU>>;
+        using STATE_TYPE = StateRotors<StateRotorsSpecification<T, TI_GPU, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI_GPU, STATE_BASE>>>>;
         using OBSERVATION_TYPE =
             Position<PositionSpecification<T, TI_GPU,
             OrientationRotationMatrix<OrientationRotationMatrixSpecification<T, TI_GPU,

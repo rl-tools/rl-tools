@@ -14,7 +14,7 @@ namespace rl_tools::rl::zoo::l2f::ppo{
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
         struct OPTIONS{
-            static constexpr bool SEQUETIAL_MODEL = false;
+            static constexpr bool SEQUENTIAL_MODEL = false;
             static constexpr bool MOTOR_DELAY = false;
             static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
             static constexpr bool RANDOMIZE_THRUST_CURVES = true;
