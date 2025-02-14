@@ -155,7 +155,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f {
-    template<typename DEVICE, typename PARAMETERS, typename T, typename STATE_SPEC>
+    template<typename DEVICE, typename STATE_SPEC, typename PARAMETERS, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateBase<STATE_SPEC>& state, const T* action, StateBase<STATE_SPEC>& state_change) {
         using STATE = StateBase<STATE_SPEC>;
 
@@ -211,9 +211,9 @@ namespace rl_tools::rl::environments::l2f {
 //        multirotor_dynamics<DEVICE, T, TI, PARAMETERS>(device, params, (const typename STATE::LATENT_STATE&)state, action, state_change);
 //        multirotor_dynamics(device, params, (const typename STATE::LATENT_STATE&)state, action, state_change);
     }
-    template<typename DEVICE, typename T, typename STATE_SPEC, typename PARAMETERS, typename NEXT_COMPONENT>
+    template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StatePoseErrorIntegral<STATE_SPEC>& state, const T* action, StatePoseErrorIntegral<STATE_SPEC>& state_change){
-        multirotor_dynamics(device, params, static_cast<const NEXT_COMPONENT&>(state), action, static_cast<NEXT_COMPONENT&>(state_change));
+        multirotor_dynamics(device, params, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state_change));
         T position_error = state.position[0] * state.position[0] + state.position[1] * state.position[1] + state.position[2] * state.position[2];
         position_error = math::sqrt(device.math, position_error);
         T w_clamped = math::clamp(device.math, state.orientation[0], (T)-1, (T)1);
@@ -221,9 +221,9 @@ namespace rl_tools::rl::environments::l2f {
         state_change.position_integral = position_error;
         state_change.orientation_integral = orientation_error;
     }
-    template<typename DEVICE, typename T, typename STATE_SPEC, typename PARAMETERS, typename NEXT_COMPONENT>
+    template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateRandomForce<STATE_SPEC>& state, const T* action, StateRandomForce<STATE_SPEC>& state_change){
-        multirotor_dynamics(device, params, static_cast<const NEXT_COMPONENT&>(state), action, static_cast<NEXT_COMPONENT&>(state_change));
+        multirotor_dynamics(device, params, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state_change));
 
         state_change.linear_velocity[0] += state.force[0] / params.dynamics.mass;
         state_change.linear_velocity[1] += state.force[1] / params.dynamics.mass;
@@ -234,16 +234,21 @@ namespace rl_tools::rl::environments::l2f {
         rl_tools::utils::vector_operations::matrix_vector_product<DEVICE, T, 3, 3>(params.dynamics.J_inv, state.torque, angular_acceleration);
         rl_tools::utils::vector_operations::add_accumulate<DEVICE, T, 3>(angular_acceleration, state_change.angular_velocity);
     }
-    template<typename DEVICE, typename T, typename STATE_SPEC, bool T_CLOSED_FORM, typename NEXT_COMPONENT, typename PARAMETERS>
+    template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateRotors<STATE_SPEC>& state, const T* action, StateRotors<STATE_SPEC>& state_change) {
-        multirotor_dynamics(device, params, static_cast<const NEXT_COMPONENT&>(state), state.rpm, static_cast<NEXT_COMPONENT&>(state_change));
+        multirotor_dynamics(device, params, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), state.rpm, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state_change));
 
-        if constexpr(!T_CLOSED_FORM) {
+        if constexpr(!STATE_SPEC::CLOSED_FORM) {
             for(typename DEVICE::index_t i_rotor = 0; i_rotor < 4; i_rotor++){
                 state_change.rpm[i_rotor] = (action[i_rotor] - state.rpm[i_rotor]) * 1/params.dynamics.motor_time_constant;
             }
         }
 
+    }
+    template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateRotorsHistory<STATE_SPEC>& state, const T* action, StateRotorsHistory<STATE_SPEC>& state_change){
+        using STATE = StateRotorsHistory<STATE_SPEC>;
+        multirotor_dynamics(device, params, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(state_change));
     }
     template<typename DEVICE, typename T, typename PARAMETERS, typename STATE>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics_dispatch(DEVICE& device, const PARAMETERS& params, const STATE& state, const T* action, STATE& state_change) {
