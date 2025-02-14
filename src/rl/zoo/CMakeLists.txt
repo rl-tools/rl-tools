@@ -5,77 +5,29 @@ function(RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT TARGET)
 endfunction()
 
 
-if(UNIX)
-    file(GLOB_RECURSE GIT_DIFF_PROJECT_SOURCES
-            CONFIGURE_DEPENDS
-            "${PROJECT_SOURCE_DIR}/src/*"
-            "${PROJECT_SOURCE_DIR}/include/*"
-    )
-    add_custom_command(
-            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            DEPENDS ${GIT_DIFF_PROJECT_SOURCES}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack
-            COMMAND ${CMAKE_COMMAND} -E echo "namespace rl_tools::utils::extrack::git{" > ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo_append "    extern const char* const commit = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git rev-parse HEAD >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff_color = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git diff --color=always >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git diff --word-diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff_color = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git diff --word-diff --color=always >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff_staged = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git diff --cached >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff_staged_color = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git diff --cached --color=always >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff_staged = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git diff --cached --word-diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff_staged_color = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND git diff --cached --word-diff --color=always >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            COMMAND ${CMAKE_COMMAND} -E echo "}" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-            COMMENT "Generating git diff source"
-            VERBATIM
-    )
-
-    add_library(git_diff STATIC ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp)
-    target_compile_definitions(git_diff PUBLIC RL_TOOLS_EXTRACK_GIT_DIFF)
-endif()
-
 # Pendulum-v1
 # PPO
 add_executable(rl_zoo_pendulum_v1_ppo zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_v1_ppo PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_v1_ppo PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_v1_ppo)
 target_compile_definitions(rl_zoo_pendulum_v1_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_pendulum_v1_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 # SAC
 add_executable(rl_zoo_pendulum_v1_sac zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_v1_sac PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_v1_sac PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_v1_sac)
 target_compile_definitions(rl_zoo_pendulum_v1_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_pendulum_v1_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 # SAC Benchmark
 add_executable(rl_zoo_pendulum_v1_sac_benchmark zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_v1_sac_benchmark PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_v1_sac_benchmark PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_v1_sac_benchmark)
 target_compile_definitions(rl_zoo_pendulum_v1_sac_benchmark PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_pendulum_v1_sac_benchmark PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 target_compile_definitions(rl_zoo_pendulum_v1_sac_benchmark PRIVATE RL_TOOLS_RL_ZOO_BENCHMARK)
 # TD3
 add_executable(rl_zoo_pendulum_v1_td3 zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_v1_td3 PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_v1_td3 PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_v1_td3)
 target_compile_definitions(rl_zoo_pendulum_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 target_compile_definitions(rl_zoo_pendulum_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
@@ -83,26 +35,26 @@ target_compile_definitions(rl_zoo_pendulum_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRO
 # PendulumVelocity-v1
 # SAC
 add_executable(rl_zoo_pendulum_velocity_v1_sac zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_velocity_v1_sac PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_velocity_v1_sac PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_velocity_v1_sac)
 target_compile_definitions(rl_zoo_pendulum_velocity_v1_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_pendulum_velocity_v1_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
 # TD3
 add_executable(rl_zoo_pendulum_velocity_v1_td3 zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_velocity_v1_td3 PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_velocity_v1_td3 PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_velocity_v1_td3)
 target_compile_definitions(rl_zoo_pendulum_velocity_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3 RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
 
 # PendulumMultiTask-v1
 # PPO
 add_executable(rl_zoo_pendulum_multitask_v1_ppo zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_multitask_v1_ppo PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_multitask_v1_ppo PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_multitask_v1_ppo)
 target_compile_definitions(rl_zoo_pendulum_multitask_v1_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_pendulum_multitask_v1_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_MULTITASK_V1)
 # SAC
 add_executable(rl_zoo_pendulum_multitask_v1_sac zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_multitask_v1_sac PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_multitask_v1_sac PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_multitask_v1_sac)
 target_compile_definitions(rl_zoo_pendulum_multitask_v1_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_pendulum_multitask_v1_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_MULTITASK_V1)
@@ -114,7 +66,7 @@ if(RL_TOOLS_ENABLE_TRACY)
 endif()
 # TD3
 add_executable(rl_zoo_pendulum_multitask_v1_td3 zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_pendulum_multitask_v1_td3 PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_pendulum_multitask_v1_td3 PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_multitask_v1_td3)
 target_compile_definitions(rl_zoo_pendulum_multitask_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 target_compile_definitions(rl_zoo_pendulum_multitask_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_MULTITASK_V1)
@@ -122,19 +74,19 @@ target_compile_definitions(rl_zoo_pendulum_multitask_v1_td3 PRIVATE RL_TOOLS_RL_
 # Flag
 # SAC
 add_executable(rl_zoo_flag_sac zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_flag_sac PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_flag_sac PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_sac)
 target_compile_definitions(rl_zoo_flag_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_flag_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 # TD3
 add_executable(rl_zoo_flag_td3 zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_flag_td3 PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_flag_td3 PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_td3)
 target_compile_definitions(rl_zoo_flag_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 target_compile_definitions(rl_zoo_flag_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 # PPO
 add_executable(rl_zoo_flag_ppo zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_flag_ppo PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_flag_ppo PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_ppo)
 target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
@@ -142,7 +94,7 @@ target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_F
 # AcrobotSwingup-v0
 # SAC
 add_executable(rl_zoo_acrobot_swingup_v0_sac zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_acrobot_swingup_v0_sac PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_acrobot_swingup_v0_sac PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_acrobot_swingup_v0_sac)
 target_compile_definitions(rl_zoo_acrobot_swingup_v0_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_acrobot_swingup_v0_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
@@ -150,7 +102,7 @@ target_compile_definitions(rl_zoo_acrobot_swingup_v0_sac PRIVATE RL_TOOLS_RL_ZOO
 # Learning to Fly
 # SAC
 add_executable(rl_zoo_l2f_sac zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_l2f_sac PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_l2f_sac PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_l2f_sac)
 target_compile_definitions(rl_zoo_l2f_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_l2f_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
@@ -164,13 +116,13 @@ target_compile_definitions(rl_zoo_l2f_sac_benchmark PRIVATE RL_TOOLS_RL_ZOO_ENVI
 target_compile_definitions(rl_zoo_l2f_sac_benchmark PRIVATE RL_TOOLS_RL_ZOO_BENCHMARK)
 # TD3
 add_executable(rl_zoo_l2f_td3 zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_l2f_td3 PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_l2f_td3 PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_l2f_td3)
 target_compile_definitions(rl_zoo_l2f_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 target_compile_definitions(rl_zoo_l2f_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 # PPO
 add_executable(rl_zoo_l2f_ppo zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_l2f_ppo PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_l2f_ppo PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_l2f_ppo)
 target_compile_definitions(rl_zoo_l2f_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_l2f_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
@@ -178,7 +130,7 @@ target_compile_definitions(rl_zoo_l2f_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2
 # Bottleneck-v0
 # PPO
 add_executable(rl_zoo_bottleneck_v0_ppo zoo_cli.cpp zoo.cpp)
-target_link_libraries(rl_zoo_bottleneck_v0_ppo PRIVATE RLtools::RLtools git_diff)
+target_link_libraries(rl_zoo_bottleneck_v0_ppo PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_bottleneck_v0_ppo)
 target_compile_definitions(rl_zoo_bottleneck_v0_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_bottleneck_v0_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_BOTTLENECK_V0)
@@ -188,13 +140,13 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     # Ant-v4
     # PPO
     add_executable(rl_zoo_ant_v4_ppo zoo_cli.cpp zoo.cpp)
-    target_link_libraries(rl_zoo_ant_v4_ppo PRIVATE RLtools::RLtools git_diff)
+    target_link_libraries(rl_zoo_ant_v4_ppo PRIVATE RLtools::RLtools)
     RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_ant_v4_ppo)
     target_compile_definitions(rl_zoo_ant_v4_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
     target_compile_definitions(rl_zoo_ant_v4_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
     # TD3
     add_executable(rl_zoo_ant_v4_td3 zoo_cli.cpp zoo.cpp)
-    target_link_libraries(rl_zoo_ant_v4_td3 PRIVATE RLtools::RLtools git_diff)
+    target_link_libraries(rl_zoo_ant_v4_td3 PRIVATE RLtools::RLtools)
     RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_ant_v4_td3)
     target_compile_definitions(rl_zoo_ant_v4_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
     target_compile_definitions(rl_zoo_ant_v4_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
