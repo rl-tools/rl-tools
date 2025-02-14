@@ -481,7 +481,7 @@ namespace rl_tools{
         is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         bool nan = false;
         for(typename DEVICE::index_t i = 0; i < 4; i++){
-            nan = nan || math::is_nan(device.math, state.rpm[2]);
+            nan = nan || math::is_nan(device.math, state.rpm[i]);
         }
         return nan;
     }
