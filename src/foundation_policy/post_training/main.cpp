@@ -47,6 +47,7 @@
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
 #include "../pre_training/config.h"
+#include "../pre_training/options.h"
 
 namespace rlt = rl_tools;
 
@@ -58,15 +59,6 @@ using TI = typename DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
-struct OPTIONS_PRE_TRAINING{
-    static constexpr bool SEQUENTIAL_MODEL = false;
-    static constexpr bool MOTOR_DELAY = false;
-    static constexpr bool ACTION_HISTORY = false;
-    static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
-    static constexpr bool RANDOMIZE_THRUST_CURVES = false;
-    static constexpr bool OBSERVE_THRASH_MARKOV = false;
-    static constexpr bool SAMPLE_INITIAL_PARAMETERS = false;
-};
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = true;
     static constexpr bool MOTOR_DELAY = true;
