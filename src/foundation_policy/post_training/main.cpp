@@ -69,8 +69,8 @@ struct OPTIONS_PRE_TRAINING{
 };
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = true;
-    static constexpr bool MOTOR_DELAY = true;
-    static constexpr bool ACTION_HISTORY = true;
+    static constexpr bool MOTOR_DELAY = false;
+    static constexpr bool ACTION_HISTORY = false;
 };
 
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
@@ -86,6 +86,12 @@ constexpr T SOLVED_RETURN = 550;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
+struct ENVIRONMENT_PT: ENVIRONMENT{
+    using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+    using ENV = LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT;
+    using Observation = ENV::Observation;
+    using ObservationPrivileged = Observation;
+};
 using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
 using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
@@ -110,7 +116,6 @@ using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, DATASET_SIZE, 1>
 template <TI NUM_EPISODES, typename RESULT, typename DATA>
 auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, typename DEVICE::index_t seed, RESULT& result, DATA& data){
 
-    using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
     RNG_PARAMS rng_params;
     {
         rlt::malloc(device, rng_params);
@@ -122,9 +127,9 @@ auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, ty
         rlt::free(device, rng_params);
     }
     auto actor_file = HighFive::File(checkpoint_path.checkpoint_path.string(), HighFive::File::ReadOnly);
-    LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT base_env;
-    rlt::sample_initial_parameters<DEVICE, LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
-
+    ENVIRONMENT_PT base_env;
+    rlt::sample_initial_parameters<DEVICE, ENVIRONMENT_PT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
+    using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
     using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_PRE_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION>>;
     rlt::rl::environments::DummyUI ui;
@@ -134,8 +139,8 @@ auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, ty
     rlt::malloc(device, eval_buffer);
     rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));
 
-    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION env_eval;
-    typename LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
+    ENVIRONMENT_PT env_eval;
+    ENVIRONMENT_PT::Parameters env_eval_parameters;
     rlt::init(device, env_eval);
     env_eval.parameters = base_env.parameters;
     rlt::initial_parameters(device, env_eval, env_eval_parameters);
