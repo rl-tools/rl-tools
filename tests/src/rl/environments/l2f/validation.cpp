@@ -27,8 +27,8 @@ namespace static_parameter_builder{
         static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI ACTION_HISTORY_LENGTH = 16;
         static constexpr TI EPISODE_STEP_LIMIT = 500;
-        using STATE_BASE = StateBase<T, TI>;
-        using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
+        using STATE_BASE = StateBase<StateSpecification<T, TI>>;
+        using STATE_TYPE = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
         using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                 observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                 observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,

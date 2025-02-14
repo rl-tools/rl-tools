@@ -7,12 +7,14 @@
 namespace rl_tools::rl::zoo::l2f::sac{
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
-        static constexpr bool SEQUENTIAL_MODEL = true;
-        static constexpr bool MOTOR_DELAY = false;
-        static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
-        static constexpr bool RANDOMIZE_THRUST_CURVES = true;
-        static constexpr bool OBSERVE_THRASH_MARKOV = false;
-        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, SEQUENTIAL_MODEL, MOTOR_DELAY, RANDOMIZE_MOTOR_MAPPING, RANDOMIZE_THRUST_CURVES, OBSERVE_THRASH_MARKOV>::ENVIRONMENT;
+        struct OPTIONS{
+            static constexpr bool SEQUENTIAL_MODEL = false;
+            static constexpr bool MOTOR_DELAY = false;
+            static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
+            static constexpr bool RANDOMIZE_THRUST_CURVES = true;
+            static constexpr bool OBSERVE_THRASH_MARKOV = true;
+        };
+        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, OPTIONS>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: algorithms::sac::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = SEQUENTIAL_MODEL ? 64 : 128;
