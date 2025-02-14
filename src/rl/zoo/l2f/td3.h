@@ -15,7 +15,7 @@ namespace rl_tools::rl::zoo::l2f::td3{
             static constexpr bool RANDOMIZE_THRUST_CURVES = true;
             static constexpr bool OBSERVE_THRASH_MARKOV = true;
         };
-        using ENVIRONMENT = typename ENVIRONMENT_TINY_FACTORY<T, T, TI>::ENVIRONMENT;
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<T, T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
