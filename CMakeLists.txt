@@ -88,10 +88,6 @@ configure_package_config_file(
         "${PROJECT_BINARY_DIR}/RLtoolsConfig.cmake"
         INSTALL_DESTINATION lib/cmake/RLtools
 )
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include)
-install(FILES "${PROJECT_BINARY_DIR}/RLtoolsConfigVersion.cmake"
-        "${PROJECT_BINARY_DIR}/RLtoolsConfig.cmake"
-        DESTINATION lib/cmake/RLtools)
 add_library(rl_tools_core_definitions INTERFACE) # This target additionally contains definitions
 set_property(TARGET rl_tools_core_definitions PROPERTY EXPORT_NAME CoreDefinitions)
 if(RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS)
@@ -145,23 +141,59 @@ set_property(TARGET rl_tools_optimizations_cuda PROPERTY EXPORT_NAME Optimizatio
 add_library(rl_tools INTERFACE) # This is the full target (containing, all configured dependencies including UI, Mujoco etc.)
 set_property(TARGET rl_tools PROPERTY EXPORT_NAME RLtools)
 
-install(TARGETS
-        rl_tools_core
-        rl_tools_core_definitions
-        rl_tools_backend
-        rl_tools_minimal
-        rl_tools_optimizations
-        rl_tools_optimizations_cuda
-        rl_tools
-        EXPORT RLtoolsTargets
-        LIBRARY DESTINATION lib COMPONENT Runtime
-        ARCHIVE DESTINATION lib COMPONENT Development
-        RUNTIME DESTINATION bin COMPONENT Runtime
-        PUBLIC_HEADER DESTINATION include COMPONENT Development
-        BUNDLE DESTINATION bin COMPONENT Runtime
-)
-install(EXPORT RLtoolsTargets NAMESPACE RLtools:: DESTINATION lib/cmake/RLtools)
+if(UNIX)
+    set(RL_TOOLS_ENABLE_GIT_DIFF ON)
+else()
+    set(RL_TOOLS_ENABLE_GIT_DIFF OFF)
+endif()
+if(RL_TOOLS_ENABLE_GIT_DIFF)
+    file(GLOB_RECURSE GIT_DIFF_PROJECT_SOURCES
+            CONFIGURE_DEPENDS
+            "${PROJECT_SOURCE_DIR}/src/*"
+            "${PROJECT_SOURCE_DIR}/include/*"
+    )
+    add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            DEPENDS ${GIT_DIFF_PROJECT_SOURCES}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack
+            COMMAND ${CMAKE_COMMAND} -E echo "namespace rl_tools::utils::extrack::git{" > ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo_append "    extern const char* const commit = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git rev-parse HEAD >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff_color = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --color=always >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --word-diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff_color = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --word-diff --color=always >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff_staged = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --cached >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const diff_staged_color = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --cached --color=always >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff_staged = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --cached --word-diff >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "    extern const char* const word_diff_staged_color = R\"git_diff(" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND git diff --cached --word-diff --color=always >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo ")git_diff\";" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            COMMAND ${CMAKE_COMMAND} -E echo "}" >> ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+            COMMENT "Generating git diff source"
+            VERBATIM
+    )
 
+    add_library(git_diff STATIC ${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp)
+    target_compile_definitions(git_diff PUBLIC RL_TOOLS_EXTRACK_GIT_DIFF)
+    target_link_libraries(rl_tools_minimal INTERFACE git_diff)
+endif()
 
 set(RL_TOOLS_INSTALL_PREFIX ".")
 
@@ -174,14 +206,6 @@ if(RL_TOOLS_ENABLE_ZLIB)
     add_subdirectory(external/zlib)
     target_link_libraries(rl_tools_minimal INTERFACE zlibstatic)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_ENABLE_ZLIB)
-    install(TARGETS zlib
-            EXPORT RLtoolsTargets
-            LIBRARY DESTINATION lib COMPONENT Runtime
-            ARCHIVE DESTINATION lib COMPONENT Development
-            RUNTIME DESTINATION bin COMPONENT Runtime
-            PUBLIC_HEADER DESTINATION include COMPONENT Development
-            BUNDLE DESTINATION bin COMPONENT Runtime
-    )
 endif()
 
 if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
@@ -190,7 +214,6 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
         add_subdirectory(external/glfw)
         target_link_libraries(rl_tools INTERFACE glfw)
         target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
-        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/licenses/glfw.txt" DESTINATION licenses)
     endif()
     set(MUJOCO_BUILD_EXAMPLES OFF)
     set(MUJOCO_BUILD_SIMULATE OFF)
@@ -209,15 +232,6 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
 #    else()
 #        set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/bin/)
 #    endif()
-#    install(CODE "
-#        message(STATUS \"Creating directory if it does not exist: ${MUJOCO_INSTALL_DIR}\")
-#        file(MAKE_DIRECTORY ${MUJOCO_INSTALL_DIR})
-#        message(STATUS \"Copying Mujoco library to: ${MUJOCO_INSTALL_DIR}\")
-#        execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
-#            \"\$<TARGET_FILE:mujoco>\"
-#            \"${MUJOCO_INSTALL_DIR}\"
-#        )
-#    ")
 
     # MuJoCo is build as a shared library and bleeds the configuration to other targets
     set(BUILD_SHARED_LIBS OFF)
@@ -231,15 +245,12 @@ if(RL_TOOLS_BACKEND_ENABLE_MKL)
     if(RL_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
         if(WIN32)
             file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/mkl/*.dll")
-            install(FILES ${MKL_REDISTRIBUTABLES} DESTINATION bin)
         else()
             file(GLOB MKL_REDISTRIBUTABLES
                 "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/mkl/*.so"
                 "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/mkl/*.so.[0-9]*"
             )
-            install(FILES ${MKL_REDISTRIBUTABLES} DESTINATION lib)
         endif()
-        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/licenses/mkl.pdf" DESTINATION licenses)
     endif()
     set(RL_TOOLS_BACKEND_ENABLE_BLAS ON)
 endif()
@@ -287,19 +298,6 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     set(CMAKE_CUDA_FLAGS_DEBUG "-g -G")
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_BACKEND_ENABLE_CUDA)
     target_link_libraries(rl_tools_backend INTERFACE CUDA::cublas)
-    if(RL_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
-        if(WIN32)
-            file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/cuda/*.dll")
-            install(FILES ${CUDA_REDISTRIBUTABLES} DESTINATION bin)
-        else()
-            file(GLOB CUDA_REDISTRIBUTABLES
-                "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/cuda/*.so"
-                "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/cuda/*.so.[0-9]*"
-            )
-            message(STATUS "CUDA redistributables: ${CUDA_REDISTRIBUTABLES}")
-            install(FILES ${CUDA_REDISTRIBUTABLES} DESTINATION lib)
-        endif()
-    endif()
 endif()
 
 if(RL_TOOLS_ENABLE_CLI11)
@@ -321,8 +319,6 @@ if(RL_TOOLS_ENABLE_HDF5)
 
     target_link_libraries(rl_tools_minimal INTERFACE HighFive)
     target_compile_definitions(rl_tools_minimal INTERFACE RL_TOOLS_ENABLE_HDF5)
-
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/licenses/highfive.txt" DESTINATION licenses)
 endif()
 
 if(RL_TOOLS_ENABLE_TENSORBOARD)
@@ -331,14 +327,11 @@ if(RL_TOOLS_ENABLE_TENSORBOARD)
     message(STATUS "Tensorboard library type: ${library_type}")
     target_link_libraries(rl_tools_minimal INTERFACE tensorboard_logger)
     target_compile_definitions(rl_tools_minimal INTERFACE RL_TOOLS_ENABLE_TENSORBOARD)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/licenses/protobuf.txt" DESTINATION licenses)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/licenses/tensorboard_logger.txt" DESTINATION licenses)
 endif()
 if(RL_TOOLS_ENABLE_LIBATTOPNG)
     add_subdirectory(external/libattopng)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_ENABLE_LIBATTOPNG)
     target_link_libraries(rl_tools_minimal INTERFACE libattopng)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/external/tibattopng/libattopng.h" DESTINATION include/libattopng)
 endif()
 if(RL_TOOLS_ENABLE_JSON)
     message(STATUS "JSON enabled")
@@ -360,9 +353,6 @@ if(RL_TOOLS_ENABLE_CJSON)
     )
     target_link_libraries(rl_tools_minimal INTERFACE rl_tools_cjson)
     target_compile_definitions(rl_tools_minimal INTERFACE RL_TOOLS_ENABLE_CJSON)
-    install(TARGETS rl_tools_cjson
-            EXPORT RLtoolsTargets
-            DESTINATION lib)
 endif()
 if(RL_TOOLS_ENABLE_BOOST_BEAST)
 find_package(Boost REQUIRED COMPONENTS system filesystem)
@@ -499,7 +489,6 @@ function(RL_TOOLS_INSTALL TARGET)
             endif()
         elseif (WIN32)
         endif()
-    install(TARGETS ${TARGET} RUNTIME DESTINATION bin)
 endfunction()
 
 function(RL_TOOLS_TAG_IS_CUDA TARGET)
@@ -521,22 +510,6 @@ if (RL_TOOLS_ENABLE_TESTS)
     include(CTest)
     enable_testing()
     add_subdirectory(tests)
-endif()
-
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/readme.txt" DESTINATION share/rl_tools)
-if(WIN32)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/windows/readme_windows.txt" DESTINATION share/rl_tools)
-elseif(APPLE)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/mac/readme_mac.txt" DESTINATION share/rl_tools)
-elseif(UNIX)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/linux/readme_linux.txt" DESTINATION share/rl_tools)
-endif()
-
-if(RL_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
-    if(WIN32)
-        file(GLOB MSVC_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/msvc/*.dll")
-        install(FILES ${MSVC_REDISTRIBUTABLES} DESTINATION bin)
-    endif()
 endif()
 
 if(RL_TOOLS_EXPERIMENTAL)
@@ -562,6 +535,8 @@ add_library(RLtools::Minimal ALIAS rl_tools_minimal)
 add_library(RLtools::Optimizations ALIAS rl_tools_optimizations)
 add_library(RLtools::OptimizationsCUDA ALIAS rl_tools_optimizations_cuda)
 add_library(RLtools::RLtools ALIAS rl_tools)
+
+
 
 if(RL_TOOLS_ENABLE_TARGETS)
 add_subdirectory(src)
