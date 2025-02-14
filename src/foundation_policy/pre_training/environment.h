@@ -120,7 +120,7 @@ namespace builder{
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_THRUST_CURVES, observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, PARAMETERS_TYPE::N>>,
                     observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_MOTOR_POSITIONS, observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, PARAMETERS_TYPE::N>>,
-                    rl_tools::utils::typing::conditional_t<OPTIONS::MOTOR_DELAY, observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>, observation::LastComponent<TI>>
+                    utils::typing::conditional_t<OPTIONS::MOTOR_DELAY, observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>, observation::LastComponent<TI>>
                     // observation::ParametersMass<observation::ParametersMassSpecification<T, TI
             >>>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
