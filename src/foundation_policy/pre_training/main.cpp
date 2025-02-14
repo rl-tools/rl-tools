@@ -83,8 +83,11 @@ int main(int argc, char** argv){
     typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
     rlt::malloc(device, ts);
     ts.extrack_config.name = "foundation-policy-pre-training";
-    ts.extrack_config.population_variates = "motor-mapping_thrust-curves_rng-warmup";
-    ts.extrack_config.population_values = std::string(OPTIONS::RANDOMIZE_MOTOR_MAPPING ? "true" : "false") + "_" + (OPTIONS::RANDOMIZE_THRUST_CURVES ? "true" : "false") + "_" + std::to_string(FACTORY::RNG_PARAMS_WARMUP_STEPS);
+    ts.extrack_config.population_variates = "motor-mapping_thrust-curves_motor-delay_rng-warmup";
+    ts.extrack_config.population_values = std::string(OPTIONS::RANDOMIZE_MOTOR_MAPPING ? "true" : "false") + "_";
+    ts.extrack_config.population_values += std::string(OPTIONS::RANDOMIZE_THRUST_CURVES ? "true" : "false") + "_";
+    ts.extrack_config.population_values += std::string(OPTIONS::MOTOR_DELAY ? "true" : "false") + "_";
+    ts.extrack_config.population_values += std::to_string(FACTORY::RNG_PARAMS_WARMUP_STEPS);
     rlt::init(device, ts, seed);
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, ts.extrack_paths.seed);
