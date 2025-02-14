@@ -22,7 +22,7 @@ namespace builder{
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
-            static constexpr TI ACTION_HISTORY_LENGTH = OPTIONS::SEQUENTIAL_MODEL ? 1 : 32;
+            static constexpr TI ACTION_HISTORY_LENGTH = OPTIONS::SEQUENTIAL_MODEL ? 1 : 16;
             static constexpr TI EPISODE_STEP_LIMIT = 5 * BASE_ENV::SIMULATION_FREQUENCY;
             static constexpr TI CLOSED_FORM = false;
             static constexpr bool RANDOMIZE_THRUST_CURVES = OPTIONS::RANDOMIZE_THRUST_CURVES;
