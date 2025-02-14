@@ -215,8 +215,8 @@ namespace rl_tools{
         json += "}";
         return json;
     }
-    template <typename DEVICE, typename SPEC, typename STATE_T, typename STATE_TI>
-    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateBase<STATE_T, STATE_TI>& state){
+    template <typename DEVICE, typename SPEC, typename STATE_SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state){
         std::string json = "{";
         json += "\"position\": [" + std::to_string(state.position[0]) + ", " + std::to_string(state.position[1]) + ", " + std::to_string(state.position[2]) + "], ";
         json += "\"orientation\": [" + std::to_string(state.orientation[0]) + ", " + std::to_string(state.orientation[1]) + ", " + std::to_string(state.orientation[2]) + ", " + std::to_string(state.orientation[3]) + "], ";

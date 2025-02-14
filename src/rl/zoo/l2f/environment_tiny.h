@@ -54,6 +54,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
                 02.00, // action
+                00.00, // d_action
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
@@ -81,8 +82,8 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI ACTION_HISTORY_LENGTH = 2;
             static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
             static constexpr TI CLOSED_FORM = false;
-            using STATE_BASE = StateBase<T, TI>;
-            using STATE_TYPE = StateRotorsHistory<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<T, TI, STATE_BASE>>;
+            using STATE_BASE = StateBase<StateSpecification<T, TI>>;
+            using STATE_TYPE = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
             using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                             observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
