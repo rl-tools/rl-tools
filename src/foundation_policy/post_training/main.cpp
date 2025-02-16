@@ -69,9 +69,9 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
     static constexpr T ALPHA = 0.0001;
 };
 // constants parameters
-constexpr TI NUM_EPISODES = 100;
+constexpr TI NUM_EPISODES = 2000;
 constexpr TI N_EPOCH = 100;
-constexpr TI N_PRE_TRAINING_SEEDS = 50;
+constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
 constexpr T SOLVED_RETURN = 550;
@@ -232,10 +232,10 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-02-14_17-02-20";
+    checkpoint_path.experiment = "2025-02-16_17-07-16";
     checkpoint_path.name = "foundation-policy-pre-training";
 
-    for (TI seed_i = 0; seed_i < 1; seed_i++){
+    for (TI seed_i = 0; seed_i < N_PRE_TRAINING_SEEDS; seed_i++){
         checkpoint_path.seed = std::to_string(seed_i);
         rlt::find_latest_run(device, "experiments", checkpoint_path);
         if (!rlt::find_latest_checkpoint(device, checkpoint_path)){
@@ -277,6 +277,8 @@ int main(int argc, char** argv){
             rlt::copy(device, device, output_target_temp, output_target);
         }
         constexpr TI BATCH_SIZE = INPUT_SHAPE::GET<1>;
+        T epoch_loss = 0;
+        TI epoch_loss_count = 0;
         for (TI batch_i = 0; batch_i < N / BATCH_SIZE; batch_i++){
             auto input = rlt::view_range(device, dataset_input_3d, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
             auto output_target = rlt::view_range(device, dataset_output_target_3d, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
@@ -289,11 +291,13 @@ int main(int argc, char** argv){
             T loss = rlt::nn::loss_functions::mse::evaluate(device, output_matrix_view, output_target_matrix_view);
             rlt::set_step(device, device.logger, epoch_i * (N/BATCH_SIZE) + batch_i);
             rlt::add_scalar(device, device.logger, "loss", loss);
-            std::cout << "Epoch: " << epoch_i << " Loss: " << loss << std::endl;
+            epoch_loss += loss;
+            epoch_loss_count++;
             rlt::zero_gradient(device, actor);
             rlt::backward(device, actor, input, d_output, actor_buffer, evaluation_mode);
             rlt::step(device, actor_optimizer, actor);
         }
+        std::cout << "Epoch: " << epoch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
         {
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
@@ -313,7 +317,7 @@ int main(int argc, char** argv){
             rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
             rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
             rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result.episode_length_std);
-            rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
+            rlt::log(device, device.logger, "Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
 
             rlt::free(device, evaluation_actor);
             rlt::free(device, eval_buffer);
