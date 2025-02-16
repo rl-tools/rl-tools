@@ -53,6 +53,8 @@ namespace rl_tools::rl::utils::evaluation{
         TI episode_length[N_EPISODES];
         T episode_length_mean;
         T episode_length_std;
+        TI num_terminated;
+        T share_terminated;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

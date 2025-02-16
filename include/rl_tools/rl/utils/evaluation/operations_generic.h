@@ -70,6 +70,7 @@ namespace rl_tools{
         results.returns_std = 0;
         results.episode_length_mean = 0;
         results.episode_length_std = 0;
+        results.num_terminated = 0;
 
         Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1), false>> actions_buffer_full;
         Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM, false>> observations;
@@ -157,6 +158,7 @@ namespace rl_tools{
                     // count the final step as well (e.g. termination penalty)
                     results.returns[env_i] += r;
                     results.episode_length[env_i] += 1;
+                    results.num_terminated += terminated_flag ? 1 : 0;
                 }
                 terminated_flag = terminated_flag || terminated[env_i];
                 terminated[env_i] = terminated_flag;
@@ -192,6 +194,7 @@ namespace rl_tools{
         results.returns_std = math::sqrt(device.math, math::max(device.math, (T)0, results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean));
         results.episode_length_mean /= SPEC::N_EPISODES;
         results.episode_length_std = math::sqrt(device.math, math::max(device.math, (T)0, results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean));
+        results.share_terminated = results.num_terminated / (T)SPEC::N_EPISODES;
         free(device, actions_buffer_full);
         free(device, observations);
     }

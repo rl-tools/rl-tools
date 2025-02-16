@@ -73,6 +73,7 @@ namespace rl_tools{
                     add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                     add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
                     add_scalar(device, device.logger, "evaluation/episode_length/std", result.episode_length_std);
+                    add_scalar(device, device.logger, "evaluation/share_terminated", result.share_terminated);
                 };
                 if(evaluate_scheduled){
                     auto& result = get(ts.evaluation_results, 0, evaluation_index);

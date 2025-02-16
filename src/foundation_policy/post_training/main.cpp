@@ -317,7 +317,8 @@ int main(int argc, char** argv){
             rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
             rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
             rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result.episode_length_std);
-            rlt::log(device, device.logger, "Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
+            rlt::add_scalar(device, device.logger, "evaluation/share_terminated", result.share_terminated);
+            rlt::log(device, device.logger, "Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated * 100, "%");
 
             rlt::free(device, evaluation_actor);
             rlt::free(device, eval_buffer);
