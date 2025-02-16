@@ -126,7 +126,7 @@ auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, ty
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION>>;
     rlt::rl::environments::DummyUI ui;
     EVALUATION_ACTOR_TYPE evaluation_actor;
-    typename EVALUATION_ACTOR_TYPE::Buffer<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
+    typename EVALUATION_ACTOR_TYPE::template Buffer<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION> eval_buffer;
     rlt::malloc(device, evaluation_actor);
     rlt::malloc(device, eval_buffer);
     rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));
