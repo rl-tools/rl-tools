@@ -31,7 +31,11 @@ namespace rl_tools::devices{
     namespace random{
         struct ARM: devices::random::Generic<typename math::ARM>, arm::Base{
             static constexpr Type TYPE = Type::random;
-            template <typename T_ENGINE = void>
+            template <bool T_DYNAMIC_ALLOCATION=false>
+            struct EngineSpecification{
+                static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+            };
+            template <typename SPEC = EngineSpecification<>>
             struct ENGINE{
                 arm::Base::index_t state;
             };

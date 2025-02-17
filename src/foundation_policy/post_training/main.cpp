@@ -70,7 +70,7 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 2000;
-constexpr TI N_EPOCH = 100;
+constexpr TI N_EPOCH = 1;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
@@ -225,7 +225,8 @@ int main(int argc, char** argv){
 
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     auto timestamp_string = rlt::utils::extrack::get_timestamp_string();
-    rlt::init(device, device.logger, "logs/" + timestamp_string);
+    std::filesystem::path run_path = "logs/" + timestamp_string;
+    rlt::init(device, device.logger, run_path.string());
 #endif
     rlt::init(device, rng, seed);
     rlt::init_weights(device, actor, rng);
@@ -324,6 +325,8 @@ int main(int argc, char** argv){
             rlt::free(device, eval_buffer);
         }
     }
+
+    rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, run_path.string(), actor, rng);
     // malloc
     rlt::free(device, rng);
     rlt::free(device, actor_optimizer);
