@@ -52,19 +52,18 @@ namespace rl_tools{
     }
 
     namespace rl::loop::steps::checkpoint{
-        template <auto BATCH_SIZE, typename DEVICE, typename STATE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
-        void save_code(DEVICE& device, const std::string step_folder, STATE& ts, ACTOR_TYPE& actor_forward, RNG& rng){
-            using CONFIG = typename STATE::CONFIG;
+        template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename DEVICE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
+        void save_code(DEVICE& device, const std::string step_folder, ACTOR_TYPE& actor_forward, RNG& rng){
             using T = typename ACTOR_TYPE::T;
             using TI = typename DEVICE::index_t;
-            typename ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffer;
+            typename ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
             malloc(device, actor_buffer);
             auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
             std::stringstream output_ss;
             output_ss << actor_weights;
             {
-                Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>, CONFIG::DYNAMIC_ALLOCATION>> input;
-                Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>, CONFIG::DYNAMIC_ALLOCATION>> output;
+                Tensor<tensor::Specification<T, TI, typename ACTOR_TYPE::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
+                Tensor<tensor::Specification<T, TI, typename ACTOR_TYPE::OUTPUT_SHAPE, DYNAMIC_ALLOCATION>> output;
                 malloc(device, input);
                 malloc(device, output);
                 randn(device, input, rng);
@@ -80,8 +79,8 @@ namespace rl_tools{
             output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
             output_ss << "\n" << "}";
             { // Save environment
-                typename CONFIG::ENVIRONMENT env;
-                typename CONFIG::ENVIRONMENT::Parameters env_parameters;
+                ENVIRONMENT env;
+                typename ENVIRONMENT::Parameters env_parameters;
                 malloc(device, env);
                 init(device, env);
                 initial_parameters(device, env, env_parameters);
@@ -117,6 +116,31 @@ namespace rl_tools{
 
             free(device, actor_buffer);
         }
+        template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename DEVICE, typename ACTOR, typename RNG>
+        void save(DEVICE& device, const std::string step_folder, ACTOR& actor, RNG& rng){
+            using TI = typename DEVICE::index_t;
+            std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.h5";
+            static constexpr TI BATCH_SIZE = 13;
+            using INPUT_SHAPE = tensor::Replace<typename ACTOR::INPUT_SHAPE, BATCH_SIZE, 1>;
+            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
+            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<DYNAMIC_ALLOCATION>>;
+            EVALUATION_ACTOR_TYPE evaluation_actor;
+            malloc(device, evaluation_actor);
+            copy(device, device, actor, evaluation_actor);
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+            std::cerr << "Checkpointing to: " << checkpoint_path << std::endl;
+            try{
+                auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
+                rl_tools::save(device, evaluation_actor, actor_file.createGroup("actor"));
+            }
+            catch(HighFive::Exception& e){
+                std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
+            }
+#endif
+            rl::loop::steps::checkpoint::save_code<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, step_folder, evaluation_actor, rng);
+            free(device, evaluation_actor);
+
+        }
     }
 
     template <typename DEVICE, typename CONFIG>
@@ -127,34 +151,8 @@ namespace rl_tools{
         if(ts.step % CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0 || ts.checkpoint_this_step){
             ts.checkpoint_this_step = false;
             auto step_folder = get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
-            std::filesystem::path checkpoint_path = step_folder / "checkpoint.h5";
             auto& actor = get_actor(ts);
-            using ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE;
-            static constexpr TI BATCH_SIZE = 13;
-            using INPUT_SHAPE = tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>;
-            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
-            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<CONFIG::DYNAMIC_ALLOCATION>>;
-            EVALUATION_ACTOR_TYPE evaluation_actor;
-            malloc(device, evaluation_actor);
-            copy(device, device, actor, evaluation_actor);
-//            using ACTOR_FORWARD_TYPE = nn_models::sequential::Build<nn::capability::Forward<>, typename ACTOR_TYPE::SPEC::ORIGINAL_ROOT, INPUT_SHAPE>;
-//            using ACTOR_FORWARD_TYPE = ACTOR_TYPE;
-//            ACTOR_FORWARD_TYPE actor_forward;
-//            malloc(device, actor_forward);
-//            copy(device, device, actor, actor_forward);
-#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-            std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_path << std::endl;
-            try{
-                auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
-                save(device, evaluation_actor, actor_file.createGroup("actor"));
-            }
-            catch(HighFive::Exception& e){
-                std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
-            }
-#endif
-            rl::loop::steps::checkpoint::save_code<BATCH_SIZE>(device, step_folder.string(), ts, evaluation_actor, ts.rng_checkpoint);
-            free(device, evaluation_actor);
-
+            rl::loop::steps::checkpoint::save<CONFIG::DYNAMIC_ALLOCATION, typename CONFIG::ENVIRONMENT>(device, step_folder, actor, ts.rng_checkpoint);
         }
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         return finished;
