@@ -52,71 +52,71 @@ namespace rl_tools{
     }
 
     namespace rl::loop::steps::checkpoint{
-            template <auto BATCH_SIZE, typename DEVICE, typename STATE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
-            void save_code(DEVICE& device, const std::string step_folder, STATE& ts, ACTOR_TYPE& actor_forward, RNG& rng){
-                using CONFIG = typename STATE::CONFIG;
-                using T = typename ACTOR_TYPE::T;
-                using TI = typename DEVICE::index_t;
-                typename ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffer;
-                malloc(device, actor_buffer);
-                auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
-                std::stringstream output_ss;
-                output_ss << actor_weights;
-                {
-                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>, CONFIG::DYNAMIC_ALLOCATION>> input;
-                    Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>, CONFIG::DYNAMIC_ALLOCATION>> output;
-                    malloc(device, input);
-                    malloc(device, output);
-                    randn(device, input, rng);
-                    Mode<mode::Evaluation<>> mode;
-                    evaluate(device, actor_forward, input, output, actor_buffer, rng, mode);
-                    output_ss << "\n" << save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
-                    output_ss << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
-                    free(device, input);
-                    free(device, output);
-                }
-                output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
-                output_ss << "\n" << "   " << "char name[] = \"" << step_folder << "\";";
-                output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
-                output_ss << "\n" << "}";
-                { // Save environment
-                    typename CONFIG::ENVIRONMENT env;
-                    typename CONFIG::ENVIRONMENT::Parameters env_parameters;
-                    malloc(device, env);
-                    init(device, env);
-                    initial_parameters(device, env, env_parameters);
-                    auto env_info = save_code_env(device, env, env_parameters, "rl_tools::checkpoint::meta::environment");
-                    free(device, env);
-                    output_ss << "\n" << env_info;
-                }
-                std::string output_string = output_ss.str();
-                bool stored_compressed = false;
-#ifdef RL_TOOLS_ENABLE_ZLIB
-                {
-                    std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h.gz";
-                    std::vector<uint8_t> checkpoint_output;
-                    if(!compress_zlib(output_string, checkpoint_output)){
-                        std::cerr << "Error while compressing trajectories." << std::endl;
-                        return;
-                    }
-                    std::ofstream actor_output_file(checkpoint_code_path, std::ios::binary);
-                    actor_output_file.write(reinterpret_cast<const char*>(checkpoint_output.data()), checkpoint_output.size());
-                    actor_output_file.close();
-                    stored_compressed = true;
-                };
-#endif
-                if(!stored_compressed || STORE_UNCOMPRESSED_ANYWAYS){
-                    std::filesystem::path step_folder_path = step_folder;
-                    std::filesystem::create_directories(step_folder_path);
-                    std::filesystem::path checkpoint_code_path = step_folder_path / "checkpoint.h";
-                    std::cerr << "Checkpointing to: " << checkpoint_code_path << std::endl;
-                    std::ofstream actor_output_file(checkpoint_code_path);
-                    actor_output_file << output_string;
-                    actor_output_file.close();
-                }
-
-                free(device, actor_buffer);
+        template <auto BATCH_SIZE, typename DEVICE, typename STATE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
+        void save_code(DEVICE& device, const std::string step_folder, STATE& ts, ACTOR_TYPE& actor_forward, RNG& rng){
+            using CONFIG = typename STATE::CONFIG;
+            using T = typename ACTOR_TYPE::T;
+            using TI = typename DEVICE::index_t;
+            typename ACTOR_TYPE::template Buffer<CONFIG::DYNAMIC_ALLOCATION> actor_buffer;
+            malloc(device, actor_buffer);
+            auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
+            std::stringstream output_ss;
+            output_ss << actor_weights;
+            {
+                Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::INPUT_SHAPE, BATCH_SIZE, 1>, CONFIG::DYNAMIC_ALLOCATION>> input;
+                Tensor<tensor::Specification<T, TI, tensor::Replace<typename ACTOR_TYPE::OUTPUT_SHAPE, BATCH_SIZE, 1>, CONFIG::DYNAMIC_ALLOCATION>> output;
+                malloc(device, input);
+                malloc(device, output);
+                randn(device, input, rng);
+                Mode<mode::Evaluation<>> mode;
+                evaluate(device, actor_forward, input, output, actor_buffer, rng, mode);
+                output_ss << "\n" << save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
+                output_ss << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
+                free(device, input);
+                free(device, output);
             }
+            output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
+            output_ss << "\n" << "   " << "char name[] = \"" << step_folder << "\";";
+            output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
+            output_ss << "\n" << "}";
+            { // Save environment
+                typename CONFIG::ENVIRONMENT env;
+                typename CONFIG::ENVIRONMENT::Parameters env_parameters;
+                malloc(device, env);
+                init(device, env);
+                initial_parameters(device, env, env_parameters);
+                auto env_info = save_code_env(device, env, env_parameters, "rl_tools::checkpoint::meta::environment");
+                free(device, env);
+                output_ss << "\n" << env_info;
+            }
+            std::string output_string = output_ss.str();
+            bool stored_compressed = false;
+#ifdef RL_TOOLS_ENABLE_ZLIB
+            {
+                std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h.gz";
+                std::vector<uint8_t> checkpoint_output;
+                if(!compress_zlib(output_string, checkpoint_output)){
+                    std::cerr << "Error while compressing trajectories." << std::endl;
+                    return;
+                }
+                std::ofstream actor_output_file(checkpoint_code_path, std::ios::binary);
+                actor_output_file.write(reinterpret_cast<const char*>(checkpoint_output.data()), checkpoint_output.size());
+                actor_output_file.close();
+                stored_compressed = true;
+            };
+#endif
+            if(!stored_compressed || STORE_UNCOMPRESSED_ANYWAYS){
+                std::filesystem::path step_folder_path = step_folder;
+                std::filesystem::create_directories(step_folder_path);
+                std::filesystem::path checkpoint_code_path = step_folder_path / "checkpoint.h";
+                std::cerr << "Checkpointing to: " << checkpoint_code_path << std::endl;
+                std::ofstream actor_output_file(checkpoint_code_path);
+                actor_output_file << output_string;
+                actor_output_file.close();
+            }
+
+            free(device, actor_buffer);
+        }
     }
 
     template <typename DEVICE, typename CONFIG>
