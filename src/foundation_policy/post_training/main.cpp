@@ -84,7 +84,7 @@ struct ENVIRONMENT_PT: ENVIRONMENT{
     using Observation = ENV::Observation;
     using ObservationPrivileged = Observation;
 };
-using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 4, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 32, rlt::nn::activation_functions::ActivationFunction::FAST_TANH, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
 using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
@@ -232,7 +232,7 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-02-16_17-07-16";
+    checkpoint_path.experiment = "2025-02-17_10-07-42";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     for (TI seed_i = 0; seed_i < N_PRE_TRAINING_SEEDS; seed_i++){
