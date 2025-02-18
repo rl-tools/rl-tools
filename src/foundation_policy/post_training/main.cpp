@@ -72,7 +72,7 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 2000;
-constexpr TI N_EPOCH = 1;
+constexpr TI N_EPOCH = 100;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
@@ -110,7 +110,6 @@ using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, DATASET_SIZE, 1>
 
 template <typename DATA, typename INPUT_SPEC, typename OUTPUT_SPEC, typename PARAMS, typename RNG>
 TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, TI& current_index, PARAMS& base_parameters, RNG& rng){
-
 
     TI initial_index = current_index;
     ENVIRONMENT env_eval;
@@ -202,7 +201,7 @@ int main(int argc, char** argv){
             return 1;
         }
         std::cout << "Found checkpoint: " << checkpoint_path.checkpoint_path << std::endl;
-        auto base_parameters = generate_data<NUM_EPISODES>(device, checkpoint_path, seed_i, result, data);
+        auto base_parameters = generate_data<DEVICE, RNG_PARAMS, RNG, RNG_PARAMS_DEVICE, ENVIRONMENT_PT, T, TI, NUM_EPISODES>(device, checkpoint_path, seed_i, result, data);
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
             return 1;

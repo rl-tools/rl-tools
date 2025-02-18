@@ -13,7 +13,7 @@ auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, ty
     }
     auto actor_file = HighFive::File(checkpoint_path.checkpoint_path.string(), HighFive::File::ReadOnly);
     ENVIRONMENT_PT base_env;
-    rlt::sample_initial_parameters<DEVICE, ENVIRONMENT_PT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
+    rlt::sample_initial_parameters<DEVICE, typename ENVIRONMENT_PT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
     using LOOP_CORE_CONFIG_PRE_TRAINING = typename builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING>::LOOP_CORE_CONFIG;
     using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CORE_CONFIG_PRE_TRAINING::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CORE_CONFIG_PRE_TRAINING::DYNAMIC_ALLOCATION>>;
@@ -25,7 +25,7 @@ auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, ty
     rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));
 
     ENVIRONMENT_PT env_eval;
-    ENVIRONMENT_PT::Parameters env_eval_parameters;
+    typename ENVIRONMENT_PT::Parameters env_eval_parameters;
     rlt::init(device, env_eval);
     env_eval.parameters = base_env.parameters;
     rlt::initial_parameters(device, env_eval, env_eval_parameters);
