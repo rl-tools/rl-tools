@@ -10,6 +10,10 @@ Create dispatch logs
   target_link_options(target PRIVATE -rdynamic -finstrument-functions -ldl)
 ```
 ### Scaffolding
+
+<details>
+<summary>Click to expand</summary>
+
 ```
 bool enable_log = false;
 extern "C" {
@@ -34,6 +38,9 @@ extern "C" {
     }
 }
 ```
+
+</details>
+
 Then set `enable_log = true` for the interesting parts
 # RL
 - Check the action distribution of the actor after random initialization
