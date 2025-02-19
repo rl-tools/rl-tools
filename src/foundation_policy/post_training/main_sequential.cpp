@@ -73,12 +73,13 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 2000;
-constexpr TI N_EPOCH = 100;
+constexpr TI N_EPOCH = 5000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
 constexpr T SOLVED_RETURN = 550;
 constexpr TI DMODEL = 32;
+constexpr bool RANDOM_START_STEP = true;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
@@ -88,17 +89,25 @@ struct ENVIRONMENT_PT: ENVIRONMENT{
     using Observation = ENV::Observation;
     using ObservationPrivileged = Observation;
 };
-using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, DMODEL, rlt::nn::activation_functions::RELU>;
-using INPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
-using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, DMODEL>;
-using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
-using OUTPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 4, rlt::nn::activation_functions::IDENTITY>;
-using OUTPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
+using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 
+// using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, DMODEL, rlt::nn::activation_functions::RELU>;
+// using INPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
+// using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, DMODEL>;
+// using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
+// using OUTPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 4, rlt::nn::activation_functions::IDENTITY>;
+// using OUTPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
+// template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+// using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+// using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU, Module<OUTPUT_LAYER>>>;
+
+using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, DMODEL, rlt::nn::activation_functions::ActivationFunction::FAST_TANH, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
 using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU, Module<OUTPUT_LAYER>>>;
+using MODULE_CHAIN = Module<MLP>;
+
 using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, DYNAMIC_ALLOCATION>;
 using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>>;
@@ -194,7 +203,7 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-02-17_10-07-42";
+    checkpoint_path.experiment = "2025-02-19_11-49-42";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::vector<TI> episode_start_indices;
@@ -227,9 +236,7 @@ int main(int argc, char** argv){
     std::iota(epoch_start_index_indices.begin(), epoch_start_index_indices.end(), 0);
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
-        for (TI sample_i=0; sample_i<N; sample_i++){
-            std::shuffle(epoch_start_index_indices.begin(), epoch_start_index_indices.end(), rng.engine);
-        }
+        std::shuffle(epoch_start_index_indices.begin(), epoch_start_index_indices.end(), rng.engine);
         constexpr TI BATCH_SIZE = INPUT_SHAPE::GET<1>;
         T epoch_loss = 0;
         TI epoch_loss_count = 0;
@@ -240,6 +247,9 @@ int main(int argc, char** argv){
                 while (sequence_i < SEQUENCE_LENGTH){
                     TI current_start_index = episode_start_indices[epoch_start_index_indices[current_episode_index]];
                     TI current_end_index = episode_end_indices[epoch_start_index_indices[current_episode_index]];
+                    if (RANDOM_START_STEP) {
+                        current_start_index = rlt::random::uniform_int_distribution(device.random, current_start_index, current_end_index, rng);
+                    }
                     for (TI episode_step_i = 0; episode_step_i < SEQUENCE_LENGTH; episode_step_i++){
                         if (episode_step_i == 0){
                             rlt::set(device, reset, true, sequence_i, batch_sample_i, 0);
@@ -287,9 +297,8 @@ int main(int argc, char** argv){
             auto d_output_matrix_view = rlt::matrix_view(device, d_output);
             rlt::nn::loss_functions::mse::gradient(device, output_matrix_view, output_target_matrix_view, d_output_matrix_view);
             T loss = rlt::nn::loss_functions::mse::evaluate(device, output_matrix_view, output_target_matrix_view);
-            rlt::set_step(device, device.logger, epoch_i * (N/BATCH_SIZE) + batch_i);
+            rlt::set_step(device, device.logger, device.logger.step + 1);
             rlt::add_scalar(device, device.logger, "loss", loss);
-            std::cout << "Batch: " << batch_i << " Loss: " << loss << std::endl;
             epoch_loss += loss;
             epoch_loss_count++;
             rlt::zero_gradient(device, actor);
@@ -298,7 +307,7 @@ int main(int argc, char** argv){
         }
         end_epoch:
         std::cout << "Epoch: " << epoch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
-        {
+        if (epoch_i % 500 == 0){
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
             rlt::rl::environments::DummyUI ui;
@@ -329,6 +338,7 @@ int main(int argc, char** argv){
 
     rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, run_path.string(), actor, rng);
     // malloc
+    rlt::free(device, device.logger);
     rlt::free(device, rng);
     rlt::free(device, actor_optimizer);
     rlt::free(device, actor);
