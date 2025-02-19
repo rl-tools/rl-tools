@@ -77,6 +77,33 @@ namespace rl_tools{
             episodes_json += "]";
             return episodes_json;
         }
+        template <typename DEVICE>
+        bool write_to_file(DEVICE& device, std::string trajectories_json, std::filesystem::path step_folder, std::string filename) {
+#ifndef RL_TOOLS_ENABLE_ZLIB
+            std::string file_extension = "json";
+            std::string trajectories_output = trajectories_json;
+#else
+            std::string file_extension = "json.gz";
+            std::vector<uint8_t> trajectories_output;
+            if(!compress_zlib(trajectories_json, trajectories_output)){
+                std::cerr << "Error while compressing trajectories." << std::endl;
+                return false;
+            }
+#endif
+            {
+                std::filesystem::path trajectories_path = step_folder / (filename + "." + file_extension);
+                std::cerr << "Saving Trajectories to: " << trajectories_path << std::endl;
+#ifndef RL_TOOLS_ENABLE_ZLIB
+                std::ofstream trajectories_file(trajectories_path);
+                trajectories_file << trajectories_output;
+#else
+                std::ofstream trajectories_file(trajectories_path, std::ios::binary);
+                trajectories_file.write(reinterpret_cast<const char*>(trajectories_output.data()), trajectories_output.size());
+#endif
+                trajectories_file.close();
+            }
+            return true;
+        }
 
     }
 
@@ -116,34 +143,12 @@ namespace rl_tools{
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 
                 std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, *ts.save_trajectories_buffer);
-#ifndef RL_TOOLS_ENABLE_ZLIB
-                std::string file_extension = "json";
-                std::string trajectories_output = trajectories_json;
-#else
-                std::string file_extension = "json.gz";
-                std::vector<uint8_t> trajectories_output;
-                if(!compress_zlib(trajectories_json, trajectories_output)){
-                    std::cerr << "Error while compressing trajectories." << std::endl;
-                    return true;
-                }
-#endif
-
-
-                {
-                    std::stringstream step_ss;
-                    step_ss << std::setw(15) << std::setfill('0') << ts.step;
-                    std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();
-                    std::filesystem::create_directories(step_folder);
-                    std::filesystem::path trajectories_path = step_folder / ("trajectories." + file_extension);
-                    std::cerr << "Saving Trajectories at step: " << ts.step << " to: " << trajectories_path << std::endl;
-#ifndef RL_TOOLS_ENABLE_ZLIB
-                    std::ofstream trajectories_file(trajectories_path);
-                    trajectories_file << trajectories_output;
-#else
-                    std::ofstream trajectories_file(trajectories_path, std::ios::binary);
-                    trajectories_file.write(reinterpret_cast<const char*>(trajectories_output.data()), trajectories_output.size());
-#endif
-                    trajectories_file.close();
+                std::stringstream step_ss;
+                step_ss << std::setw(15) << std::setfill('0') << ts.step;
+                std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();
+                std::filesystem::create_directories(step_folder);
+                if (!rl::loop::steps::save_trajectories::write_to_file(device, trajectories_json, step_folder, "trajectories")){
+                    return false;
                 }
             }
         }
