@@ -75,7 +75,7 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 constexpr TI NUM_EPISODES = 2000;
 constexpr TI N_EPOCH = 5000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
-constexpr TI SEQUENCE_LENGTH = 2;
+constexpr TI SEQUENCE_LENGTH = 10;
 constexpr TI BATCH_SIZE = 32;
 constexpr T SOLVED_RETURN = 550;
 constexpr TI DMODEL = 32;
