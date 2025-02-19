@@ -270,14 +270,11 @@ int main(int argc, char** argv){
                         rlt::copy(device, device, output_target_source, output_target_target);
 
                         if (current_start_index + episode_step_i == current_end_index){
-                            current_episode_index++;
-                            if (current_episode_index >= epoch_start_index_indices.size()){
+                            if ((current_episode_index + 1) >= epoch_start_index_indices.size()){
                                 std::cout << "current_episode_index: " << current_episode_index << " epoch_start_index_indices.size(): " << epoch_start_index_indices.size() << std::endl;
                                 goto end_epoch;
                             }
-                            else {
-                                break;
-                            }
+                            break;
                         }
                         sequence_i++;
                         if (sequence_i >= SEQUENCE_LENGTH){
@@ -294,7 +291,7 @@ int main(int argc, char** argv){
             using EVAL_MODE = rlt::Mode<rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(reset)>>>;
             EVAL_MODE mode;
             mode.reset_container = reset;
-            rlt::set_all(device, reset, true);
+            // rlt::set_all(device, reset, true);
             rlt::forward(device, actor, input, actor_buffer, rng, mode);
             auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, actor));
             auto output_target_matrix_view = rlt::matrix_view(device, output_target);
