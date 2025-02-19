@@ -15,18 +15,18 @@ namespace rl_tools::rl::zoo::l2f::ppo{
     struct FACTORY{
         struct OPTIONS{
             static constexpr bool SEQUENTIAL_MODEL = false;
-            static constexpr bool MOTOR_DELAY = false;
-            static constexpr bool RANDOMIZE_MOTOR_MAPPING = true;
-            static constexpr bool RANDOMIZE_THRUST_CURVES = true;
-            static constexpr bool OBSERVE_THRASH_MARKOV = true;
+            static constexpr bool MOTOR_DELAY = true;
+            static constexpr bool RANDOMIZE_MOTOR_MAPPING = false;
+            static constexpr bool RANDOMIZE_THRUST_CURVES = false;
+            static constexpr bool OBSERVE_THRASH_MARKOV = false;
         };
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, OPTIONS>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             static constexpr TI STEP_LIMIT = 6000; // ~2.5M env steps
 
-            static constexpr TI ACTOR_HIDDEN_DIM = 256;
-            static constexpr TI CRITIC_HIDDEN_DIM = 256;
+            static constexpr TI ACTOR_HIDDEN_DIM = 64;
+            static constexpr TI CRITIC_HIDDEN_DIM = 64;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI BATCH_SIZE = 2048 * 2;
