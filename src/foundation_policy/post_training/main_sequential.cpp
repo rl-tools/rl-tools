@@ -91,22 +91,22 @@ struct ENVIRONMENT_PT: ENVIRONMENT{
 };
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 
-// using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, DMODEL, rlt::nn::activation_functions::RELU>;
-// using INPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
-// using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, DMODEL>;
-// using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
-// using OUTPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 4, rlt::nn::activation_functions::IDENTITY>;
-// using OUTPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
-// template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-// using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-// using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU, Module<OUTPUT_LAYER>>>;
-
-using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, DMODEL, rlt::nn::activation_functions::ActivationFunction::FAST_TANH, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
-using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, DMODEL, rlt::nn::activation_functions::RELU>;
+using INPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
+using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, DMODEL>;
+using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
+using OUTPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 4, rlt::nn::activation_functions::IDENTITY>;
+using OUTPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
 using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-using MODULE_CHAIN = Module<MLP>;
+using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU, Module<OUTPUT_LAYER>>>;
+
+// using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, DMODEL, rlt::nn::activation_functions::ActivationFunction::FAST_TANH, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+// using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
+// using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+// template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+// using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+// using MODULE_CHAIN = Module<MLP>;
 
 using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, DYNAMIC_ALLOCATION>;
 using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
