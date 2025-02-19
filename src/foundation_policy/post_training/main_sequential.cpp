@@ -65,17 +65,17 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
-    static constexpr bool ACTION_HISTORY = true;
+    static constexpr bool ACTION_HISTORY = false;
 };
 
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-    static constexpr T ALPHA = 0.0001;
+    static constexpr T ALPHA = 0.003;
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 2000;
 constexpr TI N_EPOCH = 5000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
-constexpr TI SEQUENCE_LENGTH = 10;
+constexpr TI SEQUENCE_LENGTH = 16;
 constexpr TI BATCH_SIZE = 32;
 constexpr T SOLVED_RETURN = 550;
 constexpr TI DMODEL = 32;
