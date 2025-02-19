@@ -265,9 +265,6 @@ int main(int argc, char** argv){
                         auto output_target_target = rlt::view(device, output_target_step_target, batch_sample_i);
 
                         auto input_source = rlt::view(device, dataset_input, current_start_index + episode_step_i);
-                        if (rlt::is_nan(device, input_source)) {
-                            std::cout << "input_source is nan: " << current_start_index + episode_step_i << " / " << N << std::endl;
-                        }
                         auto output_target_source = rlt::view(device, dataset_output_target, current_start_index + episode_step_i);
                         rlt::copy(device, device, input_source, input_target);
                         rlt::copy(device, device, output_target_source, output_target_target);
@@ -277,6 +274,9 @@ int main(int argc, char** argv){
                             if (current_episode_index >= epoch_start_index_indices.size()){
                                 std::cout << "current_episode_index: " << current_episode_index << " epoch_start_index_indices.size(): " << epoch_start_index_indices.size() << std::endl;
                                 goto end_epoch;
+                            }
+                            else {
+                                break;
                             }
                         }
                         sequence_i++;
@@ -295,10 +295,6 @@ int main(int argc, char** argv){
             EVAL_MODE mode;
             mode.reset_container = reset;
             rlt::set_all(device, reset, true);
-            if (rlt::is_nan(device, input)) {
-                rlt::print(device, input);
-                std::exit(0);
-            }
             rlt::forward(device, actor, input, actor_buffer, rng, mode);
             auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, actor));
             auto output_target_matrix_view = rlt::matrix_view(device, output_target);
