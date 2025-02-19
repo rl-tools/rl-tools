@@ -75,7 +75,7 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 constexpr TI NUM_EPISODES = 2000;
 constexpr TI N_EPOCH = 5000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
-constexpr TI SEQUENCE_LENGTH = 1;
+constexpr TI SEQUENCE_LENGTH = 2;
 constexpr TI BATCH_SIZE = 32;
 constexpr T SOLVED_RETURN = 550;
 constexpr TI DMODEL = 32;
@@ -143,6 +143,7 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
                 rlt::set(action, 0, action_i, data.actions[episode_i][current_step_i][action_i]);
             }
             if (data.terminated[episode_i][current_step_i]){
+                current_step_i += 1; // +1 because we terminate with current_step_i characterizing the number of steps added to the buffer and the increment does not happen in this case
                 break;
             }
         }
@@ -264,6 +265,9 @@ int main(int argc, char** argv){
                         auto output_target_target = rlt::view(device, output_target_step_target, batch_sample_i);
 
                         auto input_source = rlt::view(device, dataset_input, current_start_index + episode_step_i);
+                        if (rlt::is_nan(device, input_source)) {
+                            std::cout << "input_source is nan: " << current_start_index + episode_step_i << " / " << N << std::endl;
+                        }
                         auto output_target_source = rlt::view(device, dataset_output_target, current_start_index + episode_step_i);
                         rlt::copy(device, device, input_source, input_target);
                         rlt::copy(device, device, output_target_source, output_target_target);
@@ -291,6 +295,10 @@ int main(int argc, char** argv){
             EVAL_MODE mode;
             mode.reset_container = reset;
             rlt::set_all(device, reset, true);
+            if (rlt::is_nan(device, input)) {
+                rlt::print(device, input);
+                std::exit(0);
+            }
             rlt::forward(device, actor, input, actor_buffer, rng, mode);
             auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, actor));
             auto output_target_matrix_view = rlt::matrix_view(device, output_target);
