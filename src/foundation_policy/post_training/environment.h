@@ -10,14 +10,17 @@ namespace builder{
 
         using PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, typename BASE_ENV::REWARD_FUNCTION>;
         using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDisturbances<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>;
-        static constexpr PARAMETERS_TYPE nominal_parameters = {
-            {
-                BASE_ENV::dynamics,
-                BASE_ENV::integration,
-                BASE_ENV::mdp,
-                BASE_ENV::domain_randomization
-            },
-            BASE_ENV::disturbances
+        static constexpr PARAMETERS_TYPE nominal_parameters = [](){
+            PARAMETERS_TYPE params = {
+                {
+                    BASE_ENV::dynamics,
+                    BASE_ENV::integration,
+                    BASE_ENV::mdp,
+                    BASE_ENV::domain_randomization
+                },
+                BASE_ENV::disturbances
+            };
+            return params;
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
