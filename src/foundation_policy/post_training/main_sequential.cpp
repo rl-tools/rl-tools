@@ -204,7 +204,7 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-02-19_11-49-42";
+    checkpoint_path.experiment = "2025-02-20_15-25-14";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::vector<TI> episode_start_indices;
