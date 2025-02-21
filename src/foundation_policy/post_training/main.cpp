@@ -72,7 +72,7 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 2000;
-constexpr TI N_EPOCH = 1000;
+constexpr TI N_EPOCH = 50;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
