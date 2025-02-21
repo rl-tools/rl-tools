@@ -20,8 +20,17 @@ namespace builder{
                 },
                 BASE_ENV::disturbances
             };
+            if constexpr(OPTIONS::OBSERVATION_NOISE){
+                params.mdp.observation_noise = {
+                    0.01, // position
+                    0.01, // orientation
+                    0.01, // linear_velocity
+                    0.01, // angular_velocity
+                    0.01 // imu acceleration
+                };
+            }
             return params;
-        };
+        }();
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
@@ -49,7 +58,7 @@ namespace builder{
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = typename BASE_ENV::PARAMETERS_TYPE;
-            static constexpr auto PARAMETER_VALUES = BASE_ENV::nominal_parameters;
+            static constexpr auto PARAMETER_VALUES = nominal_parameters;
             static constexpr TI N_DYNAMICS_VALUES = 1;
             static constexpr typename BASE_ENV::PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
                 rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, typename BASE_ENV::PARAMETERS_SPEC>
