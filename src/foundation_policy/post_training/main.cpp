@@ -65,6 +65,7 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
     static constexpr bool ACTION_HISTORY = true;
+    static constexpr bool OBSERVATION_NOISE = true;
 };
 
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
@@ -202,6 +203,7 @@ int main(int argc, char** argv){
         }
         std::cout << "Found checkpoint: " << checkpoint_path.checkpoint_path << std::endl;
         auto base_parameters = generate_data<DEVICE, RNG_PARAMS, RNG, RNG_PARAMS_DEVICE, ENVIRONMENT_PT, T, TI, NUM_EPISODES>(device, checkpoint_path, seed_i, result, data);
+        base_parameters = ENVIRONMENT::SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
             return 1;
