@@ -22,6 +22,11 @@ int main(){
   ENVIRONMENT::Parameters parameters;
   rlt::malloc(device, env);
   rlt::sample_initial_parameters(device, env, parameters, rng);
+  ENVIRONMENT::State state, next_state;
+  rlt::sample_initial_state(device, env, parameters, state, rng);
+  rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 4, true>> action;
+  rlt::set_all(device, action, 0.0);
+  rlt::step(device, env, parameters, state, action, next_state, rng);
 
   return 0;
 }
