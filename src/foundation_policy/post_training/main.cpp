@@ -65,6 +65,7 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
     static constexpr bool ACTION_HISTORY = true;
+    static constexpr TI ACTION_HISTORY_LENGTH = 16;
     static constexpr bool OBSERVATION_NOISE = true;
 };
 
@@ -73,7 +74,7 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 2000;
-constexpr TI N_EPOCH = 20;
+constexpr TI N_EPOCH = 1000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
