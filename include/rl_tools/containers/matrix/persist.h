@@ -17,7 +17,10 @@ namespace rl_tools {
                 data[i][j] = get(m, i, j);
             }
         }
-        group.createDataSet(dataset_name, data);
+        auto dataset = group.createDataSet(dataset_name, data);
+        dataset.template createAttribute<std::string>("type", "matrix");
+        dataset.template createAttribute<std::string>("rows", std::to_string(SPEC::ROWS));
+        dataset.template createAttribute<std::string>("cols", std::to_string(SPEC::COLS));
     }
 
     template<typename DEVICE, typename SPEC>

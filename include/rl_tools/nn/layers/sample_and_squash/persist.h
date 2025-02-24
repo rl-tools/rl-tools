@@ -9,7 +9,9 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, HighFive::Group group) { }
+    void save(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, HighFive::Group group){
+        group.createAttribute<std::string>("type", "sample_and_squash");
+    }
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, HighFive::Group group) {
         save(device, (nn::layers::sample_and_squash::LayerForward<SPEC>&)layer, group);

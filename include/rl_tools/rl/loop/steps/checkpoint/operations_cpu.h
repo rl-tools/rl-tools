@@ -1,4 +1,5 @@
 #include "../../../../version.h"
+#include "../../../../../../logs/2025-02-17_10-20-04/checkpoint.h"
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_LOOP_STEPS_CHECKPOINT_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_RL_LOOP_STEPS_CHECKPOINT_OPERATIONS_GENERIC_H
@@ -56,16 +57,16 @@ namespace rl_tools{
         void save_code(DEVICE& device, const std::string step_folder, ACTOR_TYPE& actor_forward, RNG& rng){
             using T = typename ACTOR_TYPE::T;
             using TI = typename DEVICE::index_t;
-            typename ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
-            malloc(device, actor_buffer);
             auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
             std::stringstream output_ss;
             output_ss << actor_weights;
-            {
+            { // note: this is duplicated for hdf5 (see futher down) and code
                 Tensor<tensor::Specification<T, TI, typename ACTOR_TYPE::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
                 Tensor<tensor::Specification<T, TI, typename ACTOR_TYPE::OUTPUT_SHAPE, DYNAMIC_ALLOCATION>> output;
+                typename ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
                 malloc(device, input);
                 malloc(device, output);
+                malloc(device, actor_buffer);
                 randn(device, input, rng);
                 Mode<mode::Evaluation<>> mode;
                 evaluate(device, actor_forward, input, output, actor_buffer, rng, mode);
@@ -73,6 +74,7 @@ namespace rl_tools{
                 output_ss << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
                 free(device, input);
                 free(device, output);
+                free(device, actor_buffer);
             }
             output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
             output_ss << "\n" << "   " << "char name[] = \"" << step_folder << "\";";
@@ -114,7 +116,6 @@ namespace rl_tools{
                 actor_output_file.close();
             }
 
-            free(device, actor_buffer);
         }
         template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename DEVICE, typename ACTOR, typename RNG>
         void save(DEVICE& device, const std::string step_folder, ACTOR& actor, RNG& rng){
@@ -132,6 +133,24 @@ namespace rl_tools{
             try{
                 auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
                 rl_tools::save(device, evaluation_actor, actor_file.createGroup("actor"));
+                {
+                    using T = typename EVALUATION_ACTOR_TYPE::T;
+                    Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
+                    Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::OUTPUT_SHAPE, DYNAMIC_ALLOCATION>> output;
+                    typename EVALUATION_ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
+                    malloc(device, input);
+                    malloc(device, output);
+                    malloc(device, actor_buffer);
+                    randn(device, input, rng);
+                    Mode<mode::Evaluation<>> mode;
+                    evaluate(device, actor, input, output, actor_buffer, rng, mode);
+                    auto example_group = actor_file.createGroup("example");
+                    save(device, input, example_group, "input");
+                    save(device, output, example_group, "output");
+                    free(device, input);
+                    free(device, output);
+                    free(device, actor_buffer);
+                }
             }
             catch(HighFive::Exception& e){
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;

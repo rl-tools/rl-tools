@@ -80,10 +80,25 @@ namespace rl_tools {
         }
     }
 
+    namespace containers::tensor{
+        template <typename SPEC, auto DIM = 0>
+        void dim_helper(HighFive::DataSet& dataset){
+            if constexpr(DIM < SPEC::SHAPE::LENGTH){
+                std::string key = "dim_" + std::to_string(DIM);
+                dataset.template createAttribute<std::string>(key, std::to_string(SPEC::SHAPE::template GET<DIM>));
+                dim_helper<SPEC, DIM + 1>(dataset);
+            }
+        }
+
+    }
+
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, Tensor<SPEC>& tensor, HighFive::Group group, std::string dataset_name) {
         auto data = to_vector(device, tensor);
-        group.createDataSet(dataset_name, data);
+        auto dataset = group.createDataSet(dataset_name, data);
+        dataset.template createAttribute<std::string>("type", "tensor");
+        dataset.template createAttribute<std::string>("num_dims", std::to_string(SPEC::SHAPE::LENGTH));
+        containers::tensor::dim_helper<SPEC>(dataset);
     }
 
     template<typename DEVICE, typename SPEC>

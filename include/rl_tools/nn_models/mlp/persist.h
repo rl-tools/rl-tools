@@ -13,6 +13,8 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, HighFive::Group group) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
+        group.createAttribute<std::string>("type", "mlp");
+        group.createAttribute<std::string>("num_layers", std::to_string(SPEC::NUM_LAYERS));
         save(device, network.input_layer, group.createGroup("input_layer"));
         for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
             save(device, network.hidden_layers[layer_i], group.createGroup("hidden_layer_" + std::to_string(layer_i)));
