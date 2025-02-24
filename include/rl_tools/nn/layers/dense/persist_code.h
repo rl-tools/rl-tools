@@ -10,38 +10,10 @@
 #include "../../../nn/parameters/persist_code.h"
 #include "../../../nn/capability/persist_code.h"
 
+#include "persist_common.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    namespace nn::layers::dense::persist{
-        template<nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
-        auto get_activation_function_string(){
-            static_assert(ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::IDENTITY ||
-                          ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU ||
-                          ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::GELU ||
-                          ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::TANH ||
-                          ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::FAST_TANH ||
-                          ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::SIGMOID);
-
-            if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::IDENTITY){
-                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::IDENTITY";
-            } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
-                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::RELU";
-            } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::TANH){
-                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::TANH";
-            } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::FAST_TANH){
-                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::FAST_TANH";
-            } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::SIGMOID){
-                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::SIGMOID";
-            }
-        }
-//        auto get_shape_factory_string(nn::layers::dense::DefaultInputShapeFactory){
-//            return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInputShapeFactory";
-//        }
-//        template <typename TI, TI SEQUENCE_LENGTH>
-//        auto get_shape_factory_string(nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>){
-//            return std::string("RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::SequenceInputShapeFactory<") + containers::persist::get_type_string<TI>() + ", " + std::to_string(SEQUENCE_LENGTH) + ">";
-//        }
-    }
     namespace nn::layers::dense::persist_code{
         template<typename DEVICE, typename SPEC>
             rl_tools::persist::Code finish(DEVICE& device, nn::layers::dense::LayerForward<SPEC> &layer, std::string name, rl_tools::persist::Code input, bool const_declaration=false, typename DEVICE::index_t indent=0){
