@@ -65,7 +65,8 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
-    static constexpr bool ACTION_HISTORY = false;
+    static constexpr bool ACTION_HISTORY = true;
+    static constexpr TI ACTION_HISTORY_LENGTH = 1;
     static constexpr bool OBSERVATION_NOISE = true;
 };
 
@@ -74,13 +75,13 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 2000;
-constexpr TI N_EPOCH = 5000;
+constexpr TI N_EPOCH = 50000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
-constexpr TI SEQUENCE_LENGTH = 16;
-constexpr TI BATCH_SIZE = 32;
+constexpr TI SEQUENCE_LENGTH = 500;
+constexpr TI BATCH_SIZE = 8;
 constexpr T SOLVED_RETURN = 550;
 constexpr TI DMODEL = 32;
-constexpr bool RANDOM_START_STEP = true;
+constexpr bool RANDOM_START_STEP = false;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
@@ -309,7 +310,7 @@ int main(int argc, char** argv){
         }
         end_epoch:
         std::cout << "Epoch: " << epoch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
-        if (epoch_i % 500 == 0){
+        if (epoch_i % 50 == 0){
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
             rlt::rl::environments::DummyUI ui;
