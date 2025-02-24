@@ -7,6 +7,7 @@
 #include <sstream>
 #include "../../../persist/code.h"
 #include "../../../containers/matrix/persist_code.h"
+#include "../../../nn/parameters/persist_code.h"
 #include "../../../nn/capability/persist_code.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

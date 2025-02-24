@@ -5,6 +5,7 @@
 #include "../../../containers/matrix/persist.h"
 #include "layer.h"
 #include "../../../utils/persist.h"
+#include "persist_code.h"
 #include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -13,6 +14,7 @@ namespace rl_tools {
         // todo: forward implementation to Parameter struct
         save(device, layer.weights, group.createGroup("weights"));
         save(device, layer.biases, group.createGroup("biases"));
+        group.createAttribute("activation_function", nn::layers::dense::persist::get_activation_function_string<SPEC::CONFIG::ACTIVATION_FUNCTION>());
     }
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, HighFive::Group group) {
