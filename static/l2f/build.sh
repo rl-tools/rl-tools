@@ -1,4 +1,6 @@
-clang++ --target=wasm32 -c l2f.cpp -o l2f.o
+set -e
+
+clang++ --target=wasm32 -I ../../include -c l2f.cpp -o l2f.o
 if which wasm-ld > /dev/null 2>/dev/null; then
   wasm-ld --no-entry --export=hello l2f.o -o l2f.wasm
 else

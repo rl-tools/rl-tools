@@ -534,7 +534,7 @@ namespace rl_tools{
             // Uniform sampling on the desired angle range
             T u = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
             T v = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
-            T phi = 2.0 * M_PI * u;
+            T phi = 2.0 * math::PI<T> * u;
             T cos_theta = 1.0 - 2.0 * v;
             T sin_theta = math::sqrt(device.math, 1.0 - cos_theta*cos_theta);
             T x = sin_theta * math::cos(device.math, phi);

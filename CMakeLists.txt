@@ -60,6 +60,9 @@ endif()
 set(BUILD_SHARED_LIBS OFF)
 
 
+add_subdirectory(static/l2f)
+
+
 # Targets
 # RLtools::Core: Plain C++ library with no dependencies, definitions or anything (just requiring cxx_std_17 and adding the header-search path)
 # RLtools::CoreDefinitions: Core + Definitions (e.g. RL_TOOLS_BACKEND_ENABLE_MKL)
