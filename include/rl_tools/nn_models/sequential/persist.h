@@ -13,8 +13,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, HighFive::Group group, typename DEVICE::index_t layer_i = 0) {
-        group.createAttribute<std::string>("type", "sequential");
         if(layer_i == 0){
+            group.createAttribute<std::string>("type", "sequential");
             group = group.createGroup("layers");
         }
         save(device, model.content, group.createGroup(std::to_string(layer_i)));
