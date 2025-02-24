@@ -519,11 +519,6 @@ namespace rl_tools::rl::environments::l2f{
 
     template <typename T, typename TI, typename T_PARAMETERS, typename T_PARAMETER_VALUES>
     struct StaticParametersDefault{
-//        static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
-//        static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
-//        static constexpr LatentStateType LATENT_STATE_TYPE = LatentStateType::Empty;
-//        static constexpr StateType STATE_TYPE = StateType::Base;
-//        static constexpr ObservationType OBSERVATION_TYPE = ObservationType::Normal;
         using STATE_TYPE = StateBase<StateSpecification<T, TI>>;
         using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                                  observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
@@ -567,42 +562,13 @@ namespace rl_tools::rl::environments{
 
         static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
 
-//        static constexpr multirotor::LatentStateType LATENT_STATE_TYPE = SPEC::STATIC_PARAMETERS::LATENT_STATE_TYPE;
-//        static constexpr multirotor::StateType STATE_TYPE = SPEC::STATIC_PARAMETERS::STATE_TYPE;
         using State = typename SPEC::STATE_TYPE;
         using Observation = typename SPEC::OBSERVATION_TYPE;
         using ObservationPrivileged = typename SPEC::OBSERVATION_TYPE_PRIVILEGED;
 
-//        using LatentState = utils::typing::conditional_t<
-//            LATENT_STATE_TYPE == multirotor::LatentStateType::Empty,
-//            multirotor::StateLatentEmpty<T, TI>,
-//            multirotor::StateLatentRandomForce<T, TI>
-//        >;
-//        using State = utils::typing::conditional_t<
-//            STATE_TYPE == multirotor::StateType::Base,
-//            multirotor::StateBase<T, TI, LatentState>,
-//            utils::typing::conditional_t<
-//                STATE_TYPE == multirotor::StateType::BaseRotors,
-//                multirotor::StateBaseRotors<T, TI, LatentState>,
-//                multirotor::StateBaseRotorsHistory<T, TI, SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH, LatentState>
-//            >
-//        >;
-
-//        static constexpr TI OBSERVATION_DIM_BASE = 3 + 3 + 3;
-//        static constexpr TI OBSERVATION_DIM_ORIENTATION = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? 4 : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (2*4) : (9));
-//        static constexpr TI OBSERVATION_DIM_ACTION_HISTORY = (STATE_TYPE == multirotor::StateType::BaseRotorsHistory) * ACTION_DIM * ACTION_HISTORY_LENGTH;
-//        static constexpr TI OBSERVATION_DIM = OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION + OBSERVATION_DIM_ACTION_HISTORY;
-//        static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = STATE_TYPE == multirotor::StateType::Base || LATENT_STATE_TYPE == multirotor::LatentStateType::RandomForce;
-//        static constexpr TI OBSERVATION_DIM_PRIVILEGED_LATENT_STATE = (LATENT_STATE_TYPE == multirotor::LatentStateType::RandomForce ? LatentState::DIM : 0);
-//        static constexpr TI OBSERVATION_DIM_PRIVILEGED = PRIVILEGED_OBSERVATION_AVAILABLE ? (
-//                OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION
-//                + (STATE_TYPE == multirotor::StateType::BaseRotors || STATE_TYPE == multirotor::StateType::BaseRotorsHistory ? ACTION_DIM : 0)
-//                + OBSERVATION_DIM_PRIVILEGED_LATENT_STATE
-//        ) : 0;
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
         static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !rl_tools::utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, l2f::observation::NONE<TI>>;
-//        using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         Parameters parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     };
     namespace l2f{
@@ -612,9 +578,7 @@ namespace rl_tools::rl::environments{
         };
     }
     template <typename T_SPEC>
-    struct MultirotorMultiTask: Multirotor<T_SPEC>{
-        // just a tag for dispatch
-    };
+    struct MultirotorMultiTask: Multirotor<T_SPEC>{ /* just a tag for dispatch */ };
     template <typename SPEC>
     struct PREVENT_DEFAULT_GET_UI<MultirotorMultiTask<SPEC>> : rl_tools::utils::typing::true_type {};
 }
