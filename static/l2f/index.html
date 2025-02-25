@@ -12,8 +12,9 @@
     </script>
     <script type="module">
         import * as rlt from "/static/rl_tools/rl_tools.js"
+        import * as math from 'https://esm.sh/mathjs'
 
-        const file_url = "/experiments/2025-02-24_16-19-38/370c95c_foundation-policy-pre-training_motor-mapping_thrust-curves_motor-delay_rng-warmup/false_false_true_100/0000/steps/000000000000000/checkpoint.h5"
+        const file_url = "/experiments/2025-02-24_21-31-59/7cfb0a9_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
 
         // async function loadWasm() {
         //     const response = await fetch('l2f.wasm');
@@ -23,13 +24,6 @@
         //     const result = module.instance.exports.hello();
         //     console.log('Result from hello():', result);
         // }
-        async function main(){
-            // loadWasm()
-            const model = await rlt.load(file_url)
-            console.log(model)
-        }
-
-        window.onload = main;
 
         import createModule from './l2f.js';
 
@@ -38,6 +32,8 @@
 
             console.log("Action Dimension:", state.action_dim);
             console.log("Observation Dimension:", state.observation_dim);
+
+            const model = await rlt.load(file_url)
 
             state.initial_parameters();
             state.initial_state();
@@ -60,16 +56,31 @@
             canvas.width = canvas.clientWidth * dpr;
             canvas.height = canvas.clientHeight * dpr;
             const ui_state = await ui.init(canvas, {devicePixelRatio: window.devicePixelRatio})
-            const current_parameters = JSON.parse(state.get_parameters())
-            const current_state =  JSON.parse(state.get_state())
-            const current_action = JSON.parse(state.get_action())
             if(ui_state.cursor_grab){
                 canvas.style.cursor = "grab"
             }
+            const current_parameters = JSON.parse(state.get_parameters())
             await ui.episode_init(ui_state, current_parameters)
+
+            let last_step = null
+            let last_dt = 0
             async function loop(){
+                const now = performance.now()
+                if(last_step === null || (now - last_step) > last_dt){
+                    last_step = now
+                    state.observe()
+                    const input = math.matrix([[[...Array(state.observation_dim).keys()].map(i => state.get_observation(i))]])
+                    console.log(input._data[0][0])
+                    const output = model.evaluate(input)
+                    console.log(output._data[0][0])
+                    output.valueOf()[0][0].map((v, i) => {
+                        state.set_action(i, v)
+                    })
+                    last_dt = state.step()
+                }
+                const current_state =  JSON.parse(state.get_state())
+                const current_action = JSON.parse(state.get_action())
                 await ui.render(ui_state, current_parameters, current_state, current_action)
-                console.log("render")
                 requestAnimationFrame(loop);
             }
             loop()

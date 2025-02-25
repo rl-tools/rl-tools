@@ -43,10 +43,11 @@ struct State{
     T get_observation(uint32_t observation_i){
         return rlt::get(this->observation, 0, observation_i);
     };
-    void step(){
+    T step(){
         ENVIRONMENT::State next_state;
-        rlt::step(this->device, this->env, this->parameters, this->state, this->action, next_state, this->rng);
+        T dt = rlt::step(this->device, this->env, this->parameters, this->state, this->action, next_state, this->rng);
         this->state = next_state;
+        return dt;
     };
 #if defined(EMSCRIPTEN) || defined(STDLIB)
     std::string get_parameters(){
@@ -128,9 +129,9 @@ extern "C"{
         State& state = *(GET_STATE(state_ptr));
         return state.get_observation(observation_i);
     }
-    void step(STATE_PTR_TYPE state_ptr){
+    T step(STATE_PTR_TYPE state_ptr){
         State& state = *(GET_STATE(state_ptr));
-        state.step();
+        return state.step();
     }
 }
 
