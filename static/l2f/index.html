@@ -2,28 +2,85 @@
 <head>
     <meta charset="utf-8">
     <title>L2F Studio</title>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./lib/three.module.js",
+                "three-orbitcontrols": "./lib/OrbitControls.js"
+            }
+        }
+    </script>
     <script type="module">
         import * as rlt from "/static/rl_tools/rl_tools.js"
 
         const file_url = "/experiments/2025-02-24_16-19-38/370c95c_foundation-policy-pre-training_motor-mapping_thrust-curves_motor-delay_rng-warmup/false_false_true_100/0000/steps/000000000000000/checkpoint.h5"
 
-        async function loadWasm() {
-            const response = await fetch('l2f.wasm');
-            const buffer = await response.arrayBuffer();
-            const module = await WebAssembly.instantiate(buffer);
-
-            const result = module.instance.exports.hello();
-            console.log('Result from hello():', result);
-        }
+        // async function loadWasm() {
+        //     const response = await fetch('l2f.wasm');
+        //     const buffer = await response.arrayBuffer();
+        //     const module = await WebAssembly.instantiate(buffer);
+        //
+        //     const result = module.instance.exports.hello();
+        //     console.log('Result from hello():', result);
+        // }
         async function main(){
-            loadWasm()
+            // loadWasm()
             const model = await rlt.load(file_url)
             console.log(model)
         }
 
         window.onload = main;
 
+        import createModule from './l2f.js';
+
+        createModule().then(async Module => {
+            const state = new Module.State(123);
+
+            console.log("Action Dimension:", state.action_dim);
+            console.log("Observation Dimension:", state.observation_dim);
+
+            state.initial_parameters();
+            state.initial_state();
+            state.set_action(0, 0);
+            state.set_action(1, 0);
+            state.set_action(2, 0);
+            state.set_action(3, 0);
+
+            state.observe()
+            const observation = state.get_observation(0);
+            console.log("Observation:", observation);
+            console.log("UI:", state.get_state());
+
+            const blob = new Blob([state.get_ui()], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            const ui = await import(url)
+            URL.revokeObjectURL(url);
+            const canvas = document.getElementById("canvas");
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = canvas.clientWidth * dpr;
+            canvas.height = canvas.clientHeight * dpr;
+            const ui_state = await ui.init(canvas, {devicePixelRatio: window.devicePixelRatio})
+            const current_parameters = JSON.parse(state.get_parameters())
+            const current_state =  JSON.parse(state.get_state())
+            const current_action = JSON.parse(state.get_action())
+            if(ui_state.cursor_grab){
+                canvas.style.cursor = "grab"
+            }
+            await ui.episode_init(ui_state, current_parameters)
+            async function loop(){
+                await ui.render(ui_state, current_parameters, current_state, current_action)
+                console.log("render")
+                requestAnimationFrame(loop);
+            }
+            loop()
+
+        });
+
+
 
     </script>
 </head>
+<body style="background-color: black">
+<canvas id="canvas" width="500" height="500" style="background-color: white;"></canvas>
+</body>
 </html>

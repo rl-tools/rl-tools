@@ -32,7 +32,9 @@ namespace rl_tools::rl::zoo::l2f{
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_SPEC;
         using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_TYPE;
 
-        // static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+        static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
+        constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
+        static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename ParametersBase<PARAMETERS_SPEC>::MDP::Initialization init = {
                 0.0, // guidance
                 0.5, // position
@@ -69,9 +71,10 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
+
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
-                ENVIRONMENT_FACTORY_BASE::dynamics,
+                dynamics,
                 integration,
                 mdp,
                 ENVIRONMENT_FACTORY_BASE::domain_randomization
