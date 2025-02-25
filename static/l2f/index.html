@@ -2,6 +2,16 @@
 <head>
     <meta charset="utf-8">
     <title>L2F Studio</title>
+    <style>
+        body{
+            display: flex;
+            justify-content: center;
+        }
+        #canvas{
+            width: min(90vh, 90vw);
+            height: min(90vh, 90vw);
+        }
+    </style>
     <script type="importmap">
         {
             "imports": {
@@ -66,7 +76,7 @@
             let last_dt = 0
             async function loop(){
                 const now = performance.now()
-                if(last_step === null || (now - last_step) > last_dt){
+                if(last_step === null || (now - last_step) / 1000 > last_dt){
                     last_step = now
                     state.observe()
                     const input = math.matrix([[[...Array(state.observation_dim).keys()].map(i => state.get_observation(i))]])
@@ -90,6 +100,6 @@
     </script>
 </head>
 <body style="background-color: black">
-<canvas id="canvas" width="500" height="500" style="background-color: white;"></canvas>
+<canvas id="canvas" style="background-color: white;"></canvas>
 </body>
 </html>

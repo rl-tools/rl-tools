@@ -33,6 +33,7 @@
 - Add a mode tag to the `evaluate` and `forward` signature to signal the desired behavior (similar destincation as `.train()` and `.eval()` in PyTorch, but allowing for finer-grained and model specific control)
 - Move the `observation_mean` and `observation_std` into the `nn_model`
 - Iterator design that replaces the `get` and `set` functions for matrices and tensors. The current functions recalculate the index every time while an iterator-based design could just advance the pointer
+- Think about a hybrid dt design: One dt for control, and one dt for simulation/visualization
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)
