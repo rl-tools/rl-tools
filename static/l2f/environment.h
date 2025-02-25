@@ -1,7 +1,7 @@
 #include <rl_tools/operations/wasm32.h>
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 
-#include "../../include/rl_tools/rl/environments/l2f/multirotor.h"
+#include <rl_tools/rl/environments/l2f/multirotor.h>
 
 namespace rlt = rl_tools;
 

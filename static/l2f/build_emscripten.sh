@@ -1,0 +1,1 @@
+docker run -it --rm --mount type=bind,source=$(pwd),target=/mnt --mount type=bind,source=$(cd ../.. && pwd),target=/rl_tools,readonly -w /mnt emscripten/emsdk emcc -std=c++17 -O3 -I /rl_tools/include -DEMSCRIPTEN -s WASM=1 --bind -s EXPORTED_RUNTIME_METHODS='["cwrap", "ccall"]' -o l2f.js l2f.cpp
