@@ -1,1 +1,0 @@
- awk '/R"RL_TOOLS_LITERAL\(/ {f=1; next} f && /RL_TOOLS_LITERAL"/ {f=0} f' ../../include/rl_tools/rl/environments/l2f/operations_cpu.h > ui.js

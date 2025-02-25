@@ -1,12 +1,9 @@
+#define STDLIB
 #include "interface.h"
+#include <iostream>
 int main(){
-    State state;
-    init(&state, 0);
-    set_action(&state, 0, 0);
-    set_action(&state, 1, 0);
-    set_action(&state, 2, 0);
-    set_action(&state, 3, 0);
-    step(&state);
+    State state(0);
+    std::cout << state.get_parameters() << std::endl;
 
     return 0;
 }

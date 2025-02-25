@@ -15,6 +15,20 @@ namespace rl_tools::math {
     T sqrt(const devices::math::WASM32&, const T x) {
         return sqrt(devices::math::Generic{}, x);
     }
+	// based on https://git.musl-libc.org/cgit/musl/tree/src/math/cbrt.c?h=v1.2.5
+	/* origin: FreeBSD /usr/src/lib/msun/src/s_cbrt.c */
+	/*
+	 * ====================================================
+	 * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+	 *
+	 * Developed at SunPro, a Sun Microsystems, Inc. business.
+	 * Permission to use, copy, modify, and distribute this
+	 * software is freely granted, provided that this notice
+	 * is preserved.
+	 * ====================================================
+	 *
+	 * Optimized by Bruce D. Evans.
+	 */
     template<typename T_T>
     T_T cbrt(const devices::math::WASM32&, const T_T x) {
         if constexpr(utils::typing::is_same_v<T_T, float>) {

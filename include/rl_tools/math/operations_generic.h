@@ -73,16 +73,96 @@ namespace rl_tools::math {
         return sum;
     }
 
-    template<typename T>
-    T acos(const devices::math::Generic&, T x) {
-        if (x < -1 || x > 1) return 0; // acos is only defined for -1 <= x <= 1
-        T sum = PI<T>/2;
-        T term = x;
-        for (int i = 1; i < 10; ++i) {
-            term *= (x * x) * (2 * i - 1) / (2 * i);
-            sum -= term / (2 * i + 1);
+    // based on https://git.musl-libc.org/cgit/musl/tree/src/math/acosf.c?h=v1.2.5
+    /* origin: FreeBSD /usr/src/lib/msun/src/e_acosf.c */
+    /*
+     * Conversion to float by Ian Lance Taylor, Cygnus Support, ian@cygnus.com.
+     */
+    /*
+     * ====================================================
+     * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+     *
+     * Developed at SunPro, a Sun Microsystems, Inc. business.
+     * Permission to use, copy, modify, and distribute this
+     * software is freely granted, provided that this notice
+     * is preserved.
+     * ====================================================
+     */
+
+    namespace generic::acos{
+        static constexpr float
+        pio2_hi = 1.5707962513e+00, /* 0x3fc90fda */
+        pio2_lo = 7.5497894159e-08, /* 0x33a22168 */
+        pS0 =  1.6666586697e-01,
+        pS1 = -4.2743422091e-02,
+        pS2 = -8.6563630030e-03,
+        qS1 = -7.0662963390e-01;
+        static float R(float z){
+            float p, q;
+            p = z*(pS0+z*(pS1+z*pS2));
+            q = 1.0f+z*qS1;
+            return p/q;
         }
-        return sum;
+        inline uint32_t get_float_bits(float f) {
+            uint32_t bits = 0;
+            unsigned char* f_bytes = reinterpret_cast<unsigned char*>(&f);
+            unsigned char* bits_bytes = reinterpret_cast<unsigned char*>(&bits);
+
+            for (auto i = 0; i < sizeof(float); ++i) {
+                bits_bytes[i] = f_bytes[i];  // Copy byte by byte
+            }
+
+            return bits;
+        }
+        inline float set_float_bits(uint32_t bits) {
+            float f = 0.0f;
+            unsigned char* f_bytes = reinterpret_cast<unsigned char*>(&f);
+            unsigned char* bits_bytes = reinterpret_cast<unsigned char*>(&bits);
+
+            for (auto i = 0; i < sizeof(float); ++i) {
+                f_bytes[i] = bits_bytes[i];  // Copy byte by byte
+            }
+
+            return f;
+        }
+    }
+    template<typename T>
+    T acos(const devices::math::Generic& dev, T x) {
+        float z,w,s,c,df;
+        uint32_t hx,ix;
+
+        hx = generic::acos::get_float_bits(x);
+        ix = hx & 0x7fffffff;
+        /* |x| >= 1 or nan */
+        if (ix >= 0x3f800000) {
+            if (ix == 0x3f800000) {
+                if (hx >> 31)
+                    return 2*generic::acos::pio2_hi + 0x1p-120f;
+                return 0;
+            }
+            return 0/(x-x);
+        }
+        /* |x| < 0.5 */
+        if (ix < 0x3f000000) {
+            if (ix <= 0x32800000) /* |x| < 2**-26 */
+                return generic::acos::pio2_hi + 0x1p-120f;
+            return generic::acos::pio2_hi - (x - (generic::acos::pio2_lo-x*generic::acos::R(x*x)));
+        }
+        /* x < -0.5 */
+        if (hx >> 31) {
+            z = (1+x)*0.5f;
+            s = math::sqrt(dev, z);
+            w = generic::acos::R(z)*s-generic::acos::pio2_lo;
+            return 2*(generic::acos::pio2_hi - (s+w));
+        }
+        /* x > 0.5 */
+        z = (1-x)*0.5f;
+        s = math::sqrt(dev, z);
+        hx = generic::acos::get_float_bits(s);
+        df = generic::acos::set_float_bits(hx&0xfffff000);
+        c = (z-df*df)/(s+df);
+        w = generic::acos::R(z)*s+c;
+        return 2*(df+w);
     }
 
     template<typename TX, typename TY>
