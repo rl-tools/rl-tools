@@ -62,8 +62,8 @@
 #include "acrobot-swingup-v0/sac.h"
 #include "bottleneck-v0/ppo.h"
 #ifdef RL_TOOLS_EXPERIMENTAL
-#include "l2f/sac_tiny.h"
-// #include "l2f/sac_big.h"
+// #include "l2f/sac_tiny.h"
+#include "l2f/sac_big.h"
 #else
 #include "l2f/sac.h"
 #endif

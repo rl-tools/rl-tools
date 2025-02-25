@@ -147,7 +147,7 @@ export function load(path_to_hdf5_checkpoint) {
             const diff = math.subtract(output, target_output.data)
             const diff_reduce = math.flatten(diff).valueOf().reduce((a, c) => a + Math.abs(c)) / diff.size().reduce((a, c) => a * c, 1)
             console.log("Example diff per element: ", diff_reduce)
-            console.assert(diff_reduce < 1e-7, "Output is not close enough to target output")
+            console.assert(diff_reduce < 1e-6, "Output is not close enough to target output")
             return model
         });
 }

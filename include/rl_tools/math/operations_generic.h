@@ -108,7 +108,7 @@ namespace rl_tools::math {
             unsigned char* f_bytes = reinterpret_cast<unsigned char*>(&f);
             unsigned char* bits_bytes = reinterpret_cast<unsigned char*>(&bits);
 
-            for (auto i = 0; i < sizeof(float); ++i) {
+            for (uint32_t i = 0; i < sizeof(float); ++i) {
                 bits_bytes[i] = f_bytes[i];  // Copy byte by byte
             }
 
@@ -119,7 +119,7 @@ namespace rl_tools::math {
             unsigned char* f_bytes = reinterpret_cast<unsigned char*>(&f);
             unsigned char* bits_bytes = reinterpret_cast<unsigned char*>(&bits);
 
-            for (auto i = 0; i < sizeof(float); ++i) {
+            for (uint32_t i = 0; i < sizeof(float); ++i) {
                 f_bytes[i] = bits_bytes[i];  // Copy byte by byte
             }
 
