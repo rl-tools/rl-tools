@@ -28,15 +28,15 @@
         import createModule from './l2f.js';
 
         createModule().then(async Module => {
-            const state = new Module.State(123);
+            const state = new Module.State(12);
 
             console.log("Action Dimension:", state.action_dim);
             console.log("Observation Dimension:", state.observation_dim);
 
             const model = await rlt.load(file_url)
 
-            state.initial_parameters();
-            state.initial_state();
+            // state.initial_parameters();
+            // state.initial_state();
             state.set_action(0, 0);
             state.set_action(1, 0);
             state.set_action(2, 0);
@@ -70,9 +70,7 @@
                     last_step = now
                     state.observe()
                     const input = math.matrix([[[...Array(state.observation_dim).keys()].map(i => state.get_observation(i))]])
-                    console.log(input._data[0][0])
                     const output = model.evaluate(input)
-                    console.log(output._data[0][0])
                     output.valueOf()[0][0].map((v, i) => {
                         state.set_action(i, v)
                     })
