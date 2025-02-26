@@ -6,12 +6,7 @@
         body{
             display: flex;
             justify-content: center;
-        }
-        .l2f-canvas{
-            /*width: min(90vh, 90vw);*/
-            /*height: min(90vh, 90vw);*/
-            width: 100%;
-            background-color: white;
+            background-color: black;
         }
     </style>
     <script type="importmap">
@@ -35,13 +30,18 @@
         class L2F {
             constructor(parent, num_quadrotors, policy, seed){
                 this.canvas = document.createElement('canvas');
-                this.canvas.classList.add('l2f-canvas');
-                const dpr = window.devicePixelRatio || 1;
-                const resizeCanvas = ()=>{
-                    this.canvas.width = this.canvas.clientWidth * dpr;
-                    this.canvas.height = this.canvas.clientHeight * dpr;
+                if(DEBUG){
+                    this.canvas.style.backgroundColor = "white"
                 }
-                // resizeCanvas()
+                const dpr = window.devicePixelRatio || 1;
+                const resizeCanvas = () => {
+                    const parentRect = parent.getBoundingClientRect();
+                    this.canvas.style.width = parentRect.width + 'px';
+                    this.canvas.style.height = parentRect.height + 'px';
+                    this.canvas.width = parentRect.width * dpr;
+                    this.canvas.height = parentRect.height * dpr;
+                };
+                resizeCanvas()
                 window.addEventListener('resize', resizeCanvas.bind(this), false);
                 this.policy = policy
 
@@ -103,7 +103,6 @@
         window.onload = main
     </script>
 </head>
-<body style="background-color: black">
-<!--<canvas id="canvas" style="background-color: white;"></canvas>-->
+<body>
 </body>
 </html>
