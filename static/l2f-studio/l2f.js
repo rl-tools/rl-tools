@@ -4,6 +4,7 @@ const DEBUG = false
 
 export class L2F{
     constructor(parent, num_quadrotors, policy, seed){
+        this.pause = false
         this.canvas = document.createElement('canvas');
         if(DEBUG){
             this.canvas.style.backgroundColor = "white"
@@ -43,19 +44,21 @@ export class L2F{
         this.last_step = null
         this.last_dt = 0
     }
+    simulate_step(){
+        this.states.forEach(state => {
+            const action = this.policy(state)
+            console.assert(action.length === state.action_dim, "Action dimension mismatch")
+            action.map((v, i) => {
+                state.set_action(i, v)
+            })
+            this.last_dt = state.step()
+        })
+    }
     async render(){
         const now = performance.now()
-        if(this.last_step === null || (now - this.last_step) / 1000 > this.last_dt){
+        if(!this.pause && (this.last_step === null || (now - this.last_step) / 1000 > this.last_dt)){
             this.last_step = now
-
-            this.states.forEach(state => {
-                const action = this.policy(state)
-                console.assert(action.length === state.action_dim, "Action dimension mismatch")
-                action.map((v, i) => {
-                    state.set_action(i, v)
-                })
-                this.last_dt = state.step()
-            })
+            this.simulate_step()
         }
         const current_states =  this.states.map(state => JSON.parse(state.get_state()))
         const current_actions = this.states.map(state => JSON.parse(state.get_action()))
