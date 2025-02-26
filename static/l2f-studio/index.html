@@ -3,10 +3,29 @@
     <meta charset="utf-8">
     <title>L2F Studio</title>
     <style>
-        body{
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            background-color: black;
+            overflow: hidden;
+        }
+        #sim-container {
+            flex-grow: 1;
+            background-color: white;
+            width: 100%;
+        }
+        #controls-container {
             display: flex;
             justify-content: center;
-            background-color: black;
+            background-color: darkgrey;
+            width: 100%;
+            padding: 10px;
+        }
+        button{
+            padding: 10px 20px;
+            font-size: 16px;
         }
     </style>
     <script type="importmap">
@@ -20,7 +39,7 @@
     <script type="module">
         import {L2F} from "./l2f.js"
         import * as rlt from "/static/rl_tools/rl_tools.js"
-        import * as math from 'https://esm.sh/mathjs'
+        import * as math from 'https://esm.sh/mathjsl'
 
         const file_url = "/experiments/2025-02-24_21-31-59/7cfb0a9_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
 
@@ -33,11 +52,23 @@
                 const output = model.evaluate(input)
                 return output.valueOf()[0][0]
             }
-            const l2f = new L2F(document.body, 10, policy, seed)
+            const sim_container = document.getElementById("sim-container")
+            const l2f = new L2F(sim_container, 10, policy, seed)
+
+            const sample_initial_states_button = document.getElementById("sample-initial-states")
+            sample_initial_states_button.addEventListener("click", () => {
+                l2f.states.forEach(state => {
+                    state.sample_initial_state()
+                })
+            })
         }
         window.onload = main
     </script>
 </head>
 <body>
+    <div id="sim-container"></div>
+    <div id="controls-container">
+        <button id="sample-initial-states">Sample Initial States</button>
+    </div>
 </body>
 </html>

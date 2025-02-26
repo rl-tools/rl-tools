@@ -1,6 +1,6 @@
-import * as ui from "./ui.js"
+// import * as ui from "./ui.js"
 import createModule from './l2f-interface.js';
-const DEBUG = true
+const DEBUG = false
 
 export class L2F{
     constructor(parent, num_quadrotors, policy, seed){
