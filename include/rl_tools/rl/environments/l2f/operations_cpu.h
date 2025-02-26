@@ -556,29 +556,44 @@ function update_camera(ui_state){
   ui_state.renderer.render(ui_state.scene, ui_state.camera);
 }
 
+function clip_position(scale, position){
+    const extent = Math.cbrt(scale) * 300 // to maybe prevent threejs from exploding
+    const max_position = extent
+    const min_position = -extent
+    return position.map((p) => {
+        if(p > max_position){
+            return max_position
+        }
+        else if(p < min_position){
+            return min_position
+        }
+        else{
+            return p
+        }
+    })
+}
+
 export async function render(ui_state, parameters, state, action) {
-  ui_state.drone.droneFrame.position.set(...state.position)
+  ui_state.drone.droneFrame.position.set(...clip_position(parameters.mass, state.position))
   ui_state.drone.droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
   update_camera(ui_state)
 }
 
-export async function render_multi(ui_state, parameters, steps){
-  steps.map((step, i) => {
-    ui_state.drones[i].droneFrame.position.set(...step.state.position)
-    ui_state.drones[i].droneFrame.quaternion.copy(new THREE.Quaternion(step.state.orientation[1], step.state.orientation[2], step.state.orientation[3], step.state.orientation[0]).normalize())
+export async function render_multi(ui_state, parameters, states, actions){
+  states.map((state, i) => {
+    const action = actions[i]
+    const current_parameters = parameters[i]
+    ui_state.drones[i].droneFrame.position.set(...clip_position(current_parameters.mass, state.position))
+    ui_state.drones[i].droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
     for(let j = 0; j < 4; j++){
       const forceArrow = ui_state.drones[i].rotors[j].forceArrow
-      const force_magnitude = step.action[j]
+      const force_magnitude = action[j]
       forceArrow.setDirection(new THREE.Vector3(0, 0, force_magnitude))
       forceArrow.setLength(Math.cbrt(ui_state.drones[i].scale)/10)
     }
   })
   update_camera(ui_state)
 }
-
-
-        
-
         )RL_TOOLS_LITERAL";
         return ui;
     }

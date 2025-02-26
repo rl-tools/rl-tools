@@ -154,7 +154,7 @@ export class TrajectoryPlayer{
                             }
                             else{
                                 if(current_parameters_multi && current_step_data_multi){
-                                    await ui.render_multi(ui_state, current_parameters_multi, current_step_data_multi)
+                                    await ui.render_multi(ui_state, current_parameters_multi, current_step_data_multi.map(step => step.state), current_step_data_multi.map(step => step.action))
                                     requestAnimationFrame(loop);
                                     return
                                 }

@@ -2,3 +2,4 @@
 *.wasm
 ui.js
 lib
+l2f-interface*

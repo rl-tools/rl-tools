@@ -60,7 +60,7 @@ endif()
 set(BUILD_SHARED_LIBS OFF)
 
 
-add_subdirectory(static/l2f)
+add_subdirectory(static/l2f-studio)
 
 
 # Targets
