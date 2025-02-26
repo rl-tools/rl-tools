@@ -1,5 +1,5 @@
 // import * as ui from "./ui.js"
-import createModule from './l2f-interface.js';
+import createModule from "l2f-interface";
 const DEBUG = false
 
 export class L2F{

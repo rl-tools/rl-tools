@@ -32,16 +32,17 @@
         {
             "imports": {
                 "three": "./lib/three.module.js",
-                "three-orbitcontrols": "./lib/OrbitControls.js"
+                "three-orbitcontrols": "./lib/OrbitControls.js",
+                "l2f-interface": "./l2f-interface.js"
             }
         }
     </script>
     <script type="module">
         import {L2F} from "./l2f.js"
         import * as rlt from "/static/rl_tools/rl_tools.js"
-        import * as math from 'https://esm.sh/mathjsl'
+        import * as math from 'https://esm.sh/mathjs'
 
-        const file_url = "/experiments/2025-02-24_21-31-59/7cfb0a9_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
+        const file_url = "/experiments/2025-02-26_12-53-50/e234c80_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
 
         async function main(){
             const seed = 12
