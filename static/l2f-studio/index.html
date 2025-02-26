@@ -59,8 +59,33 @@
             const sample_initial_states_button = document.getElementById("sample-initial-states")
             sample_initial_states_button.addEventListener("click", () => {
                 l2f.states.forEach(state => {
+                    if(pause_button.innerText === "Pause"){
+                        pause_button.innerText = "Resume"
+                        l2f.pause = true
+                    }
+                    else {
+                    }
                     state.sample_initial_state()
                 })
+            })
+            const pause_button = document.getElementById("pause")
+            pause_button.addEventListener("click", () => {
+                if(pause_button.innerText === "Pause"){
+                    pause_button.innerText = "Resume"
+                    l2f.pause = true
+                }
+                else{
+                    pause_button.innerText = "Pause"
+                    l2f.pause = false
+                }
+            })
+            const step_button = document.getElementById("step")
+            step_button.addEventListener("click", () => {
+                if(pause_button.innerText === "Pause"){
+                    pause_button.innerText = "Resume"
+                    l2f.pause = true
+                }
+                l2f.simulate_step()
             })
         }
         window.onload = main
@@ -70,6 +95,8 @@
     <div id="sim-container"></div>
     <div id="controls-container">
         <button id="sample-initial-states">Sample Initial States</button>
+        <button id="pause">Pause</button>
+        <button id="step">Step</button>
     </div>
 </body>
 </html>
