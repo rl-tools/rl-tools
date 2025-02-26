@@ -7,9 +7,11 @@
             display: flex;
             justify-content: center;
         }
-        #canvas{
-            width: min(90vh, 90vw);
-            height: min(90vh, 90vw);
+        .l2f-canvas{
+            /*width: min(90vh, 90vw);*/
+            /*height: min(90vh, 90vw);*/
+            width: 100%;
+            background-color: white;
         }
     </style>
     <script type="importmap">
@@ -26,80 +28,82 @@
 
         const file_url = "/experiments/2025-02-24_21-31-59/7cfb0a9_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
 
-        // async function loadWasm() {
-        //     const response = await fetch('l2f.wasm');
-        //     const buffer = await response.arrayBuffer();
-        //     const module = await WebAssembly.instantiate(buffer);
-        //
-        //     const result = module.instance.exports.hello();
-        //     console.log('Result from hello():', result);
-        // }
+        const DEBUG = true
+        import * as ui from "./ui.js"
+        import createModule from './l2f-interface.js';
 
-        import createModule from './l2f.js';
-
-        createModule().then(async Module => {
-            const state = new Module.State(12);
-
-            console.log("Action Dimension:", state.action_dim);
-            console.log("Observation Dimension:", state.observation_dim);
-
-            const model = await rlt.load(file_url)
-
-            // state.initial_parameters();
-            // state.initial_state();
-            state.set_action(0, 0);
-            state.set_action(1, 0);
-            state.set_action(2, 0);
-            state.set_action(3, 0);
-
-            state.observe()
-            const observation = state.get_observation(0);
-            console.log("Observation:", observation);
-            console.log("UI:", state.get_state());
-
-            const blob = new Blob([state.get_ui()], { type: 'application/javascript' });
-            const url = URL.createObjectURL(blob);
-            const ui = await import(url)
-            URL.revokeObjectURL(url);
-            const canvas = document.getElementById("canvas");
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = canvas.clientWidth * dpr;
-            canvas.height = canvas.clientHeight * dpr;
-            const ui_state = await ui.init(canvas, {devicePixelRatio: window.devicePixelRatio})
-            if(ui_state.cursor_grab){
-                canvas.style.cursor = "grab"
-            }
-            const current_parameters = JSON.parse(state.get_parameters())
-            await ui.episode_init(ui_state, current_parameters)
-
-            let last_step = null
-            let last_dt = 0
-            async function loop(){
-                const now = performance.now()
-                if(last_step === null || (now - last_step) / 1000 > last_dt){
-                    last_step = now
-                    state.observe()
-                    const input = math.matrix([[[...Array(state.observation_dim).keys()].map(i => state.get_observation(i))]])
-                    const output = model.evaluate(input)
-                    output.valueOf()[0][0].map((v, i) => {
-                        state.set_action(i, v)
-                    })
-                    last_dt = state.step()
+        class L2F {
+            constructor(parent, num_quadrotors, policy, seed){
+                this.canvas = document.createElement('canvas');
+                this.canvas.classList.add('l2f-canvas');
+                const dpr = window.devicePixelRatio || 1;
+                const resizeCanvas = ()=>{
+                    this.canvas.width = this.canvas.clientWidth * dpr;
+                    this.canvas.height = this.canvas.clientHeight * dpr;
                 }
-                const current_state =  JSON.parse(state.get_state())
-                const current_action = JSON.parse(state.get_action())
-                await ui.render(ui_state, current_parameters, current_state, current_action)
-                requestAnimationFrame(loop);
+                // resizeCanvas()
+                window.addEventListener('resize', resizeCanvas.bind(this), false);
+                this.policy = policy
+
+                this.initialized = createModule().then(async (l2f_interface) => {
+                    this.states = [...Array(num_quadrotors)].map((_, i) =>new l2f_interface.State(seed + i));
+                    if(DEBUG){
+                        this.ui = ui
+                    }
+                    else{
+                        const blob = new Blob([this.states[0].get_ui()], { type: 'application/javascript' });
+                        const url = URL.createObjectURL(blob);
+                        this.ui = await import(url)
+                        URL.revokeObjectURL(url);
+                    }
+                    this.ui_state = await this.ui.init(this.canvas, {devicePixelRatio: window.devicePixelRatio})
+                    if(this.ui_state.cursor_grab){
+                        this.canvas.style.cursor = "grab"
+                    }
+                    parent.appendChild(this.canvas);
+                    this.parameters = this.states.map(state => JSON.parse(state.get_parameters()))
+                    await this.ui.episode_init_multi(this.ui_state, this.parameters)
+                    this.render()
+                });
+                this.last_step = null
+                this.last_dt = 0
             }
-            loop()
+            async render(){
+                const now = performance.now()
+                if(this.last_step === null || (now - this.last_step) / 1000 > this.last_dt){
+                    this.last_step = now
 
-        });
+                    this.states.forEach(state => {
+                        const action = this.policy(state)
+                        console.assert(action.length === state.action_dim, "Action dimension mismatch")
+                        action.map((v, i) => {
+                            state.set_action(i, v)
+                        })
+                        this.last_dt = state.step()
+                    })
+                }
+                const current_states =  this.states.map(state => JSON.parse(state.get_state()))
+                const current_actions = this.states.map(state => JSON.parse(state.get_action()))
+                await this.ui.render_multi(this.ui_state, this.parameters, current_states, current_actions)
+                requestAnimationFrame(() => this.render());
+            }
+        }
 
-
-
+        async function main(){
+            const seed = 12
+            const model = await rlt.load(file_url)
+            function policy(state){
+                state.observe()
+                const input = math.matrix([[[...Array(state.observation_dim).keys()].map(i => state.get_observation(i))]])
+                const output = model.evaluate(input)
+                return output.valueOf()[0][0]
+            }
+            const l2f = new L2F(document.body, 10, policy, seed)
+        }
+        window.onload = main
     </script>
 </head>
 <body style="background-color: black">
-<canvas id="canvas" style="background-color: white;"></canvas>
+<!--<canvas id="canvas" style="background-color: white;"></canvas>-->
 </body>
 </html>
