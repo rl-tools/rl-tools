@@ -1,5 +1,4 @@
 *.o
 *.wasm
 ui.js
-l2f.js
 lib
