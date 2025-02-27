@@ -104,20 +104,21 @@ namespace rl_tools::rl::environments::l2f{
         Disturbances disturbances;
     };
 
+    template <typename T>
+    struct DomainRandomizationContainer{ // needs to be independent of the SPEC such that the dispatch in operations_cpu.h does not create issues
+        T thrust_to_weight_min;
+        T thrust_to_weight_max;
+        T thrust_to_weight_by_torque_to_inertia_min;
+        T thrust_to_weight_by_torque_to_inertia_max;
+        T mass_min;
+        T mass_max;
+        T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
+        T motor_time_constant;
+        T rotor_torque_constant;
+    };
     template <typename SPEC>
     struct ParametersDomainRandomization: SPEC::NEXT_COMPONENT{
-        using T = typename SPEC::T;
-        struct DomainRandomization{
-            T thrust_to_weight_min;
-            T thrust_to_weight_max;
-            T thrust_to_weight_by_torque_to_inertia_min;
-            T thrust_to_weight_by_torque_to_inertia_max;
-            T mass_min;
-            T mass_max;
-            T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
-            T motor_time_constant;
-            T rotor_torque_constant;
-        };
+        using DomainRandomization = DomainRandomizationContainer<typename SPEC::T>;
         DomainRandomization domain_randomization;
     };
 
