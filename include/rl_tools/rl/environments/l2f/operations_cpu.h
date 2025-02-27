@@ -220,8 +220,8 @@ namespace rl_tools{
         output += top_level ? "}" : "";
         return output;
     }
-    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersDomainRandomization<PARAM_SPEC>::DomainRandomization& parameters) {
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::DomainRandomizationContainer<PARAM_SPEC>& parameters) {
         std::string json_string = "{";
         json_string += "\"thrust_to_weight_min\": " + std::to_string(parameters.thrust_to_weight_min);
         json_string += "\"thrust_to_weight_max\": " + std::to_string(parameters.thrust_to_weight_max);
@@ -241,7 +241,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
-        // json_string += ", \"domain_randomization\": " + json<PARAM_SPEC>(device, env, parameters.domain_randomization);
+        json_string += ", \"domain_randomization\": " + json(device, env, parameters.domain_randomization);
         json_string += (top_level ? "}" : "");
         return json_string;
     }
