@@ -90,17 +90,20 @@ namespace rl_tools::rl::environments::l2f{
         using TI = T_TI;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
+
+
+    template <typename T>
+    struct DisturbancesContainer{
+        struct UnivariateGaussian{
+            T mean;
+            T std;
+        };
+        UnivariateGaussian random_force;
+        UnivariateGaussian random_torque;
+    };
     template <typename SPEC>
     struct ParametersDisturbances: SPEC::NEXT_COMPONENT{
-        using T = typename SPEC::T;
-        struct Disturbances{
-            struct UnivariateGaussian{
-                T mean;
-                T std;
-            };
-            UnivariateGaussian random_force;
-            UnivariateGaussian random_torque;
-        };
+        using Disturbances = DisturbancesContainer<typename SPEC::T>;
         Disturbances disturbances;
     };
 
@@ -505,6 +508,7 @@ namespace rl_tools::rl::environments::l2f{
         TI current_step;
         T action_history[HISTORY_LENGTH][4];
     };
+
     template <typename T_SPEC>
     struct StateRandomForce: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
