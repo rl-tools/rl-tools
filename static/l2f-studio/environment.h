@@ -13,9 +13,10 @@ using TI = typename DEVICE::index_t;
 
 
 namespace builder{
-    static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
-    constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
-    using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
+    using namespace rl_tools::rl::environments::l2f;
+    static constexpr auto MODEL = parameters::dynamics::REGISTRY::crazyflie;
+    constexpr static auto MODEL_NAME = parameters::dynamics::registry_name<MODEL>;
+    using REWARD_FUNCTION = parameters::reward_functions::Squared<T>;
     static constexpr REWARD_FUNCTION reward_function = {
         false, // non-negative
         01.00, // scale
@@ -31,15 +32,15 @@ namespace builder{
         01.00, // d_action
     };
 
-    using PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-    using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDisturbances<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>;
+    using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
+    using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersSpecification<T, TI, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
 
-    static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
+    static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
     static constexpr TI SIMULATION_FREQUENCY = 100;
     static constexpr typename PARAMETERS_TYPE::Integration integration = {
         1.0/((T)SIMULATION_FREQUENCY) // integration dt
     };
-    static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+    static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = parameters::init::init_90_deg<PARAMETERS_SPEC>;
     static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
         0.00,// position
         0.00, // orientation
@@ -82,14 +83,16 @@ namespace builder{
     };
     static constexpr PARAMETERS_TYPE nominal_parameters = {
         {
-            dynamics,
-            integration,
-            mdp,
-            domain_randomization
-        },
-        disturbances
-    };
-    using namespace rl_tools::rl::environments::l2f;
+            {
+                dynamics,
+                integration,
+                mdp
+            }, // Base
+            disturbances
+        }, // Disturbances
+        domain_randomization
+    }; // DomainRandomization
+
     struct ENVIRONMENT_STATIC_PARAMETERS{
         static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI ACTION_HISTORY_LENGTH = 16;
@@ -109,7 +112,7 @@ namespace builder{
         static constexpr auto PARAMETER_VALUES = nominal_parameters;
         static constexpr TI N_DYNAMICS_VALUES = 1;
         static constexpr typename PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
-            rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>
+            parameters::dynamics::registry<parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>
         };
     };
 }

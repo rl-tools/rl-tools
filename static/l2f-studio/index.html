@@ -19,6 +19,8 @@
         #controls-container {
             display: flex;
             justify-content: center;
+            align-items: center;
+            gap: 20px;
             background-color: darkgrey;
             width: 100%;
             padding: 10px;
@@ -42,7 +44,7 @@
         import * as rlt from "/static/rl_tools/rl_tools.js"
         import * as math from 'https://esm.sh/mathjs'
 
-        const file_url = "/experiments/2025-02-26_12-53-50/e234c80_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
+        const file_url = "/experiments/2025-02-27_15-27-17/27f2f12_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
 
         async function main(){
             const seed = 12
@@ -87,6 +89,13 @@
                 }
                 l2f.simulate_step()
             })
+            const show_axes_checkbox = document.getElementById("show-axes")
+            show_axes_checkbox.addEventListener("change", () => {
+                l2f.initialized.then(() => {
+                    l2f.ui_state.showAxes = show_axes_checkbox.checked
+                    l2f.ui.episode_init_multi(l2f.ui_state, l2f.parameters)
+                })
+            })
         }
         window.onload = main
     </script>
@@ -94,6 +103,10 @@
 <body>
     <div id="sim-container"></div>
     <div id="controls-container">
+        <label>
+            <input type="checkbox" id="show-axes"></input>
+            Show Axes
+        </label>
         <button id="sample-initial-states">Sample Initial States</button>
         <button id="pause">Pause</button>
         <button id="step">Step</button>
