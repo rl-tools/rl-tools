@@ -6,6 +6,7 @@
 
 #include <random>
 #include <string>
+// Why no JSON library? introduces a dependency and increases the compile time (massively in case of e.g. nlohmann::json)
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
@@ -49,6 +50,7 @@ namespace rl_tools{
             }
         }
         json_string += "], ";
+
         json_string += "\"rotor_torque_constants\": [";
         for (TI i = 0; i < PARAM_SPEC::N; i++){
             json_string += std::to_string(parameters.rotor_torque_constants[i]);
@@ -58,7 +60,6 @@ namespace rl_tools{
         }
         json_string += "], ";
 
-        json_string += "], ";
         json_string += "\"rotor_time_constants\": [";
         for (TI i = 0; i < PARAM_SPEC::N; i++){
             json_string += std::to_string(parameters.rotor_time_constants[i]);
@@ -213,24 +214,48 @@ namespace rl_tools{
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersBase<PARAM_SPEC>& parameters, bool top_level=true){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        std::string output = top_level ? "{" : "";
-        output += "\"dynamics\": " + json<PARAM_SPEC>(device, env, parameters.dynamics) + ", ";
-        output += "\"integration\": " + json<PARAM_SPEC>(device, env, parameters.integration) + ", ";
-        output += "\"mdp\": " + json<PARAM_SPEC>(device, env, parameters.mdp) + ", ";
-        output += top_level ? "}" : "";
-        return output;
+        std::string json_string = top_level ? "{" : "";
+        json_string += "\"dynamics\": " + json<PARAM_SPEC>(device, env, parameters.dynamics) + ", ";
+        json_string += "\"integration\": " + json<PARAM_SPEC>(device, env, parameters.integration) + ", ";
+        json_string += "\"mdp\": " + json<PARAM_SPEC>(device, env, parameters.mdp);
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::DisturbancesContainer<PARAM_SPEC>& parameters) {
+        std::string json_string = "{";
+        json_string += "\"random_force\": {";
+        json_string += "\"mean\": " + std::to_string(parameters.random_force.mean) + ", ";
+        json_string += "\"std\": " + std::to_string(parameters.random_force.std);
+        json_string += "}, ";
+        json_string += "\"random_torque\": {";
+        json_string += "\"mean\": " + std::to_string(parameters.random_torque.mean) + ", ";
+        json_string += "\"std\": " + std::to_string(parameters.random_torque.std);
+        json_string += "}";
+        json_string += "}";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersDisturbances<PARAM_SPEC>& parameters, bool top_level=true){
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
+        json_string += ", \"disturbances\": " + json(device, env, parameters.disturbances);
+        json_string += (top_level ? "}" : "");
+        return json_string;
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::DomainRandomizationContainer<PARAM_SPEC>& parameters) {
         std::string json_string = "{";
-        json_string += "\"thrust_to_weight_min\": " + std::to_string(parameters.thrust_to_weight_min);
-        json_string += "\"thrust_to_weight_max\": " + std::to_string(parameters.thrust_to_weight_max);
-        json_string += "\"thrust_to_weight_by_torque_to_inertia_min\": " + std::to_string(parameters.thrust_to_weight_by_torque_to_inertia_min);
-        json_string += "\"thrust_to_weight_by_torque_to_inertia_max\": " + std::to_string(parameters.thrust_to_weight_by_torque_to_inertia_max);
-        json_string += "\"mass_min\": " + std::to_string(parameters.mass_min);
-        json_string += "\"mass_max\": " + std::to_string(parameters.mass_max);
-        json_string += "\"mass_size_deviation\": " + std::to_string(parameters.mass_size_deviation);
-        json_string += "\"motor_time_constant\": " + std::to_string(parameters.motor_time_constant);
+        json_string += "\"thrust_to_weight_min\": " + std::to_string(parameters.thrust_to_weight_min) + ", ";
+        json_string += "\"thrust_to_weight_max\": " + std::to_string(parameters.thrust_to_weight_max) + ", ";
+        json_string += "\"thrust_to_weight_by_torque_to_inertia_min\": " + std::to_string(parameters.thrust_to_weight_by_torque_to_inertia_min) + ", ";
+        json_string += "\"thrust_to_weight_by_torque_to_inertia_max\": " + std::to_string(parameters.thrust_to_weight_by_torque_to_inertia_max) + ", ";
+        json_string += "\"mass_min\": " + std::to_string(parameters.mass_min) + ", ";
+        json_string += "\"mass_max\": " + std::to_string(parameters.mass_max) + ", ";
+        json_string += "\"mass_size_deviation\": " + std::to_string(parameters.mass_size_deviation) + ", ";
+        json_string += "\"motor_time_constant\": " + std::to_string(parameters.motor_time_constant) + ", ";
         json_string += "\"rotor_torque_constant\": " + std::to_string(parameters.rotor_torque_constant);
         json_string += "}";
         return json_string;
@@ -247,14 +272,23 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state){
-        std::string json = "{";
-        json += "\"position\": [" + std::to_string(state.position[0]) + ", " + std::to_string(state.position[1]) + ", " + std::to_string(state.position[2]) + "], ";
-        json += "\"orientation\": [" + std::to_string(state.orientation[0]) + ", " + std::to_string(state.orientation[1]) + ", " + std::to_string(state.orientation[2]) + ", " + std::to_string(state.orientation[3]) + "], ";
-        json += "\"linear_velocity\": [" + std::to_string(state.linear_velocity[0]) + ", " + std::to_string(state.linear_velocity[1]) + ", " + std::to_string(state.linear_velocity[2]) + "], ";
-        json += "\"angular_velocity\": [" + std::to_string(state.angular_velocity[0]) + ", " + std::to_string(state.angular_velocity[1]) + ", " + std::to_string(state.angular_velocity[2]) + "]";
-        json += "}";
-        return json;
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state, bool top_level=true){
+        std::string json_string = top_level ? "{" : "";
+        json_string += "\"position\": [" + std::to_string(state.position[0]) + ", " + std::to_string(state.position[1]) + ", " + std::to_string(state.position[2]) + "], ";
+        json_string += "\"orientation\": [" + std::to_string(state.orientation[0]) + ", " + std::to_string(state.orientation[1]) + ", " + std::to_string(state.orientation[2]) + ", " + std::to_string(state.orientation[3]) + "], ";
+        json_string += "\"linear_velocity\": [" + std::to_string(state.linear_velocity[0]) + ", " + std::to_string(state.linear_velocity[1]) + ", " + std::to_string(state.linear_velocity[2]) + "], ";
+        json_string += "\"angular_velocity\": [" + std::to_string(state.angular_velocity[0]) + ", " + std::to_string(state.angular_velocity[1]) + ", " + std::to_string(state.angular_velocity[2]) + "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename STATE_SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateRandomForce<STATE_SPEC>& state, bool top_level=true){
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"force\": [" + std::to_string(state.force[0]) + ", " + std::to_string(state.force[1]) + ", " + std::to_string(state.force[2]) + "], ";
+        json_string += "\"torque\": [" + std::to_string(state.torque[0]) + ", " + std::to_string(state.torque[1]) + ", " + std::to_string(state.torque[2]) + "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
     }
     template <typename DEVICE, typename SPEC>
     std::string get_ui(DEVICE& device, rl::environments::Multirotor<SPEC>& env){

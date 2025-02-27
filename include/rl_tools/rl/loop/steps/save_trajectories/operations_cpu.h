@@ -50,7 +50,7 @@ namespace rl_tools{
             std::string episodes_json = "[";
             for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
                 std::string episode_json = "{";
-                episode_json += "\"parameters\": " + std::string(json(device, env, data.parameters[episode_i])) + ",";
+                episode_json += "\"parameters\": " + std::string(json(device, env, data.parameters[episode_i])) + ", \n";
                 std::string trajectory_json = "[";
                 for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
                     std::string step_json = "{";
@@ -71,7 +71,9 @@ namespace rl_tools{
                 trajectory_json.pop_back();
                 trajectory_json += "]";
                 episode_json += "\"trajectory\":" + trajectory_json + "}";
-                episodes_json += episode_json + ",";
+                episode_json += episode_i < (SPEC::N_EPISODES - 1) ? ", " : "";
+                episode_json += "\n";
+                episodes_json += episode_json;
             }
             episodes_json.pop_back();
             episodes_json += "]";
