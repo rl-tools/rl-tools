@@ -32,12 +32,12 @@ namespace rl_tools::rl::environments::l2f{
             T rotor_thrust_directions[N][3];
             T rotor_torque_directions[N][3];
             T rotor_thrust_coefficients[N][3];
-            T rotor_torque_constant;
+            T rotor_torque_constants[N];
+            T rotor_time_constants[N];
             T mass;
             T gravity[3];
             T J[3][3];
             T J_inv[3][3];
-            T motor_time_constant;
             T hovering_throttle_relative; // relative to the action limits [0, 1]
             ActionLimit action_limit;
         };
@@ -80,24 +80,19 @@ namespace rl_tools::rl::environments::l2f{
             ActionNoise action_noise;
             Termination termination;
         };
-        struct DomainRandomization{
-            T thrust_to_weight_min;
-            T thrust_to_weight_max;
-            T thrust_to_weight_by_torque_to_inertia_min;
-            T thrust_to_weight_by_torque_to_inertia_max;
-            T mass_min;
-            T mass_max;
-            T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
-            T motor_time_constant;
-            T rotor_torque_constant;
-        };
         Dynamics dynamics;
         Integration integration;
         MDP mdp;
-        DomainRandomization domain_randomization;
     };
-    template <typename T, typename TI, typename T_NEXT_COMPONENT>
-    struct ParametersDisturbances: T_NEXT_COMPONENT{
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    struct ParametersSpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename SPEC>
+    struct ParametersDisturbances: SPEC::NEXT_COMPONENT{
+        using T = typename SPEC::T;
         struct Disturbances{
             struct UnivariateGaussian{
                 T mean;
@@ -109,15 +104,19 @@ namespace rl_tools::rl::environments::l2f{
         Disturbances disturbances;
     };
 
-    template <typename T, typename TI, typename T_NEXT_COMPONENT>
-    struct ParametersDomainRandomization: T_NEXT_COMPONENT{
+    template <typename SPEC>
+    struct ParametersDomainRandomization: SPEC::NEXT_COMPONENT{
+        using T = typename SPEC::T;
         struct DomainRandomization{
-            struct UnivariateGaussian{
-                T mean;
-                T std;
-            };
-            UnivariateGaussian J_factor;
-            UnivariateGaussian mass_factor;
+            T thrust_to_weight_min;
+            T thrust_to_weight_max;
+            T thrust_to_weight_by_torque_to_inertia_min;
+            T thrust_to_weight_by_torque_to_inertia_max;
+            T mass_min;
+            T mass_max;
+            T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
+            T motor_time_constant;
+            T rotor_torque_constant;
         };
         DomainRandomization domain_randomization;
     };

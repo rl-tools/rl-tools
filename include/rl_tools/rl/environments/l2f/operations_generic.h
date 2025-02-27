@@ -176,7 +176,7 @@ namespace rl_tools::rl::environments::l2f {
             rl_tools::utils::vector_operations::scalar_multiply<DEVICE, T, 3>(params.dynamics.rotor_thrust_directions[i_rotor], thrust_magnitude, rotor_thrust);
             rl_tools::utils::vector_operations::add_accumulate<DEVICE, T, 3>(rotor_thrust, thrust);
 
-            rl_tools::utils::vector_operations::scalar_multiply_accumulate<DEVICE, T, 3>(params.dynamics.rotor_torque_directions[i_rotor], thrust_magnitude * params.dynamics.rotor_torque_constant, torque);
+            rl_tools::utils::vector_operations::scalar_multiply_accumulate<DEVICE, T, 3>(params.dynamics.rotor_torque_directions[i_rotor], thrust_magnitude * params.dynamics.rotor_torque_constants[i_rotor], torque);
             rl_tools::utils::vector_operations::cross_product_accumulate<DEVICE, T>(params.dynamics.rotor_positions[i_rotor], rotor_thrust, torque);
         }
 
@@ -240,7 +240,7 @@ namespace rl_tools::rl::environments::l2f {
 
         if constexpr(!STATE_SPEC::CLOSED_FORM) {
             for(typename DEVICE::index_t i_rotor = 0; i_rotor < 4; i_rotor++){
-                state_change.rpm[i_rotor] = (action[i_rotor] - state.rpm[i_rotor]) * 1/params.dynamics.motor_time_constant;
+                state_change.rpm[i_rotor] = (action[i_rotor] - state.rpm[i_rotor]) * 1/params.dynamics.rotor_time_constants[i_rotor];
             }
         }
 
@@ -973,7 +973,7 @@ namespace rl_tools{
         for(typename DEVICE::index_t rpm_i = 0; rpm_i < MULTIROTOR::ACTION_DIM; rpm_i++){
             if constexpr(STATE_SPEC::CLOSED_FORM) {
                 T setpoint_clamped = math::clamp(typename DEVICE::SPEC::MATH{}, get(action, 0, rpm_i), parameters.dynamics.action_limit.min, parameters.dynamics.action_limit.max);
-                T alpha = math::exp(device.math, - parameters.integration.dt / parameters.dynamics.motor_time_constant);
+                T alpha = math::exp(device.math, - parameters.integration.dt / parameters.dynamics.rotor_time_constants[rpm_i]);
                 next_state.rpm[rpm_i] = alpha * state.rpm[rpm_i] + (1 - alpha) * setpoint_clamped;
             }
             else {

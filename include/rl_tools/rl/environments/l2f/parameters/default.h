@@ -25,8 +25,8 @@ namespace rl_tools::rl::environments::l2f::parameters {
         using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
-        using PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDisturbances<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>;
+        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
+        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersSpecification<T, TI, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
 
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -75,13 +75,15 @@ namespace rl_tools::rl::environments::l2f::parameters {
         };
         static constexpr PARAMETERS_TYPE parameters = {
             {
-                dynamics,
-                integration,
-                mdp,
-                domain_randomization
-            },
-            disturbances
-        };
+                {
+                    dynamics,
+                    integration,
+                    mdp
+                }, // Base
+                disturbances
+            }, // Disturbances
+            domain_randomization
+        }; // DomainRandomization
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
