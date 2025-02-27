@@ -59,14 +59,21 @@
             const sim_container = document.getElementById("sim-container")
             const l2f = new L2F(sim_container, 10, policy, seed)
 
+            const show_axes_checkbox = document.getElementById("show-axes")
+            show_axes_checkbox.addEventListener("change", () => {
+                l2f.initialized.then(() => {
+                    l2f.ui_state.showAxes = show_axes_checkbox.checked
+                    l2f.ui.episode_init_multi(l2f.ui_state, l2f.parameters)
+                })
+            })
+
+            const pause_on_reset_checkbox = document.getElementById("pause-on-reset")
             const sample_initial_states_button = document.getElementById("sample-initial-states")
             sample_initial_states_button.addEventListener("click", () => {
                 l2f.states.forEach(state => {
-                    if(pause_button.innerText === "Pause"){
+                    if(pause_on_reset_checkbox.checked && pause_button.innerText === "Pause"){
                         pause_button.innerText = "Resume"
                         l2f.pause = true
-                    }
-                    else {
                     }
                     state.sample_initial_state()
                 })
@@ -90,13 +97,6 @@
                 }
                 l2f.simulate_step()
             })
-            const show_axes_checkbox = document.getElementById("show-axes")
-            show_axes_checkbox.addEventListener("change", () => {
-                l2f.initialized.then(() => {
-                    l2f.ui_state.showAxes = show_axes_checkbox.checked
-                    l2f.ui.episode_init_multi(l2f.ui_state, l2f.parameters)
-                })
-            })
         }
         window.onload = main
     </script>
@@ -107,6 +107,10 @@
         <label>
             <input type="checkbox" id="show-axes"></input>
             Show Axes
+        </label>
+        <label>
+            <input type="checkbox" id="pause-on-reset"></input>
+            Pause on Reset
         </label>
         <button id="sample-initial-states">Sample Initial States</button>
         <button id="pause">Pause</button>
