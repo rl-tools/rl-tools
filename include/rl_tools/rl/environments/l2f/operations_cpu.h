@@ -297,6 +297,9 @@ namespace rl_tools{
 
 
 
+
+
+
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 
@@ -414,8 +417,41 @@ class State{
 }
 
 
+function thrust_direction_to_quaternion(thrust_direction){
+  const x = thrust_direction[0];
+  const y = thrust_direction[1];
+  const z = thrust_direction[2];
+
+  const z_unit = [0.0, 0.0, 1.0];
+
+  let cross_x = z_unit[1] * z - z_unit[2] * y;
+  let cross_y = z_unit[2] * x - z_unit[0] * z;
+  let cross_z = z_unit[0] * y - z_unit[1] * x;
+
+  const dot = z_unit[0] * x + z_unit[1] * y + z_unit[2] * z;
+
+  const angle = Math.acos(dot);
+
+  const cross_magnitude = Math.sqrt(cross_x * cross_x + cross_y * cross_y + cross_z * cross_z);
+  if (cross_magnitude != 0) {
+      cross_x /= cross_magnitude;
+      cross_y /= cross_magnitude;
+      cross_z /= cross_magnitude;
+  }
+
+  const half_angle = angle / 2.0;
+  const sin_half_angle = Math.sin(half_angle);
+
+  const qw = Math.cos(half_angle);
+  const qx = cross_x * sin_half_angle;
+  const qy = cross_y * sin_half_angle;
+  const qz = cross_z * sin_half_angle;
+  return [qw, qx, qy, qz];
+}
+
+
 export class Drone{
-  constructor(model, origin, displayIMUCoordinateSystem, displayActions){
+  constructor(parameters, origin, displayIMUCoordinateSystem, displayActions){
     const url = window.location.href;
     const urlObj = new URL(url);
     const params = new URLSearchParams(urlObj.search);
@@ -425,7 +461,7 @@ export class Drone{
 
     // console.log(model)
     this.origin = origin
-    this.model = model
+    this.parameters = parameters
     this.droneFrame = new THREE.Group()
     this.drone = new THREE.Group()
     if(origin){
@@ -433,7 +469,7 @@ export class Drone{
     }
     // this.drone.add((new CoordinateSystem()).get())
     // this.drone.add((new CoordinateSystem(10 * this.scale, 0.1 * this.scale)).get())
-    this.scale = model.mass
+    this.scale = parameters.dynamics.mass
     const material = new THREE.MeshLambertMaterial({color: 0xAAAAAA})
     const clockwise_rotor_material = new THREE.MeshLambertMaterial({color: 0x00FF00})
     const counter_clockwise_rotor_material = new THREE.MeshLambertMaterial({color: 0xFF0000})
@@ -444,10 +480,13 @@ export class Drone{
     const centerSize = Math.cbrt(this.scale) / 15
     const centerForm = new THREE.BoxGeometry(centerSize, centerSize, centerSize*0.3)
     const center = new THREE.Mesh( centerForm, material);
-    // this.drone.quaternion.set(Math.sqrt(0.5), Math.sqrt(0.5), 0,0) // ENUtoNED
+
+    this.parameters.dynamics["imu_position"] = [0, 0, 0]
+    this.parameters.dynamics["imu_orientation"] = [1, 0, 0, 0]
+
     this.imuGroup = new THREE.Group()
-    this.imuGroup.position.set(...model.imu.pose.position)
-    this.imuGroup.quaternion.set(model.imu.pose.orientation[1], model.imu.pose.orientation[2], model.imu.pose.orientation[3], model.imu.pose.orientation[0])
+    this.imuGroup.position.set(...this.parameters.dynamics.imu_position)
+    this.imuGroup.quaternion.set(this.parameters.dynamics.imu_orientation[1], this.parameters.dynamics.imu_orientation[2], this.parameters.dynamics.imu_orientation[3], this.parameters.dynamics.imu_orientation[0])
     if (displayIMUCoordinateSystem) {
       this.imuGroup.add((new CoordinateSystem([0, 0, 0], coordinateSystemLength, coordinateSystemThickness)).get())
     }
@@ -456,45 +495,19 @@ export class Drone{
 
     this.rotors = []
 
-    const averageArmLength = model.rotors.map(rotor => norm(rotor.pose.position)).reduce((a, c) => a + c, 0) / model.rotors.length
-    for(const [rotorIndex, rotor] of model.rotors.entries()){
+    const averageArmLength = this.parameters.dynamics.rotor_positions.map(position => norm(position)).reduce((a, c) => a + c, 0) / this.parameters.dynamics.rotor_positions.length
+    for(const [rotorIndex, rotor_position] of this.parameters.dynamics.rotor_positions.entries()){
       let rotorCageRadiusFactor = 1
       let rotorCageThicknessFactor = 1
-      if (this.envParams != null){
-        const rotorParams = this.envParams.rotors[rotorIndex]
-        // console.log(this.envParams)
-        if (rotorParams.thrust_curve.factors[1].constructor == Object){
-          if (Array.isArray(rotorParams.thrust_curve.factors[1].parameters)){
-            const mean1 = rotorParams.thrust_curve.factors[1].parameters.reduce((a, c)=>a+c, 0) / rotorParams.thrust_curve.factors[1].parameters.length
-            rotorCageThicknessFactor = rotor.thrust_curve.factor_1/mean1
-          }
-          else{
-            if ("upper" in rotorParams.thrust_curve.factors[1]){
-              rotorCageThicknessFactor = rotor.thrust_curve.factor_1/((rotorParams.thrust_curve.factors[1].upper - rotorParams.thrust_curve.factors[1].lower)/2 + rotorParams.thrust_curve.factors[1].lower)
-            }
-          }
-        }
-        if (rotorParams.thrust_curve.factors[2].constructor == Object){
-          if (Array.isArray(rotorParams.thrust_curve.factors[2].parameters)){
-            const mean2 = rotorParams.thrust_curve.factors[2].parameters.reduce((a, c)=>a+c, 0) / rotorParams.thrust_curve.factors[2].parameters.length
-            rotorCageThicknessFactor = rotor.thrust_curve.factor_2/mean2
-          }
-          else{
-            if ("upper" in rotorParams.thrust_curve.factors[2]){
-              rotorCageThicknessFactor = rotor.thrust_curve.factor_2/((rotorParams.thrust_curve.factors[2].upper - rotorParams.thrust_curve.factors[2].lower)/2 + rotorParams.thrust_curve.factors[2].lower)
-            }
-          }
-        }
-      }
       const rotorCageRadius =  averageArmLength/3 * Math.sqrt(rotorCageRadiusFactor)
       const rotorCageThickness = averageArmLength/20 * Math.sqrt(rotorCageThicknessFactor)
       const armGroup = new THREE.Group()
-      const length = norm(rotor.pose.position)
+      const length = norm(rotor_position)
       const armDiameter = averageArmLength/10
       const armLength = length - rotorCageRadius
       const armForm = new THREE.CylinderGeometry( armDiameter/2, armDiameter/2, armLength, 8 );
       const rot = new THREE.Quaternion(); // Geometry extends in y -> transform y to relative pos
-      rot.setFromUnitVectors(new THREE.Vector3(...[0, 1, 0]), (new THREE.Vector3(...rotor.pose.position)).normalize());
+      rot.setFromUnitVectors(new THREE.Vector3(...[0, 1, 0]), (new THREE.Vector3(...rotor_position)).normalize());
       armGroup.quaternion.set(rot.x, rot.y, rot.z, rot.w)
 
       const arm = new THREE.Mesh(armForm, material)
@@ -502,11 +515,13 @@ export class Drone{
       armGroup.add(arm)
 
       const rotorGroup = new THREE.Group()
-      rotorGroup.position.set(...rotor.pose.position)
-      rotorGroup.quaternion.set(rotor.pose.orientation[3], rotor.pose.orientation[0], rotor.pose.orientation[1], rotor.pose.orientation[2])
+      rotorGroup.position.set(...rotor_position)
+
+      const thrust_orientation = thrust_direction_to_quaternion(this.parameters.dynamics.rotor_thrust_directions[rotorIndex])
+      rotorGroup.quaternion.set(thrust_orientation[3], thrust_orientation[0], thrust_orientation[1], thrust_orientation[2])
       // rotorGroup.add((new CoordinateSystem([0, 0, 0], 0.1, 0.01)).get())
       const rotorCageForm = new THREE.TorusGeometry(rotorCageRadius, rotorCageThickness, 16, 32 );
-      const cageMaterial = (rotor.spin_orientation_clockwise ? clockwise_rotor_material : counter_clockwise_rotor_material)// new THREE.MeshLambertMaterial({color: 0xAAAAAA})
+      const cageMaterial = (this.parameters.dynamics.rotor_thrust_directions[rotorIndex][2] < 0 ? clockwise_rotor_material : counter_clockwise_rotor_material)// new THREE.MeshLambertMaterial({color: 0xAAAAAA})
       const rotorCage = new THREE.Mesh(rotorCageForm, cageMaterial)
       rotorGroup.add(rotorCage)
 
@@ -528,24 +543,24 @@ export class Drone{
   get(){
     return this.droneFrame
   }
-  setState(state){
-    const mat = Matrix4FromRotMat(state.pose.orientation)
-    this.droneFrame.quaternion.setFromRotationMatrix(mat)
-    this.droneFrame.position.set(state.pose.position[0] + this.origin[0], state.pose.position[1] + this.origin[1], state.pose.position[2] + this.origin[2])
-    const avg_rot_rate = state.rotor_states.reduce((a, c) => a + c["power"], 0)/state.rotor_states.length
-    state.rotor_states.map((rotorState, i) => {
-      const forceArrow = this.rotors[i].forceArrow
-      const rotorCage = this.rotors[i].rotorCage
-      const min_rpm = this.model.rotors[i].min_rpm
-      const max_rpm = this.model.rotors[i].max_rpm
+  // setState(state){
+  //   const mat = Matrix4FromRotMat(state.orientation)
+  //   this.droneFrame.quaternion.setFromRotationMatrix(mat)
+  //   this.droneFrame.position.set(state.pose.position[0] + this.origin[0], state.pose.position[1] + this.origin[1], state.pose.position[2] + this.origin[2])
+  //   const avg_rot_rate = state.rotor_states.reduce((a, c) => a + c["power"], 0)/state.rotor_states.length
+  //   state.rotor_states.map((rotorState, i) => {
+  //     const forceArrow = this.rotors[i].forceArrow
+  //     const rotorCage = this.rotors[i].rotorCage
+  //     const min_rpm = this.model.rotors[i].min_rpm
+  //     const max_rpm = this.model.rotors[i].max_rpm
 
 
-      const rot_rate = rotorState["power"]
-      const force_magnitude = (rot_rate - avg_rot_rate)/max_rpm * 10///1000
-      forceArrow.setDirection(new THREE.Vector3(0, 0, rot_rate)) //Math.sign(force_magnitude)))
-      forceArrow.setLength(Math.cbrt(this.this.scale)/10) //Math.abs(force_magnitude))
-    })
-  }
+  //     const rot_rate = rotorState["power"]
+  //     const force_magnitude = (rot_rate - avg_rot_rate)/max_rpm * 10///1000
+  //     forceArrow.setDirection(new THREE.Vector3(0, 0, rot_rate)) //Math.sign(force_magnitude)))
+  //     forceArrow.setLength(Math.cbrt(this.this.scale)/10) //Math.abs(force_magnitude))
+  //   })
+  // }
 
 }
 
@@ -577,7 +592,7 @@ function set_camera(ui_state, scale){
 }
 export async function episode_init(ui_state, parameters){
     const camera_distance = (parameters.ui ? parameters.ui.camera_distance || 1 : 1)
-    const scale = Math.cbrt(parameters.mass) * 2 * camera_distance
+    const scale = Math.cbrt(parameters.dynamics.mass) * 2 * camera_distance
     set_camera(ui_state, scale)
     clear_episode(ui_state)
     ui_state.drone = new Drone(parameters, [0, 0, 0], ui_state.showAxes)
@@ -591,7 +606,7 @@ export async function episode_init(ui_state, parameters){
 export async function episode_init_multi(ui_state, parameters){
   const grid_distance = 0.0
   const grid_size = Math.ceil(Math.sqrt(parameters.length))
-  set_camera(ui_state, (grid_distance > 0 ? grid_distance * grid_size * 2 : Math.cbrt(parameters[0].mass)))
+  set_camera(ui_state, (grid_distance > 0 ? grid_distance * grid_size * 2 : Math.cbrt(parameters[0].dynamics.mass)))
   clear_episode(ui_state)
   ui_state.drones = []
   ui_state.origin_coordinate_systems = []
@@ -639,7 +654,7 @@ function clip_position(scale, position){
 }
 
 export async function render(ui_state, parameters, state, action) {
-  ui_state.drone.droneFrame.position.set(...clip_position(parameters.mass, state.position))
+  ui_state.drone.droneFrame.position.set(...clip_position(parameters.dynamics.mass, state.position))
   ui_state.drone.droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
   update_camera(ui_state)
 }
@@ -648,7 +663,7 @@ export async function render_multi(ui_state, parameters, states, actions){
   states.map((state, i) => {
     const action = actions[i]
     const current_parameters = parameters[i]
-    ui_state.drones[i].droneFrame.position.set(...clip_position(current_parameters.mass, state.position))
+    ui_state.drones[i].droneFrame.position.set(...clip_position(current_parameters.dynamics.mass, state.position))
     ui_state.drones[i].droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
     for(let j = 0; j < 4; j++){
       const forceArrow = ui_state.drones[i].rotors[j].forceArrow
@@ -659,6 +674,9 @@ export async function render_multi(ui_state, parameters, states, actions){
   })
   update_camera(ui_state)
 }
+
+
+
         )RL_TOOLS_LITERAL";
         return ui;
     }
