@@ -32,8 +32,10 @@ namespace rl_tools{
                 log(device, device.logger, "Rotor ", rotor_i, " thrust coefficient[", i, "]: ", nominal.rotor_thrust_coefficients[rotor_i][i], " -> ", perturbed.rotor_thrust_coefficients[rotor_i][i], " (", percentage_change(nominal.rotor_thrust_coefficients[rotor_i][i], perturbed.rotor_thrust_coefficients[rotor_i][i]), "%)");
             }
         }
-        log(device, device.logger, "Rotor torque constant: ", nominal.rotor_torque_constant, " -> ", perturbed.rotor_torque_constant, " (", percentage_change(nominal.rotor_torque_constant, perturbed.rotor_torque_constant), "%)");
-        log(device, device.logger, "Motor time constant: ", nominal.motor_time_constant, " -> ", perturbed.motor_time_constant, " (", percentage_change(nominal.motor_time_constant, perturbed.motor_time_constant), "%)");
+        for (TI rotor_i = 0; rotor_i < PARAMETERS::N; ++rotor_i){
+            log(device, device.logger, "Rotor torque constant: ", rotor_i, " ", nominal.rotor_torque_constants[rotor_i], " -> ", perturbed.rotor_torque_constant[rotor_i], " (", percentage_change(nominal.rotor_torque_constant[rotor_i], perturbed.rotor_torque_constant[rotor_i]), "%)");
+            log(device, device.logger, "Motor time constant: ", rotor_i, " ", nominal.rotor_time_constants[rotor_i], " -> ", perturbed.rotor_time_constants[rotor_i], " (", percentage_change(nominal.rotor_time_constants[rotor_i], perturbed.rotor_time_constant[rotor_i]), "%)");
+        }
         log(device, device.logger, "Hovering throttle relative: ", nominal.hovering_throttle_relative, " -> ", perturbed.hovering_throttle_relative, " (", percentage_change(nominal.hovering_throttle_relative, perturbed.hovering_throttle_relative), "%)");
     }
 }

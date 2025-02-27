@@ -117,11 +117,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
         parameters.dynamics.rotor_thrust_coefficients[rotor_i][0] = j["dynamics"]["thrust_curve"]["data"][rotor_i][0];
         parameters.dynamics.rotor_thrust_coefficients[rotor_i][1] = j["dynamics"]["thrust_curve"]["data"][rotor_i][1];
         parameters.dynamics.rotor_thrust_coefficients[rotor_i][2] = j["dynamics"]["thrust_curve"]["data"][rotor_i][2];
+        parameters.dynamics.rotor_torque_constants[rotor_i] = j["dynamics"]["torque_constant"];
+        parameters.dynamics.rotor_time_constants[rotor_i] = j["dynamics"]["motor_time_constant"];
     }
-    parameters.dynamics.rotor_torque_constant = j["dynamics"]["torque_constant"];
     parameters.dynamics.action_limit.min = 0;
     parameters.dynamics.action_limit.max = 1;
-    parameters.dynamics.motor_time_constant = j["dynamics"]["motor_time_constant"];
 
     for(TI trajectory_i = 0; trajectory_i < j["trajectories"].size(); trajectory_i++){
         auto trajectory = j["trajectories"][trajectory_i];

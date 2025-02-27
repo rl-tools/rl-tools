@@ -58,7 +58,9 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             },
             // torque constant
 //            0.025126582278481014,
-            0.005964552,
+            {0.005964552, 0.005964552, 0.005964552, 0.005964552},
+            // T, RPM time constant
+            {0.04, 0.04, 0.04, 0.04},
             // mass vehicle
             1.000,
             // gravity
@@ -99,8 +101,6 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
                             456.66945385903927
                     }
             },
-            // T, RPM time constant
-            0.04,
             // hovering throttle (julia): sqrt((mass * 9.81/4 - thrust_curve[1])/thrust_curve[3]),
             0.13095934350152208,
             // action limit
