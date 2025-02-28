@@ -3,9 +3,27 @@ import createModule from "l2f-interface";
 // const DEBUG = true
 const DEBUG = false
 
+import Stats from 'https://esm.sh/stats.js'
+
 export class L2F{
     constructor(parent, num_quadrotors, policy, seed){
+
+        this.stats = new Stats();
+        this.stats.showPanel(1);
+
+        this.stats.dom.style.transform = 'scale(3)';
+        this.stats.dom.style.transformOrigin = 'top left';
+        this.stats.dom.style.left = '0px';
+        this.stats.dom.style.top = '0px';
+        this.stats.dom.style.position = 'fixed';
+
+        this.overtimes = []
+        this.control_tick = 0
+
+        document.body.appendChild(this.stats.dom);
+
         this.pause = false
+        this.speed = 1
         this.canvas = document.createElement('canvas');
         if(DEBUG){
             this.canvas.style.backgroundColor = "white"
@@ -40,7 +58,9 @@ export class L2F{
             parent.appendChild(this.canvas);
             this.parameters = this.states.map(state => JSON.parse(state.get_parameters()))
             await this.ui.episode_init_multi(this.ui_state, this.parameters)
+
             this.render()
+            setInterval(this.control.bind(this), 0)
         });
         this.last_step = null
         this.last_dt = 0
@@ -55,15 +75,27 @@ export class L2F{
             this.last_dt = state.step()
         })
     }
-    async render(){
+
+    async control(){
         const now = performance.now()
-        if(!this.pause && (this.last_step === null || (now - this.last_step) / 1000 > this.last_dt)){
+        if(!this.pause && (this.last_step === null || (now - this.last_step) / 1000 > this.last_dt / this.speed)){
+            const overtime = (now - this.last_step) / 1000 - this.last_dt / this.speed
+            this.overtimes.push(overtime)
+            this.overtimes = this.overtimes.slice(-10)
+            if(this.control_tick % 100 === 0){
+                console.log(`Average overtime: ${this.overtimes.reduce((a, b) => a + b, 0) / this.overtimes.length}`)
+            }
             this.last_step = now
             this.simulate_step()
         }
+        this.control_tick += 1
+    }
+    async render(){
+        this.stats.begin()
         const current_states =  this.states.map(state => JSON.parse(state.get_state()))
         const current_actions = this.states.map(state => JSON.parse(state.get_action()))
         await this.ui.render_multi(this.ui_state, this.parameters, current_states, current_actions)
+        this.stats.end()
         requestAnimationFrame(() => this.render());
     }
 }

@@ -30,6 +30,12 @@
             padding: 10px 20px;
             font-size: 16px;
         }
+        #speed-info{
+            display: inline-block;
+            /*width: 7em;*/
+            width: 100%;
+            text-align: center;
+        }
     </style>
     <script type="importmap">
         {
@@ -58,6 +64,13 @@
             }
             const sim_container = document.getElementById("sim-container")
             const l2f = new L2F(sim_container, 10, policy, seed)
+
+            const speed_slider = document.getElementById("speed-slider")
+            const speed_info = document.getElementById("speed-info")
+            speed_slider.addEventListener("input", () => {
+                l2f.speed = parseFloat(speed_slider.value)
+                speed_info.innerText = `Speed: ${l2f.speed}x`
+            })
 
             const show_axes_checkbox = document.getElementById("show-axes")
             show_axes_checkbox.addEventListener("change", () => {
@@ -104,6 +117,14 @@
 <body>
     <div id="sim-container"></div>
     <div id="controls-container">
+        <span class="slider-container">
+            <div>
+                <span id="speed-info">Speed: 1x</span>
+            </div>
+            <div>
+                <input type="range" id="speed-slider" min="0.01" max="5" step="0.01" value="1">
+            </div>
+        </span>
         <label>
             <input type="checkbox" id="show-axes"></input>
             Show Axes
