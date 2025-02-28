@@ -26,15 +26,22 @@
             width: 100%;
             padding: 10px;
         }
-        button{
-            padding: 10px 20px;
-            font-size: 16px;
+        .slider-container > div{
+            text-align: center;
         }
-        #speed-info{
+        .control-container-label{
             display: inline-block;
             /*width: 7em;*/
             width: 100%;
             text-align: center;
+        }
+        #num-vehicles[type="number"] {
+            width: 80px;
+            text-align: center;
+        }
+        button{
+            padding: 10px 20px;
+            font-size: 16px;
         }
     </style>
     <script type="importmap">
@@ -65,6 +72,11 @@
             const sim_container = document.getElementById("sim-container")
             const l2f = new L2F(sim_container, 10, policy, seed)
 
+            const num_vehicles_input = document.getElementById("num-vehicles")
+            num_vehicles_input.addEventListener("input", () => {
+                l2f.change_num_quadrotors(parseInt(num_vehicles_input.value))
+            })
+
             const speed_slider = document.getElementById("speed-slider")
             const speed_info = document.getElementById("speed-info")
             speed_slider.addEventListener("input", () => {
@@ -83,6 +95,7 @@
             const pause_on_reset_checkbox = document.getElementById("pause-on-reset")
             const sample_initial_states_button = document.getElementById("sample-initial-states")
             sample_initial_states_button.addEventListener("click", () => {
+                l2f.change_num_quadrotors(l2f.states.length + 1)
                 l2f.states.forEach(state => {
                     if(pause_on_reset_checkbox.checked && pause_button.innerText === "Pause"){
                         pause_button.innerText = "Resume"
@@ -119,7 +132,15 @@
     <div id="controls-container">
         <span class="slider-container">
             <div>
-                <span id="speed-info">Speed: 1x</span>
+                <span class="control-container-label"># of Quadrotors</span>
+            </div>
+            <div>
+                <input id="num-vehicles" type="number" min="1" max="100" step="1" value="10">
+            </div>
+        </span>
+        <span class="slider-container">
+            <div>
+                <span class="control-container-label" id="speed-info">Speed: 1x</span>
             </div>
             <div>
                 <input type="range" id="speed-slider" min="0.01" max="5" step="0.01" value="1">

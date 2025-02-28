@@ -8,6 +8,7 @@ import Stats from 'https://esm.sh/stats.js'
 export class L2F{
     constructor(parent, num_quadrotors, policy, seed){
 
+        this.seed = seed
         this.stats = new Stats();
         this.stats.showPanel(1);
 
@@ -41,7 +42,9 @@ export class L2F{
         this.policy = policy
 
         this.initialized = createModule().then(async (l2f_interface) => {
-            this.states = [...Array(num_quadrotors)].map((_, i) =>new l2f_interface.State(seed + i));
+            this.l2f_interface = l2f_interface
+            this.states = [...Array(num_quadrotors)].map((_, i) =>new this.l2f_interface.State(this.seed + i));
+            this.parameters = this.states.map(state => JSON.parse(state.get_parameters()))
             if(DEBUG){
                 this.ui = ui
             }
@@ -56,7 +59,6 @@ export class L2F{
                 this.canvas.style.cursor = "grab"
             }
             parent.appendChild(this.canvas);
-            this.parameters = this.states.map(state => JSON.parse(state.get_parameters()))
             await this.ui.episode_init_multi(this.ui_state, this.parameters)
 
             this.render()
@@ -64,6 +66,17 @@ export class L2F{
         });
         this.last_step = null
         this.last_dt = 0
+    }
+    async change_num_quadrotors(num){
+        if(num > this.states.length){
+            const new_states = [...Array(num - this.states.length)].map((_, i) =>new this.l2f_interface.State(this.seed + this.states.length + i));
+            this.states = this.states.concat(new_states)
+        }
+        else{
+            this.states = this.states.slice(0, num)
+        }
+        this.parameters = this.states.map(state => JSON.parse(state.get_parameters()))
+        await this.ui.episode_init_multi(this.ui_state, this.parameters)
     }
     simulate_step(){
         this.states.forEach(state => {
