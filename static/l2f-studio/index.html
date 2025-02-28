@@ -72,6 +72,15 @@
             const sim_container = document.getElementById("sim-container")
             const l2f = new L2F(sim_container, 10, policy, seed)
 
+            l2f.initialized.then(() => {
+                console.log()
+                l2f.parameters[0].dynamics.mass *= 1.0
+                l2f.states[0].set_parameters(JSON.stringify(l2f.parameters[0]))
+                const new_params = JSON.parse(l2f.states[0].get_parameters())
+                console.log(new_params)
+                l2f.parameters[0] = new_params
+            })
+
             const num_vehicles_input = document.getElementById("num-vehicles")
             num_vehicles_input.addEventListener("input", () => {
                 l2f.change_num_quadrotors(parseInt(num_vehicles_input.value))

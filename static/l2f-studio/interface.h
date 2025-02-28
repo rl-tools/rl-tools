@@ -70,6 +70,12 @@ struct State{
     std::string get_ui(){
         return rlt::get_ui(this->device, this->env);
     }
+    void set_parameters(std::string params){
+        rlt::from_json(device, this->env, params, this->parameters);
+    }
+    void set_state(std::string state){
+        rlt::from_json(device, this->env, this->parameters, state, this->state);
+    }
 #endif
 };
 
@@ -155,6 +161,8 @@ EMSCRIPTEN_BINDINGS(state_module){
         .function("get_parameters", &State::get_parameters)
         .function("get_state", &State::get_state)
         .function("get_action", &State::get_action)
+        .function("set_parameters", &State::set_parameters)
+        .function("set_state", &State::set_state)
         .property("action_dim", +[](const State& state) -> uint32_t { return ENVIRONMENT::ACTION_DIM; })
         .property("observation_dim", +[](const State& state) -> uint32_t { return ENVIRONMENT::Observation::DIM; });
 }
