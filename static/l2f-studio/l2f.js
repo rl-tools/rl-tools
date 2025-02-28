@@ -96,7 +96,7 @@ export class L2F{
             this.overtimes.push(overtime)
             this.overtimes = this.overtimes.slice(-10)
             if(this.control_tick % 100 === 0){
-                console.log(`Average overtime: ${this.overtimes.reduce((a, b) => a + b, 0) / this.overtimes.length}`)
+                // console.log(`Average overtime: ${this.overtimes.reduce((a, b) => a + b, 0) / this.overtimes.length}`)
             }
             this.last_step = now
             this.simulate_step()
