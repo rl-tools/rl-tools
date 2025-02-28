@@ -54,10 +54,12 @@ namespace rl_tools{
                 std::string trajectory_json = "[";
                 for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
                     std::string step_json = "{";
-                    step_json += "\"state\":" + std::string(json(device, env, data.parameters[episode_i], data.states[episode_i][step_i])) + ",";
+                    step_json += "\"state\":" + std::string(json(device, env, data.parameters[episode_i], data.states[episode_i][step_i])) + ", ";
                     std::string action_json = "\"action\":[";
                     for(TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
-                        action_json += std::to_string(data.actions[episode_i][step_i][action_i]) + ",";
+                        action_json += std::to_string(data.actions[episode_i][step_i][action_i]);
+                        action_json += (action_i < ENVIRONMENT::ACTION_DIM - 1) ? ", " : "";
+                        action_json += "\n";
                     }
                     action_json.pop_back();
                     action_json += "]";
