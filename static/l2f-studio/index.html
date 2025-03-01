@@ -11,10 +11,10 @@
             </span>
             <span class="slider-container">
                 <div>
-                    <span class="control-container-label" id="perturbation-slider-label">-</span>
+                    <span class="control-container-label" class="perturbation-slider-label">-</span>
                 </div>
                 <div>
-                    <input id="perturbation-slider" type="range"  min="0.01" max="5" step="0.01" value="1" disabled>
+                    <input class="perturbation-slider" type="range"  min="0.01" max="5" step="0.01" value="1" disabled>
                 </div>
             </span>
         </div>
@@ -69,6 +69,9 @@
             justify-content: center;
             align-items: center;
             gap: 30px;
+        }
+        #perturbation-id-suggestion{
+            text-align: left;
         }
     </style>
     <script type="importmap">
@@ -165,8 +168,8 @@
 
             const perturbation_id_input = document.getElementById("perturbation-id-input")
             const perturbation_id_status = document.getElementById("perturbation-id-status")
-            // const perturbation_slider = document.getElementById("perturbation-slider")
-            // const perturbation_slider_label = document.getElementById("perturbation-slider-label")
+            const perturbation_id_min = document.getElementById("perturbation-id-min")
+            const perturbation_id_max = document.getElementById("perturbation-id-max")
             const perturbation_id_suggestion = document.getElementById("perturbation-id-suggestion")
             const perturbation_groups = document.getElementById("perturbation-groups")
             const perturbation_group_template = document.getElementById("perturbation-group-template")
@@ -179,25 +182,37 @@
                     "parameters": l2f.parameters[0]
                 }
                 const parent_path = perturbation_id_input.value.split('.').slice(0, -1).join('.')
-                const parent = get_value_from_path(parent_path, obj)
+                let parent = get_value_from_path(parent_path, obj)
+                let current_key = perturbation_id_input.value.split('.').slice(-1)[0]
+                let foresight = false
+                if(current_key in parent){
+                    parent = parent[current_key]
+                    foresight = true
+                    current_key = ""
+                }
                 if(parent !== undefined){
-                    console.log("parent: " + parent)
                     const suggestions = Object.keys(parent).sort().reduce((acc, key) => {
-                        if(key.startsWith(perturbation_id_input.value.split('.').slice(-1)[0])){
+                        if(key.startsWith(current_key)){
                             acc.push(key)
                         }
                         return acc
                     }, [])
                     if(suggestions.length > 0){
-                        perturbation_id_suggestion.innerText = suggestions.join(", ")
+                        const marked_suggestions = suggestions.map(x => {
+                            return (foresight ? "." : "") + "<b>" + current_key + "</b>" + x.slice(current_key.length)
+                        })
+                        perturbation_id_suggestion.innerHTML = "Nodes: " + marked_suggestions.join(", ")
                     }
                     else{
-                        perturbation_id_suggestion.innerText = "not found"
+                        perturbation_id_suggestion.innerText = "Nodes: " + "not found"
                     }
                 }
                 const found_value = get_value_from_path(perturbation_id_input.value, obj)
                 if(found_value !== undefined && (typeof found_value === "number")){
                     perturbation_id_status.innerText = "✅"
+                    const range = 2
+                    perturbation_id_min.value = found_value > 0 ? found_value / range : found_value * 2
+                    perturbation_id_max.value = found_value > 0 ? found_value * range : -found_value * 2
                 }
                 else{
                     perturbation_id_status.innerText = "❌"
@@ -212,24 +227,75 @@
                     const found_value = get_value_from_path(perturbation_id_input.value, obj)
                     if(found_value !== undefined && (typeof found_value === "number")){
                         if(perturbation_groups.querySelectorAll(":scope > div").length == 0){
-                            perturbation_groups.appendChild(perturbation_group_template.content.cloneNode(true))
+                            const new_perturbation_group = perturbation_group_template.content.cloneNode(true)
+                            perturbation_groups.appendChild(new_perturbation_group)
+                            const perturbation_slider = perturbation_groups.querySelector(":scope > div:last-child .perturbation-slider")
+                            perturbation_slider.addEventListener("input", (e) => {
+                                const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
+                                const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
+                                elements.forEach((el, i) => {
+                                    const obj = {
+                                        "state": JSON.parse(l2f.states[0].get_state()),
+                                        "parameters": l2f.parameters[0]
+                                    }
+                                    const found_value = get_value_from_path(el.innerText, obj)
+                                    if(found_value !== undefined){
+                                        const path = el.innerText.split('.')
+                                        const last_key = path.pop()
+                                        const target_obj = path.reduce((acc, key) => acc[key], obj)
+                                        const new_value = parseFloat(perturbation_slider.value) * (el.max - el.min) + el.min
+                                        console.log("new value: ", new_value)
+                                        target_obj[last_key] = new_value
+                                        if(elements.length > 1){
+                                            perturbation_slider_label.innerText = perturbation_slider.value * 2 - 1
+                                        }
+                                        else{
+                                            perturbation_slider_label.innerText = new_value
+                                        }
+
+
+                                        if(path[0] === "state"){
+                                            l2f.states[0].set_state(JSON.stringify(obj.state))
+                                        }
+                                        else{
+                                            l2f.states[0].set_parameters(JSON.stringify(obj.parameters))
+                                        }
+                                    }
+                                })
+                            })
                         }
                         const perturbation_group_nodes = perturbation_groups.querySelectorAll(":scope > div")
                         const current_perturbation_group = perturbation_group_nodes[perturbation_group_nodes.length - 1]
+                        const perturbation_slider = current_perturbation_group.querySelector(":scope input.perturbation-slider")
+                        const perturbation_slider_label = current_perturbation_group.querySelector(":scope span.control-container-label")
                         const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
-                        if(Array.from(current_perturbation_group_list.querySelectorAll(":scope > li")).map(el => el.innerText).includes(perturbation_id_input.value)){
-                            return
+                        const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
+                        const paths = elements.map(el => el.innerText)
+                        if(paths.includes(perturbation_id_input.value)){
+                            const current_perturbation_group_list_element = elements.find(el => el.innerText === perturbation_id_input.value)
+                            console.log("updating to: ", perturbation_id_min.value, perturbation_id_max.value)
+                            current_perturbation_group_list_element.min = parseFloat(perturbation_id_min.value)
+                            current_perturbation_group_list_element.max = parseFloat(perturbation_id_max.value)
                         }
-                        const current_perturbation_group_list_element = document.createElement("li")
-                        current_perturbation_group_list_element.innerText = perturbation_id_input.value
-                        current_perturbation_group_list.appendChild(current_perturbation_group_list_element)
-                        // perturbation_slider.disabled = false;
-                        // perturbation_slider.min = -Math.abs(found_value) * 2
-                        // perturbation_slider.max = Math.abs(found_value) * 2
-                        // perturbation_slider.step = Math.abs(found_value / 10)
-                        // perturbation_slider.value = found_value
-                        console.log("found_value: " + found_value)
-                        // perturbation_slider_label.innerText = found_value
+                        else{
+                            const current_perturbation_group_list_element = document.createElement("li")
+                            current_perturbation_group_list_element.innerText = perturbation_id_input.value
+                            current_perturbation_group_list_element.min = parseFloat(perturbation_id_min.value)
+                            current_perturbation_group_list_element.max = parseFloat(perturbation_id_max.value)
+                            current_perturbation_group_list.appendChild(current_perturbation_group_list_element)
+                            current_perturbation_group_list_element.style.cursor = "pointer"
+                            current_perturbation_group_list_element.addEventListener("click", () => {
+                                current_perturbation_group_list.removeChild(current_perturbation_group_list_element)
+                                if(current_perturbation_group_list.children.length === 0){
+                                    perturbation_slider.disabled = true
+                                }
+                            })
+                            perturbation_slider.disabled = false;
+                            perturbation_slider.min = 0
+                            perturbation_slider.max = 1
+                            perturbation_slider.step = 0.01 
+                            perturbation_slider.value = 0.5
+                        }
                     }
                     else{
                         // perturbation_slider.disabled = true
@@ -237,9 +303,24 @@
                     }
                 }
             })
+            perturbation_id_min.addEventListener("keydown", (e) => {
+                if(e.key === "Enter"){
+                    const event = new Event('keydown')
+                    event.key = "Enter"
+                    perturbation_id_input.dispatchEvent(event)
+                }
+            })
+            perturbation_id_max.addEventListener("keydown", (e) => {
+                if(e.key === "Enter"){
+                    const event = new Event('keydown')
+                    event.key = "Enter"
+                    perturbation_id_input.dispatchEvent(event)
+                }
+            })
 
             l2f.initialized.then(() => {
-                perturbation_id_input.value = "state.position.0"
+                // perturbation_id_input.value = "state.position.0"
+                perturbation_id_input.value = "parameters.dynamics.rotor_thrust_coefficients.0"
                 perturbation_id_input.dispatchEvent(new Event('input'))
             })
 
@@ -309,6 +390,10 @@
                 <div>
                     <input id="perturbation-id-input" type="text"></input>
                     <span id="perturbation-id-status"></span>
+                    <input id="perturbation-id-min" type="number" min="0" max="1000000000" value="0"></input>
+                    ⬇️
+                    <input id="perturbation-id-max" type="number" min="0" max="1000000000" value="0"></input>
+                    ⬆️
                 </div>
             </span>
         </div>
