@@ -43,7 +43,11 @@
             padding: 10px 20px;
             font-size: 16px;
         }
+        #perturbation-id-input{
+            width: 20em;
+        }
     </style>
+    <script src="multiselect-autocomplete.js"></script>
     <script type="importmap">
         {
             "imports": {
@@ -58,7 +62,10 @@
         import * as rlt from "/static/rl_tools/rl_tools.js"
         import * as math from 'https://esm.sh/mathjs'
 
-        const file_url = "/experiments/2025-02-27_15-27-17/27f2f12_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
+        // check url for "file" parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const file = urlParams.get('file');
+        const file_url = file ? file : "/experiments/2025-02-27_15-27-17/27f2f12_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
 
         async function main(){
             const seed = 12
@@ -137,36 +144,87 @@
             const perturbation_id_status = document.getElementById("perturbation-id-status")
             const perturbation_slider = document.getElementById("perturbation-slider")
             const perturbation_slider_label = document.getElementById("perturbation-slider-label")
+            const perturbation_id_suggestion = document.getElementById("perturbation-id-suggestion")
             const get_value_from_path = (path, obj) => {
-                return path.split('.').reduce((acc, key) => acc && acc[key] !== undefined ? acc[key] : undefined, obj);
+                return path.split('.').reduce((acc, key) => key === "" ? acc : (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
             }
             perturbation_id_input.addEventListener("input", () => {
-                const found_value = get_value_from_path(perturbation_id_input.value, l2f.parameters[0])
-                if(found_value !== undefined){
+                const obj = {
+                    "state": JSON.parse(l2f.states[0].get_state()),
+                    "parameters": l2f.parameters[0]
+                }
+                const parent_path = perturbation_id_input.value.split('.').slice(0, -1).join('.')
+                const parent = get_value_from_path(parent_path, obj)
+                if(parent !== undefined){
+                    console.log("parent: " + parent)
+                    const suggestions = Object.keys(parent).sort().reduce((acc, key) => {
+                        if(key.startsWith(perturbation_id_input.value.split('.').slice(-1)[0])){
+                            acc.push(key)
+                        }
+                        return acc
+                    }, [])
+                    if(suggestions.length > 0){
+                        perturbation_id_suggestion.innerText = suggestions.join(", ")
+                    }
+                    else{
+                        perturbation_id_suggestion.innerText = "not found"
+                    }
+                }
+                const found_value = get_value_from_path(perturbation_id_input.value, obj)
+                if(found_value !== undefined && (typeof found_value === "number")){
                     perturbation_id_status.innerText = "✅"
-                    perturbation_slider.disabled = false;
-                    perturbation_slider.min = found_value / 2
-                    perturbation_slider.max = found_value * 2
-                    perturbation_slider.step = found_value / 10
-                    perturbation_slider.value = found_value
-                    perturbation_slider_label.innerText = found_value
                 }
                 else{
                     perturbation_id_status.innerText = "❌"
-                    perturbation_slider.disabled = true
-                    perturbation_slider_label.innerText = "-"
+                }
+            })
+            perturbation_id_input.addEventListener("keydown", (e) => {
+                const obj = {
+                    "state": JSON.parse(l2f.states[0].get_state()),
+                    "parameters": l2f.parameters[0]
+                }
+                if(e.key === "Enter"){
+                    const found_value = get_value_from_path(perturbation_id_input.value, obj)
+                    if(found_value !== undefined && (typeof found_value === "number")){
+                        perturbation_slider.disabled = false;
+                        perturbation_slider.min = -Math.abs(found_value) * 2
+                        perturbation_slider.max = Math.abs(found_value) * 2
+                        perturbation_slider.step = Math.abs(found_value / 10)
+                        perturbation_slider.value = found_value
+                        console.log("found_value: " + found_value)
+                        perturbation_slider_label.innerText = found_value
+                    }
+                    else{
+                        perturbation_slider.disabled = true
+                        perturbation_slider_label.innerText = "-"
+                    }
                 }
             })
 
+            l2f.initialized.then(() => {
+                perturbation_id_input.dispatchEvent(new Event('input'))
+            })
+
             perturbation_slider.addEventListener("input", () => {
-                const found_value = get_value_from_path(perturbation_id_input.value, l2f.parameters[0])
+                const obj = {
+                    "state": JSON.parse(l2f.states[0].get_state()),
+                    "parameters": l2f.parameters[0]
+                }
+                const found_value = get_value_from_path(perturbation_id_input.value, obj)
                 if(found_value !== undefined){
                     const path = perturbation_id_input.value.split('.')
                     const last_key = path.pop()
-                    const obj = path.reduce((acc, key) => acc[key], l2f.parameters[0])
-                    obj[last_key] = parseFloat(perturbation_slider.value)
+                    const target_obj = path.reduce((acc, key) => acc[key], obj)
+                    target_obj[last_key] = parseFloat(perturbation_slider.value)
+                    console.log("setting state: ", parseFloat(perturbation_slider.value))
                     perturbation_slider_label.innerText = perturbation_slider.value
-                    l2f.states[0].set_parameters(JSON.stringify(l2f.parameters[0]))
+
+                    if(path[0] === "state"){
+                        l2f.states[0].set_state(JSON.stringify(obj.state))
+                    }
+                    else{
+                        l2f.states[0].set_parameters(JSON.stringify(obj.parameters))
+                    }
                 }
             })
         }
@@ -206,8 +264,15 @@
             <button id="step">Step</button>
         </div>
         <div class="controls-container">
-            <input id="perturbation-id-input" type="text"></input>
-            <span id="perturbation-id-status"></span>
+            <span class="slider-container">
+                <div>
+                    <span class="control-container-label" id="perturbation-id-suggestion" title="dynamics, mdp">suggestion</span>
+                </div>
+                <div>
+                    <input id="perturbation-id-input" type="text"></input>
+                    <span id="perturbation-id-status"></span>
+                </div>
+            </span>
             <span class="slider-container">
                 <div>
                     <span class="control-container-label" id="perturbation-slider-label">-</span>
@@ -216,6 +281,9 @@
                     <input id="perturbation-slider" type="range"  min="0.01" max="5" step="0.01" value="1" disabled>
                 </div>
             </span>
+        </div>
+        <div class="multiselect-container">
+            <multiselect-autocomplete data-options='["Apple", "Banana", "Cherry", "Dragonfruit", "Elderberry", "Fig", "Grape", "Honeydew", "Kiwi", "Lemon", "Mango", "Nectarine", "Orange", "Papaya", "Quince", "Raspberry", "Strawberry", "Tangerine", "Ugli fruit", "Watermelon"]'></multiselect-autocomplete>
         </div>
     </div>
 </body>
