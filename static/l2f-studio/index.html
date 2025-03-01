@@ -2,6 +2,23 @@
 <head>
     <meta charset="utf-8">
     <title>L2F Studio</title>
+    <template id="perturbation-group-template" >
+        <div class="perturbation-group">
+            <div>Perturbation Group</div>
+            <span class="perturbation-group-list">
+                <ul>
+                </ul>
+            </span>
+            <span class="slider-container">
+                <div>
+                    <span class="control-container-label" id="perturbation-slider-label">-</span>
+                </div>
+                <div>
+                    <input id="perturbation-slider" type="range"  min="0.01" max="5" step="0.01" value="1" disabled>
+                </div>
+            </span>
+        </div>
+    </template>
     <style>
         body {
             display: flex;
@@ -46,8 +63,14 @@
         #perturbation-id-input{
             width: 20em;
         }
+        .perturbation-group{
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+        }
     </style>
-    <script src="multiselect-autocomplete.js"></script>
     <script type="importmap">
         {
             "imports": {
@@ -142,9 +165,11 @@
 
             const perturbation_id_input = document.getElementById("perturbation-id-input")
             const perturbation_id_status = document.getElementById("perturbation-id-status")
-            const perturbation_slider = document.getElementById("perturbation-slider")
-            const perturbation_slider_label = document.getElementById("perturbation-slider-label")
+            // const perturbation_slider = document.getElementById("perturbation-slider")
+            // const perturbation_slider_label = document.getElementById("perturbation-slider-label")
             const perturbation_id_suggestion = document.getElementById("perturbation-id-suggestion")
+            const perturbation_groups = document.getElementById("perturbation-groups")
+            const perturbation_group_template = document.getElementById("perturbation-group-template")
             const get_value_from_path = (path, obj) => {
                 return path.split('.').reduce((acc, key) => key === "" ? acc : (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
             }
@@ -186,47 +211,60 @@
                 if(e.key === "Enter"){
                     const found_value = get_value_from_path(perturbation_id_input.value, obj)
                     if(found_value !== undefined && (typeof found_value === "number")){
-                        perturbation_slider.disabled = false;
-                        perturbation_slider.min = -Math.abs(found_value) * 2
-                        perturbation_slider.max = Math.abs(found_value) * 2
-                        perturbation_slider.step = Math.abs(found_value / 10)
-                        perturbation_slider.value = found_value
+                        if(perturbation_groups.querySelectorAll(":scope > div").length == 0){
+                            perturbation_groups.appendChild(perturbation_group_template.content.cloneNode(true))
+                        }
+                        const perturbation_group_nodes = perturbation_groups.querySelectorAll(":scope > div")
+                        const current_perturbation_group = perturbation_group_nodes[perturbation_group_nodes.length - 1]
+                        const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
+                        if(Array.from(current_perturbation_group_list.querySelectorAll(":scope > li")).map(el => el.innerText).includes(perturbation_id_input.value)){
+                            return
+                        }
+                        const current_perturbation_group_list_element = document.createElement("li")
+                        current_perturbation_group_list_element.innerText = perturbation_id_input.value
+                        current_perturbation_group_list.appendChild(current_perturbation_group_list_element)
+                        // perturbation_slider.disabled = false;
+                        // perturbation_slider.min = -Math.abs(found_value) * 2
+                        // perturbation_slider.max = Math.abs(found_value) * 2
+                        // perturbation_slider.step = Math.abs(found_value / 10)
+                        // perturbation_slider.value = found_value
                         console.log("found_value: " + found_value)
-                        perturbation_slider_label.innerText = found_value
+                        // perturbation_slider_label.innerText = found_value
                     }
                     else{
-                        perturbation_slider.disabled = true
-                        perturbation_slider_label.innerText = "-"
+                        // perturbation_slider.disabled = true
+                        // perturbation_slider_label.innerText = "-"
                     }
                 }
             })
 
             l2f.initialized.then(() => {
+                perturbation_id_input.value = "state.position.0"
                 perturbation_id_input.dispatchEvent(new Event('input'))
             })
 
-            perturbation_slider.addEventListener("input", () => {
-                const obj = {
-                    "state": JSON.parse(l2f.states[0].get_state()),
-                    "parameters": l2f.parameters[0]
-                }
-                const found_value = get_value_from_path(perturbation_id_input.value, obj)
-                if(found_value !== undefined){
-                    const path = perturbation_id_input.value.split('.')
-                    const last_key = path.pop()
-                    const target_obj = path.reduce((acc, key) => acc[key], obj)
-                    target_obj[last_key] = parseFloat(perturbation_slider.value)
-                    console.log("setting state: ", parseFloat(perturbation_slider.value))
-                    perturbation_slider_label.innerText = perturbation_slider.value
+            // perturbation_slider.addEventListener("input", () => {
+            //     const obj = {
+            //         "state": JSON.parse(l2f.states[0].get_state()),
+            //         "parameters": l2f.parameters[0]
+            //     }
+            //     const found_value = get_value_from_path(perturbation_id_input.value, obj)
+            //     if(found_value !== undefined){
+            //         const path = perturbation_id_input.value.split('.')
+            //         const last_key = path.pop()
+            //         const target_obj = path.reduce((acc, key) => acc[key], obj)
+            //         target_obj[last_key] = parseFloat(perturbation_slider.value)
+            //         console.log("setting state: ", parseFloat(perturbation_slider.value))
+            //         perturbation_slider_label.innerText = perturbation_slider.value
 
-                    if(path[0] === "state"){
-                        l2f.states[0].set_state(JSON.stringify(obj.state))
-                    }
-                    else{
-                        l2f.states[0].set_parameters(JSON.stringify(obj.parameters))
-                    }
-                }
-            })
+            //         if(path[0] === "state"){
+            //             l2f.states[0].set_state(JSON.stringify(obj.state))
+            //         }
+            //         else{
+            //             l2f.states[0].set_parameters(JSON.stringify(obj.parameters))
+            //         }
+            //     }
+            // })
         }
         window.onload = main
     </script>
@@ -273,17 +311,8 @@
                     <span id="perturbation-id-status"></span>
                 </div>
             </span>
-            <span class="slider-container">
-                <div>
-                    <span class="control-container-label" id="perturbation-slider-label">-</span>
-                </div>
-                <div>
-                    <input id="perturbation-slider" type="range"  min="0.01" max="5" step="0.01" value="1" disabled>
-                </div>
-            </span>
         </div>
-        <div class="multiselect-container">
-            <multiselect-autocomplete data-options='["Apple", "Banana", "Cherry", "Dragonfruit", "Elderberry", "Fig", "Grape", "Honeydew", "Kiwi", "Lemon", "Mango", "Nectarine", "Orange", "Papaya", "Quince", "Raspberry", "Strawberry", "Tangerine", "Ugli fruit", "Watermelon"]'></multiselect-autocomplete>
+        <div id="perturbation-groups" class="controls-container">
         </div>
     </div>
 </body>
