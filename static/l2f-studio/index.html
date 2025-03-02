@@ -61,7 +61,7 @@
             font-size: 16px;
         }
         #perturbation-id-input{
-            width: 20em;
+            width: 25em;
         }
         .perturbation-group{
             display: flex;
@@ -72,6 +72,10 @@
         }
         #perturbation-id-suggestion{
             text-align: left;
+        }
+        .perturbation-id-minmax{
+            width: 5em;
+            text-align: center;
         }
     </style>
     <script type="importmap">
@@ -173,25 +177,28 @@
             const perturbation_id_suggestion = document.getElementById("perturbation-id-suggestion")
             const perturbation_groups = document.getElementById("perturbation-groups")
             const perturbation_group_template = document.getElementById("perturbation-group-template")
-            const get_value_from_path = (path, obj) => {
-                return path.split('.').reduce((acc, key) => key === "" ? acc : (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+            const get_values_from_path = (path) => {
+                const objs = l2f.states.map(state => {
+                    return {
+                        "state": JSON.parse(state.get_state()),
+                        "parameters": JSON.parse(state.get_parameters())
+                    }
+                })
+                return path.split('.').reduce((acc, key) => key === "" ? acc : (acc && acc[0][key] !== undefined ? acc.map(x => x[key]) : undefined), objs);
             }
             perturbation_id_input.addEventListener("input", () => {
-                const obj = {
-                    "state": JSON.parse(l2f.states[0].get_state()),
-                    "parameters": l2f.parameters[0]
-                }
                 const parent_path = perturbation_id_input.value.split('.').slice(0, -1).join('.')
-                let parent = get_value_from_path(parent_path, obj)
-                let current_key = perturbation_id_input.value.split('.').slice(-1)[0]
-                let foresight = false
-                if(current_key in parent){
-                    parent = parent[current_key]
-                    foresight = true
-                    current_key = ""
-                }
-                if(parent !== undefined){
-                    const suggestions = Object.keys(parent).sort().reduce((acc, key) => {
+                const found_values = get_values_from_path(perturbation_id_input.value)
+                let parent = get_values_from_path(parent_path)
+                if(parent !== undefined && (typeof parent[0] === "object")){
+                    let current_key = perturbation_id_input.value.split('.').slice(-1)[0]
+                    let foresight = false
+                    if(current_key in parent[0]){
+                        parent = parent.map(x => x[current_key])
+                        foresight = true
+                        current_key = ""
+                    }
+                    const suggestions = Object.keys(parent[0]).sort().reduce((acc, key) => {
                         if(key.startsWith(current_key)){
                             acc.push(key)
                         }
@@ -204,18 +211,33 @@
                         perturbation_id_suggestion.innerHTML = "Nodes: " + marked_suggestions.join(", ")
                     }
                     else{
-                        perturbation_id_suggestion.innerText = "Nodes: " + "not found"
+                        if(found_values === undefined){
+                            perturbation_id_suggestion.innerText = "Nodes: " + "not found"
+                        }
+                        else{
+                            if(found_values.length > 3){
+                                const mean = found_values.reduce((sum, val) => sum + val, 0) / found_values.length
+                                const std = Math.sqrt(found_values.reduce((sum, val) => sum + (val - mean) ** 2, 0) / found_values.length)
+                                perturbation_id_suggestion.innerText = `Values: mean=${mean.toFixed(2)}, std=${std.toFixed(2)}`;
+                            }
+                        }
                     }
                 }
-                const found_value = get_value_from_path(perturbation_id_input.value, obj)
-                if(found_value !== undefined && (typeof found_value === "number")){
+                if(found_values !== undefined && (typeof found_values[0] === "number")){
                     perturbation_id_status.innerText = "✅"
                     const range = 2
-                    perturbation_id_min.value = found_value > 0 ? found_value / range : found_value * 2
-                    perturbation_id_max.value = found_value > 0 ? found_value * range : -found_value * 2
+                    const found_negative = found_values.some(x => x < 0)
+                    perturbation_id_min.value = found_negative ? found_value * 2 : Math.min(...found_values) / range 
+                    perturbation_id_max.value = found_negative ? -found_value * 2 : Math.max(...found_values) * range 
+                    perturbation_id_min.disabled = false
+                    perturbation_id_max.disabled = false
                 }
                 else{
                     perturbation_id_status.innerText = "❌"
+                    perturbation_id_min.disabled = true
+                    perturbation_id_min.value = ""
+                    perturbation_id_max.disabled = true
+                    perturbation_id_max.value = ""
                 }
             })
             perturbation_id_input.addEventListener("keydown", (e) => {
@@ -238,9 +260,9 @@
                                         "state": JSON.parse(l2f.states[0].get_state()),
                                         "parameters": l2f.parameters[0]
                                     }
-                                    const found_value = get_value_from_path(el.innerText, obj)
+                                    const found_value = get_value_from_path(el.path, obj)
                                     if(found_value !== undefined){
-                                        const path = el.innerText.split('.')
+                                        const path = el.path.split('.')
                                         const last_key = path.pop()
                                         const target_obj = path.reduce((acc, key) => acc[key], obj)
                                         const new_value = parseFloat(perturbation_slider.value) * (el.max - el.min) + el.min
@@ -270,16 +292,23 @@
                         const perturbation_slider_label = current_perturbation_group.querySelector(":scope span.control-container-label")
                         const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                         const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
-                        const paths = elements.map(el => el.innerText)
+                        const paths = elements.map(el => el.path)
                         if(paths.includes(perturbation_id_input.value)){
-                            const current_perturbation_group_list_element = elements.find(el => el.innerText === perturbation_id_input.value)
+                            const current_perturbation_group_list_element = elements.find(el => el.path === perturbation_id_input.value)
                             console.log("updating to: ", perturbation_id_min.value, perturbation_id_max.value)
                             current_perturbation_group_list_element.min = parseFloat(perturbation_id_min.value)
                             current_perturbation_group_list_element.max = parseFloat(perturbation_id_max.value)
                         }
                         else{
                             const current_perturbation_group_list_element = document.createElement("li")
-                            current_perturbation_group_list_element.innerText = perturbation_id_input.value
+                            current_perturbation_group_list_element.innerText = perturbation_id_input.value + ` [${perturbation_id_min.value}, ${perturbation_id_max.value}]`
+                            current_perturbation_group_list_element.path = perturbation_id_input.value
+                            const obj = {
+                                "state": JSON.parse(l2f.states[0].get_state()),
+                                "parameters": l2f.parameters[0]
+                            }
+                            const found_value = get_value_from_path(el.path, obj)
+                            current_perturbation_group_list_element.original_value = found_value
                             current_perturbation_group_list_element.min = parseFloat(perturbation_id_min.value)
                             current_perturbation_group_list_element.max = parseFloat(perturbation_id_max.value)
                             current_perturbation_group_list.appendChild(current_perturbation_group_list_element)
@@ -390,9 +419,9 @@
                 <div>
                     <input id="perturbation-id-input" type="text"></input>
                     <span id="perturbation-id-status"></span>
-                    <input id="perturbation-id-min" type="number" min="0" max="1000000000" value="0"></input>
+                    <input id="perturbation-id-min" class="perturbation-id-minmax" type="text" disabed></input>
                     ⬇️
-                    <input id="perturbation-id-max" type="number" min="0" max="1000000000" value="0"></input>
+                    <input id="perturbation-id-max" class="perturbation-id-minmax" type="text" disabled></input>
                     ⬆️
                 </div>
             </span>
