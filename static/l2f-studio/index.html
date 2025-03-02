@@ -248,6 +248,31 @@
                 })
                 return path.split('.').reduce((acc, key) => key === "" ? acc : (acc && acc[0][key] !== undefined ? acc.map(x => x[key]) : undefined), objs);
             }
+            const set_values_at_path = (path_string, new_value) => {
+                const objs = l2f.states.map(state => {
+                    return {
+                        "state": JSON.parse(state.get_state()),
+                        "parameters": JSON.parse(state.get_parameters())
+                    }
+                })
+                const path = path_string.split('.')
+                const last_key = path.pop()
+                const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
+                target_objs.forEach((obj, i) => {
+                    if(Array.isArray(new_value)){
+                        obj[last_key] = new_value[i]
+                    }
+                    else{
+                        obj[last_key] = new_value
+                    }
+                })
+                if(path[0] === "state"){
+                    l2f.states.forEach((state, i) => state.set_state(JSON.stringify(objs[i].state)))
+                }
+                else{
+                    l2f.states.forEach((state, i) => state.set_parameters(JSON.stringify(objs[i].parameters)))
+                }
+            }
             perturbation_id_input.addEventListener("input", () => {
                 const parent_path = perturbation_id_input.value.split('.').slice(0, -1).join('.')
                 const found_values = get_values_from_path(perturbation_id_input.value)
@@ -340,19 +365,7 @@
                                         const new_value = percent > 0.5 ? (percent - 0.5) * 2 * (el.max - original_value) + original_value : (1 - (0.5 - percent) * 2) * (original_value - el.min) + el.min
                                         console.log("new value: ", new_value)
 
-                                        const objs = l2f.states.map(state => {
-                                            return {
-                                                "state": JSON.parse(state.get_state()),
-                                                "parameters": JSON.parse(state.get_parameters())
-                                            }
-                                        })
-                                        const path = el.path.split('.')
-                                        const last_key = path.pop()
-                                        const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
-                                        target_objs.forEach(obj => {
-                                            obj[last_key] = new_value
-                                        })
-
+                                        set_values_at_path(el.path, new_value)
                                         // el.innerText = el.path + ` [${el.min}, ${el.max}]: ${new_value.toExponential(2)}`
                                         el.querySelector(".perturbation-group-item-value").textContent = new_value.toExponential(2);
                                         if(elements.length > 1){
@@ -363,12 +376,6 @@
                                             perturbation_slider_label.innerText = new_value
                                         }
 
-                                        if(path[0] === "state"){
-                                            l2f.states.forEach((state, i) => state.set_state(JSON.stringify(objs[i].state)))
-                                        }
-                                        else{
-                                            l2f.states.forEach((state, i) => state.set_parameters(JSON.stringify(objs[i].parameters)))
-                                        }
                                     }
                                 })
                             })
