@@ -68,7 +68,8 @@ export class L2F{
         this.last_dt = 0
     }
     async change_num_quadrotors(num){
-        if(num > this.states.length){
+        const diff = num - this.states.length
+        if(diff > 0){
             const new_states = [...Array(num - this.states.length)].map((_, i) =>new this.l2f_interface.State(this.seed + this.states.length + i));
             this.states = this.states.concat(new_states)
         }
@@ -77,6 +78,7 @@ export class L2F{
         }
         this.parameters = this.states.map(state => JSON.parse(state.get_parameters()))
         await this.ui.episode_init_multi(this.ui_state, this.parameters)
+        return diff
     }
     simulate_step(){
         this.states.forEach(state => {

@@ -179,7 +179,11 @@
 
             const num_vehicles_input = document.getElementById("num-vehicles")
             num_vehicles_input.addEventListener("input", () => {
-                l2f.change_num_quadrotors(parseInt(num_vehicles_input.value))
+                const diff = l2f.change_num_quadrotors(parseInt(num_vehicles_input.value))
+
+                const perturbation_groups = document.getElementById("perturbation-groups")
+                const current_perturbation_group_list = perturbation_groups.querySelector(":scope > span.perturbation-group-list > ul")
+                const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
             })
 
             const speed_slider = document.getElementById("speed-slider")
@@ -200,7 +204,6 @@
             const pause_on_reset_checkbox = document.getElementById("pause-on-reset")
             const sample_initial_states_button = document.getElementById("sample-initial-states")
             sample_initial_states_button.addEventListener("click", () => {
-                l2f.change_num_quadrotors(l2f.states.length + 1)
                 l2f.states.forEach(state => {
                     if(pause_on_reset_checkbox.checked && pause_button.innerText === "Pause"){
                         pause_button.innerText = "Resume"
@@ -323,7 +326,8 @@
                         if(perturbation_groups.querySelectorAll(":scope > div").length == 0){
                             const new_perturbation_group = perturbation_group_template.content.cloneNode(true)
                             perturbation_groups.appendChild(new_perturbation_group)
-                            const perturbation_slider = perturbation_groups.querySelector(":scope > div:last-child .perturbation-slider")
+                            const current_perturbation_group = perturbation_groups.querySelector(":scope > div:last-child")
+                            const perturbation_slider = current_perturbation_group.querySelector(".perturbation-slider")
                             perturbation_slider.addEventListener("input", (e) => {
                                 const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                                 const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
@@ -331,6 +335,11 @@
                                     // todo: batch this
                                     const found_values = get_values_from_path(el.path)
                                     if(found_values !== undefined){
+                                        const percent = parseFloat(perturbation_slider.value)
+                                        const original_value = el.original_values[i]
+                                        const new_value = percent > 0.5 ? (percent - 0.5) * 2 * (el.max - original_value) + original_value : (1 - (0.5 - percent) * 2) * (original_value - el.min) + el.min
+                                        console.log("new value: ", new_value)
+
                                         const objs = l2f.states.map(state => {
                                             return {
                                                 "state": JSON.parse(state.get_state()),
@@ -340,13 +349,10 @@
                                         const path = el.path.split('.')
                                         const last_key = path.pop()
                                         const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
-                                        const percent = parseFloat(perturbation_slider.value)
-                                        const original_value = el.original_values[i]
-                                        const new_value = percent > 0.5 ? (percent - 0.5) * 2 * (el.max - original_value) + original_value : (1 - (0.5 - percent) * 2) * (original_value - el.min) + el.min
-                                        console.log("new value: ", new_value)
                                         target_objs.forEach(obj => {
                                             obj[last_key] = new_value
                                         })
+
                                         // el.innerText = el.path + ` [${el.min}, ${el.max}]: ${new_value.toExponential(2)}`
                                         el.querySelector(".perturbation-group-item-value").textContent = new_value.toExponential(2);
                                         if(elements.length > 1){
@@ -364,6 +370,15 @@
                                             l2f.states.forEach((state, i) => state.set_parameters(JSON.stringify(objs[i].parameters)))
                                         }
                                     }
+                                })
+                            })
+                            
+                            const reset_button = perturbation_groups.querySelector(":scope > div:last-child button.perturbation-group-reset-button")
+                            reset_button.addEventListener("click", () => {
+                                const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
+                                const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
+                                elements.forEach((el, i) => {
+
                                 })
                             })
                         }
