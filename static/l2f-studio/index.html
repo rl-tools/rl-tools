@@ -17,6 +17,9 @@
                     <input class="perturbation-slider" type="range"  min="0.01" max="5" step="0.01" value="1" disabled>
                 </div>
             </span>
+            <span>
+                <button class="perturbation-group-reset-button">Reset</button>
+            </span>
         </div>
     </template>
     <style>
@@ -281,18 +284,21 @@
                                         const path = el.path.split('.')
                                         const last_key = path.pop()
                                         const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
-                                        const new_value = parseFloat(perturbation_slider.value) * (el.max - el.min) + el.min
+                                        const percent = parseFloat(perturbation_slider.value)
+                                        const original_value = el.original_values[i]
+                                        const new_value = percent > 0.5 ? (percent - 0.5) * 2 * (el.max - original_value) + original_value : (1 - (0.5 - percent) * 2) * (original_value - el.min) + el.min
                                         console.log("new value: ", new_value)
                                         target_objs.forEach(obj => {
                                             obj[last_key] = new_value
                                         })
+                                        el.innerText = el.path + ` [${el.min}, ${el.max}]: ${new_value.toExponential(2)}`
                                         if(elements.length > 1){
-                                            perturbation_slider_label.innerText = perturbation_slider.value * 2 - 1
+                                            const perc_value = (perturbation_slider.value * 2 - 1) * 100
+                                            perturbation_slider_label.innerText = `${perc_value > 0 ? "+" : ""}${perc_value.toFixed(0)}%`
                                         }
                                         else{
                                             perturbation_slider_label.innerText = new_value
                                         }
-
 
                                         if(path[0] === "state"){
                                             l2f.states.forEach((state, i) => state.set_state(JSON.stringify(objs[i].state)))
@@ -311,24 +317,24 @@
                         const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                         const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
                         const paths = elements.map(el => el.path)
+                        let el = null
                         if(paths.includes(perturbation_id_input.value)){
-                            const current_perturbation_group_list_element = elements.find(el => el.path === perturbation_id_input.value)
+                            el = elements.find(el => el.path === perturbation_id_input.value)
                             console.log("updating to: ", perturbation_id_min.value, perturbation_id_max.value)
-                            current_perturbation_group_list_element.min = parseFloat(perturbation_id_min.value)
-                            current_perturbation_group_list_element.max = parseFloat(perturbation_id_max.value)
+                            el.min = parseFloat(perturbation_id_min.value)
+                            el.max = parseFloat(perturbation_id_max.value)
                         }
                         else{
-                            const current_perturbation_group_list_element = document.createElement("li")
-                            current_perturbation_group_list_element.innerText = perturbation_id_input.value + ` [${perturbation_id_min.value}, ${perturbation_id_max.value}]`
-                            current_perturbation_group_list_element.path = perturbation_id_input.value
+                            el = document.createElement("li")
+                            el.path = perturbation_id_input.value
                             const found_values = get_values_from_path(perturbation_id_input.value)
-                            current_perturbation_group_list_element.original_values = found_values
-                            current_perturbation_group_list_element.min = parseFloat(perturbation_id_min.value)
-                            current_perturbation_group_list_element.max = parseFloat(perturbation_id_max.value)
-                            current_perturbation_group_list.appendChild(current_perturbation_group_list_element)
-                            current_perturbation_group_list_element.style.cursor = "pointer"
-                            current_perturbation_group_list_element.addEventListener("click", () => {
-                                current_perturbation_group_list.removeChild(current_perturbation_group_list_element)
+                            el.original_values = found_values
+                            el.min = parseFloat(perturbation_id_min.value)
+                            el.max = parseFloat(perturbation_id_max.value)
+                            current_perturbation_group_list.appendChild(el)
+                            el.style.cursor = "pointer"
+                            el.addEventListener("click", () => {
+                                current_perturbation_group_list.removeChild(el)
                                 if(current_perturbation_group_list.children.length === 0){
                                     perturbation_slider.disabled = true
                                 }
@@ -339,6 +345,7 @@
                             perturbation_slider.step = 0.01 
                             perturbation_slider.value = 0.5
                         }
+                        el.innerText = el.path + ` [${el.min}, ${el.max}]: ${el.original_values.reduce((acc, c) => acc + c/el.original_values.length, 0).toExponential(2)}`
                     }
                     else{
                         // perturbation_slider.disabled = true
