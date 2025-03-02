@@ -533,6 +533,10 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr TI EPISODE_STEP_LIMIT = 500;
         using PARAMETERS = T_PARAMETERS;
         static constexpr auto PARAMETER_VALUES = T_PARAMETER_VALUES::VALUES;
+        // state limits (for numerical reasons only)
+        static constexpr T STATE_LIMIT_POSITION = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
     };
 
     template <typename T_T, typename T_TI, typename T_PARAMETERS>
