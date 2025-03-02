@@ -89,7 +89,7 @@
     </script>
     <script type="module">
         import {L2F} from "./l2f.js"
-        import * as rlt from "/static/rl_tools/rl_tools.js"
+        import * as rlt from "/static/RLtools.js/rl_tools.js"
         import * as math from 'https://esm.sh/mathjs'
 
         // check url for "file" parameter
@@ -246,8 +246,8 @@
                     "parameters": l2f.parameters[0]
                 }
                 if(e.key === "Enter"){
-                    const found_value = get_value_from_path(perturbation_id_input.value, obj)
-                    if(found_value !== undefined && (typeof found_value === "number")){
+                    const found_values = get_values_from_path(perturbation_id_input.value, obj)
+                    if(found_values !== undefined && (typeof found_values[0] === "number")){
                         if(perturbation_groups.querySelectorAll(":scope > div").length == 0){
                             const new_perturbation_group = perturbation_group_template.content.cloneNode(true)
                             perturbation_groups.appendChild(new_perturbation_group)
@@ -256,18 +256,23 @@
                                 const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                                 const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
                                 elements.forEach((el, i) => {
-                                    const obj = {
-                                        "state": JSON.parse(l2f.states[0].get_state()),
-                                        "parameters": l2f.parameters[0]
-                                    }
-                                    const found_value = get_value_from_path(el.path, obj)
-                                    if(found_value !== undefined){
+                                    // todo: batch this
+                                    const found_values = get_values_from_path(el.path)
+                                    if(found_values !== undefined){
+                                        const objs = l2f.states.map(state => {
+                                            return {
+                                                "state": JSON.parse(state.get_state()),
+                                                "parameters": JSON.parse(state.get_parameters())
+                                            }
+                                        })
                                         const path = el.path.split('.')
                                         const last_key = path.pop()
-                                        const target_obj = path.reduce((acc, key) => acc[key], obj)
+                                        const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
                                         const new_value = parseFloat(perturbation_slider.value) * (el.max - el.min) + el.min
                                         console.log("new value: ", new_value)
-                                        target_obj[last_key] = new_value
+                                        target_objs.forEach(obj => {
+                                            obj[last_key] = new_value
+                                        })
                                         if(elements.length > 1){
                                             perturbation_slider_label.innerText = perturbation_slider.value * 2 - 1
                                         }
@@ -277,10 +282,10 @@
 
 
                                         if(path[0] === "state"){
-                                            l2f.states[0].set_state(JSON.stringify(obj.state))
+                                            l2f.states.forEach((state, i) => state.set_state(JSON.stringify(objs[i].state)))
                                         }
                                         else{
-                                            l2f.states[0].set_parameters(JSON.stringify(obj.parameters))
+                                            l2f.states.forEach((state, i) => state.set_parameters(JSON.stringify(objs[i].parameters)))
                                         }
                                     }
                                 })
@@ -303,12 +308,8 @@
                             const current_perturbation_group_list_element = document.createElement("li")
                             current_perturbation_group_list_element.innerText = perturbation_id_input.value + ` [${perturbation_id_min.value}, ${perturbation_id_max.value}]`
                             current_perturbation_group_list_element.path = perturbation_id_input.value
-                            const obj = {
-                                "state": JSON.parse(l2f.states[0].get_state()),
-                                "parameters": l2f.parameters[0]
-                            }
-                            const found_value = get_value_from_path(el.path, obj)
-                            current_perturbation_group_list_element.original_value = found_value
+                            const found_values = get_values_from_path(perturbation_id_input.value)
+                            current_perturbation_group_list_element.original_values = found_values
                             current_perturbation_group_list_element.min = parseFloat(perturbation_id_min.value)
                             current_perturbation_group_list_element.max = parseFloat(perturbation_id_max.value)
                             current_perturbation_group_list.appendChild(current_perturbation_group_list_element)

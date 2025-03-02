@@ -97,7 +97,7 @@ namespace rl_tools::math {
         pS1 = -4.2743422091e-02,
         pS2 = -8.6563630030e-03,
         qS1 = -7.0662963390e-01;
-        static float R(float z){
+        static inline float R(float z){
             float p, q;
             p = z*(pS0+z*(pS1+z*pS2));
             q = 1.0f+z*qS1;
