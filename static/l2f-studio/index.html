@@ -168,14 +168,40 @@
             const sim_container = document.getElementById("sim-container")
             const l2f = new L2F(sim_container, 10, policy, seed)
 
-            l2f.initialized.then(() => {
-                console.log()
-                l2f.parameters[0].dynamics.mass *= 1.0
-                l2f.states[0].set_parameters(JSON.stringify(l2f.parameters[0]))
-                const new_params = JSON.parse(l2f.states[0].get_parameters())
-                console.log(new_params)
-                l2f.parameters[0] = new_params
-            })
+            const get_values_from_path = (path) => {
+                const objs = l2f.states.map(state => {
+                    return {
+                        "state": JSON.parse(state.get_state()),
+                        "parameters": JSON.parse(state.get_parameters())
+                    }
+                })
+                return path.split('.').reduce((acc, key) => key === "" ? acc : (acc && acc[0][key] !== undefined ? acc.map(x => x[key]) : undefined), objs);
+            }
+            const set_values_at_path = (path_string, new_value) => {
+                const objs = l2f.states.map(state => {
+                    return {
+                        "state": JSON.parse(state.get_state()),
+                        "parameters": JSON.parse(state.get_parameters())
+                    }
+                })
+                const path = path_string.split('.')
+                const last_key = path.pop()
+                const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
+                target_objs.forEach((obj, i) => {
+                    if(Array.isArray(new_value)){
+                        obj[last_key] = new_value[i]
+                    }
+                    else{
+                        obj[last_key] = new_value
+                    }
+                })
+                if(path[0] === "state"){
+                    l2f.states.forEach((state, i) => state.set_state(JSON.stringify(objs[i].state)))
+                }
+                else{
+                    l2f.states.forEach((state, i) => state.set_parameters(JSON.stringify(objs[i].parameters)))
+                }
+            }
 
             const num_vehicles_input = document.getElementById("num-vehicles")
             num_vehicles_input.addEventListener("input", () => {
@@ -239,40 +265,6 @@
             const perturbation_id_suggestion = document.getElementById("perturbation-id-suggestion")
             const perturbation_groups = document.getElementById("perturbation-groups")
             const perturbation_group_template = document.getElementById("perturbation-group-template")
-            const get_values_from_path = (path) => {
-                const objs = l2f.states.map(state => {
-                    return {
-                        "state": JSON.parse(state.get_state()),
-                        "parameters": JSON.parse(state.get_parameters())
-                    }
-                })
-                return path.split('.').reduce((acc, key) => key === "" ? acc : (acc && acc[0][key] !== undefined ? acc.map(x => x[key]) : undefined), objs);
-            }
-            const set_values_at_path = (path_string, new_value) => {
-                const objs = l2f.states.map(state => {
-                    return {
-                        "state": JSON.parse(state.get_state()),
-                        "parameters": JSON.parse(state.get_parameters())
-                    }
-                })
-                const path = path_string.split('.')
-                const last_key = path.pop()
-                const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
-                target_objs.forEach((obj, i) => {
-                    if(Array.isArray(new_value)){
-                        obj[last_key] = new_value[i]
-                    }
-                    else{
-                        obj[last_key] = new_value
-                    }
-                })
-                if(path[0] === "state"){
-                    l2f.states.forEach((state, i) => state.set_state(JSON.stringify(objs[i].state)))
-                }
-                else{
-                    l2f.states.forEach((state, i) => state.set_parameters(JSON.stringify(objs[i].parameters)))
-                }
-            }
             perturbation_id_input.addEventListener("input", () => {
                 const parent_path = perturbation_id_input.value.split('.').slice(0, -1).join('.')
                 const found_values = get_values_from_path(perturbation_id_input.value)
