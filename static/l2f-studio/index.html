@@ -208,17 +208,17 @@
                         const marked_suggestions = suggestions.map(x => {
                             return (foresight ? "." : "") + "<b>" + current_key + "</b>" + x.slice(current_key.length)
                         })
-                        perturbation_id_suggestion.innerHTML = "Nodes: " + marked_suggestions.join(", ")
+                        perturbation_id_suggestion.innerHTML = "Subgroups: " + marked_suggestions.join(", ")
                     }
                     else{
                         if(found_values === undefined){
-                            perturbation_id_suggestion.innerText = "Nodes: " + "not found"
+                            perturbation_id_suggestion.innerText = "Subgroups: " + "not found"
                         }
                         else{
                             if(found_values.length > 3){
                                 const mean = found_values.reduce((sum, val) => sum + val, 0) / found_values.length
                                 const std = Math.sqrt(found_values.reduce((sum, val) => sum + (val - mean) ** 2, 0) / found_values.length)
-                                perturbation_id_suggestion.innerText = `Values: mean=${mean.toFixed(2)}, std=${std.toFixed(2)}`;
+                                perturbation_id_suggestion.innerText = `Values (${found_values.length}): ${mean.toFixed(2)} ± ${std.toFixed(2)}`;
                             }
                         }
                     }
@@ -227,8 +227,21 @@
                     perturbation_id_status.innerText = "✅"
                     const range = 2
                     const found_negative = found_values.some(x => x < 0)
-                    perturbation_id_min.value = found_negative ? found_value * 2 : Math.min(...found_values) / range 
-                    perturbation_id_max.value = found_negative ? -found_value * 2 : Math.max(...found_values) * range 
+                    const found_positive = found_values.some(x => x > 0)
+                    if(found_positive && found_negative){
+                        perturbation_id_min.value = Math.min(...found_values) * range;
+                        perturbation_id_max.value = Math.max(...found_values) * range;
+                    }
+                    else{
+                        if(!found_negative && !found_positive){
+                            perturbation_id_min.value = 0;
+                            perturbation_id_max.value = 0;
+                        }
+                        else{
+                            perturbation_id_min.value = found_positive ? Math.min(...found_values) / range : Math.min(...found_values) * range;
+                            perturbation_id_max.value = found_positive ? Math.max(...found_values) * range : Math.max(...found_values) / range;
+                        }
+                    }
                     perturbation_id_min.disabled = false
                     perturbation_id_max.disabled = false
                 }
