@@ -15,4 +15,4 @@ docker run -it --rm \
 emscripten/emsdk:4.0.4 \
 emcc -std=c++17 -I /rl_tools/include -I /json/include -DEMSCRIPTEN -DRL_TOOLS_ENABLE_JSON \
 $DEBUG_FLAGS \
--s WASM=1 --bind -s EXPORTED_RUNTIME_METHODS='["cwrap", "ccall"]' -s EXPORT_ES6=1 -s MODULARIZE=1 -o l2f-interface.js l2f.cpp
+-s WASM=1 --bind -s EXPORTED_RUNTIME_METHODS='["cwrap", "ccall"]' -s EXPORT_ES6=1 -s MODULARIZE=1 -o blob/l2f-interface.js l2f.cpp
