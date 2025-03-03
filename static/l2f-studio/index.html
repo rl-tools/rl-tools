@@ -204,12 +204,20 @@
             }
 
             const num_vehicles_input = document.getElementById("num-vehicles")
-            num_vehicles_input.addEventListener("input", () => {
-                const diff = l2f.change_num_quadrotors(parseInt(num_vehicles_input.value))
-
+            num_vehicles_input.addEventListener("input", async () => {
+                const diff = await l2f.change_num_quadrotors(parseInt(num_vehicles_input.value))
                 const perturbation_groups = document.getElementById("perturbation-groups")
-                const current_perturbation_group_list = perturbation_groups.querySelector(":scope > span.perturbation-group-list > ul")
-                const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
+                const elements = Array.from(perturbation_groups.querySelectorAll(":scope ul > li"))
+                if(diff < 0){
+                    elements.forEach(el => {
+                        el.original_values = el.original_values.slice(0, diff)
+                    })
+                }
+                else{
+                    elements.forEach(el => {
+                        el.original_values = el.original_values.concat(get_values_from_path(el.path).slice(-diff))
+                    })
+                }
             })
 
             const speed_slider = document.getElementById("speed-slider")
