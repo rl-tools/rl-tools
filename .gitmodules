@@ -77,6 +77,3 @@
 [submodule "tests/lib/nlohmann"]
 	path = tests/lib/nlohmann
 	url = https://github.com/nlohmann/json.git
-[submodule "static/l2f-studio/blob"]
-	path = static/l2f-studio/blob
-	url = https://github.com/rl-tools/l2f-studio-blob.git
