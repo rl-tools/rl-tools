@@ -129,26 +129,35 @@ function layer_dispatch(group){
     }
 }
 
+function load_from_array_buffer(buffer){
+    var f = new hdf5.File(buffer, "");
+    const model = layer_dispatch(f.get("actor"))
+    const input = new Tensor(f.get("example").get("input"))
+    const target_output = new Tensor(f.get("example").get("output"))
 
+    const output = model.evaluate(input.data)
 
-export function load(path_to_hdf5_checkpoint) {
-    return fetch(path_to_hdf5_checkpoint)
-        .then(function(response) {
-            return response.arrayBuffer()
-        })
-        .then(function(buffer) {
-            var f = new hdf5.File(buffer, path_to_hdf5_checkpoint);
-            const model = layer_dispatch(f.get("actor"))
-            const input = new Tensor(f.get("example").get("input"))
-            const target_output = new Tensor(f.get("example").get("output"))
+    const diff = math.subtract(output, target_output.data)
+    const diff_reduce = math.flatten(diff).valueOf().reduce((a, c) => a + Math.abs(c)) / diff.size().reduce((a, c) => a * c, 1)
+    console.log("Example diff per element: ", diff_reduce)
+    console.assert(diff_reduce < 1e-6, "Output is not close enough to target output")
+    return model
+}
 
-            const output = model.evaluate(input.data)
-
-            const diff = math.subtract(output, target_output.data)
-            const diff_reduce = math.flatten(diff).valueOf().reduce((a, c) => a + Math.abs(c)) / diff.size().reduce((a, c) => a * c, 1)
-            console.log("Example diff per element: ", diff_reduce)
-            console.assert(diff_reduce < 1e-6, "Output is not close enough to target output")
-            return model
-        });
+export function load(input) {
+    if(typeof input === "string"){
+        return fetch(input)
+            .then(function(response) {
+                return response.arrayBuffer()
+            })
+            .then(load_from_array_buffer);
+    }
+    else if(input instanceof ArrayBuffer){
+        return load_from_array_buffer(input)
+    }
+    else{
+        console.error("Input is not a string or ArrayBuffer")
+        return null
+    }
 }
 
