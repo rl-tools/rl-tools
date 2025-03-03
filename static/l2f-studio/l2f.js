@@ -9,19 +9,25 @@ export class L2F{
     constructor(parent, num_quadrotors, policy, seed){
 
         this.seed = seed
-        this.stats = new Stats();
-        this.stats.showPanel(0);
 
-        this.stats.dom.style.transform = 'scale(3)';
-        this.stats.dom.style.transformOrigin = 'top left';
-        this.stats.dom.style.left = '0px';
-        this.stats.dom.style.top = '0px';
-        this.stats.dom.style.position = 'fixed';
+        const urlParams = new URLSearchParams(window.location.search);
+        this.DEBUG = urlParams.has('DEBUG') ? urlParams.get('DEBUG') === 'true' : false
+
+
+        if(this.DEBUG){
+            this.stats = new Stats();
+            this.stats.showPanel(0);
+
+            this.stats.dom.style.transform = 'scale(3)';
+            this.stats.dom.style.transformOrigin = 'top left';
+            this.stats.dom.style.left = '0px';
+            this.stats.dom.style.top = '0px';
+            this.stats.dom.style.position = 'fixed';
+            document.body.appendChild(this.stats.dom);
+        }
 
         this.overtimes = []
         this.control_tick = 0
-
-        document.body.appendChild(this.stats.dom);
 
         this.pause = false
         this.speed = 1
@@ -106,11 +112,15 @@ export class L2F{
         this.control_tick += 1
     }
     async render(){
-        this.stats.begin()
+        if(this.DEBUG){
+            this.stats.begin()
+        }
         const current_states =  this.states.map(state => JSON.parse(state.get_state()))
         const current_actions = this.states.map(state => JSON.parse(state.get_action()))
         await this.ui.render_multi(this.ui_state, this.parameters, current_states, current_actions)
-        this.stats.end()
+        if(this.DEBUG){
+            this.stats.end()
+        }
         requestAnimationFrame(() => this.render());
     }
 }
