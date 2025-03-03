@@ -67,6 +67,11 @@
     path = external/zlib
     url = https://github.com/zlib-ng/zlib-ng.git
 
+# Static
+[submodule "static/l2f-studio"]
+	path = static/l2f-studio
+	url = https://github.com/rl-tools/l2f-studio.git
+
 # Test dependencies
 [submodule "tests/lib/matplotlib"]
 	path = tests/lib/matplotlib
