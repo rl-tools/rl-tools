@@ -14,7 +14,7 @@
                     <span class="control-container-label" class="perturbation-slider-label">-</span>
                 </div>
                 <div>
-                    <input class="perturbation-slider" type="range"  min="0.01" max="5" step="0.01" value="1" disabled>
+                    <input class="perturbation-slider" type="range"  min="0.0" max="1.0" step="0.01" value="0.5" disabled>
                 </div>
             </span>
             <span>
@@ -89,6 +89,7 @@
         }
         #perturbation-transform{
             text-align: center;
+            width: 20em;
         }
         .perturbation-group-item {
             display: grid;
@@ -135,6 +136,14 @@
         const urlParams = new URLSearchParams(window.location.search);
         const file = urlParams.get('file');
         const file_url = file ? file : "/experiments/2025-02-27_15-27-17/27f2f12_zoo_environment_algorithm/l2f_sac/0000/steps/000000001000000/checkpoint.h5"
+        function mean(a){
+            return a.reduce((sum, val) => sum + val, 0) / a.length
+        }
+        function std(x){
+            const sample_mean = mean(x)
+            const variance = x.reduce((sum, val) => sum + (val - sample_mean) ** 2, 0)
+            return variance > 0 ?  Math.sqrt(variance / x.length) : 0;
+        }
 
         async function main(){
             const seed = 12
@@ -157,30 +166,33 @@
                 })
                 return path.split('.').reduce((acc, key) => key === "" ? acc : (acc && acc[0][key] !== undefined ? acc.map(x => x[key]) : undefined), objs);
             }
-            const set_values_at_path = (path_string, new_value) => {
+            const set_values_at_path = (instructions, new_value) => {
                 const objs = l2f.states.map(state => {
                     return {
                         "state": JSON.parse(state.get_state()),
                         "parameters": JSON.parse(state.get_parameters())
                     }
                 })
-                const path = path_string.split('.')
-                const last_key = path.pop()
-                const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
-                target_objs.forEach((obj, i) => {
-                    if(Array.isArray(new_value)){
-                        obj[last_key] = new_value[i]
-                    }
-                    else{
-                        obj[last_key] = new_value
-                    }
-                })
-                if(path[0] === "state"){
-                    l2f.states.forEach((state, i) => state.set_state(JSON.stringify(objs[i].state)))
+                if(typeof instructions === "string"){
+                    const path = instructions
+                    instructions = {}
+                    instructions[path] = new_value
                 }
-                else{
-                    l2f.states.forEach((state, i) => state.set_parameters(JSON.stringify(objs[i].parameters)))
+                for(const [path_string, value] of Object.entries(instructions)){
+                    const path = path_string.split('.')
+                    const last_key = path.pop()
+                    const target_objs = path.reduce((acc, key) => acc.map(x => x[key]), objs)
+                    target_objs.forEach((obj, i) => {
+                        if(Array.isArray(new_value)){
+                            obj[last_key] = new_value[i]
+                        }
+                        else{
+                            obj[last_key] = new_value
+                        }
+                    })
                 }
+                l2f.states.forEach((state, i) => state.set_state(JSON.stringify(objs[i].state)))
+                l2f.states.forEach((state, i) => state.set_parameters(JSON.stringify(objs[i].parameters)))
             }
 
             const num_vehicles_input = document.getElementById("num-vehicles")
@@ -284,9 +296,7 @@
                         }
                         else{
                             if(found_values.length > 3){
-                                const mean = found_values.reduce((sum, val) => sum + val, 0) / found_values.length
-                                const std = Math.sqrt(found_values.reduce((sum, val) => sum + (val - mean) ** 2, 0) / found_values.length)
-                                perturbation_id_suggestion.innerText = `Values (${found_values.length}): ${mean.toFixed(2)} ± ${std.toFixed(2)}`;
+                                perturbation_id_suggestion.innerText = `Values (${found_values.length}): ${mean(found_values).toExponential(2)} ± ${std(found_values).toExponential(2)}`;
                             }
                         }
                     }
@@ -337,44 +347,56 @@
                             perturbation_slider.addEventListener("input", (e) => {
                                 const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                                 const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
-                                const new_values = elements.map((el, i) => {
+                                const update_instructions = Object.fromEntries(elements.map((el, i) => {
                                     // todo: batch this
-                                    const found_values = get_values_from_path(el.path)
-                                    if(found_values !== undefined){
-                                        const percent = parseFloat(perturbation_slider.value)
-                                        const original_value = el.original_values[i]
-                                        const new_value = percent > 0.5 ? (percent - 0.5) * 2 * (el.max - original_value) + original_value : (1 - (0.5 - percent) * 2) * (original_value - el.min) + el.min
-                                        let new_values = l2f.states.map((state, i) => new_value)
-                                        try{
-                                            new_values = l2f.states.map((state, i) => eval(el.transform)(i, percent, new_value));
-                                        }
-                                        catch(e){
-                                            console.error(e)
-                                        }
-                                        console.log("new value: ", new_values)
-
-                                        set_values_at_path(el.path, new_values)
-                                        el.querySelector(".perturbation-group-item-value").textContent = new_value.toExponential(2);
-                                        if(elements.length > 1){
-                                            const perc_value = (perturbation_slider.value * 2 - 1) * 100
-                                            perturbation_slider_label.innerText = `${perc_value > 0 ? "+" : ""}${perc_value.toFixed(0)}%`
-                                        }
-                                        else{
-                                            perturbation_slider_label.innerText = new_value
-                                        }
-
+                                    const percent = parseFloat(perturbation_slider.value)
+                                    const original_value = el.original_values[i]
+                                    const new_value = percent > 0.5 ? (percent - 0.5) * 2 * (el.max - original_value) + original_value : (1 - (0.5 - percent) * 2) * (original_value - el.min) + el.min
+                                    let new_values = l2f.states.map((state, i) => new_value)
+                                    try{
+                                        new_values = l2f.states.map((state, i) => eval(el.transform)(i, percent, new_value));
                                     }
-                                })
+                                    catch(e){
+                                        console.error(e)
+                                    }
+                                    console.log("new value: ", new_values)
+
+                                    el.querySelector(".perturbation-group-item-value").textContent = `${mean(new_values).toExponential(1)} ± ${std(new_values).toExponential(1)}`;
+                                    return [el.path, new_values]
+                                }))
+                                if(elements.length > 1){
+                                    const perc_value = (perturbation_slider.value * 2 - 1) * 100
+                                    perturbation_slider_label.innerText = `${perc_value > 0 ? "+" : ""}${perc_value.toFixed(0)}%`
+                                }
+                                else{
+                                    const new_values = perturbation_slider_label.innerText = update_instructions[Object.keys(update_instructions)[0]]
+                                    if(new_values.every(x => x == new_values[0])){
+                                        perturbation_slider_label.innerText = `${new_values[0].toExponential(2)}`
+                                    }
+                                    else{
+                                        perturbation_slider_label.innerText = `${mean(new_values).toExponential(1)} ± ${std(new_values).toExponential(1)}`;
+                                    }
+                                }
+                                for(const [path, new_values] of Object.entries(update_instructions)){
+                                    set_values_at_path(path, new_values)
+                                }
                             })
                             
                             const reset_button = perturbation_groups.querySelector(":scope > div:last-child button.perturbation-group-reset-button")
                             reset_button.addEventListener("click", () => {
                                 const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                                 const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
-                                elements.forEach((el, i) => {
-                                    perturbation_slider.value = 0.5
-                                    perturbation_slider.dispatchEvent(new Event("input"))
-                                })
+                                // elements.forEach((el, i) => {
+                                //     perturbation_slider.value = 0.5
+                                //     perturbation_slider.dispatchEvent(new Event("input"))
+                                // })
+                                const update_instructions = Object.fromEntries(elements.map((el, i) => {
+                                    el.querySelector(".perturbation-group-item-value").textContent = "reset";
+                                    return [el.path, el.original_values]
+                                }))
+                                for(const [path, new_values] of Object.entries(update_instructions)){
+                                    set_values_at_path(path, new_values)
+                                }
                             })
                         }
                         const perturbation_group_nodes = perturbation_groups.querySelectorAll(":scope > div")
@@ -395,7 +417,6 @@
                             el = template.content.firstElementChild.cloneNode(true);
 
                             el.path = perturbation_id_input.value
-                            const found_values = get_values_from_path(perturbation_id_input.value)
                             el.original_values = found_values
                             current_perturbation_group_list.appendChild(el)
                             el.style.cursor = "pointer"
@@ -409,7 +430,7 @@
                             perturbation_slider.disabled = false;
                             perturbation_slider.min = 0
                             perturbation_slider.max = 1
-                            perturbation_slider.step = 0.01 
+                            perturbation_slider.step = 0.05
                             perturbation_slider.value = 0.5
                         }
                         el.min = parseFloat(perturbation_id_min.value)
@@ -417,7 +438,7 @@
                         el.transform = perturbation_transform.value
                         el.title = `Transform: ${el.transform}`
                         el.querySelector(".perturbation-group-item-path").textContent = el.path;
-                        el.querySelector(".perturbation-group-item-range").textContent = `[${el.min.toFixed(2)}, ${el.max.toFixed(2)}]`;
+                        el.querySelector(".perturbation-group-item-range").textContent = `[${el.min.toExponential(2)}, ${el.max.toExponential(2)}]`;
                         el.querySelector(".perturbation-group-item-value").textContent = el.original_values.reduce((acc, c) => acc + c/el.original_values.length, 0).toExponential(2);
                     }
                 }
@@ -445,7 +466,7 @@
             })
 
             l2f.initialized.then(() => {
-                perturbation_id_input.value = "parameters.dynamics.rotor_thrust_coefficients.0"
+                perturbation_id_input.value = "parameters.dynamics.mass"
                 perturbation_id_input.dispatchEvent(new Event('input'))
             })
         }
@@ -496,7 +517,8 @@
                     ⬇️
                     <input id="perturbation-id-max" class="perturbation-id-minmax" type="text" disabled></input>
                     ⬆️
-                    <input id="perturbation-transform" type="text" value="(id, p, x) => x" title="id = id of the quadrotor, p = percentage of the slider, x resulting value: slider => range"></input>
+                    <span style="margin-left: 5px;">Transform:</span>
+                    <input id="perturbation-transform" type="text" value="(id, p, x) => x + x/20 * id" title="id = id of the quadrotor, p = percentage of the slider, x resulting value: slider => range"></input>
                 </div>
             </span>
         </div>

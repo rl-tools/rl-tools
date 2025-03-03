@@ -10,7 +10,7 @@ export class L2F{
 
         this.seed = seed
         this.stats = new Stats();
-        this.stats.showPanel(1);
+        this.stats.showPanel(0);
 
         this.stats.dom.style.transform = 'scale(3)';
         this.stats.dom.style.transformOrigin = 'top left';

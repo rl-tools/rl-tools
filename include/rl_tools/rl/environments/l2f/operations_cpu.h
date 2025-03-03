@@ -318,11 +318,8 @@ namespace rl_tools{
     }
 #ifdef RL_TOOLS_ENABLE_JSON
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Dynamics& parameters){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Dynamics& parameters){
         using TI = typename DEVICE::index_t;
-
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
-
         for (TI i = 0; i < PARAM_SPEC::N; i++){
             parameters.rotor_positions[i][0] = json_object["rotor_positions"][i][0];
             parameters.rotor_positions[i][1] = json_object["rotor_positions"][i][1];
@@ -357,13 +354,11 @@ namespace rl_tools{
         parameters.action_limit.max = json_object["action_limit"]["max"];
     }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Integration& parameters) {
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Integration& parameters) {
         parameters.dt = json_object["dt"];
     }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::Initialization& parameters) {
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::Initialization& parameters) {
         parameters.guidance = json_object["guidance"];
         parameters.max_position = json_object["max_position"];
         parameters.max_angle = json_object["max_angle"];
@@ -374,8 +369,7 @@ namespace rl_tools{
         parameters.max_rpm = json_object["max_rpm"];
     }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::Termination& parameters) {
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::Termination& parameters) {
         parameters.enabled = json_object["enabled"];
         parameters.position_threshold = json_object["position_threshold"];
         parameters.linear_velocity_threshold = json_object["linear_velocity_threshold"];
@@ -384,8 +378,7 @@ namespace rl_tools{
         parameters.orientation_integral_threshold = json_object["orientation_integral_threshold"];
     }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::ObservationNoise& parameters) {
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::ObservationNoise& parameters) {
         parameters.position = json_object["position"];
         parameters.orientation = json_object["orientation"];
         parameters.linear_velocity = json_object["linear_velocity"];
@@ -393,42 +386,36 @@ namespace rl_tools{
         parameters.imu_acceleration = json_object["imu_acceleration"];
     }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::ActionNoise& parameters) {
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::ActionNoise& parameters) {
         parameters.normalized_rpm = json_object["normalized_rpm"];
     }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP& parameters) {
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
-        from_json<PARAM_SPEC>(device, env, json_object["init"].dump(), parameters.init);
-        from_json<PARAM_SPEC>(device, env, json_object["observation_noise"].dump(), parameters.observation_noise);
-        from_json<PARAM_SPEC>(device, env, json_object["action_noise"].dump(), parameters.action_noise);
-        from_json<PARAM_SPEC>(device, env, json_object["termination"].dump(), parameters.termination);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP& parameters) {
+        from_json<PARAM_SPEC>(device, env, json_object["init"], parameters.init);
+        from_json<PARAM_SPEC>(device, env, json_object["observation_noise"], parameters.observation_noise);
+        from_json<PARAM_SPEC>(device, env, json_object["action_noise"], parameters.action_noise);
+        from_json<PARAM_SPEC>(device, env, json_object["termination"], parameters.termination);
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, rl::environments::l2f::ParametersBase<PARAM_SPEC>& parameters){
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
-        from_json<PARAM_SPEC>(device, env, json_object["dynamics"].dump(), parameters.dynamics);
-        from_json<PARAM_SPEC>(device, env, json_object["integration"].dump(), parameters.integration);
-        from_json<PARAM_SPEC>(device, env, json_object["mdp"].dump(), parameters.mdp);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersBase<PARAM_SPEC>& parameters){
+        from_json<PARAM_SPEC>(device, env, json_object["dynamics"], parameters.dynamics);
+        from_json<PARAM_SPEC>(device, env, json_object["integration"], parameters.integration);
+        from_json<PARAM_SPEC>(device, env, json_object["mdp"], parameters.mdp);
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, rl::environments::l2f::DisturbancesContainer<PARAM_SPEC>& parameters) {
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::DisturbancesContainer<PARAM_SPEC>& parameters) {
         parameters.random_force.mean = json_object["random_force"]["mean"];
         parameters.random_force.std = json_object["random_force"]["std"];
         parameters.random_torque.mean = json_object["random_torque"]["mean"];
         parameters.random_torque.std = json_object["random_torque"]["std"];
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, rl::environments::l2f::ParametersDisturbances<PARAM_SPEC>& parameters){
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
-        from_json(device, env, json_string, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
-        from_json(device, env, json_object["disturbances"].dump(), parameters.disturbances);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersDisturbances<PARAM_SPEC>& parameters){
+        from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
+        from_json(device, env, json_object["disturbances"], parameters.disturbances);
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, rl::environments::l2f::DomainRandomizationContainer<PARAM_SPEC>& parameters) {
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::DomainRandomizationContainer<PARAM_SPEC>& parameters) {
         parameters.thrust_to_weight_min = json_object["thrust_to_weight_min"];
         parameters.thrust_to_weight_max = json_object["thrust_to_weight_max"];
         parameters.thrust_to_weight_by_torque_to_inertia_min = json_object["thrust_to_weight_by_torque_to_inertia_min"];
@@ -440,16 +427,19 @@ namespace rl_tools{
         parameters.rotor_torque_constant = json_object["rotor_torque_constant"];
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersDomainRandomization<PARAM_SPEC>& parameters){
+        from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
+        from_json(device, env, json_object["domain_randomization"], parameters.domain_randomization);
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, rl::environments::l2f::ParametersDomainRandomization<PARAM_SPEC>& parameters){
         nlohmann::json json_object = nlohmann::json::parse(json_string);
-        from_json(device, env, json_string, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
-        from_json(device, env, json_object["domain_randomization"].dump(), parameters.domain_randomization);
+        from_json(device, env, json_object, parameters);
     }
 
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, std::string json_string, rl::environments::l2f::StateBase<STATE_SPEC>& state){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateBase<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
         for (TI i = 0; i < 3; i++){
             state.position[i] = json_object["position"][i];
             state.orientation[i] = json_object["orientation"][i];
@@ -459,43 +449,38 @@ namespace rl_tools{
         state.orientation[3] = json_object["orientation"][3];
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, std::string json_string, rl::environments::l2f::StateLastAction<STATE_SPEC>& state){
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
-        from_json(device, env, parameters, json_string, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateLastAction<STATE_SPEC>& state){
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (typename DEVICE::index_t action_i = 0; action_i < SPEC::PARAMETERS::N; action_i++){
             state.last_action[action_i] = json_object["last_action"][action_i];
         }
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, std::string json_string, rl::environments::l2f::StateLinearAcceleration<STATE_SPEC>& state){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateLinearAcceleration<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
-        from_json(device, env, parameters, json_string, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI i = 0; i < 3; i++){
             state.linear_acceleration[i] = json_object["linear_acceleration"][i];
         }
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, std::string json_string, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
-        from_json(device, env, parameters, json_string, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         state.position_integral = json_object["position_integral"];
         state.orientation_integral = json_object["orientation_integral"];
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, std::string json_string, rl::environments::l2f::StateRotors<STATE_SPEC>& state){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateRotors<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
-        from_json(device, env, parameters, json_string, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI action_i = 0; action_i < STATE_SPEC::ACTION_DIM; action_i++){
             state.rpm[action_i] = json_object["rpm"][action_i];
         }
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, std::string json_string, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
-        from_json(device, env, parameters, json_string, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < SPEC::PARAMETERS::N; action_i++){
                 state.action_history[step_i][action_i] = json_object["action_history"][step_i][action_i];
@@ -503,14 +488,19 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, std::string json_string, rl::environments::l2f::StateRandomForce<STATE_SPEC>& state){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateRandomForce<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
-        from_json(device, env, parameters, json_string, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        nlohmann::json json_object = nlohmann::json::parse(json_string);
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI i = 0; i < 3; i++){
             state.force[i] = json_object["force"][i];
             state.torque[i] = json_object["torque"][i];
         }
+    }
+    template <typename DEVICE, typename SPEC, typename STATE>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, std::string json_string, STATE& state){
+        using TI = typename DEVICE::index_t;
+        nlohmann::json json_object = nlohmann::json::parse(json_string);
+        from_json(device, env, parameters, json_object, state);
     }
 #endif
     template <typename DEVICE, typename SPEC>
