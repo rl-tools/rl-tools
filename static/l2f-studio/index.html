@@ -87,26 +87,18 @@
             width: 5em;
             text-align: center;
         }
+        #perturbation-transform{
+            text-align: center;
+        }
         .perturbation-group-item {
             display: grid;
             grid-template-columns: 1fr auto auto;
             gap: 12px;
-            /* padding: 8px 12px; */
             align-items: center;
-            /* border-radius: 4px; */
-            /* background-color: #f5f7fa; */
-            /* margin-bottom: 8px; */
-            /* transition: background-color 0.2s ease; */
-        }
-
-        .perturbation-group-item:hover {
-            /* background-color: #e9ecf1; */
         }
 
         .perturbation-group-item-path {
             font-family: monospace;
-            /* color: #0c2d48;
-            font-weight: 500; */
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -114,27 +106,15 @@
 
         .perturbation-group-item-range {
             font-family: monospace;
-            /* color: #2e86ab;
-            padding: 4px 8px;
-            background-color: rgba(46, 134, 171, 0.1);
-            border-radius: 3px; */
             text-align: center;
             overflow: hidden;
         }
 
         .perturbation-group-item-value {
             font-family: monospace;
-            /* font-weight: bold; */
             color: #e63946;
             text-align: center;
             overflow: hidden;
-        }
-
-        /* Optional: Style for the parent list */
-        ul:has(.perturbation-group-item) {
-            list-style-type: none;
-            padding: 0;
-            margin: 0;
         }
     </style>
     <script type="importmap">
@@ -270,6 +250,7 @@
             const perturbation_id_status = document.getElementById("perturbation-id-status")
             const perturbation_id_min = document.getElementById("perturbation-id-min")
             const perturbation_id_max = document.getElementById("perturbation-id-max")
+            const perturbation_transform = document.getElementById("perturbation-transform")
             const perturbation_id_suggestion = document.getElementById("perturbation-id-suggestion")
             const perturbation_groups = document.getElementById("perturbation-groups")
             const perturbation_group_template = document.getElementById("perturbation-group-template")
@@ -356,17 +337,23 @@
                             perturbation_slider.addEventListener("input", (e) => {
                                 const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                                 const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
-                                elements.forEach((el, i) => {
+                                const new_values = elements.map((el, i) => {
                                     // todo: batch this
                                     const found_values = get_values_from_path(el.path)
                                     if(found_values !== undefined){
                                         const percent = parseFloat(perturbation_slider.value)
                                         const original_value = el.original_values[i]
                                         const new_value = percent > 0.5 ? (percent - 0.5) * 2 * (el.max - original_value) + original_value : (1 - (0.5 - percent) * 2) * (original_value - el.min) + el.min
-                                        console.log("new value: ", new_value)
+                                        let new_values = l2f.states.map((state, i) => new_value)
+                                        try{
+                                            new_values = l2f.states.map((state, i) => eval(el.transform)(i, percent, new_value));
+                                        }
+                                        catch(e){
+                                            console.error(e)
+                                        }
+                                        console.log("new value: ", new_values)
 
-                                        set_values_at_path(el.path, new_value)
-                                        // el.innerText = el.path + ` [${el.min}, ${el.max}]: ${new_value.toExponential(2)}`
+                                        set_values_at_path(el.path, new_values)
                                         el.querySelector(".perturbation-group-item-value").textContent = new_value.toExponential(2);
                                         if(elements.length > 1){
                                             const perc_value = (perturbation_slider.value * 2 - 1) * 100
@@ -385,7 +372,6 @@
                                 const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                                 const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
                                 elements.forEach((el, i) => {
-                                    // set_values_at_path(el.path, el.original_values)
                                     perturbation_slider.value = 0.5
                                     perturbation_slider.dispatchEvent(new Event("input"))
                                 })
@@ -402,29 +388,21 @@
                         if(paths.includes(perturbation_id_input.value)){
                             el = elements.find(el => el.path === perturbation_id_input.value)
                             console.log("updating to: ", perturbation_id_min.value, perturbation_id_max.value)
-                            el.min = parseFloat(perturbation_id_min.value)
-                            el.max = parseFloat(perturbation_id_max.value)
                         }
                         else{
                             el = document.createElement("li")
-
-
-
                             const template = document.getElementById("perturbation-group-item-template");
                             el = template.content.firstElementChild.cloneNode(true);
 
                             el.path = perturbation_id_input.value
                             const found_values = get_values_from_path(perturbation_id_input.value)
                             el.original_values = found_values
-                            el.min = parseFloat(perturbation_id_min.value)
-                            el.max = parseFloat(perturbation_id_max.value)
                             current_perturbation_group_list.appendChild(el)
                             el.style.cursor = "pointer"
                             el.addEventListener("click", () => {
                                 current_perturbation_group_list.removeChild(el)
                                 set_values_at_path(el.path, el.original_values)
                                 if(current_perturbation_group_list.children.length === 0){
-                                    // perturbation_slider.disabled = true
                                     perturbation_groups.removeChild(current_perturbation_group)
                                 }
                             })
@@ -434,17 +412,13 @@
                             perturbation_slider.step = 0.01 
                             perturbation_slider.value = 0.5
                         }
+                        el.min = parseFloat(perturbation_id_min.value)
+                        el.max = parseFloat(perturbation_id_max.value)
+                        el.transform = perturbation_transform.value
+                        el.title = `Transform: ${el.transform}`
                         el.querySelector(".perturbation-group-item-path").textContent = el.path;
                         el.querySelector(".perturbation-group-item-range").textContent = `[${el.min.toFixed(2)}, ${el.max.toFixed(2)}]`;
                         el.querySelector(".perturbation-group-item-value").textContent = el.original_values.reduce((acc, c) => acc + c/el.original_values.length, 0).toExponential(2);
-
-
-
-
-                    }
-                    else{
-                        // perturbation_slider.disabled = true
-                        // perturbation_slider_label.innerText = "-"
                     }
                 }
             })
@@ -462,35 +436,18 @@
                     perturbation_id_input.dispatchEvent(event)
                 }
             })
+            perturbation_transform.addEventListener("keydown", (e) => {
+                if(e.key === "Enter"){
+                    const event = new Event('keydown')
+                    event.key = "Enter"
+                    perturbation_id_input.dispatchEvent(event)
+                }
+            })
 
             l2f.initialized.then(() => {
-                // perturbation_id_input.value = "state.position.0"
                 perturbation_id_input.value = "parameters.dynamics.rotor_thrust_coefficients.0"
                 perturbation_id_input.dispatchEvent(new Event('input'))
             })
-
-            // perturbation_slider.addEventListener("input", () => {
-            //     const obj = {
-            //         "state": JSON.parse(l2f.states[0].get_state()),
-            //         "parameters": l2f.parameters[0]
-            //     }
-            //     const found_value = get_value_from_path(perturbation_id_input.value, obj)
-            //     if(found_value !== undefined){
-            //         const path = perturbation_id_input.value.split('.')
-            //         const last_key = path.pop()
-            //         const target_obj = path.reduce((acc, key) => acc[key], obj)
-            //         target_obj[last_key] = parseFloat(perturbation_slider.value)
-            //         console.log("setting state: ", parseFloat(perturbation_slider.value))
-            //         perturbation_slider_label.innerText = perturbation_slider.value
-
-            //         if(path[0] === "state"){
-            //             l2f.states[0].set_state(JSON.stringify(obj.state))
-            //         }
-            //         else{
-            //             l2f.states[0].set_parameters(JSON.stringify(obj.parameters))
-            //         }
-            //     }
-            // })
         }
         window.onload = main
     </script>
@@ -539,6 +496,7 @@
                     ⬇️
                     <input id="perturbation-id-max" class="perturbation-id-minmax" type="text" disabled></input>
                     ⬆️
+                    <input id="perturbation-transform" type="text" value="(id, p, x) => x" title="id = id of the quadrotor, p = percentage of the slider, x resulting value: slider => range"></input>
                 </div>
             </span>
         </div>
