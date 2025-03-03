@@ -215,8 +215,11 @@
             const speed_slider = document.getElementById("speed-slider")
             const speed_info = document.getElementById("speed-info")
             speed_slider.addEventListener("input", () => {
-                l2f.speed = parseFloat(speed_slider.value)
-                speed_info.innerText = `Speed: ${l2f.speed}x`
+                const normalized_value = parseFloat(speed_slider.value)
+                const range = 9;
+                const factor = normalized_value > 0.5 ? (1 + (normalized_value - 0.5) * 2 * range) : (1 + (0.5 - normalized_value) * 2 * range)
+                l2f.speed = normalized_value > 0.5 ? factor : 1 / factor
+                speed_info.innerText = `Speed: ${normalized_value > 0.5 ? factor.toFixed(1) : (normalized_value === 0.5 ? "1" : `1/${factor.toFixed(1)}`)}x`
             })
 
             const show_axes_checkbox = document.getElementById("show-axes")
@@ -354,7 +357,7 @@
                                     const new_value = percent > 0.5 ? (percent - 0.5) * 2 * (el.max - original_value) + original_value : (1 - (0.5 - percent) * 2) * (original_value - el.min) + el.min
                                     let new_values = l2f.states.map((state, i) => new_value)
                                     try{
-                                        new_values = l2f.states.map((state, i) => eval(el.transform)(i, percent, new_value));
+                                        new_values = l2f.states.map((state, i) => eval(el.transform)(i, original_value, percent, new_value));
                                     }
                                     catch(e){
                                         console.error(e)
@@ -467,7 +470,10 @@
 
             l2f.initialized.then(() => {
                 perturbation_id_input.value = "parameters.dynamics.mass"
-                perturbation_id_input.dispatchEvent(new Event('input'))
+                perturbation_id_input.dispatchEvent(new Event("input"))
+                const event = new Event('keydown')
+                event.key = "Enter"
+                perturbation_id_input.dispatchEvent(event)
             })
         }
         window.onload = main
@@ -490,7 +496,7 @@
                     <span class="control-container-label" id="speed-info">Speed: 1x</span>
                 </div>
                 <div>
-                    <input type="range" id="speed-slider" min="0.01" max="5" step="0.01" value="1">
+                    <input type="range" id="speed-slider" min="0" max="1" step="0.05" value="0.5">
                 </div>
             </span>
             <label>
@@ -518,7 +524,7 @@
                     <input id="perturbation-id-max" class="perturbation-id-minmax" type="text" disabled></input>
                     ⬆️
                     <span style="margin-left: 5px;">Transform:</span>
-                    <input id="perturbation-transform" type="text" value="(id, p, x) => x + x/20 * id" title="id = id of the quadrotor, p = percentage of the slider, x resulting value: slider => range"></input>
+                    <input id="perturbation-transform" type="text" value="(id, o, p, x) => o/2 + p*o/20 * id" title="id = id of the quadrotor, o = original value, p = percentage of the slider, x resulting value: slider => range"></input>
                 </div>
             </span>
         </div>
