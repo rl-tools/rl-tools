@@ -4,7 +4,7 @@
     <title>L2F Studio</title>
     <template id="perturbation-group-template" >
         <div class="perturbation-group">
-            <div>Perturbation Group</div>
+            <div class="perturbation-group-targets"></div>
             <span class="perturbation-group-list">
                 <ul>
                 </ul>
@@ -385,7 +385,9 @@
                                 const current_perturbation_group_list = current_perturbation_group.querySelector(":scope > span.perturbation-group-list > ul")
                                 const elements = Array.from(current_perturbation_group_list.querySelectorAll(":scope > li"))
                                 elements.forEach((el, i) => {
-
+                                    // set_values_at_path(el.path, el.original_values)
+                                    perturbation_slider.value = 0.5
+                                    perturbation_slider.dispatchEvent(new Event("input"))
                                 })
                             })
                         }
@@ -420,8 +422,10 @@
                             el.style.cursor = "pointer"
                             el.addEventListener("click", () => {
                                 current_perturbation_group_list.removeChild(el)
+                                set_values_at_path(el.path, el.original_values)
                                 if(current_perturbation_group_list.children.length === 0){
-                                    perturbation_slider.disabled = true
+                                    // perturbation_slider.disabled = true
+                                    perturbation_groups.removeChild(current_perturbation_group)
                                 }
                             })
                             perturbation_slider.disabled = false;
