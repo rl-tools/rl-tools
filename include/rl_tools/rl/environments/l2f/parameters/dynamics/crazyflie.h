@@ -67,37 +67,37 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             // J
             {
                     {
-                            1.5e-5,
+                            1.029e-5,
                             0.0,
                             0.0
                     },
                     {
                             0.0,
-                            1.5e-5,
+                            1.105e-5,
                             0.0
                     },
                     {
                             0.0,
                             0.0,
-                            3.00e-5
+                            2.005e-5
                     }
             },
             // J_inv
             {
                     {
-                            66666,
+                            97181.7298347911,
                             0.0,
                             0.0
                     },
                     {
                             0.0,
-                            66666,
+                            90497.7375565611,
                             0.0
                     },
                     {
                             0.0,
                             0.0,
-                            33333
+                            49875.3117206983
                     }
             },
             // hovering throttle (julia): sqrt((mass * 9.81/4 - thrust_curve[1])/thrust_curve[3]),
