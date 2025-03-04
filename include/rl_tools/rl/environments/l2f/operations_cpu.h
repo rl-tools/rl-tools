@@ -571,6 +571,7 @@ class State{
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
         this.cursor_grab = true // Instruct the embedding code to make the cursor a grab cursor
+        this.render_tick = 0
     }
     async initialize(){
         const width = this.canvas.width
@@ -840,15 +841,19 @@ export async function episode_init_multi(ui_state, parameters){
 }
 
 function update_camera(ui_state){
-    const width = ui_state.canvas.width/ui_state.devicePixelRatio
-    const height = ui_state.canvas.height/ui_state.devicePixelRatio
-    ui_state.camera.aspect =  width / height
-    ui_state.camera.updateProjectionMatrix()
-    ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio)
-    ui_state.renderer.setSize(width, height)
+    if(ui_state.render_tick % 10 == 0){
+        const width = ui_state.canvas.width/ui_state.devicePixelRatio
+        const height = ui_state.canvas.height/ui_state.devicePixelRatio
+        ui_state.camera.aspect =  width / height
+        ui_state.camera.updateProjectionMatrix()
+        ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio)
+        ui_state.renderer.setSize(width, height)
+    }
 
     ui_state.controls.update()
     ui_state.renderer.render(ui_state.scene, ui_state.camera);
+
+    ui_state.render_tick += 1
 }
 
 function clip_position(scale, position){
@@ -868,13 +873,13 @@ function clip_position(scale, position){
     })
 }
 
-export async function render(ui_state, parameters, state, action) {
+export function render(ui_state, parameters, state, action) {
     ui_state.drone.droneFrame.position.set(...clip_position(parameters.dynamics.mass, state.position))
     ui_state.drone.droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
     update_camera(ui_state)
 }
 
-export async function render_multi(ui_state, parameters, states, actions){
+export function render_multi(ui_state, parameters, states, actions){
     states.map((state, i) => {
         const action = actions[i]
         const current_parameters = parameters[i]

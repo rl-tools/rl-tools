@@ -139,6 +139,9 @@ namespace rl_tools::rl::zoo::l2f{
                 rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>,
                 rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>
             };
+            static constexpr T STATE_LIMIT_POSITION = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::MultiTaskSpecification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
