@@ -240,7 +240,8 @@ namespace rl_tools::rl::environments::l2f {
 
         if constexpr(!STATE_SPEC::CLOSED_FORM) {
             for(typename DEVICE::index_t i_rotor = 0; i_rotor < 4; i_rotor++){
-                state_change.rpm[i_rotor] = (action[i_rotor] - state.rpm[i_rotor]) * 1/params.dynamics.rotor_time_constants[i_rotor];
+                T tau = action[i_rotor] >= state.rpm[i_rotor] ? params.dynamics.rotor_time_constants_rising[i_rotor] : params.dynamics.rotor_time_constants_falling[i_rotor] ;
+                state_change.rpm[i_rotor] = (action[i_rotor] - state.rpm[i_rotor]) * 1/tau;
             }
         }
 
@@ -979,7 +980,8 @@ namespace rl_tools{
         for(typename DEVICE::index_t rpm_i = 0; rpm_i < MULTIROTOR::ACTION_DIM; rpm_i++){
             if constexpr(STATE_SPEC::CLOSED_FORM) {
                 T setpoint_clamped = math::clamp(typename DEVICE::SPEC::MATH{}, get(action, 0, rpm_i), parameters.dynamics.action_limit.min, parameters.dynamics.action_limit.max);
-                T alpha = math::exp(device.math, - parameters.integration.dt / parameters.dynamics.rotor_time_constants[rpm_i]);
+                T tau = setpoint_clamped >= state.rpm[rpm_i] ? parameters.dynamics.rotor_time_constants_rising[rpm_i] : parameters.dynamics.rotor_time_constants_falling[rpm_i] ;
+                T alpha = math::exp(device.math, - parameters.integration.dt / tau);
                 next_state.rpm[rpm_i] = alpha * state.rpm[rpm_i] + (1 - alpha) * setpoint_clamped;
             }
             else {

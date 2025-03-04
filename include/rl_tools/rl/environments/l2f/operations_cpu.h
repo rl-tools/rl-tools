@@ -64,9 +64,18 @@ namespace rl_tools{
         }
         json_string += "], ";
 
-        json_string += "\"rotor_time_constants\": [";
+        json_string += "\"rotor_time_constants_rising\": [";
         for (TI i = 0; i < PARAM_SPEC::N; i++){
-            json_string += std::to_string(parameters.rotor_time_constants[i]);
+            json_string += std::to_string(parameters.rotor_time_constants_rising[i]);
+            if (i < PARAM_SPEC::N - 1) {
+                json_string += ", ";
+            }
+        }
+        json_string += "], ";
+
+        json_string += "\"rotor_time_constants_falling\": [";
+        for (TI i = 0; i < PARAM_SPEC::N; i++){
+            json_string += std::to_string(parameters.rotor_time_constants_falling[i]);
             if (i < PARAM_SPEC::N - 1) {
                 json_string += ", ";
             }
@@ -334,7 +343,8 @@ namespace rl_tools{
             parameters.rotor_thrust_coefficients[i][1] = json_object["rotor_thrust_coefficients"][i][1];
             parameters.rotor_thrust_coefficients[i][2] = json_object["rotor_thrust_coefficients"][i][2];
             parameters.rotor_torque_constants[i] = json_object["rotor_torque_constants"][i];
-            parameters.rotor_time_constants[i] = json_object["rotor_time_constants"][i];
+            parameters.rotor_time_constants_rising[i] = json_object["rotor_time_constants_rising"][i];
+            parameters.rotor_time_constants_falling[i] = json_object["rotor_time_constants_falling"][i];
         }
 
         parameters.mass = json_object["mass"];
