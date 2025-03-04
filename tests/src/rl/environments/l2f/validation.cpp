@@ -52,6 +52,9 @@ namespace static_parameter_builder{
         using PARAMETER_FACTORY = parameters::DefaultParameters<T, TI>;
         static constexpr auto PARAMETER_VALUES = PARAMETER_FACTORY::parameters;
         using PARAMETERS = typename PARAMETER_FACTORY::PARAMETERS_TYPE;
+        static constexpr T STATE_LIMIT_POSITION = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
     };
 }
 
@@ -118,7 +121,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
         parameters.dynamics.rotor_thrust_coefficients[rotor_i][1] = j["dynamics"]["thrust_curve"]["data"][rotor_i][1];
         parameters.dynamics.rotor_thrust_coefficients[rotor_i][2] = j["dynamics"]["thrust_curve"]["data"][rotor_i][2];
         parameters.dynamics.rotor_torque_constants[rotor_i] = j["dynamics"]["torque_constant"];
-        parameters.dynamics.rotor_time_constants[rotor_i] = j["dynamics"]["motor_time_constant"];
+        parameters.dynamics.rotor_time_constants_rising[rotor_i] = j["dynamics"]["motor_time_constant"];
+        parameters.dynamics.rotor_time_constants_falling[rotor_i] = j["dynamics"]["motor_time_constant"];
     }
     parameters.dynamics.action_limit.min = 0;
     parameters.dynamics.action_limit.max = 1;

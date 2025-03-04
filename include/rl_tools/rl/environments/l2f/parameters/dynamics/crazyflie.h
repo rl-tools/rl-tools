@@ -60,6 +60,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             {4.665e-3, 4.665e-3, 4.665e-3, 4.665e-3},
             // T, RPM time constant
             {0.072, 0.072, 0.072, 0.072},
+            {0.072, 0.072, 0.072, 0.072},
             // mass vehicle
             0.027,
             // gravity

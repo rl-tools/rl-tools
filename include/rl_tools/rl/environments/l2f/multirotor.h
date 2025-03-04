@@ -33,7 +33,8 @@ namespace rl_tools::rl::environments::l2f{
             T rotor_torque_directions[N][3];
             T rotor_thrust_coefficients[N][3];
             T rotor_torque_constants[N];
-            T rotor_time_constants[N];
+            T rotor_time_constants_rising[N];
+            T rotor_time_constants_falling[N];
             T mass;
             T gravity[3];
             T J[3][3];
