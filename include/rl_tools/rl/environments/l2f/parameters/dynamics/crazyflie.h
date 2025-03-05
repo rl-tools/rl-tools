@@ -62,7 +62,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             {0.077, 0.077, 0.077, 0.077},
             {0.211, 0.211, 0.211, 0.211},
             // mass vehicle
-            0.027 + 0.017 + 0.003 + 0.016, // take-off-weight, sd card deck, sd card, optical flow deck (v2)
+            0.027 + 0.0017 + 0.0003 + 0.0016, // take-off-weight, sd card deck, sd card, optical flow deck (v2)
             // gravity
             {0, 0, -9.81},
             // J
