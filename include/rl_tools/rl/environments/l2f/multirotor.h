@@ -327,6 +327,26 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct AngularVelocityDelayedSpecification {
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct AngularVelocityDelayedSpecificationPrivileged: AngularVelocityDelayedSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+            static constexpr bool PRIVILEGED = true;
+        };
+        template <typename SPEC>
+        struct AngularVelocityDelayed{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            static constexpr TI CURRENT_DIM = 3;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct RotorSpeedsSpecification {
             using T = T_T;
             using TI = T_TI;
@@ -454,6 +474,24 @@ namespace rl_tools::rl::environments::l2f{
         using TI = typename SPEC::TI;
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         T linear_acceleration[3]; // this is just to save computation when simulating IMU measurements. Wihtout this we would need to recalculate the acceleration in the observation operation. This is not part of the minimal state in the sense that the transition dynamics are independent of the acceleration given the other parts of the state and the action
+    };
+
+    template <typename T_T, typename T_TI, T_TI T_DELAY, typename T_NEXT_COMPONENT>
+    struct StateAngularVelocityDelaySpecification{
+        using T = T_T;
+        using TI = T_TI;
+        static constexpr TI DELAY = T_DELAY;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename T_SPEC>
+    struct StateAngularVelocityDelay: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI DIM = 3 + NEXT_COMPONENT::DIM;
+        T angular_velocity_history[SPEC::DELAY][3];
     };
 
     template <typename T_SPEC>
