@@ -1,5 +1,5 @@
-import * as hdf5 from "https://esm.sh/jsfive";
-import * as math from 'https://esm.sh/mathjs'
+import * as hdf5 from "jsfive";
+import * as math from 'mathjs'
 
 class Matrix{
     constructor(dataset){
