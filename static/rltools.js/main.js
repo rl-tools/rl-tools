@@ -111,22 +111,30 @@ class Sequential{
 
 
 function layer_dispatch(group){
+    let model = null
     if(group.attrs.type === "dense") {
-        return new DenseLayer(group)
+        model = new DenseLayer(group)
     }
     else if(group.attrs.type === "mlp") {
-        return new MLP(group)
+        model = new MLP(group)
     }
     else if(group.attrs.type === "sequential") {
-        return new Sequential(group)
+        model = new Sequential(group)
     }
     else if(group.attrs.type === "sample_and_squash") {
-        return new SampleAndSquashLayer(group)
+        model = new SampleAndSquashLayer(group)
     }
     else{
         console.error("Unknown layer type: ", group.attrs.type)
-        return null
+        model = null
     }
+    if("checkpoint_name" in group.attrs){
+        model.checkpoint_name = group.attrs.checkpoint_name
+    }
+    else{
+        model.checkpoint_name = "noname"
+    }
+    return model
 }
 
 function load_from_array_buffer(buffer){
