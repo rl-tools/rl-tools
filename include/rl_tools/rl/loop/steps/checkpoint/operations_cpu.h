@@ -131,7 +131,9 @@ namespace rl_tools{
             std::cerr << "Checkpointing to: " << checkpoint_path << std::endl;
             try{
                 auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
-                rl_tools::save(device, evaluation_actor, actor_file.createGroup("actor"));
+                auto actor_group = actor_file.createGroup("actor");
+                actor_group.createAttribute("checkpoint_name", step_folder);
+                rl_tools::save(device, evaluation_actor, actor_group);
                 {
                     using T = typename EVALUATION_ACTOR_TYPE::T;
                     Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
