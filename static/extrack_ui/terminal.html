@@ -4,18 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ExTrack Terminal</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/keybinding-vim.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/mode-javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/theme-tomorrow.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+    <script src="./lib/ace/ace.js"></script>
+    <script src="./lib/ace/keybinding-vim.js"></script>
+    <script src="./lib/ace/mode-javascript.js"></script>
+    <script src="./lib/ace/theme-tomorrow.js"></script>
+<!--    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>-->
+<!--    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>-->
 
     <script type="importmap">
         {
             "imports": {
-                "three": "./lib/three.module.js",
-                "three-orbitcontrols": "./lib/OrbitControls.js"
+                "three": "./lib/three.js",
+                "three-orbitcontrols": "./lib/three.js",
+                "chart.js": "./lib/chart.js",
+                "pako": "./lib/dependencies.js"
             }
         }
     </script>
@@ -179,7 +181,10 @@
     </div>
 </div>
 
-<script>
+<script type="module">
+    import {Chart, LineController, ScatterController, LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Filler, Legend} from "chart.js"
+    Chart.register(LineController, ScatterController, LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Filler, Legend);
+    import pako from "pako"
 
     const experiments_path = "/experiments"
     const STORAGE_KEYS = {
@@ -326,10 +331,41 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
                 const yAxisLabel = y_axis_label || 'Y-Axis';
                 const chartTitle = title || '';
 
+                const defaultColors = [
+                    'rgba(255, 99, 132, 0.2)',
+                    'rgba(54, 162, 235, 0.2)',
+                    'rgba(255, 206, 86, 0.2)',
+                    'rgba(75, 192, 192, 0.2)',
+                    'rgba(153, 102, 255, 0.2)',
+                    'rgba(255, 159, 64, 0.2)'
+                ];
+
+                const defaultBorderColors = [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)'
+                ];
+
+                function apply_default_colors(datasets) {
+                    const new_datasets = structuredClone(datasets)
+                    new_datasets.forEach((dataset, index) => {
+                        if (!dataset.backgroundColor) {
+                            dataset.backgroundColor = defaultColors[index % defaultColors.length];
+                        }
+                        if (!dataset.borderColor) {
+                            dataset.borderColor = defaultBorderColors[index % defaultBorderColors.length];
+                        }
+                    });
+                    return new_datasets;
+                }
+
                 const scatter_chart = new Chart(ctx, {
                     type: 'scatter',
                     data: {
-                        datasets: input_data
+                        datasets: apply_default_colors(input_data)
                     },
                     options: {
                         animation: false,

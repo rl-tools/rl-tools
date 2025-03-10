@@ -8,8 +8,10 @@
     <script type="importmap">
         {
             "imports": {
-                "three": "./lib/three.module.js",
-                "three-orbitcontrols": "./lib/OrbitControls.js"
+                "three": "./lib/three.js",
+                "three-orbitcontrols": "./lib/three.js",
+                "chart.js": "./lib/chart.js",
+                "pako": "./lib/dependencies.js"
             }
         }
     </script>
@@ -30,12 +32,11 @@
         function check_dependency(path){
             fetch(path).then((response) => {
                 if(!response.ok){
-                    alert(`Error: Could not load dependency: ${path}. Please run \`./download_dependencies.sh\` in the \`./static/extrack_ui\` directory`)
+                    alert(`Error: Could not load dependency: ${path}. Please run check the README.md in the \`./static/extrack_ui\` directory to install and bundle the required packages`)
                 }
             })
         }
-        check_dependency("./lib/three.module.js")
-        check_dependency("./lib/OrbitControls.js")
+        check_dependency("./lib/three.js")
         const url = window.location.href;
         const urlObj = new URL(url);
         const params = new URLSearchParams(urlObj.search);

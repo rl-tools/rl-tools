@@ -1,4 +1,4 @@
-import {Chart, LineController, ScatterController, LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Filler, Legend} from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.8/+esm';
+import {Chart, LineController, ScatterController, LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Filler, Legend} from "chart.js"
 Chart.register(LineController, ScatterController, LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Filler, Legend);
 
 function hexToRgba(hex, alpha = 1.0) {
