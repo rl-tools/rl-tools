@@ -11,6 +11,9 @@
 [submodule "static/rl.tools/media"]
 	path = static/rl.tools/media
 	url = https://github.com/rl-tools/media.git
+[submodule "static/extrack_ui/lib"]
+	path = static/extrack_ui/lib
+	url = https://github.com/rl-tools/extrack-ui-lib.git
 
 # Embedded Platforms
 [submodule "embedded_platforms/px4"]
