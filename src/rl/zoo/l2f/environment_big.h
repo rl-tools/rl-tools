@@ -47,17 +47,6 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // action
                 01.00, // d_action
         };
-//        static constexpr auto reward_function = [](){
-//            auto reward_function = ENVIRONMENT_FACTORY::reward_function;
-////            reward_function.constant = 0;
-//            reward_function.scale = 0.09;
-//            reward_function.position = 20;
-//            reward_function.orientation = 0.05;
-//            reward_function.linear_velocity = 2.0;
-//            reward_function.action = 0.0;
-////            reward_function.termination_penalty = 0;
-//            return reward_function;
-//        }();
 
         static constexpr auto termination = [](){
             auto termination = ENVIRONMENT_FACTORY_BASE::termination;
@@ -67,12 +56,6 @@ namespace rl_tools::rl::zoo::l2f{
 
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             ENVIRONMENT_FACTORY_BASE::init,
-//            [](){
-//                auto base = rl_tools::rl::environments::l2f::parameters::init::init_0_deg<PARAMETERS_SPEC>;
-//                base.max_linear_velocity = 0.0;
-//                base.max_angular_velocity = 0.0;
-//                return base;
-//            }(),
             reward_function,
             { // observation_noise
                 0.00,// position
@@ -133,11 +116,8 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters(ENVIRONMENT_FACTORY_BASE::dynamics);
-            static constexpr TI N_DYNAMICS_VALUES = 2;
+            static constexpr TI N_DYNAMICS_VALUES = 1;
             static constexpr typename PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
-                // rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>,
-                // rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::x500_real, PARAMETERS_SPEC>,
-                rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>,
                 rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>
             };
             static constexpr T STATE_LIMIT_POSITION = 100000;
