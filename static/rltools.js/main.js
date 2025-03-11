@@ -113,7 +113,7 @@ class Sequential{
             this.layers.push(layer_dispatch(group.get("layers").get(`${i}`)))
         }
         this.input_shape = this.layers[0].input_shape
-        this.output_shape = this.layers.reverse().find(layer => layer.output_shape.reduce((a, c) => (a || c !== null), null)).output_shape
+        this.output_shape = this.layers.slice().reverse().find(layer => layer.output_shape.reduce((a, c) => (a || c !== null), null)).output_shape
     }
     evaluate(input){
         let current = input
