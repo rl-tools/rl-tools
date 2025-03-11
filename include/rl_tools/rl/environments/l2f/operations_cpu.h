@@ -281,12 +281,13 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateRotors<STATE_SPEC>& state, bool top_level=true){
         using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateRotors<STATE_SPEC>;
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
         json_string += "\"rpm\": [";
-        for (TI action_i = 0; action_i < STATE_SPEC::ACTION_DIM; action_i++){
+        for (TI action_i = 0; action_i < STATE::ACTION_DIM; action_i++){
             json_string += std::to_string(state.rpm[action_i]);
-            if (action_i < STATE_SPEC::ACTION_DIM - 1) {
+            if (action_i < STATE::ACTION_DIM - 1) {
                 json_string += ", ";
             }
         }
@@ -296,8 +297,9 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state, bool top_level=true){
         using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
         std::string json_string = top_level ? "{" : "";
-        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += json(device, env, parameters, static_cast<const typename STATE::NEXT_COMPONENT&>(state), false) + ", ";
         json_string += "\"action_history\": [";
         for (TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
             json_string += "[";
@@ -482,15 +484,17 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateRotors<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateRotors<STATE_SPEC>;
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        for (TI action_i = 0; action_i < STATE_SPEC::ACTION_DIM; action_i++){
+        for (TI action_i = 0; action_i < STATE::ACTION_DIM; action_i++){
             state.rpm[action_i] = json_object["rpm"][action_i];
         }
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
-        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE::NEXT_COMPONENT&>(state));
         for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < SPEC::PARAMETERS::N; action_i++){
                 state.action_history[step_i][action_i] = json_object["action_history"][step_i][action_i];

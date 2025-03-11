@@ -521,8 +521,9 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr bool CLOSED_FORM = SPEC::CLOSED_FORM;
         static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI PARENT_DIM = NEXT_COMPONENT::DIM;
-        static constexpr TI DIM = PARENT_DIM + 4;
-        T rpm[4];
+        static constexpr TI ACTION_DIM = 4;
+        static constexpr TI DIM = PARENT_DIM + ACTION_DIM;
+        T rpm[ACTION_DIM];
     };
     template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, bool T_CLOSED_FORM, typename T_NEXT_COMPONENT>
     struct StateRotorsHistorySpecification{
