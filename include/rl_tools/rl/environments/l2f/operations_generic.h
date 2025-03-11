@@ -442,8 +442,9 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
         using MULTIROTOR = rl::environments::Multirotor<SPEC>;
-        initial_state(device, env, parameters, static_cast<rl::environments::l2f::StateRotors<STATE_SPEC>&>(state));
+        initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state));
         state.current_step = 0;
         for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
@@ -501,7 +502,7 @@ namespace rl_tools{
     static bool is_nan(DEVICE& device, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
         using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
         using TI = typename DEVICE::index_t;
-        is_nan(device, static_cast<rl::environments::l2f::StateRotors<STATE_SPEC>&>(state));
+        is_nan(device, static_cast<typename STATE::NEXT_COMPONENT&>(state));
         bool nan = false;
         for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < STATE::ACTION_DIM; action_i++){
@@ -678,7 +679,8 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state, RNG& rng){
         using MULTIROTOR = rl::environments::Multirotor<SPEC>;
         using TI = typename DEVICE::index_t;
-        sample_initial_state(device, env, parameters, static_cast<rl::environments::l2f::StateRotors<STATE_SPEC>&>(state), rng);
+        using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
+        sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
         state.current_step = 0;
         for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
@@ -1071,8 +1073,9 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& next_state, RNG& rng) {
         using MULTIROTOR = rl::environments::Multirotor<SPEC>;
         using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
-        post_integration(device, env, parameters, static_cast<const rl::environments::l2f::StateRotors<STATE_SPEC>&>(state), action, static_cast<rl::environments::l2f::StateRotors<STATE_SPEC>&>(next_state), rng);
+        post_integration(device, env, parameters, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(next_state), rng);
         if constexpr(STATE_SPEC::HISTORY_LENGTH > 0){
             TI current_step = state.current_step;
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
