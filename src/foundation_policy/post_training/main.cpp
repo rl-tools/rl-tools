@@ -54,10 +54,10 @@ namespace rlt = rl_tools;
 
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using RNG_PARAMS_DEVICE = rlt::devices::random::Generic<DEVICE::SPEC::MATH>;
 using RNG_PARAMS = RNG_PARAMS_DEVICE::ENGINE<>;
-using TI = typename DEVICE::index_t;
+using TI = DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
@@ -65,7 +65,7 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
     static constexpr bool ACTION_HISTORY = true;
-    static constexpr TI ACTION_HISTORY_LENGTH = 16;
+    static constexpr TI ACTION_HISTORY_LENGTH = 64;
     static constexpr bool OBSERVATION_NOISE = true;
 };
 
@@ -74,7 +74,7 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 2000;
-constexpr TI N_EPOCH = 1000;
+constexpr TI N_EPOCH = 30;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
@@ -192,7 +192,7 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-02-20_15-25-14";
+    checkpoint_path.experiment = "2025-03-10_19-55-00";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     for (TI seed_i = 0; seed_i < N_PRE_TRAINING_SEEDS; seed_i++){
@@ -209,7 +209,7 @@ int main(int argc, char** argv){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
             return 1;
         }
-        rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
+        rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated);
         TI num_added = add_to_dataset(device, *data, dataset_input, dataset_output_target, current_index, base_parameters, rng);
         if (num_added == 0){
             std::cout << "Dataset full after " << seed_i << " seeds" << std::endl;

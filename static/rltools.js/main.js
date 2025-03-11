@@ -21,6 +21,8 @@ class Tensor{
 class DenseLayer{
     constructor(group){
         this.weights = group.get("weights").attrs.type === "matrix" ? new Matrix(group.get("weights").get("parameters")) : new Tensor(group.get("weights").get("parameters"))
+        this.input_shape = [null, null, this.weights.shape[1]]
+        this.output_shape = [null, null, this.weights.shape[0]]
         this.biases = group.get("biases").attrs.type === "matrix" ? new Matrix(group.get("biases").get("parameters")) : new Tensor(group.get("biases").get("parameters"))
         this.activation_function_name = group.attrs.activation_function
     }
@@ -36,6 +38,16 @@ class DenseLayer{
         }
         else if(this.activation_function_name === "TANH"){
             return math.map(input, x => math.tanh(x))
+        }
+        else if(this.activation_function_name === "FAST_TANH"){
+            function clamp(value, min, max) {
+                return Math.max(min, Math.min(max, value));
+            }
+            return math.map(input, inp => {
+                const x = clamp(inp, -3.0, 3.0);
+                const x_squared = x * x;
+                return x * (27 + x_squared) / (27 + 9 * x_squared);
+            })
         }
         else{
             console.error("Unknown activation function: ", this.activation_function_name)
@@ -55,6 +67,8 @@ class DenseLayer{
 }
 class SampleAndSquashLayer{
     constructor(group){
+        this.input_shape = [null, null, null]
+        this.output_shape = [null, null, null]
     }
     evaluate(input){
         const mean = math.subset(input, math.index(
@@ -78,6 +92,8 @@ class MLP{
             this.hidden_layers.push(new DenseLayer(group.get(`hidden_layer_${i}`)))
         }
         this.output_layer = new DenseLayer(group.get("output_layer"))
+        this.input_shape = this.input_layer.input_shape
+        this.output_shape = this.output_layer.output_shape
     }
     evaluate(input){
         let current = this.input_layer.evaluate(input)
@@ -96,6 +112,8 @@ class Sequential{
         for(let i = 0; i < group.get("layers").keys.length; i++){
             this.layers.push(layer_dispatch(group.get("layers").get(`${i}`)))
         }
+        this.input_shape = this.layers[0].input_shape
+        this.output_shape = this.layers.reverse().find(layer => layer.output_shape.reduce((a, c) => (a || c !== null), null)).output_shape
     }
     evaluate(input){
         let current = input
