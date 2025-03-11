@@ -64,7 +64,7 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
-    static constexpr bool ACTION_HISTORY = true;
+    static constexpr bool ACTION_HISTORY = false;
     static constexpr TI ACTION_HISTORY_LENGTH = 64;
     static constexpr bool OBSERVATION_NOISE = true;
 };
@@ -195,7 +195,7 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-11_09-45-30";
+    checkpoint_path.experiment = "2025-03-11_18-27-44";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     for (TI seed_i = 0; seed_i < N_PRE_TRAINING_SEEDS; seed_i++){
