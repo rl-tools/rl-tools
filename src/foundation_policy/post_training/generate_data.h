@@ -34,7 +34,7 @@ auto generate_data(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, ty
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
     rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>> evaluation_mode;
-    rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
+    rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, data, eval_buffer, rng, evaluation_mode, false, true);
 
     rlt::free(device, evaluation_actor);
     rlt::free(device, eval_buffer);
