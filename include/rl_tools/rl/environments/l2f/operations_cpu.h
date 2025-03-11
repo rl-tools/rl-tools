@@ -13,6 +13,116 @@
 // Why no JSON library? introduces a dependency and increases the compile time (massively in case of e.g. nlohmann::json)
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    namespace rl::environments::l2f::obs_helper{
+        template <typename DEVICE, typename ENV, typename OBS>
+        auto dispatch(DEVICE& device, const ENV& env, const OBS& obs, bool first = true);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::LastComponent<OBS_SPEC>& obs, bool first = true){
+        return "";
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::Multiplex<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::Multiplex<OBS_SPEC>;
+        std::string output;
+        if constexpr(OBS_SPEC::ENABLE){
+            output += rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::CURRENT_COMPONENT{}, first);
+            first = false;
+        }
+        output += rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, first);
+        return output;
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::Position<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::Position<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "Position" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::OrientationQuaternion<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::OrientationQuaternion<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "OrientationQuaternion" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::OrientationRotationMatrix<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::OrientationRotationMatrix<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "OrientationRotationMatrix" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::LinearVelocity<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::LinearVelocity<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "LinearVelocity" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::AngularVelocity<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::AngularVelocity<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "AngularVelocity" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::IMUAccelerometer<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::IMUAccelerometer<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "IMUAccelerometer" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::Magnetometer<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::Magnetometer<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "Magnetometer" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::AngularVelocityDelayed<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::AngularVelocityDelayed<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "AngularVelocityDelayed" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::PoseIntegral<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::PoseIntegral<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "PoseIntegral" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::RotorSpeeds<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::RotorSpeeds<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "RotorSpeeds" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ActionHistory<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ActionHistory<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "ActionHistory(" + std::to_string(OBSERVATION::HISTORY_LENGTH) + ")" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::RandomForce<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::RandomForce<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "RandomForce" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersMass<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ParametersMass<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "ParametersMass" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersThrustCurves<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ParametersThrustCurves<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "ParametersThrustCurves" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersMotorPosition<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ParametersMotorPosition<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "ParametersMotorPosition" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    namespace rl::environments::l2f::obs_helper{
+        template <typename DEVICE, typename ENV, typename OBS>
+        auto dispatch(DEVICE& device, const ENV& env, const OBS& obs, bool first){
+            return string(device, env, obs, first);
+        }
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env){
+        using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
+        std::string json_string = "{";
+        json_string += "\"name\": \"l2f\",";
+        json_string += "\"observation\": \"";
+        json_string += rl_tools::string(device, env, typename ENVIRONMENT::Observation{});
+        json_string += "\"}";
+        return json_string;
+    }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Dynamics& parameters){
         using T = typename SPEC::T;
@@ -291,6 +401,7 @@ namespace rl_tools{
                 json_string += ", ";
             }
         }
+        json_string += "]";
         json_string += top_level ? "}" : "";
         return json_string;
     }

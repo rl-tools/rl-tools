@@ -168,22 +168,6 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr T_TI DIM = 0;
         };
 
-        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct PoseIntegralSpecification {
-            using T = T_T;
-            using TI = T_TI;
-            using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr bool PRIVILEGED = true;
-        };
-        template <typename SPEC>
-        struct PoseIntegral{
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
-            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
-            static constexpr TI CURRENT_DIM = 2;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
-        };
 
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct PositionSpecification{
@@ -344,6 +328,22 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 3;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct PoseIntegralSpecification {
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = true;
+        };
+        template <typename SPEC>
+        struct PoseIntegral{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr TI CURRENT_DIM = 2;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
