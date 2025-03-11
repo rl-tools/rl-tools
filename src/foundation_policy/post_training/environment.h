@@ -8,25 +8,26 @@ namespace builder{
 
         using BASE_ENV = ENVIRONMENT_FACTORY<DEVICE, T, TI, OPTIONS>;
 
-        using PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, typename BASE_ENV::REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDisturbances<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>;
+        using PARAMETERS_TYPE = typename BASE_ENV::PARAMETERS_TYPE;
         static constexpr PARAMETERS_TYPE nominal_parameters = [](){
             PARAMETERS_TYPE params = {
                 {
-                    BASE_ENV::dynamics,
-                    BASE_ENV::integration,
-                    BASE_ENV::mdp,
-                    BASE_ENV::domain_randomization
-                },
-                BASE_ENV::disturbances
-            };
+                    {
+                        BASE_ENV::dynamics,
+                        BASE_ENV::integration,
+                        BASE_ENV::mdp,
+                    }, // Base
+                    BASE_ENV::disturbances
+                }, // Disturbances
+                BASE_ENV::domain_randomization
+            }; // Domain Randomization
             if constexpr(OPTIONS::OBSERVATION_NOISE){
                 params.mdp.observation_noise = {
-                    0.01, // position
-                    0.01, // orientation
-                    0.01, // linear_velocity
-                    0.01, // angular_velocity
-                    0.01 // imu acceleration
+                    0.00, // position
+                    0.00, // orientation
+                    0.00, // linear_velocity
+                    0.00, // angular_velocity
+                    0.00 // imu acceleration
                 };
             }
             return params;
@@ -63,6 +64,9 @@ namespace builder{
             static constexpr typename BASE_ENV::PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
                 rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, typename BASE_ENV::PARAMETERS_SPEC>
             };
+            static constexpr T STATE_LIMIT_POSITION = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::MultiTaskSpecification<T, TI, ENVIRONMENT_STATIC_PARAMETERS, OPTIONS::SAMPLE_INITIAL_PARAMETERS>;
