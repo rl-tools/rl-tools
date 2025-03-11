@@ -146,11 +146,15 @@ function layer_dispatch(group){
         console.error("Unknown layer type: ", group.attrs.type)
         model = null
     }
+    model.checkpoint_name = null
     if("checkpoint_name" in group.attrs){
         model.checkpoint_name = group.attrs.checkpoint_name
     }
     else{
-        model.checkpoint_name = "noname"
+    }
+    model.meta = null
+    if("meta" in group.attrs){
+        model.meta = JSON.parse(group.attrs.meta)
     }
     return model
 }
