@@ -158,8 +158,8 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_DATASET>> dataset_input_3d;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE_DATASET>> dataset_output_target_3d;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
-    RESULT result;
-    DATA* data;
+    RESULT* result_memory;
+    DATA* data_memory;
 
     // device init
     rlt::init(device);
@@ -172,7 +172,10 @@ int main(int argc, char** argv){
     rlt::malloc(device, dataset_input_3d);
     rlt::malloc(device, dataset_output_target_3d);
     rlt::malloc(device, d_output);
-    data = new DATA;
+    result_memory = new RESULT;
+    data_memory = new DATA;
+    RESULT& result = *result_memory;
+    DATA& data = *data_memory;
 
     // views
     auto dataset_input = rlt::view(device, dataset_input_3d, 0);
@@ -192,7 +195,7 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-10_19-55-00";
+    checkpoint_path.experiment = "2025-03-11_09-45-30";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     for (TI seed_i = 0; seed_i < N_PRE_TRAINING_SEEDS; seed_i++){
@@ -210,7 +213,7 @@ int main(int argc, char** argv){
             return 1;
         }
         rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated);
-        TI num_added = add_to_dataset(device, *data, dataset_input, dataset_output_target, current_index, base_parameters, rng);
+        TI num_added = add_to_dataset(device, data, dataset_input, dataset_output_target, current_index, base_parameters, rng);
         if (num_added == 0){
             std::cout << "Dataset full after " << seed_i << " seeds" << std::endl;
             break;
@@ -273,7 +276,7 @@ int main(int argc, char** argv){
             ENVIRONMENT::Parameters env_eval_parameters;
             rlt::init(device, env_eval);
             rlt::sample_initial_parameters(device, env_eval, env_eval_parameters, rng);
-            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, *data, eval_buffer, rng, evaluation_mode, false, true);
+            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, data, eval_buffer, rng, evaluation_mode, false, true);
             rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
             rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
             rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
@@ -296,6 +299,7 @@ int main(int argc, char** argv){
     rlt::free(device, dataset_input_3d);
     rlt::free(device, dataset_output_target_3d);
     rlt::free(device, d_output);
-    delete data;
+    delete result_memory;
+    delete data_memory;
     return 0;
 }
