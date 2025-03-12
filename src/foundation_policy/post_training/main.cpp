@@ -64,7 +64,7 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
-    static constexpr bool ACTION_HISTORY = false;
+    static constexpr bool ACTION_HISTORY = true;
     static constexpr TI ACTION_HISTORY_LENGTH = 64;
     static constexpr bool OBSERVATION_NOISE = true;
 };
@@ -73,12 +73,12 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
     static constexpr T ALPHA = 0.0001;
 };
 // constants parameters
-constexpr TI NUM_EPISODES = 10;
+constexpr TI NUM_EPISODES = 1000;
 constexpr TI N_EPOCH = 100;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
-constexpr T SOLVED_RETURN = 500;
+constexpr T SOLVED_RETURN = 550;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
@@ -195,7 +195,7 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-11_18-27-44";
+    checkpoint_path.experiment = "2025-03-12_13-28-08";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     for (TI seed_i = 0; seed_i < N_PRE_TRAINING_SEEDS; seed_i++){

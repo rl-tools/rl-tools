@@ -942,10 +942,10 @@ namespace rl_tools{
             using OBSERVATION = observation::ActionHistory<OBSERVATION_SPEC>;
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
-            static constexpr TI STATE_HISTORY_LENGTH = rl::environments::Multirotor<SPEC>::State::HISTORY_LENGTH;
+            static constexpr TI STATE_HISTORY_LENGTH = Multirotor<SPEC>::State::HISTORY_LENGTH;
             static_assert(STATE_HISTORY_LENGTH >= OBSERVATION::HISTORY_LENGTH);
-            static_assert(rl::environments::Multirotor<SPEC>::State::ACTION_DIM == OBSERVATION::ACTION_DIM);
-            static_assert(rl::environments::Multirotor<SPEC>::ACTION_DIM == OBSERVATION::ACTION_DIM);
+            static_assert(Multirotor<SPEC>::State::ACTION_DIM == OBSERVATION::ACTION_DIM);
+            static_assert(Multirotor<SPEC>::ACTION_DIM == OBSERVATION::ACTION_DIM);
             // the ring buffer in the state moves forwards in time, we want to observe the most recent action first, hence we need to move backwards in time
             TI current_step = state.current_step == 0 ? STATE_HISTORY_LENGTH - 1 : state.current_step - 1;
             for(TI step_i = 0; step_i < OBSERVATION::HISTORY_LENGTH; step_i++){
