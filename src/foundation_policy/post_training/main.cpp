@@ -105,11 +105,6 @@ using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
 // constants derived
 constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
 
-// typedefs derived
-using INPUT_SHAPE_DATASET = rlt::tensor::Replace<INPUT_SHAPE, DATASET_SIZE, 1>;
-using OUTPUT_SHAPE_DATASET = rlt::tensor::Replace<OUTPUT_SHAPE, DATASET_SIZE, 1>;
-
-
 template <typename DATA, typename INPUT_SPEC, typename OUTPUT_SPEC, typename PARAMS, typename RNG>
 TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, TI& current_index, PARAMS& base_parameters, RNG& rng){
 
@@ -155,8 +150,8 @@ int main(int argc, char** argv){
     ACTOR::Buffer<> actor_buffer;
     EVAL_MODE evaluation_mode;
     OPTIMIZER actor_optimizer;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_DATASET>> dataset_input_3d;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE_DATASET>> dataset_output_target_3d;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
     RESULT* result_memory;
     DATA* data_memory;
@@ -170,17 +165,13 @@ int main(int argc, char** argv){
     rlt::malloc(device, actor);
     rlt::malloc(device, best_actor);
     rlt::malloc(device, actor_buffer);
-    rlt::malloc(device, dataset_input_3d);
-    rlt::malloc(device, dataset_output_target_3d);
+    rlt::malloc(device, dataset_input);
+    rlt::malloc(device, dataset_output_target);
     rlt::malloc(device, d_output);
     result_memory = new RESULT;
     data_memory = new DATA;
     RESULT& result = *result_memory;
     DATA& data = *data_memory;
-
-    // views
-    auto dataset_input = rlt::view(device, dataset_input_3d, 0);
-    auto dataset_output_target = rlt::view(device, dataset_output_target_3d, 0);
 
     // init
     TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
@@ -249,8 +240,8 @@ int main(int argc, char** argv){
         T epoch_loss = 0;
         TI epoch_loss_count = 0;
         for (TI batch_i = 0; batch_i < N / BATCH_SIZE; batch_i++){
-            auto input = rlt::view_range(device, dataset_input_3d, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-            auto output_target = rlt::view_range(device, dataset_output_target_3d, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+            auto input = rlt::view_range(device, dataset_input, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+            auto output_target = rlt::view_range(device, dataset_output_target, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             rlt::forward(device, actor, input, actor_buffer, rng, evaluation_mode);
             // rlt::evaluate(device, evaluation_actor, input, output, eval_buffer, rng, evaluation_mode);
             auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, actor));
@@ -308,8 +299,8 @@ int main(int argc, char** argv){
     rlt::free(device, actor_optimizer);
     rlt::free(device, actor);
     rlt::free(device, actor_buffer);
-    rlt::free(device, dataset_input_3d);
-    rlt::free(device, dataset_output_target_3d);
+    rlt::free(device, dataset_input);
+    rlt::free(device, dataset_output_target);
     rlt::free(device, d_output);
     delete result_memory;
     delete data_memory;
