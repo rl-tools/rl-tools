@@ -70,7 +70,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::AngularVelocityDelayed<OBS_SPEC>& obs, bool first = true){
         using OBSERVATION = rl::environments::l2f::observation::AngularVelocityDelayed<OBS_SPEC>;
-        return std::string(first ? "" : ".") + "AngularVelocityDelayed" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+        return std::string(first ? "" : ".") + "AngularVelocityDelayed(" + std::to_string(OBS_SPEC::DELAY) + ")" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::PoseIntegral<OBS_SPEC>& obs, bool first = true){
@@ -380,6 +380,30 @@ namespace rl_tools{
         return json_string;
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state, bool top_level=true){
+        using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>;
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"angular_velocity_history\": [";
+        for (TI step_i = 0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
+            json_string += "[";
+            for (TI dim_i = 0; dim_i < 3; dim_i++){
+                json_string += std::to_string(state.angular_velocity_history[step_i][dim_i]);
+                if (dim_i < 2) {
+                    json_string += ", ";
+                }
+            }
+            json_string += "]";
+            if (step_i < STATE::HISTORY_MEM_LENGTH - 1) {
+                json_string += ", ";
+            }
+        }
+        json_string += "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename STATE_SPEC>
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state, bool top_level=true){
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
@@ -584,6 +608,17 @@ namespace rl_tools{
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI i = 0; i < 3; i++){
             state.linear_acceleration[i] = json_object["linear_acceleration"][i];
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE::NEXT_COMPONENT&>(state));
+        for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
+            for(TI dim_i = 0; dim_i < 3; dim_i++){
+                state.angular_velocity_history[step_i][dim_i] = json_object["angular_velocity_history"][step_i][dim_i];
+            }
         }
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
