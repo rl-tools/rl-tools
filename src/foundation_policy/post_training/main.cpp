@@ -79,7 +79,7 @@ constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 32;
 constexpr TI BATCH_SIZE = 32;
 constexpr T SOLVED_RETURN = 550;
-constexpr TI HIDDEN_DIM = 32;
+constexpr TI HIDDEN_DIM = 16;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
