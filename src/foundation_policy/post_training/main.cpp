@@ -65,7 +65,7 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVE_THRASH_MARKOV = false;
     static constexpr bool MOTOR_DELAY = true;
     static constexpr bool ACTION_HISTORY = true;
-    static constexpr TI ACTION_HISTORY_LENGTH = 64;
+    static constexpr TI ACTION_HISTORY_LENGTH = 32;
     static constexpr bool OBSERVATION_NOISE = true;
 };
 
@@ -74,7 +74,7 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 1000;
-constexpr TI N_EPOCH = 100;
+constexpr TI N_EPOCH = 30;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
@@ -151,7 +151,7 @@ int main(int argc, char** argv){
     // declarations
     DEVICE device;
     RNG rng;
-    ACTOR actor;
+    ACTOR actor, best_actor;
     ACTOR::Buffer<> actor_buffer;
     EVAL_MODE evaluation_mode;
     OPTIMIZER actor_optimizer;
@@ -168,6 +168,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, rng);
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, actor);
+    rlt::malloc(device, best_actor);
     rlt::malloc(device, actor_buffer);
     rlt::malloc(device, dataset_input_3d);
     rlt::malloc(device, dataset_output_target_3d);
@@ -184,6 +185,9 @@ int main(int argc, char** argv){
     // init
     TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
     TI current_index = 0;
+
+    T best_return = 0;
+    bool best_return_set = false;
 
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     auto timestamp_string = rlt::utils::extrack::get_timestamp_string();
@@ -219,6 +223,7 @@ int main(int argc, char** argv){
             break;
         }
     }
+
 
     TI N = current_index;
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
@@ -284,12 +289,19 @@ int main(int argc, char** argv){
             rlt::add_scalar(device, device.logger, "evaluation/share_terminated", result.share_terminated);
             rlt::log(device, device.logger, "Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated * 100, "%");
 
+            if (!best_return_set || result.returns_mean > best_return){
+                best_return = result.returns_mean;
+                best_return_set = true;
+                rlt::copy(device, device, evaluation_actor, best_actor);
+                std::cout << "Best return: " << best_return << std::endl;
+            }
+
             rlt::free(device, evaluation_actor);
             rlt::free(device, eval_buffer);
         }
     }
 
-    rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, run_path.string(), actor, rng);
+    rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, run_path.string(), best_actor, rng);
     // malloc
     rlt::free(device, device.logger);
     rlt::free(device, rng);
