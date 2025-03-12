@@ -57,12 +57,76 @@ class DenseLayer{
     evaluate(input){
         const leading_dimension = input.size().slice(0, -1).reduce((a, b) => a * b, 1)
         const input_reshaped = math.reshape(input, [leading_dimension, input.size()[input.size().length - 1]])
-        let output = math.multiply(this.weights.data, math.transpose(input_reshaped))
-        output = math.add(math.transpose(output), this.biases.data)
-        output = this.activation_function(output)
+        let output = this.evaluate_step(input_reshaped)
         const output_shape = input.size().slice(0, -1).concat(this.biases.shape[1])
         output = math.reshape(output, output_shape)
         return output
+    }
+    evaluate_step(input){
+        let output = math.multiply(this.weights.data, math.transpose(input))
+        output = math.add(math.transpose(output), this.biases.data)
+        output = this.activation_function(output)
+        return output
+    }
+}
+
+class GRULayer{
+    constructor(group){
+        this.weights_hidden = new Tensor(group.get("weights_hidden").get("parameters"))
+        this.weights_input = new Tensor(group.get("weights_input").get("parameters"))
+        this.hidden_dim = Math.floor(this.weights_input.shape[0] / 3)
+        this.input_shape = [null, null, this.weights_input.shape[1]]
+        this.output_shape = [null, null, this.hidden_dim]
+        this.biases_hidden = new Tensor(group.get("biases_hidden").get("parameters"))
+        this.biases_input = new Tensor(group.get("biases_input").get("parameters"))
+        this.initial_hidden_state = new Tensor(group.get("initial_hidden_state").get("parameters"))
+        this.state = null
+    }
+    reset(){
+        this.state = null
+    }
+    evaluate(input){
+        if(input.size().length === 2){
+            return this.evaluate_step(input)
+        }
+        else{
+            const [SEQUENCE_LENGTH, BATCH_SIZE, INPUT_SIZE] = input.size()
+            this.reset()
+            const outputs = []
+            for(let i = 0; i < SEQUENCE_LENGTH; i++){
+                outputs.push(this.evaluate_step(math.matrix((math.subset(input, math.index(i, math.range(0, BATCH_SIZE), math.range(0, INPUT_SIZE)))).toArray()[0])))
+            }
+            return math.matrix(outputs)
+        }
+    }
+    evaluate_step(input){
+        const [BATCH_SIZE, INPUT_SIZE] = input.size()
+        console.assert(INPUT_SIZE === this.weights_input.shape[1], "Input size does not match weights size")
+        if(this.state === null){
+            this.state = math.matrix((new Array(BATCH_SIZE)).fill(0).map(() => this.initial_hidden_state.data))
+        }
+        console.assert(this.state.size()[0] === BATCH_SIZE, "State size does not match input size")
+        const Wh = math.transpose(math.multiply(this.weights_hidden.data, math.transpose(this.state)))
+        const Wi = math.transpose(math.multiply(this.weights_input.data, math.transpose(input)))
+        const Wh_rz = math.subset(Wh, math.index(math.range(0, BATCH_SIZE), math.range(0, this.hidden_dim * 2)))
+        const Wh_n = math.subset(Wh, math.index(math.range(0, BATCH_SIZE), math.range(this.hidden_dim * 2, this.hidden_dim * 3)))
+        const Wi_rz = math.subset(Wi, math.index(math.range(0, BATCH_SIZE), math.range(0, this.hidden_dim * 2)))
+        const Wi_n = math.subset(Wi, math.index(math.range(0, BATCH_SIZE), math.range(this.hidden_dim * 2, this.hidden_dim * 3)))
+        const bh_rz = math.subset(this.biases_hidden.data, math.index(math.range(0, this.hidden_dim * 2)))
+        const bh_n = math.subset(this.biases_hidden.data, math.index(math.range(this.hidden_dim * 2, this.hidden_dim * 3)))
+        const bi_rz = math.subset(this.biases_input.data, math.index(math.range(0, this.hidden_dim * 2)))
+        const bi_n = math.subset(this.biases_input.data, math.index(math.range(this.hidden_dim * 2, this.hidden_dim * 3)))
+        const rz_pre = math.add(math.add(math.add(Wh_rz, Wi_rz), bh_rz), bi_rz)
+        const sigmoid = (x) => 1 / (1 + Math.exp(-x))
+        const rz = math.map(rz_pre, sigmoid)
+        const r = math.subset(rz, math.index(math.range(0, BATCH_SIZE), math.range(0, this.hidden_dim)))
+        const z = math.subset(rz, math.index(math.range(0, BATCH_SIZE), math.range(this.hidden_dim, this.hidden_dim * 2)))
+        const n_pre_pre = math.add(Wh_n, bh_n)
+        const n_pre = math.add(math.add(math.dotMultiply(r, n_pre_pre), Wi_n), bi_n)
+        const n = math.map(n_pre, Math.tanh)
+        const new_state = math.add(math.dotMultiply(z, this.state), math.dotMultiply(math.subtract(1, z), n))
+        this.state = new_state
+        return new_state
     }
 }
 class SampleAndSquashLayer{
@@ -82,6 +146,9 @@ class SampleAndSquashLayer{
             })
         ));
         return math.map(mean, Math.tanh)
+    }
+    evaluate_step(input){
+        return this.evaluate(input)
     }
 }
 class MLP{
@@ -104,6 +171,9 @@ class MLP{
         current = this.output_layer.evaluate(current)
         return current
     }
+    evaluate_step(input){
+        return this.evaluate(input)
+    }
 }
 
 class Sequential{
@@ -115,6 +185,13 @@ class Sequential{
         this.input_shape = this.layers[0].input_shape
         this.output_shape = this.layers.slice().reverse().find(layer => layer.output_shape.reduce((a, c) => (a || c !== null), null)).output_shape
     }
+    reset(){
+        this.layers.forEach(layer => {
+            if(layer.reset){
+                layer.reset()
+            }
+        })
+    }
     evaluate(input){
         let current = input
         for(let i = 0; i < this.layers.length; i++){
@@ -125,6 +202,9 @@ class Sequential{
         }
         return current
     }
+    evaluate_step(input){
+        return this.evaluate(input)
+    }
 }
 
 
@@ -132,6 +212,9 @@ function layer_dispatch(group){
     let model = null
     if(group.attrs.type === "dense") {
         model = new DenseLayer(group)
+    }
+    else if(group.attrs.type === "gru") {
+        model = new GRULayer(group)
     }
     else if(group.attrs.type === "mlp") {
         model = new MLP(group)
