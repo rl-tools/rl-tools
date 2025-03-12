@@ -458,7 +458,7 @@ namespace rl_tools::rl::environments::l2f{
         T angular_velocity[3];
     };
     template <typename T_SPEC>
-    struct StateLastAction: T_SPEC::NEXT_COMPONENT{
+    struct StateLastAction: T_SPEC::NEXT_COMPONENT{ // This is necessary for the d_action term in the reward function. For action history observations please consider the variable length StateRotorsHistory
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
