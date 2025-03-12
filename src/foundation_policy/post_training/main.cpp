@@ -166,7 +166,7 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::ACTION_DIM>>> batch_output_target;
-    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> batch_reset;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> batch_reset;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
     RESULT* result_memory;
     DATA* data_memory;
@@ -253,9 +253,10 @@ int main(int argc, char** argv){
         TI epoch_loss_count = 0;
         for (TI batch_i = 0; batch_i < N / BATCH_SIZE; batch_i++){
             for (TI sample_i=0; sample_i<BATCH_SIZE; sample_i++){
+                TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
+                TI current_sample = rlt::get(device, epoch_indices, current_epoch_index);
+                bool reset = false;
                 for (TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
-                    TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
-                    TI current_sample = rlt::get(device, epoch_indices, current_epoch_index);
                     auto input = rlt::view(device, dataset_input, current_sample);
                     auto input_target_step = rlt::view(device, batch_input, step_i);
                     auto input_target = rlt::view(device, input_target_step, sample_i);
@@ -264,6 +265,9 @@ int main(int argc, char** argv){
                     auto output_target_step = rlt::view(device, batch_output_target, step_i);
                     auto output_target_target = rlt::view(device, output_target_step, sample_i);
                     rlt::copy(device, device, output_target, output_target_target);
+                    rlt::set(device, batch_reset, reset, step_i, sample_i, 0);
+                    current_sample = (current_sample + 1) % N;
+                    reset = current_sample == 0 || rlt::get(device, dataset_truncated, current_sample);
                 }
             }
 
