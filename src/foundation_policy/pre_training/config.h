@@ -28,7 +28,7 @@ namespace builder{
             static constexpr TI ACTOR_HIDDEN_DIM = OPTIONS::SEQUENTIAL_MODEL ? 64: 64;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI CRITIC_NUM_LAYERS = OPTIONS::SEQUENTIAL_MODEL ? 3 : 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = OPTIONS::SEQUENTIAL_MODEL ? 64 : 128;
+            static constexpr TI CRITIC_HIDDEN_DIM = OPTIONS::SEQUENTIAL_MODEL ? 64 : 256;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;
