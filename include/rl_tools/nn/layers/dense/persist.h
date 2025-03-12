@@ -15,6 +15,7 @@ namespace rl_tools {
         save(device, layer.weights, group.createGroup("weights"));
         save(device, layer.biases, group.createGroup("biases"));
         group.createAttribute<std::string>("activation_function", nn::layers::dense::persist::get_activation_function_string_short<SPEC::CONFIG::ACTIVATION_FUNCTION>());
+        group.createAttribute<std::string>("type", "dense");
     }
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, HighFive::Group group) {

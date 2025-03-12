@@ -16,6 +16,7 @@ namespace rl_tools {
         save(device, layer.weights_hidden, group.createGroup("weights_hidden"));
         save(device, layer.biases_hidden, group.createGroup("biases_hidden"));
         save(device, layer.initial_hidden_state, group.createGroup("initial_hidden_state"));
+        group.createAttribute<std::string>("type", "gru");
     }
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer, HighFive::Group group) {
