@@ -73,12 +73,13 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
     static constexpr T ALPHA = 0.0001;
 };
 // constants parameters
-constexpr TI NUM_EPISODES = 1000;
+constexpr TI NUM_EPISODES = 10;
 constexpr TI N_EPOCH = 30;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
-constexpr T SOLVED_RETURN = 550;
+constexpr T SOLVED_RETURN = 500;
+constexpr TI HIDDEN_DIM = 32;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
@@ -88,8 +89,15 @@ struct ENVIRONMENT_PT: ENVIRONMENT{
     using Observation = ENV::Observation;
     using ObservationPrivileged = Observation;
 };
-using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 32, rlt::nn::activation_functions::ActivationFunction::FAST_TANH, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+
+using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::FAST_TANH, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
 using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
+
+// using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+// using INPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
+// using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
+// using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
+
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
 using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
@@ -105,8 +113,8 @@ using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
 // constants derived
 constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
 
-template <typename DATA, typename INPUT_SPEC, typename OUTPUT_SPEC, typename PARAMS, typename RNG>
-TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, TI& current_index, PARAMS& base_parameters, RNG& rng){
+template <typename DATA, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TRUNCATED_SPEC, typename PARAMS, typename RNG>
+TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, rlt::Tensor<TRUNCATED_SPEC>& truncated, TI& current_index, PARAMS& base_parameters, RNG& rng){
 
     TI initial_index = current_index;
     ENVIRONMENT env_eval;
@@ -125,6 +133,9 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
             rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], ENVIRONMENT::Observation{}, observation, rng);
             for (TI action_i=0; action_i < OUTPUT_SPEC::SHAPE::LAST; action_i++){
                 rlt::set(action, 0, action_i, data.actions[episode_i][current_step_i][action_i]);
+            }
+            if (data.terminated[episode_i][current_step_i] || current_step_i == ENVIRONMENT::EPISODE_STEP_LIMIT - 1){
+
             }
             if (data.terminated[episode_i][current_step_i]){
                 break;
@@ -152,6 +163,10 @@ int main(int argc, char** argv){
     OPTIMIZER actor_optimizer;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_truncated;
+    rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::ACTION_DIM>>> batch_output_target;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
     RESULT* result_memory;
     DATA* data_memory;
@@ -167,6 +182,10 @@ int main(int argc, char** argv){
     rlt::malloc(device, actor_buffer);
     rlt::malloc(device, dataset_input);
     rlt::malloc(device, dataset_output_target);
+    rlt::malloc(device, dataset_truncated);
+    rlt::malloc(device, epoch_indices);
+    rlt::malloc(device, batch_input);
+    rlt::malloc(device, batch_output_target);
     rlt::malloc(device, d_output);
     result_memory = new RESULT;
     data_memory = new DATA;
@@ -208,7 +227,7 @@ int main(int argc, char** argv){
             return 1;
         }
         rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated);
-        TI num_added = add_to_dataset(device, data, dataset_input, dataset_output_target, current_index, base_parameters, rng);
+        TI num_added = add_to_dataset(device, data, dataset_input, dataset_output_target, dataset_truncated, current_index, base_parameters, rng);
         if (num_added == 0){
             std::cout << "Dataset full after " << seed_i << " seeds" << std::endl;
             break;
@@ -217,10 +236,17 @@ int main(int argc, char** argv){
 
 
     TI N = current_index;
+    for (TI i=0; i < N; i++){
+        rlt::set(device, epoch_indices, i, i);
+    }
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         for (TI sample_i=0; sample_i<N; sample_i++){
             TI target_index = rlt::random::uniform_int_distribution(device.random, sample_i, N - 1, rng);
+            TI target_value = rlt::get(device, epoch_indices, target_index);
+            rlt::set(device, epoch_indices, target_index, rlt::get(device, epoch_indices, sample_i));
+            rlt::set(device, epoch_indices, sample_i, target_value);
+
             auto input = rlt::view(device, dataset_input, sample_i);
             auto input_target = rlt::view(device, dataset_input, target_index);
 
@@ -240,8 +266,22 @@ int main(int argc, char** argv){
         T epoch_loss = 0;
         TI epoch_loss_count = 0;
         for (TI batch_i = 0; batch_i < N / BATCH_SIZE; batch_i++){
+            for (TI sample_i=0; sample_i<BATCH_SIZE; sample_i++){
+                TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
+                TI current_sample = rlt::get(device, epoch_indices, current_epoch_index);
+                auto input = rlt::view(device, dataset_input, current_sample);
+                auto input_target_step = rlt::view(device, batch_input, 0);
+                auto input_target = rlt::view(device, input_target_step, sample_i);
+                rlt::copy(device, device, input, input_target);
+                auto output_target = rlt::view(device, dataset_output_target, current_sample);
+                auto output_target_step = rlt::view(device, batch_output_target, 0);
+                auto output_target_target = rlt::view(device, output_target_step, sample_i);
+                rlt::copy(device, device, output_target, output_target_target);
+            }
             auto input = rlt::view_range(device, dataset_input, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto output_target = rlt::view_range(device, dataset_output_target, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+            // auto input = rlt::view(device, batch_input, 0);
+            // auto output_target = rlt::view(device, batch_output_target, 0);
             rlt::forward(device, actor, input, actor_buffer, rng, evaluation_mode);
             // rlt::evaluate(device, evaluation_actor, input, output, eval_buffer, rng, evaluation_mode);
             auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, actor));
