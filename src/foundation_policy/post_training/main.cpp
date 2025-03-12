@@ -134,9 +134,8 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
             for (TI action_i=0; action_i < OUTPUT_SPEC::SHAPE::LAST; action_i++){
                 rlt::set(action, 0, action_i, data.actions[episode_i][current_step_i][action_i]);
             }
-            if (data.terminated[episode_i][current_step_i] || current_step_i == ENVIRONMENT::EPISODE_STEP_LIMIT - 1){
-
-            }
+            bool truncated_flag = data.terminated[episode_i][current_step_i] || current_step_i == (ENVIRONMENT::EPISODE_STEP_LIMIT - 1);
+            rlt::set(device, truncated, truncated_flag, current_index + current_step_i);
             if (data.terminated[episode_i][current_step_i]){
                 break;
             }
@@ -167,6 +166,7 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::ACTION_DIM>>> batch_output_target;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> batch_reset;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
     RESULT* result_memory;
     DATA* data_memory;
@@ -186,6 +186,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, epoch_indices);
     rlt::malloc(device, batch_input);
     rlt::malloc(device, batch_output_target);
+    rlt::malloc(device, batch_reset);
     rlt::malloc(device, d_output);
     result_memory = new RESULT;
     data_memory = new DATA;
@@ -252,16 +253,18 @@ int main(int argc, char** argv){
         TI epoch_loss_count = 0;
         for (TI batch_i = 0; batch_i < N / BATCH_SIZE; batch_i++){
             for (TI sample_i=0; sample_i<BATCH_SIZE; sample_i++){
-                TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
-                TI current_sample = rlt::get(device, epoch_indices, current_epoch_index);
-                auto input = rlt::view(device, dataset_input, current_sample);
-                auto input_target_step = rlt::view(device, batch_input, 0);
-                auto input_target = rlt::view(device, input_target_step, sample_i);
-                rlt::copy(device, device, input, input_target);
-                auto output_target = rlt::view(device, dataset_output_target, current_sample);
-                auto output_target_step = rlt::view(device, batch_output_target, 0);
-                auto output_target_target = rlt::view(device, output_target_step, sample_i);
-                rlt::copy(device, device, output_target, output_target_target);
+                for (TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
+                    TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
+                    TI current_sample = rlt::get(device, epoch_indices, current_epoch_index);
+                    auto input = rlt::view(device, dataset_input, current_sample);
+                    auto input_target_step = rlt::view(device, batch_input, step_i);
+                    auto input_target = rlt::view(device, input_target_step, sample_i);
+                    rlt::copy(device, device, input, input_target);
+                    auto output_target = rlt::view(device, dataset_output_target, current_sample);
+                    auto output_target_step = rlt::view(device, batch_output_target, step_i);
+                    auto output_target_target = rlt::view(device, output_target_step, sample_i);
+                    rlt::copy(device, device, output_target, output_target_target);
+                }
             }
 
             rlt::forward(device, actor, batch_input, actor_buffer, rng, evaluation_mode);
