@@ -310,15 +310,16 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr TI CURRENT_DIM = 2;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        template <typename T_T, typename T_TI, T_TI T_DELAY, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct AngularVelocityDelayedSpecification {
             using T = T_T;
             using TI = T_TI;
             using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr TI DELAY = T_DELAY;
             static constexpr bool PRIVILEGED = false;
         };
-        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct AngularVelocityDelayedSpecificationPrivileged: AngularVelocityDelayedSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+        template <typename T_T, typename T_TI, T_TI T_DELAY, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct AngularVelocityDelayedSpecificationPrivileged: AngularVelocityDelayedSpecification<T_T, T_TI, T_DELAY, T_NEXT_COMPONENT>{
             static constexpr bool PRIVILEGED = true;
         };
         template <typename SPEC>
@@ -476,11 +477,11 @@ namespace rl_tools::rl::environments::l2f{
         T linear_acceleration[3]; // this is just to save computation when simulating IMU measurements. Wihtout this we would need to recalculate the acceleration in the observation operation. This is not part of the minimal state in the sense that the transition dynamics are independent of the acceleration given the other parts of the state and the action
     };
 
-    template <typename T_T, typename T_TI, T_TI T_DELAY, typename T_NEXT_COMPONENT>
+    template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT>
     struct StateAngularVelocityDelaySpecification{
         using T = T_T;
         using TI = T_TI;
-        static constexpr TI DELAY = T_DELAY;
+        static constexpr TI HISTORY_LENGTH = T_HISTORY_LENGTH;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
     template <typename T_SPEC>
@@ -491,7 +492,8 @@ namespace rl_tools::rl::environments::l2f{
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI DIM = 3 + NEXT_COMPONENT::DIM;
-        T angular_velocity_history[SPEC::DELAY][3];
+        static constexpr TI HISTORY_MEM_LENGTH = SPEC::HISTORY_LENGTH == 0 ? 1 : SPEC::HISTORY_LENGTH;
+        T angular_velocity_history[HISTORY_MEM_LENGTH][3];
     };
 
     template <typename T_SPEC>

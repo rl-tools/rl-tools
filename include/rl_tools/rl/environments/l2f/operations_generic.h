@@ -407,9 +407,9 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
-        using STATE = rl::environments::l2f::StateLastAction<STATE_SPEC>;
+        using STATE = rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>;
         initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        for (TI step_i=0; step_i < STATE_SPEC::DELAY; step_i++){
+        for (TI step_i=0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
             for (TI dim_i=0; dim_i < 3; dim_i++){
                 state.angular_velocity_history[step_i][dim_i] = state.angular_velocity[dim_i];
             }
@@ -607,9 +607,9 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
     static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state, RNG& rng){
         using TI = typename DEVICE::index_t;
-        using STATE = rl::environments::l2f::StateLastAction<STATE_SPEC>;
+        using STATE = rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>;
         sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
-        for (TI step_i=0; step_i < STATE_SPEC::DELAY; step_i++){
+        for (TI step_i=0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
             for (TI dim_i=0; dim_i < 3; dim_i++){
                 state.angular_velocity_history[step_i][dim_i] = state.angular_velocity[dim_i];
             }
@@ -892,16 +892,15 @@ namespace rl_tools{
             // we can not specialize in the generic observe function because otherwise the upcast might prevent calling the correct "observe" for the downstream observations
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
-            using OBSERVATION = observation::AngularVelocity<OBSERVATION_SPEC>;
-            static_assert(STATE_SPEC::DELAY >= 1);
+            using STATE = StateAngularVelocityDelay<STATE_SPEC>;
+            using OBSERVATION = observation::AngularVelocityDelayed<OBSERVATION_SPEC>;
+            static_assert(OBSERVATION_SPEC::DELAY <= STATE::HISTORY_LENGTH, "The requested angular velocity delay in the observation needs to be larger than the history memory length of the state");
             for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
-                if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
-                    set(observation, 0, i, state.angular_velocity_history[0][i]);
+                T noise = 0;
+                if constexpr(OBSERVATION_SPEC::PRIVILEGED || SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
+                    noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.angular_velocity, rng);
                 }
-                else{
-                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.angular_velocity, rng);
-                    set(observation, 0, i, state.angular_velocity_history[0][i] + noise);
-                }
+                set(observation, 0, i, state.angular_velocity_history[STATE_SPEC::HISTORY_LENGTH - OBSERVATION_SPEC::DELAY][i] + noise);
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
@@ -1026,16 +1025,23 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& next_state, RNG& rng) {
         using TI = typename DEVICE::index_t;
-        static_assert(STATE_SPEC::DELAY >= 1);
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
 
-        for(TI step_i = 0; step_i < STATE_SPEC::DELAY; step_i++){
+        if constexpr (STATE_SPEC::HISTORY_LENGTH == 0){
             for(TI dim_i = 0; dim_i < 3; dim_i++){
-                if (step_i == (STATE_SPEC::DELAY - 1)){
-                    next_state.angular_velocity_history[STATE_SPEC::DELAY-1][dim_i] = state.angular_velocity[dim_i];
-                }
-                else{
-                    next_state.angular_velocity_history[step_i][dim_i] = state.angular_velocity_history[step_i+1][dim_i];
+                next_state.angular_velocity_history[0][dim_i] = next_state.angular_velocity[dim_i];
+            }
+        }
+        else
+        {
+            for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
+                for(TI dim_i = 0; dim_i < 3; dim_i++){
+                    if (step_i == (STATE_SPEC::HISTORY_LENGTH - 1)){
+                        next_state.angular_velocity_history[STATE_SPEC::HISTORY_LENGTH-1][dim_i] = state.angular_velocity[dim_i];
+                    }
+                    else{
+                        next_state.angular_velocity_history[step_i][dim_i] = state.angular_velocity_history[step_i+1][dim_i];
+                    }
                 }
             }
         }
