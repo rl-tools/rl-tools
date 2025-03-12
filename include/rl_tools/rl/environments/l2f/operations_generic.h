@@ -894,13 +894,20 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
             using STATE = StateAngularVelocityDelay<STATE_SPEC>;
             using OBSERVATION = observation::AngularVelocityDelayed<OBSERVATION_SPEC>;
-            static_assert(OBSERVATION_SPEC::DELAY <= STATE::HISTORY_LENGTH, "The requested angular velocity delay in the observation needs to be larger than the history memory length of the state");
+            static_assert(OBSERVATION_SPEC::DELAY <= STATE_SPEC::HISTORY_LENGTH, "The requested angular velocity delay in the observation needs to be larger than the history memory length of the state");
             for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
                 T noise = 0;
                 if constexpr(OBSERVATION_SPEC::PRIVILEGED || SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                     noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.angular_velocity, rng);
                 }
-                set(observation, 0, i, state.angular_velocity_history[STATE_SPEC::HISTORY_LENGTH - OBSERVATION_SPEC::DELAY][i] + noise);
+                T base;
+                if constexpr (OBSERVATION_SPEC::DELAY == 0){
+                     base = state.angular_velocity[i];
+                }
+                else{
+                     base = state.angular_velocity_history[STATE::HISTORY_MEM_LENGTH - OBSERVATION_SPEC::DELAY][i];
+                }
+                set(observation, 0, i, base + noise);
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
