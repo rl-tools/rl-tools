@@ -73,8 +73,8 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
     static constexpr T ALPHA = 0.0001;
 };
 // constants parameters
-constexpr TI NUM_EPISODES = 10;
-constexpr TI N_EPOCH = 1;
+constexpr TI NUM_EPISODES = 1000;
+constexpr TI N_EPOCH = 100;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
@@ -161,8 +161,8 @@ int main(int argc, char** argv){
     ACTOR::Buffer<> actor_buffer;
     EVAL_MODE evaluation_mode;
     OPTIMIZER actor_optimizer;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input, dataset_input_copy;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target, dataset_output_target_copy;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_truncated;
     rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
@@ -181,9 +181,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, best_actor);
     rlt::malloc(device, actor_buffer);
     rlt::malloc(device, dataset_input);
-    rlt::malloc(device, dataset_input_copy);
     rlt::malloc(device, dataset_output_target);
-    rlt::malloc(device, dataset_output_target_copy);
     rlt::malloc(device, dataset_truncated);
     rlt::malloc(device, epoch_indices);
     rlt::malloc(device, batch_input);
@@ -241,13 +239,6 @@ int main(int argc, char** argv){
     for (TI i=0; i < N; i++){
         rlt::set(device, epoch_indices, i, i);
     }
-    rlt::copy(device, device, dataset_input, dataset_input_copy);
-    rlt::copy(device, device, dataset_output_target, dataset_output_target_copy);
-    auto first_row = rlt::view(device, dataset_input, 0);
-    auto first_row_index = rlt::view(device, dataset_input_copy, rlt::get(device, epoch_indices, 0));
-    T abs_diff = rlt::abs_diff(device, first_row, first_row_index);
-
-    rlt::utils::assert_exit(device, abs_diff == 0, "First row not equal");
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         for (TI sample_i=0; sample_i<N; sample_i++){
@@ -255,21 +246,6 @@ int main(int argc, char** argv){
             TI target_value = rlt::get(device, epoch_indices, target_index);
             rlt::set(device, epoch_indices, rlt::get(device, epoch_indices, sample_i), target_index);
             rlt::set(device, epoch_indices, target_value, sample_i);
-
-            auto input = rlt::view(device, dataset_input, sample_i);
-            auto input_target = rlt::view(device, dataset_input, target_index);
-
-            rlt::Tensor<rlt::tensor::Specification<T, TI, decltype(input)::SPEC::SHAPE, false>> input_target_temp;
-            rlt::copy(device, device, input_target, input_target_temp);
-            rlt::copy(device, device, input, input_target);
-            rlt::copy(device, device, input_target_temp, input);
-
-            auto output_target = rlt::view(device, dataset_output_target, sample_i);
-            rlt::Tensor<rlt::tensor::Specification<T, TI, decltype(output_target)::SPEC::SHAPE, false>> output_target_temp;
-            auto output_target_target = rlt::view(device, dataset_output_target, target_index);
-            rlt::copy(device, device, output_target_target, output_target_temp);
-            rlt::copy(device, device, output_target, output_target_target);
-            rlt::copy(device, device, output_target_temp, output_target);
         }
         constexpr TI BATCH_SIZE = INPUT_SHAPE::GET<1>;
         T epoch_loss = 0;
@@ -278,30 +254,20 @@ int main(int argc, char** argv){
             for (TI sample_i=0; sample_i<BATCH_SIZE; sample_i++){
                 TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
                 TI current_sample = rlt::get(device, epoch_indices, current_epoch_index);
-                auto input = rlt::view(device, dataset_input_copy, current_sample);
+                auto input = rlt::view(device, dataset_input, current_sample);
                 auto input_target_step = rlt::view(device, batch_input, 0);
                 auto input_target = rlt::view(device, input_target_step, sample_i);
                 rlt::copy(device, device, input, input_target);
-                auto output_target = rlt::view(device, dataset_output_target_copy, current_sample);
+                auto output_target = rlt::view(device, dataset_output_target, current_sample);
                 auto output_target_step = rlt::view(device, batch_output_target, 0);
                 auto output_target_target = rlt::view(device, output_target_step, sample_i);
                 rlt::copy(device, device, output_target, output_target_target);
             }
 
-            auto first_row = rlt::view(device, dataset_input, 0);
-            auto first_row_index = rlt::view(device, dataset_input_copy, rlt::get(device, epoch_indices, 0));
-            T abs_diff = rlt::abs_diff(device, first_row, first_row_index);
-
-            rlt::utils::assert_exit(device, abs_diff == 0, "First row not equal");
-
-            auto input = rlt::view_range(device, dataset_input, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-            auto output_target = rlt::view_range(device, dataset_output_target, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-            // auto input = rlt::view(device, batch_input, 0);
-            // auto output_target = rlt::view(device, batch_output_target, 0);
-            rlt::forward(device, actor, input, actor_buffer, rng, evaluation_mode);
+            rlt::forward(device, actor, batch_input, actor_buffer, rng, evaluation_mode);
             // rlt::evaluate(device, evaluation_actor, input, output, eval_buffer, rng, evaluation_mode);
             auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, actor));
-            auto output_target_matrix_view = rlt::matrix_view(device, output_target);
+            auto output_target_matrix_view = rlt::matrix_view(device, batch_output_target);
             auto d_output_matrix_view = rlt::matrix_view(device, d_output);
             rlt::nn::loss_functions::mse::gradient(device, output_matrix_view, output_target_matrix_view, d_output_matrix_view);
             T loss = rlt::nn::loss_functions::mse::evaluate(device, output_matrix_view, output_target_matrix_view);
@@ -310,7 +276,7 @@ int main(int argc, char** argv){
             epoch_loss += loss;
             epoch_loss_count++;
             rlt::zero_gradient(device, actor);
-            rlt::backward(device, actor, input, d_output, actor_buffer, evaluation_mode);
+            rlt::backward(device, actor, batch_input, d_output, actor_buffer, evaluation_mode);
             rlt::step(device, actor_optimizer, actor);
         }
         std::cout << "Epoch: " << epoch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
