@@ -74,7 +74,8 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 };
 // constants parameters
 constexpr TI NUM_EPISODES = 1000;
-constexpr TI N_EPOCH = 30;
+constexpr TI NUM_EPISODES_EVAL = 100;
+constexpr TI N_EPOCH = 100;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 1;
 constexpr TI BATCH_SIZE = 32;
@@ -83,12 +84,23 @@ constexpr TI HIDDEN_DIM = 32;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
-struct ENVIRONMENT_PT: ENVIRONMENT{
+struct ENVIRONMENT_PT_STATIC_PARAMETERS: ENVIRONMENT::SPEC::STATIC_PARAMETERS{
     using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
     using ENV = LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT;
-    using Observation = ENV::Observation;
-    using ObservationPrivileged = Observation;
+    using OBSERVATION_TYPE = ENV::Observation;
+    using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
+    static constexpr auto PARAMETER_VALUES = [](){
+        auto params = ENVIRONMENT::SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
+        params.mdp.observation_noise.position = 0;
+        params.mdp.observation_noise.orientation = 0;
+        params.mdp.observation_noise.linear_velocity = 0;
+        params.mdp.observation_noise.angular_velocity = 0;
+        params.mdp.observation_noise.imu_acceleration = 0;
+        return params;
+    }();
 };
+using ENVIRONMENT_PT_SPEC = rl_tools::rl::environments::l2f::MultiTaskSpecification<T, TI, ENVIRONMENT_PT_STATIC_PARAMETERS, OPTIONS_POST_TRAINING::SAMPLE_INITIAL_PARAMETERS>;
+using ENVIRONMENT_PT = rl_tools::rl::environments::MultirotorMultiTask<ENVIRONMENT_PT_SPEC>;
 
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
 using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
@@ -112,7 +124,9 @@ using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_
 using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>>;
 using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
 using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
+using RESULT_EVAL = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
 using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
+using DATA_EVAL = rlt::rl::utils::evaluation::NoData<RESULT_EVAL::SPEC>;
 
 // constants derived
 constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
@@ -153,71 +167,14 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
 }
 
 
-
-// note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
-
-int main(int argc, char** argv){
-    // declarations
-    DEVICE device;
-    RNG rng;
-    ACTOR actor, best_actor;
-    ACTOR::Buffer<> actor_buffer;
-    OPTIMIZER actor_optimizer;
-    std::cout << "Input shape: " << std::endl;
-    rlt::print(device, ACTOR::INPUT_SHAPE{});
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
-    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_truncated;
-    rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::ACTION_DIM>>> batch_output_target;
-    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> batch_reset;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
+template <typename DEVICE, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename TI, typename RNG>
+TI gather_epoch(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, TI& current_index, RNG& rng){
     RESULT* result_memory;
     DATA* data_memory;
-
-    // device init
-    rlt::init(device);
-
-    // malloc
-    rlt::malloc(device, rng);
-    rlt::malloc(device, actor_optimizer);
-    rlt::malloc(device, actor);
-    rlt::malloc(device, best_actor);
-    rlt::malloc(device, actor_buffer);
-    rlt::malloc(device, dataset_input);
-    rlt::malloc(device, dataset_output_target);
-    rlt::malloc(device, dataset_truncated);
-    rlt::malloc(device, epoch_indices);
-    rlt::malloc(device, batch_input);
-    rlt::malloc(device, batch_output_target);
-    rlt::malloc(device, batch_reset);
-    rlt::malloc(device, d_output);
     result_memory = new RESULT;
     data_memory = new DATA;
     RESULT& result = *result_memory;
     DATA& data = *data_memory;
-
-    // init
-    TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
-    TI current_index = 0;
-
-    T best_return = 0;
-    bool best_return_set = false;
-
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
-    auto timestamp_string = rlt::utils::extrack::get_timestamp_string();
-    std::filesystem::path run_path = "logs/" + timestamp_string;
-    rlt::init(device, device.logger, run_path.string());
-#endif
-    rlt::init(device, rng, seed);
-    rlt::init_weights(device, actor, rng);
-
-    //work
-    rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-12_13-28-08";
-    checkpoint_path.name = "foundation-policy-pre-training";
-
     for (TI seed_i = 0; seed_i < N_PRE_TRAINING_SEEDS; seed_i++){
         checkpoint_path.seed = std::to_string(seed_i);
         rlt::find_latest_run(device, "experiments", checkpoint_path);
@@ -239,20 +196,91 @@ int main(int argc, char** argv){
             break;
         }
     }
+    delete result_memory;
+    delete data_memory;
+    return 0;
+}
 
 
-    TI N = current_index;
-    for (TI i=0; i < N; i++){
+// note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
+
+int main(int argc, char** argv){
+    // declarations
+    DEVICE device;
+    RNG rng;
+    ACTOR actor, best_actor;
+    ACTOR::Buffer<> actor_buffer;
+    OPTIMIZER actor_optimizer;
+    std::cout << "Input shape: " << std::endl;
+    rlt::print(device, ACTOR::INPUT_SHAPE{});
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_truncated;
+    rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::ACTION_DIM>>> batch_output_target;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> batch_reset;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
+
+    // device init
+    rlt::init(device);
+
+    // malloc
+    rlt::malloc(device, rng);
+    rlt::malloc(device, actor_optimizer);
+    rlt::malloc(device, actor);
+    rlt::malloc(device, best_actor);
+    rlt::malloc(device, actor_buffer);
+    rlt::malloc(device, dataset_input);
+    rlt::malloc(device, dataset_output_target);
+    rlt::malloc(device, dataset_truncated);
+    rlt::malloc(device, epoch_indices);
+    rlt::malloc(device, batch_input);
+    rlt::malloc(device, batch_output_target);
+    rlt::malloc(device, batch_reset);
+    rlt::malloc(device, d_output);
+
+    // init
+    TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
+    TI current_index = 0;
+
+    T best_return = 0;
+    bool best_return_set = false;
+
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+    auto timestamp_string = rlt::utils::extrack::get_timestamp_string();
+    std::filesystem::path run_path = "logs/" + timestamp_string;
+    rlt::init(device, device.logger, run_path.string());
+#endif
+    rlt::init(device, rng, seed);
+    rlt::init_weights(device, actor, rng);
+
+    //work
+    rlt::utils::extrack::Path checkpoint_path;
+    checkpoint_path.experiment = "2025-03-12_13-28-08";
+    checkpoint_path.name = "foundation-policy-pre-training";
+
+    for (TI i=0; i < DATASET_SIZE; i++){
         rlt::set(device, epoch_indices, i, i);
     }
+
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
-        for (TI sample_i=0; sample_i<N; sample_i++){
-            TI target_index = rlt::random::uniform_int_distribution(device.random, sample_i, N - 1, rng);
-            TI target_value = rlt::get(device, epoch_indices, target_index);
-            rlt::set(device, epoch_indices, rlt::get(device, epoch_indices, sample_i), target_index);
-            rlt::set(device, epoch_indices, target_value, sample_i);
+        current_index = 0;
+        TI status = gather_epoch(device, checkpoint_path, dataset_input, dataset_output_target, dataset_truncated, current_index, rng);
+        if (status != 0){
+            return status;
         }
+        TI N = current_index;
+        // for (TI i=0; i < N; i++){
+        //     rlt::set(device, epoch_indices, i, i);
+        // }
+        // for (TI sample_i=0; sample_i<N; sample_i++){
+        //     TI target_index = rlt::random::uniform_int_distribution(device.random, sample_i, N - 1, rng);
+        //     TI target_value = rlt::get(device, epoch_indices, target_index);
+        //     rlt::set(device, epoch_indices, rlt::get(device, epoch_indices, sample_i), target_index);
+        //     rlt::set(device, epoch_indices, target_value, sample_i);
+        // }
         constexpr TI BATCH_SIZE = INPUT_SHAPE::GET<1>;
         T epoch_loss = 0;
         TI epoch_loss_count = 0;
@@ -309,16 +337,18 @@ int main(int argc, char** argv){
             rlt::init(device, env_eval);
             rlt::sample_initial_parameters(device, env_eval, env_eval_parameters, rng);
             rlt::Mode<rlt::mode::Default<>> mode;
-            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, data, eval_buffer, rng, mode, false, true);
-            rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
-            rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
-            rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
-            rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result.episode_length_std);
-            rlt::add_scalar(device, device.logger, "evaluation/share_terminated", result.share_terminated);
-            rlt::log(device, device.logger, "Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated * 100, "%");
+            RESULT_EVAL result_eval;
+            DATA_EVAL data_eval;
+            rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result_eval, data_eval, eval_buffer, rng, mode, false, true);
+            rlt::add_scalar(device, device.logger, "evaluation/return/mean", result_eval.returns_mean);
+            rlt::add_scalar(device, device.logger, "evaluation/return/std", result_eval.returns_std);
+            rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result_eval.episode_length_mean);
+            rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result_eval.episode_length_std);
+            rlt::add_scalar(device, device.logger, "evaluation/share_terminated", result_eval.share_terminated);
+            rlt::log(device, device.logger, "Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
 
-            if (!best_return_set || result.returns_mean > best_return){
-                best_return = result.returns_mean;
+            if (!best_return_set || result_eval.returns_mean > best_return){
+                best_return = result_eval.returns_mean;
                 best_return_set = true;
                 rlt::copy(device, device, evaluation_actor, best_actor);
                 std::cout << "Best return: " << best_return << std::endl;
@@ -339,7 +369,5 @@ int main(int argc, char** argv){
     rlt::free(device, dataset_input);
     rlt::free(device, dataset_output_target);
     rlt::free(device, d_output);
-    delete result_memory;
-    delete data_memory;
     return 0;
 }
