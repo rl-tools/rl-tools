@@ -26,6 +26,9 @@ class DenseLayer{
         this.biases = group.get("biases").attrs.type === "matrix" ? new Matrix(group.get("biases").get("parameters")) : new Tensor(group.get("biases").get("parameters"))
         this.activation_function_name = group.attrs.activation_function
     }
+    description(){
+        return `Dense(${this.output_shape[2]})`
+    }
     activation_function(input){
         if(this.activation_function_name === "IDENTITY"){
             return input
@@ -82,6 +85,9 @@ class GRULayer{
         this.initial_hidden_state = new Tensor(group.get("initial_hidden_state").get("parameters"))
         this.state = null
     }
+    description(){
+        return `GRU(${this.hidden_dim})`
+    }
     reset(){
         this.state = null
     }
@@ -134,6 +140,9 @@ class SampleAndSquashLayer{
         this.input_shape = [null, null, null]
         this.output_shape = [null, null, null]
     }
+    description(){
+        return `SampleAndSquash`
+    }
     evaluate(input){
         const mean = math.subset(input, math.index(
             ...input.size().map((x, i) => {
@@ -162,6 +171,9 @@ class MLP{
         this.input_shape = this.input_layer.input_shape
         this.output_shape = this.output_layer.output_shape
     }
+    description(){
+        return `MLP(${this.input_layer.description()}, ${this.hidden_layers.map(layer => layer.description()).join(", ")}, ${this.output_layer.description()})`
+    }
     evaluate(input){
         let current = this.input_layer.evaluate(input)
         for(let i = 0; i < this.hidden_layers.length; i++){
@@ -184,6 +196,9 @@ class Sequential{
         }
         this.input_shape = this.layers[0].input_shape
         this.output_shape = this.layers.slice().reverse().find(layer => layer.output_shape.reduce((a, c) => (a || c !== null), null)).output_shape
+    }
+    description(){
+        return `Sequential(${this.layers.map(layer => layer.description()).join(", ")})`
     }
     reset(){
         this.layers.forEach(layer => {
