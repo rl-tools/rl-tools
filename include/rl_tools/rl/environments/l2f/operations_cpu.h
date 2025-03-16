@@ -730,7 +730,7 @@ class State{
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
-        this.cursor_grab = true // Instruct the embedding code to make the cursor a grab cursor
+        this.cursor_grab = false // Instruct the embedding code to make the cursor a grab cursor
         this.render_tick = 0
     }
     async initialize(){
@@ -751,6 +751,21 @@ class State{
         // canvasContainer.appendChild(this.renderer.domElement );
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enabled = false;
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Alt') {
+                this.controls.enabled = true;
+                this.canvas.style.cursor = "grab"
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            if (event.key === 'Alt') {
+                this.controls.enabled = false;
+                this.canvas.style.cursor = "default"
+            }
+        });
+        this.canvas.title = "Alt+Drag to rotate the camera. Alt+CTRL+Drag to move the camera."
 
         this.simulator = new THREE.Group()
         this.simulator.rotation.set(-Math.PI / 2, 0, Math.PI / 2, 'XYZ');
