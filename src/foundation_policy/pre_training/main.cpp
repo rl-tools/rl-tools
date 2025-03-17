@@ -101,7 +101,19 @@ int main(int argc, char** argv){
     }
     ts.env_eval.parameters = base_env.parameters;
 
-    while(!rlt::step(device, ts)){
+    bool finished = false;
+    while(!finished){
+        if (ts.step % LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
+            auto step_folder = rlt::get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
+            std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "critic_checkpoint.h5";
+            std::cerr << "Checkpointing critic to: " << checkpoint_path.string() << std::endl;
+            auto file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
+            auto group_0 = file.createGroup("critic_0");
+            auto group_1 = file.createGroup("critic_1");
+            rl_tools::save(device, ts.actor_critic.critics[0], group_0);
+            rl_tools::save(device, ts.actor_critic.critics[1], group_1);
+        }
+        finished = rlt::step(device, ts);
     }
     return 0;
 }
