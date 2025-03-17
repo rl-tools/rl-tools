@@ -258,6 +258,11 @@ int main(int argc, char** argv){
             rlt::step(device, actor_optimizer, actor);
         }
         std::cout << "Epoch: " << epoch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
+        // auto target_path = run_path / "checkpoints" / std::to_string(epoch_i);
+        // if (!std::filesystem::exists(target_path)){
+        //     std::filesystem::create_directories(target_path);
+        // }
+        // rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, target_path.string(), actor, rng);
         {
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_EVAL>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
