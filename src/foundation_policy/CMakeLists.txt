@@ -10,4 +10,7 @@ if(RL_TOOLS_ENABLE_HDF5)
 
     add_executable(foundation_policy_load_actor post_training/load_actor.cpp)
     target_link_libraries(foundation_policy_load_actor PRIVATE RLtools::RLtools)
+
+    add_executable(foundation_policy_test_checkpoint post_training/test_checkpoint.cpp)
+    target_link_libraries(foundation_policy_test_checkpoint PRIVATE RLtools::RLtools)
 endif()
