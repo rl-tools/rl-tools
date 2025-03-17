@@ -12,14 +12,14 @@ struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW
 
 
 // constants parameters
-constexpr TI NUM_EPISODES = 1000;
+constexpr TI NUM_EPISODES = 100;
 constexpr TI NUM_EPISODES_EVAL = 100;
 constexpr TI N_EPOCH = 100;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 32;
 constexpr TI BATCH_SIZE = 32;
 constexpr T SOLVED_RETURN = 550;
-constexpr TI HIDDEN_DIM = 16;
+constexpr TI HIDDEN_DIM = 8;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
