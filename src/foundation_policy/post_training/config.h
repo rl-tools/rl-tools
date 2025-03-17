@@ -1,3 +1,16 @@
+struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
+    static constexpr bool OBSERVE_THRASH_MARKOV = false;
+    static constexpr bool MOTOR_DELAY = true;
+    static constexpr bool ACTION_HISTORY = true;
+    static constexpr TI ACTION_HISTORY_LENGTH = 1;
+    static constexpr bool OBSERVATION_NOISE = true;
+};
+
+struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+    static constexpr T ALPHA = 0.0001;
+};
+
+
 // constants parameters
 constexpr TI NUM_EPISODES = 1000;
 constexpr TI NUM_EPISODES_EVAL = 100;
@@ -10,6 +23,7 @@ constexpr TI HIDDEN_DIM = 16;
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
+#ifdef RL_TOOLS_POST_TRAINING
 struct ENVIRONMENT_PT_STATIC_PARAMETERS: ENVIRONMENT::SPEC::STATIC_PARAMETERS{
     using LOOP_CORE_CONFIG_PRE_TRAINING = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
     using ENV = LOOP_CORE_CONFIG_PRE_TRAINING::ENVIRONMENT;
@@ -27,6 +41,7 @@ struct ENVIRONMENT_PT_STATIC_PARAMETERS: ENVIRONMENT::SPEC::STATIC_PARAMETERS{
 };
 using ENVIRONMENT_PT_SPEC = rl_tools::rl::environments::l2f::MultiTaskSpecification<T, TI, ENVIRONMENT_PT_STATIC_PARAMETERS, OPTIONS_POST_TRAINING::SAMPLE_INITIAL_PARAMETERS>;
 using ENVIRONMENT_PT = rl_tools::rl::environments::MultirotorMultiTask<ENVIRONMENT_PT_SPEC>;
+#endif
 
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
 using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;

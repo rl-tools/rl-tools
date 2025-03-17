@@ -61,18 +61,7 @@ using TI = DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
-struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
-    static constexpr bool OBSERVE_THRASH_MARKOV = false;
-    static constexpr bool MOTOR_DELAY = true;
-    static constexpr bool ACTION_HISTORY = true;
-    static constexpr TI ACTION_HISTORY_LENGTH = 1;
-    static constexpr bool OBSERVATION_NOISE = true;
-};
-
-struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-    static constexpr T ALPHA = 0.0001;
-};
-
+#define RL_TOOLS_POST_TRAINING
 #include "config.h"
 
 // constants derived
