@@ -12,7 +12,9 @@
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/checkpoint/config.h>
 #include <rl_tools/rl/loop/steps/save_trajectories/config.h>
+// #include <rl_tools/rl/loop/steps/nn_analytics/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
+#include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
 #include "../../../logs/2025-03-17_10-54-33/checkpoint.h"
 
@@ -24,15 +26,9 @@ using T = float;
 using TI = typename DEVICE::index_t;
 static constexpr bool DYNAMIC_ALLOCATION = true;
 
-using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, DYNAMIC_ALLOCATION>;
-using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
-using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>>;
-using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
-using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
-using RESULT_EVAL = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
-using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
-using DATA_EVAL = rlt::rl::utils::evaluation::NoData<RESULT_EVAL::SPEC>;
+#include "environment.h"
+#include "../pre_training/options.h"
+#include "config.h"
 
 int test(){
     DEVICE device;
@@ -64,6 +60,12 @@ int test(){
 
 
 int main(){
+    DEVICE device;
+    rlt::init(device);
+    RNG rng;
+    rlt::malloc(device, rng);
+    TI seed = 0;
+    rlt::init(device, rng, seed);
     using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
     rlt::rl::environments::DummyUI ui;
@@ -71,7 +73,7 @@ int main(){
     EVALUATION_ACTOR_TYPE::Buffer<DYNAMIC_ALLOCATION> eval_buffer;
     rlt::malloc(device, evaluation_actor);
     rlt::malloc(device, eval_buffer);
-    rlt::copy(device, device, actor, evaluation_actor);
+    rlt::copy(device, device, rl_tools::checkpoint::actor::module, evaluation_actor);
 
     ENVIRONMENT env_eval;
     ENVIRONMENT::Parameters env_eval_parameters;
@@ -87,13 +89,6 @@ int main(){
     rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result_eval.episode_length_std);
     rlt::add_scalar(device, device.logger, "evaluation/share_terminated", result_eval.share_terminated);
     rlt::log(device, device.logger, "Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
-
-    if (!best_return_set || result_eval.returns_mean > best_return){
-        best_return = result_eval.returns_mean;
-        best_return_set = true;
-        rlt::copy(device, device, evaluation_actor, best_actor);
-        std::cout << "Best return: " << best_return << std::endl;
-    }
 
     rlt::free(device, evaluation_actor);
     rlt::free(device, eval_buffer);
