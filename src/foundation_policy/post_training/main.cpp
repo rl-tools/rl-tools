@@ -67,8 +67,8 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 // constants derived
 constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
 
-template <typename DATA, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TRUNCATED_SPEC, typename PARAMS, typename RNG>
-TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, rlt::Tensor<TRUNCATED_SPEC>& truncated, TI& current_index, PARAMS& base_parameters, RNG& rng){
+template <typename DATA, typename INPUT_SPEC, typename INPUT_CRITIC_SPEC, typename OUTPUT_SPEC, typename TRUNCATED_SPEC, typename PARAMS, typename RNG>
+TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<INPUT_CRITIC_SPEC>& input_critic, rlt::Tensor<OUTPUT_SPEC>& output, rlt::Tensor<TRUNCATED_SPEC>& truncated, TI& current_index, PARAMS& base_parameters, RNG& rng){
 
     TI initial_index = current_index;
     ENVIRONMENT env_eval;
@@ -81,9 +81,12 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
         TI current_step_i;
         for (current_step_i = 0; current_step_i < ENVIRONMENT::EPISODE_STEP_LIMIT; current_step_i++){
             auto observation_tensor = rlt::view(device, input, current_index + current_step_i);
+            auto observation_critic_tensor = rlt::view(device, input_critic, current_index + current_step_i);
             auto action_tensor = rlt::view(device, output, current_index + current_step_i);
             auto observation = rlt::matrix_view(device, observation_tensor);
+            auto observation_critic = rlt::matrix_view(device, observation_critic_tensor);
             auto action = rlt::matrix_view(device, action_tensor);
+            rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], ENVIRONMENT_PT::Observation{}, observation_critic, rng);
             rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], ENVIRONMENT::Observation{}, observation, rng);
             for (TI action_i=0; action_i < OUTPUT_SPEC::SHAPE::LAST; action_i++){
                 rlt::set(action, 0, action_i, data.actions[episode_i][current_step_i][action_i]);
@@ -103,8 +106,8 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
 }
 
 
-template <typename DEVICE, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename TI, typename RNG>
-TI gather_epoch(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, TI& current_index, RNG& rng){
+template <typename DEVICE, typename DS_INPUT_SPEC, typename DS_INPUT_CRITIC_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename TI, typename RNG>
+TI gather_epoch(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_INPUT_CRITIC_SPEC>& dataset_input_critic, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, TI& current_index, RNG& rng){
     RESULT* result_memory;
     DATA* data_memory;
     result_memory = new RESULT;
@@ -126,7 +129,7 @@ TI gather_epoch(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, rlt::
             return 1;
         }
         rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated);
-        TI num_added = add_to_dataset(device, data, dataset_input, dataset_output_target, dataset_truncated, current_index, base_parameters, rng);
+        TI num_added = add_to_dataset(device, data, dataset_input, dataset_input_critic, dataset_output_target, dataset_truncated, current_index, base_parameters, rng);
         if (num_added == 0){
             std::cout << "Dataset full after " << seed_i << " seeds" << std::endl;
             break;
@@ -137,6 +140,13 @@ TI gather_epoch(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, rlt::
     return 0;
 }
 
+using FACTORY = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>;
+using LOOP_CORE_CONFIG = FACTORY::LOOP_CORE_CONFIG;
+using LOOP_CONFIG = builder::LOOP_ASSEMBLY<LOOP_CORE_CONFIG>::LOOP_CONFIG;
+using CRITIC_ORIG = LOOP_CONFIG::ACTOR_CRITIC_TYPE::SPEC::CRITIC_NETWORK_TYPE;
+using CRITIC_BS = CRITIC_ORIG::CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
+using CRITIC = CRITIC_BS::CHANGE_SEQUENCE_LENGTH<TI, SEQUENCE_LENGTH>;
+using CRITIC_TEMP = CRITIC::CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
 
 // note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
 
@@ -145,16 +155,25 @@ int main(int argc, char** argv){
     DEVICE device;
     RNG rng;
     ACTOR actor, best_actor;
+    CRITIC_ORIG critic_orig;
+    CRITIC critic;
+    CRITIC_TEMP critic_temp;
     ACTOR::Buffer<> actor_buffer;
+    CRITIC::Buffer<> critic_buffer;
     OPTIMIZER actor_optimizer;
     std::cout << "Input shape: " << std::endl;
     rlt::print(device, ACTOR::INPUT_SHAPE{});
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT_PT::Observation::DIM>>> dataset_input_critic;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_truncated;
     rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
+    static_assert(CRITIC::INPUT_SHAPE::template GET<2> == ENVIRONMENT_PT::Observation::DIM + ENVIRONMENT::ACTION_DIM);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT_PT::Observation::DIM + ENVIRONMENT::ACTION_DIM>>> batch_input_critic;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::ACTION_DIM>>> batch_output_target;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> d_batch_output_critic;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, CRITIC::INPUT_SHAPE>> d_batch_input_critic;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> batch_reset;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
 
@@ -167,12 +186,20 @@ int main(int argc, char** argv){
     rlt::malloc(device, actor);
     rlt::malloc(device, best_actor);
     rlt::malloc(device, actor_buffer);
+    rlt::malloc(device, critic_orig);
+    rlt::malloc(device, critic);
+    rlt::malloc(device, critic_temp);
+    rlt::malloc(device, critic_buffer);
     rlt::malloc(device, dataset_input);
+    rlt::malloc(device, dataset_input_critic);
     rlt::malloc(device, dataset_output_target);
     rlt::malloc(device, dataset_truncated);
     rlt::malloc(device, epoch_indices);
     rlt::malloc(device, batch_input);
+    rlt::malloc(device, batch_input_critic);
     rlt::malloc(device, batch_output_target);
+    rlt::malloc(device, d_batch_output_critic);
+    rlt::malloc(device, d_batch_input_critic);
     rlt::malloc(device, batch_reset);
     rlt::malloc(device, d_output);
 
@@ -193,8 +220,18 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-12_13-28-08";
+    checkpoint_path.experiment = "2025-03-17_12-34-45";
     checkpoint_path.name = "foundation-policy-pre-training";
+
+    {
+        // load critic
+        auto cpp_copy = checkpoint_path;
+        rlt::find_latest_run(device, "experiments", cpp_copy);
+        auto file = HighFive::File((cpp_copy.checkpoint_path.parent_path() / "critic_checkpoint.h5").string(), HighFive::File::ReadOnly);
+        rlt::load(device, critic_orig, file.getGroup("critic_0"));
+        rlt::copy(device, device, critic_orig, critic_temp); // temp is eval only so that there is no size mismatch when copying the output field
+        rlt::copy(device, device, critic_temp, critic); // temp => critic because we would like to backprop through the critic
+    }
 
     for (TI i=0; i < DATASET_SIZE; i++){
         rlt::set(device, epoch_indices, i, i);
@@ -203,7 +240,7 @@ int main(int argc, char** argv){
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         current_index = 0;
-        TI status = gather_epoch(device, checkpoint_path, dataset_input, dataset_output_target, dataset_truncated, current_index, rng);
+        TI status = gather_epoch(device, checkpoint_path, dataset_input, dataset_input_critic, dataset_output_target, dataset_truncated, current_index, rng);
         if (status != 0){
             return status;
         }
@@ -227,9 +264,14 @@ int main(int argc, char** argv){
                 bool reset = false;
                 for (TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
                     auto input = rlt::view(device, dataset_input, current_sample);
+                    auto input_critic = rlt::view(device, dataset_input_critic, current_sample);
                     auto input_target_step = rlt::view(device, batch_input, step_i);
+                    auto input_target_step_critic = rlt::view(device, batch_input_critic, step_i);
                     auto input_target = rlt::view(device, input_target_step, sample_i);
+                    auto input_target_critic = rlt::view(device, input_target_step_critic, sample_i);
+                    auto input_target_critic_observation = rlt::view_range(device, input_target_critic, 0, rlt::tensor::ViewSpec<0, ENVIRONMENT_PT::Observation::DIM>{});
                     rlt::copy(device, device, input, input_target);
+                    rlt::copy(device, device, input_critic, input_target_critic_observation);
                     auto output_target = rlt::view(device, dataset_output_target, current_sample);
                     auto output_target_step = rlt::view(device, batch_output_target, step_i);
                     auto output_target_target = rlt::view(device, output_target_step, sample_i);
@@ -243,11 +285,26 @@ int main(int argc, char** argv){
             rlt::Mode<rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(batch_reset)>>> mode;
             mode.reset_container = batch_reset;
             rlt::forward(device, actor, batch_input, actor_buffer, rng, mode);
+            auto actions_critic_input = rlt::view_range(device, batch_input_critic, ENVIRONMENT_PT::Observation::DIM, rlt::tensor::ViewSpec<2, ENVIRONMENT_PT::ACTION_DIM>{});
+            rlt::copy(device, device, rlt::output(device, actor), actions_critic_input);
+            // rlt::forward(device, critic, batch_input_critic, critic_buffer, rng, mode);
+            rlt::set_all(device, d_batch_output_critic, -1.0/BATCH_SIZE);
+            rlt::backward_input(device, critic, d_batch_output_critic, d_batch_input_critic, critic_buffer, mode);
             // rlt::evaluate(device, evaluation_actor, input, output, eval_buffer, rng, evaluation_mode);
             auto output_matrix_view = rlt::matrix_view(device, rlt::output(device, actor));
             auto output_target_matrix_view = rlt::matrix_view(device, batch_output_target);
             auto d_output_matrix_view = rlt::matrix_view(device, d_output);
             rlt::nn::loss_functions::mse::gradient(device, output_matrix_view, output_target_matrix_view, d_output_matrix_view);
+            // for(TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
+            //     for (TI sample_i=0; sample_i < BATCH_SIZE; sample_i++){
+            //         for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
+            //             T d_output_supervised = rlt::get(device, d_output, step_i, sample_i, action_i);
+            //             T d_output_critic = rlt::get(device, d_batch_input_critic, step_i, sample_i, ENVIRONMENT_PT::Observation::DIM + action_i);
+            //             T d_output_combined = d_output_supervised;// + (epoch_i > 25 ? d_output_critic/10000.0 : 0);
+            //             rlt::set(device, d_output, d_output_combined, step_i, sample_i, action_i);
+            //         }
+            //     }
+            // }
             T loss = rlt::nn::loss_functions::mse::evaluate(device, output_matrix_view, output_target_matrix_view);
             rlt::set_step(device, device.logger, epoch_i * (N/BATCH_SIZE) + batch_i);
             rlt::add_scalar(device, device.logger, "loss", loss);
@@ -258,11 +315,11 @@ int main(int argc, char** argv){
             rlt::step(device, actor_optimizer, actor);
         }
         std::cout << "Epoch: " << epoch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
-        // auto target_path = run_path / "checkpoints" / std::to_string(epoch_i);
-        // if (!std::filesystem::exists(target_path)){
-        //     std::filesystem::create_directories(target_path);
-        // }
-        // rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, target_path.string(), actor, rng);
+        auto target_path = run_path / "checkpoints" / std::to_string(epoch_i);
+        if (!std::filesystem::exists(target_path)){
+            std::filesystem::create_directories(target_path);
+        }
+        rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, target_path.string(), actor, rng);
         {
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_EVAL>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
