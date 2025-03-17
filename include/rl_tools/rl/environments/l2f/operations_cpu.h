@@ -751,20 +751,20 @@ class State{
         // canvasContainer.appendChild(this.renderer.domElement );
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enabled = false;
-        window.addEventListener('keydown', (event) => {
-            if (event.key === 'Alt') {
-                this.controls.enabled = true;
-                this.canvas.style.cursor = "grab"
-            }
-        });
+        // this.controls.enabled = false;
+        // window.addEventListener('keydown', (event) => {
+        //     if (event.key === 'Alt') {
+        //         this.controls.enabled = true;
+        //         this.canvas.style.cursor = "grab"
+        //     }
+        // });
 
-        window.addEventListener('keyup', (event) => {
-            if (event.key === 'Alt') {
-                this.controls.enabled = false;
-                this.canvas.style.cursor = "default"
-            }
-        });
+        // window.addEventListener('keyup', (event) => {
+        //     if (event.key === 'Alt') {
+        //         this.controls.enabled = false;
+        //         this.canvas.style.cursor = "default"
+        //     }
+        // });
         this.canvas.title = "Alt+Drag to rotate the camera. Alt+CTRL+Drag to move the camera."
 
         this.simulator = new THREE.Group()
