@@ -71,7 +71,9 @@ namespace rl_tools::nn::layers::gru{
     struct ResetMode: T_BASE{
         using SPEC = T_SPEC;
         using BASE = T_BASE;
-        typename SPEC::RESET_CONTAINER_TYPE reset_container;
+        using PRE = typename SPEC::RESET_CONTAINER_TYPE;
+        using RESET_CONTAINER_TYPE = utils::typing::conditional_t<utils::typing::is_reference_v<PRE>, utils::typing::remove_reference_t<PRE>, PRE>;
+        RESET_CONTAINER_TYPE reset_container;
     };
 
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>

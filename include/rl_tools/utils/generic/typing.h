@@ -25,6 +25,13 @@ namespace rl_tools::utils::typing {
     template< class T, class U >
     inline constexpr bool is_same_v = is_same<T, U>::value;
 
+
+    template<class T> struct is_reference : false_type {};
+    template<class T> struct is_reference<T&> : true_type {};
+    template<class T> struct is_reference<T&&> : true_type {};
+    template <class T>
+    constexpr bool is_reference_v = is_reference<T>::value;
+
     template<class T>
     struct remove_reference{
         typedef T type;

@@ -67,8 +67,8 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 // constants derived
 constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
 
-template <typename DATA, typename INPUT_SPEC, typename INPUT_CRITIC_SPEC, typename OUTPUT_SPEC, typename TRUNCATED_SPEC, typename PARAMS, typename RNG>
-TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<INPUT_CRITIC_SPEC>& input_critic, rlt::Tensor<OUTPUT_SPEC>& output, rlt::Tensor<TRUNCATED_SPEC>& truncated, TI& current_index, PARAMS& base_parameters, RNG& rng){
+template <typename DATA, typename INPUT_SPEC, typename INPUT_CRITIC_SPEC, typename OUTPUT_SPEC, typename TRUNCATED_SPEC, typename RESET_SPEC, typename PARAMS, typename RNG>
+TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<INPUT_CRITIC_SPEC>& input_critic, rlt::Tensor<OUTPUT_SPEC>& output, rlt::Tensor<TRUNCATED_SPEC>& truncated, rlt::Tensor<RESET_SPEC>& reset, TI& current_index, PARAMS& base_parameters, RNG& rng){
 
     TI initial_index = current_index;
     ENVIRONMENT env_eval;
@@ -76,7 +76,7 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
     rlt::init(device, env_eval);
     env_eval.parameters = base_parameters;
     rlt::initial_parameters(device, env_eval, env_eval_parameters);
-
+    bool reset_flag = true;
     for (TI episode_i = 0; episode_i < DATA::SPEC::N_EPISODES; episode_i++){
         TI current_step_i;
         for (current_step_i = 0; current_step_i < ENVIRONMENT::EPISODE_STEP_LIMIT; current_step_i++){
@@ -88,12 +88,14 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
             auto action = rlt::matrix_view(device, action_tensor);
             rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], ENVIRONMENT_PT::Observation{}, observation_critic, rng);
             rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], ENVIRONMENT::Observation{}, observation, rng);
-            for (TI action_i=0; action_i < OUTPUT_SPEC::SHAPE::LAST; action_i++){
-                rlt::set(action, 0, action_i, data.actions[episode_i][current_step_i][action_i]);
-            }
+            // for (TI action_i=0; action_i < OUTPUT_SPEC::SHAPE::LAST; action_i++){
+            //     rlt::set(action, 0, action_i, data.actions[episode_i][current_step_i][action_i]);
+            // }
             bool truncated_flag = data.terminated[episode_i][current_step_i] || current_step_i == (ENVIRONMENT::EPISODE_STEP_LIMIT - 1);
             rlt::set(device, truncated, truncated_flag, current_index + current_step_i);
+            rlt::set(device, reset, reset_flag, current_index + current_step_i);
             if (data.terminated[episode_i][current_step_i]){
+                reset_flag = true;
                 break;
             }
         }
@@ -102,12 +104,13 @@ TI add_to_dataset(DEVICE& device, DATA& data, rlt::Tensor<INPUT_SPEC>& input, rl
             return current_index - initial_index;
         }
     }
+
     return current_index - initial_index;
 }
 
 
-template <typename DEVICE, typename DS_INPUT_SPEC, typename DS_INPUT_CRITIC_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename TI, typename RNG>
-TI gather_epoch(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_INPUT_CRITIC_SPEC>& dataset_input_critic, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, TI& current_index, RNG& rng){
+template <typename DEVICE, typename DS_INPUT_SPEC, typename DS_INPUT_CRITIC_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename TI, typename RNG>
+TI gather_epoch(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_INPUT_CRITIC_SPEC>& dataset_input_critic, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_index, RNG& rng){
     RESULT* result_memory;
     DATA* data_memory;
     result_memory = new RESULT;
@@ -129,12 +132,38 @@ TI gather_epoch(DEVICE& device, rlt::utils::extrack::Path checkpoint_path, rlt::
             return 1;
         }
         rlt::log(device, device.logger, "Checkpoint ", checkpoint_path.checkpoint_path.string(), ": Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated);
-        TI num_added = add_to_dataset(device, data, dataset_input, dataset_input_critic, dataset_output_target, dataset_truncated, current_index, base_parameters, rng);
+        TI num_added = add_to_dataset(device, data, dataset_input, dataset_input_critic, dataset_output_target, dataset_truncated, dataset_reset, current_index, base_parameters, rng);
         if (num_added == 0){
             std::cout << "Dataset full after " << seed_i << " seeds" << std::endl;
             break;
         }
     }
+    delete result_memory;
+    delete data_memory;
+    return 0;
+}
+template <typename DEVICE, typename POLICY, typename POLICY_TEACHER, typename DS_INPUT_SPEC, typename DS_INPUT_CRITIC_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename TI, typename RNG>
+TI gather_epoch(DEVICE& device, POLICY& policy, POLICY_TEACHER& policy_teacher, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_INPUT_CRITIC_SPEC>& dataset_input_critic, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_index, RNG& rng){
+    RESULT* result_memory;
+    DATA* data_memory;
+    result_memory = new RESULT;
+    data_memory = new DATA;
+    RESULT& result = *result_memory;
+    DATA& data = *data_memory;
+    auto base_parameters = generate_data<ENVIRONMENT>(device, policy, result, data, rng);
+    TI num_added = add_to_dataset(device, data, dataset_input, dataset_input_critic, dataset_output_target, dataset_truncated, dataset_reset, current_index, base_parameters, rng);
+    typename POLICY_TEACHER::template Buffer<true> policy_teacher_buffer;
+    rlt::malloc(device, policy_teacher_buffer);
+    rlt::Mode<rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(dataset_reset)>>> mode;
+    mode.reset_container = dataset_reset;
+    static constexpr TI BATCH_SIZE = POLICY::INPUT_SHAPE::template GET<1>;
+    for(TI batch_i=0; batch_i < DATASET_SIZE/BATCH_SIZE; ++batch_i){
+        auto input_chunk = rlt::view_range(device, dataset_input_critic, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+        auto output_chunk = rlt::view_range(device, dataset_output_target, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+        rlt::evaluate(device, policy_teacher, input_chunk, output_chunk, policy_teacher_buffer, rng, mode);
+    }
+    current_index = (current_index / BATCH_SIZE) * BATCH_SIZE;
+    rlt::free(device, policy_teacher_buffer);
     delete result_memory;
     delete data_memory;
     return 0;
@@ -147,6 +176,9 @@ using CRITIC_ORIG = LOOP_CONFIG::ACTOR_CRITIC_TYPE::SPEC::CRITIC_NETWORK_TYPE;
 using CRITIC_BS = CRITIC_ORIG::CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
 using CRITIC = CRITIC_BS::CHANGE_SEQUENCE_LENGTH<TI, SEQUENCE_LENGTH>;
 using CRITIC_TEMP = CRITIC::CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
+using ACTOR_ORIG = LOOP_CONFIG::ACTOR_CRITIC_TYPE::SPEC::ACTOR_NETWORK_TYPE;
+using ACTOR_TEACHER = ACTOR_ORIG::CHANGE_BATCH_SIZE<TI, 32>::CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
+
 
 // note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
 
@@ -154,8 +186,9 @@ int main(int argc, char** argv){
     // declarations
     DEVICE device;
     RNG rng;
+    ACTOR_TEACHER actor_teacher;
+    typename ACTOR_TEACHER::Buffer<> actor_teacher_buffer;
     ACTOR actor, best_actor;
-    CRITIC_ORIG critic_orig;
     CRITIC critic;
     CRITIC_TEMP critic_temp;
     ACTOR::Buffer<> actor_buffer;
@@ -167,6 +200,7 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT_PT::Observation::DIM>>> dataset_input_critic;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_truncated;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_reset;
     rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
     static_assert(CRITIC::INPUT_SHAPE::template GET<2> == ENVIRONMENT_PT::Observation::DIM + ENVIRONMENT::ACTION_DIM);
@@ -183,10 +217,11 @@ int main(int argc, char** argv){
     // malloc
     rlt::malloc(device, rng);
     rlt::malloc(device, actor_optimizer);
+    rlt::malloc(device, actor_teacher);
+    rlt::malloc(device, actor_teacher_buffer);
     rlt::malloc(device, actor);
     rlt::malloc(device, best_actor);
     rlt::malloc(device, actor_buffer);
-    rlt::malloc(device, critic_orig);
     rlt::malloc(device, critic);
     rlt::malloc(device, critic_temp);
     rlt::malloc(device, critic_buffer);
@@ -194,6 +229,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, dataset_input_critic);
     rlt::malloc(device, dataset_output_target);
     rlt::malloc(device, dataset_truncated);
+    rlt::malloc(device, dataset_reset);
     rlt::malloc(device, epoch_indices);
     rlt::malloc(device, batch_input);
     rlt::malloc(device, batch_input_critic);
@@ -224,13 +260,14 @@ int main(int argc, char** argv){
     checkpoint_path.name = "foundation-policy-pre-training";
 
     {
-        // load critic
+        // load actor & critic
         auto cpp_copy = checkpoint_path;
         rlt::find_latest_run(device, "experiments", cpp_copy);
-        auto file = HighFive::File((cpp_copy.checkpoint_path.parent_path() / "critic_checkpoint.h5").string(), HighFive::File::ReadOnly);
-        rlt::load(device, critic_orig, file.getGroup("critic_0"));
-        rlt::copy(device, device, critic_orig, critic_temp); // temp is eval only so that there is no size mismatch when copying the output field
+        auto critic_file = HighFive::File((cpp_copy.checkpoint_path.parent_path() / "critic_checkpoint.h5").string(), HighFive::File::ReadOnly);
+        rlt::load(device, critic_temp, critic_file.getGroup("critic_0"));
         rlt::copy(device, device, critic_temp, critic); // temp => critic because we would like to backprop through the critic
+        auto actor_file = HighFive::File((cpp_copy.checkpoint_path.parent_path() / "checkpoint.h5").string(), HighFive::File::ReadOnly);
+        rlt::load(device, actor_teacher, actor_file.getGroup("actor"));
     }
 
     for (TI i=0; i < DATASET_SIZE; i++){
@@ -240,7 +277,8 @@ int main(int argc, char** argv){
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         current_index = 0;
-        TI status = gather_epoch(device, checkpoint_path, dataset_input, dataset_input_critic, dataset_output_target, dataset_truncated, current_index, rng);
+        // TI status = gather_epoch(device, checkpoint_path, dataset_input, dataset_input_critic, dataset_output_target, dataset_truncated, current_index, rng);
+        TI status = gather_epoch(device, actor, actor_teacher, dataset_input, dataset_input_critic, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
         if (status != 0){
             return status;
         }
