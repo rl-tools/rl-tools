@@ -8,7 +8,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
     template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
         struct OPTIONS{
-            static constexpr bool SEQUENTIAL_MODEL = false;
+            static constexpr bool SEQUENTIAL_MODEL = true;
             static constexpr bool MOTOR_DELAY = true;
             static constexpr bool RANDOMIZE_MOTOR_MAPPING = false;
             static constexpr bool RANDOMIZE_THRUST_CURVES = false;
@@ -27,7 +27,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr bool IGNORE_TERMINATION = false;
                 // static constexpr T ALPHA = 0.05;
                 static constexpr T TARGET_ENTROPY = -((T)2);
-                static constexpr TI SEQUENCE_LENGTH = OPTIONS::SEQUENTIAL_MODEL ? 50 : 1;
+                static constexpr TI SEQUENCE_LENGTH = OPTIONS::SEQUENTIAL_MODEL ? 100 : 1;
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
             };
             static constexpr TI N_ENVIRONMENTS = OPTIONS::SEQUENTIAL_MODEL ? 8 : 1;
