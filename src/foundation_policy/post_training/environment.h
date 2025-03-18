@@ -23,11 +23,11 @@ namespace builder{
             }; // Domain Randomization
             if constexpr(OPTIONS::OBSERVATION_NOISE){
                 params.mdp.observation_noise = {
-                    0.01, // position
-                    0.01, // orientation
-                    0.01, // linear_velocity
-                    0.01, // angular_velocity
-                    0.01 // imu acceleration
+                    0.00, // position
+                    0.00, // orientation
+                    0.00, // linear_velocity
+                    0.00, // angular_velocity
+                    0.00 // imu acceleration
                 };
             }
             return params;
