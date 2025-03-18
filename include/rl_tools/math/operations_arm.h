@@ -52,7 +52,7 @@ namespace rl_tools::math {
     }
     template<typename T>
     auto is_nan(const devices::math::ARM&, const T x) {
-        return isnan(x);
+        return std::isnan(x);
     }
     template<typename T>
     auto is_finite(const devices::math::ARM&, const T x) {

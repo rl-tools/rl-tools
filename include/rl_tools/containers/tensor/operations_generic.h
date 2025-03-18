@@ -70,8 +70,8 @@ namespace rl_tools{
         static_assert(get<DIM>(typename SPEC::SHAPE{}) >= SIZE);
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
 #if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
-        utils::assert_exit(device, offset < SPEC::SIZE, "Index out of bounds");
-        utils::assert_exit(device, offset + SIZE <= SPEC::SIZE, "Index out of bounds");
+        utils::assert_exit(device, index < SPEC::SHAPE::template GET<DIM>, "Index out of bounds");
+        utils::assert_exit(device, index + SIZE <= SPEC::SHAPE::template GET<DIM>, "Index + Range out of bounds");
 #endif
         using VIEW_TYPE = Tensor<tensor::spec::view::range::Specification<SPEC, tensor::ViewSpec<DIM, SIZE>, true>>;
         using VIEW_TYPE_CV = const VIEW_TYPE;
@@ -86,8 +86,8 @@ namespace rl_tools{
         static_assert(get<DIM>(typename SPEC::SHAPE{}) >= SIZE);
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
 #if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
-        utils::assert_exit(device, offset < SPEC::SIZE, "Index out of bounds");
-        utils::assert_exit(device, offset + SIZE <= SPEC::SIZE, "Index out of bounds");
+        utils::assert_exit(device, index < SPEC::SHAPE::template GET<DIM>, "Index out of bounds");
+        utils::assert_exit(device, index + SIZE <= SPEC::SHAPE::template GET<DIM>, "Index + Range out of bounds");
 #endif
         using VIEW_TYPE = Tensor<tensor::spec::view::range::Specification<SPEC, tensor::ViewSpec<DIM, SIZE>, false>>;
         VIEW_TYPE view{data(tensor) + offset};
