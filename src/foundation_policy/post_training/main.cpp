@@ -119,10 +119,11 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
         rlt::Mode<rlt::mode::Evaluation<>> mode;
         rlt::evaluate_step(device, teacher, input_chunk, teacher_state, output_chunk, policy_teacher_buffer, rng, mode);
     }
-
+    current_index = (current_index / 32) * 32;
     rlt::free(device, input_teacher);
     rlt::free(device, teacher_state);
     rlt::free(device, policy_teacher_buffer);
+    rlt::utils::assert_exit(device, current_index >= initial_index, "Current index out of range");
     return current_index - initial_index;
 }
 
