@@ -61,6 +61,7 @@ using TI = DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr bool SHUFFLE = false;
+constexpr bool TEACHER_DETERMINISTIC = true;
 
 #define RL_TOOLS_POST_TRAINING
 #include "config.h"
@@ -116,10 +117,9 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
         if (rlt::get(device, reset_chunk, 0)){
             rlt::reset(device, teacher, teacher_state, rng);
         }
-        rlt::Mode<rlt::mode::Evaluation<>> mode;
+        rlt::utils::typing::conditional_t<TEACHER_DETERMINISTIC, rlt::Mode<rlt::mode::Evaluation<>>, rlt::Mode<rlt::mode::Default<>>> mode;
         rlt::evaluate_step(device, teacher, input_chunk, teacher_state, output_chunk, policy_teacher_buffer, rng, mode);
     }
-    current_index = (current_index / 32) * 32;
     rlt::free(device, input_teacher);
     rlt::free(device, teacher_state);
     rlt::free(device, policy_teacher_buffer);
