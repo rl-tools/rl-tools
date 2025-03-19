@@ -50,7 +50,7 @@
 #include "../pre_training/options.h"
 namespace rlt = rl_tools;
 
-#include "generate_data.h"
+#include "helper.h"
 
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -69,75 +69,6 @@ constexpr bool TEACHER_DETERMINISTIC = true;
 // constants derived
 constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
 
-template <typename ENVIRONMENT, typename OBSERVATION_TEACHER, typename TEACHER_ORIG, typename DATA, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TRUNCATED_SPEC, typename RESET_SPEC, typename RNG>
-TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor<INPUT_SPEC>& input_student, rlt::Tensor<OUTPUT_SPEC>& output, rlt::Tensor<TRUNCATED_SPEC>& truncated, rlt::Tensor<RESET_SPEC>& reset, TI& current_index, RNG& rng){
-    TI initial_index = current_index;
-    ENVIRONMENT env_eval;
-    rlt::init(device, env_eval);
-    static constexpr TI DATASET_SIZE = INPUT_SPEC::SHAPE::FIRST;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, OBSERVATION_TEACHER::DIM>>> input_teacher;
-    rlt::malloc(device, input_teacher);
-    bool reset_flag = true;
-    for (TI episode_i = 0; episode_i < DATA::SPEC::N_EPISODES; episode_i++){
-        typename ENVIRONMENT::Parameters env_eval_parameters = data.parameters[episode_i];
-        TI current_step_i;
-        for (current_step_i = 0; current_step_i < ENVIRONMENT::EPISODE_STEP_LIMIT; current_step_i++){
-            auto observation_student_tensor = rlt::view(device, input_student, current_index + current_step_i);
-            auto observation_teacher_tensor = rlt::view(device, input_teacher, current_index + current_step_i);
-            auto observation_student = rlt::matrix_view(device, observation_student_tensor);
-            auto observation_teacher = rlt::matrix_view(device, observation_teacher_tensor);
-            rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], OBSERVATION_TEACHER{}, observation_teacher, rng);
-            rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], typename ENVIRONMENT::Observation{}, observation_student, rng);
-            bool truncated_flag = data.terminated[episode_i][current_step_i] || current_step_i == (ENVIRONMENT::EPISODE_STEP_LIMIT - 1);
-            rlt::set(device, truncated, truncated_flag, current_index + current_step_i);
-            rlt::set(device, reset, reset_flag, current_index + current_step_i);
-            if (data.terminated[episode_i][current_step_i]){
-                reset_flag = true;
-                break;
-            }
-        }
-        current_index += current_step_i;
-        if (current_index >= INPUT_SPEC::SHAPE::FIRST){
-            break;
-        }
-    }
-
-    static constexpr TI BATCH_SIZE = 1;
-    using TEACHER = typename TEACHER_ORIG::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>;
-    typename TEACHER::template Buffer<true> policy_teacher_buffer;
-    rlt::malloc(device, policy_teacher_buffer);
-    typename TEACHER::template State<true> teacher_state;
-    rlt::malloc(device, teacher_state);
-    rlt::reset(device, teacher, teacher_state, rng);
-    for(TI step_i=initial_index; step_i < current_index; ++step_i){
-        static_assert(BATCH_SIZE == 1, "Batch size needs to be one for sequential state tracking (reset / evaluate_step)");
-        auto input_chunk = rlt::view_range(device, input_teacher, step_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-        auto output_chunk = rlt::view_range(device, output, step_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-        auto reset_chunk = rlt::view_range(device, reset, step_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-        if (rlt::get(device, reset_chunk, 0)){
-            rlt::reset(device, teacher, teacher_state, rng);
-        }
-        rlt::utils::typing::conditional_t<TEACHER_DETERMINISTIC, rlt::Mode<rlt::mode::Evaluation<>>, rlt::Mode<rlt::mode::Default<>>> mode;
-        rlt::evaluate_step(device, teacher, input_chunk, teacher_state, output_chunk, policy_teacher_buffer, rng, mode);
-    }
-    rlt::free(device, input_teacher);
-    rlt::free(device, teacher_state);
-    rlt::free(device, policy_teacher_buffer);
-    rlt::utils::assert_exit(device, current_index >= initial_index, "Current index out of range");
-    return current_index - initial_index;
-}
-
-
-template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, typename DEVICE, typename STUDENT, typename TEACHER, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename TI, typename RNG>
-void gather_epoch(DEVICE& device, TEACHER& teacher, STUDENT& student, rlt::Tensor<DS_INPUT_SPEC>& dataset_input_student, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_index, RNG& rng){
-    RESULT result;
-    DATA* data_memory;
-    data_memory = new DATA;
-    DATA& data = *data_memory;
-    sample_trajectories<ENVIRONMENT>(device, student, result, data, rng);
-    add_to_dataset<ENVIRONMENT, TEACHER_OBSERVATION>(device, data, teacher, dataset_input_student, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
-    delete data_memory;
-}
 
 using FACTORY = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>;
 using LOOP_CORE_CONFIG = FACTORY::LOOP_CORE_CONFIG;
@@ -219,14 +150,14 @@ int main(int argc, char** argv){
         // load actor & critic
         auto cpp_copy = checkpoint_path;
         rlt::find_latest_run(device, "experiments", cpp_copy);
-        auto actor_file = HighFive::File((cpp_copy.checkpoint_path.parent_path() / "checkpoint.h5").string(), HighFive::File::ReadOnly);
+        auto actor_file = HighFive::File(cpp_copy.checkpoint_path.string(), HighFive::File::ReadOnly);
         rlt::load(device, actor_teacher, actor_file.getGroup("actor"));
 
         RESULT result;
         DATA_EVAL no_data;
         RNG rng_copy = rng;
         sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher, result, no_data, rng_copy);
-        std::cout << "Teacher policy mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
+        std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ")mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
             return 1;
@@ -240,7 +171,7 @@ int main(int argc, char** argv){
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         current_index = 0;
-        gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation>(device, actor_teacher, actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+        gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher, actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
         TI N = current_index;
 
         if constexpr(SHUFFLE){
