@@ -16,7 +16,8 @@
 #include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
-#include "../../../logs/2025-03-17_18-52-24/checkpoints/9/checkpoint.h"
+#include "../../../logs/2025-03-18_18-28-31/checkpoints/75/checkpoint.h"
+
 
 namespace rlt = rl_tools;
 
@@ -33,7 +34,7 @@ static constexpr bool DYNAMIC_ALLOCATION = true;
 int test(){
     DEVICE device;
     RNG rng;
-    rlt::init(device, rng, 0);
+    rlt::init(device, rng, 100);
 
     using ACTOR_TYPE = rl_tools::checkpoint::actor::TYPE::CHANGE_BATCH_SIZE<TI, 1>;
     ACTOR_TYPE::Buffer<false> buffer;
@@ -64,7 +65,7 @@ int main(){
     rlt::init(device);
     RNG rng;
     rlt::malloc(device, rng);
-    TI seed = 0;
+    TI seed = 6;
     rlt::init(device, rng, seed);
     using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
