@@ -27,8 +27,8 @@ namespace rl_tools{
         parameters = env.parameters;
         if constexpr(T_OVERWRITE || SPEC::SAMPLE_INITIAL_PARAMETERS){
             static_assert(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES >= 1);
-            TI index = random::uniform_int_distribution(device.random, (TI)0, (TI)(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES - 1), rng);
-            parameters.dynamics = SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES[index];
+            // TI index = random::uniform_int_distribution(device.random, (TI)0, (TI)(SPEC::STATIC_PARAMETERS::N_DYNAMICS_VALUES - 1), rng);
+            parameters.dynamics = SPEC::STATIC_PARAMETERS::DYNAMICS_VALUES[0]; //index];
             if constexpr(SPEC::STATIC_PARAMETERS::RANDOMIZE_THRUST_CURVES){
                 for(TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
                     T factor = random::uniform_real_distribution(device.random, (T)1.0, (T)4.0, rng);
