@@ -52,21 +52,12 @@ namespace builder{
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocityDelayed<observation::AngularVelocityDelayedSpecification<T, TI, ANGULAR_VELOCITY_DELAY,
-                    observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_THRUST_CURVES, observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, BASE_ENV::PARAMETERS_TYPE::N>>,
-                    observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_MOTOR_POSITIONS, observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, BASE_ENV::PARAMETERS_TYPE::N>>,
-                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, OPTIONS::ACTION_HISTORY ? OPTIONS::ACTION_HISTORY_LENGTH : 1, // one-step action history to Markovify the d_action regularization
-                    rl_tools::utils::typing::conditional_t<!OPTIONS::ACTION_HISTORY, observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>, observation::LastComponent<TI>>
-                    // one-step action history to Markovify the d_action regularization
-                    // observation::ParametersMass<observation::ParametersMassSpecification<T, TI
-            >>>>>>>>>>>>>>;
+                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, OPTIONS::ACTION_HISTORY ? OPTIONS::ACTION_HISTORY_LENGTH : 1 // one-step action history to Markovify the d_action regularization
+            >>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = typename BASE_ENV::PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters;
-            static constexpr TI N_DYNAMICS_VALUES = 1;
-            static constexpr typename BASE_ENV::PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
-                rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, typename BASE_ENV::PARAMETERS_SPEC>
-            };
             static constexpr T STATE_LIMIT_POSITION = 100000;
             static constexpr T STATE_LIMIT_VELOCITY = 100000;
             static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
