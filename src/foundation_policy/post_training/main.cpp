@@ -268,6 +268,16 @@ int main(int argc, char** argv){
         rlt::copy(device, device, critic_temp, critic); // temp => critic because we would like to backprop through the critic
         auto actor_file = HighFive::File((cpp_copy.checkpoint_path.parent_path() / "checkpoint.h5").string(), HighFive::File::ReadOnly);
         rlt::load(device, actor_teacher, actor_file.getGroup("actor"));
+
+        RESULT result;
+        DATA_EVAL no_data;
+        RNG rng_copy = rng;
+        generate_data<ENVIRONMENT_PT>(device, actor_teacher, result, no_data, rng_copy);
+        std::cout << "Teacher policy mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
+        if (result.returns_mean < SOLVED_RETURN){
+            std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
+            return 1;
+        }
     }
 
     for (TI i=0; i < DATASET_SIZE; i++){
