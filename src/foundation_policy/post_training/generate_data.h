@@ -1,5 +1,5 @@
 template <typename ENVIRONMENT, typename DEVICE, typename POLICY, typename RESULT, typename DATA, typename RNG>
-void generate_data(DEVICE& device, POLICY& policy, RESULT& result, DATA& data, RNG& rng){
+void sample_trajectories(DEVICE& device, POLICY& policy, RESULT& result, DATA& data, RNG& rng){
     using TI = typename DEVICE::index_t;
     ENVIRONMENT base_env;
     rlt::sample_initial_parameters<DEVICE, typename ENVIRONMENT::SPEC, RNG, true>(device, base_env, base_env.parameters, rng);
