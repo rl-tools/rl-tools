@@ -128,14 +128,14 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
 }
 
 
-template <typename DEVICE, typename STUDENT, typename TEACHER, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename TI, typename RNG>
+template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, typename DEVICE, typename STUDENT, typename TEACHER, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename TI, typename RNG>
 void gather_epoch(DEVICE& device, TEACHER& teacher, STUDENT& student, rlt::Tensor<DS_INPUT_SPEC>& dataset_input_student, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_index, RNG& rng){
     RESULT result;
     DATA* data_memory;
     data_memory = new DATA;
     DATA& data = *data_memory;
     sample_trajectories<ENVIRONMENT>(device, student, result, data, rng);
-    add_to_dataset<ENVIRONMENT, ENVIRONMENT_PT::Observation>(device, data, teacher, dataset_input_student, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+    add_to_dataset<ENVIRONMENT, TEACHER_OBSERVATION>(device, data, teacher, dataset_input_student, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
     delete data_memory;
 }
 
@@ -169,7 +169,7 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_reset;
     rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> epoch_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>>> batch_input;
-    static_assert(CRITIC::INPUT_SHAPE::template GET<2> == ENVIRONMENT_PT::Observation::DIM + ENVIRONMENT::ACTION_DIM);
+    static_assert(CRITIC::INPUT_SHAPE::template GET<2> == ENVIRONMENT_TEACHER::Observation::DIM + ENVIRONMENT::ACTION_DIM);
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::ACTION_DIM>>> batch_output_target;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> batch_reset;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
@@ -225,7 +225,7 @@ int main(int argc, char** argv){
         RESULT result;
         DATA_EVAL no_data;
         RNG rng_copy = rng;
-        sample_trajectories<ENVIRONMENT_PT>(device, actor_teacher, result, no_data, rng_copy);
+        sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher, result, no_data, rng_copy);
         std::cout << "Teacher policy mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
@@ -240,7 +240,7 @@ int main(int argc, char** argv){
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         current_index = 0;
-        gather_epoch(device, actor_teacher, actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+        gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation>(device, actor_teacher, actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
         TI N = current_index;
 
         if constexpr(SHUFFLE){
