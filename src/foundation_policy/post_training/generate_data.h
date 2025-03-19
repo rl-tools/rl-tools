@@ -2,7 +2,7 @@ template <typename ENVIRONMENT, typename DEVICE, typename POLICY, typename RESUL
 void sample_trajectories(DEVICE& device, POLICY& policy, RESULT& result, DATA& data, RNG& rng){
     using TI = typename DEVICE::index_t;
     ENVIRONMENT base_env;
-    rlt::sample_initial_parameters<DEVICE, typename ENVIRONMENT::SPEC, RNG, true>(device, base_env, base_env.parameters, rng);
+    rlt::sample_initial_parameters(device, base_env, base_env.parameters, rng);
     using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename POLICY::template CHANGE_BATCH_SIZE<TI, RESULT::SPEC::N_EPISODES>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>;
     rlt::rl::environments::DummyUI ui;
