@@ -30,24 +30,9 @@ namespace static_parameter_builder{
         static constexpr TI ACTION_HISTORY_LENGTH = 16;
         static constexpr TI EPISODE_STEP_LIMIT = 500;
         using STATE_BASE = StateBase<StateSpecification<T, TI>>;
-        using STATE_TYPE = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
-        using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
-                observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
-                observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
-                observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
-        using OBSERVATION_TYPE_PRIVILEGED = observation::Position<observation::PositionSpecificationPrivileged<T, TI,
-                observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
-                observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
-                observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
-                observation::RandomForce<observation::RandomForceSpecification<T, TI,
-                observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>
-        >
-        >
-        >>
-        >>
-        >>
-        >>;
+        using STATE_TYPE = DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, 0, CLOSED_FORM>;// StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
+        using OBSERVATION_TYPE = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH>;
+        using OBSERVATION_TYPE_PRIVILEGED = DefaultObservation<T, TI, 0, observation::RandomForce<observation::RandomForceSpecification<T, TI, observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>> >>>;
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
         using PARAMETER_FACTORY = parameters::DefaultParameters<T, TI>;
         static constexpr auto PARAMETER_VALUES = PARAMETER_FACTORY::parameters;

@@ -117,21 +117,15 @@ namespace rl_tools::rl::zoo::l2f{
             using STATE_TYPE = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
             using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
-                            observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
-                                    observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                                            observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
+                    observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
+                    observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
+                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = observation::Position<observation::PositionSpecificationPrivileged<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
-                            observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
-                                    observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
-                                            observation::RandomForce<observation::RandomForceSpecification<T, TI,
-                                                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>
-                                            >
-                                            >
-                                    >>
-                            >>
-                    >>
-            >>;
+                    observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
+                    observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
+                    observation::RandomForce<observation::RandomForceSpecification<T, TI,
+                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, T >>>>>>>>>>>>;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters;
