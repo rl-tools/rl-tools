@@ -1041,16 +1041,11 @@ namespace rl_tools{
             using OBSERVATION = observation::ParametersThrustCurves<OBSERVATION_SPEC>;
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
+            static constexpr T EPSILON = 1e-7;
             for (TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
                 for (TI order_i = 0; order_i < 3; order_i++){
-                    T value = parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i];
-                    if (order_i < 2){
-                        value *= 100;
-                    }
-                    else{
-                        value *= 10;
-                    }
-                    set(observation, 0, rotor_i * 3 + order_i, value);
+                    T normalized_value = parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] / (env.parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] + EPSILON);
+                    set(observation, 0, rotor_i * 3 + order_i, normalized_value);
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
@@ -1063,7 +1058,31 @@ namespace rl_tools{
             using OBSERVATION = observation::ParametersMass<OBSERVATION_SPEC>;
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
-            set(observation, 0, 0, parameters.dynamics.mass);
+            static constexpr T EPSILON = 1e-7;
+            T normalized_value = parameters.dynamics.mass / (env.parameters.dynamics.mass + EPSILON);
+            set(observation, 0, 0, normalized_value);
+            auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersInertia<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            using OBSERVATION = observation::ParametersInertia<OBSERVATION_SPEC>;
+            static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
+            static_assert(OBS_SPEC::ROWS == 1);
+            static constexpr T EPSILON = 1e-7;
+#ifdef RL_TOOLS_DEBUG
+            if(env.parameters.dynamics.J[0][0] < 10 * EPSILON){
+                std::cerr << "Inertia close to EPSILON" << std::endl;
+            }
+#endif
+            for(TI row_i=0; row_i < 3; row_i++){
+                for(TI col_i=0; col_i < 3; col_i++){
+                    T normalized_value = parameters.dynamics.J[row_i][col_i] / (env.parameters.dynamics.J[row_i][col_i] + EPSILON);
+                    set(observation, 0, row_i * 3 + col_i, (normalized_value - 1));
+                }
+            }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }

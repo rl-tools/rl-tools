@@ -93,9 +93,9 @@ namespace rl_tools{
         return std::string(first ? "" : ".") + "RandomForce" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
-    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersMass<OBS_SPEC>& obs, bool first = true){
-        using OBSERVATION = rl::environments::l2f::observation::ParametersMass<OBS_SPEC>;
-        return std::string(first ? "" : ".") + "ParametersMass" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersMotorPosition<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ParametersMotorPosition<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "ParametersMotorPosition" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersThrustCurves<OBS_SPEC>& obs, bool first = true){
@@ -103,9 +103,14 @@ namespace rl_tools{
         return std::string(first ? "" : ".") + "ParametersThrustCurves" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
-    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersMotorPosition<OBS_SPEC>& obs, bool first = true){
-        using OBSERVATION = rl::environments::l2f::observation::ParametersMotorPosition<OBS_SPEC>;
-        return std::string(first ? "" : ".") + "ParametersMotorPosition" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersMass<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ParametersMass<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "ParametersMass" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::ParametersInertia<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ParametersInertia<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "ParametersInertia" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     namespace rl::environments::l2f::obs_helper{
         template <typename DEVICE, typename ENV, typename OBS>
