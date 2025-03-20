@@ -595,7 +595,7 @@ namespace rl_tools::rl::environments::l2f{
     template <typename T, typename TI, TI ACTION_HISTORY_LENGTH = 1, TI ANGULAR_VELOCITY_HISTORY = 0, bool CLOSED_FORM = false>
     using DefaultActionHistoryState = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, DefaultState<T, TI, ANGULAR_VELOCITY_HISTORY>>>>>;
     template <typename T, typename TI, TI ANGULAR_VELOCITY_DELAY=0, typename NEXT_OBSERVATION = observation::LastComponent<TI>>
-    using DefaultObservation = observation::Position<observation::PositionSpecification<T, TI, observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI, observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI, observation::AngularVelocityDelayed<observation::AngularVelocityDelayedSpecification<T, TI, ANGULAR_VELOCITY_DELAY>>>>>>>>;
+    using DefaultObservation = observation::Position<observation::PositionSpecification<T, TI, observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI, observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI, observation::AngularVelocityDelayed<observation::AngularVelocityDelayedSpecification<T, TI, ANGULAR_VELOCITY_DELAY, NEXT_OBSERVATION>>>>>>>>;
     template <typename T, typename TI, TI ACTION_HISTORY_LENGTH, TI ANGULAR_VELOCITY_DELAY=0, typename NEXT_OBSERVATION = observation::LastComponent<TI>>
     using DefaultActionHistoryObservation = DefaultObservation<T, TI, ANGULAR_VELOCITY_DELAY, observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>;
 
