@@ -29,18 +29,8 @@ namespace rl_tools::rl::zoo::l2f{
     template <typename DEVICE, typename T, typename TI, typename OPTIONS>
     struct ENVIRONMENT_BIG_FACTORY{
 
-        struct DOMAIN_RANDOMIZATION_OPTIONS{
-            static constexpr bool ON = false;
-            static constexpr bool THRUST_TO_WEIGHT = ON;
-            static constexpr bool MASS = ON;
-            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ON;
-            static constexpr bool MASS_SIZE_DEVIATION = ON;
-        };
-
-
-        using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, T, TI, DOMAIN_RANDOMIZATION_OPTIONS>;
-        using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_SPEC;
-        using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_TYPE;
+        static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
+        constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
 
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
         static constexpr REWARD_FUNCTION reward_function = {
@@ -58,14 +48,33 @@ namespace rl_tools::rl::zoo::l2f{
                 01.00, // d_action
         };
 
-        static constexpr auto termination = [](){
-            auto termination = ENVIRONMENT_FACTORY_BASE::termination;
-            termination.linear_velocity_threshold = 2;
-            return termination;
-        }();
+        struct DOMAIN_RANDOMIZATION_OPTIONS{
+            static constexpr bool ON = false;
+            static constexpr bool THRUST_TO_WEIGHT = ON;
+            static constexpr bool MASS = ON;
+            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ON;
+            static constexpr bool MASS_SIZE_DEVIATION = ON;
+        };
 
+        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
+        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
+
+        static constexpr auto dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
+
+        static constexpr auto init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::MDP::ActionNoise action_noise = {
+            0, // std of additive gaussian noise onto the normalized action (-1, 1)
+        };
+        static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
+            true,  // enable
+            1,     // position
+            2,     // linear velocity
+            35,    // angular velocity
+            10000, // position integral
+            50000, // orientation integral
+        };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
-            ENVIRONMENT_FACTORY_BASE::init,
+            init,
             reward_function,
             { // observation_noise
                 0.00,// position
@@ -74,14 +83,14 @@ namespace rl_tools::rl::zoo::l2f{
                 0.00, // angular_velocity
                 0.00, // imu acceleration
             },
-            ENVIRONMENT_FACTORY_BASE::action_noise,
+            action_noise,
             termination
         };
         static constexpr TI SIMULATION_FREQUENCY = 100;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
-        static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
+        static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = DOMAIN_RANDOMIZATION_OPTIONS::ON ? typename PARAMETERS_TYPE::DomainRandomization{
             1.5, // thrust_to_weight_min;
             2.0, // thrust_to_weight_max;
             0.0016, // thrust_to_weight_by_torque_to_inertia_min;
@@ -92,24 +101,33 @@ namespace rl_tools::rl::zoo::l2f{
             0.0, // motor_time_constant;
             0.0, // rotor_torque_constant;
             0.0  // orientation_offset_angle_max;
+        } : typename PARAMETERS_TYPE::DomainRandomization{
+            0.0, // thrust_to_weight_min;
+            0.0, // thrust_to_weight_max;
+            0.0, // thrust_to_weight_by_torque_to_inertia_min;
+            0.0, // thrust_to_weight_by_torque_to_inertia_max;
+            0.0, // mass_min;
+            0.0, // mass_max;
+            0.0, // mass_size_deviation;
+            0.0, // motor_time_constant;
+            0.0, // rotor_torque_constant;
+            0.0  // orientation_offset_angle_max;
         };
-        static constexpr PARAMETERS_TYPE nominal_parameters(const typename PARAMETERS_TYPE::Dynamics& dynamics)
-        {
-            return {
+        static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
+            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, //{0, 0.027 * 9.81 / 3}, // random_force;
+            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
+        };
+        static constexpr PARAMETERS_TYPE nominal_parameters = {
+            {
                 {
-                    {
-                        dynamics,
-                        integration,
-                        mdp
-                    }, // Base
-                    typename PARAMETERS_TYPE::Disturbances{
-                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, //{0, 0.027 * 9.81 / 3}, // random_force;
-                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
-                    }
-                }, // Disturbances
-                ENVIRONMENT_FACTORY_BASE::domain_randomization
-            }; // DomainRandomization
-        }
+                    dynamics,
+                    integration,
+                    mdp
+                }, // Base
+                disturbances
+            }, // Disturbances
+            domain_randomization
+        }; // DomainRandomization
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
@@ -130,7 +148,7 @@ namespace rl_tools::rl::zoo::l2f{
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
-            static constexpr auto PARAMETER_VALUES = nominal_parameters(ENVIRONMENT_FACTORY_BASE::dynamics);
+            static constexpr PARAMETERS PARAMETER_VALUES = nominal_parameters;
             static constexpr T STATE_LIMIT_POSITION = 100000;
             static constexpr T STATE_LIMIT_VELOCITY = 100000;
             static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
