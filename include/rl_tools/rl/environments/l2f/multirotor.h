@@ -452,6 +452,20 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr TI CURRENT_DIM = 1;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct ParametersInertiaSpecification {
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        };
+        template <typename SPEC>
+        struct ParametersInertia{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr TI CURRENT_DIM = 9;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+        };
     }
 
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = void>
