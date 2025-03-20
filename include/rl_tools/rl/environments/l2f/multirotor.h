@@ -562,6 +562,16 @@ namespace rl_tools::rl::environments::l2f{
         T force[3];
         T torque[3];
     };
+    template <typename T_SPEC>
+    struct StateRandomOrientationOffset: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI DIM = 4 + NEXT_COMPONENT::DIM;
+        T orientation_offset[4];
+    };
 
     template <typename T, typename TI, typename T_PARAMETERS, typename T_PARAMETER_VALUES>
     struct StaticParametersDefault{

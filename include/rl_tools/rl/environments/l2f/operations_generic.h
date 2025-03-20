@@ -432,6 +432,14 @@ namespace rl_tools{
         state.torque[2] = 0;
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRandomOrientationOffset<STATE_SPEC>& state){
+        initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        state.orientation_offset[0] = 1;
+        state.orientation_offset[1] = 0;
+        state.orientation_offset[2] = 0;
+        state.orientation_offset[3] = 0;
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRotors<STATE_SPEC>& state){
         initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for(typename DEVICE::index_t i = 0; i < 4; i++){
@@ -511,6 +519,30 @@ namespace rl_tools{
         }
         return nan;
     }
+    namespace rl::environments::l2f::helper
+    {
+        template <typename DEVICE, typename T, typename RNG>
+        void sample_orientation(DEVICE& device, T limit, T output[4], RNG& rng){
+            // Uniform sampling on the desired angle range
+            T u = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
+            T v = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
+            T phi = 2.0 * math::PI<T> * u;
+            T cos_theta = 1.0 - 2.0 * v;
+            T sin_theta = math::sqrt(device.math, 1.0 - cos_theta*cos_theta);
+            T x = sin_theta * math::cos(device.math, phi);
+            T y = sin_theta * math::sin(device.math, phi);
+            T z = cos_theta;
+            T angle = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
+
+            // Quaternion = [cos(angle/2), sin(angle/2)*axis]
+            T half = 0.5 * angle;
+            T s = math::sin(device.math, half);
+            output[0] = math::cos(device.math, half);
+            output[1] = x * s;
+            output[2] = y * s;
+            output[3] = z * s;
+        }
+    }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateBase<STATE_SPEC>& state, RNG& rng, bool inherited_guidance = false){
         typename DEVICE::SPEC::MATH math_dev;
@@ -531,38 +563,7 @@ namespace rl_tools{
             }
         }
         if(parameters.mdp.init.max_angle > 0 && !guidance){
-            // Uniform sampling on SO3 => rejection sampling for the desired angle range
-            // // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
-            // do{
-            //     T u[3];
-            //     for(TI i = 0; i < 3; i++){
-            //         u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
-            //     }
-            //     state.orientation[0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*math::PI<T>*u[1]);
-            //     state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
-            //     state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
-            //     state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
-            // } while(math::abs(math_dev, 2*math::acos(math_dev, math::abs(math_dev, state.orientation[0]))) > parameters.mdp.init.max_angle);
-
-            // Uniform sampling on the desired angle range
-            T u = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
-            T v = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
-            T phi = 2.0 * math::PI<T> * u;
-            T cos_theta = 1.0 - 2.0 * v;
-            T sin_theta = math::sqrt(device.math, 1.0 - cos_theta*cos_theta);
-            T x = sin_theta * math::cos(device.math, phi);
-            T y = sin_theta * math::sin(device.math, phi);
-            T z = cos_theta;
-            T angle = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
-
-            // Quaternion = [cos(angle/2), sin(angle/2)*axis]
-            T half = 0.5 * angle;
-            T s = math::sin(device.math, half);
-            state.orientation[0] = math::cos(device.math, half);
-            state.orientation[1] = x * s;
-            state.orientation[2] = y * s;
-            state.orientation[3] = z * s;
-
+            rl::environments::l2f::helper::sample_orientation(device, parameters.mdp.init.max_angle, state.orientation, rng);
         }
         else{
             state.orientation[0] = 1;
@@ -650,6 +651,13 @@ namespace rl_tools{
 //            state.torque[2] = 0;
 //        }
 
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, typename rl::environments::l2f::StateRandomOrientationOffset<STATE_SPEC>& state, RNG& rng){
+        typename DEVICE::SPEC::RANDOM random_dev;
+        using T = typename SPEC::T;
+        sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
+        rl::environments::l2f::helper::sample_orientation(device, parameters.domain_randomization, state.orientation, rng);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, typename rl::environments::l2f::StateRotors<STATE_SPEC>& state, RNG& rng){
