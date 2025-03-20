@@ -288,14 +288,22 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
-    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersDomainRandomization<PARAMETER_SPEC>& parameters, RNG& rng, bool reset = true){
+    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersBase<PARAMETER_SPEC>& parameters, RNG& rng){
+        parameters = env.parameters;
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
+    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersDisturbances<PARAMETER_SPEC>& parameters, RNG& rng){
+        sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
+        parameters.disturbances = env.parameters.disturbances;
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
+    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersDomainRandomization<PARAMETER_SPEC>& parameters, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using PARAMETERS = rl::environments::l2f::ParametersDomainRandomization<PARAMETER_SPEC>;
         using OPTS = typename PARAMETER_SPEC::OPTIONS;
-        if(reset){
-            initial_parameters(device, env, parameters);
-        }
+        sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
+        parameters.domain_randomization = env.parameters.domain_randomization;
         /*
          *  Strategy:
          *  1. Sample Thrust to Weight
