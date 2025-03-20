@@ -381,7 +381,7 @@ namespace rl_tools{
             }
         }
         else{
-            utils::assert_exit(device, parameters.domain_randomization.mass_size_Deviation == 0 , "L2f: Domain randomization mass_size_deviation should be 0 if MASS_SIZE_DEVIATION is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+            utils::assert_exit(device, parameters.domain_randomization.mass_size_deviation == 0 , "L2f: Domain randomization mass_size_deviation should be 0 if MASS_SIZE_DEVIATION is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
         }
         if constexpr(OPTS::THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA || OPTS::MASS_SIZE_DEVIATION){
             T inertia_factor = torque_to_inertia_factor/rotor_distance_factor;
