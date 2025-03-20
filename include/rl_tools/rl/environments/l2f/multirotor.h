@@ -115,12 +115,12 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = false;
         static constexpr bool MASS_SIZE_DEVIATION = false;
     };
-    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT, typename T_OPTIONS = DefaultParametersDomainRandomizationOptions>
+    template <typename T_T, typename T_TI, typename T_OPTIONS, typename T_NEXT_COMPONENT>
     struct ParametersDomainRandomizationSpecification{
         using T = T_T;
         using TI = T_TI;
-        using NEXT_COMPONENT = T_NEXT_COMPONENT;
         using OPTIONS = T_OPTIONS;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
     template <typename T>
     struct DomainRandomizationContainer{ // needs to be independent of the SPEC such that the dispatch in operations_cpu.h does not create issues
