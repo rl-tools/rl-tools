@@ -279,14 +279,6 @@ namespace rl_tools{
         parameters = env.parameters;
 //        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
-    namespace rl::environments::l2f {
-        template <typename T, typename DEVICE, typename RNG>
-        T sample_domain_randomization_factor(DEVICE& device, T range, RNG& rng) {
-            T factor = random::normal_distribution::sample(device.random, -range, range, rng);
-            factor = factor < 0 ? 1/(1-factor) : 1+factor; // reciprocal scale, note 1-factor because factor is negative in that case anyways
-            return factor;
-        }
-    }
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersBase<PARAMETER_SPEC>& parameters, RNG& rng){
         parameters = env.parameters;
@@ -295,6 +287,14 @@ namespace rl_tools{
     static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersDisturbances<PARAMETER_SPEC>& parameters, RNG& rng){
         sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
         parameters.disturbances = env.parameters.disturbances;
+    }
+    namespace rl::environments::l2f {
+        template <typename T, typename DEVICE, typename RNG>
+        T sample_domain_randomization_factor(DEVICE& device, T range, RNG& rng) {
+            T factor = random::normal_distribution::sample(device.random, -range, range, rng);
+            factor = factor < 0 ? 1/(1-factor) : 1+factor; // reciprocal scale, note 1-factor because factor is negative in that case anyways
+            return factor;
+        }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersDomainRandomization<PARAMETER_SPEC>& parameters, RNG& rng){
