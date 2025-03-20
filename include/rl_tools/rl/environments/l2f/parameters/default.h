@@ -25,8 +25,16 @@ namespace rl_tools::rl::environments::l2f::parameters {
         using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
+        struct DOMAIN_RANDOMIZATION_OPTIONS{
+            static constexpr bool THRUST_TO_WEIGHT = false;
+            static constexpr bool MASS = false;
+            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = false;
+            static constexpr bool MASS_SIZE_DEVIATION = false;
+        };
+
+
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersSpecification<T, TI, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
+        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
 
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -63,11 +71,12 @@ namespace rl_tools::rl::environments::l2f::parameters {
             0.0, // thrust_to_weight_max;
             0.0, // thrust_to_weight_by_torque_to_inertia_min;
             0.0, // thrust_to_weight_by_torque_to_inertia_max;
-            0.02, // mass_min;
-            0.035, // mass_max;
+            0.0, // mass_min;
+            0.0, // mass_max;
             0.0, // mass_size_deviation;
             0.0, // motor_time_constant;
-            0.0 // rotor_torque_constant;
+            0.0, // rotor_torque_constant;
+            0.0  // orientation_offset_angle_max;
         };
         static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
