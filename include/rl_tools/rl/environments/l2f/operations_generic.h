@@ -291,6 +291,7 @@ namespace rl_tools{
     static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng, bool reset = true){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        using OPTS = typename PARAMETERS::SPEC::OPTIONS;
         if(reset){
             initial_parameters(device, env, parameters);
         }
@@ -320,36 +321,39 @@ namespace rl_tools{
         T factor_mass = 1;
         T scale_absolute = 1;
         T scale_relative = 1;
-        if(parameters.domain_randomization.mass_min != 0) {
+        if constexpr(OPTS::THRUST_TO_WEIGHT){
+            utils::assert_exit(device, parameters.domain_randomization.mass_min < parameters.domain_randomization.mass_max, "L2f: Domain randomization mass max should be larger than min. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             T mass_new = random::uniform_real_distribution(device.random, parameters.domain_randomization.mass_min, parameters.domain_randomization.mass_max, rng);
             scale_relative = math::cbrt(device.math, mass_new/parameters.dynamics.mass);
             scale_absolute = math::cbrt(device.math, mass_new); // thrust_to_weight_by_torque_to_inertia is defined wrt. to the crazyflie
             factor_mass = mass_new / parameters.dynamics.mass;
             parameters.dynamics.mass = mass_new;
-        }
-        T factor_thrust_coefficients = factor_thrust_to_weight * factor_mass;
-        for(TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
-            for(TI order_i = 0; order_i < 3; order_i++){
-                parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] *= factor_thrust_coefficients;
+
+            T factor_thrust_coefficients = factor_thrust_to_weight * factor_mass;
+            for(TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
+                for(TI order_i = 0; order_i < 3; order_i++){
+                    parameters.dynamics.rotor_thrust_coefficients[rotor_i][order_i] *= factor_thrust_coefficients;
+                }
             }
         }
-        T max_thrust = parameters.dynamics.rotor_thrust_coefficients[0][0] + parameters.dynamics.rotor_thrust_coefficients[0][1] * max_action + parameters.dynamics.rotor_thrust_coefficients[0][2] * max_action * max_action;
-        T first_rotor_distance_nominal = math::sqrt(device.math, parameters.dynamics.rotor_positions[0][0] * parameters.dynamics.rotor_positions[0][0] + parameters.dynamics.rotor_positions[0][1] * parameters.dynamics.rotor_positions[0][1] + parameters.dynamics.rotor_positions[0][2] * parameters.dynamics.rotor_positions[0][2]);
-        T max_torque = first_rotor_distance_nominal * 1.414213562373095 * max_thrust; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
-        T x_inertia = parameters.dynamics.J[0][0];
-        T torque_to_inertia_nominal = max_torque / x_inertia;
-        // T thrust_to_weight_by_torque_to_inertia_upper = 0.7  * scale_absolute;
-        // T thrust_to_weight_by_torque_to_inertia_lower = 0.300 * (scale_absolute-1.0);
 
         T torque_to_inertia_factor = 1;
-        if(parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min != 0) {
+        if constexpr(OPTS::THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA){
+            T max_thrust = parameters.dynamics.rotor_thrust_coefficients[0][0] + parameters.dynamics.rotor_thrust_coefficients[0][1] * max_action + parameters.dynamics.rotor_thrust_coefficients[0][2] * max_action * max_action;
+            T first_rotor_distance_nominal = math::sqrt(device.math, parameters.dynamics.rotor_positions[0][0] * parameters.dynamics.rotor_positions[0][0] + parameters.dynamics.rotor_positions[0][1] * parameters.dynamics.rotor_positions[0][1] + parameters.dynamics.rotor_positions[0][2] * parameters.dynamics.rotor_positions[0][2]);
+            T max_torque = first_rotor_distance_nominal * 1.414213562373095 * max_thrust; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
+            T x_inertia = parameters.dynamics.J[0][0];
+            T torque_to_inertia_nominal = max_torque / x_inertia;
+
+            utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min < parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max, "L2f: Domain randomization thrust_to_weight_by_torque_to_inertia max should be larger than min. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             T thrust_to_weight_by_torque_to_inertia = random::uniform_real_distribution(device.random, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max, rng);
             T torque_to_inertia = thrust_to_weight / thrust_to_weight_by_torque_to_inertia;
             torque_to_inertia_factor = torque_to_inertia / torque_to_inertia_nominal;
         }
 
         T rotor_distance_factor = 1;
-        if(parameters.domain_randomization.mass_size_deviation != 0) {
+        if constexpr(OPTS::MASS_SIZE_DEVIATION){
+            utils::assert_exit(device, parameters.domain_randomization.mass_size_deviation != 0, "L2f: Domain randomization mass_size_deviation should be != 0. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             T size_factor = rl::environments::l2f::sample_domain_randomization_factor(device, parameters.domain_randomization.mass_size_deviation, rng);
             rotor_distance_factor = scale_relative * size_factor;
             parameters.mdp.termination.position_threshold *= size_factor * size_factor;
@@ -357,16 +361,18 @@ namespace rl_tools{
                 parameters.mdp.termination.position_threshold = parameters.mdp.init.max_position * 2;
             }
         }
-        T inertia_factor = torque_to_inertia_factor/rotor_distance_factor;
+        if constexpr(OPTS::THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA || OPTS::MASS_SIZE_DEVIATION){
+            T inertia_factor = torque_to_inertia_factor/rotor_distance_factor;
 
-        for(TI axis_i = 0; axis_i < 3; axis_i++){
-            parameters.dynamics.J[axis_i][axis_i] /= inertia_factor;
-            parameters.dynamics.J_inv[axis_i][axis_i] *= inertia_factor;
-            // todo sample I_yy and I_zz, I_xx is random already through the torque_to_inertia mechanism
-        }
-        for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
             for(TI axis_i = 0; axis_i < 3; axis_i++){
-                parameters.dynamics.rotor_positions[rotor_i][axis_i] *= rotor_distance_factor;
+                parameters.dynamics.J[axis_i][axis_i] /= inertia_factor;
+                parameters.dynamics.J_inv[axis_i][axis_i] *= inertia_factor;
+                // todo sample I_yy and I_zz, I_xx is random already through the torque_to_inertia mechanism
+            }
+            for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+                for(TI axis_i = 0; axis_i < 3; axis_i++){
+                    parameters.dynamics.rotor_positions[rotor_i][axis_i] *= rotor_distance_factor;
+                }
             }
         }
     }

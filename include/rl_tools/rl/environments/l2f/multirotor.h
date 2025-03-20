@@ -108,6 +108,18 @@ namespace rl_tools::rl::environments::l2f{
         Disturbances disturbances;
     };
 
+    struct DefaultParametersDomainRandomizationOptions{
+        static constexpr bool THRUST_TO_WEIGHT = false;
+        static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = false;
+        static constexpr bool MASS_SIZE_DEVIATION = false;
+    };
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT, typename T_OPTIONS = DefaultParametersDomainRandomizationOptions>
+    struct ParametersDomainRandomizationSpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        using OPTIONS = T_OPTIONS;
+    };
     template <typename T>
     struct DomainRandomizationContainer{ // needs to be independent of the SPEC such that the dispatch in operations_cpu.h does not create issues
         T thrust_to_weight_min;
@@ -119,6 +131,7 @@ namespace rl_tools::rl::environments::l2f{
         T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
         T motor_time_constant;
         T rotor_torque_constant;
+        T orientation_offset_angle_max;
     };
     template <typename SPEC>
     struct ParametersDomainRandomization: SPEC::NEXT_COMPONENT{
