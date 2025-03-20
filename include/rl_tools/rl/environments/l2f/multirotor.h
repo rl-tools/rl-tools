@@ -408,18 +408,19 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr TI CURRENT_DIM = 6;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct ParametersMassSpecification {
+        template <typename T_T, typename T_TI, T_TI T_N, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct ParametersMotorPositionSpecification {
             using T = T_T;
             using TI = T_TI;
+            static constexpr TI N = T_N;
             using NEXT_COMPONENT = T_NEXT_COMPONENT;
         };
         template <typename SPEC>
-        struct ParametersMass{
+        struct ParametersMotorPosition{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
-            static constexpr TI CURRENT_DIM = 1;
+            static constexpr TI CURRENT_DIM = SPEC::N * 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
         template <typename T_T, typename T_TI, T_TI T_N, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
@@ -437,19 +438,18 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr TI CURRENT_DIM = SPEC::N * 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T_T, typename T_TI, T_TI T_N, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct ParametersMotorPositionSpecification {
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct ParametersMassSpecification {
             using T = T_T;
             using TI = T_TI;
-            static constexpr TI N = T_N;
             using NEXT_COMPONENT = T_NEXT_COMPONENT;
         };
         template <typename SPEC>
-        struct ParametersMotorPosition{
+        struct ParametersMass{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
-            static constexpr TI CURRENT_DIM = SPEC::N * 3;
+            static constexpr TI CURRENT_DIM = 1;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
     }
