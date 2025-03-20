@@ -25,7 +25,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::l2f{
     namespace rlt = rl_tools;
     using namespace rl_tools::rl::environments::l2f;
-    template <typename DEVICE, typename T, typename TI>
+    template <typename DEVICE, typename T, typename TI, typename DOMAIN_RANDOMIZATION_OPTIONS=DefaultParametersDomainRandomizationOptions>
     struct ENVIRONMENT_FACTORY{
 
         static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::x500_real;
@@ -48,7 +48,7 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersSpecification<T, TI, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
+        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
 
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {

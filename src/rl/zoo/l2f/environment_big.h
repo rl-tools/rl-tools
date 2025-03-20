@@ -28,7 +28,16 @@ namespace rl_tools::rl::zoo::l2f{
     using namespace rl_tools::rl::environments::l2f;
     template <typename DEVICE, typename T, typename TI, typename OPTIONS>
     struct ENVIRONMENT_BIG_FACTORY{
-        using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, T, TI>;
+
+        struct DOMAIN_RANDOMIZATION_OPTIONS{
+            static constexpr bool THRUST_TO_WEIGHT = true;
+            static constexpr bool MASS = true;
+            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = true;
+            static constexpr bool MASS_SIZE_DEVIATION = true;
+        };
+
+
+        using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, T, TI, DOMAIN_RANDOMIZATION_OPTIONS>;
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_SPEC;
         using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_TYPE;
 
@@ -71,6 +80,18 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
+        static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
+            1.5, // thrust_to_weight_min;
+            2.0, // thrust_to_weight_max;
+            0.0016, // thrust_to_weight_by_torque_to_inertia_min;
+            0.0037, // thrust_to_weight_by_torque_to_inertia_max;
+            0.027, // mass_min;
+            0.031, // mass_max;
+            0.1, // mass_size_deviation;
+            0.0, // motor_time_constant;
+            0.0, // rotor_torque_constant;
+            0.0  // orientation_offset_angle_max;
+        };
         static constexpr PARAMETERS_TYPE nominal_parameters(const typename PARAMETERS_TYPE::Dynamics& dynamics)
         {
             return {
@@ -85,7 +106,7 @@ namespace rl_tools::rl::zoo::l2f{
                         typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
                     }
                 }, // Disturbances
-                ENVIRONMENT_FACTORY_BASE::domain_randomization
+                domain_randomization
             }; // DomainRandomization
         }
 
@@ -117,18 +138,13 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters(ENVIRONMENT_FACTORY_BASE::dynamics);
-            static constexpr TI N_DYNAMICS_VALUES = 1;
-            static constexpr typename PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
-                rl_tools::rl::environments::l2f::parameters::dynamics::registry<rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>
-            };
             static constexpr T STATE_LIMIT_POSITION = 100000;
             static constexpr T STATE_LIMIT_VELOCITY = 100000;
             static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
         };
 
-        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::MultiTaskSpecification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
-        using ENVIRONMENT = rl_tools::rl::environments::MultirotorMultiTask<ENVIRONMENT_SPEC>;
-        static_assert(rl::environments::PREVENT_DEFAULT_GET_UI<ENVIRONMENT>::value);
+        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
+        using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
