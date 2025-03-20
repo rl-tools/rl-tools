@@ -104,12 +104,14 @@ namespace rl_tools::rl::environments::l2f{
     };
     template <typename SPEC>
     struct ParametersDisturbances: SPEC::NEXT_COMPONENT{
+        static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
         using Disturbances = DisturbancesContainer<typename SPEC::T>;
         Disturbances disturbances;
     };
 
     struct DefaultParametersDomainRandomizationOptions{
         static constexpr bool THRUST_TO_WEIGHT = false;
+        static constexpr bool MASS = false;
         static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = false;
         static constexpr bool MASS_SIZE_DEVIATION = false;
     };
@@ -122,19 +124,20 @@ namespace rl_tools::rl::environments::l2f{
     };
     template <typename T>
     struct DomainRandomizationContainer{ // needs to be independent of the SPEC such that the dispatch in operations_cpu.h does not create issues
-        T thrust_to_weight_min;
+        T thrust_to_weight_min; // cf: ~[1.5, 2]
         T thrust_to_weight_max;
-        T thrust_to_weight_by_torque_to_inertia_min;
+        T thrust_to_weight_by_torque_to_inertia_min; // cf: torque_to_inertia ~[536, 933] => [1.5/933=0.0016, 2/536=0.0037]
         T thrust_to_weight_by_torque_to_inertia_max;
-        T mass_min;
+        T mass_min; // cf: ~[0.027 - 0.031]
         T mass_max;
         T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
-        T motor_time_constant;
-        T rotor_torque_constant;
+        T motor_time_constant; // cf: rising: ~[0.05, 0.09], falling: ~[0.07, 0.3]
+        T rotor_torque_constant; // cf: ~0.005
         T orientation_offset_angle_max;
     };
     template <typename SPEC>
     struct ParametersDomainRandomization: SPEC::NEXT_COMPONENT{
+        static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
         using DomainRandomization = DomainRandomizationContainer<typename SPEC::T>;
         DomainRandomization domain_randomization;
     };
