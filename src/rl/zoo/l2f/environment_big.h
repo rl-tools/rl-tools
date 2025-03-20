@@ -30,10 +30,11 @@ namespace rl_tools::rl::zoo::l2f{
     struct ENVIRONMENT_BIG_FACTORY{
 
         struct DOMAIN_RANDOMIZATION_OPTIONS{
-            static constexpr bool THRUST_TO_WEIGHT = true;
-            static constexpr bool MASS = true;
-            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = true;
-            static constexpr bool MASS_SIZE_DEVIATION = true;
+            static constexpr bool ON = false;
+            static constexpr bool THRUST_TO_WEIGHT = ON;
+            static constexpr bool MASS = ON;
+            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ON;
+            static constexpr bool MASS_SIZE_DEVIATION = ON;
         };
 
 
@@ -106,7 +107,7 @@ namespace rl_tools::rl::zoo::l2f{
                         typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
                     }
                 }, // Disturbances
-                domain_randomization
+                ENVIRONMENT_FACTORY_BASE::domain_randomization
             }; // DomainRandomization
         }
 
