@@ -85,7 +85,8 @@ namespace builder{
             0.0, // mass_max;
             0.0, // mass_size_deviation;
             0.0, // motor_time_constant;
-            0.0  // rotor_torque_constant;
+            0.0, // rotor_torque_constant;
+            0.0  // orientation_offset_angle_max;
         };
         static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
