@@ -16,11 +16,6 @@
 #define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 
-RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools{
-}
-RL_TOOLS_NAMESPACE_WRAPPER_END
-
 #include <rl_tools/utils/generic/integrators.h>
 
 
@@ -33,10 +28,6 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "operations_generic/50_state_algebra.h"
 #include "operations_generic/60_dynamics.h"
 #include "operations_generic/70_post_integration.h"
-RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::l2f{
-}
-RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -96,7 +87,6 @@ namespace rl_tools
             action_noisy += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.action_noise.normalized_rpm, rng);
             action_noisy = math::clamp(device.math, action_noisy, -(T)1, (T)1);
             action_scaled[action_i] = action_noisy * half_range + parameters.dynamics.action_limit.min + half_range;
-//            state.rpm[action_i] = action_scaled[action_i];
         }
         if constexpr(SPEC::STATIC_PARAMETERS::N_SUBSTEPS == 1){
             utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);
@@ -116,10 +106,6 @@ namespace rl_tools
 
         post_integration(device, env, parameters, state, action, next_state, rng);
 
-//        utils::assert_exit(device, !math::is_nan(device.math, next_state.position_integral), "pi nan");
-//        utils::assert_exit(device, !math::is_nan(device.math, next_state.orientation_integral), "oi nan");
-//        utils::assert_exit(device, !is_nan(device, action), "action nan");
-//        utils::assert_exit(device, !is_nan(device, next_state), "nan");
         return parameters.integration.dt;
     }
 
