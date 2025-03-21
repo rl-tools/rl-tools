@@ -46,6 +46,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_acceleration
                 00.00, // action
                 01.00, // d_action
+                00.00, // position_error_integral
         };
 
         struct DOMAIN_RANDOMIZATION_OPTIONS{
@@ -70,7 +71,7 @@ namespace rl_tools::rl::zoo::l2f{
             1,     // position
             2,     // linear velocity
             35,    // angular velocity
-            10000, // position integral
+            100, // position integral
             50000, // orientation integral
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
@@ -142,8 +143,9 @@ namespace rl_tools::rl::zoo::l2f{
                 observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersMass<observation::ParametersMassSpecification<T, TI,
-                observation::ParametersInertia<observation::ParametersInertiaSpecification<T, TI
-            >>>>>>>>>;
+                observation::ParametersInertia<observation::ParametersInertiaSpecification<T, TI,
+                observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
+            >>>>>>>>>>>;
             using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY>;
             using OBSERVATION_TYPE = OBSERVATION_TYPE_PO;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
