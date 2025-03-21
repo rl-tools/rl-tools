@@ -12,8 +12,6 @@
 
 #include <rl_tools/rl/environments/operations_generic.h>
 
-// This file contains algebraic operations for states that REQUIRE_INTEGRATION.
-
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
     template<typename DEVICE, typename STATE_SPEC, typename PARAMETERS, typename T>
