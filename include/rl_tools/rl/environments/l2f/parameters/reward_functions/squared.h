@@ -76,9 +76,9 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         components.d_action_cost = math::sqrt(device.math, components.d_action_cost);
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const StateLastAction<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action,  const StatePoseErrorIntegral<STATE_SPEC>& next_state, typename Squared<T>::Components& components, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const StatePoseErrorIntegral<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action,  const StatePoseErrorIntegral<STATE_SPEC>& next_state, typename Squared<T>::Components& components, RNG& rng){
         reward_components(device, env, parameters, reward_parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(next_state), components, rng);
-        components.position_integral_error_cost = next_state.position_integral;
+        components.position_error_integral_cost = next_state.position_integral;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const typename Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename Multirotor<SPEC>::State& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
