@@ -526,17 +526,6 @@ namespace rl_tools::rl::environments::l2f{
         T angular_velocity_history[HISTORY_MEM_LENGTH][3];
     };
 
-    template <typename T_SPEC>
-    struct StatePoseErrorIntegral: T_SPEC::NEXT_COMPONENT{
-        using SPEC = T_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
-        static constexpr bool REQUIRES_INTEGRATION = true;
-        static constexpr TI DIM = 2;
-        T position_integral;
-        T orientation_integral;
-    };
     template <typename T_T, typename T_TI, bool T_CLOSED_FORM = false, typename T_NEXT_COMPONENT = void>
     struct StateRotorsSpecification{
         using T = T_T;
@@ -591,6 +580,17 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;
         T force[3];
         T torque[3];
+    };
+    template <typename T_SPEC>
+    struct StatePoseErrorIntegral: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = true;
+        static constexpr TI DIM = 2;
+        T position_integral;
+        T orientation_integral;
     };
     template <typename T_SPEC>
     struct StateRandomOrientationOffset: T_SPEC::NEXT_COMPONENT{
