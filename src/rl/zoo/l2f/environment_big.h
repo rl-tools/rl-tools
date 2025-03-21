@@ -46,7 +46,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_acceleration
                 00.00, // action
                 01.00, // d_action
-                01.00, // position_error_integral
+                00.00, // position_error_integral
         };
 
         struct DOMAIN_RANDOMIZATION_OPTIONS{
@@ -71,7 +71,7 @@ namespace rl_tools::rl::zoo::l2f{
             1,     // position
             2,     // linear velocity
             35,    // angular velocity
-            100, // position integral
+            10000, // position integral
             50000, // orientation integral
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
