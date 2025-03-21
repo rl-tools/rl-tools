@@ -1,3 +1,21 @@
+#include "../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_OPERATIONS_GENERIC_DYNAMICS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_OPERATIONS_GENERIC_DYNAMICS_H
+
+#include "../multirotor.h"
+
+#include <rl_tools/utils/generic/vector_operations.h>
+#include "../quaternion_helper.h"
+
+#include <rl_tools/utils/generic/typing.h>
+
+#include <rl_tools/rl/environments/operations_generic.h>
+
+// This file contains algebraic operations for states that REQUIRE_INTEGRATION.
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rl::environments::l2f{
     template<typename DEVICE, typename STATE_SPEC, typename PARAMETERS, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateBase<STATE_SPEC>& state, const T* action, StateBase<STATE_SPEC>& state_change) {
         using STATE = StateBase<STATE_SPEC>;
@@ -101,4 +119,7 @@
 //        multirotor_dynamics<DEVICE, T, typename DEVICE::index_t, typename STATE::LATENT_STATE, PARAMETERS>(device, params, state, action, state_change);
         multirotor_dynamics(device, params, state, action, state_change);
     }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+#endif
 
