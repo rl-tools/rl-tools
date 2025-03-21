@@ -31,10 +31,10 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
             };
             static constexpr TI N_ENVIRONMENTS = OPTIONS::SEQUENTIAL_MODEL ? 16 : 1;
-            static constexpr TI STEP_LIMIT = OPTIONS::SEQUENTIAL_MODEL ? 2000000 : 2000000;
+            static constexpr TI STEP_LIMIT = OPTIONS::SEQUENTIAL_MODEL ? 2000000 : 4000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = OPTIONS::SEQUENTIAL_MODEL ? 3 : 4;
-            static constexpr TI ACTOR_HIDDEN_DIM = OPTIONS::SEQUENTIAL_MODEL ? 16: 128;
+            static constexpr TI ACTOR_HIDDEN_DIM = OPTIONS::SEQUENTIAL_MODEL ? 16: 256;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI CRITIC_NUM_LAYERS = OPTIONS::SEQUENTIAL_MODEL ? 3 : 4;
             static constexpr TI CRITIC_HIDDEN_DIM = OPTIONS::SEQUENTIAL_MODEL ? 16 : 256;
