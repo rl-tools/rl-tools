@@ -108,6 +108,16 @@ namespace rl_tools
 
         return parameters.integration.dt;
     }
+    namespace rl::environments::l2f{
+        template<typename STATE>
+        constexpr bool is_pose_error_integral(const STATE&){
+            return false;
+        }
+        template<typename SPEC>
+        constexpr bool is_pose_error_integral(const StatePoseErrorIntegral<SPEC>&){
+            return true;
+        }
+    }
 
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const STATE& state, RNG& rng){
@@ -124,12 +134,14 @@ namespace rl_tools
                 }
             }
         }
-//        if(state.position_integral > parameters.mdp.termination.position_integral_threshold){
-//            return true;
-//        }
-//        if(state.orientation_integral > parameters.mdp.termination.orientation_integral_threshold){
-//            return true;
-//        }
+        if constexpr(rl::environments::l2f::is_pose_error_integral(STATE{})){
+            if(state.position_integral > parameters.mdp.termination.position_integral_threshold){
+                return true;
+            }
+            if(state.orientation_integral > parameters.mdp.termination.orientation_integral_threshold){
+                return true;
+            }
+        }
         return false;
     }
 }
