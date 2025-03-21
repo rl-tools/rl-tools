@@ -37,7 +37,7 @@ namespace rl_tools::rl::zoo::l2f{
                 false, // non-negative
                 01.00, // scale
                 01.50, // constant
-                00.00, // termination penalty
+                -100.00, // termination penalty
                 00.00, // position
                 00.10, // orientation
                 00.00, // linear_velocity
