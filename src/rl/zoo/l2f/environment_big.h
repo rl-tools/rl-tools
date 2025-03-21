@@ -38,7 +38,7 @@ namespace rl_tools::rl::zoo::l2f{
                 01.00, // scale
                 01.50, // constant
                 00.00, // termination penalty
-                01.00, // position
+                00.00, // position
                 00.10, // orientation
                 00.00, // linear_velocity
                 00.00, // angular_velocity
@@ -46,7 +46,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_acceleration
                 00.00, // action
                 01.00, // d_action
-                00.00, // position_error_integral
+                01.00, // position_error_integral
         };
 
         struct DOMAIN_RANDOMIZATION_OPTIONS{
