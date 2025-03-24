@@ -143,10 +143,10 @@ namespace rl_tools::rl::zoo::l2f{
                 observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersMass<observation::ParametersMassSpecification<T, TI,
-                observation::ParametersInertia<observation::ParametersInertiaSpecification<T, TI,
-                observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
-            >>>>>>>>>>>;
-            using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY, observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI>>>;
+                observation::ParametersInertia<observation::ParametersInertiaSpecification<T, TI
+                // observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
+            >>>>>>>>>;
+            using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY>;
             using OBSERVATION_TYPE = OBSERVATION_TYPE_PO;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
