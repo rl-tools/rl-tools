@@ -30,8 +30,10 @@ namespace rl_tools{
             using OBSERVATION = observation::PoseIntegral<OBSERVATION_SPEC>;
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
-            set(observation, 0, 0, state.position_integral);
-            set(observation, 0, 1, state.orientation_integral);
+            for (TI dim_i=0; dim_i<3; dim_i++){
+                set(observation, 0, dim_i, state.position_integral[dim_i]);
+            }
+            set(observation, 0, 3, state.orientation_integral);
             auto current_observation = view(device, observation, matrix::ViewSpec<1, OBSERVATION::CURRENT_DIM>{}, 0, 0);
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);

@@ -412,7 +412,7 @@ namespace rl_tools{
     std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state, bool top_level=true){
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
-        json_string += "\"position_integral\": " + std::to_string(state.position_integral) + ", ";
+        json_string += "\"position_integral\": [" + std::to_string(state.position_integral[0]) + ", " + std::to_string(state.position_integral[1]) + ", " + std::to_string(state.position_integral[2]) + "], ";
         json_string += "\"orientation_integral\": " + std::to_string(state.orientation_integral);
         json_string += top_level ? "}" : "";
         return json_string;
@@ -629,7 +629,9 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, nlohmann::json json_object, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        state.position_integral = json_object["position_integral"];
+        state.position_integral[0] = json_object["position_integral"][0];
+        state.position_integral[1] = json_object["position_integral"][1];
+        state.position_integral[2] = json_object["position_integral"][2];
         state.orientation_integral = json_object["orientation_integral"];
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>

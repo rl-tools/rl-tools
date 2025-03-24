@@ -36,7 +36,7 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr REWARD_FUNCTION reward_function = {
                 false, // non-negative
                 01.00, // scale
-                01.50, // constant
+                00.50, // constant
                 -100.00, // termination penalty
                 01.00, // position
                 00.10, // orientation
@@ -50,7 +50,7 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         struct DOMAIN_RANDOMIZATION_OPTIONS{
-            static constexpr bool ON = true;
+            static constexpr bool ON = false;
             static constexpr bool THRUST_TO_WEIGHT = ON;
             static constexpr bool MASS = ON;
             static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ON;
@@ -137,16 +137,16 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI CLOSED_FORM = false;
             static constexpr TI ANGULAR_VELOCITY_DELAY = 0; // one step at 100hz = 10ms ~ delay from IMU to input to the policy: 1.3ms time constant of the IIR in the IMU (bw ~110Hz) + synchronization delay (2ms) + (negligible SPI transfer latency due to it being interrupt-based) + 1ms sensor.c RTOS loop @ 1khz + 2ms for the RLtools loop
             static constexpr TI ANGULAR_VELOCITY_HISTORY = ANGULAR_VELOCITY_DELAY;
-            using STATE_TYPE = DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>;
+            using STATE_TYPE = StatePoseErrorIntegral<StateSpecification<T, TI, DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>>>;
             // using STATE_TYPE = DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>;
             using OBSERVATION_TYPE_MARKOVIAN = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY,
                 observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersMass<observation::ParametersMassSpecification<T, TI,
-                observation::ParametersInertia<observation::ParametersInertiaSpecification<T, TI
-                // observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
-            >>>>>>>>>;
-            using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY>;
+                observation::ParametersInertia<observation::ParametersInertiaSpecification<T, TI,
+                observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
+            >>>>>>>>>>>;
+            using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY, observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI>>>;
             using OBSERVATION_TYPE = OBSERVATION_TYPE_PO;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;

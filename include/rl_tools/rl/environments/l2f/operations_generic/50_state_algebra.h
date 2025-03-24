@@ -30,8 +30,11 @@ namespace rl_tools::rl::environments::l2f{
     }
     template<typename DEVICE, typename STATE_SPEC, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT static void scalar_multiply_accumulate(DEVICE& device, const StatePoseErrorIntegral<STATE_SPEC>& state, T scalar, StatePoseErrorIntegral<STATE_SPEC>& out){
+        using TI = typename DEVICE::index_t;
         scalar_multiply_accumulate(device, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), scalar, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(out));
-        out.position_integral += scalar * state.position_integral;
+        for (TI dim_i=0; dim_i<3; dim_i++){
+            out.position_integral[dim_i] += scalar * state.position_integral[dim_i];
+        }
         out.orientation_integral += scalar * state.orientation_integral;
     }
     template<typename DEVICE, typename STATE_SPEC, typename T>

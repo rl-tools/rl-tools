@@ -72,12 +72,16 @@ namespace rl_tools::rl::environments::l2f{
     }
     template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StatePoseErrorIntegral<STATE_SPEC>& state, const T* action, StatePoseErrorIntegral<STATE_SPEC>& state_change){
+        using TI = typename DEVICE::index_t;
         multirotor_dynamics(device, params, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state_change));
-        T position_error = state.position[0] * state.position[0] + state.position[1] * state.position[1] + state.position[2] * state.position[2];
-        position_error = math::sqrt(device.math, position_error);
+        // T position_error = state.position[0] * state.position[0] + state.position[1] * state.position[1] + state.position[2] * state.position[2];
+        // position_error = math::sqrt(device.math, position_error);
+        for (TI dim_i=0; dim_i < 3; dim_i++){
+            state_change.position_integral[dim_i] = state.position[dim_i];
+        }
+
         T w_clamped = math::clamp(device.math, state.orientation[0], (T)-1, (T)1);
         T orientation_error = 2*math::acos(device.math, w_clamped);
-        state_change.position_integral = position_error;
         state_change.orientation_integral = orientation_error;
     }
     template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
