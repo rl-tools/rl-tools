@@ -112,7 +112,6 @@ int main(int argc, char** argv){
         buffer << file.rdbuf();
         decltype(base_env.parameters) new_params;
         rlt::from_json(device, base_env, buffer.str(), new_params);
-        base_env.parameters.dynamics = new_params.dynamics;
         ts.extrack_config.population_variates = "dynamics-id";
         ts.extrack_config.population_values = file_path.filename().stem().string();
         rlt::init(device, ts, seed);
@@ -120,7 +119,7 @@ int main(int argc, char** argv){
         rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
 
-
+        base_env.parameters.dynamics = new_params.dynamics;
         for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
             env.parameters = base_env.parameters;
