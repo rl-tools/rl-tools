@@ -71,20 +71,25 @@ int main(int argc, char** argv){
     rlt::malloc(device, rng);
     TI seed = 0;
     rlt::init(device, rng, seed);
-    // iterate dynamics_parameters directory
-    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
-    if (!std::filesystem::exists(dynamics_parameters_path)){
-        std::cerr << "Dynamics parameters path does not exist: " << dynamics_parameters_path << std::endl;
-        return 1;
-    }
 
-    // put filenames into a vector and sort
-    std::vector<std::string> filenames;
-    for (const auto& entry : std::filesystem::directory_iterator(dynamics_parameters_path)){
-        filenames.push_back(entry.path().string());
+    std::vector<std::string> file_paths;
+    if (argc > 1){
+        std::string file_path = argv[1];
+        file_paths.push_back(file_path);
     }
-    std::sort(filenames.begin(), filenames.end());
-    for (const auto& file_path_string : filenames){
+    else{
+        // iterate dynamics_parameters directory
+        std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
+        if (!std::filesystem::exists(dynamics_parameters_path)){
+            std::cerr << "Dynamics parameters path does not exist: " << dynamics_parameters_path << std::endl;
+            return 1;
+        }
+        for (const auto& entry : std::filesystem::directory_iterator(dynamics_parameters_path)){
+            file_paths.push_back(entry.path().string());
+        }
+        std::sort(file_paths.begin(), file_paths.end());
+    }
+    for (const auto& file_path_string : file_paths){
         typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
         rlt::malloc(device, ts);
         ts.extrack_config.name = "foundation-policy-pre-training";
