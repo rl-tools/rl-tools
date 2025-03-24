@@ -20,7 +20,8 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             0, // linear_acceleration
             0, // angular_acceleration
             0, // action
-            0.0 // d_action
+            0.0, // d_action
+            0.0 // Position error integral
     };
     template<typename T>
     constexpr Squared<T> squared = {
@@ -35,7 +36,8 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             0, // linear_acceleration
             0, // angular_acceleration
             0.1, // action
-            0.0 // d_action
+            0.0, // d_action
+            0.0 // Position error integral
     };
     template<typename T>
     constexpr Squared<T> squared_no_orientation = {
@@ -50,7 +52,8 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             0, // linear_acceleration
             0, // angular_acceleration
             0.0, // action
-            0.0 // d_action
+            0.0, // d_action
+            0.0 // Position error integral
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
