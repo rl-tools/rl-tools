@@ -136,7 +136,7 @@ namespace rl_tools::rl::zoo::l2f{
                 // observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
             >>>>>>>>>;
             using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY>;
-            using OBSERVATION_TYPE = OBSERVATION_TYPE_MARKOVIAN;
+            using OBSERVATION_TYPE = OBSERVATION_TYPE_PO;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
