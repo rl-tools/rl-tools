@@ -13,7 +13,16 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters {
-    template <typename T, typename TI>
+    template <bool T_ENABLED = false>
+    struct DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS{
+        static constexpr bool ENABLED = T_ENABLED;
+        static constexpr bool THRUST_TO_WEIGHT = ENABLED;
+        static constexpr bool MASS = ENABLED;
+        static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ENABLED;
+        static constexpr bool MASS_SIZE_DEVIATION = ENABLED;
+    };
+
+    template <typename T, typename TI, typename DOMAIN_RANDOMIZATION_OPTIONS=DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS<>>
     struct DEFAULT_PARAMETERS_FACTORY{
         static constexpr auto MODEL = dynamics::REGISTRY::crazyflie;
         constexpr static auto MODEL_NAME = parameters::dynamics::registry_name<MODEL>;
@@ -33,14 +42,6 @@ namespace rl_tools::rl::environments::l2f::parameters {
                 00.00, // action
                 01.00, // d_action
                 00.00, // position_error_integral
-        };
-
-        struct DOMAIN_RANDOMIZATION_OPTIONS{
-            static constexpr bool ON = false;
-            static constexpr bool THRUST_TO_WEIGHT = ON;
-            static constexpr bool MASS = ON;
-            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ON;
-            static constexpr bool MASS_SIZE_DEVIATION = ON;
         };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
@@ -77,7 +78,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
-        static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = DOMAIN_RANDOMIZATION_OPTIONS::ON ? typename PARAMETERS_TYPE::DomainRandomization{
+        static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = DOMAIN_RANDOMIZATION_OPTIONS::ENABLED ? typename PARAMETERS_TYPE::DomainRandomization{
             1.5, // thrust_to_weight_min;
             5.0, // thrust_to_weight_max;
             0.001, // thrust_to_weight_by_torque_to_inertia_min;
