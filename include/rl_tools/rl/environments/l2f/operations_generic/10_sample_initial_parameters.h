@@ -77,7 +77,12 @@ namespace rl_tools{
             T scale_relative = 1;
             if constexpr(OPTS::MASS){
                 rl_tools::utils::assert_exit(device, parameters.domain_randomization.mass_min < parameters.domain_randomization.mass_max, "L2f: Domain randomization mass max should be larger than min. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
-                T mass_new = random::uniform_real_distribution(device.random, parameters.domain_randomization.mass_min, parameters.domain_randomization.mass_max, rng);
+                // we want to sample uniformly in size (m) and mass goes with the cube of the size. If we were to sample uniformly in mass we would be biased towards larger quadrotors
+                T relative_size_min = math::cbrt(device.math, parameters.domain_randomization.mass_min);
+                T relative_size_max = math::cbrt(device.math, parameters.domain_randomization.mass_max);
+                T size_new = random::uniform_real_distribution(device.random, relative_size_min, relative_size_max, rng);
+                T mass_new = size_new * size_new * size_new;
+                mass_new = math::clamp(device.math, mass_new, parameters.domain_randomization.mass_min, parameters.domain_randomization.mass_max);
                 scale_relative = math::cbrt(device.math, mass_new/parameters.dynamics.mass);
                 factor_mass = mass_new / parameters.dynamics.mass;
                 parameters.dynamics.mass = mass_new;

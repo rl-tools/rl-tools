@@ -1,1 +1,1 @@
-#include "squared.h"
+#include "squared/squared.h"

@@ -5,17 +5,6 @@
 
 #include <rl_tools/rl/environments/l2f/operations_multitask_generic_forward.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
-#include <rl_tools/rl/environments/l2f/operations_multitask_generic.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/crazyflie.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/race.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_sim.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_real.h>
-#include <rl_tools/rl/environments/l2f/parameters/init/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/termination/default.h>
-
 #include <rl_tools/rl/environments/l2f/persist_code.h>
 
 
@@ -93,11 +82,11 @@ namespace rl_tools::rl::zoo::l2f{
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = DOMAIN_RANDOMIZATION_OPTIONS::ON ? typename PARAMETERS_TYPE::DomainRandomization{
             1.5, // thrust_to_weight_min;
-            2.0, // thrust_to_weight_max;
-            0.0016, // thrust_to_weight_by_torque_to_inertia_min;
-            0.0037, // thrust_to_weight_by_torque_to_inertia_max;
+            5.0, // thrust_to_weight_max;
+            0.001, // thrust_to_weight_by_torque_to_inertia_min;
+            0.100, // thrust_to_weight_by_torque_to_inertia_max;
             0.02, // mass_min;
-            0.10, // mass_max;
+            5.00, // mass_max;
             0.1, // mass_size_deviation;
             0.0, // motor_time_constant;
             0.0, // rotor_torque_constant;
@@ -147,7 +136,7 @@ namespace rl_tools::rl::zoo::l2f{
                 // observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
             >>>>>>>>>;
             using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY>;
-            using OBSERVATION_TYPE = OBSERVATION_TYPE_PO;
+            using OBSERVATION_TYPE = OBSERVATION_TYPE_MARKOVIAN;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;

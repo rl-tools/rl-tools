@@ -6,6 +6,8 @@
 #include "../../../utils/generic/typing.h"
 
 #include "../environments.h"
+// #include "./parameters/reward_functions/default.h"
+// #include "./parameters/registry.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
@@ -613,22 +615,14 @@ namespace rl_tools::rl::environments::l2f{
     template <typename T, typename TI, TI ACTION_HISTORY_LENGTH, TI ANGULAR_VELOCITY_DELAY=0, typename NEXT_OBSERVATION = observation::LastComponent<TI>>
     using DefaultActionHistoryObservation = DefaultObservation<T, TI, ANGULAR_VELOCITY_DELAY, observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, NEXT_OBSERVATION>>>;
 
-    template <typename T, typename TI, typename T_PARAMETERS, typename T_PARAMETER_VALUES>
-    struct StaticParametersDefault{
-        using STATE_TYPE = DefaultState<T, TI>;
-        using OBSERVATION_TYPE = DefaultObservation<T, TI>;
-        using OBSERVATION_TYPE_PRIVILEGED = observation::NONE<TI>;
-        static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
-        static constexpr TI EPISODE_STEP_LIMIT = 500;
-        using PARAMETERS = T_PARAMETERS;
-        static constexpr auto PARAMETER_VALUES = T_PARAMETER_VALUES::VALUES;
-        // state limits (for numerical reasons only)
-        static constexpr T STATE_LIMIT_POSITION = 100000;
-        static constexpr T STATE_LIMIT_VELOCITY = 100000;
-        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
-    };
 
-    template <typename T_T, typename T_TI, typename T_PARAMETERS>
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#include "./parameters/default.h"
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rl::environments::l2f{
+    template <typename T_T, typename T_TI, typename T_PARAMETERS = typename parameters::DEFAULT_PARAMETERS_FACTORY<T_T, T_TI>::STATIC_PARAMETERS>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
