@@ -146,7 +146,7 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
         };
 
-        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
+        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI>;
         using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     };
 }
