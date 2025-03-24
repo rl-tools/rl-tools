@@ -1,15 +1,6 @@
 #include <rl_tools/rl/environments/l2f/operations_multitask_generic_forward.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f/operations_multitask_generic.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/crazyflie.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/race.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_sim.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_real.h>
-#include <rl_tools/rl/environments/l2f/parameters/init/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/termination/default.h>
 
 // #include <rl_tools/rl/environments/l2f/persist_code.h>
 
@@ -30,7 +21,7 @@ namespace builder{
                 false, // non-negative
                 01.00, // scale
                 01.50, // constant
-                00.00, // termination penalty
+                -100.00, // termination penalty
                 01.00, // position
                 00.10, // orientation
                 00.00, // linear_velocity
@@ -39,10 +30,18 @@ namespace builder{
                 00.00, // angular_acceleration
                 00.00, // action
                 01.00, // d_action
+                00.00, // position_error_integral
+        };
+        struct DOMAIN_RANDOMIZATION_OPTIONS{
+            static constexpr bool ENABLED = false;
+            static constexpr bool THRUST_TO_WEIGHT = ENABLED;
+            static constexpr bool MASS = ENABLED;
+            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ENABLED;
+            static constexpr bool MASS_SIZE_DEVIATION = ENABLED;
         };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersSpecification<T, TI, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
+        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
 
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 
