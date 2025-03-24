@@ -147,6 +147,7 @@ namespace rl_tools
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/reward_functions/reward_functions.h"
+#include "parameters/reward_functions/squared/operations_generic.h" // such that terminated can be called from rwd functions
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>

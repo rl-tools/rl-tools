@@ -347,16 +347,16 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             }
             signal_flag = false;
 #endif
-            if (ts.step == 500000){
-                rlt::init_weights(device, ts.actor_critic.actor, ts.rng);
-                rlt::init_weights(device, ts.actor_critic.critics[0], ts.rng);
-                rlt::init_weights(device, ts.actor_critic.critics[1], ts.rng);
-                rlt::reset_optimizer_state(device, ts.actor_critic.actor_optimizer, ts.actor_critic.actor);
-                rlt::reset_optimizer_state(device, ts.actor_critic.critic_optimizers[0], ts.actor_critic.critics[0]);
-                rlt::reset_optimizer_state(device, ts.actor_critic.critic_optimizers[1], ts.actor_critic.critics[1]);
-                rlt::copy(device, device, ts.actor_critic.critics[0], ts.actor_critic.critics_target[0]);
-                rlt::copy(device, device, ts.actor_critic.critics[1], ts.actor_critic.critics_target[1]);
-            }
+            // if (ts.step == 500000){
+            //     rlt::init_weights(device, ts.actor_critic.actor, ts.rng);
+            //     rlt::init_weights(device, ts.actor_critic.critics[0], ts.rng);
+            //     rlt::init_weights(device, ts.actor_critic.critics[1], ts.rng);
+            //     rlt::reset_optimizer_state(device, ts.actor_critic.actor_optimizer, ts.actor_critic.actor);
+            //     rlt::reset_optimizer_state(device, ts.actor_critic.critic_optimizers[0], ts.actor_critic.critics[0]);
+            //     rlt::reset_optimizer_state(device, ts.actor_critic.critic_optimizers[1], ts.actor_critic.critics[1]);
+            //     rlt::copy(device, device, ts.actor_critic.critics[0], ts.actor_critic.critics_target[0]);
+            //     rlt::copy(device, device, ts.actor_critic.critics[1], ts.actor_critic.critics_target[1]);
+            // }
 
         }
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK

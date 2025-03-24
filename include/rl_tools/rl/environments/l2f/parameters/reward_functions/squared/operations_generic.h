@@ -1,44 +1,14 @@
-#include "../../../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REWARD_FUNCTIONS_SQUARED_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#include "../../../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REWARD_FUNCTIONS_SQUARED_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REWARD_FUNCTIONS_SQUARED_H
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REWARD_FUNCTIONS_SQUARED_OPERATIONS_GENERIC_H
 
-#include "../../multirotor.h"
+#include "../../../multirotor.h"
 #include <rl_tools/utils/generic/typing.h>
 #include <rl_tools/utils/generic/vector_operations.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
-    template<typename T>
-    struct Squared{
-        bool non_negative;
-        T scale;
-        T constant;
-        T termination_penalty;
-        T position;
-        T orientation;
-        T linear_velocity;
-        T angular_velocity;
-        T linear_acceleration;
-        T angular_acceleration;
-        T action;
-        T d_action;
-        T position_error_integral;
-        struct Components{
-            T orientation_cost;
-            T position_cost;
-            T linear_vel_cost;
-            T angular_vel_cost;
-            T linear_acc_cost;
-            T angular_acc_cost;
-            T action_cost;
-            T d_action_cost;
-            T position_error_integral_cost;
-            T weighted_cost;
-            T scaled_weighted_cost;
-            T reward;
-        };
-    };
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const StateBase<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action,  const StateBase<STATE_SPEC>& next_state, typename Squared<T>::Components& components, RNG& rng){
         using TI = typename DEVICE::index_t;

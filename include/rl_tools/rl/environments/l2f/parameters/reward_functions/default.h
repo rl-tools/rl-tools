@@ -4,7 +4,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_H
 
 #include "../../multirotor.h"
-#include "squared.h"
+#include "./squared/squared.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     template<typename T>
