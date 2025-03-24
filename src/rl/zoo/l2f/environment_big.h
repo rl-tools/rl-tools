@@ -38,7 +38,7 @@ namespace rl_tools::rl::zoo::l2f{
                 01.00, // scale
                 01.50, // constant
                 -100.00, // termination penalty
-                00.00, // position
+                01.00, // position
                 00.10, // orientation
                 00.00, // linear_velocity
                 00.00, // angular_velocity
@@ -46,7 +46,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_acceleration
                 00.00, // action
                 01.00, // d_action
-                01.00, // position_error_integral
+                00.00, // position_error_integral
         };
 
         struct DOMAIN_RANDOMIZATION_OPTIONS{
@@ -137,17 +137,16 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI CLOSED_FORM = false;
             static constexpr TI ANGULAR_VELOCITY_DELAY = 0; // one step at 100hz = 10ms ~ delay from IMU to input to the policy: 1.3ms time constant of the IIR in the IMU (bw ~110Hz) + synchronization delay (2ms) + (negligible SPI transfer latency due to it being interrupt-based) + 1ms sensor.c RTOS loop @ 1khz + 2ms for the RLtools loop
             static constexpr TI ANGULAR_VELOCITY_HISTORY = ANGULAR_VELOCITY_DELAY;
-            using STATE_TYPE = StatePoseErrorIntegral<StateSpecification<T, TI, DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>>>;
+            using STATE_TYPE = DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>;
             // using STATE_TYPE = DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>;
             using OBSERVATION_TYPE_MARKOVIAN = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY,
                 observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersMass<observation::ParametersMassSpecification<T, TI,
-                observation::ParametersInertia<observation::ParametersInertiaSpecification<T, TI,
-                observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
-            >>>>>>>>>>>;
-            // using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY>;
-            using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY, observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI>>>;
+                observation::ParametersInertia<observation::ParametersInertiaSpecification<T, TI
+                // observation::PoseIntegral<observation::PoseIntegralSpecification<T, TI
+            >>>>>>>>>;
+            using OBSERVATION_TYPE_PO = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY>;
             using OBSERVATION_TYPE = OBSERVATION_TYPE_PO;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
