@@ -15,10 +15,10 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters {
     template <typename T, typename TI>
     struct DEFAULT_PARAMETERS_FACTORY{
-        static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
-        constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
+        static constexpr auto MODEL = dynamics::REGISTRY::crazyflie;
+        constexpr static auto MODEL_NAME = parameters::dynamics::registry_name<MODEL>;
 
-        using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
+        using REWARD_FUNCTION = reward_functions::Squared<T>;
         static constexpr REWARD_FUNCTION reward_function = {
                 false, // non-negative
                 01.00, // scale
