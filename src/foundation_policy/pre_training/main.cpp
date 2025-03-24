@@ -94,7 +94,27 @@ int main(int argc, char** argv){
 #endif
 
     auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
-    rlt::sample_initial_parameters<DEVICE, LOOP_CONFIG::ENVIRONMENT::SPEC, RNG_PARAMS, true>(device, base_env, base_env.parameters, rng_params);
+    if (argc > 2){
+        std::filesystem::path dynamics_parameters_path = argv[2];
+        if (!std::filesystem::exists(dynamics_parameters_path)){
+            std::cerr << "Dynamics parameters path does not exist: " << dynamics_parameters_path << std::endl;
+            return 1;
+        }
+        std::ifstream file(dynamics_parameters_path, std::ios::in | std::ios::binary);
+        if (!file) {
+            throw std::runtime_error("Failed to open file: " + dynamics_parameters_path.string());
+        }
+
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        decltype(base_env.parameters) new_params;
+        rlt::from_json(device, base_env, buffer.str(), new_params);
+        base_env.parameters.dynamics = new_params.dynamics;
+    }
+    else{
+        rlt::sample_initial_parameters(device, base_env, base_env.parameters, rng_params);
+    }
+
     for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
         auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
         env.parameters = base_env.parameters;

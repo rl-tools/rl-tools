@@ -140,8 +140,8 @@ namespace builder{
             static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
         };
 
-        using ENVIRONMENT_SPEC = MultiTaskSpecification<T, TI, ENVIRONMENT_STATIC_PARAMETERS, OPTIONS::SAMPLE_INITIAL_PARAMETERS>;
-        using ENVIRONMENT = rl::environments::MultirotorMultiTask<ENVIRONMENT_SPEC>;
-        static_assert(rl::environments::PREVENT_DEFAULT_GET_UI<ENVIRONMENT>::value);
+        using ENVIRONMENT_SPEC = Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
+        using ENVIRONMENT = rl::environments::Multirotor<ENVIRONMENT_SPEC>;
+        // static_assert(rl::environments::PREVENT_DEFAULT_GET_UI<ENVIRONMENT>::value);
     };
 }
