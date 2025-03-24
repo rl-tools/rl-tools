@@ -1,6 +1,8 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
+
+#include <fstream>
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
@@ -19,6 +21,7 @@ int main(int argc, char** argv){
     RNG rng;
     rlt::malloc(device, rng);
     TI seed = 0;
+    TI N = 100;
     rlt::init(device, rng, seed);
     ENVIRONMENT env;
     ENVIRONMENT::Parameters params;
@@ -38,6 +41,16 @@ int main(int argc, char** argv){
         0.0, // rotor_torque_constant;
         0.0  // orientation_offset_angle_max;
     };
-    rlt::sample_initial_parameters(device, env, params, rng);
-    std::cout << rlt::json(device, env, params) << std::endl;
+    std::filesystem::path output_path = "./src/foundation_policy/dynamics_parameters/";
+    if (!std::filesystem::exists(output_path)){
+        std::cerr << "Output path does not exist: " << output_path << std::endl;
+        std::cerr << "CWD: " << std::filesystem::current_path() << std::endl;
+        return 1;
+    }
+    for (TI set_i=0; set_i<N; ++set_i){
+        rlt::sample_initial_parameters(device, env, params, rng);
+        std::ofstream output(output_path / (std::to_string(set_i) + ".json"));
+        output << rlt::json(device, env, params);
+        output.close();
+    }
 }
