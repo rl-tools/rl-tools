@@ -53,8 +53,6 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
-using RNG_PARAMS_DEVICE = rlt::devices::random::Generic<DEVICE::SPEC::MATH>;
-using RNG_PARAMS = RNG_PARAMS_DEVICE::ENGINE<>;
 using TI = typename DEVICE::index_t;
 using T = float;
 constexpr bool DYNAMIC_ALLOCATION = true;
@@ -69,71 +67,78 @@ using LOOP_CONFIG = builder::LOOP_ASSEMBLY<LOOP_CORE_CONFIG>::LOOP_CONFIG;
 int main(int argc, char** argv){
     DEVICE device;
     RNG rng;
-    RNG_PARAMS rng_params;
     rlt::init(device);
     rlt::malloc(device, rng);
-    rlt::malloc(device, rng_params);
-    TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
+    TI seed = 0;
     rlt::init(device, rng, seed);
-    rlt::init(device, rng_params, seed);
-    // warmup
-    for(TI i=0; i < FACTORY::RNG_PARAMS_WARMUP_STEPS; i++){
-        rlt::random::uniform_int_distribution(RNG_PARAMS_DEVICE{}, 0, 1, rng_params);
+    // iterate dynamics_parameters directory
+    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
+    if (!std::filesystem::exists(dynamics_parameters_path)){
+        std::cerr << "Dynamics parameters path does not exist: " << dynamics_parameters_path << std::endl;
+        return 1;
     }
-    typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
-    rlt::malloc(device, ts);
-    ts.extrack_config.name = "foundation-policy-pre-training";
-    ts.extrack_config.population_variates = "motor-mapping_thrust-curves_motor-delay_rng-warmup";
-    ts.extrack_config.population_values = std::string(OPTIONS::RANDOMIZE_MOTOR_MAPPING ? "true" : "false") + "_";
-    ts.extrack_config.population_values += std::string(OPTIONS::RANDOMIZE_THRUST_CURVES ? "true" : "false") + "_";
-    ts.extrack_config.population_values += std::string(OPTIONS::MOTOR_DELAY ? "true" : "false") + "_";
-    ts.extrack_config.population_values += std::to_string(FACTORY::RNG_PARAMS_WARMUP_STEPS);
-    rlt::init(device, ts, seed);
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
-    rlt::init(device, device.logger, ts.extrack_paths.seed);
-#endif
 
-    auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
-    if (argc > 2){
-        std::filesystem::path dynamics_parameters_path = argv[2];
-        if (!std::filesystem::exists(dynamics_parameters_path)){
-            std::cerr << "Dynamics parameters path does not exist: " << dynamics_parameters_path << std::endl;
-            return 1;
+    // put filenames into a vector and sort
+    std::vector<std::string> filenames;
+    for (const auto& entry : std::filesystem::directory_iterator(dynamics_parameters_path)){
+        filenames.push_back(entry.path().string());
+    }
+    std::sort(filenames.begin(), filenames.end());
+    for (const auto& file_path_string : filenames){
+        typename LOOP_CONFIG::template State <LOOP_CONFIG> ts;
+        rlt::malloc(device, ts);
+        ts.extrack_config.name = "foundation-policy-pre-training";
+
+        auto& base_env = rlt::get(ts.off_policy_runner.envs, 0, 0);
+        std::filesystem::path file_path = file_path_string;
+        if (file_path.filename().string()[0] == '.'){
+            continue;
         }
-        std::ifstream file(dynamics_parameters_path, std::ios::in | std::ios::binary);
+        if (!std::filesystem::exists(file_path)){
+            std::cerr << "Dynamics parameters path does not exist: " << file_path << std::endl;
+            break;
+        }
+        std::ifstream file(file_path, std::ios::in | std::ios::binary);
         if (!file) {
-            throw std::runtime_error("Failed to open file: " + dynamics_parameters_path.string());
+            throw std::runtime_error("Failed to open file: " + file_path.string());
         }
-
+        std::cout << "Loading dynamics parameters from: " << file_path.string() << std::endl;
         std::ostringstream buffer;
         buffer << file.rdbuf();
         decltype(base_env.parameters) new_params;
         rlt::from_json(device, base_env, buffer.str(), new_params);
         base_env.parameters.dynamics = new_params.dynamics;
-    }
-    else{
-        rlt::sample_initial_parameters(device, base_env, base_env.parameters, rng_params);
-    }
+        ts.extrack_config.population_variates = "dynamics-id";
+        ts.extrack_config.population_values = file_path.filename().stem().string();
+        rlt::init(device, ts, seed);
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+        rlt::init(device, device.logger, ts.extrack_paths.seed);
+#endif
 
-    for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
-        auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
-        env.parameters = base_env.parameters;
-    }
-    ts.env_eval.parameters = base_env.parameters;
 
-    bool finished = false;
-    while(!finished){
-        if (ts.step % LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
-            auto step_folder = rlt::get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
-            std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "critic_checkpoint.h5";
-            std::cerr << "Checkpointing critic to: " << checkpoint_path.string() << std::endl;
-            auto file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
-            auto group_0 = file.createGroup("critic_0");
-            auto group_1 = file.createGroup("critic_1");
-            rl_tools::save(device, ts.actor_critic.critics[0], group_0);
-            rl_tools::save(device, ts.actor_critic.critics[1], group_1);
+        for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
+            auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
+            env.parameters = base_env.parameters;
         }
-        finished = rlt::step(device, ts);
+        ts.env_eval.parameters = base_env.parameters;
+
+
+        bool finished = false;
+        while(!finished){
+            if (ts.step % LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
+                auto step_folder = rlt::get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
+                std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "critic_checkpoint.h5";
+                std::cerr << "Checkpointing critic to: " << checkpoint_path.string() << std::endl;
+                auto file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
+                auto group_0 = file.createGroup("critic_0");
+                auto group_1 = file.createGroup("critic_1");
+                rl_tools::save(device, ts.actor_critic.critics[0], group_0);
+                rl_tools::save(device, ts.actor_critic.critics[1], group_1);
+            }
+            finished = rlt::step(device, ts);
+        }
+        rlt::free(device, ts);
     }
+    rlt::free(device, rng);
     return 0;
 }
