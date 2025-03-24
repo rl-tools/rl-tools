@@ -113,8 +113,11 @@ namespace rl_tools{
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, typename rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state, RNG& rng){
+            using TI = typename DEVICE::index_t;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
-            state.position_integral = 0;
+            for (TI dim_i=0; dim_i<3; dim_i++){
+                state.position_integral[dim_i] = 0;
+            }
             state.orientation_integral = 0;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>

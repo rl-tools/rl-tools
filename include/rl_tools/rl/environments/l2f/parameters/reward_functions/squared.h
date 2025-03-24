@@ -79,7 +79,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const StatePoseErrorIntegral<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action,  const StatePoseErrorIntegral<STATE_SPEC>& next_state, typename Squared<T>::Components& components, RNG& rng){
         reward_components(device, env, parameters, reward_parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(next_state), components, rng);
         static constexpr T EPSILON = 1e-4;
-        components.position_error_integral_cost = math::sqrt(device.math, next_state.position_integral + EPSILON);
+        components.position_error_integral_cost = math::sqrt(device.math, next_state.position_integral[0]*next_state.position_integral[0] + next_state.position_integral[1]*next_state.position_integral[1] + next_state.position_integral[2]*next_state.position_integral[2] + EPSILON);
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const typename Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename Multirotor<SPEC>::State& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){

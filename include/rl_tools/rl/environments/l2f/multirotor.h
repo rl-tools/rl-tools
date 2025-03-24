@@ -360,7 +360,7 @@ namespace rl_tools::rl::environments::l2f{
             using TI = typename SPEC::TI;
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
-            static constexpr TI CURRENT_DIM = 2;
+            static constexpr TI CURRENT_DIM = 3 + 1;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
@@ -589,7 +589,7 @@ namespace rl_tools::rl::environments::l2f{
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI DIM = 2;
-        T position_integral;
+        T position_integral[3];
         T orientation_integral;
     };
     template <typename T_SPEC>

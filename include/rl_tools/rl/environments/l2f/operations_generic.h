@@ -135,12 +135,12 @@ namespace rl_tools
             }
         }
         if constexpr(rl::environments::l2f::is_pose_error_integral(STATE{})){
-            if(state.position_integral > parameters.mdp.termination.position_integral_threshold){
-                return true;
-            }
-            if(state.orientation_integral > parameters.mdp.termination.orientation_integral_threshold){
-                return true;
-            }
+            // if(state.position_integral > parameters.mdp.termination.position_integral_threshold){
+            //     return true;
+            // }
+            // if(state.orientation_integral > parameters.mdp.termination.orientation_integral_threshold){
+            //     return true;
+            // }
         }
         return false;
     }

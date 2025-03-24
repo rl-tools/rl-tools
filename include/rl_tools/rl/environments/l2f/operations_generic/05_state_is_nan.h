@@ -38,7 +38,9 @@ namespace rl_tools{
         static bool _is_nan(DEVICE& device, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
             is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             bool nan = false;
-            nan = nan || math::is_nan(device.math, state.position_integral);
+            nan = nan || math::is_nan(device.math, state.position_integral[0]);
+            nan = nan || math::is_nan(device.math, state.position_integral[1]);
+            nan = nan || math::is_nan(device.math, state.position_integral[2]);
             nan = nan || math::is_nan(device.math, state.orientation_integral);
             return nan;
         }

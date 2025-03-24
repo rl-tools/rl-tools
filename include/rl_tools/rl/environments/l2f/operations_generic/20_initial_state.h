@@ -64,8 +64,11 @@ namespace rl_tools{
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
         static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
+            using TI = typename DEVICE::index_t;
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-            state.position_integral = 0;
+            for (TI dim_i=0; dim_i<3; dim_i++){
+                state.position_integral[dim_i] = 0;
+            }
             state.orientation_integral = 0;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
