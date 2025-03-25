@@ -320,13 +320,13 @@ namespace rl_tools{
                 mask_gradient(device, training_buffers.target_action_value, batch.final_step_mask, true);
             }
             T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, training_buffers.loss_weight);
-            add_scalar(device, device.logger, "critic_loss", loss);
+            add_scalar(device, device.logger, "critic_loss", loss, 50);
         }
         backward(device, critic, batch.observations_and_actions_current, training_buffers.d_output, critic_buffers, reset_mode);
         if constexpr(CPU_DEVICE){
             if (get_step(device, device.logger) % 101 == 0){
                 T critic_gradient_norm = gradient_norm(device, critic);
-                add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm);
+                add_scalar(device, device.logger, "critic_gradient_norm", critic_gradient_norm, 50);
             }
         }
         step(device, optimizer, critic);
