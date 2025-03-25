@@ -8,8 +8,8 @@ namespace builder{
         using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY<DEVICE, T, TI, OPTIONS>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI>{
-                static constexpr TI ACTOR_BATCH_SIZE = 64;
-                static constexpr TI CRITIC_BATCH_SIZE = 64;
+                static constexpr TI ACTOR_BATCH_SIZE = 128;
+                static constexpr TI CRITIC_BATCH_SIZE = 128;
                 static constexpr TI TRAINING_INTERVAL = 1;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
@@ -28,7 +28,7 @@ namespace builder{
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI CRITIC_NUM_LAYERS = 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = 128;
+            static constexpr TI CRITIC_HIDDEN_DIM = 256;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;

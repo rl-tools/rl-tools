@@ -20,7 +20,7 @@ int main(int argc, char** argv){
     RNG rng;
     rlt::malloc(device, rng);
     TI seed = 0;
-    TI N = 100;
+    TI N = 1000;
     rlt::init(device, rng, seed);
     ENVIRONMENT env;
     ENVIRONMENT::Parameters params;

@@ -13,6 +13,8 @@ ea=EA(args.file)
 print(f"Loading: {args.file}", file=sys.stderr)
 ea.Reload()
 if args.tag is None:
-    print(ea.Tags(), file=sys.stderr)
+    for tag in ea.Tags()["scalars"]:
+        events = ea.Scalars(tag)
+        print(f"{tag}: {len(events)}", file=sys.stderr)
 else:
     [print(f'{e.step},{e.value}') for e in ea.Scalars(args.tag)]
