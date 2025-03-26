@@ -64,7 +64,7 @@ using T = float;
 #include "config.h"
 
 // constants derived
-constexpr TI DATASET_SIZE = NUM_TEACHERS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
+constexpr TI DATASET_SIZE = (ON_POLICY ? 1 : N_EPOCH) * NUM_TEACHERS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
 
 
 using FACTORY = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>;
@@ -199,7 +199,7 @@ int main(int argc, char** argv){
 
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
-        current_index = 0;
+        current_index = ON_POLICY ? 0 : current_index; // reset dataset if ON_POLICY
         for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
             gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
         }
@@ -279,12 +279,12 @@ int main(int argc, char** argv){
             RESULT_EVAL result_eval;
             DATA_EVAL data_eval;
             rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result_eval, data_eval, eval_buffer, rng, mode, false, true);
-            rlt::add_scalar(device, device.logger, "evaluation/return/mean", result_eval.returns_mean);
-            rlt::add_scalar(device, device.logger, "evaluation/return/std", result_eval.returns_std);
-            rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result_eval.episode_length_mean);
-            rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result_eval.episode_length_std);
-            rlt::add_scalar(device, device.logger, "evaluation/share_terminated", result_eval.share_terminated);
-            rlt::log(device, device.logger, "Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
+            rlt::add_scalar(device, device.logger, "crazyflie/return/mean", result_eval.returns_mean);
+            rlt::add_scalar(device, device.logger, "crazyflie/return/std", result_eval.returns_std);
+            rlt::add_scalar(device, device.logger, "crazyflie/episode_length/mean", result_eval.episode_length_mean);
+            rlt::add_scalar(device, device.logger, "crazyflie/episode_length/std", result_eval.episode_length_std);
+            rlt::add_scalar(device, device.logger, "crazyflie/share_terminated", result_eval.share_terminated);
+            rlt::log(device, device.logger, "Crazyflie: Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
 
             if (!best_return_set || result_eval.returns_mean > best_return){
                 best_return = result_eval.returns_mean;

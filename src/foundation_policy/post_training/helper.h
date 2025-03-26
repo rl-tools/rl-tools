@@ -21,6 +21,12 @@ void sample_trajectories(DEVICE& device, POLICY& policy, const DYNAMICS_PARAMETE
 
     rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>> evaluation_mode;
     rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, data, eval_buffer, rng, evaluation_mode, false, true);
+    rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
+    rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
+    rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
+    rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", result.episode_length_std);
+    rlt::add_scalar(device, device.logger, "evaluation/share_terminated", result.share_terminated);
+    rlt::log(device, device.logger, "Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean, " Share terminated: ", result.share_terminated * 100, "%");
 
     rlt::free(device, evaluation_actor);
     rlt::free(device, eval_buffer);
@@ -57,6 +63,7 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
         }
         current_index += current_step_i;
         if (current_index >= INPUT_SPEC::SHAPE::FIRST){
+            std::cerr << "Dataset size exceeded" << std::endl;
             break;
         }
     }
