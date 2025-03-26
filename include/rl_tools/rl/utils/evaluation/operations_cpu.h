@@ -27,7 +27,7 @@ namespace rl_tools{
                 data += ", ";
             }
         }
-        data += "],";
+        data += "], ";
         data += "\"episode_length\": [";
         for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
             data += std::to_string(result.episode_length[episode_i]);
@@ -35,7 +35,9 @@ namespace rl_tools{
                 data += ", ";
             }
         }
-        data += "]";
+        data += "], ";
+        data += "\"num_terminated\": " + std::to_string(result.num_terminated) + ", ";
+        data += "\"share_terminated\": " + std::to_string(result.share_terminated);
         data += "}";
         return data;
     }
