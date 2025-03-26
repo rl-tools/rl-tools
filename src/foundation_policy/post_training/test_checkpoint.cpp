@@ -16,7 +16,18 @@
 #include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
-#include "../../../logs/2025-03-18_18-28-31/checkpoints/75/checkpoint.h"
+#include <rl_tools/containers/tensor/persist.h>
+#include <rl_tools/nn/layers/sample_and_squash/persist.h>
+#include <rl_tools/nn/layers/dense/persist.h>
+#include <rl_tools/nn/layers/standardize/persist.h>
+#include <rl_tools/nn/layers/gru/persist.h>
+#include <rl_tools/nn/layers/td3_sampling/persist.h>
+#include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
+#include <rl_tools/rl/components/replay_buffer/persist.h>
+
+#include "../../../logs/2025-03-26_11-06-24/checkpoints/86/checkpoint.h"
 
 
 namespace rlt = rl_tools;
@@ -25,7 +36,6 @@ using DEVICE = rlt::devices::DefaultCPU;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
-static constexpr bool DYNAMIC_ALLOCATION = true;
 
 #include "environment.h"
 #include "../pre_training/options.h"
@@ -67,20 +77,24 @@ int main(){
     rlt::malloc(device, rng);
     TI seed = 6;
     rlt::init(device, rng, seed);
-    using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
+    using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_EVAL>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
     rlt::rl::environments::DummyUI ui;
     EVALUATION_ACTOR_TYPE evaluation_actor;
     EVALUATION_ACTOR_TYPE::Buffer<DYNAMIC_ALLOCATION> eval_buffer;
     rlt::malloc(device, evaluation_actor);
     rlt::malloc(device, eval_buffer);
-    rlt::copy(device, device, rl_tools::checkpoint::actor::module, evaluation_actor);
+    auto file = HighFive::File("logs/2025-03-26_11-06-24/checkpoints/86/checkpoint.h5", HighFive::File::ReadOnly);
+    auto actor_group = file.getGroup("actor");
+    rlt::load(device, evaluation_actor, actor_group);
+    // rlt::copy(device, device, rl_tools::checkpoint::actor::module, evaluation_actor);
+
 
     ENVIRONMENT env_eval;
     ENVIRONMENT::Parameters env_eval_parameters;
     rlt::init(device, env_eval);
     rlt::sample_initial_parameters(device, env_eval, env_eval_parameters, rng);
-    rlt::Mode<rlt::mode::Default<>> mode;
+    rlt::Mode<rlt::mode::Evaluation<>> mode;
     RESULT_EVAL result_eval;
     DATA_EVAL data_eval;
     rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result_eval, data_eval, eval_buffer, rng, mode, false, true);
