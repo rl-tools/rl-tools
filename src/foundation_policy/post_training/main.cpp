@@ -59,15 +59,12 @@ using RNG_PARAMS_DEVICE = rlt::devices::random::Generic<DEVICE::SPEC::MATH>;
 using RNG_PARAMS = RNG_PARAMS_DEVICE::ENGINE<>;
 using TI = DEVICE::index_t;
 using T = float;
-constexpr bool DYNAMIC_ALLOCATION = true;
-constexpr bool SHUFFLE = false;
-constexpr bool TEACHER_DETERMINISTIC = true;
 
 #define RL_TOOLS_POST_TRAINING
 #include "config.h"
 
 // constants derived
-constexpr TI DATASET_SIZE = N_PRE_TRAINING_SEEDS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
+constexpr TI DATASET_SIZE = NUM_TEACHERS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
 
 
 using FACTORY = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>;
@@ -87,7 +84,8 @@ int main(int argc, char** argv){
     // declarations
     DEVICE device;
     RNG rng;
-    ACTOR_TEACHER actor_teacher;
+    ACTOR_TEACHER actor_teacher[NUM_TEACHERS];
+    ENVIRONMENT_TEACHER::Parameters teacher_parameters[NUM_TEACHERS];
     typename ACTOR_TEACHER::Buffer<> actor_teacher_buffer;
     ACTOR actor, best_actor;
     ACTOR::Buffer<> actor_buffer;
@@ -111,7 +109,9 @@ int main(int argc, char** argv){
     // malloc
     rlt::malloc(device, rng);
     rlt::malloc(device, actor_optimizer);
-    rlt::malloc(device, actor_teacher);
+    for (TI teacher_i=0; teacher_i < NUM_TEACHERS; ++teacher_i){
+        rlt::malloc(device, actor_teacher[teacher_i]);
+    }
     rlt::malloc(device, actor_teacher_buffer);
     rlt::malloc(device, actor);
     rlt::malloc(device, best_actor);
@@ -143,20 +143,49 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-17_12-34-45";
+    checkpoint_path.experiment = "2025-03-25_19-19-11";
     checkpoint_path.name = "foundation-policy-pre-training";
 
-    {
+    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
+    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints.txt";
+
+    std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
+    if (!dynamics_parameter_index_file){
+        std::cerr << "Failed to open dynamics parameter index file: " << dynamics_parameter_index << std::endl;
+        return 1;
+    }
+    std::string dynamics_parameter_index_line;
+    std::vector<std::string> dynamics_parameter_index_lines;
+    while (std::getline(dynamics_parameter_index_file, dynamics_parameter_index_line)){
+        if (dynamics_parameter_index_line.empty()){
+            continue;
+        }
+        dynamics_parameter_index_lines.push_back(dynamics_parameter_index_line);
+    }
+    dynamics_parameter_index_file.close();
+    if (dynamics_parameter_index_lines.size() < NUM_TEACHERS){
+        std::cerr << "Dynamic parameter index file is too small: " << dynamics_parameter_index << "/" << NUM_TEACHERS << std::endl;
+        return 1;
+    }
+
+    for (TI teacher_i=0; teacher_i < NUM_TEACHERS; ++teacher_i){
         // load actor & critic
         auto cpp_copy = checkpoint_path;
+        cpp_copy.attributes["dynamics-id"] = dynamics_parameter_index_lines[dynamics_parameter_index_lines.size() - 1 - teacher_i]; // take from the end because we order by performance and the best are at the end
         rlt::find_latest_run(device, "experiments", cpp_copy);
         auto actor_file = HighFive::File(cpp_copy.checkpoint_path.string(), HighFive::File::ReadOnly);
-        rlt::load(device, actor_teacher, actor_file.getGroup("actor"));
+        rlt::load(device, actor_teacher[teacher_i], actor_file.getGroup("actor"));
 
-        RESULT result;
+        std::ifstream dynamics_parameter_file = std::ifstream(dynamics_parameters_path / (cpp_copy.attributes["dynamics-id"] + ".json"));
+        std::string dynamics_parameter_json((std::istreambuf_iterator<char>(dynamics_parameter_file)), std::istreambuf_iterator<char>());
+        dynamics_parameter_file.close();
+        ENVIRONMENT_TEACHER env;
+        rlt::from_json(device, env, dynamics_parameter_json, teacher_parameters[teacher_i]);
+
+        RESULT_EVAL result;
         DATA_EVAL no_data;
         RNG rng_copy = rng;
-        sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher, result, no_data, rng_copy);
+        sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i].dynamics, result, no_data, rng_copy);
         std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ")mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
@@ -171,7 +200,9 @@ int main(int argc, char** argv){
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         current_index = 0;
-        gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher, actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+        for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
+            gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+        }
         TI N = current_index;
 
         if constexpr(SHUFFLE){
@@ -269,21 +300,23 @@ int main(int argc, char** argv){
 
     rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, run_path.string(), best_actor, rng);
     // malloc
-    rlt::malloc(device, rng);
-    rlt::malloc(device, actor_optimizer);
-    rlt::malloc(device, actor_teacher);
-    rlt::malloc(device, actor_teacher_buffer);
-    rlt::malloc(device, actor);
-    rlt::malloc(device, best_actor);
-    rlt::malloc(device, actor_buffer);
-    rlt::malloc(device, dataset_input);
-    rlt::malloc(device, dataset_output_target);
-    rlt::malloc(device, dataset_truncated);
-    rlt::malloc(device, dataset_reset);
-    rlt::malloc(device, epoch_indices);
-    rlt::malloc(device, batch_input);
-    rlt::malloc(device, batch_output_target);
-    rlt::malloc(device, batch_reset);
-    rlt::malloc(device, d_output);
+    rlt::free(device, rng);
+    rlt::free(device, actor_optimizer);
+    for (TI teacher_i=0; teacher_i < NUM_TEACHERS; ++teacher_i){
+        rlt::free(device, actor_teacher[teacher_i]);
+    }
+    rlt::free(device, actor_teacher_buffer);
+    rlt::free(device, actor);
+    rlt::free(device, best_actor);
+    rlt::free(device, actor_buffer);
+    rlt::free(device, dataset_input);
+    rlt::free(device, dataset_output_target);
+    rlt::free(device, dataset_truncated);
+    rlt::free(device, dataset_reset);
+    rlt::free(device, epoch_indices);
+    rlt::free(device, batch_input);
+    rlt::free(device, batch_output_target);
+    rlt::free(device, batch_reset);
+    rlt::free(device, d_output);
     return 0;
 }

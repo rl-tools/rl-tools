@@ -1,7 +1,8 @@
-template <typename ENVIRONMENT, typename DEVICE, typename POLICY, typename RESULT, typename DATA, typename RNG>
-void sample_trajectories(DEVICE& device, POLICY& policy, RESULT& result, DATA& data, RNG& rng){
+template <typename ENVIRONMENT, typename DEVICE, typename POLICY, typename DYNAMICS_PARAMETERS, typename RESULT, typename DATA, typename RNG>
+void sample_trajectories(DEVICE& device, POLICY& policy, const DYNAMICS_PARAMETERS& dynamics_parameters, RESULT& result, DATA& data, RNG& rng){
     using TI = typename DEVICE::index_t;
     ENVIRONMENT base_env;
+    base_env.parameters.dynamics = dynamics_parameters;
     rlt::sample_initial_parameters(device, base_env, base_env.parameters, rng);
     using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename POLICY::template CHANGE_BATCH_SIZE<TI, RESULT::SPEC::N_EPISODES>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>;
@@ -86,8 +87,8 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
 }
 
 
-template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, auto NUM_EPISODES, bool TEACHER_DETERMINISTIC, typename DEVICE, typename STUDENT, typename TEACHER, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename RNG, typename TI=typename DEVICE::index_t>
-void gather_epoch(DEVICE& device, TEACHER& teacher, STUDENT& student, rlt::Tensor<DS_INPUT_SPEC>& input, rlt::Tensor<DS_OUTPUT_SPEC>& output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_index, RNG& rng){
+template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, auto NUM_EPISODES, bool TEACHER_DETERMINISTIC, typename DEVICE, typename STUDENT, typename TEACHER, typename PARAMETERS, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename RNG, typename TI=typename DEVICE::index_t>
+void gather_epoch(DEVICE& device, TEACHER& teacher, PARAMETERS& parameters, STUDENT& student, rlt::Tensor<DS_INPUT_SPEC>& input, rlt::Tensor<DS_OUTPUT_SPEC>& output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_index, RNG& rng){
     using T = typename DS_INPUT_SPEC::T;
     using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
     RESULT result;
@@ -95,7 +96,7 @@ void gather_epoch(DEVICE& device, TEACHER& teacher, STUDENT& student, rlt::Tenso
     DATA* data_memory;
     data_memory = new DATA;
     DATA& data = *data_memory;
-    sample_trajectories<ENVIRONMENT>(device, student, result, data, rng);
+    sample_trajectories<ENVIRONMENT>(device, student, parameters.dynamics, result, data, rng);
     add_to_dataset<ENVIRONMENT, TEACHER_OBSERVATION, TEACHER_DETERMINISTIC>(device, data, teacher, input, output_target, dataset_truncated, dataset_reset, current_index, rng);
     delete data_memory;
 }
