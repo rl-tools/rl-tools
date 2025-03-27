@@ -24,18 +24,24 @@ namespace rl_tools::rl::utils::evaluation{
         constexpr static TI N_EPISODES = T_N_EPISODES;
         constexpr static TI STEP_LIMIT = T_STEP_LIMIT;
     };
-    template <typename T_SPEC>
+    template <typename T_SPEC, bool DYNAMIC_ALLOCATION=true>
     struct Data{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
-        typename ENVIRONMENT::Parameters parameters[SPEC::N_EPISODES];
-        bool terminated[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
-        T rewards[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
-        typename ENVIRONMENT::State states[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
-        T actions[SPEC::N_EPISODES][SPEC::STEP_LIMIT][ENVIRONMENT::ACTION_DIM];
-        T dt[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
+        // typename ENVIRONMENT::Parameters parameters[SPEC::N_EPISODES];
+        Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> parameters;
+        // bool terminated[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> terminated;
+        // T rewards[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> rewards;
+        // typename ENVIRONMENT::State states[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
+        Tensor<tensor::Specification<typename ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> states;
+        // T actions[SPEC::N_EPISODES][SPEC::STEP_LIMIT][ENVIRONMENT::ACTION_DIM];
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT, ENVIRONMENT::ACTION_DIM>>> actions;
+        // T dt[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> dt;
     };
     template <typename T_SPEC>
     struct NoData{};
@@ -55,6 +61,15 @@ namespace rl_tools::rl::utils::evaluation{
         T episode_length_std;
         TI num_terminated;
         T share_terminated;
+    };
+    template <typename T_SPEC, bool DYNAMIC_ALLOCATION=true>
+    struct Buffer{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM, DYNAMIC_ALLOCATION>> actions;
+        Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM, DYNAMIC_ALLOCATION>> observations;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

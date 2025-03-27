@@ -16,7 +16,7 @@ using TI = typename DEVICE::index_t;
 using T = float;
 
 
-using ENVIRONMENT = rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI>::ENVIRONMENT;
+using ENVIRONMENT = rlt::rl::environments::Multirotor<rlt::rl::environments::l2f::Specification<T, TI>>;
 
 
 
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         0.0, // motor_time_constant;
         0.0 // rotor_torque_constant;
     };
-    rlt::sample_initial_parameters(device, env, parameters, rng, false);
+    rlt::sample_initial_parameters(device, env, parameters, rng);
 
 
 

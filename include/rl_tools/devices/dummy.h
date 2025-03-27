@@ -5,6 +5,7 @@
 
 #include "../utils/generic/typing.h"
 #include "devices.h"
+#include <cstdint>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace dummy{
