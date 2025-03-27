@@ -219,11 +219,6 @@ namespace rl_tools{
         results.episode_length_std = math::sqrt(device.math, math::max(device.math, (T)0, results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean));
         results.share_terminated = results.num_terminated / (T)SPEC::N_EPISODES;
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, typename POLICY::State& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode){
-        rl::utils::evaluation::NoData<SPEC> data;
-        evaluate(device, env_init, ui, policy, policy_state, policy_evaluation_buffers, evaluation_buffers, results, data, rng, mode);
-    }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, template <typename> typename DATA, typename MODE>
     void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, RNG &rng, const Mode<MODE>& mode){
         using TI = typename DEVICE::index_t;
@@ -238,6 +233,12 @@ namespace rl_tools{
         free(device, policy_state);
         free(device, policy_evaluation_buffers);
         free(device, evaluation_buffers);
+    }
+    // proxies without data collection
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS, typename MODE>
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, typename POLICY::State& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode){
+        rl::utils::evaluation::NoData<SPEC> data;
+        evaluate(device, env_init, ui, policy, policy_state, policy_evaluation_buffers, evaluation_buffers, results, data, rng, mode);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename MODE>
     void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode){
