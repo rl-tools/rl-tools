@@ -120,6 +120,8 @@ int main(int argc, char** argv){
 #endif
 
         base_env.parameters.dynamics = new_params.dynamics;
+        base_env.parameters.disturbances = new_params.disturbances;
+        base_env.parameters.mdp.termination = new_params.mdp.termination;
         for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
             env.parameters = base_env.parameters;

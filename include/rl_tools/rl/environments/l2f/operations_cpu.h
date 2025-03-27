@@ -329,8 +329,14 @@ namespace rl_tools{
         json_string += "\"mass_min\": " + std::to_string(parameters.mass_min) + ", ";
         json_string += "\"mass_max\": " + std::to_string(parameters.mass_max) + ", ";
         json_string += "\"mass_size_deviation\": " + std::to_string(parameters.mass_size_deviation) + ", ";
-        json_string += "\"motor_time_constant\": " + std::to_string(parameters.motor_time_constant) + ", ";
-        json_string += "\"rotor_torque_constant\": " + std::to_string(parameters.rotor_torque_constant);
+        json_string += "\"motor_time_constant_rising_min\": " + std::to_string(parameters.motor_time_constant_rising_min) + ", ";
+        json_string += "\"motor_time_constant_rising_max\": " + std::to_string(parameters.motor_time_constant_rising_max) + ", ";
+        json_string += "\"motor_time_constant_falling_min\": " + std::to_string(parameters.motor_time_constant_falling_min) + ", ";
+        json_string += "\"motor_time_constant_falling_max\": " + std::to_string(parameters.motor_time_constant_falling_max) + ", ";
+        json_string += "\"rotor_torque_constant_min\": " + std::to_string(parameters.rotor_torque_constant_min) + ", ";
+        json_string += "\"rotor_torque_constant_max\": " + std::to_string(parameters.rotor_torque_constant_max) + ", ";
+        json_string += "\"orientation_offset_angle_max\": " + std::to_string(parameters.orientation_offset_angle_max) + ", ";
+        json_string += "\"disturbance_force_max\": " + std::to_string(parameters.disturbance_force_max);
         json_string += "}";
         return json_string;
     }
@@ -575,8 +581,14 @@ namespace rl_tools{
         parameters.mass_min = json_object["mass_min"];
         parameters.mass_max = json_object["mass_max"];
         parameters.mass_size_deviation = json_object["mass_size_deviation"];
-        parameters.motor_time_constant = json_object["motor_time_constant"];
-        parameters.rotor_torque_constant = json_object["rotor_torque_constant"];
+        parameters.motor_time_constant_rising_min = json_object["motor_time_constant_rising_min"];
+        parameters.motor_time_constant_rising_max = json_object["motor_time_constant_rising_max"];
+        parameters.motor_time_constant_falling_min = json_object["motor_time_constant_falling_min"];
+        parameters.motor_time_constant_falling_max = json_object["motor_time_constant_falling_max"];
+        parameters.rotor_torque_constant_min = json_object["rotor_torque_constant_min"];
+        parameters.rotor_torque_constant_max = json_object["rotor_torque_constant_max"];
+        parameters.orientation_offset_angle_max = json_object["orientation_offset_angle_max"];
+        parameters.disturbance_force_max = json_object["disturbance_force_max"];
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersDomainRandomization<PARAM_SPEC>& parameters){

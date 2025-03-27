@@ -70,7 +70,7 @@ namespace rl_tools{
                 factor_thrust_to_weight = thrust_to_weight / thrust_to_weight_nominal;
             }
             else{
-                rl_tools::utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_min == 0 && parameters.domain_randomization.mass_max == 0 , "L2f: Domain randomization mass max/min should be 0 if THRUST_TO_WEIGHT. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_min == 0 && parameters.domain_randomization.mass_max == 0 , "L2f: Domain randomization mass max/min should be 0 if THRUST_TO_WEIGHT is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             }
 
             T factor_mass = 1;
@@ -88,7 +88,7 @@ namespace rl_tools{
                 parameters.dynamics.mass = mass_new;
             }
             else{
-                rl_tools::utils::assert_exit(device, parameters.domain_randomization.mass_min == 0 && parameters.domain_randomization.mass_max == 0 , "L2f: Domain randomization mass max/min should be 0 if MASS is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.mass_min == 0 && parameters.domain_randomization.mass_max == 0 , "L2f: Domain randomization mass max/min should be 0 if MASS is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             }
 
             if constexpr(OPTS::THRUST_TO_WEIGHT || OPTS::MASS){
@@ -116,7 +116,7 @@ namespace rl_tools{
                 torque_to_inertia_factor = torque_to_inertia / torque_to_inertia_nominal;
             }
             else{
-                rl_tools::utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min == 0 && parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max == 0 , "L2f: Domain randomization thrust_to_weight_by_torque_to_inertia max/min should be 0 if THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min == 0 && parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max == 0 , "L2f: Domain randomization thrust_to_weight_by_torque_to_inertia max/min should be 0 if THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             }
 
             T rotor_distance_factor = 1;
@@ -124,13 +124,9 @@ namespace rl_tools{
                 rl_tools::utils::assert_exit(device, parameters.domain_randomization.mass_size_deviation != 0, "L2f: Domain randomization mass_size_deviation should be != 0. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
                 T size_factor = _sample_domain_randomization_factor(device, parameters.domain_randomization.mass_size_deviation, rng);
                 rotor_distance_factor = scale_relative * size_factor;
-                parameters.mdp.termination.position_threshold *= size_factor * size_factor;
-                if(parameters.mdp.termination.position_threshold < parameters.mdp.init.max_position * 2){
-                    parameters.mdp.termination.position_threshold = parameters.mdp.init.max_position * 2;
-                }
             }
             else{
-                rl_tools::utils::assert_exit(device, parameters.domain_randomization.mass_size_deviation == 0 , "L2f: Domain randomization mass_size_deviation should be 0 if MASS_SIZE_DEVIATION is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.mass_size_deviation == 0 , "L2f: Domain randomization mass_size_deviation should be 0 if MASS_SIZE_DEVIATION is falls. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             }
             if constexpr(OPTS::THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA || OPTS::MASS_SIZE_DEVIATION){
                 T inertia_factor = torque_to_inertia_factor/rotor_distance_factor;
@@ -145,7 +141,43 @@ namespace rl_tools{
                         parameters.dynamics.rotor_positions[rotor_i][axis_i] *= rotor_distance_factor;
                     }
                 }
+                T max_rotor_distance = 0;
+                for (TI rotor_i=0; rotor_i < PARAMETERS::N; rotor_i++){
+                    T rotor_distance = math::sqrt(device.math, parameters.dynamics.rotor_positions[rotor_i][0] * parameters.dynamics.rotor_positions[rotor_i][0] + parameters.dynamics.rotor_positions[rotor_i][1] * parameters.dynamics.rotor_positions[rotor_i][1] + parameters.dynamics.rotor_positions[rotor_i][2] * parameters.dynamics.rotor_positions[rotor_i][2]);
+                    if (rotor_distance > max_rotor_distance){
+                        max_rotor_distance = rotor_distance;
+                    }
+                }
+                parameters.mdp.termination.position_threshold = max_rotor_distance * 20;
+                parameters.mdp.init.max_position = max_rotor_distance * 10;
             }
+            if constexpr(OPTS::ROTOR_TORQUE_CONSTANT){
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_torque_constant_min != 0 && parameters.domain_randomization.rotor_torque_constant_max != 0, "L2f: Domain randomization rotor_torque_constant should be != 0 if ROTOR_TORQUE_CONSTANT is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                T torque_constant = random::uniform_real_distribution(device.random, parameters.domain_randomization.rotor_torque_constant_min, parameters.domain_randomization.rotor_torque_constant_max, rng);
+                for (TI rotor_i=0; rotor_i < PARAMETERS::N; rotor_i++){
+                    parameters.dynamics.rotor_torque_constants[rotor_i] = torque_constant;
+                }
+            }
+            else
+            {
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_torque_constant_min == 0 && parameters.domain_randomization.rotor_torque_constant_max == 0, "L2f: Domain randomization rotor_torque_constant should be 0 if ROTOR_TORQUE_CONSTANT is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+            }
+            T disturbance_force_std = 0;
+            if constexpr(OPTS::DISTURBANCE_FORCE){
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.disturbance_force_max != 0, "L2f: Domain randomization disturbance_force_max should be != 0 if DISTURBANCE_FORCE is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                T surplus_thrust_to_weight = thrust_to_weight - 1.0;
+                if (surplus_thrust_to_weight < 0){
+                    surplus_thrust_to_weight = 0;
+                }
+                T disturbance_force_thrust_to_weight_multiple = random::uniform_real_distribution(device.random, (T)0, surplus_thrust_to_weight * parameters.domain_randomization.disturbance_force_max, rng);
+                disturbance_force_std = disturbance_force_thrust_to_weight_multiple * thrust_to_weight * parameters.dynamics.mass / 3; // divide by three to have 3 sigma containment
+                parameters.disturbances.random_force.mean = 0;
+                parameters.disturbances.random_force.std = disturbance_force_std;
+            }
+            else{
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.disturbance_force_max == 0, "L2f: Domain randomization disturbance_force_max should be 0 if DISTURBANCE_FORCE is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+            }
+
         }
     }
 }
