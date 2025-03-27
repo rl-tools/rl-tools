@@ -47,21 +47,22 @@ namespace rl_tools{
     }
     namespace rl::utils::evaluation{
         template<typename DEVICE, typename TI, typename SPEC>
-        void set_state(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, const typename SPEC::ENVIRONMENT::State& state){}
+        void set_state(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, const typename SPEC::SPEC::ENVIRONMENT::State& state){}
         template<typename DEVICE, typename TI, typename SPEC>
-        void set_state(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, const typename SPEC::ENVIRONMENT::State& state){
+        void set_state(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, const typename SPEC::SPEC::ENVIRONMENT::State& state){
             set(device, data.states, state, episode_i, step_i);
         }
         template<typename DEVICE, typename TI, typename SPEC>
-        void set_parameters(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, const typename SPEC::ENVIRONMENT::Parameters& parameters){ }
+        void set_parameters(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, const typename SPEC::SPEC::ENVIRONMENT::Parameters& parameters){ }
         template<typename DEVICE, typename TI, typename SPEC>
-        void set_parameters(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI episode_i, const typename SPEC::ENVIRONMENT::Parameters& parameters){
+        void set_parameters(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI episode_i, const typename SPEC::SPEC::ENVIRONMENT::Parameters& parameters){
             set(device, data.parameters, parameters, episode_i);
         }
         template<typename DEVICE, typename TI, typename SPEC, typename ACTION_SPEC>
         void set_action(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI step_i, const Matrix<ACTION_SPEC>& actions){}
-        template<typename DEVICE, typename TI, typename SPEC, typename ACTION_SPEC>
-        void set_action(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI step_i, const Matrix<ACTION_SPEC>& actions){
+        template<typename DEVICE, typename TI, typename DATA_SPEC, typename ACTION_SPEC>
+        void set_action(DEVICE& device, rl::utils::evaluation::Data<DATA_SPEC>& data, TI step_i, const Matrix<ACTION_SPEC>& actions){
+            using SPEC = typename DATA_SPEC::SPEC;
             static_assert(ACTION_SPEC::ROWS == SPEC::N_EPISODES);
             static_assert(ACTION_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
             for (TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
@@ -71,15 +72,15 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename TI, typename SPEC>
-        void set_dt(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, typename SPEC::T dt){ }
+        void set_dt(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, typename SPEC::SPEC::T dt){ }
         template<typename DEVICE, typename TI, typename SPEC>
-        void set_dt(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, typename SPEC::T dt){
+        void set_dt(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, typename SPEC::SPEC::T dt){
             set(device, data.dt, dt, episode_i, step_i);
         }
         template<typename DEVICE, typename TI, typename SPEC>
-        void set_reward(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, typename SPEC::T reward){}
+        void set_reward(DEVICE& device, rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, typename SPEC::SPEC::T reward){}
         template<typename DEVICE, typename TI, typename SPEC>
-        void set_reward(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, typename SPEC::T reward){
+        void set_reward(DEVICE& device, rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, typename SPEC::SPEC::T reward){
             set(device, data.rewards, reward, episode_i, step_i);
         }
         template<typename DEVICE, typename TI, typename SPEC>
@@ -89,8 +90,10 @@ namespace rl_tools{
             set(device, data.terminated, terminated, episode_i, step_i);
         }
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename POLICY_STATE, typename RNG, typename SPEC, template <typename> typename DATA, typename POLICY_EVALUATION_BUFFERS, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, POLICY_STATE& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, RNG &rng, const Mode<MODE>& mode){
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename POLICY_STATE, typename POLICY_EVALUATION_BUFFERS, typename BUFFER_SPEC, typename DATA_SPEC, typename RNG, typename SPEC, template <typename> typename DATA, typename MODE>
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, POLICY_STATE& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<BUFFER_SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, DATA<DATA_SPEC>& data, RNG &rng, const Mode<MODE>& mode){
+        static_assert(utils::typing::is_same_v<SPEC, typename BUFFER_SPEC::SPEC>);
+        static_assert(utils::typing::is_same_v<SPEC, typename DATA_SPEC::SPEC>);
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         constexpr TI INPUT_DIM = get_last(typename POLICY::INPUT_SHAPE{});
@@ -219,13 +222,14 @@ namespace rl_tools{
         results.episode_length_std = math::sqrt(device.math, math::max(device.math, (T)0, results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean));
         results.share_terminated = results.num_terminated / (T)SPEC::N_EPISODES;
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, template <typename> typename DATA, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, RNG &rng, const Mode<MODE>& mode){
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, template <typename> typename DATA, typename DATA_SPEC, typename MODE>
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<DATA_SPEC>& data, RNG &rng, const Mode<MODE>& mode){
         using TI = typename DEVICE::index_t;
+        static constexpr bool DYNAMIC_ALLOCATION = true;
         using ADJUSTED_POLICY = typename POLICY::template CHANGE_BATCH_SIZE<TI, SPEC::N_EPISODES>;
-        typename ADJUSTED_POLICY::template State<true> policy_state;
-        typename ADJUSTED_POLICY::template Buffer<true> policy_evaluation_buffers;
-        rl::utils::evaluation::Buffer<SPEC> evaluation_buffers;
+        typename ADJUSTED_POLICY::template State<DYNAMIC_ALLOCATION> policy_state;
+        typename ADJUSTED_POLICY::template Buffer<DYNAMIC_ALLOCATION> policy_evaluation_buffers;
+        rl::utils::evaluation::Buffer<rl::utils::evaluation::BufferSpecification<SPEC, DYNAMIC_ALLOCATION>> evaluation_buffers;
         malloc(device, policy_state);
         malloc(device, policy_evaluation_buffers);
         malloc(device, evaluation_buffers);
@@ -235,14 +239,14 @@ namespace rl_tools{
         free(device, evaluation_buffers);
     }
     // proxies without data collection
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename POLICY_STATE, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, POLICY_STATE& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode){
-        rl::utils::evaluation::NoData<SPEC> data;
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename POLICY_STATE, typename POLICY_EVALUATION_BUFFERS, typename BUFFER_SPEC, typename RNG, typename SPEC, typename MODE>
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, POLICY_STATE& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<BUFFER_SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode){
+        rl::utils::evaluation::NoData<rl::utils::evaluation::DataSpecification<SPEC>> data;
         evaluate(device, env_init, ui, policy, policy_state, policy_evaluation_buffers, evaluation_buffers, results, data, rng, mode);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename MODE>
     void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode){
-        rl::utils::evaluation::NoData<SPEC> data;
+        rl::utils::evaluation::NoData<rl::utils::evaluation::DataSpecification<SPEC>> data;
         evaluate(device, env_init, ui, policy, results, data, rng, mode);
     }
 }

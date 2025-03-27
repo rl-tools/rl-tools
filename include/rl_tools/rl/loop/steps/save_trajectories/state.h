@@ -14,10 +14,10 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         using NEXT = T_NEXT;
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
-        rl::utils::evaluation::Buffer<typename CONFIG::SAVE_TRAJECTORIES_SPEC> save_trajectories_buffer;
+        rl::utils::evaluation::Buffer<rl::utils::evaluation::BufferSpecification<typename CONFIG::SAVE_TRAJECTORIES_SPEC, CONFIG::DYNAMIC_ALLOCATION>> save_trajectories_buffer;
         rl::utils::evaluation::Result<typename CONFIG::SAVE_TRAJECTORIES_SPEC> save_trajectories_result;
         template <typename SPEC>
-        using DATA_TYPE = rl_tools::utils::typing::conditional_t<CONFIG::SAVE_TRAJECTORIES_PARAMETERS::SAVE_TRAJECTORIES, rl::utils::evaluation::Data<SPEC>, rl::utils::evaluation::NoData<SPEC>>;
+        using DATA_TYPE = rl_tools::utils::typing::conditional_t<CONFIG::SAVE_TRAJECTORIES_PARAMETERS::SAVE_TRAJECTORIES, rl::utils::evaluation::Data<rl::utils::evaluation::DataSpecification<SPEC>>, rl::utils::evaluation::NoData<rl::utils::evaluation::DataSpecification<SPEC>>>;
         DATA_TYPE<typename CONFIG::SAVE_TRAJECTORIES_SPEC> save_trajectories_data;
         typename CONFIG::RNG rng_save_trajectories;
         using SAVE_TRAJECTORIES_ACTOR_TYPE_BATCH_SIZE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, CONFIG::SAVE_TRAJECTORIES_PARAMETERS::NUM_EPISODES>;
