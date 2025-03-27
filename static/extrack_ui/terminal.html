@@ -169,10 +169,10 @@
     <div class="presets">
         <span style="margin-right: 0.2em;">Presets: </span>
         <span class="presets-span">
-            <button class="preset-button" onclick='load_preset("general_action_trajectory", "Action Trajectory")'>Action Trajectory</button>
-            <button class="preset-button" onclick='load_preset("l2f_position_trajectory", "L2F Position Trajectory")'>L2F Position Trajectory</button>
-            <button class="preset-button" onclick='load_preset("l2f_distribution", "L2F Distribution")'>L2F Distribution</button>
-            <button class="preset-button" onclick='load_preset("l2f_visualization", "L2F Visualization")'>L2F Visualization</button>
+            <button class="preset-button" onclick='window.load_preset("general_action_trajectory", "Action Trajectory")'>Action Trajectory</button>
+            <button class="preset-button" onclick='window.load_preset("l2f_position_trajectory", "L2F Position Trajectory")'>L2F Position Trajectory</button>
+            <button class="preset-button" onclick='window.load_preset("l2f_distribution", "L2F Distribution")'>L2F Distribution</button>
+            <button class="preset-button" onclick='window.load_preset("l2f_visualization", "L2F Visualization")'>L2F Visualization</button>
         </span>
     </div>
     <div id="editor"></div>
@@ -193,7 +193,7 @@
         SELECTED_FILES: 'selected_files'
     };
 
-    let load_preset = null
+    window.load_preset = null
 
     async function fetchAndProcessIndex() {
         try {
@@ -222,7 +222,7 @@
             showPrintMargin: false,
         });
 
-        load_preset = (preset_id, preset_name) => {
+        window.load_preset = (preset_id, preset_name) => {
             if(confirm(`Do you want to load the preset "${preset_name}" (id: "${preset_id}")?`)){
                 fetch(`./terminal/${preset_id}.js`)
                     .then(res => res.text())
