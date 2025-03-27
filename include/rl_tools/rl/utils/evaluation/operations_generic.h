@@ -90,7 +90,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename POLICY_STATE, typename RNG, typename SPEC, template <typename> typename DATA, typename POLICY_EVALUATION_BUFFERS, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, typename ENVIRONMENT::Parameters& input_parameters, UI& ui, const POLICY& policy, POLICY_STATE& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, RNG &rng, const Mode<MODE>& mode, bool deterministic = false, bool sample_environment_parameters = true){
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, POLICY_STATE& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, RNG &rng, const Mode<MODE>& mode){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         constexpr TI INPUT_DIM = get_last(typename POLICY::INPUT_SHAPE{});
@@ -124,17 +124,12 @@ namespace rl_tools{
             terminated[env_i] = false;
             auto& state = states[env_i];
             auto& current_parameters = parameters[env_i];
-            if(deterministic) {
+            if constexpr(SPEC::DETERMINISTIC_INITIAL_STATE) {
                 rl_tools::initial_parameters(device, env, current_parameters);
                 rl_tools::initial_state(device, env, current_parameters, state);
             }
             else{
-                if(sample_environment_parameters){
-                    sample_initial_parameters(device, env, current_parameters, rng);
-                }
-                else {
-                    current_parameters = input_parameters;
-                }
+                sample_initial_parameters(device, env, current_parameters, rng);
                 sample_initial_state(device, env, current_parameters, state, rng);
             }
             rl::utils::evaluation::set_parameters(device, data, env_i, current_parameters);
@@ -225,12 +220,12 @@ namespace rl_tools{
         results.share_terminated = results.num_terminated / (T)SPEC::N_EPISODES;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, typename ENVIRONMENT::Parameters& input_parameters, UI& ui, const POLICY& policy, typename POLICY::State& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode, bool deterministic = false, bool sample_environment_parameters = true){
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, typename POLICY::State& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode){
         rl::utils::evaluation::NoData<SPEC> data;
-        evaluate(device, env_init, input_parameters, ui, policy, policy_state, policy_evaluation_buffers, evaluation_buffers, results, data, rng, mode, deterministic, sample_environment_parameters);
+        evaluate(device, env_init, ui, policy, policy_state, policy_evaluation_buffers, evaluation_buffers, results, data, rng, mode);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, template <typename> typename DATA, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, typename ENVIRONMENT::Parameters& input_parameters, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, RNG &rng, const Mode<MODE>& mode, bool deterministic = false, bool sample_environment_parameters = true){
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, RNG &rng, const Mode<MODE>& mode){
         using TI = typename DEVICE::index_t;
         using ADJUSTED_POLICY = typename POLICY::template CHANGE_BATCH_SIZE<TI, SPEC::N_EPISODES>;
         typename ADJUSTED_POLICY::template State<true> policy_state;
@@ -239,15 +234,15 @@ namespace rl_tools{
         malloc(device, policy_state);
         malloc(device, policy_evaluation_buffers);
         malloc(device, evaluation_buffers);
-        evaluate(device, env_init, input_parameters, ui, policy, policy_state, policy_evaluation_buffers, evaluation_buffers, results, data, rng, mode, deterministic, sample_environment_parameters);
+        evaluate(device, env_init, ui, policy, policy_state, policy_evaluation_buffers, evaluation_buffers, results, data, rng, mode);
         free(device, policy_state);
         free(device, policy_evaluation_buffers);
         free(device, evaluation_buffers);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, typename ENVIRONMENT::Parameters& input_parameters, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode, bool deterministic = false, bool sample_environment_parameters = true){
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, RNG &rng, const Mode<MODE>& mode){
         rl::utils::evaluation::NoData<SPEC> data;
-        evaluate(device, env_init, input_parameters, ui, policy, results, data, rng, mode, deterministic, sample_environment_parameters);
+        evaluate(device, env_init, ui, policy, results, data, rng, mode);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

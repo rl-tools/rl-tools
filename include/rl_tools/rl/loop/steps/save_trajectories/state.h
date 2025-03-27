@@ -17,7 +17,7 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         rl::utils::evaluation::Result<typename CONFIG::SAVE_TRAJECTORIES_SPEC> save_trajectories_result;
         template <typename SPEC>
         using DATA_TYPE = rl_tools::utils::typing::conditional_t<CONFIG::SAVE_TRAJECTORIES_PARAMETERS::SAVE_TRAJECTORIES, rl::utils::evaluation::Data<SPEC>, rl::utils::evaluation::NoData<SPEC>>;
-        DATA_TYPE<typename CONFIG::SAVE_TRAJECTORIES_SPEC> save_trajectories_buffer;
+        DATA_TYPE<typename CONFIG::SAVE_TRAJECTORIES_SPEC> save_trajectories_data;
         typename CONFIG::RNG rng_save_trajectories;
         using SAVE_TRAJECTORIES_ACTOR_TYPE_BATCH_SIZE = typename CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, CONFIG::SAVE_TRAJECTORIES_PARAMETERS::NUM_EPISODES>;
         using SAVE_TRAJECTORIES_ACTOR_TYPE = typename SAVE_TRAJECTORIES_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<CONFIG::DYNAMIC_ALLOCATION>>;
