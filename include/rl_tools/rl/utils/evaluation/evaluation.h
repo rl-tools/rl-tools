@@ -16,13 +16,14 @@ namespace rl_tools::rl::utils::evaluation{
 
         ENV_STATE state;
     };
-    template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_EPISODES, T_TI T_STEP_LIMIT>
+    template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_EPISODES, T_TI T_STEP_LIMIT, bool T_DETERMINISTIC_INITIAL_STATE=false>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
         using ENVIRONMENT = T_ENVIRONMENT;
         constexpr static TI N_EPISODES = T_N_EPISODES;
         constexpr static TI STEP_LIMIT = T_STEP_LIMIT;
+        constexpr static bool DETERMINISTIC_INITIAL_STATE = T_DETERMINISTIC_INITIAL_STATE;
     };
     template <typename T_SPEC, bool DYNAMIC_ALLOCATION=true>
     struct Data{
@@ -30,17 +31,11 @@ namespace rl_tools::rl::utils::evaluation{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
-        // typename ENVIRONMENT::Parameters parameters[SPEC::N_EPISODES];
         Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> parameters;
-        // bool terminated[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> terminated;
-        // T rewards[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> rewards;
-        // typename ENVIRONMENT::State states[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
         Tensor<tensor::Specification<typename ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> states;
-        // T actions[SPEC::N_EPISODES][SPEC::STEP_LIMIT][ENVIRONMENT::ACTION_DIM];
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT, ENVIRONMENT::ACTION_DIM>>> actions;
-        // T dt[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> dt;
     };
     template <typename T_SPEC>

@@ -19,6 +19,7 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         static constexpr TI NUM_EPISODES = 10;
         static constexpr TI EPISODE_STEP_LIMIT = NEXT::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
         static constexpr bool SAVE_TRAJECTORIES = true;
+        static constexpr bool DETERMINISTIC_INITIAL_STATE = false;
     };
     struct ConfigTag{};
     template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>, typename T_UI = environments::DummyUI>
@@ -29,7 +30,7 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         using UI = T_UI;
         using T = typename NEXT::T;
         using TI = typename NEXT::TI;
-        using SAVE_TRAJECTORIES_SPEC = rl::utils::evaluation::Specification<T, TI, typename NEXT::ENVIRONMENT_EVALUATION, SAVE_TRAJECTORIES_PARAMETERS::NUM_EPISODES, SAVE_TRAJECTORIES_PARAMETERS::EPISODE_STEP_LIMIT>;
+        using SAVE_TRAJECTORIES_SPEC = rl::utils::evaluation::Specification<T, TI, typename NEXT::ENVIRONMENT_EVALUATION, SAVE_TRAJECTORIES_PARAMETERS::NUM_EPISODES, SAVE_TRAJECTORIES_PARAMETERS::EPISODE_STEP_LIMIT, SAVE_TRAJECTORIES_PARAMETERS::DETERMINISTIC_INITIAL_STATE>;
         template <typename CONFIG>
         using State = State<CONFIG>;
     };

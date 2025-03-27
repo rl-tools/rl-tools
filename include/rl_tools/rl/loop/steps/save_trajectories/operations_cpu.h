@@ -23,13 +23,13 @@ namespace rl_tools{
     void malloc(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         malloc(device, ts.actor_deterministic_save_trajectories_buffers);
-        malloc(device, ts.save_trajectories_buffer);
+        malloc(device, ts.save_trajectories_data);
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
     void free(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
-        free(device, ts.save_trajectories_buffer);
+        free(device, ts.save_trajectories_data);
         free(device, ts.actor_deterministic_save_trajectories_buffers);
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
@@ -141,12 +141,12 @@ namespace rl_tools{
                 malloc(device, evaluation_actor);
                 auto actor = get_actor(ts);
                 copy(device, device, actor, evaluation_actor);
-                evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, ts.save_trajectories_result, ts.save_trajectories_buffer, ts.rng_save_trajectories, ts.evaluation_mode, CONFIG::EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE, CONFIG::EVALUATION_PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
+                evaluate(device, ts.env_eval, ts.ui, evaluation_actor, ts.save_trajectories_result, ts.save_trajectories_data, ts.rng_save_trajectories, ts.evaluation_mode);
                 free(device, evaluation_actor);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 
-                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, ts.save_trajectories_buffer);
+                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, ts.save_trajectories_data);
                 std::stringstream step_ss;
                 step_ss << std::setw(15) << std::setfill('0') << ts.step;
                 std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();
