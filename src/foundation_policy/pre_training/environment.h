@@ -38,6 +38,8 @@ namespace builder{
             static constexpr bool MASS = ENABLED;
             static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ENABLED;
             static constexpr bool MASS_SIZE_DEVIATION = ENABLED;
+            static constexpr bool ROTOR_TORQUE_CONSTANT = ENABLED;
+            static constexpr bool DISTURBANCE_FORCE = ENABLED;
         };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
@@ -76,16 +78,21 @@ namespace builder{
             termination
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-            0.0, // thrust_to_weight_min;
-            0.0, // thrust_to_weight_max;
-            0.0, // thrust_to_weight_by_torque_to_inertia_min;
-            0.0, // thrust_to_weight_by_torque_to_inertia_max;
-            0.0, // mass_min;
-            0.0, // mass_max;
-            0.0, // mass_size_deviation;
-            0.0, // motor_time_constant;
-            0.0, // rotor_torque_constant;
-            0.0  // orientation_offset_angle_max;
+            0, // thrust_to_weight_min;
+            0, // thrust_to_weight_max;
+            0, // thrust_to_weight_by_torque_to_inertia_min;
+            0, // thrust_to_weight_by_torque_to_inertia_max;
+            0, // mass_min;
+            0, // mass_max;
+            0, // mass_size_deviation;
+            0, // motor_time_constant_rising_min;
+            0, // motor_time_constant_rising_max;
+            0, // motor_time_constant_falling_min;
+            0, // motor_time_constant_falling_max;
+            0, // rotor_torque_constant_min;
+            0, // rotor_torque_constant_max;
+            0, // orientation_offset_angle_max;
+            0  // disturbance_force_max;
         };
         static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
@@ -123,10 +130,11 @@ namespace builder{
                     observation::AngularVelocityDelayed<observation::AngularVelocityDelayedSpecification<T, TI, ANGULAR_VELOCITY_DELAY,
                     observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_THRUST_CURVES, observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, PARAMETERS_TYPE::N>>,
                     observation::Multiplex<observation::MultiplexSpecification<TI, OBSERVE_MOTOR_POSITIONS, observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, PARAMETERS_TYPE::N>>,
+                    observation::RandomForce<observation::RandomForceSpecification<T, TI,
                     observation::ActionHistory<observation::ActionHistorySpecification<T, TI, 1, // one-step action history to Markovify the d_action regularization
                     utils::typing::conditional_t<OPTIONS::MOTOR_DELAY, observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>, observation::LastComponent<TI>>
                     // observation::ParametersMass<observation::ParametersMassSpecification<T, TI
-            >>>>>>>>>>>>>>;
+            >>>>>>>>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
