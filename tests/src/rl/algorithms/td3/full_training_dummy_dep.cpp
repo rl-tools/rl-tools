@@ -150,7 +150,7 @@ int main() {
         if(step_i % 1000 == 0){
             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device, env, env_parameters[0], ui, actor_critic.actor, result, actor_buffers_evaluation, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+            rlt::evaluate(device, env, ui, actor_critic.actor, result, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
             rlt::log(device, device.logger, "Mean return: ", result.returns_mean);
             if(result.returns_mean > -200000){
                 return 0;

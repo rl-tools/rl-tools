@@ -25,18 +25,25 @@ namespace rl_tools::rl::utils::evaluation{
         constexpr static TI STEP_LIMIT = T_STEP_LIMIT;
         constexpr static bool DETERMINISTIC_INITIAL_STATE = T_DETERMINISTIC_INITIAL_STATE;
     };
-    template <typename T_SPEC, bool DYNAMIC_ALLOCATION=true>
-    struct Data{
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION=true>
+    struct DataSpecification{
         using SPEC = T_SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+    };
+    template <typename T_SPEC>
+    struct Data{
+
+        using SPEC = typename T_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
-        Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> parameters;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> terminated;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> rewards;
-        Tensor<tensor::Specification<typename ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> states;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT, ENVIRONMENT::ACTION_DIM>>> actions;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>>> dt;
+        static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
+        Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_EPISODES>, DYNAMIC_ALLOCATION>> parameters;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>, DYNAMIC_ALLOCATION>> terminated;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>, DYNAMIC_ALLOCATION>> rewards;
+        Tensor<tensor::Specification<typename ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>, DYNAMIC_ALLOCATION>> states;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT, ENVIRONMENT::ACTION_DIM>, DYNAMIC_ALLOCATION>> actions;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_EPISODES, SPEC::STEP_LIMIT>, DYNAMIC_ALLOCATION>> dt;
     };
     template <typename T_SPEC>
     struct NoData{};
@@ -57,12 +64,18 @@ namespace rl_tools::rl::utils::evaluation{
         TI num_terminated;
         T share_terminated;
     };
-    template <typename T_SPEC, bool DYNAMIC_ALLOCATION=true>
-    struct Buffer{
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION=true>
+    struct BufferSpecification{
         using SPEC = T_SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION=T_DYNAMIC_ALLOCATION;
+    };
+    template <typename T_SPEC>
+    struct Buffer{
+        using SPEC = typename T_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
         Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM, DYNAMIC_ALLOCATION>> actions;
         Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM, DYNAMIC_ALLOCATION>> observations;
     };

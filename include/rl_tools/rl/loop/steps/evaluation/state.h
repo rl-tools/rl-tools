@@ -13,7 +13,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using NEXT = T_NEXT;
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
-        rl::utils::evaluation::Buffer<typename CONFIG::EVALUATION_SPEC> evaluation_buffer;
+        rl::utils::evaluation::Buffer<rl::utils::evaluation::BufferSpecification<typename CONFIG::EVALUATION_SPEC, CONFIG::DYNAMIC_ALLOCATION>> evaluation_buffer;
         using RESULT_TYPE = rl::utils::evaluation::Result<typename CONFIG::EVALUATION_RESULT_SPEC>;
         Matrix<matrix::Specification<RESULT_TYPE, TI, 1, CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS, NEXT::CONFIG::DYNAMIC_ALLOCATION>> evaluation_results;
         typename CONFIG::RNG rng_eval, rng_eval_on_demand;
