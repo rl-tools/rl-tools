@@ -21,7 +21,9 @@ namespace rl_tools{
         malloc(device, ts.rng_eval);
         malloc(device, ts.rng_eval_on_demand);
         malloc(device, ts.env_eval);
+        malloc(device, ts.actor_deterministic_evaluation_state);
         malloc(device, ts.actor_deterministic_evaluation_buffers);
+        malloc(device, ts.evaluation_buffer);
         malloc(device, ts.evaluation_results);
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
     }
@@ -32,6 +34,7 @@ namespace rl_tools{
         free(device, ts.rng_eval_on_demand);
         free(device, ts.env_eval);
         free(device, ts.actor_deterministic_evaluation_buffers);
+        free(device, ts.evaluation_buffer);
         free(device, ts.evaluation_results);
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
@@ -66,7 +69,7 @@ namespace rl_tools{
                     malloc(device, evaluation_actor);
                     auto actor = get_actor(ts);
                     copy(device, device, actor, evaluation_actor);
-                    evaluate(device, ts.env_eval, ts.ui, evaluation_actor, result, rng, ts.evaluation_mode);
+                    evaluate(device, ts.env_eval, ts.ui, evaluation_actor, ts.actor_deterministic_evaluation_state, ts.actor_deterministic_evaluation_buffers, ts.evaluation_buffer, result, rng, ts.evaluation_mode);
                     free(device, evaluation_actor);
                     log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
                     add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
