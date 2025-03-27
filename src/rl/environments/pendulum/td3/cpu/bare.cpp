@@ -57,6 +57,8 @@ int main(int argc, char** argv){
 
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, LOOP_EVAL_CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, LOOP_EVAL_CONFIG::CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+    typename decltype(ts.actor_critic.actor)::State state;
+    rlt::malloc(device, ts);
     rlt::evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, ts.actor_critic.actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{}, false);
 #ifdef DEBUG_BARE
     std::cout << "Mean return: " << result.returns_mean << std::endl;

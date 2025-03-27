@@ -23,8 +23,15 @@ namespace rl_tools{
     void malloc(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         malloc(device, ts.actor_deterministic_save_trajectories_buffers);
-        ts.save_trajectories_buffer = new typename STATE::template DATA_TYPE<typename T_CONFIG::SAVE_TRAJECTORIES_SPEC>;
+        malloc(device, ts.save_trajectories_buffer);
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
+    }
+    template <typename DEVICE, typename T_CONFIG>
+    void free(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
+        using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
+        free(device, ts.save_trajectories_buffer);
+        free(device, ts.actor_deterministic_save_trajectories_buffers);
+        free(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
@@ -35,13 +42,6 @@ namespace rl_tools{
         ts.save_trajectories_this_step = false;
     }
 
-    template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
-        using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
-        delete ts.save_trajectories_buffer;
-        free(device, ts.actor_deterministic_save_trajectories_buffers);
-        free(device, static_cast<typename STATE::NEXT&>(ts));
-    }
 
     namespace rl::loop::steps::save_trajectories{
         template <typename DEVICE, typename ENVIRONMENT, typename SPEC>
@@ -50,23 +50,23 @@ namespace rl_tools{
             std::string episodes_json = "[";
             for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
                 std::string episode_json = "{";
-                episode_json += "\"parameters\": " + std::string(json(device, env, data.parameters[episode_i])) + ", \n";
+                episode_json += "\"parameters\": " + std::string(json(device, env, get(device, data.parameters, episode_i))) + ", \n";
                 std::string trajectory_json = "[";
                 for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
                     std::string step_json = "{";
-                    step_json += "\"state\":" + std::string(json(device, env, data.parameters[episode_i], data.states[episode_i][step_i])) + ", ";
+                    step_json += "\"state\":" + std::string(json(device, env, get(device, data.parameters, episode_i), get(device, data.states, episode_i, step_i))) + ", ";
                     std::string action_json = "\"action\":[";
                     for(TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
-                        action_json += std::to_string(data.actions[episode_i][step_i][action_i]);
+                        action_json += std::to_string(get(device, data.actions, episode_i, step_i, action_i));
                         action_json += (action_i < ENVIRONMENT::ACTION_DIM - 1) ? ", " : "";
                         action_json += "\n";
                     }
                     action_json.pop_back();
                     action_json += "]";
                     step_json += action_json + ",";
-                    step_json += "\"dt\":" + std::to_string(data.dt[episode_i][step_i]) + ",";
-                    step_json += "\"reward\":" + std::to_string(data.rewards[episode_i][step_i]) + ",";
-                    step_json += "\"terminated\":" + (data.terminated[episode_i][step_i] ? std::string("true") : std::string("false"));;
+                    step_json += "\"dt\":" + std::to_string(get(device, data.dt, episode_i, step_i)) + ",";
+                    step_json += "\"reward\":" + std::to_string(get(device, data.rewards, episode_i, step_i)) + ",";
+                    step_json += "\"terminated\":" + (get(device, data.terminated, episode_i, step_i) ? std::string("true") : std::string("false"));;
                     step_json += "}";
                     trajectory_json += step_json + ",";
                 }
@@ -141,12 +141,12 @@ namespace rl_tools{
                 malloc(device, evaluation_actor);
                 auto actor = get_actor(ts);
                 copy(device, device, actor, evaluation_actor);
-                evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_save_trajectories_buffers, ts.rng_save_trajectories, ts.evaluation_mode, CONFIG::EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE, CONFIG::EVALUATION_PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
+                evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, ts.save_trajectories_result, ts.save_trajectories_buffer, ts.rng_save_trajectories, ts.evaluation_mode, CONFIG::EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE, CONFIG::EVALUATION_PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
                 free(device, evaluation_actor);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 
-                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, *ts.save_trajectories_buffer);
+                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, ts.save_trajectories_buffer);
                 std::stringstream step_ss;
                 step_ss << std::setw(15) << std::setfill('0') << ts.step;
                 std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();

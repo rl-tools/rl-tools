@@ -33,7 +33,7 @@ namespace rl_tools{
             }
         }
         for (TI rotor_i = 0; rotor_i < PARAMETERS::N; ++rotor_i){
-            log(device, device.logger, "Rotor torque constant: ", rotor_i, " ", nominal.rotor_torque_constants[rotor_i], " -> ", perturbed.rotor_torque_constant[rotor_i], " (", percentage_change(nominal.rotor_torque_constant[rotor_i], perturbed.rotor_torque_constant[rotor_i]), "%)");
+            log(device, device.logger, "Rotor torque constant: ", rotor_i, " ", nominal.rotor_torque_constants[rotor_i], " -> ", perturbed.rotor_torque_constants[rotor_i], " (", percentage_change(nominal.rotor_torque_constants[rotor_i], perturbed.rotor_torque_constants[rotor_i]), "%)");
             log(device, device.logger, "Motor time constant (up): ", rotor_i, " ", nominal.rotor_time_constants_rising[rotor_i], " -> ", perturbed.rotor_time_constants_rising[rotor_i], " (", percentage_change(nominal.rotor_time_constants_rising[rotor_i], perturbed.rotor_time_constants_rising[rotor_i]), "%)");
         }
         log(device, device.logger, "Hovering throttle relative: ", nominal.hovering_throttle_relative, " -> ", perturbed.hovering_throttle_relative, " (", percentage_change(nominal.hovering_throttle_relative, perturbed.hovering_throttle_relative), "%)");

@@ -7,6 +7,7 @@
 #include "devices.h"
 
 #include <cstddef>
+#include <cstdint>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace arm{

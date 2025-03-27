@@ -66,7 +66,7 @@ namespace rl_tools{
                     malloc(device, evaluation_actor);
                     auto actor = get_actor(ts);
                     copy(device, device, actor, evaluation_actor);
-                    evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, result, ts.actor_deterministic_evaluation_buffers, rng, ts.evaluation_mode, PARAMETERS::DETERMINISTIC_INITIAL_STATE, PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
+                    evaluate(device, ts.env_eval, ts.env_eval_parameters, ts.ui, evaluation_actor, result, rng, ts.evaluation_mode, PARAMETERS::DETERMINISTIC_INITIAL_STATE, PARAMETERS::SAMPLE_ENVIRONMENT_PARAMETERS);
                     free(device, evaluation_actor);
                     log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
                     add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
