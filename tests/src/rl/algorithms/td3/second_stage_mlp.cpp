@@ -571,7 +571,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             }
             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 100, 200>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device, env, env_parameters, ui, actor_critic.actor, result, actor_eval_buffers, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+            rlt::evaluate(device, env, ui, actor_critic.actor, result, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
 #ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
             plot_policy_and_value_function<T, ENVIRONMENT, ActorCriticType::ACTOR_TYPE, ActorCriticType::CRITIC_TYPE>(actor_critic.actor, actor_critic.critics[0], std::string("second_stage"), step_i);
 #endif
