@@ -133,7 +133,8 @@ namespace rl_tools{
                 auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
                 auto actor_group = actor_file.createGroup("actor");
                 actor_group.createAttribute("checkpoint_name", step_folder);
-                auto env_description = json(device, ENVIRONMENT{});
+                ENVIRONMENT environment;
+                auto env_description = json(device, environment);
                 std::string meta = "{\"environment\": " + env_description + "}";
                 actor_group.createAttribute("meta", meta);
                 rl_tools::save(device, evaluation_actor, actor_group);

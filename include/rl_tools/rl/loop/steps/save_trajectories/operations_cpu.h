@@ -57,11 +57,13 @@ namespace rl_tools{
             std::string episodes_json = "[";
             for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
                 std::string episode_json = "{";
-                episode_json += "\"parameters\": " + std::string(json(device, env, get(device, data.parameters, episode_i))) + ", \n";
+                auto& parameters = get_ref(device, data.parameters, episode_i);
+                episode_json += "\"parameters\": " + std::string(json(device, env, parameters)) + ", \n";
                 std::string trajectory_json = "[";
                 for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
                     std::string step_json = "{";
-                    step_json += "\"state\":" + std::string(json(device, env, get(device, data.parameters, episode_i), get(device, data.states, episode_i, step_i))) + ", ";
+                    auto& state = get_ref(device, data.states, episode_i, step_i);
+                    step_json += "\"state\":" + std::string(json(device, env, parameters, state)) + ", ";
                     std::string action_json = "\"action\":[";
                     for(TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
                         action_json += std::to_string(get(device, data.actions, episode_i, step_i, action_i));

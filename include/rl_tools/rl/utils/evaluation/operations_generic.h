@@ -100,7 +100,6 @@ namespace rl_tools{
         constexpr TI OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
         static_assert(ENVIRONMENT::Observation::DIM == INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == OUTPUT_DIM), "Action and policy output dimensions must match");
-        static constexpr bool STOCHASTIC_POLICY = OUTPUT_DIM == 2*ENVIRONMENT::ACTION_DIM;
         results.returns_mean = 0;
         results.returns_std = 0;
         results.episode_length_mean = 0;
@@ -116,7 +115,6 @@ namespace rl_tools{
         // using ADJUSTED_POLICY = typename POLICY::template CHANGE_BATCH_SIZE<TI, SPEC::N_EPISODES>;
         // typename ADJUSTED_POLICY::template State<true> policy_state;
 
-        // malloc(device, policy_state);
         reset(device, policy, policy_state, rng);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
             auto& env = envs[env_i];
@@ -147,18 +145,11 @@ namespace rl_tools{
                 observe(device, env, env_parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
             }
             auto observations_chunk = view(device, evaluation_buffers.observations, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>{}, 0, 0);
-            auto actions_buffer_chunk = view(device, evaluation_buffers.actions, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>{}, 0, 0);
+            auto actions_buffer_chunk = view(device, evaluation_buffers.actions, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{}, 0, 0);
             auto input_tensor = to_tensor(device, observations_chunk);
             auto output_tensor = to_tensor(device, actions_buffer_chunk);
 
             evaluate_step(device, policy, input_tensor, policy_state, output_tensor, policy_evaluation_buffers, rng, mode);
-            if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
-                for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
-                    for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++) {
-                        set(actions_buffer, env_i, action_i, math::tanh<T>(device.math, get(actions_buffer, env_i, action_i)));
-                    }
-                }
-            }
             rl::utils::evaluation::set_action(device, data, step_i, actions_buffer);
             for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
                 if(step_i > 0){
@@ -203,7 +194,6 @@ namespace rl_tools{
             set_truncated(device, env, env_parameters, ui, state); // this is to sed the terminated flag to the car env
             render(device, env, env_parameters, ui);
         }
-        free(device, policy_state);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
             auto &env = envs[env_i];
             free(device, env);

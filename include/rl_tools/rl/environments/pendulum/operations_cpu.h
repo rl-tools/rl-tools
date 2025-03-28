@@ -11,6 +11,10 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE&, rl::environments::Pendulum<SPEC>& env){
+        return "{}";
+    }
+    template <typename DEVICE, typename SPEC>
     std::string json(DEVICE&, rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters){
         return "{}";
     }
