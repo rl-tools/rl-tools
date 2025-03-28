@@ -123,7 +123,7 @@ void test(T& return_value, T epsilon){
 #else
             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-            rlt::evaluate(device_init, ts_init.env_eval, ts_init.env_eval_parameters, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
+            rlt::evaluate(device_init, ts_init.env_eval, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
 #endif
             rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
             return_value = result.returns_mean;
