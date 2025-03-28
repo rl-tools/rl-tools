@@ -50,9 +50,12 @@ namespace builder {
             RandomForce<RandomForceSpecification<T, TI_GPU,
             RotorSpeeds<RotorSpeedsSpecification<T, TI_GPU>>>>>>>>>>>>;
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
-        using DEFAULT_STUB = parameters::DefaultParameters<T, TI_GPU>;
+        using DEFAULT_STUB = parameters::DEFAULT_PARAMETERS_FACTORY<T, TI_GPU>;
         using PARAMETERS = DEFAULT_STUB::PARAMETERS_TYPE;
-        static constexpr auto PARAMETER_VALUES = DEFAULT_STUB::parameters;
+        static constexpr auto PARAMETER_VALUES = DEFAULT_STUB::nominal_parameters;
+        static constexpr T STATE_LIMIT_POSITION = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
     };
 }
 

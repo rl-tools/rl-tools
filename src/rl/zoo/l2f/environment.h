@@ -35,6 +35,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_acceleration
                 00.10, // action
                 00.00, // d_action
+                00.00 // position_error_integral
         };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
@@ -71,16 +72,21 @@ namespace rl_tools::rl::zoo::l2f{
             termination
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-            0.0, // thrust_to_weight_min;
-            0.0, // thrust_to_weight_max;
-            0.0, // thrust_to_weight_by_torque_to_inertia_min;
-            0.0, // thrust_to_weight_by_torque_to_inertia_max;
-            0.0, // mass_min;
-            0.0, // mass_max;
-            0.0, // mass_size_deviation;
-            0.0, // motor_time_constant;
-            0.0, // rotor_torque_constant;
-            0.0  // orientation_offset_angle_max;
+            0, // thrust_to_weight_min;
+            0, // thrust_to_weight_max;
+            0, // thrust_to_weight_by_torque_to_inertia_min;
+            0, // thrust_to_weight_by_torque_to_inertia_max;
+            0, // mass_min;
+            0, // mass_max;
+            0, // mass_size_deviation;
+            0, // motor_time_constant_rising_min;
+            0, // motor_time_constant_rising_max;
+            0, // motor_time_constant_falling_min;
+            0, // motor_time_constant_falling_max;
+            0, // rotor_torque_constant_min;
+            0, // rotor_torque_constant_max;
+            0, // orientation_offset_angle_max;
+            0  // disturbance_force_max;
         };
         static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
@@ -115,7 +121,7 @@ namespace rl_tools::rl::zoo::l2f{
                     observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
                     observation::RandomForce<observation::RandomForceSpecification<T, TI,
-                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, T >>>>>>>>>>>>;
+                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters;

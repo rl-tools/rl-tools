@@ -166,7 +166,7 @@ int main() {
                 cudaStreamSynchronize(device.stream);
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-                rlt::evaluate(device_evaluation, env_evaluation, env_evaluation_parameters, ui, actor_evaluation, result, actor_buffers_evaluation, rng_evaluation, rlt::Mode<rlt::mode::Evaluation<>>{});
+                rlt::evaluate(device_evaluation, env_evaluation, ui, actor_evaluation, result, rng_evaluation, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::log(device_evaluation, device_evaluation.logger, "Step: ", step, " Mean return: ", result.returns_mean);
             }
 
@@ -195,7 +195,7 @@ int main() {
                 cudaStreamSynchronize(device.stream);
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-                rlt::evaluate(device_evaluation, env_evaluation, env_evaluation_parameters, ui, actor_evaluation, result, actor_buffers_evaluation, rng_evaluation, rlt::Mode<rlt::mode::Evaluation<>>{});
+                rlt::evaluate(device_evaluation, env_evaluation, ui, actor_evaluation, result, rng_evaluation, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::log(device_evaluation, device_evaluation.logger, "Step: ", step, " Mean return: ", result.returns_mean);
             }
 

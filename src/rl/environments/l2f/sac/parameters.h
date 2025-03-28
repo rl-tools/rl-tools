@@ -12,9 +12,7 @@ constexpr TI NUM_CHECKPOINTS = 100;
 
 namespace env_param_builder{
     using namespace rlt::rl::environments::l2f;
-    template <typename ENV_CONFIG = rl_tools::rl::environments::l2f::parameters::DEFAULT_CONFIG>
-    struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI, ENV_CONFIG>{
-        using PARENT = typename rlt::rl::environments::l2f::parameters::DefaultParameters<T, TI, ENV_CONFIG>;
+    struct ENVIRONMENT_PARAMETERS{
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 1;
@@ -59,8 +57,12 @@ namespace env_param_builder{
 //            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED_NORMAL;
 //            using STATE_TYPE = STATE_TYPE_NORMAL;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
-            using PARAMETERS = typename PARENT::PARAMETERS_TYPE;
-            static constexpr auto PARAMETER_VALUES = PARENT::parameters;
+            using BASE = rl_tools::rl::environments::l2f::parameters::DEFAULT_PARAMETERS_FACTORY<T, TI>;
+            using PARAMETERS = typename BASE::PARAMETERS_TYPE;
+            static constexpr auto PARAMETER_VALUES = BASE::nominal_parameters;
+            static constexpr T STATE_LIMIT_POSITION = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
@@ -68,7 +70,7 @@ namespace env_param_builder{
     };
 }
 
-using ENVIRONMENT = typename env_param_builder::ENVIRONMENT_PARAMETERS<>::ENVIRONMENT;
+using ENVIRONMENT = typename env_param_builder::ENVIRONMENT_PARAMETERS::ENVIRONMENT;
 //using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
 //using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
 //using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
