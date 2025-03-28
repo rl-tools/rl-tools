@@ -16,11 +16,12 @@ constexpr TI BATCH_SIZE = 32;
 constexpr T SOLVED_RETURN = 550;
 constexpr TI HIDDEN_DIM = 32;
 constexpr TI NUM_TEACHERS = 50;
-constexpr TI EPOCH_DAGGER = 5;
+constexpr TI EPOCH_DAGGER = 1;
 constexpr bool DYNAMIC_ALLOCATION = true;
-constexpr bool SHUFFLE = false;
+constexpr bool SHUFFLE = true;
 constexpr bool TEACHER_DETERMINISTIC = true;
-constexpr bool ON_POLICY = false;
+constexpr bool ON_POLICY = true;
+constexpr TI TEACHER_STUDENT_MIX = 1; // added teacher epochs in DAgger epochs
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
