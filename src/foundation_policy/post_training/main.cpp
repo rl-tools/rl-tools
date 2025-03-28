@@ -64,7 +64,7 @@ using T = float;
 #include "config.h"
 
 // constants derived
-constexpr TI DATASET_SIZE = (ON_POLICY ? 1 : N_EPOCH) * NUM_TEACHERS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
+constexpr TI DATASET_SIZE = (ON_POLICY ? 1 : N_EPOCH) * (1 + TEACHER_STUDENT_MIX) * NUM_TEACHERS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT;
 
 
 using FACTORY = builder::FACTORY<DEVICE, T, TI, RNG, OPTIONS_PRE_TRAINING, DYNAMIC_ALLOCATION>;
@@ -92,6 +92,7 @@ int main(int argc, char** argv){
     OPTIMIZER actor_optimizer;
     std::cout << "Input shape: " << std::endl;
     rlt::print(device, ACTOR::INPUT_SHAPE{});
+    rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_episode_start_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_truncated;
@@ -116,6 +117,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, actor);
     rlt::malloc(device, best_actor);
     rlt::malloc(device, actor_buffer);
+    rlt::malloc(device, dataset_episode_start_indices);
     rlt::malloc(device, dataset_input);
     rlt::malloc(device, dataset_output_target);
     rlt::malloc(device, dataset_truncated);
@@ -128,6 +130,7 @@ int main(int argc, char** argv){
 
     // init
     TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
+    TI current_episode = 0;
     TI current_index = 0;
 
     T best_return = 0;
@@ -199,6 +202,7 @@ int main(int argc, char** argv){
 
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
+        current_episode = ON_POLICY ? 0 : current_episode;
         current_index = ON_POLICY ? 0 : current_index; // reset dataset if ON_POLICY
         RESULT average_result;
         average_result.returns_mean = 0;
@@ -206,18 +210,25 @@ int main(int argc, char** argv){
         average_result.episode_length_mean = 0;
         average_result.episode_length_std = 0;
         average_result.share_terminated = 0;
+        TI NUM_AVG = 0;
 
         for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
-            if (epoch_i <= EPOCH_DAGGER){ // start with behavioral cloning (data gathering using teacher)
-                auto result = gather_epoch<ENVIRONMENT_TEACHER, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor_teacher[teacher_i], dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
-                average_result.returns_mean += result.returns_mean;
-                average_result.returns_std += result.returns_mean * result.returns_mean;
-                average_result.episode_length_mean += result.episode_length_mean;
-                average_result.episode_length_std += result.episode_length_mean * result.episode_length_mean;
-                average_result.share_terminated += result.share_terminated;
+            if (epoch_i < EPOCH_DAGGER || TEACHER_STUDENT_MIX > 0){ // start with behavioral cloning (data gathering using teacher)
+                for (TI teacher_epoch_i = 0; teacher_epoch_i < (TEACHER_STUDENT_MIX > 0 ? TEACHER_STUDENT_MIX : 1); teacher_epoch_i++){
+                    auto result = gather_epoch<ENVIRONMENT_TEACHER, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor_teacher[teacher_i], dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
+                    if (epoch_i < EPOCH_DAGGER){
+                        NUM_AVG++;
+                        average_result.returns_mean += result.returns_mean;
+                        average_result.returns_std += result.returns_mean * result.returns_mean;
+                        average_result.episode_length_mean += result.episode_length_mean;
+                        average_result.episode_length_std += result.episode_length_mean * result.episode_length_mean;
+                        average_result.share_terminated += result.share_terminated;
+                    }
+                }
             }
-            else{
-                auto result = gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+            if (epoch_i >= EPOCH_DAGGER){
+                auto result = gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor, dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
+                NUM_AVG++;
                 average_result.returns_mean += result.returns_mean;
                 average_result.returns_std += result.returns_mean * result.returns_mean;
                 average_result.episode_length_mean += result.episode_length_mean;
@@ -225,6 +236,7 @@ int main(int argc, char** argv){
                 average_result.share_terminated += result.share_terminated;
             }
         }
+
         average_result.returns_mean /= NUM_TEACHERS;
         average_result.returns_std /= NUM_TEACHERS;
         average_result.returns_std = std::sqrt(average_result.returns_std - average_result.returns_mean * average_result.returns_mean);
@@ -232,7 +244,7 @@ int main(int argc, char** argv){
         average_result.episode_length_std /= NUM_TEACHERS;
         average_result.episode_length_std = std::sqrt(average_result.episode_length_std - average_result.episode_length_mean * average_result.episode_length_mean);
         average_result.share_terminated /= NUM_TEACHERS;
-        if (!best_return_set || average_result.returns_mean > best_return){
+        if (epoch_i >= EPOCH_DAGGER && (!best_return_set || average_result.returns_mean > best_return)){
             best_return = average_result.returns_mean;
             best_return_set = true;
             rlt::copy(device, device, actor, best_actor);
@@ -244,15 +256,17 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", average_result.episode_length_mean);
         rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", average_result.episode_length_std);
         rlt::add_scalar(device, device.logger, "evaluation/share_terminated", average_result.share_terminated);
-        rlt::log(device, device.logger, "Mean return: ", average_result.returns_mean, " Mean episode length: ", average_result.episode_length_mean, " Share terminated: ", average_result.share_terminated * 100, "%");
-        TI N = current_index;
+        rlt::log(device, device.logger, (epoch_i >= EPOCH_DAGGER ? "Student" : "Teacher"), " Mean return: ", average_result.returns_mean, " Mean episode length: ", average_result.episode_length_mean, " Share terminated: ", average_result.share_terminated * 100, "%");
 
+        TI N = current_index;
+        TI N_EPISODE = current_episode;
+
+        for (TI i=0; i < N_EPISODE; i++){
+            rlt::set(device, epoch_indices, i, i);
+        }
         if constexpr(SHUFFLE){
-            for (TI i=0; i < N; i++){
-                rlt::set(device, epoch_indices, i, i);
-            }
-            for (TI sample_i=0; sample_i<N; sample_i++){
-                TI target_index = rlt::random::uniform_int_distribution(device.random, sample_i, N - 1, rng);
+            for (TI sample_i=0; sample_i<N_EPISODE; sample_i++){
+                TI target_index = rlt::random::uniform_int_distribution(device.random, sample_i, N_EPISODE - 1, rng);
                 TI target_value = rlt::get(device, epoch_indices, target_index);
                 rlt::set(device, epoch_indices, rlt::get(device, epoch_indices, sample_i), target_index);
                 rlt::set(device, epoch_indices, target_value, sample_i);
@@ -261,10 +275,13 @@ int main(int argc, char** argv){
         constexpr TI BATCH_SIZE = INPUT_SHAPE::GET<1>;
         T epoch_loss = 0;
         TI epoch_loss_count = 0;
+        TI epoch_episode_index = 0;
+        std::cout << "Epoch: " << epoch_i << " has " << N << " samples and " << N_EPISODE << " episodes" << std::endl;
         for (TI batch_i = 0; batch_i < N / BATCH_SIZE; batch_i++){
             for (TI sample_i=0; sample_i<BATCH_SIZE; sample_i++){
-                TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
-                TI current_sample = rlt::get(device, epoch_indices, current_epoch_index);
+                // TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
+                TI epoch_episode = rlt::get(device, epoch_indices, epoch_episode_index);
+                TI current_sample = rlt::get(device, dataset_episode_start_indices, epoch_episode);
                 bool reset = false;
                 for (TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
                     auto input = rlt::view(device, dataset_input, current_sample);
@@ -276,11 +293,20 @@ int main(int argc, char** argv){
                     auto output_target_target = rlt::view(device, output_target_step, sample_i);
                     rlt::copy(device, device, output_target, output_target_target);
                     rlt::set(device, batch_reset, reset, step_i, sample_i, 0);
-                    current_sample = (current_sample + 1) % N;
-                    reset = current_sample == 0 || rlt::get(device, dataset_truncated, current_sample);
+                    TI next_sample = (current_sample + 1) % N;
+                    reset = next_sample == 0 || rlt::get(device, dataset_truncated, current_sample);
+                    if(!reset){
+                        current_sample = next_sample;
+                    }
+                    else{
+                        if(++epoch_episode_index >= N_EPISODE){
+                            std::cerr << "Epoch episode index exceeded after " << batch_i << " batches" << std::endl;
+                            goto end_of_epoch;
+                        }
+                        current_sample = rlt::get(device, dataset_episode_start_indices, rlt::get(device, epoch_indices, epoch_episode_index));
+                    }
                 }
             }
-
             rlt::Mode<rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(batch_reset)>>> mode;
             mode.reset_container = batch_reset;
             rlt::forward(device, actor, batch_input, actor_buffer, rng, mode);
@@ -297,6 +323,7 @@ int main(int argc, char** argv){
             rlt::backward(device, actor, batch_input, d_output, actor_buffer, mode);
             rlt::step(device, actor_optimizer, actor);
         }
+        end_of_epoch:
         std::cout << "Epoch: " << epoch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
         auto target_path = run_path / "checkpoints" / std::to_string(epoch_i);
         if (!std::filesystem::exists(target_path)){
@@ -344,6 +371,7 @@ int main(int argc, char** argv){
     rlt::free(device, actor);
     rlt::free(device, best_actor);
     rlt::free(device, actor_buffer);
+    rlt::free(device, dataset_episode_start_indices);
     rlt::free(device, dataset_input);
     rlt::free(device, dataset_output_target);
     rlt::free(device, dataset_truncated);
