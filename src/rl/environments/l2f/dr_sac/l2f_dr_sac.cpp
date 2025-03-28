@@ -78,8 +78,17 @@ static constexpr auto reward_function = IDENT ? rl_tools::rl::environments::l2f:
 using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
 using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
+struct DR_OPTIONS{
+    static constexpr bool ENABLED = false;
+    static constexpr bool THRUST_TO_WEIGHT = ENABLED;
+    static constexpr bool MASS = ENABLED;
+    static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ENABLED;
+    static constexpr bool MASS_SIZE_DEVIATION = ENABLED;
+    static constexpr bool ROTOR_TORQUE_CONSTANT = false;
+    static constexpr bool DISTURBANCE_FORCE = false;
+};
 using PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDisturbances<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>;
+using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDomainRandomization<rl_tools::rl::environments::l2f::ParametersDomainRandomizationSpecification<T, TI, DR_OPTIONS, rl_tools::rl::environments::l2f::ParametersDisturbances<rlt::rl::environments::l2f::ParametersSpecification<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>>>>;
 
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -111,7 +120,7 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = {
     action_noise,
     termination
 };
-static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
+static constexpr rlt::rl::environments::l2f::DomainRandomizationContainer<T> domain_randomization = {
     true || IDENT ? 0 : 2.0, // thrust_to_weight_min;
     true || IDENT ? 0 : 5, // thrust_to_weight_max;
     true || IDENT ? 0 : 0.0026034812863058926, // thrust_to_weight_by_torque_to_inertia_min;
@@ -119,8 +128,14 @@ static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomizat
     true || IDENT ? 0.0 : 0.02, // mass_min;
     true || IDENT ? 0.0 : 5, // mass_max;
     true || IDENT ? 0.0 : 0.1, // mass_size_deviation;
-    true || IDENT ? 0.0 : 0.1, // motor_time_constant;
-    true || IDENT ? 0.0 : 0.1 // rotor_torque_constant;
+    0, // motor_time_constant_rising_min;
+    0, // motor_time_constant_rising_max;
+    0, // motor_time_constant_falling_min;
+    0, // motor_time_constant_falling_max;
+    0, // rotor_torque_constant_min;
+    0, // rotor_torque_constant_max;
+    0, // orientation_offset_angle_max;
+    0  // disturbance_force_max;
 };
 static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
     typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
@@ -128,12 +143,14 @@ static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
 };
 static constexpr PARAMETERS_TYPE nominal_parameters = {
     {
-        dynamics,
-        integration,
-        mdp,
-        domain_randomization
+        {
+            dynamics,
+            integration,
+            mdp,
+        },
+        disturbances
     },
-    disturbances
+    domain_randomization
 };
 
 namespace static_builder{
@@ -165,6 +182,9 @@ namespace static_builder{
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
         using PARAMETERS = PARAMETERS_TYPE;
         static constexpr auto PARAMETER_VALUES = nominal_parameters;
+        static constexpr T STATE_LIMIT_POSITION = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
     };
 }
 
