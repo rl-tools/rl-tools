@@ -22,7 +22,7 @@ constexpr T SOLVED_RETURN = 300;
 constexpr TI HIDDEN_DIM = 32;
 constexpr TI NUM_TEACHERS = 300;
 constexpr bool DYNAMIC_ALLOCATION = true;
-constexpr bool SHUFFLE = true;
+constexpr bool SHUFFLE = false;
 constexpr bool TEACHER_DETERMINISTIC = true;
 constexpr bool ON_POLICY = false;
 

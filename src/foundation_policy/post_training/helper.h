@@ -20,7 +20,7 @@ void sample_trajectories(DEVICE& device, POLICY& policy, const DYNAMICS_PARAMETE
     rlt::initial_parameters(device, env_eval, env_eval_parameters);
 
     rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>> evaluation_mode;
-    rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result, data, eval_buffer, rng, evaluation_mode, false, true);
+    rlt::evaluate(device, env_eval, ui, evaluation_actor, result, data, rng, evaluation_mode);
     rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
     rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
     rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
@@ -44,19 +44,20 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
     rlt::malloc(device, input_teacher);
     bool reset_flag = true;
     for (TI episode_i = 0; episode_i < DATA::SPEC::N_EPISODES; episode_i++){
-        typename ENVIRONMENT::Parameters env_eval_parameters = data.parameters[episode_i];
+        typename ENVIRONMENT::Parameters env_eval_parameters = get(device, data.parameters, episode_i);
         TI current_step_i;
         for (current_step_i = 0; current_step_i < ENVIRONMENT::EPISODE_STEP_LIMIT; current_step_i++){
             auto observation_student_tensor = rlt::view(device, input_student, current_index + current_step_i);
             auto observation_teacher_tensor = rlt::view(device, input_teacher, current_index + current_step_i);
             auto observation_student = rlt::matrix_view(device, observation_student_tensor);
             auto observation_teacher = rlt::matrix_view(device, observation_teacher_tensor);
-            rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], OBSERVATION_TEACHER{}, observation_teacher, rng);
-            rlt::observe(device, env_eval, env_eval_parameters, data.states[episode_i][current_step_i], typename ENVIRONMENT::Observation{}, observation_student, rng);
-            bool truncated_flag = data.terminated[episode_i][current_step_i] || current_step_i == (ENVIRONMENT::EPISODE_STEP_LIMIT - 1);
+            auto state = get(device, data.states, episode_i, current_step_i);
+            rlt::observe(device, env_eval, env_eval_parameters, state, OBSERVATION_TEACHER{}, observation_teacher, rng);
+            rlt::observe(device, env_eval, env_eval_parameters, state, typename ENVIRONMENT::Observation{}, observation_student, rng);
+            bool truncated_flag = get(device, data.terminated, episode_i, current_step_i) || current_step_i == (ENVIRONMENT::EPISODE_STEP_LIMIT - 1);
             rlt::set(device, truncated, truncated_flag, current_index + current_step_i);
             rlt::set(device, reset, reset_flag, current_index + current_step_i);
-            if (data.terminated[episode_i][current_step_i]){
+            if (get(device, data.terminated, episode_i, current_step_i)){
                 reset_flag = true;
                 break;
             }
@@ -99,13 +100,11 @@ void gather_epoch(DEVICE& device, TEACHER& teacher, PARAMETERS& parameters, STUD
     using T = typename DS_INPUT_SPEC::T;
     using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
     RESULT result;
-    using DATA = rlt::rl::utils::evaluation::Data<typename RESULT::SPEC>;
-    DATA* data_memory;
-    data_memory = new DATA;
-    DATA& data = *data_memory;
+    rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<typename RESULT::SPEC>> data;
+    rlt::malloc(device, data);
     sample_trajectories<ENVIRONMENT>(device, student, parameters.dynamics, result, data, rng);
     add_to_dataset<ENVIRONMENT, TEACHER_OBSERVATION, TEACHER_DETERMINISTIC>(device, data, teacher, input, output_target, dataset_truncated, dataset_reset, current_index, rng);
-    delete data_memory;
+    rlt::free(device, data);
 }
 
 
