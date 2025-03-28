@@ -1,5 +1,4 @@
 #include <rl_tools/operations/cpu.h>
-#include <rl_tools/rl/environments/l2f/parameters/default.h>
 #include <rl_tools/rl/environments/l2f/operations_multitask_generic_forward.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f/operations_multitask_generic.h>
@@ -34,8 +33,8 @@ namespace static_parameter_builder{
         using OBSERVATION_TYPE = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH>;
         using OBSERVATION_TYPE_PRIVILEGED = DefaultObservation<T, TI, 0, observation::RandomForce<observation::RandomForceSpecification<T, TI, observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>> >>>;
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
-        using PARAMETER_FACTORY = parameters::DefaultParameters<T, TI>;
-        static constexpr auto PARAMETER_VALUES = PARAMETER_FACTORY::parameters;
+        using PARAMETER_FACTORY = parameters::DEFAULT_PARAMETERS_FACTORY<T, TI>;
+        static constexpr auto PARAMETER_VALUES = PARAMETER_FACTORY::nominal_parameters;
         using PARAMETERS = typename PARAMETER_FACTORY::PARAMETERS_TYPE;
         static constexpr T STATE_LIMIT_POSITION = 100000;
         static constexpr T STATE_LIMIT_VELOCITY = 100000;
