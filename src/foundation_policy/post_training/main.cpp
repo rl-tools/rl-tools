@@ -143,10 +143,10 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-25_19-19-11";
+    checkpoint_path.experiment = "2025-03-27_21-35-33";
     checkpoint_path.name = "foundation-policy-pre-training";
 
-    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_backup/";
+    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
     std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints.txt";
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
@@ -200,9 +200,51 @@ int main(int argc, char** argv){
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     for (TI epoch_i = 0; epoch_i < N_EPOCH; epoch_i++){
         current_index = ON_POLICY ? 0 : current_index; // reset dataset if ON_POLICY
+        RESULT average_result;
+        average_result.returns_mean = 0;
+        average_result.returns_std = 0;
+        average_result.episode_length_mean = 0;
+        average_result.episode_length_std = 0;
+        average_result.share_terminated = 0;
+
         for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
-            gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+            if (epoch_i <= EPOCH_DAGGER){ // start with behavioral cloning (data gathering using teacher)
+                auto result = gather_epoch<ENVIRONMENT_TEACHER, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor_teacher[teacher_i], dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+                average_result.returns_mean += result.returns_mean;
+                average_result.returns_std += result.returns_mean * result.returns_mean;
+                average_result.episode_length_mean += result.episode_length_mean;
+                average_result.episode_length_std += result.episode_length_mean * result.episode_length_mean;
+                average_result.share_terminated += result.share_terminated;
+            }
+            else{
+                auto result = gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_index, rng);
+                average_result.returns_mean += result.returns_mean;
+                average_result.returns_std += result.returns_mean * result.returns_mean;
+                average_result.episode_length_mean += result.episode_length_mean;
+                average_result.episode_length_std += result.episode_length_mean * result.episode_length_mean;
+                average_result.share_terminated += result.share_terminated;
+            }
         }
+        average_result.returns_mean /= NUM_TEACHERS;
+        average_result.returns_std /= NUM_TEACHERS;
+        average_result.returns_std = std::sqrt(average_result.returns_std - average_result.returns_mean * average_result.returns_mean);
+        average_result.episode_length_mean /= NUM_TEACHERS;
+        average_result.episode_length_std /= NUM_TEACHERS;
+        average_result.episode_length_std = std::sqrt(average_result.episode_length_std - average_result.episode_length_mean * average_result.episode_length_mean);
+        average_result.share_terminated /= NUM_TEACHERS;
+        if (!best_return_set || average_result.returns_mean > best_return){
+            best_return = average_result.returns_mean;
+            best_return_set = true;
+            rlt::copy(device, device, actor, best_actor);
+            std::cout << "Best return: " << best_return << std::endl;
+        }
+
+        rlt::add_scalar(device, device.logger, "evaluation/return/mean", average_result.returns_mean);
+        rlt::add_scalar(device, device.logger, "evaluation/return/std", average_result.returns_std);
+        rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", average_result.episode_length_mean);
+        rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", average_result.episode_length_std);
+        rlt::add_scalar(device, device.logger, "evaluation/share_terminated", average_result.share_terminated);
+        rlt::log(device, device.logger, "Mean return: ", average_result.returns_mean, " Mean episode length: ", average_result.episode_length_mean, " Share terminated: ", average_result.share_terminated * 100, "%");
         TI N = current_index;
 
         if constexpr(SHUFFLE){
@@ -285,13 +327,6 @@ int main(int argc, char** argv){
             rlt::add_scalar(device, device.logger, "crazyflie/episode_length/std", result_eval.episode_length_std);
             rlt::add_scalar(device, device.logger, "crazyflie/share_terminated", result_eval.share_terminated);
             rlt::log(device, device.logger, "Crazyflie: Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
-
-            if (!best_return_set || result_eval.returns_mean > best_return){
-                best_return = result_eval.returns_mean;
-                best_return_set = true;
-                rlt::copy(device, device, evaluation_actor, best_actor);
-                std::cout << "Best return: " << best_return << std::endl;
-            }
 
             rlt::free(device, evaluation_actor);
             rlt::free(device, eval_buffer);

@@ -6,11 +6,6 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
     static constexpr bool OBSERVATION_NOISE = true;
 };
 
-struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-    static constexpr T ALPHA = 0.0001;
-};
-
-
 // constants parameters
 constexpr TI NUM_EPISODES = 1;
 constexpr TI NUM_EPISODES_EVAL = 100;
@@ -18,9 +13,10 @@ constexpr TI N_EPOCH = 100;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 500;
 constexpr TI BATCH_SIZE = 32;
-constexpr T SOLVED_RETURN = 300;
+constexpr T SOLVED_RETURN = 550;
 constexpr TI HIDDEN_DIM = 32;
-constexpr TI NUM_TEACHERS = 300;
+constexpr TI NUM_TEACHERS = 50;
+constexpr TI EPOCH_DAGGER = 5;
 constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr bool SHUFFLE = false;
 constexpr bool TEACHER_DETERMINISTIC = true;
@@ -67,6 +63,9 @@ using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU, Module<OUTPUT_LAYER>>>;
 using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, DYNAMIC_ALLOCATION>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+    static constexpr T ALPHA = 0.0001;
+};
 using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMETERS>>;
 using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
 using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
