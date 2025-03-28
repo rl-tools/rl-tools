@@ -9,6 +9,11 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::car{
     template <typename DEVICE, typename SPEC, typename T>
+    nlohmann::json json_object(const DEVICE& device, const rl::environments::Car<SPEC>){
+        nlohmann::json j;
+        return j;
+    }
+    template <typename DEVICE, typename SPEC, typename T>
     nlohmann::json json_object(const DEVICE& device, const rl::environments::Car<SPEC>, const rl::environments::car::Parameters<T>& parameters){
         nlohmann::json j;
         j["lf"]  = parameters.lf;

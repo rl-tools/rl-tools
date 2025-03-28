@@ -97,7 +97,7 @@ int main(){
     rlt::Mode<rlt::mode::Evaluation<>> mode;
     RESULT_EVAL result_eval;
     DATA_EVAL data_eval;
-    rlt::evaluate(device, env_eval, env_eval_parameters, ui, evaluation_actor, result_eval, data_eval, eval_buffer, rng, mode, false, true);
+    rlt::evaluate(device, env_eval, ui, evaluation_actor, result_eval, data_eval, rng, mode);
     rlt::add_scalar(device, device.logger, "evaluation/return/mean", result_eval.returns_mean);
     rlt::add_scalar(device, device.logger, "evaluation/return/std", result_eval.returns_std);
     rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", result_eval.episode_length_mean);

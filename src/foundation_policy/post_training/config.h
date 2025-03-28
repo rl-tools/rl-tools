@@ -71,5 +71,5 @@ using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specifica
 using OUTPUT_SHAPE = ACTOR::OUTPUT_SHAPE;
 using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
 using RESULT_EVAL = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
-using DATA = rlt::rl::utils::evaluation::Data<RESULT::SPEC>;
-using DATA_EVAL = rlt::rl::utils::evaluation::NoData<RESULT_EVAL::SPEC>;
+using DATA = rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<RESULT::SPEC>>;
+using DATA_EVAL = rlt::rl::utils::evaluation::NoData<rlt::rl::utils::evaluation::DataSpecification<RESULT_EVAL::SPEC>>;
