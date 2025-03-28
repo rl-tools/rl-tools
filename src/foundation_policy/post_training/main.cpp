@@ -146,7 +146,7 @@ int main(int argc, char** argv){
     checkpoint_path.experiment = "2025-03-25_19-19-11";
     checkpoint_path.name = "foundation-policy-pre-training";
 
-    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
+    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_backup/";
     std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints.txt";
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
@@ -182,8 +182,8 @@ int main(int argc, char** argv){
         ENVIRONMENT_TEACHER env;
         rlt::from_json(device, env, dynamics_parameter_json, teacher_parameters[teacher_i]);
 
-        RESULT_EVAL result;
-        DATA_EVAL no_data;
+        rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT_TEACHER, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>> result;
+        rlt::rl::utils::evaluation::NoData<rlt::rl::utils::evaluation::DataSpecification<decltype(result)::SPEC>> no_data;
         RNG rng_copy = rng;
         sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i].dynamics, result, no_data, rng_copy);
         std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ")mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
