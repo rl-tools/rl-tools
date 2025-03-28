@@ -11,6 +11,20 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE&, const rl::environments::Acrobot<SPEC>& env){
+        std::string json = "{";
+        json += "}";
+        return json;
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters){
+        using PARAMS = typename rl::environments::Acrobot<SPEC>::Parameters;
+        std::string json = "{\"PENDULUM_LENGTH_1\": " + std::to_string(PARAMS::LINK_LENGTH_1) + "," +
+                            "\"PENDULUM_LENGTH_2\": " + std::to_string(PARAMS::LINK_LENGTH_2) + "," +
+                            "\"BOB_RADIUS\": 0.10, \"PIVOT_RADIUS\": 0.05, \"ROD_WIDTH\": 0.04" + "}";
+        return json;
+    }
+    template <typename DEVICE, typename SPEC>
     std::string json(DEVICE&, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State& state){
         std::string json = "{";
         json += "\"theta1\":" + std::to_string(state.theta_1) + ",";
@@ -23,14 +37,6 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State& state){
         return json(device, static_cast<const rl::environments::Acrobot<SPEC>&>(env), parameters, state);
-    }
-    template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters){
-        using PARAMS = typename rl::environments::Acrobot<SPEC>::Parameters;
-        std::string json = "{\"PENDULUM_LENGTH_1\": " + std::to_string(PARAMS::LINK_LENGTH_1) + "," +
-                            "\"PENDULUM_LENGTH_2\": " + std::to_string(PARAMS::LINK_LENGTH_2) + "," +
-                            "\"BOB_RADIUS\": 0.10, \"PIVOT_RADIUS\": 0.05, \"ROD_WIDTH\": 0.04" + "}";
-        return json;
     }
 
     template <typename DEVICE, typename SPEC>

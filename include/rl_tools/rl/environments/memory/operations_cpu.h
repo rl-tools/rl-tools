@@ -6,6 +6,12 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const rl::environments::Memory<SPEC>& env){
+        std::string json = "{";
+        json += "}";
+        return json;
+    }
+    template<typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters){
         std::string json = "{";
         using TI = typename DEVICE::index_t;
@@ -28,6 +34,12 @@ namespace rl_tools{
         }
         json += "]}";
         return json;
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string get_description(DEVICE& device, rl::environments::Memory<SPEC>& env){
+        std::string description;
+        description += "Memory Environment.";
+        return description;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

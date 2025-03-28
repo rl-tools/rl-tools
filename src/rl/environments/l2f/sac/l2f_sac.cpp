@@ -20,7 +20,7 @@ void check(DEVICE& device, const OBJECT& object, std::string name){
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
-#include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared.h>
+#include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared/operations_generic.h>
 #include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
 #include <rl_tools/rl/environments/l2f/parameters/default.h>
 #include <rl_tools/rl/environments/l2f/parameters/dynamics/crazyflie.h>

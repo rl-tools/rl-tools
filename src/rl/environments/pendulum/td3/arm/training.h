@@ -209,7 +209,7 @@ void train(){
             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
             rlt::sample_initial_parameters(device, envs[0], env_parameters[0], rng);
-            rlt::evaluate(device, envs[0], env_parameters[0], ui, actor_critic.actor, result, actor_buffers, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+            rlt::evaluate(device, envs[0], ui, actor_critic.actor, result, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }

@@ -194,6 +194,48 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T& get_ref(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
+        static_assert(SPEC::SHAPE::LENGTH==1);
+        auto idx = index(device, tensor, local_index);
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
+        utils::assert_exit(device, idx < SPEC::SIZE, "Index out of bounds");
+#endif
+        return *(data(tensor) + idx);
+    }
+
+    template<typename DEVICE, typename SPEC, typename... INDICES>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T& get_ref(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t index, const INDICES... indices){
+        auto v = view(device, tensor, index);
+        if constexpr(length(typename SPEC::SHAPE{}) == 1){
+            return get_ref(device, v, index);
+        }
+        else{
+            return get_ref(device, v, indices...);
+        }
+    }
+
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT const typename SPEC::T& get_ref(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
+        static_assert(SPEC::SHAPE::LENGTH==1);
+        auto idx = index(device, tensor, local_index);
+#if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) and !defined(__CUDA_ARCH__)
+        utils::assert_exit(device, idx < SPEC::SIZE, "Index out of bounds");
+#endif
+        return *(data(tensor) + idx);
+    }
+
+    template<typename DEVICE, typename SPEC, typename... INDICES>
+    RL_TOOLS_FUNCTION_PLACEMENT const typename SPEC::T& get_ref(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const INDICES... indices){
+        auto v = view(device, tensor, index);
+        if constexpr(length(typename SPEC::SHAPE{}) == 1){
+            return get_ref(device, v, index);
+        }
+        else{
+            return get_ref(device, v, indices...);
+        }
+    }
+
+    template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T get(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
         static_assert(SPEC::SHAPE::LENGTH==1);
         auto idx = index(device, tensor, local_index);

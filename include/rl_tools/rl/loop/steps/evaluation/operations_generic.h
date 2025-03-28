@@ -65,12 +65,12 @@ namespace rl_tools{
             if(evaluate_scheduled || ts.evaluate_this_step){
                 ts.evaluate_this_step = false;
                 auto evaluate_fn = [&device, &ts](auto& result, auto& rng){
-                    typename TS::EVALUATION_ACTOR_TYPE evaluation_actor;
-                    malloc(device, evaluation_actor);
+                    // typename TS::EVALUATION_ACTOR_TYPE evaluation_actor;
+                    // malloc(device, evaluation_actor);
                     auto actor = get_actor(ts);
-                    copy(device, device, actor, evaluation_actor);
-                    evaluate(device, ts.env_eval, ts.ui, evaluation_actor, ts.actor_deterministic_evaluation_state, ts.actor_deterministic_evaluation_buffers, ts.evaluation_buffer, result, rng, ts.evaluation_mode);
-                    free(device, evaluation_actor);
+                    // copy(device, device, actor, evaluation_actor);
+                    evaluate(device, ts.env_eval, ts.ui, actor, ts.actor_deterministic_evaluation_state, ts.actor_deterministic_evaluation_buffers, ts.evaluation_buffer, result, rng, ts.evaluation_mode);
+                    // free(device, evaluation_actor);
                     log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
                     add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                     add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);

@@ -129,8 +129,8 @@ int main(){
     std::cout << "INPUT SHAPE";
     rlt::print(device, decltype(input)::SPEC::SHAPE{});
     std::cout << std::endl;
-    // std::filesystem::path resume_checkpoint;
-    std::filesystem::path resume_checkpoint = "experiments/2025-02-04_15-11-42/2895169_gru-enwik_default/default/0000/steps/000000000600000/checkpoint.h5";
+    std::filesystem::path resume_checkpoint;
+    // std::filesystem::path resume_checkpoint = "experiments/2025-02-04_15-11-42/2895169_gru-enwik_default/default/0000/steps/000000000600000/checkpoint.h5";
     TI epoch_i = 0;
     TI sample_i = 0;
     bool resuming_from_checkpoint = false;
