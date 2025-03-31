@@ -30,7 +30,6 @@ namespace builder{
                     0.00 // imu acceleration
                 };
             }
-            params.disturbances.random_force.std = 0;
             return params;
         }();
 
