@@ -23,7 +23,7 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr bool SHUFFLE = true;
 constexpr bool TEACHER_DETERMINISTIC = true;
 constexpr bool ON_POLICY = true;
-constexpr TI TEACHER_STUDENT_MIX = 1; // added teacher epochs in DAgger epochs
+constexpr TI TEACHER_STUDENT_MIX = 0; // added teacher epochs in DAgger epochs
 
 // typedefs
 using ENVIRONMENT = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS_POST_TRAINING>::ENVIRONMENT;
@@ -43,8 +43,8 @@ struct ENVIRONMENT_TEACHER_STATIC_PARAMETERS: ENVIRONMENT::SPEC::STATIC_PARAMETE
         return params;
     }();
 };
-using ENVIRONMENT_TEACHER_SPEC = rl_tools::rl::environments::l2f::MultiTaskSpecification<T, TI, ENVIRONMENT_TEACHER_STATIC_PARAMETERS, OPTIONS_POST_TRAINING::SAMPLE_INITIAL_PARAMETERS>;
-using ENVIRONMENT_TEACHER = rl_tools::rl::environments::MultirotorMultiTask<ENVIRONMENT_TEACHER_SPEC>;
+using ENVIRONMENT_TEACHER_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_TEACHER_STATIC_PARAMETERS>;
+using ENVIRONMENT_TEACHER = rl_tools::rl::environments::Multirotor<ENVIRONMENT_TEACHER_SPEC>;
 #endif
 
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
