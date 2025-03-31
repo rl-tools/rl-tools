@@ -9,14 +9,14 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
 
 static_assert(sizeof(TI) == 8);
 // constants parameters
-constexpr TI NUM_EPISODES = 50;
+constexpr TI NUM_EPISODES = 10;
 constexpr TI NUM_EPISODES_EVAL = 100;
-constexpr TI N_EPOCH = 100;
+constexpr TI N_EPOCH = 1000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 500;
-constexpr TI BATCH_SIZE = 32;
+constexpr TI BATCH_SIZE = 64;
 constexpr T SOLVED_RETURN = 550;
-constexpr TI HIDDEN_DIM = 32;
+constexpr TI HIDDEN_DIM = 64;
 constexpr TI NUM_TEACHERS = 100;
 constexpr TI EPOCH_DAGGER = 1;
 constexpr bool DYNAMIC_ALLOCATION = true;
