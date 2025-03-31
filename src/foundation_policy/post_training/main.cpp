@@ -278,9 +278,9 @@ int main(int argc, char** argv){
         TI epoch_episode_index = 0;
         std::cout << "Epoch: " << epoch_i << " has " << N << " samples and " << N_EPISODE << " episodes" << std::endl;
         TI batch_i = 0;
+        TI epoch_episode = rlt::get(device, epoch_indices, epoch_episode_index);
+        TI current_sample = rlt::get(device, dataset_episode_start_indices, epoch_episode);
         while(true){
-            TI epoch_episode = rlt::get(device, epoch_indices, epoch_episode_index);
-            TI current_sample = rlt::get(device, dataset_episode_start_indices, epoch_episode);
             for (TI sample_i=0; sample_i<BATCH_SIZE; sample_i++){
                 // TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
                 bool reset = false;
