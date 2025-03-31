@@ -146,7 +146,7 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-27_21-35-33";
+    checkpoint_path.experiment = "2025-03-28_18-34-11";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
@@ -277,11 +277,12 @@ int main(int argc, char** argv){
         TI epoch_loss_count = 0;
         TI epoch_episode_index = 0;
         std::cout << "Epoch: " << epoch_i << " has " << N << " samples and " << N_EPISODE << " episodes" << std::endl;
-        for (TI batch_i = 0; batch_i < N / BATCH_SIZE; batch_i++){
+        TI batch_i = 0;
+        while(true){
+            TI epoch_episode = rlt::get(device, epoch_indices, epoch_episode_index);
+            TI current_sample = rlt::get(device, dataset_episode_start_indices, epoch_episode);
             for (TI sample_i=0; sample_i<BATCH_SIZE; sample_i++){
                 // TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
-                TI epoch_episode = rlt::get(device, epoch_indices, epoch_episode_index);
-                TI current_sample = rlt::get(device, dataset_episode_start_indices, epoch_episode);
                 bool reset = false;
                 for (TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
                     auto input = rlt::view(device, dataset_input, current_sample);
@@ -322,9 +323,10 @@ int main(int argc, char** argv){
             rlt::zero_gradient(device, actor);
             rlt::backward(device, actor, batch_input, d_output, actor_buffer, mode);
             rlt::step(device, actor_optimizer, actor);
+            batch_i++;
         }
         end_of_epoch:
-        std::cout << "Epoch: " << epoch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
+        std::cout << "Epoch: " << epoch_i << " #Batches: " << batch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
         auto target_path = run_path / "checkpoints" / std::to_string(epoch_i);
         if (!std::filesystem::exists(target_path)){
             std::filesystem::create_directories(target_path);

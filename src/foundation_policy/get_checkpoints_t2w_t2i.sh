@@ -1,1 +1,1 @@
-cat checkpoints.txt | xargs -I{} bash -c 'echo {},$(jq "(.dynamics.rotor_thrust_coefficients[0] | add)*4/(9.81 * .dynamics.mass)" dynamics_parameters/{}.json),$(jq "(((.dynamics.rotor_thrust_coefficients[0] | add)*1.4*.dynamics.rotor_positions[0][0])/.dynamics.J[0][0])" dynamics_parameters/{}.json)'
+xargs -I{} bash -c 'echo {},$(jq "(.dynamics.rotor_thrust_coefficients[0] | add)*4/(9.81 * .dynamics.mass)" dynamics_parameters/{}.json),$(jq "(((.dynamics.rotor_thrust_coefficients[0] | add)*1.4*.dynamics.rotor_positions[0][0])/.dynamics.J[0][0])" dynamics_parameters/{}.json)'

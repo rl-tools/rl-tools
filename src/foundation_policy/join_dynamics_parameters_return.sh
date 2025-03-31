@@ -1,0 +1,2 @@
+export EXPERIMENT=2025-03-28_18-34-11
+find ../../experiments/$EXPERIMENT -type f | grep return.json\$ | sort | p2s.map 'x.split("/")[-3]' | xargs -P$(nproc) -I{} jq -sc '.[1] + {returns_mean: .[0][-1].returns_mean, episode_length_mean: .[0][-1].episode_length_mean, share_terminated: .[0][-1].share_terminated}' ../../experiments/$EXPERIMENT/a4d3f77_foundation-policy-pre-training_dynamics-id/{}/0000/return.json dynamics_parameters/{}.json | p2s.flatten
