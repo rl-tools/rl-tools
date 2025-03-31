@@ -1,1 +1,1 @@
-find ../../experiments/2025-03-27_21-35-33 -type f | grep return.json\$ | p2s.sort 'float(x.split("/")[-3])' | xargs -I{} bash -c 'echo {},$(jq ".[-1].returns_mean" {})' | p2s.sort 'float(x.split(",")[1])' | tail -50 | p2s.map 'x.split("/")[-3]'
+find ../../experiments/2025-03-28_18-34-11 -type f | grep return.json\$ | p2s.sort 'float(x.split("/")[-3])' | xargs -I{} bash -c 'echo {},$(jq ".[-1].returns_mean" {})' | p2s.sort 'float(x.split(",")[1])' | tail -50 | p2s.map 'x.split("/")[-3]'
