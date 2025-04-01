@@ -10,13 +10,13 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::evaluation{
     struct ParametersTag{};
-    template <typename T, typename TI, typename NEXT>
+    template <typename T, typename TI, typename NEXT, TI T_NUM_EVALUATION_EPISODES = 10, TI T_EVALUATION_INTERVAL = 1000>
     struct Parameters{
         using TAG = ParametersTag;
         static constexpr bool DETERMINISTIC_EVALUATION = true;
-        static constexpr TI EVALUATION_INTERVAL = 1000;
-        static constexpr TI NUM_EVALUATION_EPISODES = 10;
-        static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
+        static constexpr TI EVALUATION_INTERVAL = T_EVALUATION_INTERVAL;
+        static constexpr TI NUM_EVALUATION_EPISODES = T_NUM_EVALUATION_EPISODES;
+        static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL + 1;
         static constexpr TI EPISODE_STEP_LIMIT = NEXT::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
         using EVALUATION_MODE = mode::Evaluation<>;
         static constexpr bool DETERMINISTIC_INITIAL_STATE = false;

@@ -146,11 +146,12 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-28_18-34-11";
+    checkpoint_path.experiment = "2025-03-31_21-06-47"; // fails
+    // checkpoint_path.experiment = "2025-04-01_13-43-13"; // good
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
-    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints.txt";
+    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_2025-03-31_21-06-47.txt";
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
     if (!dynamics_parameter_index_file){
@@ -188,7 +189,7 @@ int main(int argc, char** argv){
         rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT_TEACHER, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>> result;
         rlt::rl::utils::evaluation::NoData<rlt::rl::utils::evaluation::DataSpecification<decltype(result)::SPEC>> no_data;
         RNG rng_copy = rng;
-        sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i].dynamics, result, no_data, rng_copy);
+        sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], result, no_data, rng_copy);
         std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ")mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
