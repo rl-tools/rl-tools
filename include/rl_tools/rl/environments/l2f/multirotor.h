@@ -143,6 +143,7 @@ namespace rl_tools::rl::environments::l2f{
         T rotor_torque_constant_max;
         T orientation_offset_angle_max;
         T disturbance_force_max; // in multiples of the surplus thrust to weight ratio max(0, t2w - 1.0)
+        static constexpr DomainRandomizationContainer<T> disabled = {};
     };
     template <typename SPEC>
     struct ParametersDomainRandomization: SPEC::NEXT_COMPONENT{
