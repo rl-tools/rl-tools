@@ -55,7 +55,10 @@ int main(int argc, char** argv){
     for (TI set_i=0; set_i<N; ++set_i){
         rlt::sample_initial_parameters(device, env, params, rng);
         std::ofstream output(output_path / (std::to_string(set_i) + ".json"));
-        output << rlt::json(device, env, params);
+        auto params_copy = params;
+        // disable domain randomization for pre_training and post_training;
+        params_copy.domain_randomization = decltype(params_copy.domain_randomization)::disabled;
+        output << rlt::json(device, env, params_copy);
         output.close();
     }
 }

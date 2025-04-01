@@ -122,11 +122,6 @@ int main(int argc, char** argv){
         auto old_init = base_env.parameters.mdp.init;
         base_env.parameters = new_params;
         base_env.parameters.mdp.init = old_init; // for ident
-        // base_env.parameters.disturbances = new_params.disturbances;
-        // base_env.parameters.mdp.termination = new_params.mdp.termination;
-        // base_env.parameters.mdp.init = new_params.mdp.init;
-
-        base_env.parameters.domain_randomization = decltype(base_env.parameters.domain_randomization)::disabled;
         for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
             env.parameters = base_env.parameters;
