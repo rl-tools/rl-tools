@@ -244,6 +244,25 @@ namespace rl_tools{
         json_string += "}";
         return json_string;
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::reward_functions::Squared<T>& parameters) {
+        std::string json_string = "{";
+        json_string += "\"non_negative\": " + std::string(parameters.non_negative ? "true" : "false") + ", ";
+        json_string += "\"scale\": " + std::to_string(parameters.scale) + ", ";
+        json_string += "\"constant\": " + std::to_string(parameters.constant) + ", ";
+        json_string += "\"termination_penalty\": " + std::to_string(parameters.termination_penalty) + ", ";
+        json_string += "\"position\": " + std::to_string(parameters.position) + ", ";
+        json_string += "\"orientation\": " + std::to_string(parameters.orientation) + ", ";
+        json_string += "\"linear_velocity\": " + std::to_string(parameters.linear_velocity) + ", ";
+        json_string += "\"angular_velocity\": " + std::to_string(parameters.angular_velocity) + ", ";
+        json_string += "\"linear_acceleration\": " + std::to_string(parameters.linear_acceleration) + ", ";
+        json_string += "\"angular_acceleration\": " + std::to_string(parameters.angular_acceleration) + ", ";
+        json_string += "\"action\": " + std::to_string(parameters.action) + ", ";
+        json_string += "\"d_action\": " + std::to_string(parameters.d_action) + ", ";
+        json_string += "\"position_error_integral\": " + std::to_string(parameters.position_error_integral);
+        json_string += "}";
+        return json_string;
+    }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::Termination& parameters) {
         std::string json_string = "{";
@@ -278,6 +297,7 @@ namespace rl_tools{
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP& parameters) {
         std::string json_string = "{";
         json_string += "\"init\": " + json<PARAM_SPEC>(device, env, parameters.init) + ", ";
+        json_string += "\"reward\": " + json(device, env, parameters.reward) + ", ";
         json_string += "\"observation_noise\": " + json<PARAM_SPEC>(device, env, parameters.observation_noise) + ", ";
         json_string += "\"action_noise\": " + json<PARAM_SPEC>(device, env, parameters.action_noise) + ", ";
         json_string += "\"termination\": " + json<PARAM_SPEC>(device, env, parameters.termination);
@@ -526,6 +546,22 @@ namespace rl_tools{
         parameters.min_rpm = json_object["min_rpm"];
         parameters.max_rpm = json_object["max_rpm"];
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::parameters::reward_functions::Squared<T>& parameters) {
+        parameters.non_negative = json_object["non_negative"];
+        parameters.scale = json_object["scale"];
+        parameters.constant = json_object["constant"];
+        parameters.termination_penalty = json_object["termination_penalty"];
+        parameters.position = json_object["position"];
+        parameters.orientation = json_object["orientation"];
+        parameters.linear_velocity = json_object["linear_velocity"];
+        parameters.angular_velocity = json_object["angular_velocity"];
+        parameters.linear_acceleration = json_object["linear_acceleration"];
+        parameters.angular_acceleration = json_object["angular_acceleration"];
+        parameters.action = json_object["action"];
+        parameters.d_action = json_object["d_action"];
+        parameters.position_error_integral = json_object["position_error_integral"];
+    }
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP::Termination& parameters) {
         parameters.enabled = json_object["enabled"];
@@ -550,6 +586,7 @@ namespace rl_tools{
     template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::MDP& parameters) {
         from_json<PARAM_SPEC>(device, env, json_object["init"], parameters.init);
+        from_json(device, env, json_object["reward"], parameters.reward);
         from_json<PARAM_SPEC>(device, env, json_object["observation_noise"], parameters.observation_noise);
         from_json<PARAM_SPEC>(device, env, json_object["action_noise"], parameters.action_noise);
         from_json<PARAM_SPEC>(device, env, json_object["termination"], parameters.termination);
