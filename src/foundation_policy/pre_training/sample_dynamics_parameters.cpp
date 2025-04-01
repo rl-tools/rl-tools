@@ -43,7 +43,7 @@ int main(int argc, char** argv){
         0.005, // rotor_torque_constant_min;
         0.05, // rotor_torque_constant_max;
         0.0, // orientation_offset_angle_max;
-        1.0  // disturbance_force_max;
+        0.3  // disturbance_force_max;
     };
     std::filesystem::path output_path = "./src/foundation_policy/dynamics_parameters/";
     if (!std::filesystem::exists(output_path)){
