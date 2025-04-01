@@ -1,8 +1,11 @@
-template <typename ENVIRONMENT, typename DEVICE, typename POLICY, typename DYNAMICS_PARAMETERS, typename RESULT, typename DATA, typename RNG>
-void sample_trajectories(DEVICE& device, POLICY& policy, const DYNAMICS_PARAMETERS& dynamics_parameters, RESULT& result, DATA& data, RNG& rng){
+template <typename ENVIRONMENT, typename DEVICE, typename POLICY, typename PARAMETERS, typename RESULT, typename DATA, typename RNG>
+void sample_trajectories(DEVICE& device, POLICY& policy, const PARAMETERS& parameters, RESULT& result, DATA& data, RNG& rng){
     using TI = typename DEVICE::index_t;
     ENVIRONMENT base_env;
-    base_env.parameters.dynamics = dynamics_parameters;
+    rlt::init(device, base_env);
+    auto init_old = base_env.parameters.mdp.init; // legacy for v3, remove for next run
+    base_env.parameters = parameters;
+    base_env.parameters.mdp.init = init_old;
     rlt::sample_initial_parameters(device, base_env, base_env.parameters, rng);
     using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename POLICY::template CHANGE_BATCH_SIZE<TI, RESULT::SPEC::N_EPISODES>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>;
@@ -14,10 +17,8 @@ void sample_trajectories(DEVICE& device, POLICY& policy, const DYNAMICS_PARAMETE
     rlt::copy(device, device, policy, evaluation_actor);
 
     ENVIRONMENT env_eval;
-    typename ENVIRONMENT::Parameters env_eval_parameters;
     rlt::init(device, env_eval);
     env_eval.parameters = base_env.parameters;
-    rlt::initial_parameters(device, env_eval, env_eval_parameters);
 
     rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::mode::Final>>> evaluation_mode;
     rlt::evaluate(device, env_eval, ui, evaluation_actor, result, data, rng, evaluation_mode);
@@ -105,7 +106,7 @@ auto gather_epoch(DEVICE& device, TEACHER& teacher, PARAMETERS& parameters, STUD
     RESULT result;
     rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<typename RESULT::SPEC>> data;
     rlt::malloc(device, data);
-    sample_trajectories<ENVIRONMENT>(device, student, parameters.dynamics, result, data, rng);
+    sample_trajectories<ENVIRONMENT>(device, student, parameters, result, data, rng);
     add_to_dataset<ENVIRONMENT, TEACHER_OBSERVATION, STUDENT_OBSERVATION, TEACHER_DETERMINISTIC>(device, data, teacher, dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
     rlt::free(device, data);
     return result;
