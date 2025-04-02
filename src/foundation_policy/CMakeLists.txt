@@ -19,4 +19,5 @@ if(RL_TOOLS_ENABLE_HDF5)
 
     add_executable(foundation_policy_check_checkpoints post_training/check_checkpoints.cpp)
     target_link_libraries(foundation_policy_check_checkpoints PRIVATE RLtools::RLtools)
+    target_compile_options(foundation_policy_check_checkpoints PRIVATE -fopenmp)
 endif()

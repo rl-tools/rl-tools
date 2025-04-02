@@ -150,8 +150,9 @@ int main(int argc, char** argv){
     // checkpoint_path.experiment = "2025-04-01_13-43-13"; // good
     checkpoint_path.name = "foundation-policy-pre-training";
 
-    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
-    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_2025-03-31_21-06-47.txt";
+    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
+    // std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_" + checkpoint_path.experiment + ".txt";
+    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_debug.txt";
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
     if (!dynamics_parameter_index_file){
@@ -168,7 +169,7 @@ int main(int argc, char** argv){
     }
     dynamics_parameter_index_file.close();
     if (dynamics_parameter_index_lines.size() < NUM_TEACHERS){
-        std::cerr << "Dynamic parameter index file is too small: " << dynamics_parameter_index << "/" << NUM_TEACHERS << std::endl;
+        std::cerr << "Dynamic parameter index file is too small: " << dynamics_parameter_index << " " << dynamics_parameter_index_lines.size() << "/" << NUM_TEACHERS << std::endl;
         return 1;
     }
 

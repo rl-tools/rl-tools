@@ -79,8 +79,8 @@ int main(){
 
     // cf like: 203; 139; 334; 31;
 
-    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_2025-03-31_21-06-47/";
-    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_2025-03-31_21-06-47.txt";
+    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
+    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_" + checkpoint_path.experiment + ".txt";
 
 
     std::vector<std::tuple<std::string, ENVIRONMENT::Parameters::Dynamics>> query_dynamics;
