@@ -6,8 +6,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::dynamics{
-    template<typename SPEC, typename = rl_tools::utils::typing::enable_if_t<SPEC::N == 4>> // Crazyflie is a quadrotor
-    constexpr typename ParametersBase<SPEC>::Dynamics crazy_flie = {
+    template<typename T, typename TI> // Crazyflie is a quadrotor
+    constexpr Dynamics<T, TI, 4> crazy_flie = {
             // Rotor positions
             {
                     {
