@@ -151,8 +151,8 @@ int main(int argc, char** argv){
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
-    // std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_" + checkpoint_path.experiment + ".txt";
-    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_debug.txt";
+    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_" + checkpoint_path.experiment + ".txt";
+    // std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_debug.txt";
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
     if (!dynamics_parameter_index_file){
@@ -214,8 +214,8 @@ int main(int argc, char** argv){
         average_result.share_terminated = 0;
         TI NUM_AVG = 0;
 
-        for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
-            if (epoch_i < EPOCH_DAGGER || TEACHER_STUDENT_MIX > 0){ // start with behavioral cloning (data gathering using teacher)
+        if (epoch_i < EPOCH_DAGGER || TEACHER_STUDENT_MIX > 0){ // start with behavioral cloning (data gathering using teacher)
+            for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
                 for (TI teacher_epoch_i = 0; teacher_epoch_i < (TEACHER_STUDENT_MIX > 0 ? TEACHER_STUDENT_MIX : 1); teacher_epoch_i++){
                     auto result = gather_epoch<ENVIRONMENT_TEACHER, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor_teacher[teacher_i], dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
                     if (epoch_i < EPOCH_DAGGER){
@@ -228,14 +228,38 @@ int main(int argc, char** argv){
                     }
                 }
             }
-            if (epoch_i >= EPOCH_DAGGER){
-                auto result = gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor, dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
+        }
+        if (epoch_i >= EPOCH_DAGGER){
+            using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
+            RESULT results[NUM_TEACHERS];
+            std::vector<std::tuple<TI, T>> active_teachers;
+            rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<RESULT::SPEC>> datas[NUM_TEACHERS];
+            for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
+                rlt::malloc(device, datas[teacher_i]);
+                auto& result = results[teacher_i];
+                auto& data = datas[teacher_i];
+                // auto result = gather_epoch<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor, dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
+                sample_trajectories<ENVIRONMENT>(device, actor, teacher_parameters[teacher_i], result, data, rng);
                 NUM_AVG++;
                 average_result.returns_mean += result.returns_mean;
                 average_result.returns_std += result.returns_mean * result.returns_mean;
                 average_result.episode_length_mean += result.episode_length_mean;
                 average_result.episode_length_std += result.episode_length_mean * result.episode_length_mean;
                 average_result.share_terminated += result.share_terminated;
+                active_teachers.emplace_back(teacher_i, result.returns_mean);
+            }
+            auto argsort = [](const auto& v, auto comp) {
+                std::vector<std::size_t> idx(v.size());
+                std::iota(idx.begin(), idx.end(), 0);
+                std::sort(idx.begin(), idx.end(), [&](auto i, auto j){return comp(v[i], v[j]);});
+                return idx;
+            };
+            auto indices = argsort(active_teachers, [](const auto& a, const auto& b) { return std::get<1>(a) < std::get<1>(b); }); // ascending order
+            for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
+                if (indices[teacher_i] < NUM_ACTIVE_TEACHERS){
+                    add_to_dataset<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, TEACHER_DETERMINISTIC>(device, datas[teacher_i], actor_teacher[teacher_i], dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
+                }
+                rlt::free(device, datas[teacher_i]);
             }
         }
 
