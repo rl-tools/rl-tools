@@ -9,21 +9,21 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
 
 static_assert(sizeof(TI) == 8);
 // constants parameters
-constexpr TI NUM_EPISODES = 10;
+constexpr TI NUM_EPISODES = 100;
 constexpr TI NUM_EPISODES_EVAL = 100;
-constexpr TI N_EPOCH = 100;
+constexpr TI N_EPOCH = 1000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 500;
 constexpr TI BATCH_SIZE = 64;
 constexpr T SOLVED_RETURN = 300;
-constexpr TI HIDDEN_DIM = 64;
+constexpr TI HIDDEN_DIM = 32;
 constexpr TI NUM_TEACHERS = 280;
-constexpr TI NUM_ACTIVE_TEACHERS = 10;
+constexpr TI NUM_ACTIVE_TEACHERS = 100;
 constexpr TI EPOCH_DAGGER = 5;
 constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr bool SHUFFLE = true;
 constexpr bool TEACHER_DETERMINISTIC = true;
-constexpr bool ON_POLICY = false;
+constexpr bool ON_POLICY = true;
 constexpr TI TEACHER_STUDENT_MIX = 0; // added teacher epochs in DAgger epochs
 
 // typedefs
