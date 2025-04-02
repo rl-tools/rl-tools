@@ -116,6 +116,8 @@ int main(){
     dynamics_parameter_index_file.close();
     const TI num_teachers = dynamics_parameter_index_lines.size();
 
+    std::map<std::string, std::string> best_teacher;
+    std::map<std::string, T> best_return;
     for (TI teacher_i=0; teacher_i < num_teachers; ++teacher_i){
         // load actor & critic
         auto cpp_copy = checkpoint_path;
@@ -136,11 +138,23 @@ int main(){
         rlt::Mode<rlt::mode::Evaluation<>> mode;
         rlt::evaluate(device, env, ui, evaluation_actor, base_result, no_data, rng, mode);
         std::cout << "Teacher env " << cpp_copy.checkpoint_path.string() << " mean return: " << base_result.returns_mean << " episode length: " << base_result.episode_length_mean << " share terminated: " << base_result.share_terminated << std::endl;
+
         for (const auto& [name, dynamics] : query_dynamics){
             env.parameters.dynamics = dynamics;
             rlt::evaluate(device, env, ui, evaluation_actor, query_result, no_data, rng, mode);
             std::cout << "    " << name << " mean return: " << query_result.returns_mean << " episode length: " << query_result.episode_length_mean << " share terminated: " << query_result.share_terminated << std::endl;
+            if (best_teacher.find(name) == best_teacher.end()){
+                best_teacher[name] = name;
+                best_return[name] = query_result.returns_mean;
+            }
+            if (query_result.returns_mean > best_return[name]){
+                best_teacher[name] = query_result.returns_mean;
+                best_return[name] = query_result.returns_mean;
+            }
         }
+    }
+    for (const auto& [name, dynamics] : query_dynamics){
+        std::cout << "Best teacher for " << name << ": " << best_teacher[name] << " with return: " << best_return[name] << std::endl;
     }
     rlt::free(device, evaluation_actor);
     rlt::free(device, eval_buffer);
