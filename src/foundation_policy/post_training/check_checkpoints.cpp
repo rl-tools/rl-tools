@@ -118,9 +118,9 @@ int main(){
     std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_2025-03-31_21-06-47.txt";
 
 
-    std::vector<ENVIRONMENT::Parameters::Dynamics> query_dynamics;
+    std::vector<std::tuple<std::string, ENVIRONMENT::Parameters::Dynamics>> query_dynamics;
 
-    query_dynamics.emplace_back(rlt::rl::environments::l2f::parameters::dynamics::crazy_flie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    query_dynamics.emplace_back("crazyflie", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
     if (!dynamics_parameter_index_file){

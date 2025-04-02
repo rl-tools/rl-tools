@@ -7,7 +7,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::dynamics{
     template<typename T, typename TI> // Crazyflie is a quadrotor
-    constexpr Dynamics<T, TI, 4> crazy_flie = {
+    constexpr Dynamics<T, TI, 4> crazyflie = {
             // Rotor positions
             {
                     {
