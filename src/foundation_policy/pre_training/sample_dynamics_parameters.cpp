@@ -47,11 +47,6 @@ int main(int argc, char** argv){
     };
     env.parameters.mdp.reward.constant = 1.5;
     std::filesystem::path output_path = "./src/foundation_policy/dynamics_parameters/";
-    if (!std::filesystem::exists(output_path)){
-        std::cerr << "Output path does not exist: " << output_path << std::endl;
-        std::cerr << "CWD: " << std::filesystem::current_path() << std::endl;
-        return 1;
-    }
     for (TI set_i=0; set_i<N; ++set_i){
         rlt::sample_initial_parameters(device, env, params, rng);
         std::ofstream output(output_path / (std::to_string(set_i) + ".json"));
@@ -61,4 +56,31 @@ int main(int argc, char** argv){
         output << rlt::json(device, env, params_copy);
         output.close();
     }
+
+    std::filesystem::path output_path_registry = "./src/foundation_policy/registry/";
+    if (!std::filesystem::exists(output_path_registry)){
+        std::cerr << "Output path does not exist: " << output_path_registry << std::endl;
+        std::cerr << "CWD: " << std::filesystem::current_path() << std::endl;
+        return 1;
+    }
+    std::vector<std::tuple<std::string, ENVIRONMENT::Parameters::Dynamics>> registry;
+    auto permute_rotors_px4_to_cf = [&device, &env](const auto& dynamics){
+        auto copy = dynamics;
+        rlt::permute_rotors(device, env, copy, 0, 3, 1, 2);
+        return copy;
+    };
+    registry.emplace_back("crazyflie", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("x500", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("mrs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("fs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+
+    rlt::initial_parameters(device, env, params);
+    for (const auto& [name, dynamics] : registry){
+        params.dynamics = dynamics;
+        std::ofstream output(output_path_registry / (name + ".json"));
+        auto params_copy = params;
+        output << rlt::json(device, env, params_copy);
+        output.close();
+    }
+
 }
