@@ -69,11 +69,7 @@ int main(){
     using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_EVAL>;
     using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
     rlt::rl::environments::DummyUI ui;
-    EVALUATION_ACTOR_TYPE evaluation_actor;
-    EVALUATION_ACTOR_TYPE::Buffer<DYNAMIC_ALLOCATION> eval_buffer;
-    rlt::malloc(device, evaluation_actor);
-    rlt::malloc(device, eval_buffer);
-    ENVIRONMENT env;
+    ENVIRONMENT dispatch_env;
 
     rlt::utils::extrack::Path checkpoint_path;
     checkpoint_path.experiment = "2025-03-31_21-06-47";
@@ -89,9 +85,9 @@ int main(){
 
     std::vector<std::tuple<std::string, ENVIRONMENT::Parameters::Dynamics>> query_dynamics;
 
-    auto permute_rotors_px4_to_cf = [&device, &env](const auto& dynamics){
+    auto permute_rotors_px4_to_cf = [&device, &dispatch_env](const auto& dynamics){
         auto copy = dynamics;
-        rlt::permute_rotors(device, env, copy, 0, 3, 1, 2);
+        rlt::permute_rotors(device, dispatch_env, copy, 0, 3, 1, 2);
         return copy;
     };
 
@@ -118,7 +114,17 @@ int main(){
 
     std::map<std::string, std::string> best_teacher;
     std::map<std::string, T> best_return;
+#pragma omp parallel for
     for (TI teacher_i=0; teacher_i < num_teachers; ++teacher_i){
+        RNG rank_rng;
+        ENVIRONMENT env;
+        EVALUATION_ACTOR_TYPE evaluation_actor;
+        EVALUATION_ACTOR_TYPE::Buffer<DYNAMIC_ALLOCATION> eval_buffer;
+        rlt::malloc(device, rank_rng);
+        rlt::malloc(device, evaluation_actor);
+        rlt::malloc(device, eval_buffer);
+
+        rlt::init(device, rank_rng, seed + teacher_i);
         // load actor & critic
         auto cpp_copy = checkpoint_path;
         cpp_copy.attributes["dynamics-id"] = dynamics_parameter_index_lines[dynamics_parameter_index_lines.size() - 1 - teacher_i]; // take from the end because we order by performance and the best are at the end
@@ -136,26 +142,30 @@ int main(){
         RESULT base_result, query_result;
         rlt::rl::utils::evaluation::NoData<rlt::rl::utils::evaluation::DataSpecification<RESULT_SPEC>> no_data;
         rlt::Mode<rlt::mode::Evaluation<>> mode;
-        rlt::evaluate(device, env, ui, evaluation_actor, base_result, no_data, rng, mode);
+        rlt::evaluate(device, env, ui, evaluation_actor, base_result, no_data, rank_rng, mode);
         std::cout << "Teacher env " << cpp_copy.checkpoint_path.string() << " mean return: " << base_result.returns_mean << " episode length: " << base_result.episode_length_mean << " share terminated: " << base_result.share_terminated << std::endl;
 
         for (const auto& [name, dynamics] : query_dynamics){
             env.parameters.dynamics = dynamics;
-            rlt::evaluate(device, env, ui, evaluation_actor, query_result, no_data, rng, mode);
+            rlt::evaluate(device, env, ui, evaluation_actor, query_result, no_data, rank_rng, mode);
             std::cout << "    " << name << " mean return: " << query_result.returns_mean << " episode length: " << query_result.episode_length_mean << " share terminated: " << query_result.share_terminated << std::endl;
-            if (best_teacher.find(name) == best_teacher.end()){
-                best_teacher[name] = name;
-                best_return[name] = query_result.returns_mean;
-            }
-            if (query_result.returns_mean > best_return[name]){
-                best_teacher[name] = query_result.returns_mean;
-                best_return[name] = query_result.returns_mean;
+#pragma omp critical
+            {
+                if (best_teacher.find(name) == best_teacher.end()){
+                    best_teacher[name] = cpp_copy.checkpoint_path.string();
+                    best_return[name] = query_result.returns_mean;
+                }
+                if (query_result.returns_mean > best_return[name]){
+                    best_teacher[name] = cpp_copy.checkpoint_path.string();
+                    best_return[name] = query_result.returns_mean;
+                }
             }
         }
+        rlt::free(device, rank_rng);
+        rlt::free(device, evaluation_actor);
+        rlt::free(device, eval_buffer);
     }
     for (const auto& [name, dynamics] : query_dynamics){
         std::cout << "Best teacher for " << name << ": " << best_teacher[name] << " with return: " << best_return[name] << std::endl;
     }
-    rlt::free(device, evaluation_actor);
-    rlt::free(device, eval_buffer);
 }
