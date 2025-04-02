@@ -24,7 +24,7 @@ namespace rl_tools::rl::environments::l2f::parameters{
         template <REGISTRY MODEL, typename SPEC>
         constexpr auto registry = [](){
             if constexpr (MODEL == REGISTRY::crazyflie){
-                return dynamics::crazy_flie<typename SPEC::T, typename SPEC::TI>;
+                return dynamics::crazyflie<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::mrs){
                 return dynamics::mrs<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_real){
