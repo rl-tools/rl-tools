@@ -42,6 +42,24 @@ namespace rl_tools
     void init(DEVICE&, rl::environments::Multirotor<SPEC>& env){
         env.parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
+    template<typename DEVICE, typename SPEC, typename T, typename TI, TI N, typename... Args>
+    static void permute_rotors(DEVICE& device, const rl::environments::Multirotor<SPEC>&, rl::environments::l2f::parameters::Dynamics<T, TI, N>& dynamics, Args... args){
+        TI indices[N] = {static_cast<TI>(args)...};
+        auto copy = dynamics;
+        for (TI rotor_i=0; rotor_i < N; rotor_i++){
+            for (TI j=0; j < 3; j++){
+                dynamics.rotor_positions[rotor_i][j] = copy.rotor_positions[indices[rotor_i]][j];
+                dynamics.rotor_thrust_directions[rotor_i][j] = copy.rotor_thrust_directions[indices[rotor_i]][j];
+                dynamics.rotor_torque_directions[rotor_i][j] = copy.rotor_torque_directions[indices[rotor_i]][j];
+            }
+            for (TI j=0; j < 3; j++){
+                dynamics.rotor_thrust_coefficients[rotor_i][j] = copy.rotor_thrust_coefficients[indices[rotor_i]][j];
+            }
+            dynamics.rotor_torque_constants[rotor_i] = copy.rotor_torque_constants[indices[rotor_i]];
+            dynamics.rotor_time_constants_rising[rotor_i] = copy.rotor_time_constants_rising[indices[rotor_i]];
+            dynamics.rotor_time_constants_falling[rotor_i] = copy.rotor_time_constants_falling[indices[rotor_i]];
+        }
+    }
     template<typename DEVICE, typename STATE>
     static bool is_nan(DEVICE& device, STATE& state){
         return rl::environments::l2f::_is_nan(device, state);
