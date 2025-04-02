@@ -24,15 +24,15 @@ namespace rl_tools::rl::environments::l2f::parameters{
         template <REGISTRY MODEL, typename SPEC>
         constexpr auto registry = [](){
             if constexpr (MODEL == REGISTRY::crazyflie){
-                return dynamics::crazy_flie<SPEC>;
+                return dynamics::crazy_flie<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::mrs){
-                return dynamics::mrs<SPEC>;
+                return dynamics::mrs<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_real){
-                return dynamics::x500::real<SPEC>;
+                return dynamics::x500::real<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_sim){
-                return dynamics::x500::sim<SPEC>;
+                return dynamics::x500::sim<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::fs_base){
-                return dynamics::fs::base<SPEC>;
+                return dynamics::fs::base<typename SPEC::T, typename SPEC::TI>;
             }else{
                 static_assert(rl_tools::utils::typing::dependent_false<SPEC>, "Unknown model");
             }

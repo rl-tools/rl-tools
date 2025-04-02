@@ -128,8 +128,8 @@ namespace rl_tools{
         json_string += "\"}";
         return json_string;
     }
-    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Dynamics& parameters){
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC, typename T_T, typename T_TI, T_TI N>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::Dynamics<T_T, T_TI, N>& parameters){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
 
@@ -494,8 +494,8 @@ namespace rl_tools{
         return json_string;
     }
 #ifdef RL_TOOLS_ENABLE_JSON
-    template <typename PARAM_SPEC, typename DEVICE, typename SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::ParametersBase<PARAM_SPEC>::Dynamics& parameters){
+    template <typename PARAM_SPEC, typename DEVICE, typename SPEC, typename T_T, typename T_TI, T_TI N>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, typename rl::environments::l2f::parameters::Dynamics<T_T, T_TI, N>& parameters){
         using TI = typename DEVICE::index_t;
         for (TI i = 0; i < PARAM_SPEC::N; i++){
             parameters.rotor_positions[i][0] = json_object["rotor_positions"][i][0];

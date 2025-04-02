@@ -19,12 +19,8 @@ namespace rl_tools::rl::environments::l2f{
         using REWARD_FUNCTION = T_REWARD_FUNCTION;
         // static constexpr REGISTRY MODEL = T_MODEL;
     };
-    template <typename T_SPEC>
-    struct ParametersBase{
-        using SPEC = T_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        static constexpr TI N = SPEC::N;
+    namespace parameters{
+        template <typename T, typename TI, TI N>
         struct Dynamics{
             struct ActionLimit{
                 T min;
@@ -44,6 +40,13 @@ namespace rl_tools::rl::environments::l2f{
             T hovering_throttle_relative; // relative to the action limits [0, 1]
             ActionLimit action_limit;
         };
+    }
+    template <typename T_SPEC>
+    struct ParametersBase{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI N = SPEC::N;
         struct Integration{
             T dt;
         };
@@ -83,6 +86,7 @@ namespace rl_tools::rl::environments::l2f{
             ActionNoise action_noise;
             Termination termination;
         };
+        using Dynamics = parameters::Dynamics<T, TI, N>;
         Dynamics dynamics;
         Integration integration;
         MDP mdp;

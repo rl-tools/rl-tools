@@ -7,8 +7,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::dynamics{
     namespace fs{
-        template<typename SPEC, typename = rl_tools::utils::typing::enable_if_t<SPEC::N == 4>> // This is a quadrotor
-        constexpr typename ParametersBase<SPEC>::Dynamics base = {
+        template<typename T, typename TI>
+        constexpr Dynamics<T, TI, 4> base = {
             // Rotor positions
 //                array([[ 0.20895 , -0.240666,  0.      ],
 //                [-0.20895 ,  0.240666,  0.      ],
