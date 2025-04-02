@@ -263,26 +263,26 @@ int main(int argc, char** argv){
             }
         }
 
-        average_result.returns_mean /= NUM_TEACHERS;
-        average_result.returns_std /= NUM_TEACHERS;
+        average_result.returns_mean /= NUM_AVG;
+        average_result.returns_std /= NUM_AVG;
         average_result.returns_std = std::sqrt(average_result.returns_std - average_result.returns_mean * average_result.returns_mean);
-        average_result.episode_length_mean /= NUM_TEACHERS;
-        average_result.episode_length_std /= NUM_TEACHERS;
+        average_result.episode_length_mean /= NUM_AVG;
+        average_result.episode_length_std /= NUM_AVG;
         average_result.episode_length_std = std::sqrt(average_result.episode_length_std - average_result.episode_length_mean * average_result.episode_length_mean);
-        average_result.share_terminated /= NUM_TEACHERS;
-        if (epoch_i >= EPOCH_DAGGER && (!best_return_set || average_result.returns_mean > best_return)){
-            best_return = average_result.returns_mean;
-            best_return_set = true;
-            rlt::copy(device, device, actor, best_actor);
-            std::cout << "Best return: " << best_return << std::endl;
-        }
-
+        average_result.share_terminated /= NUM_AVG;
         rlt::add_scalar(device, device.logger, "evaluation/return/mean", average_result.returns_mean);
         rlt::add_scalar(device, device.logger, "evaluation/return/std", average_result.returns_std);
         rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", average_result.episode_length_mean);
         rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", average_result.episode_length_std);
         rlt::add_scalar(device, device.logger, "evaluation/share_terminated", average_result.share_terminated);
         rlt::log(device, device.logger, (epoch_i >= EPOCH_DAGGER ? "Student" : "Teacher"), " Mean return: ", average_result.returns_mean, " Mean episode length: ", average_result.episode_length_mean, " Share terminated: ", average_result.share_terminated * 100, "%");
+
+        if (epoch_i >= EPOCH_DAGGER && (!best_return_set || average_result.returns_mean > best_return)){
+            best_return = average_result.returns_mean;
+            best_return_set = true;
+            rlt::copy(device, device, actor, best_actor);
+            std::cout << "Best return: " << best_return << std::endl;
+        }
 
         TI N = current_index;
         TI N_EPISODE = current_episode;
