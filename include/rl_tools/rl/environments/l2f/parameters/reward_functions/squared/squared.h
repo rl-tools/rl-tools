@@ -15,6 +15,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         T constant;
         T termination_penalty;
         T position;
+        T position_clip;
         T orientation;
         T linear_velocity;
         T angular_velocity;

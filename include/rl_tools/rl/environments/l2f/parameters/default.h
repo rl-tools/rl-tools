@@ -36,6 +36,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
                 00.50, // constant
                 -100.00, // termination penalty
                 01.00, // position
+                00.00, // position_clip
                 00.10, // orientation
                 00.00, // linear_velocity
                 00.00, // angular_velocity
