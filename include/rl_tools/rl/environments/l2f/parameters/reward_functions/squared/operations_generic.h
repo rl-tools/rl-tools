@@ -16,7 +16,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
 //        components.orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::abs(device.math, 2 * math::acos(device.math, quaternion_w));
         components.orientation_cost = 2*math::acos(device.math, 1-math::abs(device.math, state.orientation[3]));
         components.position_cost = math::sqrt(device.math, state.position[0] * state.position[0] + state.position[1] * state.position[1] + state.position[2] * state.position[2]);
-        if (reward_parameters.position_clip > 0){
+        if(reward_parameters.position_clip > 0){
             components.position_cost = math::min(device.math, components.position_cost, reward_parameters.position_clip);
         }
         components.linear_vel_cost = math::sqrt(device.math, state.linear_velocity[0] * state.linear_velocity[0] + state.linear_velocity[1] * state.linear_velocity[1] + state.linear_velocity[2] * state.linear_velocity[2]);
