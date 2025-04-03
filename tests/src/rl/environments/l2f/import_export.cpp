@@ -23,7 +23,7 @@ constexpr T EPSILON = 1e-6;
 using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI>;
 using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
 
-
+#include <boost/pfr.hpp>
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     DEVICE device;
     RNG rng;
@@ -34,20 +34,117 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
 
     ENVIRONMENT env;
     ENVIRONMENT::Parameters params, params_reconstruct;
+    params = {};
     ENVIRONMENT::State state, state_reconstruct;
 
     rlt::malloc(device, env);
     rlt::init(device, env);
+    unsigned char* raw = reinterpret_cast<unsigned char*>(&params);
+    std::generate(raw, raw + sizeof(params), [] { return static_cast<unsigned char>(std::rand() % 256); });
+    std::memcpy(&params_reconstruct, &params, sizeof(params));
     rlt::sample_initial_parameters(device, env, params, rng);
     rlt::sample_initial_state(device, env, params, state, rng);
     auto params_json = rlt::json(device, env, params);
+    auto params_json_reconstruct = rlt::json(device, env, params_reconstruct);
+    ASSERT_NE(params_json_reconstruct, params_json);
 
     nlohmann::json params_json_object = nlohmann::json::parse(params_json);
-
-    unsigned char* raw = reinterpret_cast<unsigned char*>(&params_reconstruct);
-    std::generate(raw, raw + sizeof(params_reconstruct), [] { return static_cast<unsigned char>(std::rand() % 256); });
     rlt::from_json(device, env, params_json, params_reconstruct);
+    static constexpr T EPSILON = 1e-5;
+    T abs_diff = rlt::abs_diff(device, params.dynamics, params_reconstruct.dynamics);
+    ASSERT_NEAR(abs_diff, 0, EPSILON);
+    if (abs_diff == 0){
+        ASSERT_EQ(std::memcmp(&params, &params_reconstruct, sizeof(params)), 0);
+    }
+    else{
+        ASSERT_NE(std::memcmp(&params, &params_reconstruct, sizeof(params)), 0);
+    }
 
-    auto params_json_reconstruct = rlt::json(device, env, params_reconstruct);
+    params_json_reconstruct = rlt::json(device, env, params_reconstruct);
     ASSERT_EQ(params_json_reconstruct, params_json);
+
+    {
+        auto params_temp = params;
+        params_temp.dynamics.mass += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.dynamics.J[2][2] += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.dynamics.rotor_thrust_coefficients[3][1] += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.integration.dt += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.mdp.init.max_position += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.mdp.observation_noise.position += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.mdp.action_noise.normalized_rpm += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.mdp.reward.position += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.mdp.reward.d_action += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.mdp.reward.position_clip += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.mdp.termination.position_threshold += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.disturbances.random_force.mean += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.domain_randomization.mass_max += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
+    {
+        auto params_temp = params;
+        params_temp.domain_randomization.motor_time_constant_falling_max += 1337;
+        T diff = rlt::abs_diff(device, params, params_temp);
+        ASSERT_NEAR(diff, 1337, EPSILON);
+    }
 }
