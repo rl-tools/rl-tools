@@ -13,26 +13,12 @@ namespace builder{
     template <typename DEVICE, typename T, typename TI, typename OPTIONS>
     struct ENVIRONMENT_FACTORY{
 
+        using BASE_ENV = rl_tools::rl::environments::Multirotor<Specification<T, TI>>;
+
         static constexpr auto MODEL = parameters::dynamics::REGISTRY::crazyflie;
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
 
         using REWARD_FUNCTION = parameters::reward_functions::Squared<T>;
-        static constexpr REWARD_FUNCTION reward_function = {
-                false, // non-negative
-                01.00, // scale
-                01.50, // constant
-                -100.00, // termination penalty
-                01.00, // position
-                00.00, // position_clip
-                00.10, // orientation
-                00.00, // linear_velocity
-                00.00, // angular_velocity
-                00.00, // linear_acceleration
-                00.00, // angular_acceleration
-                00.00, // action
-                01.00, // d_action
-                00.00, // position_error_integral
-        };
         struct DOMAIN_RANDOMIZATION_OPTIONS{
             static constexpr bool ENABLED = false;
             static constexpr bool THRUST_TO_WEIGHT = ENABLED;
@@ -46,69 +32,20 @@ namespace builder{
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
         using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
 
-        static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
-
         static constexpr TI SIMULATION_FREQUENCY = 100;
-        static constexpr typename PARAMETERS_TYPE::Integration integration = {
-            1.0/((T)SIMULATION_FREQUENCY) // integration dt
-        };
-        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
-        static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
-            0, // position
-            0, // orientation
-            0, // linear_velocity
-            0, // angular_velocity
-            0, // imu acceleration
-        };
-        static constexpr typename PARAMETERS_TYPE::MDP::ActionNoise action_noise = {
-            0, // std of additive gaussian noise onto the normalized action (-1, 1)
-        };
-        static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-            true,  // enable
-            1,     // position
-            2,    // linear velocity
-            35,    // angular velocity
-            10000, // position integral
-            50000, // orientation integral
-        };
-        static constexpr typename PARAMETERS_TYPE::MDP mdp = {
-            init,
-            reward_function,
-            observation_noise,
-            action_noise,
-            termination
-        };
-        static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-            0, // thrust_to_weight_min;
-            0, // thrust_to_weight_max;
-            0, // thrust_to_weight_by_torque_to_inertia_min;
-            0, // thrust_to_weight_by_torque_to_inertia_max;
-            0, // mass_min;
-            0, // mass_max;
-            0, // mass_size_deviation;
-            0, // motor_time_constant_rising_min;
-            0, // motor_time_constant_rising_max;
-            0, // motor_time_constant_falling_min;
-            0, // motor_time_constant_falling_max;
-            0, // rotor_torque_constant_min;
-            0, // rotor_torque_constant_max;
-            0, // orientation_offset_angle_max;
-            0  // disturbance_force_max;
-        };
-        static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
-            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
-            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} // random_torque;
-        };
+
+        static constexpr auto BASE_PARAMS = BASE_ENV::SPEC::PARAMETER_VALUES;
+
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
-                    dynamics,
-                    integration,
-                    mdp,
+                    BASE_PARAMS.dynamics,
+                    BASE_PARAMS.integration,
+                    BASE_PARAMS.mdp,
                 }, // Base
-                disturbances
+                BASE_PARAMS.disturbances
             }, // Disturbances
-            domain_randomization
+            BASE_PARAMS.domain_randomization
         }; // Domain Randomization
 
         struct ENVIRONMENT_STATIC_PARAMETERS{

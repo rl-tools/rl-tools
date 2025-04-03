@@ -118,9 +118,9 @@ int main(int argc, char** argv){
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
         rlt::init(device, device.logger, ts.extrack_paths.seed);
 #endif
-        auto old_init = base_env.parameters.mdp.init;
+        // auto old_init = base_env.parameters.mdp.init;
         base_env.parameters = new_params;
-        base_env.parameters.mdp.init = old_init;
+        // base_env.parameters.mdp.init = old_init;
         for (TI env_i = 1; env_i < LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
             env.parameters = base_env.parameters;
