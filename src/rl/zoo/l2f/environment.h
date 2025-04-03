@@ -28,6 +28,7 @@ namespace rl_tools::rl::zoo::l2f{
                 01.00, // constant
                 00.00, // termination penalty
                 10.00, // position
+                00.00, // position_clip
                 02.50, // orientation
                 00.05, // linear_velocity
                 00.00, // angular_velocity

@@ -252,6 +252,7 @@ namespace rl_tools{
         json_string += "\"constant\": " + std::to_string(parameters.constant) + ", ";
         json_string += "\"termination_penalty\": " + std::to_string(parameters.termination_penalty) + ", ";
         json_string += "\"position\": " + std::to_string(parameters.position) + ", ";
+        json_string += "\"position_clip\": " + std::to_string(parameters.position_clip) + ", ";
         json_string += "\"orientation\": " + std::to_string(parameters.orientation) + ", ";
         json_string += "\"linear_velocity\": " + std::to_string(parameters.linear_velocity) + ", ";
         json_string += "\"angular_velocity\": " + std::to_string(parameters.angular_velocity) + ", ";
@@ -553,6 +554,7 @@ namespace rl_tools{
         parameters.constant = json_object["constant"];
         parameters.termination_penalty = json_object["termination_penalty"];
         parameters.position = json_object["position"];
+        parameters.position_clip = json_object["position_clip"];
         parameters.orientation = json_object["orientation"];
         parameters.linear_velocity = json_object["linear_velocity"];
         parameters.angular_velocity = json_object["angular_velocity"];
