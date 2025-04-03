@@ -40,6 +40,42 @@ namespace rl_tools::rl::environments::l2f{
             T hovering_throttle_relative; // relative to the action limits [0, 1]
             ActionLimit action_limit;
         };
+        template <typename T>
+        struct Initialization{
+            T guidance;
+            T max_position;
+            T max_angle;
+            T max_linear_velocity;
+            T max_angular_velocity;
+            bool relative_rpm; //(specification from -1 to 1)
+            T min_rpm; // -1 for default limit when relative_rpm is true, -1 if relative_rpm is false
+            T max_rpm; //  1 for default limit when relative_rpm is true, -1 if relative_rpm is false
+        };
+        template <typename T>
+        struct Termination{
+            bool enabled = false;
+            T position_threshold;
+            T linear_velocity_threshold;
+            T angular_velocity_threshold;
+            T position_integral_threshold;
+            T orientation_integral_threshold;
+        };
+        template <typename T>
+        struct ObservationNoise{
+            T position;
+            T orientation;
+            T linear_velocity;
+            T angular_velocity;
+            T imu_acceleration;
+        };
+        template <typename T>
+        struct ActionNoise{
+            T normalized_rpm; // std of additive gaussian noise onto the normalized action (-1, 1)
+        };
+        template <typename T>
+        struct Integration{
+            T dt;
+        };
     }
     template <typename T_SPEC>
     struct ParametersBase{
@@ -47,39 +83,12 @@ namespace rl_tools::rl::environments::l2f{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI N = SPEC::N;
-        struct Integration{
-            T dt;
-        };
         struct MDP{
+            using Initialization = parameters::Initialization<T>;
+            using ObservationNoise = parameters::ObservationNoise<T>;
+            using ActionNoise = parameters::ActionNoise<T>;
+            using Termination = parameters::Termination<T>;
             using REWARD_FUNCTION = typename SPEC::REWARD_FUNCTION;
-            struct Initialization{
-                T guidance;
-                T max_position;
-                T max_angle;
-                T max_linear_velocity;
-                T max_angular_velocity;
-                bool relative_rpm; //(specification from -1 to 1)
-                T min_rpm; // -1 for default limit when relative_rpm is true, -1 if relative_rpm is false
-                T max_rpm; //  1 for default limit when relative_rpm is true, -1 if relative_rpm is false
-            };
-            struct Termination{
-                bool enabled = false;
-                T position_threshold;
-                T linear_velocity_threshold;
-                T angular_velocity_threshold;
-                T position_integral_threshold;
-                T orientation_integral_threshold;
-            };
-            struct ObservationNoise{
-                T position;
-                T orientation;
-                T linear_velocity;
-                T angular_velocity;
-                T imu_acceleration;
-            };
-            struct ActionNoise{
-                T normalized_rpm; // std of additive gaussian noise onto the normalized action (-1, 1)
-            };
             Initialization init;
             REWARD_FUNCTION reward;
             ObservationNoise observation_noise;
@@ -87,6 +96,7 @@ namespace rl_tools::rl::environments::l2f{
             Termination termination;
         };
         using Dynamics = parameters::Dynamics<T, TI, N>;
+        using Integration = parameters::Integration<T>;
         Dynamics dynamics;
         Integration integration;
         MDP mdp;
