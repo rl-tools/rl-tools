@@ -28,21 +28,21 @@ int main(int argc, char** argv){
     rlt::sample_initial_parameters(device, env, params, rng);
     std::cout << rlt::json(device, env, params) << std::endl;
 
-    env.parameters.mdp.reward = rlt::rl::environments::l2f::parameters::reward_functions::Squared<T>{
-            false, // non-negative
-            01.00, // scale
-            01.50, // constant
-            -100.00, // termination penalty
-            01.00, // position
-            00.50, // position_clip
-            00.10, // orientation
-            00.00, // linear_velocity
-            00.00, // angular_velocity
-            00.00, // linear_acceleration
-            00.00, // angular_acceleration
-            00.00, // action
-            01.00, // d_action
-            00.00, // position_error_integral
+    env.parameters.mdp.reward = {
+        false, // non-negative
+        01.00, // scale
+        01.50, // constant
+        -100.00, // termination penalty
+        01.00, // position
+        00.00, // position_clip
+        00.10, // orientation
+        00.00, // linear_velocity
+        00.00, // angular_velocity
+        00.00, // linear_acceleration
+        00.00, // angular_acceleration
+        00.00, // action
+        01.00, // d_action
+        00.00, // position_error_integral
     };
 
     env.parameters.domain_randomization = {
