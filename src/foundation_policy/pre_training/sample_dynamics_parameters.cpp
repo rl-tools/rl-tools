@@ -42,7 +42,7 @@ int main(int argc, char** argv){
             00.00, // linear_acceleration
             00.00, // angular_acceleration
             00.00, // action
-            01.00, // d_action
+            00.00, // d_action
             00.00, // position_error_integral
         };
         // parameters.mdp.init.max_position = 0.5;
