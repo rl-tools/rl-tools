@@ -28,6 +28,7 @@
 #include "operations_generic/50_state_algebra.h"
 #include "operations_generic/60_dynamics.h"
 #include "operations_generic/70_post_integration.h"
+#include "operations_generic/80_abs_diff.h"
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -176,6 +177,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1) {
         rl::environments::l2f::parameters::reward_functions::log_reward(device, env, parameters, parameters.mdp.reward, state, action, next_state, rng, cadence);
     }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

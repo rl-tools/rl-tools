@@ -76,14 +76,10 @@ namespace rl_tools::rl::environments::l2f{
         struct Integration{
             T dt;
         };
-    }
-    template <typename T_SPEC>
-    struct ParametersBase{
-        using SPEC = T_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        static constexpr TI N = SPEC::N;
+        template <typename T_SPEC>
         struct MDP{
+            using SPEC = T_SPEC;
+            using T = typename SPEC::T;
             using Initialization = parameters::Initialization<T>;
             using ObservationNoise = parameters::ObservationNoise<T>;
             using ActionNoise = parameters::ActionNoise<T>;
@@ -95,8 +91,44 @@ namespace rl_tools::rl::environments::l2f{
             ActionNoise action_noise;
             Termination termination;
         };
+        template <typename T>
+        struct Disturbances{
+            struct UnivariateGaussian{
+                T mean;
+                T std;
+            };
+            UnivariateGaussian random_force;
+            UnivariateGaussian random_torque;
+        };
+        template <typename T>
+        struct DomainRandomization{ // needs to be independent of the SPEC such that the dispatch in operations_cpu.h does not create issues
+            T thrust_to_weight_min; // cf: ~[1.5, 2]
+            T thrust_to_weight_max;
+            T thrust_to_weight_by_torque_to_inertia_min; // cf: torque_to_inertia ~[536, 933] => [1.5/933=0.0016, 2/536=0.0037]
+            T thrust_to_weight_by_torque_to_inertia_max;
+            T mass_min; // cf: ~[0.027 - 0.031]
+            T mass_max;
+            T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
+            T motor_time_constant_rising_min; // cf: rising: ~[0.05, 0.09], falling: ~[0.07, 0.3]
+            T motor_time_constant_rising_max;
+            T motor_time_constant_falling_min;
+            T motor_time_constant_falling_max;
+            T rotor_torque_constant_min; // cf: ~0.005
+            T rotor_torque_constant_max;
+            T orientation_offset_angle_max;
+            T disturbance_force_max; // in multiples of the surplus thrust to weight ratio max(0, t2w - 1.0)
+            static constexpr DomainRandomization<T> disabled = {};
+        };
+    }
+    template <typename T_SPEC>
+    struct ParametersBase{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI N = SPEC::N;
         using Dynamics = parameters::Dynamics<T, TI, N>;
         using Integration = parameters::Integration<T>;
+        using MDP = parameters::MDP<SPEC>;
         Dynamics dynamics;
         Integration integration;
         MDP mdp;
@@ -109,19 +141,10 @@ namespace rl_tools::rl::environments::l2f{
     };
 
 
-    template <typename T>
-    struct DisturbancesContainer{
-        struct UnivariateGaussian{
-            T mean;
-            T std;
-        };
-        UnivariateGaussian random_force;
-        UnivariateGaussian random_torque;
-    };
     template <typename SPEC>
     struct ParametersDisturbances: SPEC::NEXT_COMPONENT{
         static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
-        using Disturbances = DisturbancesContainer<typename SPEC::T>;
+        using Disturbances = parameters::Disturbances<typename SPEC::T>;
         Disturbances disturbances;
     };
 
@@ -140,29 +163,10 @@ namespace rl_tools::rl::environments::l2f{
         using OPTIONS = T_OPTIONS;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
-    template <typename T>
-    struct DomainRandomizationContainer{ // needs to be independent of the SPEC such that the dispatch in operations_cpu.h does not create issues
-        T thrust_to_weight_min; // cf: ~[1.5, 2]
-        T thrust_to_weight_max;
-        T thrust_to_weight_by_torque_to_inertia_min; // cf: torque_to_inertia ~[536, 933] => [1.5/933=0.0016, 2/536=0.0037]
-        T thrust_to_weight_by_torque_to_inertia_max;
-        T mass_min; // cf: ~[0.027 - 0.031]
-        T mass_max;
-        T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
-        T motor_time_constant_rising_min; // cf: rising: ~[0.05, 0.09], falling: ~[0.07, 0.3]
-        T motor_time_constant_rising_max;
-        T motor_time_constant_falling_min;
-        T motor_time_constant_falling_max;
-        T rotor_torque_constant_min; // cf: ~0.005
-        T rotor_torque_constant_max;
-        T orientation_offset_angle_max;
-        T disturbance_force_max; // in multiples of the surplus thrust to weight ratio max(0, t2w - 1.0)
-        static constexpr DomainRandomizationContainer<T> disabled = {};
-    };
     template <typename SPEC>
     struct ParametersDomainRandomization: SPEC::NEXT_COMPONENT{
         static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
-        using DomainRandomization = DomainRandomizationContainer<typename SPEC::T>;
+        using DomainRandomization = parameters::DomainRandomization<typename SPEC::T>;
         DomainRandomization domain_randomization;
     };
 
