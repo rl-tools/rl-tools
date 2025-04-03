@@ -28,44 +28,47 @@ int main(int argc, char** argv){
     rlt::sample_initial_parameters(device, env, params, rng);
     std::cout << rlt::json(device, env, params) << std::endl;
 
-    env.parameters.mdp.reward = {
-        false, // non-negative
-        01.00, // scale
-        01.50, // constant
-        -100.00, // termination penalty
-        01.00, // position
-        00.50, // position_clip
-        00.10, // orientation
-        00.00, // linear_velocity
-        00.00, // angular_velocity
-        00.00, // linear_acceleration
-        00.00, // angular_acceleration
-        00.00, // action
-        01.00, // d_action
-        00.00, // position_error_integral
-    };
+    auto overwrite = [](auto& parameters){
+        parameters.mdp.reward = {
+            false, // non-negative
+            01.00, // scale
+            01.50, // constant
+            -100.00, // termination penalty
+            01.00, // position
+            00.00, // position_clip
+            00.10, // orientation
+            00.00, // linear_velocity
+            00.00, // angular_velocity
+            00.00, // linear_acceleration
+            00.00, // angular_acceleration
+            00.00, // action
+            01.00, // d_action
+            00.00, // position_error_integral
+        };
+        parameters.mdp.init.max_position = 0.5;
 
-    env.parameters.domain_randomization = {
-        1.5, // thrust_to_weight_min;
-        5.0, // thrust_to_weight_max;
-        0.001, // thrust_to_weight_by_torque_to_inertia_min;
-        0.100, // thrust_to_weight_by_torque_to_inertia_max;
-        0.02, // mass_min;
-        5.00, // mass_max;
-        0.1, // mass_size_deviation;
-        0.0, // motor_time_constant_rising_min;
-        0.0, // motor_time_constant_rising_max;
-        0.0, // motor_time_constant_falling_min;
-        0.0, // motor_time_constant_falling_max;
-        0.005, // rotor_torque_constant_min;
-        0.05, // rotor_torque_constant_max;
-        0.0, // orientation_offset_angle_max;
-        0.3  // disturbance_force_max;
+        parameters.domain_randomization = {
+            1.5, // thrust_to_weight_min;
+            5.0, // thrust_to_weight_max;
+            0.001, // thrust_to_weight_by_torque_to_inertia_min;
+            0.100, // thrust_to_weight_by_torque_to_inertia_max;
+            0.02, // mass_min;
+            5.00, // mass_max;
+            0.1, // mass_size_deviation;
+            0.0, // motor_time_constant_rising_min;
+            0.0, // motor_time_constant_rising_max;
+            0.0, // motor_time_constant_falling_min;
+            0.0, // motor_time_constant_falling_max;
+            0.005, // rotor_torque_constant_min;
+            0.05, // rotor_torque_constant_max;
+            0.0, // orientation_offset_angle_max;
+            0.3  // disturbance_force_max;
+        };
     };
-    env.parameters.mdp.reward.constant = 1.5;
     std::filesystem::path output_path = "./src/foundation_policy/dynamics_parameters/";
     for (TI set_i=0; set_i<N; ++set_i){
         rlt::sample_initial_parameters(device, env, params, rng);
+        overwrite(params);
         std::ofstream output(output_path / (std::to_string(set_i) + ".json"));
         auto params_copy = params;
         // disable domain randomization for pre_training and post_training;
@@ -92,6 +95,7 @@ int main(int argc, char** argv){
     registry.emplace_back("fs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
 
     rlt::initial_parameters(device, env, params);
+    overwrite(params);
     for (const auto& [name, dynamics] : registry){
         params.dynamics = dynamics;
         std::ofstream output(output_path_registry / (name + ".json"));
