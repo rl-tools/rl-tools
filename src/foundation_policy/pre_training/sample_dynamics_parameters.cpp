@@ -45,7 +45,7 @@ int main(int argc, char** argv){
             01.00, // d_action
             00.00, // position_error_integral
         };
-        parameters.mdp.init.max_position = 0.5;
+        // parameters.mdp.init.max_position = 0.5;
 
         parameters.domain_randomization = {
             1.5, // thrust_to_weight_min;
