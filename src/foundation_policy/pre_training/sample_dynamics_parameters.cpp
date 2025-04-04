@@ -25,9 +25,6 @@ int main(int argc, char** argv){
     ENVIRONMENT env;
     ENVIRONMENT::Parameters params;
     rlt::init(device, env);
-    rlt::sample_initial_parameters(device, env, params, rng);
-    std::cout << rlt::json(device, env, params) << std::endl;
-
     auto overwrite = [](auto& parameters){
         parameters.mdp.reward = {
             false, // non-negative
@@ -50,8 +47,8 @@ int main(int argc, char** argv){
         parameters.domain_randomization = {
             1.5, // thrust_to_weight_min;
             5.0, // thrust_to_weight_max;
-            0.001, // thrust_to_weight_by_torque_to_inertia_min;
-            0.100, // thrust_to_weight_by_torque_to_inertia_max;
+            0.002, // thrust_to_weight_by_torque_to_inertia_min;
+            0.020, // thrust_to_weight_by_torque_to_inertia_max;
             0.02, // mass_min;
             5.00, // mass_max;
             0.1, // mass_size_deviation;
@@ -65,8 +62,14 @@ int main(int argc, char** argv){
             0.3  // disturbance_force_max;
         };
     };
+    overwrite(env.parameters);
+    rlt::sample_initial_parameters(device, env, params, rng);
+    overwrite(params);
+    std::cout << rlt::json(device, env, params) << std::endl;
+
     std::filesystem::path output_path = "./src/foundation_policy/dynamics_parameters/";
     for (TI set_i=0; set_i<N; ++set_i){
+        overwrite(params);
         rlt::sample_initial_parameters(device, env, params, rng);
         overwrite(params);
         std::ofstream output(output_path / (std::to_string(set_i) + ".json"));
