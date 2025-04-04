@@ -146,8 +146,9 @@ int main(int argc, char** argv){
 
     //work
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-31_21-06-47"; // fails
+    // checkpoint_path.experiment = "2025-03-31_21-06-47"; // fails
     // checkpoint_path.experiment = "2025-04-01_13-43-13"; // good
+    checkpoint_path.experiment = "2025-04-03_21-30-10";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
@@ -172,11 +173,21 @@ int main(int argc, char** argv){
         std::cerr << "Dynamic parameter index file is too small: " << dynamics_parameter_index << " " << dynamics_parameter_index_lines.size() << "/" << NUM_TEACHERS << std::endl;
         return 1;
     }
+    auto split_by_comma = [](const std::string& s) {
+        std::vector<std::string> result;
+        std::stringstream ss(s);
+        std::string item;
+        while (std::getline(ss, item, ',')) result.push_back(item);
+        return result;
+    };
 
     for (TI teacher_i=0; teacher_i < NUM_TEACHERS; ++teacher_i){
         // load actor & critic
+        auto checkpoint_info = dynamics_parameter_index_lines[dynamics_parameter_index_lines.size() - 1 - teacher_i];
+        auto checkpoint_info_split = split_by_comma(checkpoint_info);
         auto cpp_copy = checkpoint_path;
-        cpp_copy.attributes["dynamics-id"] = dynamics_parameter_index_lines[dynamics_parameter_index_lines.size() - 1 - teacher_i]; // take from the end because we order by performance and the best are at the end
+        cpp_copy.attributes["dynamics-id"] = checkpoint_info_split[0]; // take from the end because we order by performance and the best are at the end
+        cpp_copy.step = checkpoint_info_split[1];
         rlt::find_latest_run(device, "experiments", cpp_copy);
         auto actor_file = HighFive::File(cpp_copy.checkpoint_path.string(), HighFive::File::ReadOnly);
         rlt::load(device, actor_teacher[teacher_i], actor_file.getGroup("actor"));

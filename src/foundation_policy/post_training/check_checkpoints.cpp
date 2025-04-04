@@ -72,8 +72,9 @@ int main(){
     ENVIRONMENT dispatch_env;
 
     rlt::utils::extrack::Path checkpoint_path;
-    checkpoint_path.experiment = "2025-03-31_21-06-47";
+    // checkpoint_path.experiment = "2025-03-31_21-06-47";
     // checkpoint_path.experiment = "2025-04-01_13-43-13";
+    checkpoint_path.experiment = "2025-04-03_21-30-10";
     checkpoint_path.name = "foundation-policy-pre-training";
 
 
