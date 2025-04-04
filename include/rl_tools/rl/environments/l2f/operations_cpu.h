@@ -345,8 +345,8 @@ namespace rl_tools{
         std::string json_string = "{";
         json_string += "\"thrust_to_weight_min\": " + std::to_string(parameters.thrust_to_weight_min) + ", ";
         json_string += "\"thrust_to_weight_max\": " + std::to_string(parameters.thrust_to_weight_max) + ", ";
-        json_string += "\"thrust_to_weight_by_torque_to_inertia_min\": " + std::to_string(parameters.thrust_to_weight_by_torque_to_inertia_min) + ", ";
-        json_string += "\"thrust_to_weight_by_torque_to_inertia_max\": " + std::to_string(parameters.thrust_to_weight_by_torque_to_inertia_max) + ", ";
+        json_string += "\"torque_to_inertia_min\": " + std::to_string(parameters.torque_to_inertia_min) + ", ";
+        json_string += "\"torque_to_inertia_max\": " + std::to_string(parameters.torque_to_inertia_max) + ", ";
         json_string += "\"mass_min\": " + std::to_string(parameters.mass_min) + ", ";
         json_string += "\"mass_max\": " + std::to_string(parameters.mass_max) + ", ";
         json_string += "\"mass_size_deviation\": " + std::to_string(parameters.mass_size_deviation) + ", ";
@@ -615,8 +615,8 @@ namespace rl_tools{
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::DomainRandomization<PARAM_SPEC>& parameters) {
         parameters.thrust_to_weight_min = json_object["thrust_to_weight_min"];
         parameters.thrust_to_weight_max = json_object["thrust_to_weight_max"];
-        parameters.thrust_to_weight_by_torque_to_inertia_min = json_object["thrust_to_weight_by_torque_to_inertia_min"];
-        parameters.thrust_to_weight_by_torque_to_inertia_max = json_object["thrust_to_weight_by_torque_to_inertia_max"];
+        parameters.torque_to_inertia_min = json_object["torque_to_inertia_min"];
+        parameters.torque_to_inertia_max = json_object["torque_to_inertia_max"];
         parameters.mass_min = json_object["mass_min"];
         parameters.mass_max = json_object["mass_max"];
         parameters.mass_size_deviation = json_object["mass_size_deviation"];
