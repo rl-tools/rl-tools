@@ -112,4 +112,11 @@ auto gather_epoch(DEVICE& device, TEACHER& teacher, PARAMETERS& parameters, STUD
     return result;
 }
 
+auto split_by_comma(const std::string& s) {
+    std::vector<std::string> result;
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, ',')) result.push_back(item);
+    return result;
+};
 
