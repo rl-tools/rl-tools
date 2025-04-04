@@ -66,6 +66,7 @@ namespace rl_tools{
             T factor_thrust_to_weight = 1;
             if constexpr(OPTS::THRUST_TO_WEIGHT){
                 rl_tools::utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_min < parameters.domain_randomization.thrust_to_weight_max, "L2f: Domain randomization thrust_to_weight max should be larger than min. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_min >= 1.5, "L2f: Domain randomization thrust_to_weight min should be larger than or equal to 1.5 to maintain maneuverability.");
                 thrust_to_weight = random::uniform_real_distribution(device.random, parameters.domain_randomization.thrust_to_weight_min, parameters.domain_randomization.thrust_to_weight_max, rng);
                 factor_thrust_to_weight = thrust_to_weight / thrust_to_weight_nominal;
             }
@@ -104,16 +105,21 @@ namespace rl_tools{
             if constexpr(OPTS::THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA){
                 // todo: think about min / max torque (which depend on the rotor positions)
                 T max_action = parameters.dynamics.action_limit.max;
-                T max_thrust = parameters.dynamics.rotor_thrust_coefficients[0][0] + parameters.dynamics.rotor_thrust_coefficients[0][1] * max_action + parameters.dynamics.rotor_thrust_coefficients[0][2] * max_action * max_action;
+                // T max_thrust = parameters.dynamics.rotor_thrust_coefficients[0][0] + parameters.dynamics.rotor_thrust_coefficients[0][1] * max_action + parameters.dynamics.rotor_thrust_coefficients[0][2] * max_action * max_action;
+                T gravity_norm = math::sqrt(device.math, parameters.dynamics.gravity[0] * parameters.dynamics.gravity[0] + parameters.dynamics.gravity[1] * parameters.dynamics.gravity[1] + parameters.dynamics.gravity[2] * parameters.dynamics.gravity[2]);
+                T surplus_thrust = (thrust_to_weight-1) * parameters.dynamics.mass * gravity_norm / PARAMETERS::N;
                 T first_rotor_distance_nominal = math::sqrt(device.math, parameters.dynamics.rotor_positions[0][0] * parameters.dynamics.rotor_positions[0][0] + parameters.dynamics.rotor_positions[0][1] * parameters.dynamics.rotor_positions[0][1] + parameters.dynamics.rotor_positions[0][2] * parameters.dynamics.rotor_positions[0][2]);
-                T max_torque = first_rotor_distance_nominal * 1.414213562373095 * max_thrust; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
+                T max_torque_surplus = first_rotor_distance_nominal * 1.414213562373095 * surplus_thrust; // 2/sqrt(2) = sqrt(2): max thrust assuming all rotors have equal angles and the same distance to the center two rotors active
                 T x_inertia = parameters.dynamics.J[0][0];
-                T torque_to_inertia_nominal = max_torque / x_inertia;
+                T surplus_torque_to_inertia_nominal = max_torque_surplus / x_inertia; // thrust2weight / torque2inertia = thrust * 4 / weight / (torque / inertia) = (thrust * 4 / weight) / (thrust * radius / inertia) = (4 / weight) / (radius / inertia)  = inertia * 4 / (weight * radius)
 
                 rl_tools::utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min < parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max, "L2f: Domain randomization thrust_to_weight_by_torque_to_inertia max should be larger than min. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
-                T thrust_to_weight_by_torque_to_inertia = random::uniform_real_distribution(device.random, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max, rng);
-                T torque_to_inertia = thrust_to_weight / thrust_to_weight_by_torque_to_inertia;
-                torque_to_inertia_factor = torque_to_inertia / torque_to_inertia_nominal;
+                T one_over_thrust_to_weight_by_torque_to_inertia = random::uniform_real_distribution(device.random, 1/parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max, 1/parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min, rng);
+                T thrust_to_weight_by_torque_to_inertia = 1/one_over_thrust_to_weight_by_torque_to_inertia;
+                T surplus_thrust_to_weight = thrust_to_weight - 1.0;
+                T surplus_torque_to_inertia = surplus_thrust_to_weight / thrust_to_weight_by_torque_to_inertia;
+                // utils::assert_exit(device, surplus_torque_to_inertia > 20, "error");
+                torque_to_inertia_factor = surplus_torque_to_inertia / surplus_torque_to_inertia_nominal;
             }
             else{
                 rl_tools::utils::assert_exit(device, parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_min == 0 && parameters.domain_randomization.thrust_to_weight_by_torque_to_inertia_max == 0 , "L2f: Domain randomization thrust_to_weight_by_torque_to_inertia max/min should be 0 if THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
