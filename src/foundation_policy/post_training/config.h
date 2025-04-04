@@ -16,14 +16,14 @@ constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 500;
 constexpr TI BATCH_SIZE = 64;
 constexpr T SOLVED_RETURN = 300;
-constexpr TI HIDDEN_DIM = 64;
+constexpr TI HIDDEN_DIM = 32;
 constexpr TI NUM_TEACHERS = 300;
 constexpr TI NUM_ACTIVE_TEACHERS = NUM_TEACHERS;
-constexpr TI EPOCH_DAGGER = 0;
+constexpr TI EPOCH_DAGGER = 10;
 constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr bool SHUFFLE = true;
 constexpr bool TEACHER_DETERMINISTIC = true;
-constexpr bool ON_POLICY = false;
+constexpr bool ON_POLICY = true;
 constexpr TI TEACHER_STUDENT_MIX = 0; // added teacher epochs in DAgger epochs
 
 // typedefs
