@@ -8,7 +8,7 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DefaultCPU;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using TI = DEVICE::index_t;
-using T = float;
+using T = double;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
 using PARAMETER_FACTORY = rlt::rl::environments::l2f::parameters::DEFAULT_PARAMETERS_FACTORY<T, TI, rlt::rl::environments::l2f::parameters::DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS<true>>;
@@ -47,8 +47,8 @@ int main(int argc, char** argv){
         parameters.domain_randomization = {
             1.5, // thrust_to_weight_min;
             5.0, // thrust_to_weight_max;
-            0.002, // thrust_to_weight_by_torque_to_inertia_min;
-            0.020, // thrust_to_weight_by_torque_to_inertia_max;
+            40, // torque_to_inertia_min;
+            1200, // torque_to_inertia_max;
             0.02, // mass_min;
             5.00, // mass_max;
             0.1, // mass_size_deviation;

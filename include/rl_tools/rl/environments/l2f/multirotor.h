@@ -104,12 +104,12 @@ namespace rl_tools::rl::environments::l2f{
         struct DomainRandomization{ // needs to be independent of the SPEC such that the dispatch in operations_cpu.h does not create issues
             T thrust_to_weight_min; // cf: ~[1.5, 2]
             T thrust_to_weight_max;
-            T thrust_to_weight_by_torque_to_inertia_min; // cf: torque_to_inertia ~[536, 933]
+            T torque_to_inertia_min; // cf: torque_to_inertia ~[536, 933]
             // => residual_torque_to_inertia (thrust2weight-1)/4*mass*9.81*radius/inertia
             // 0.5/4*0.027*9.81*0.04/1e-5 = 132
             // 1/4*0.031*9.81*0.04/8e-6 = 380
             // => ~[123, 380] => [(1.5-1)/380=0.0013, (2-1)/123=0.0081]
-            T thrust_to_weight_by_torque_to_inertia_max;
+            T torque_to_inertia_max;
             T mass_min; // cf: ~[0.027 - 0.031]
             T mass_max;
             T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
