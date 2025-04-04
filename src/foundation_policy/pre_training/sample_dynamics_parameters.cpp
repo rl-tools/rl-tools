@@ -32,14 +32,14 @@ int main(int argc, char** argv){
             01.50, // constant
             -100.00, // termination penalty
             01.00, // position
-            01.00, // position_clip
+            00.00, // position_clip
             00.10, // orientation
             00.00, // linear_velocity
             00.00, // angular_velocity
             00.00, // linear_acceleration
             00.00, // angular_acceleration
             00.00, // action
-            00.00, // d_action
+            01.00, // d_action
             00.00, // position_error_integral
         };
         // parameters.mdp.init.max_position = 0.5;
