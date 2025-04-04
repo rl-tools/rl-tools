@@ -48,6 +48,7 @@ using TI = typename DEVICE::index_t;
 #include "environment.h"
 #include "../pre_training/config.h"
 #include "../pre_training/options.h"
+#include "helper.h"
 
 static constexpr bool DYNAMIC_ALLOCATION = true;
 static constexpr TI NUM_EPISODES_EVAL = 100;
@@ -127,8 +128,11 @@ int main(){
 
         rlt::init(device, rank_rng, seed + teacher_i);
         // load actor & critic
+        auto checkpoint_info = dynamics_parameter_index_lines[dynamics_parameter_index_lines.size() - 1 - teacher_i];
+        auto checkpoint_info_split = split_by_comma(checkpoint_info);
         auto cpp_copy = checkpoint_path;
-        cpp_copy.attributes["dynamics-id"] = dynamics_parameter_index_lines[dynamics_parameter_index_lines.size() - 1 - teacher_i]; // take from the end because we order by performance and the best are at the end
+        cpp_copy.attributes["dynamics-id"] = checkpoint_info_split[0]; // take from the end because we order by performance and the best are at the end
+        cpp_copy.step = checkpoint_info_split[1];
         rlt::find_latest_run(device, "experiments", cpp_copy);
         auto actor_file = HighFive::File(cpp_copy.checkpoint_path.string(), HighFive::File::ReadOnly);
         rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));

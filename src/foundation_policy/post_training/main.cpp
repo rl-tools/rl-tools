@@ -173,13 +173,6 @@ int main(int argc, char** argv){
         std::cerr << "Dynamic parameter index file is too small: " << dynamics_parameter_index << " " << dynamics_parameter_index_lines.size() << "/" << NUM_TEACHERS << std::endl;
         return 1;
     }
-    auto split_by_comma = [](const std::string& s) {
-        std::vector<std::string> result;
-        std::stringstream ss(s);
-        std::string item;
-        while (std::getline(ss, item, ',')) result.push_back(item);
-        return result;
-    };
 
     for (TI teacher_i=0; teacher_i < NUM_TEACHERS; ++teacher_i){
         // load actor & critic
