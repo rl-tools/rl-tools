@@ -219,11 +219,11 @@ int main(int argc, char** argv){
         average_result.share_terminated = 0;
         TI NUM_AVG = 0;
 
-        if (epoch_i < EPOCH_DAGGER || TEACHER_STUDENT_MIX > 0){ // start with behavioral cloning (data gathering using teacher)
+        if (epoch_i < EPOCH_TEACHER_FORCING || TEACHER_STUDENT_MIX > 0){ // start with behavioral cloning (data gathering using teacher)
             for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
                 for (TI teacher_epoch_i = 0; teacher_epoch_i < (TEACHER_STUDENT_MIX > 0 ? TEACHER_STUDENT_MIX : 1); teacher_epoch_i++){
                     auto result = gather_epoch<ENVIRONMENT_TEACHER, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor_teacher[teacher_i], dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
-                    if (epoch_i < EPOCH_DAGGER){
+                    if (epoch_i < EPOCH_TEACHER_FORCING){
                         NUM_AVG++;
                         average_result.returns_mean += result.returns_mean;
                         average_result.returns_std += result.returns_mean * result.returns_mean;
@@ -234,7 +234,7 @@ int main(int argc, char** argv){
                 }
             }
         }
-        if (epoch_i >= EPOCH_DAGGER){
+        if (epoch_i >= EPOCH_TEACHER_FORCING){
             using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
             RESULT results[NUM_TEACHERS];
             std::vector<std::tuple<TI, T>> active_teachers;
@@ -280,9 +280,9 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "evaluation/episode_length/mean", average_result.episode_length_mean);
         rlt::add_scalar(device, device.logger, "evaluation/episode_length/std", average_result.episode_length_std);
         rlt::add_scalar(device, device.logger, "evaluation/share_terminated", average_result.share_terminated);
-        rlt::log(device, device.logger, (epoch_i >= EPOCH_DAGGER ? "Student" : "Teacher"), " Mean return: ", average_result.returns_mean, " Mean episode length: ", average_result.episode_length_mean, " Share terminated: ", average_result.share_terminated * 100, "%");
+        rlt::log(device, device.logger, (epoch_i >= EPOCH_TEACHER_FORCING ? "Student" : "Teacher"), " Mean return: ", average_result.returns_mean, " Mean episode length: ", average_result.episode_length_mean, " Share terminated: ", average_result.share_terminated * 100, "%");
 
-        if (epoch_i >= EPOCH_DAGGER && (!best_return_set || average_result.returns_mean > best_return)){
+        if (epoch_i >= EPOCH_TEACHER_FORCING && (!best_return_set || average_result.returns_mean > best_return)){
             best_return = average_result.returns_mean;
             best_return_set = true;
             rlt::copy(device, device, actor, best_actor);
