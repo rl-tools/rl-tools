@@ -148,7 +148,8 @@ int main(int argc, char** argv){
     rlt::utils::extrack::Path checkpoint_path;
     // checkpoint_path.experiment = "2025-03-31_21-06-47"; // fails
     // checkpoint_path.experiment = "2025-04-01_13-43-13"; // good
-    checkpoint_path.experiment = "2025-04-03_21-30-10";
+    // checkpoint_path.experiment = "2025-04-03_21-30-10";
+    checkpoint_path.experiment = "2025-04-04_17-00-11";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
