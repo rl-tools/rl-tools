@@ -11,7 +11,7 @@ static_assert(sizeof(TI) == 8);
 // constants parameters
 constexpr TI NUM_EPISODES = 10;
 constexpr TI NUM_EPISODES_EVAL = 100;
-constexpr TI N_EPOCH = 1000;
+constexpr TI N_EPOCH = 10;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 500;
 constexpr TI BATCH_SIZE = 64;
@@ -23,7 +23,7 @@ constexpr TI EPOCH_TEACHER_FORCING = 10;
 constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr bool SHUFFLE = true;
 constexpr bool TEACHER_DETERMINISTIC = true;
-constexpr bool ON_POLICY = true;
+constexpr bool ON_POLICY = false;
 constexpr TI TEACHER_STUDENT_MIX = 0; // added teacher epochs in DAgger epochs
 
 // typedefs
