@@ -9,7 +9,7 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
 
 static_assert(sizeof(TI) == 8);
 // constants parameters
-constexpr TI NUM_EPISODES = 100;
+constexpr TI NUM_EPISODES = 10;
 constexpr TI NUM_EPISODES_EVAL = 100;
 constexpr TI N_EPOCH = 1000;
 constexpr TI N_PRE_TRAINING_SEEDS = 1;
