@@ -27,6 +27,7 @@ namespace builder{
             static constexpr bool MASS_SIZE_DEVIATION = ENABLED;
             static constexpr bool ROTOR_TORQUE_CONSTANT = ENABLED;
             static constexpr bool DISTURBANCE_FORCE = ENABLED;
+            static constexpr bool ROTOR_TIME_CONSTANT = ENABLED;
         };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;

@@ -143,7 +143,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     }
     {
         auto params_temp = params;
-        params_temp.domain_randomization.motor_time_constant_falling_max += 1337;
+        params_temp.domain_randomization.rotor_time_constant_falling_max += 1337;
         T diff = rlt::abs_diff(device, params, params_temp);
         ASSERT_NEAR(diff, 1337, EPSILON);
     }

@@ -113,10 +113,10 @@ namespace rl_tools::rl::environments::l2f{
             T mass_min; // cf: ~[0.027 - 0.031]
             T mass_max;
             T mass_size_deviation; // percentage variation around the nominal value derived from the mass scale and the sampled thrust to weight ratio
-            T motor_time_constant_rising_min; // cf: rising: ~[0.05, 0.09], falling: ~[0.07, 0.3]
-            T motor_time_constant_rising_max;
-            T motor_time_constant_falling_min;
-            T motor_time_constant_falling_max;
+            T rotor_time_constant_rising_min; // cf: rising: ~[0.05, 0.09], falling: ~[0.07, 0.3]
+            T rotor_time_constant_rising_max;
+            T rotor_time_constant_falling_min;
+            T rotor_time_constant_falling_max;
             T rotor_torque_constant_min; // cf: ~0.005
             T rotor_torque_constant_max;
             T orientation_offset_angle_max;
@@ -159,6 +159,7 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr bool MASS_SIZE_DEVIATION = false;
         static constexpr bool ROTOR_TORQUE_CONSTANT = false;
         static constexpr bool DISTURBANCE_FORCE = false;
+        static constexpr bool ROTOR_TIME_CONSTANT = false;
     };
     template <typename T_T, typename T_TI, typename T_OPTIONS, typename T_NEXT_COMPONENT>
     struct ParametersDomainRandomizationSpecification{
