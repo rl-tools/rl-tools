@@ -82,7 +82,7 @@ struct DR_OPTIONS{
     static constexpr bool ENABLED = false;
     static constexpr bool THRUST_TO_WEIGHT = ENABLED;
     static constexpr bool MASS = ENABLED;
-    static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ENABLED;
+    static constexpr bool TORQUE_TO_INERTIA = ENABLED;
     static constexpr bool MASS_SIZE_DEVIATION = ENABLED;
     static constexpr bool ROTOR_TORQUE_CONSTANT = false;
     static constexpr bool DISTURBANCE_FORCE = false;

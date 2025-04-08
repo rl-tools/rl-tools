@@ -155,7 +155,7 @@ namespace rl_tools::rl::environments::l2f{
     struct DefaultParametersDomainRandomizationOptions{
         static constexpr bool THRUST_TO_WEIGHT = false;
         static constexpr bool MASS = false;
-        static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = false;
+        static constexpr bool TORQUE_TO_INERTIA = false;
         static constexpr bool MASS_SIZE_DEVIATION = false;
         static constexpr bool ROTOR_TORQUE_CONSTANT = false;
         static constexpr bool DISTURBANCE_FORCE = false;
