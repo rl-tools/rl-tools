@@ -42,7 +42,7 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr bool ON = false;
             static constexpr bool THRUST_TO_WEIGHT = ON;
             static constexpr bool MASS = ON;
-            static constexpr bool THRUST_TO_WEIGHT_TO_TORQUE_TO_INERTIA = ON;
+            static constexpr bool TORQUE_TO_INERTIA = ON;
             static constexpr bool MASS_SIZE_DEVIATION = ON;
         };
 
