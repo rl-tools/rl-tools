@@ -37,7 +37,7 @@ namespace rl_tools{
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using PARAMETERS = ParametersDomainRandomization<PARAMETER_SPEC>;
-            using OPTS = typename PARAMETER_SPEC::OPTIONS;
+            using OPTS = typename PARAMETER_SPEC::DOMAIN_RANDOMIZATION_OPTIONS;
             sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
             parameters.domain_randomization = env.parameters.domain_randomization;
             /*

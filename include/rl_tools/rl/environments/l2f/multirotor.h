@@ -123,6 +123,19 @@ namespace rl_tools::rl::environments::l2f{
             T disturbance_force_max; // in multiples of the surplus thrust to weight ratio max(0, t2w - 1.0)
             static constexpr DomainRandomization<T> disabled = {};
         };
+        template <typename T, typename TI>
+        struct Trajectory{
+            static constexpr TI MIXTURE_N = 1;
+            T mixture[MIXTURE_N];
+            // Langevin
+            struct Langevin{
+                T gamma;
+                T omega;
+                T sigma;
+                T alpha;
+            };
+            Langevin langevin;
+        };
     }
     template <typename T_SPEC>
     struct ParametersBase{
@@ -165,7 +178,7 @@ namespace rl_tools::rl::environments::l2f{
     struct ParametersDomainRandomizationSpecification{
         using T = T_T;
         using TI = T_TI;
-        using OPTIONS = T_OPTIONS;
+        using DOMAIN_RANDOMIZATION_OPTIONS = T_OPTIONS;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
     template <typename SPEC>
@@ -173,6 +186,22 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
         using DomainRandomization = parameters::DomainRandomization<typename SPEC::T>;
         DomainRandomization domain_randomization;
+    };
+    struct DefaultParametersTrajectoryOptions{
+        static constexpr bool LANGEVIN = false;
+    };
+    template <typename T_T, typename T_TI, typename T_OPTIONS, typename T_NEXT_COMPONENT>
+    struct ParametersTrajectorySpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using TRAJECTORY_OPTIONS = T_OPTIONS;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename SPEC>
+    struct ParametersTrajectory: SPEC::NEXT_COMPONENT{
+        static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
+        using Trajectory = parameters::Trajectory<typename SPEC::T, typename SPEC::TI>;
+        Trajectory trajectory;
     };
 
 
@@ -634,6 +663,23 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI DIM = 4 + NEXT_COMPONENT::DIM;
         T orientation_offset[4];
+    };
+    template <typename T_SPEC>
+    struct StateTrajectory: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;
+        struct Trajectory{
+            struct Langevin{
+                T position[3];
+                T velocity[3];
+            };
+            Langevin langevin;
+        };
+        Trajectory trajectory;
     };
 
 

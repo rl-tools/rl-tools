@@ -47,9 +47,12 @@ namespace rl_tools::rl::environments::l2f::parameters {
                 01.00, // d_action
                 00.00, // position_error_integral
         };
+        struct TRAJECTORY_OPTIONS{
+            static constexpr bool LANGEVIN = false;
+        };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
+        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_OPTIONS, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
 
         static constexpr auto dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 
@@ -119,17 +122,31 @@ namespace rl_tools::rl::environments::l2f::parameters {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, //{0, 0.027 * 9.81 / 3}, // random_force;
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
         };
-        static constexpr PARAMETERS_TYPE nominal_parameters = {
+
+        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {
+            {1.0}, // mixture weights
+            typename PARAMETERS_TYPE::Trajectory::Langevin{
+                1.00, // gamma
+                2.00, // omega
+                0.50, // sigma
+                0.01 // alpha
+            }
+        };
+
+        static constexpr PARAMETERS_TYPE nominal_parameters ={
             {
                 {
-                    dynamics,
-                    integration,
-                    mdp
-                }, // Base
-                disturbances
-            }, // Disturbances
-            domain_randomization
-        }; // DomainRandomization
+                    {
+                        dynamics,
+                        integration,
+                        mdp
+                    }, // Base
+                    disturbances
+                }, // Disturbances
+                domain_randomization
+            }, // DomainRandomization
+            trajectory // Trajectory
+        };
 
         struct STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
@@ -139,7 +156,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
             static constexpr TI ANGULAR_VELOCITY_DELAY = 0; // one step at 100hz = 10ms ~ delay from IMU to input to the policy: 1.3ms time constant of the IIR in the IMU (bw ~110Hz) + synchronization delay (2ms) + (negligible SPI transfer latency due to it being interrupt-based) + 1ms sensor.c RTOS loop @ 1khz + 2ms for the RLtools loop
             static constexpr TI ANGULAR_VELOCITY_HISTORY = ANGULAR_VELOCITY_DELAY;
             // using STATE_TYPE = StatePoseErrorIntegral<StateSpecification<T, TI, DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>>>;
-            using STATE_TYPE = DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>;
+            using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, DefaultActionHistoryState<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_HISTORY>>>;
             using OBSERVATION_TYPE_MARKOVIAN = DefaultActionHistoryObservation<T, TI, ACTION_HISTORY_LENGTH, ANGULAR_VELOCITY_DELAY,
                 observation::ParametersMotorPosition<observation::ParametersMotorPositionSpecification<T, TI, PARAMETERS_TYPE::N,
                 observation::ParametersThrustCurves<observation::ParametersThrustCurvesSpecification<T, TI, PARAMETERS_TYPE::N,
