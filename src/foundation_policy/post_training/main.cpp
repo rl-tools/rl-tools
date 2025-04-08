@@ -1,3 +1,6 @@
+#ifndef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+// #define RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+#endif
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
@@ -92,6 +95,7 @@ int main(int argc, char** argv){
     OPTIMIZER actor_optimizer;
     std::cout << "Input shape: " << std::endl;
     rlt::print(device, ACTOR::INPUT_SHAPE{});
+    std::cout << "Dataset size: " << DATASET_SIZE << std::endl;
     rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_episode_start_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
@@ -222,7 +226,9 @@ int main(int argc, char** argv){
 
         if (epoch_i < EPOCH_TEACHER_FORCING || TEACHER_STUDENT_MIX > 0){ // start with behavioral cloning (data gathering using teacher)
             for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
-                for (TI teacher_epoch_i = 0; teacher_epoch_i < (TEACHER_STUDENT_MIX > 0 ? TEACHER_STUDENT_MIX : 1); teacher_epoch_i++){
+                constexpr TI TEACHER_EPOCHS = (TEACHER_STUDENT_MIX > 0 ? TEACHER_STUDENT_MIX : 1);
+                for (TI teacher_epoch_i = 0; teacher_epoch_i < TEACHER_EPOCHS; teacher_epoch_i++){
+                    static_assert(DATASET_SIZE >= NUM_TEACHERS * TEACHER_EPOCHS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT);
                     auto result = gather_epoch<ENVIRONMENT_TEACHER, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor_teacher[teacher_i], dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
                     if (epoch_i < EPOCH_TEACHER_FORCING){
                         NUM_AVG++;

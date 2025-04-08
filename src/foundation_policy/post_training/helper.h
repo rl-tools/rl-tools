@@ -62,10 +62,11 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
             rlt::set(device, reset, reset_flag, current_index + current_step_i);
             if (get(device, data.terminated, episode_i, current_step_i)){
                 reset_flag = true;
+                current_step_i++;
                 break;
             }
         }
-        current_index += current_step_i + 1;
+        current_index += current_step_i;
         static_assert(DATA::SPEC::N_EPISODES > 0);
         if (current_index >= INPUT_SPEC::SHAPE::FIRST && episode_i < (DATA::SPEC::N_EPISODES - 1)){
             std::cerr << "Dataset size exceeded" << std::endl;
