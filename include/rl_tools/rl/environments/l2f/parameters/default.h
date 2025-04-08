@@ -22,6 +22,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         static constexpr bool MASS_SIZE_DEVIATION = ENABLED;
         static constexpr bool ROTOR_TORQUE_CONSTANT = ENABLED;
         static constexpr bool DISTURBANCE_FORCE = ENABLED;
+        static constexpr bool ROTOR_TIME_CONSTANT = ENABLED;
     };
 
     template <typename T, typename TI, typename DOMAIN_RANDOMIZATION_OPTIONS=DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS<>>

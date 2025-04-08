@@ -180,6 +180,24 @@ namespace rl_tools{
             else{
                 rl_tools::utils::assert_exit(device, parameters.domain_randomization.disturbance_force_max == 0, "L2f: Domain randomization disturbance_force_max should be 0 if DISTURBANCE_FORCE is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             }
+            if constexpr(OPTS::ROTOR_TIME_CONSTANT){
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_rising_min != 0, "L2f: Domain randomization rotor_time_constant_rising_min should be != 0 if ROTOR_TIME_CONSTANT is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_rising_max != 0, "L2f: Domain randomization rotor_time_constant_rising_max should be != 0 if ROTOR_TIME_CONSTANT is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_falling_min != 0, "L2f: Domain randomization rotor_time_constant_falling_min should be != 0 if ROTOR_TIME_CONSTANT is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_falling_max != 0, "L2f: Domain randomization rotor_time_constant_falling_max should be != 0 if ROTOR_TIME_CONSTANT is true. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                T rising = random::uniform_real_distribution(device.random, parameters.domain_randomization.rotor_time_constant_rising_min, parameters.domain_randomization.rotor_time_constant_rising_max, rng);
+                T falling = random::uniform_real_distribution(device.random, parameters.domain_randomization.rotor_time_constant_falling_min, parameters.domain_randomization.rotor_time_constant_falling_max, rng);
+                for (TI rotor_i=0; rotor_i < PARAMETERS::N; rotor_i++){
+                    parameters.dynamics.rotor_time_constants_rising[rotor_i] = rising;
+                    parameters.dynamics.rotor_time_constants_falling[rotor_i] = falling;
+                }
+            }
+            else {
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_rising_min == 0, "L2f: Domain randomization rotor_time_constant_rising_min should be == 0 if ROTOR_TIME_CONSTANT is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_rising_max == 0, "L2f: Domain randomization rotor_time_constant_rising_max should be == 0 if ROTOR_TIME_CONSTANT is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_falling_min == 0, "L2f: Domain randomization rotor_time_constant_falling_min should be == 0 if ROTOR_TIME_CONSTANT is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+                rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_falling_max == 0, "L2f: Domain randomization rotor_time_constant_falling_max should be == 0 if ROTOR_TIME_CONSTANT is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
+            }
         }
     }
 }

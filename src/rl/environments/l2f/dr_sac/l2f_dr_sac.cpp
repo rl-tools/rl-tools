@@ -86,6 +86,7 @@ struct DR_OPTIONS{
     static constexpr bool MASS_SIZE_DEVIATION = ENABLED;
     static constexpr bool ROTOR_TORQUE_CONSTANT = false;
     static constexpr bool DISTURBANCE_FORCE = false;
+    static constexpr bool ROTOR_TIME_CONSTANT = false;
 };
 using PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
 using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDomainRandomization<rl_tools::rl::environments::l2f::ParametersDomainRandomizationSpecification<T, TI, DR_OPTIONS, rl_tools::rl::environments::l2f::ParametersDisturbances<rlt::rl::environments::l2f::ParametersSpecification<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>>>>;
@@ -120,7 +121,7 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = {
     action_noise,
     termination
 };
-static constexpr rlt::rl::environments::l2f::DomainRandomizationContainer<T> domain_randomization = {
+static constexpr rlt::rl::environments::l2f::parameters::DomainRandomization<T> domain_randomization = {
     true || IDENT ? 0 : 2.0, // thrust_to_weight_min;
     true || IDENT ? 0 : 5, // thrust_to_weight_max;
     true || IDENT ? 0 : 0.0026034812863058926, // thrust_to_weight_by_torque_to_inertia_min;

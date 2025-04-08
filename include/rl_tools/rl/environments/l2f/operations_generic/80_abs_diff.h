@@ -24,7 +24,7 @@ namespace rl_tools{
 
 
         for (TI rotor_i = 0; rotor_i < N; rotor_i++){
-            for (TI dim_i = 0; dim_i < N; dim_i++){
+            for (TI dim_i = 0; dim_i < 3; dim_i++){
                 acc += math::abs(device.math, a.rotor_positions[rotor_i][dim_i] - b.rotor_positions[rotor_i][dim_i]);
                 acc += math::abs(device.math, a.rotor_thrust_directions[rotor_i][dim_i] - b.rotor_thrust_directions[rotor_i][dim_i]);
                 acc += math::abs(device.math, a.rotor_torque_directions[rotor_i][dim_i] - b.rotor_torque_directions[rotor_i][dim_i]);
@@ -150,15 +150,15 @@ namespace rl_tools{
         T_A acc = 0;
         acc += math::abs(device.math, a.thrust_to_weight_min - b.thrust_to_weight_min);
         acc += math::abs(device.math, a.thrust_to_weight_max - b.thrust_to_weight_max);
-        acc += math::abs(device.math, a.thrust_to_weight_by_torque_to_inertia_min - b.thrust_to_weight_by_torque_to_inertia_min);
-        acc += math::abs(device.math, a.thrust_to_weight_by_torque_to_inertia_max - b.thrust_to_weight_by_torque_to_inertia_max);
+        acc += math::abs(device.math, a.torque_to_inertia_min - b.torque_to_inertia_min);
+        acc += math::abs(device.math, a.torque_to_inertia_max - b.torque_to_inertia_max);
         acc += math::abs(device.math, a.mass_min - b.mass_min);
         acc += math::abs(device.math, a.mass_max - b.mass_max);
         acc += math::abs(device.math, a.mass_size_deviation - b.mass_size_deviation);
-        acc += math::abs(device.math, a.motor_time_constant_rising_min - b.motor_time_constant_rising_min);
-        acc += math::abs(device.math, a.motor_time_constant_rising_max - b.motor_time_constant_rising_max);
-        acc += math::abs(device.math, a.motor_time_constant_falling_min - b.motor_time_constant_falling_min);
-        acc += math::abs(device.math, a.motor_time_constant_falling_max - b.motor_time_constant_falling_max);
+        acc += math::abs(device.math, a.rotor_time_constant_rising_min - b.rotor_time_constant_rising_min);
+        acc += math::abs(device.math, a.rotor_time_constant_rising_max - b.rotor_time_constant_rising_max);
+        acc += math::abs(device.math, a.rotor_time_constant_falling_min - b.rotor_time_constant_falling_min);
+        acc += math::abs(device.math, a.rotor_time_constant_falling_max - b.rotor_time_constant_falling_max);
         acc += math::abs(device.math, a.rotor_torque_constant_min - b.rotor_torque_constant_min);
         acc += math::abs(device.math, a.rotor_torque_constant_max - b.rotor_torque_constant_max);
         acc += math::abs(device.math, a.orientation_offset_angle_max - b.orientation_offset_angle_max);
