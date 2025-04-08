@@ -76,7 +76,8 @@ int main(){
     // checkpoint_path.experiment = "2025-03-31_21-06-47";
     // checkpoint_path.experiment = "2025-04-01_13-43-13";
     // checkpoint_path.experiment = "2025-04-03_21-30-10";
-    checkpoint_path.experiment = "2025-04-04_17-00-11";
+    // checkpoint_path.experiment = "2025-04-04_17-00-11";
+    checkpoint_path.experiment = "2025-04-07_23-12-07";
     checkpoint_path.name = "foundation-policy-pre-training";
 
 
