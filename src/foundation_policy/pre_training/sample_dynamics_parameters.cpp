@@ -75,7 +75,7 @@ int main(int argc, char** argv){
         std::ofstream output(output_path / (std::to_string(set_i) + ".json"));
         auto params_copy = params;
         // disable domain randomization for pre_training and post_training;
-        params_copy.domain_randomization = decltype(params_copy.domain_randomization)::disabled;
+        params_copy.domain_randomization = rlt::rl::environments::l2f::parameters::domain_randomization_disabled<T>;
         output << rlt::json(device, env, params_copy);
         output.close();
     }

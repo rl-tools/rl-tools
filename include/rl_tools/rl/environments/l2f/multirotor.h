@@ -100,8 +100,9 @@ namespace rl_tools::rl::environments::l2f{
             UnivariateGaussian random_force;
             UnivariateGaussian random_torque;
         };
-        template <typename T>
+        template <typename T_T>
         struct DomainRandomization{ // needs to be independent of the SPEC such that the dispatch in operations_cpu.h does not create issues
+            using T = T_T;
             T thrust_to_weight_min; // cf: ~[1.5, 2]
             T thrust_to_weight_max;
             T torque_to_inertia_min; // cf: torque_to_inertia ~[536, 933]
@@ -121,11 +122,12 @@ namespace rl_tools::rl::environments::l2f{
             T rotor_torque_constant_max;
             T orientation_offset_angle_max;
             T disturbance_force_max; // in multiples of the surplus thrust to weight ratio max(0, t2w - 1.0)
-            static constexpr DomainRandomization<T> disabled = {};
         };
+        template <typename T>
+        static constexpr DomainRandomization<T> domain_randomization_disabled = {};
         template <typename T, typename TI>
         struct Trajectory{
-            static constexpr TI MIXTURE_N = 1;
+            static constexpr TI MIXTURE_N = 2; // enum TrajectoryType
             T mixture[MIXTURE_N];
             // Langevin
             struct Langevin{
@@ -664,6 +666,10 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr TI DIM = 4 + NEXT_COMPONENT::DIM;
         T orientation_offset[4];
     };
+    enum TrajectoryType{
+        POSITION = 0,
+        LANGEVIN = 1
+    };
     template <typename T_SPEC>
     struct StateTrajectory: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
@@ -671,13 +677,16 @@ namespace rl_tools::rl::environments::l2f{
         using TI = typename SPEC::TI;
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = false;
-        static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;
+        static constexpr TI DIM = 7 + NEXT_COMPONENT::DIM;
         struct Trajectory{
+            TrajectoryType type;
             struct Langevin{
                 T position[3];
                 T velocity[3];
             };
-            Langevin langevin;
+            union{
+                Langevin langevin;
+            };
         };
         Trajectory trajectory;
     };
