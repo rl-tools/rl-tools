@@ -369,6 +369,36 @@ namespace rl_tools{
         json_string += (top_level ? "}" : "");
         return json_string;
     }
+    template <typename DEVICE, typename SPEC, typename T, typename TI>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::Trajectory<T, TI>& parameters) {
+        using PARAMETERS = rl::environments::l2f::parameters::Trajectory<T, TI>;
+        std::string json_string = "{";
+        json_string += "\"MIXTURE_N\": " + std::to_string(PARAMETERS::MIXTURE_N) + ", ";
+        json_string += "\"mixture\": [";
+        for (TI i = 0; i < PARAMETERS::MIXTURE_N; i++){
+            json_string += std::to_string(parameters.mixture[i]);
+            if (i < PARAMETERS::MIXTURE_N - 1) {
+                json_string += ", ";
+            }
+        }
+        json_string += "], ";
+        json_string += "\"langevin\": {";
+        json_string += "\"gamma\": " + std::to_string(parameters.langevin.gamma) + ", ";
+        json_string += "\"omega\": " + std::to_string(parameters.langevin.omega) + ", ";
+        json_string += "\"sigma\": " + std::to_string(parameters.langevin.sigma) + ", ";
+        json_string += "\"alpha\": " + std::to_string(parameters.langevin.alpha);
+        json_string += "}";
+        json_string += "}";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersTrajectory<PARAM_SPEC>& parameters, bool top_level=true){
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
+        json_string += ", \"trajectory\": " + json(device, env, parameters.trajectory);
+        json_string += (top_level ? "}" : "");
+        return json_string;
+    }
 
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state, bool top_level=true){
@@ -491,6 +521,32 @@ namespace rl_tools{
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
         json_string += "\"force\": [" + std::to_string(state.force[0]) + ", " + std::to_string(state.force[1]) + ", " + std::to_string(state.force[2]) + "], ";
         json_string += "\"torque\": [" + std::to_string(state.torque[0]) + ", " + std::to_string(state.torque[1]) + ", " + std::to_string(state.torque[2]) + "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateTrajectory<STATE_SPEC>& state, bool top_level=true){
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"trajectory\": {";
+        json_string += "\"type\": ";
+        switch (state.trajectory.type){
+            case rl::environments::l2f::TrajectoryType::POSITION:
+                json_string += "\"POSITION\"";
+                break;
+            case rl::environments::l2f::TrajectoryType::LANGEVIN:
+                json_string += "\"LANGEVIN\"";
+                json_string += ", ";
+                json_string += "\"langevin\": {";
+                json_string += "\"position\": [" +  std::to_string(state.trajectory.langevin.position[0]) + ", " + std::to_string(state.trajectory.langevin.position[1]) + ", " + std::to_string(state.trajectory.langevin.position[2]) + "], ";
+                json_string += "\"velocity\": [" + std::to_string(state.trajectory.langevin.velocity[0]) + ", " + std::to_string(state.trajectory.langevin.velocity[1]) + ", " + std::to_string(state.trajectory.langevin.velocity[2]) + "]";
+                json_string += "}";
+                break;
+            default:
+                json_string += "\"NONE\"";
+                break;
+        }
+        json_string += "}";
         json_string += top_level ? "}" : "";
         return json_string;
     }
@@ -634,8 +690,25 @@ namespace rl_tools{
         from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
         from_json(device, env, json_object["domain_randomization"], parameters.domain_randomization);
     }
+    template <typename DEVICE, typename SPEC, typename T, typename TI>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::Trajectory<T, TI>& parameters) {
+        using PARAMETERS = rl::environments::l2f::parameters::Trajectory<T, TI>;
+        rl_tools::utils::assert_exit(device, json_object["MIXTURE_N"] == PARAMETERS::MIXTURE_N, "Mismatch in MIXTURE_N");
+        for (TI i = 0; i < PARAMETERS::MIXTURE_N; i++){
+            parameters.mixture[i] = json_object["mixture"][i];
+        }
+        parameters.langevin.gamma = json_object["langevin"]["gamma"];
+        parameters.langevin.omega = json_object["langevin"]["omega"];
+        parameters.langevin.sigma = json_object["langevin"]["sigma"];
+        parameters.langevin.alpha = json_object["langevin"]["alpha"];
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, rl::environments::l2f::ParametersDomainRandomization<PARAM_SPEC>& parameters){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersTrajectory<PARAM_SPEC>& parameters){
+        from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
+        from_json(device, env, json_object["trajectory"], parameters.trajectory);
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, PARAMETERS& parameters){
         nlohmann::json json_object = nlohmann::json::parse(json_string);
         from_json(device, env, json_object, parameters);
     }
@@ -712,6 +785,22 @@ namespace rl_tools{
         for (TI i = 0; i < 3; i++){
             state.force[i] = json_object["force"][i];
             state.torque[i] = json_object["torque"][i];
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateTrajectory<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        std::string type = json_object["trajectory"]["type"];
+        if(type == "POSITION"){
+            state.trajectory.type = rl::environments::l2f::TrajectoryType::POSITION;
+        }
+        if (type == "LANGEVIN"){
+            state.trajectory.type = rl::environments::l2f::TrajectoryType::LANGEVIN;
+            for (TI i = 0; i < 3; i++){
+                state.trajectory.langevin.position[i] = json_object["trajectory"]["langevin"]["position"][i];
+                state.trajectory.langevin.velocity[i] = json_object["trajectory"]["langevin"]["velocity"][i];
+            }
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
