@@ -133,7 +133,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
             }
         };
 
-        static constexpr PARAMETERS_TYPE nominal_parameters ={
+        static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
                     {

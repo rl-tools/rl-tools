@@ -200,7 +200,7 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
             using T = typename SPEC::T;
             using STATE = StateTrajectory<STATE_SPEC>;
-            using OPTS = typename PARAMETERS::TRAJECTORY_OPTIONS;
+            using OPTS = typename PARAMETERS::SPEC::TRAJECTORY_OPTIONS;
             sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
             if constexpr(OPTS::LANGEVIN){
                 T threshold = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
@@ -209,7 +209,7 @@ namespace rl_tools{
                 for(TI type_i = 0; type_i < decltype(parameters.trajectory)::MIXTURE_N; type_i++){
                     acc += parameters.trajectory.mixture[type_i];
                     if(threshold < acc){
-                        state.trajectory.type = type_i;
+                        state.trajectory.type = static_cast<TrajectoryType>(type_i);
                         break;
                     }
                 }

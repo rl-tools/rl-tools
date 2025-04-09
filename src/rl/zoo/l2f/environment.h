@@ -39,8 +39,24 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00 // position_error_integral
         };
 
+        // struct DOMAIN_RANDOMIZATION_OPTIONS{
+        //     static constexpr bool ON = false;
+        //     static constexpr bool THRUST_TO_WEIGHT = ON;
+        //     static constexpr bool MASS = ON;
+        //     static constexpr bool TORQUE_TO_INERTIA = ON;
+        //     static constexpr bool MASS_SIZE_DEVIATION = ON;
+        //     static constexpr bool ROTOR_TORQUE_CONSTANT = ON;
+        //     static constexpr bool DISTURBANCE_FORCE = ON;
+        //     static constexpr bool ROTOR_TIME_CONSTANT = ON;
+        // };
+
+        struct TRAJECTORY_OPTIONS{
+            static constexpr bool LANGEVIN = false;
+        };
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
+        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_OPTIONS, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
+
+        static_assert(PARAMETERS_TYPE::SPEC::TRAJECTORY_OPTIONS::LANGEVIN == false);
 
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -93,17 +109,29 @@ namespace rl_tools::rl::zoo::l2f{
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} // random_torque;
         };
+        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {
+            {1.0}, // mixture weights
+            typename PARAMETERS_TYPE::Trajectory::Langevin{
+                1.00, // gamma
+                2.00, // omega
+                0.50, // sigma
+                0.01 // alpha
+            }
+        };
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
-                    dynamics,
-                    integration,
-                    mdp
-                }, // Base
-                disturbances
-            }, // Disturbances
-            domain_randomization
-        }; // DomainRandomization
+                    {
+                        dynamics,
+                        integration,
+                        mdp
+                    }, // Base
+                    disturbances
+                }, // Disturbances
+                domain_randomization
+            }, // DomainRandomization
+            trajectory // Trajectory
+        };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
@@ -111,7 +139,7 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI EPISODE_STEP_LIMIT = 500;
             static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = StateBase<StateSpecification<T, TI>>;
-            using STATE_TYPE = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
+            using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;
             using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,

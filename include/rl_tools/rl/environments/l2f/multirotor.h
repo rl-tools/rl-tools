@@ -199,8 +199,9 @@ namespace rl_tools::rl::environments::l2f{
         using TRAJECTORY_OPTIONS = T_OPTIONS;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
-    template <typename SPEC>
-    struct ParametersTrajectory: SPEC::NEXT_COMPONENT{
+    template <typename T_SPEC>
+    struct ParametersTrajectory: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
         static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
         using Trajectory = parameters::Trajectory<typename SPEC::T, typename SPEC::TI>;
         Trajectory trajectory;

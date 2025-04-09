@@ -128,8 +128,8 @@ namespace rl_tools::rl::environments::l2f{
         using MULTIROTOR = Multirotor<SPEC>;
         using TI = typename DEVICE::index_t;
         using T = typename STATE_SPEC::T;
-        using STATE = StateRotorsHistory<STATE_SPEC>;
-        using OPTS = typename PARAMETERS::TRAJECTORY_OPTIONS;
+        using STATE = StateTrajectory<STATE_SPEC>;
+        using OPTS = typename PARAMETERS::SPEC::TRAJECTORY_OPTIONS;
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
         post_integration(device, env, parameters, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(next_state), rng);
         if constexpr(OPTS::LANGEVIN){
