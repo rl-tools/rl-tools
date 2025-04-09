@@ -28,6 +28,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.50, // constant
                 -100.00, // termination penalty
                 01.00, // position
+                00.00, // position_clip
                 00.10, // orientation
                 00.00, // linear_velocity
                 00.00, // angular_velocity
@@ -164,7 +165,7 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
         };
 
-        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI>;
+        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
         using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     };
 }
