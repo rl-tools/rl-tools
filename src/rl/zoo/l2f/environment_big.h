@@ -50,7 +50,7 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         struct TRAJECTORY_OPTIONS{
-            static constexpr bool LANGEVIN = false;
+            static constexpr bool LANGEVIN = true;
         };
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
         using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_OPTIONS, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
