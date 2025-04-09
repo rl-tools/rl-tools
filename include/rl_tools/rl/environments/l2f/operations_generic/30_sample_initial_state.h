@@ -220,6 +220,8 @@ namespace rl_tools{
                         for(TI dim_i = 0; dim_i < 3; dim_i++){
                             state.trajectory.langevin.position[dim_i] = 0;
                             state.trajectory.langevin.velocity[dim_i] = 0;
+                            state.trajectory.langevin.position_raw[dim_i] = 0;
+                            state.trajectory.langevin.velocity_raw[dim_i] = 0;
                         }
                 }
             }

@@ -137,6 +137,7 @@ namespace rl_tools::rl::environments::l2f{
                 case POSITION:
                     break;
                 case LANGEVIN: {
+                        // todo put this into RK4?
                         const T gamma = parameters.trajectory.langevin.gamma;
                         const T omega = parameters.trajectory.langevin.omega;
                         const T sigma = parameters.trajectory.langevin.sigma;
@@ -145,14 +146,19 @@ namespace rl_tools::rl::environments::l2f{
 
                         const T sqrt_dt = math::sqrt(device.math, dt);
                         for (TI dim_i = 0; dim_i < 3; ++dim_i){
-                            const T x_prev = state.trajectory.langevin.position[dim_i];
-                            const T v_prev = state.trajectory.langevin.velocity[dim_i];
+                            const T x_prev = state.trajectory.langevin.position_raw[dim_i];
+                            const T v_prev = state.trajectory.langevin.velocity_raw[dim_i];
                             const T dW = sqrt_dt * random::normal_distribution::sample(device.random, T(0), T(1), rng);
-                            const T v_raw = v_prev + (-gamma * v_prev - omega * omega * x_prev) * dt + sigma * dW;
-                            const T v_next = alpha * v_raw + (T(1) - alpha) * v_prev;
+                            const T v_next = v_prev + (-gamma * v_prev - omega * omega * x_prev) * dt + sigma * dW;
                             const T x_next = x_prev + v_next * dt;
-                            next_state.trajectory.langevin.position[dim_i] = x_next;
-                            next_state.trajectory.langevin.velocity[dim_i] = v_next;
+                            next_state.trajectory.langevin.position_raw[dim_i] = x_next;
+                            next_state.trajectory.langevin.velocity_raw[dim_i] = v_next;
+                            const T v_smooth_prev = state.trajectory.langevin.velocity[dim_i];
+                            const T v_smooth = alpha * v_next + (T(1) - alpha) * v_smooth_prev;
+                            const T x_smooth_prev = state.trajectory.langevin.position[dim_i];
+                            const T x_smooth = x_smooth_prev + v_smooth * dt;
+                            next_state.trajectory.langevin.position[dim_i] = x_smooth;
+                            next_state.trajectory.langevin.velocity[dim_i] = v_smooth;
                         }
                     }
                     break;

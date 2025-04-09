@@ -714,6 +714,8 @@ namespace rl_tools::rl::environments::l2f{
             struct Langevin{
                 T position[3];
                 T velocity[3];
+                T position_raw[3];
+                T velocity_raw[3];
             };
             union{
                 Langevin langevin;
