@@ -391,27 +391,15 @@ namespace rl_tools{
             static_assert(OBS_SPEC::ROWS == 1);
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
-            T position[3];
-            switch (state.trajectory.type){
-                case LANGEVIN:
-                    position[0] = state.trajectory.langevin.position[0];
-                    position[1] = state.trajectory.langevin.position[1];
-                    position[2] = state.trajectory.langevin.position[2];
-                    break;
-                default:
-                    position[0] = 0;
-                    position[1] = 0;
-                    position[2] = 0;
-                    break;
-            }
-
+            STATE desired_state;
+            get_desired_state(device, env, parameters, state, desired_state, rng);
             for(TI i = 0; i < 3; i++){
                 if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
-                    set(observation, 0, i, state.position[i] - position[i]);
+                    set(observation, 0, i, state.position[i] - desired_state.position[i]);
                 }
                 else{
                     T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.position, rng);
-                    set(observation, 0, i, state.position[i] - position[i] + noise);
+                    set(observation, 0, i, state.position[i] - desired_state.position[i] + noise);
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
@@ -425,27 +413,15 @@ namespace rl_tools{
             static_assert(OBS_SPEC::ROWS == 1);
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
-            T velocity[3];
-            switch (state.trajectory.type){
-                case LANGEVIN:
-                    velocity[0] = state.trajectory.langevin.velocity[0];
-                    velocity[1] = state.trajectory.langevin.velocity[1];
-                    velocity[2] = state.trajectory.langevin.velocity[2];
-                    break;
-                default:
-                    velocity[0] = 0;
-                    velocity[1] = 0;
-                    velocity[2] = 0;
-                    break;
-            }
-
+            STATE desired_state;
+            get_desired_state(device, env, parameters, state, desired_state, rng);
             for(TI i = 0; i < 3; i++){
                 if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
-                    set(observation, 0, i, state.linear_velocity[i] - velocity[i]);
+                    set(observation, 0, i, state.linear_velocity[i] - desired_state.velocity[i]);
                 }
                 else{
                     T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.linear_velocity, rng);
-                    set(observation, 0, i, state.linear_velocity[i] - velocity[i] + noise);
+                    set(observation, 0, i, state.linear_velocity[i] - desired_state.linear_velocity[i] + noise);
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);

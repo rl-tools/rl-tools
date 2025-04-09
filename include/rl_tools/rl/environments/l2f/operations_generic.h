@@ -24,6 +24,7 @@
 #include "operations_generic/10_sample_initial_parameters.h"
 #include "operations_generic/20_initial_state.h"
 #include "operations_generic/30_sample_initial_state.h"
+#include "operations_generic/35_get_desired_state.h"
 #include "operations_generic/40_observe.h"
 #include "operations_generic/50_state_algebra.h"
 #include "operations_generic/60_dynamics.h"
