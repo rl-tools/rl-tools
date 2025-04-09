@@ -112,6 +112,16 @@ namespace rl_tools{
         using OBSERVATION = rl::environments::l2f::observation::ParametersInertia<OBS_SPEC>;
         return std::string(first ? "" : ".") + "ParametersInertia" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::TrajectoryTrackingPosition<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ParametersInertia<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "TrajectoryTrackingPosition" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::TrajectoryTrackingLinearVelocity<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::ParametersInertia<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "TrajectoryTrackingLinearVelocity" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
     namespace rl::environments::l2f::obs_helper{
         template <typename DEVICE, typename ENV, typename OBS>
         auto dispatch(DEVICE& device, const ENV& env, const OBS& obs, bool first){
