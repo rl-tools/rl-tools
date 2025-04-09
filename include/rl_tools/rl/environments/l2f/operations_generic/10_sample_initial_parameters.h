@@ -199,6 +199,11 @@ namespace rl_tools{
                 rl_tools::utils::assert_exit(device, parameters.domain_randomization.rotor_time_constant_falling_max == 0, "L2f: Domain randomization rotor_time_constant_falling_max should be == 0 if ROTOR_TIME_CONSTANT is false. If you intended to turn off this randomization please deactivate it in the static parameter options (cf. DefaultParametersDomainRandomizationOptions)");
             }
         }
+        template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
+        static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersTrajectory<PARAMETER_SPEC>& parameters, RNG& rng){
+            sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
+            parameters.trajectory = env.parameters.trajectory;
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
