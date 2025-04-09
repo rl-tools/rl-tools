@@ -124,7 +124,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         };
 
         static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {
-            {1.0}, // mixture weights
+            {0.5, 0.5}, // mixture weights
             typename PARAMETERS_TYPE::Trajectory::Langevin{
                 1.00, // gamma
                 2.00, // omega

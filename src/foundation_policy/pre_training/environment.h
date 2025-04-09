@@ -30,8 +30,11 @@ namespace builder{
             static constexpr bool ROTOR_TIME_CONSTANT = ENABLED;
         };
 
+        struct TRAJECTORY_OPTIONS{
+            static constexpr bool LANGEVIN = true;
+        };
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>;
+        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_OPTIONS, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
 
         static constexpr TI SIMULATION_FREQUENCY = 100;
 
@@ -40,14 +43,17 @@ namespace builder{
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
-                    BASE_PARAMS.dynamics,
-                    BASE_PARAMS.integration,
-                    BASE_PARAMS.mdp,
-                }, // Base
-                BASE_PARAMS.disturbances
-            }, // Disturbances
-            BASE_PARAMS.domain_randomization
-        }; // Domain Randomization
+                    {
+                        BASE_PARAMS.dynamics,
+                        BASE_PARAMS.integration,
+                        BASE_PARAMS.mdp
+                    }, // Base
+                    BASE_PARAMS.disturbances
+                }, // Disturbances
+                BASE_PARAMS.domain_randomization
+            }, // DomainRandomization
+            BASE_PARAMS.trajectory // Trajectory
+        };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
@@ -56,12 +62,12 @@ namespace builder{
             static constexpr TI CLOSED_FORM = false;
             static constexpr TI ANGULAR_VELOCITY_DELAY = 0; // one step at 100hz = 10ms ~ delay from IMU to input to the policy: 1.3ms time constant of the IIR in the IMU (bw ~110Hz) + synchronization delay (2ms) + (negligible SPI transfer latency due to it being interrupt-based) + 1ms sensor.c RTOS loop @ 1khz + 2ms for the RLtools loop
             using STATE_BASE = StateAngularVelocityDelay<StateAngularVelocityDelaySpecification<T, TI, ANGULAR_VELOCITY_DELAY, StateLastAction<StateSpecification<T, TI, StateBase<StateSpecification<T, TI>>>>>>;
-            using STATE_TYPE_MOTOR_DELAY = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
+            using STATE_TYPE_MOTOR_DELAY = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;
             using STATE_TYPE_NO_MOTOR_DELAY = StateRandomForce<StateSpecification<T, TI, STATE_BASE>>;
             using STATE_TYPE = rl_tools::utils::typing::conditional_t<OPTIONS::MOTOR_DELAY, STATE_TYPE_MOTOR_DELAY, STATE_TYPE_NO_MOTOR_DELAY>;
-            using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
+            using OBSERVATION_TYPE = observation::TrajectoryTrackingPosition<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
-                    observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
+                    observation::TrajectoryTrackingLinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocityDelayed<observation::AngularVelocityDelayedSpecification<T, TI, ANGULAR_VELOCITY_DELAY,
                     // observation::RandomForce<observation::RandomForceSpecification<T, TI,
                     observation::ActionHistory<observation::ActionHistorySpecification<T, TI, 1, // one-step action history to Markovify the d_action regularization
