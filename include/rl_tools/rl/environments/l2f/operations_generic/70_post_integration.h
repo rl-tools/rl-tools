@@ -136,23 +136,24 @@ namespace rl_tools::rl::environments::l2f{
             switch(state.trajectory.type){
                 case POSITION:
                     break;
-                case LANGEVIN:
-                    const T gamma = parameters.trajectory.langevin.gamma;
-                    const T omega = parameters.trajectory.langevin.omega;
-                    const T sigma = parameters.trajectory.langevin.sigma;
-                    const T dt    = parameters.trajectory.langevin.dt;
-                    const T alpha = parameters.trajectory.langevin.alpha;
+                case LANGEVIN: {
+                        const T gamma = parameters.trajectory.langevin.gamma;
+                        const T omega = parameters.trajectory.langevin.omega;
+                        const T sigma = parameters.trajectory.langevin.sigma;
+                        const T dt    = parameters.integration.dt;
+                        const T alpha = parameters.trajectory.langevin.alpha;
 
-                    const T sqrt_dt = math::sqrt(device.math, dt);
-                    for (TI dim_i = 0; dim_i < 3; ++dim_i){
-                        const T x_prev = state.trajectory.langevin.position[dim_i];
-                        const T v_prev = state.trajectory.langevin.velocity[dim_i];
-                        const T dW = sqrt_dt * random::normal_distribution::sample(device.random, T(0), T(1), rng);
-                        const T v_raw = v_prev + (-gamma * v_prev - omega * omega * x_prev) * dt + sigma * dW;
-                        const T v_next = alpha * v_raw + (T(1) - alpha) * v_prev;
-                        const T x_next = x_prev + v_next * dt;
-                        next_state.trajectory.langevin.position[dim_i] = x_next;
-                        next_state.trajectory.langevin.velocity[dim_i] = v_next;
+                        const T sqrt_dt = math::sqrt(device.math, dt);
+                        for (TI dim_i = 0; dim_i < 3; ++dim_i){
+                            const T x_prev = state.trajectory.langevin.position[dim_i];
+                            const T v_prev = state.trajectory.langevin.velocity[dim_i];
+                            const T dW = sqrt_dt * random::normal_distribution::sample(device.random, T(0), T(1), rng);
+                            const T v_raw = v_prev + (-gamma * v_prev - omega * omega * x_prev) * dt + sigma * dW;
+                            const T v_next = alpha * v_raw + (T(1) - alpha) * v_prev;
+                            const T x_next = x_prev + v_next * dt;
+                            next_state.trajectory.langevin.position[dim_i] = x_next;
+                            next_state.trajectory.langevin.velocity[dim_i] = v_next;
+                        }
                     }
                     break;
                 default:
