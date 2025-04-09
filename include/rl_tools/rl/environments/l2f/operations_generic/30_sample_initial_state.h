@@ -39,10 +39,10 @@ namespace rl_tools{
             output[3] = z * s;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateBase<STATE_SPEC>& state, RNG& rng, bool inherited_guidance = false){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateBase<STATE_SPEC>& state, RNG& rng, bool inherited_guidance = false){
             typename DEVICE::SPEC::MATH math_dev;
             typename DEVICE::SPEC::RANDOM random_dev;
-            using STATE = rl::environments::l2f::StateBase<STATE_SPEC>;
+            using STATE = StateBase<STATE_SPEC>;
             using T = typename STATE_SPEC::T;
             using TI = typename DEVICE::index_t;
             bool guidance;
@@ -84,16 +84,16 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLastAction<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLastAction<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
-            using STATE = rl::environments::l2f::StateLastAction<STATE_SPEC>;
+            using STATE = StateLastAction<STATE_SPEC>;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             for (TI action_i=0; action_i < STATE::ACTION_DIM; action_i++){
                 state.last_action[action_i] = 0;
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearAcceleration<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLinearAcceleration<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             for(TI i = 0; i < 3; i++){
@@ -101,9 +101,9 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateAngularVelocityDelay<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
-            using STATE = rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>;
+            using STATE = StateAngularVelocityDelay<STATE_SPEC>;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             for (TI step_i=0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
                 for (TI dim_i=0; dim_i < 3; dim_i++){
@@ -112,7 +112,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, typename rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StatePoseErrorIntegral<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             for (TI dim_i=0; dim_i<3; dim_i++){
@@ -121,7 +121,7 @@ namespace rl_tools{
             state.orientation_integral = 0;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, typename rl::environments::l2f::StateRandomForce<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRandomForce<STATE_SPEC>& state, RNG& rng){
             typename DEVICE::SPEC::RANDOM random_dev;
             using T = typename SPEC::T;
     //        bool guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < parameters.mdp.init.guidance;
@@ -151,14 +151,14 @@ namespace rl_tools{
 
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, typename rl::environments::l2f::StateRandomOrientationOffset<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRandomOrientationOffset<STATE_SPEC>& state, RNG& rng){
             typename DEVICE::SPEC::RANDOM random_dev;
             using T = typename SPEC::T;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             sample_orientation(device, parameters.domain_randomization, state.orientation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, typename rl::environments::l2f::StateRotors<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRotors<STATE_SPEC>& state, RNG& rng){
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             using TI = typename DEVICE::index_t;
             using T = typename SPEC::T;
@@ -182,15 +182,45 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state, RNG& rng){
-            using MULTIROTOR = rl::environments::Multirotor<SPEC>;
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRotorsHistory<STATE_SPEC>& state, RNG& rng){
+            using MULTIROTOR = Multirotor<SPEC>;
             using TI = typename DEVICE::index_t;
-            using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
+            using STATE = StateRotorsHistory<STATE_SPEC>;
             sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
             state.current_step = 0;
             for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
                 for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
                     state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
+                }
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateTrajectory<STATE_SPEC>& state, RNG& rng){
+            using MULTIROTOR = Multirotor<SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC::T;
+            using STATE = StateTrajectory<STATE_SPEC>;
+            using OPTS = typename PARAMETERS::TRAJECTORY_OPTIONS;
+            sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
+            if constexpr(OPTS::LANGEVIN){
+                T threshold = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
+                T acc = 0;
+                state.trajectory.type = POSITION;
+                for(TI type_i = 0; type_i < decltype(parameters.trajectory)::MIXTURE_N; type_i++){
+                    acc += parameters.trajectory.mixture[type_i];
+                    if(threshold < acc){
+                        state.trajectory.type = type_i;
+                        break;
+                    }
+                }
+                switch(state.trajectory.type){
+                    case POSITION:
+                        break;
+                    case LANGEVIN:
+                        for(TI dim_i = 0; dim_i < 3; dim_i++){
+                            state.trajectory.langevin.position[dim_i] = 0;
+                            state.trajectory.langevin.velocity[dim_i] = 0;
+                        }
                 }
             }
         }

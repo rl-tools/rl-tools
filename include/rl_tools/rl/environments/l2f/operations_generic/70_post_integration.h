@@ -17,7 +17,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateBase<STATE_SPEC>& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateBase<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateBase<STATE_SPEC>& next_state, RNG& rng) {
         using T = typename STATE_SPEC::T;
         using TI = typename DEVICE::index_t;
         T quaternion_norm = 0;
@@ -37,8 +37,8 @@ namespace rl_tools::rl::environments::l2f{
 
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateLastAction<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateLastAction<STATE_SPEC>& next_state, RNG& rng) {
-        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLastAction<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateLastAction<STATE_SPEC>& next_state, RNG& rng) {
+        using MULTIROTOR = Multirotor<SPEC>;
         using TI = typename DEVICE::index_t;
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
@@ -47,7 +47,7 @@ namespace rl_tools::rl::environments::l2f{
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateLinearAcceleration<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateLinearAcceleration<STATE_SPEC>& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearAcceleration<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateLinearAcceleration<STATE_SPEC>& next_state, RNG& rng) {
         using T = typename STATE_SPEC::T;
         using TI = typename DEVICE::index_t;
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
@@ -56,7 +56,7 @@ namespace rl_tools::rl::environments::l2f{
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateAngularVelocityDelay<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateAngularVelocityDelay<STATE_SPEC>& next_state, RNG& rng) {
         using TI = typename DEVICE::index_t;
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
 
@@ -80,11 +80,11 @@ namespace rl_tools::rl::environments::l2f{
         }
     }
 //    template<typename DEVICE, typename SPEC, typename T, typename TI, typename NEXT_COMPONENT>
-//    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::StateRotors<STATE_SPEC>& state) {
+//    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, StateRotors<STATE_SPEC>& state) {
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateRotors<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateRotors<STATE_SPEC>& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateRotors<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateRotors<STATE_SPEC>& next_state, RNG& rng) {
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
-        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
+        using MULTIROTOR = Multirotor<SPEC>;
         using T = typename STATE_SPEC::T;
         for(typename DEVICE::index_t rpm_i = 0; rpm_i < MULTIROTOR::ACTION_DIM; rpm_i++){
             if constexpr(STATE_SPEC::CLOSED_FORM) {
@@ -99,7 +99,7 @@ namespace rl_tools::rl::environments::l2f{
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateRandomForce<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateRandomForce<STATE_SPEC>& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateRandomForce<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateRandomForce<STATE_SPEC>& next_state, RNG& rng) {
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
         next_state.force[0] = state.force[0];
         next_state.force[1] = state.force[1];
@@ -109,10 +109,10 @@ namespace rl_tools::rl::environments::l2f{
         next_state.torque[2] = state.torque[2];
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& next_state, RNG& rng) {
-        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateRotorsHistory<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateRotorsHistory<STATE_SPEC>& next_state, RNG& rng) {
+        using MULTIROTOR = Multirotor<SPEC>;
         using TI = typename DEVICE::index_t;
-        using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
+        using STATE = StateRotorsHistory<STATE_SPEC>;
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
         post_integration(device, env, parameters, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(next_state), rng);
         if constexpr(STATE_SPEC::HISTORY_LENGTH > 0){
@@ -121,6 +121,43 @@ namespace rl_tools::rl::environments::l2f{
                 next_state.action_history[current_step][action_i] = get(action, 0, action_i);
             }
             next_state.current_step = (state.current_step + 1) % STATE_SPEC::HISTORY_LENGTH;
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateTrajectory<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateTrajectory<STATE_SPEC>& next_state, RNG& rng) {
+        using MULTIROTOR = Multirotor<SPEC>;
+        using TI = typename DEVICE::index_t;
+        using T = typename STATE_SPEC::T;
+        using STATE = StateRotorsHistory<STATE_SPEC>;
+        using OPTS = typename PARAMETERS::TRAJECTORY_OPTIONS;
+        static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
+        post_integration(device, env, parameters, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(next_state), rng);
+        if constexpr(OPTS::LANGEVIN){
+            switch(state.trajectory.type){
+                case POSITION:
+                    break;
+                case LANGEVIN:
+                    const T gamma = parameters.trajectory.langevin.gamma;
+                    const T omega = parameters.trajectory.langevin.omega;
+                    const T sigma = parameters.trajectory.langevin.sigma;
+                    const T dt    = parameters.trajectory.langevin.dt;
+                    const T alpha = parameters.trajectory.langevin.alpha;
+
+                    const T sqrt_dt = math::sqrt(device.math, dt);
+                    for (TI dim_i = 0; dim_i < 3; ++dim_i){
+                        const T x_prev = state.trajectory.langevin.position[dim_i];
+                        const T v_prev = state.trajectory.langevin.velocity[dim_i];
+                        const T dW = sqrt_dt * random::normal_distribution::sample(device.random, T(0), T(1), rng);
+                        const T v_raw = v_prev + (-gamma * v_prev - omega * omega * x_prev) * dt + sigma * dW;
+                        const T v_next = alpha * v_raw + (T(1) - alpha) * v_prev;
+                        const T x_next = x_prev + v_next * dt;
+                        next_state.trajectory.langevin.position[dim_i] = x_next;
+                        next_state.trajectory.langevin.velocity[dim_i] = v_next;
+                    }
+                    break;
+                default:
+                    break;
+            }
         }
     }
 
