@@ -549,7 +549,9 @@ namespace rl_tools{
                 json_string += ", ";
                 json_string += "\"langevin\": {";
                 json_string += "\"position\": [" +  std::to_string(state.trajectory.langevin.position[0]) + ", " + std::to_string(state.trajectory.langevin.position[1]) + ", " + std::to_string(state.trajectory.langevin.position[2]) + "], ";
-                json_string += "\"velocity\": [" + std::to_string(state.trajectory.langevin.velocity[0]) + ", " + std::to_string(state.trajectory.langevin.velocity[1]) + ", " + std::to_string(state.trajectory.langevin.velocity[2]) + "]";
+                json_string += "\"velocity\": [" + std::to_string(state.trajectory.langevin.velocity[0]) + ", " + std::to_string(state.trajectory.langevin.velocity[1]) + ", " + std::to_string(state.trajectory.langevin.velocity[2]) + "], ";
+                json_string += "\"position_raw\": [" + std::to_string(state.trajectory.langevin.position_raw[0]) + ", " + std::to_string(state.trajectory.langevin.position_raw[1]) + ", " + std::to_string(state.trajectory.langevin.position_raw[2]) + "], ";
+                json_string += "\"velocity_raw\": [" + std::to_string(state.trajectory.langevin.velocity_raw[0]) + ", " + std::to_string(state.trajectory.langevin.velocity_raw[1]) + ", " + std::to_string(state.trajectory.langevin.velocity_raw[2]) + "]";
                 json_string += "}";
                 break;
             default:
@@ -810,6 +812,8 @@ namespace rl_tools{
             for (TI i = 0; i < 3; i++){
                 state.trajectory.langevin.position[i] = json_object["trajectory"]["langevin"]["position"][i];
                 state.trajectory.langevin.velocity[i] = json_object["trajectory"]["langevin"]["velocity"][i];
+                state.trajectory.langevin.position_raw[i] = json_object["trajectory"]["langevin"]["position_raw"][i];
+                state.trajectory.langevin.velocity_raw[i] = json_object["trajectory"]["langevin"]["velocity_raw"][i];
             }
         }
     }
