@@ -417,7 +417,7 @@ namespace rl_tools{
             get_desired_state(device, env, parameters, state, desired_state, rng);
             for(TI i = 0; i < 3; i++){
                 if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
-                    set(observation, 0, i, state.linear_velocity[i] - desired_state.velocity[i]);
+                    set(observation, 0, i, state.linear_velocity[i] - desired_state.linear_velocity[i]);
                 }
                 else{
                     T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.linear_velocity, rng);
