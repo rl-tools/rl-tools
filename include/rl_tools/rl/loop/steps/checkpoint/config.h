@@ -10,6 +10,7 @@ namespace rl_tools::rl::loop::steps::checkpoint{
     template <typename T, typename TI>
     struct Parameters{
         static constexpr TI CHECKPOINT_INTERVAL = 1000;
+        static constexpr TI TEST_INPUT_BATCH_SIZE = 13;
     };
     template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI>>
     struct Config: T_NEXT {

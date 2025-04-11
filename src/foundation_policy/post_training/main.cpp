@@ -80,6 +80,10 @@ using CRITIC_TEMP = CRITIC::CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAM
 using ACTOR_ORIG = LOOP_CONFIG::ACTOR_CRITIC_TYPE::SPEC::ACTOR_NETWORK_TYPE;
 using ACTOR_TEACHER = ACTOR_ORIG::CHANGE_BATCH_SIZE<TI, 32>::CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
 
+struct CHECKPOINT_PARAMETERS{
+    static constexpr TI TEST_INPUT_BATCH_SIZE = 2;
+};
+
 
 // note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
 
@@ -154,7 +158,8 @@ int main(int argc, char** argv){
     // checkpoint_path.experiment = "2025-04-01_13-43-13"; // good
     // checkpoint_path.experiment = "2025-04-03_21-30-10";
     // checkpoint_path.experiment = "2025-04-04_17-00-11";
-    checkpoint_path.experiment = "2025-04-07_23-12-07";
+    // checkpoint_path.experiment = "2025-04-07_23-12-07";
+    checkpoint_path.experiment = "2025-04-08_23-23-52";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
@@ -187,7 +192,7 @@ int main(int argc, char** argv){
         auto cpp_copy = checkpoint_path;
         cpp_copy.attributes["dynamics-id"] = checkpoint_info_split[0]; // take from the end because we order by performance and the best are at the end
         cpp_copy.step = checkpoint_info_split[1];
-        rlt::find_latest_run(device, "experiments", cpp_copy);
+        rlt::find_latest_run(device, "1k-experiments", cpp_copy);
         auto actor_file = HighFive::File(cpp_copy.checkpoint_path.string(), HighFive::File::ReadOnly);
         rlt::load(device, actor_teacher[teacher_i], actor_file.getGroup("actor"));
 
@@ -369,7 +374,7 @@ int main(int argc, char** argv){
         if (!std::filesystem::exists(target_path)){
             std::filesystem::create_directories(target_path);
         }
-        rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, target_path.string(), actor, rng);
+        rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT, CHECKPOINT_PARAMETERS>(device, target_path.string(), actor, rng);
         {
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_EVAL>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
@@ -400,7 +405,7 @@ int main(int argc, char** argv){
         }
     }
 
-    rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, run_path.string(), best_actor, rng);
+    rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT, CHECKPOINT_PARAMETERS>(device, run_path.string(), best_actor, rng);
     // malloc
     rlt::free(device, rng);
     rlt::free(device, actor_optimizer);

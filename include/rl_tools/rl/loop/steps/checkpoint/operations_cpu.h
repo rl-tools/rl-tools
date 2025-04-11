@@ -116,11 +116,11 @@ namespace rl_tools{
             }
 
         }
-        template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename DEVICE, typename ACTOR, typename RNG>
+        template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename CHECKPOINT_PARAMETERS, typename DEVICE, typename ACTOR, typename RNG>
         void save(DEVICE& device, const std::string step_folder, ACTOR& actor, RNG& rng){
             using TI = typename DEVICE::index_t;
             std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.h5";
-            static constexpr TI BATCH_SIZE = 13;
+            static constexpr TI BATCH_SIZE = CHECKPOINT_PARAMETERS::TEST_INPUT_BATCH_SIZE;
             using INPUT_SHAPE = tensor::Replace<typename ACTOR::INPUT_SHAPE, BATCH_SIZE, 1>;
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<DYNAMIC_ALLOCATION>>;
@@ -176,7 +176,7 @@ namespace rl_tools{
             ts.checkpoint_this_step = false;
             auto step_folder = get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
             auto& actor = get_actor(ts);
-            rl::loop::steps::checkpoint::save<CONFIG::DYNAMIC_ALLOCATION, typename CONFIG::ENVIRONMENT>(device, step_folder, actor, ts.rng_checkpoint);
+            rl::loop::steps::checkpoint::save<CONFIG::DYNAMIC_ALLOCATION, typename CONFIG::ENVIRONMENT, typename CONFIG::CHECKPOINT_PARAMETERS>(device, step_folder, actor, ts.rng_checkpoint);
         }
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         return finished;
