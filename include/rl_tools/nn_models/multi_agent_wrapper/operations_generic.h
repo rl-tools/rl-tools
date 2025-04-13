@@ -19,13 +19,17 @@ namespace rl_tools{
     void malloc(DEVICE& device, nn_models::multi_agent_wrapper::ModuleState<STATE_SPEC>& state){
         malloc(device, state.inner_state);
     }
-    template <typename DEVICE, typename STATE_SPEC>
-    void free(DEVICE& device, nn_models::multi_agent_wrapper::ModuleState<STATE_SPEC>& state){
-        free(device, state.inner_state);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::multi_agent_wrapper::ModuleState<SOURCE_SPEC>& source, nn_models::multi_agent_wrapper::ModuleState<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.inner_state, target.inner_state);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
     void reset(DEVICE& device, const nn_models::multi_agent_wrapper::ModuleForward<MODULE_SPEC>& model, nn_models::multi_agent_wrapper::ModuleState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         reset(device, model.content, state.inner_state, rng, mode);
+    }
+    template <typename DEVICE, typename STATE_SPEC>
+    void free(DEVICE& device, nn_models::multi_agent_wrapper::ModuleState<STATE_SPEC>& state){
+        free(device, state.inner_state);
     }
     template <typename DEVICE, typename BUFFER_SPEC>
     void malloc(DEVICE& device, nn_models::multi_agent_wrapper::ModuleBuffer<BUFFER_SPEC>& buffer){

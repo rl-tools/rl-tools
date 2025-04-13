@@ -41,6 +41,8 @@ namespace rl_tools{
     }
     template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::embedding::State& state) { } // no-op
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::embedding::State& source, nn::layers::embedding::State& target){}
     template<typename DEVICE, typename SPEC, typename RNG, typename MODE>
     void reset(DEVICE& device, const nn::layers::embedding::LayerForward<SPEC>& layer, nn::layers::embedding::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
     template<typename DEVICE>

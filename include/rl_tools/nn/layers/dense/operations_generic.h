@@ -45,6 +45,8 @@ namespace rl_tools{
     }
     template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::dense::State& state) { } // no-op
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::dense::State& source, nn::layers::dense::State& target){}
     template<typename SPEC, typename DEVICE, typename RNG, typename MODE>
     void reset(DEVICE& device, const nn::layers::dense::LayerForward<SPEC>& layer, nn::layers::dense::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
     template<typename DEVICE>

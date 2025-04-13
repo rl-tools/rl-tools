@@ -82,6 +82,12 @@ namespace rl_tools{
 
     template <typename DEVICE, typename SPEC, typename POLICY, typename OBS_SPEC, typename ACTION_SPEC, typename RNG>
     inference::executor::Status<SPEC> control(DEVICE&device, inference::Executor<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, Tensor<OBS_SPEC>& observation, Tensor<ACTION_SPEC>& action, RNG& rng){
+        static_assert(OBS_SPEC::SHAPE::LENGTH == 2);
+        static_assert(OBS_SPEC::SHAPE::FIRST == 1);
+        static_assert(OBS_SPEC::SHAPE::LAST == SPEC::INPUT_DIM);
+        static_assert(ACTION_SPEC::SHAPE::LENGTH == 2);
+        static_assert(ACTION_SPEC::SHAPE::FIRST == 1);
+        static_assert(ACTION_SPEC::SHAPE::LAST == SPEC::OUTPUT_DIM);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using TIMESTAMP = typename SPEC::TIMESTAMP;
@@ -122,7 +128,7 @@ namespace rl_tools{
         TIMESTAMP time_diff_control = nanoseconds - executor.last_control_timestamp;
 
         inference::executor::Status<SPEC> status = {};
-        status.ok = true;
+        status.OK = true;
         status.source = inference::executor::Status<SPEC>::OBSERVATION;
         if(executor.last_control_timestamp > executor.last_observation_timestamp){
             status.OK = false;
@@ -137,10 +143,11 @@ namespace rl_tools{
             // otherwise weighted average of the intermediate observations
             T obs_weight = (T)time_diff_obs / (T)time_diff_control;
             T prev_obs_weight = (T)time_diff_previous_obs / (T)time_diff_control;
-            multiply_all(device, executor.observation, prev_obs_weight);
-            for (TI obs_i = 0; obs_i < OBS_SPEC::COLS; obs_i++){
-                T new_value = get(observation, 0, obs_i);
-                increment(executor.observation, 0, obs_i, new_value * obs_weight);
+            scale(device, executor.observation, prev_obs_weight);
+            for (TI obs_i = 0; obs_i < OBS_SPEC::SHAPE::LAST; obs_i++){
+                T new_value = get(device, observation, 0, obs_i);
+                T prev = get(device, executor.observation, 0, obs_i);
+                set(device, executor.observation, prev + new_value * obs_weight, 0, obs_i);
             }
         }
         executor.last_observation_timestamp = nanoseconds;
@@ -169,15 +176,15 @@ namespace rl_tools{
                 status.step_type = inference::executor::Status<SPEC>::ORIGINAL;
                 status.timing_jitter = inference::executor::timing_jitter_status<true>(device, executor);
                 status.timing_bias = inference::executor::timing_bias_status<true>(device, executor);
-                status.OK == status.OK && status.timing_jitter.OK && status.timing_bias.OK;
+                status.OK = status.OK && status.timing_jitter.OK && status.timing_bias.OK;
             }
             else{
                 copy(device, device, executor.policy_state, executor.policy_state_temp);
-                evaluate_step(device, policy, observation, executor.policy_state_temp, action, executor.buffers, rng, mode);
+                evaluate_step(device, policy, observation, executor.policy_state_temp, action, executor.policy_buffer, rng, mode);
                 status.step_type = inference::executor::Status<SPEC>::INFERENCE;
                 status.timing_jitter = inference::executor::timing_jitter_status<false>(device, executor);
                 status.timing_bias = inference::executor::timing_bias_status<false>(device, executor);
-                status.OK == status.OK && status.timing_jitter.OK && status.timing_bias.OK;
+                status.OK = status.OK && status.timing_jitter.OK && status.timing_bias.OK;
             }
         }
         return status;

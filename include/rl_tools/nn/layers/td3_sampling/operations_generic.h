@@ -45,6 +45,8 @@ namespace rl_tools{
     }
     template<typename DEVICE>
     void malloc(DEVICE& device, nn::layers::td3_sampling::State& state) { } // no-op
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::td3_sampling::State& source, nn::layers::td3_sampling::State& target){}
     template<typename DEVICE, typename SPEC, typename RNG, typename MODE>
     void reset(DEVICE& device, const nn::layers::td3_sampling::LayerForward<SPEC>& layer, nn::layers::td3_sampling::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
     template<typename DEVICE>
