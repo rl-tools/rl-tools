@@ -1,0 +1,3 @@
+add_executable(test_inference_executor test_inference_executor.cpp)
+target_link_libraries(test_inference_executor PRIVATE rl_tools rl_tools_test)
+gtest_discover_tests(test_inference_executor)
