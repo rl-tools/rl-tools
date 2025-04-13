@@ -67,6 +67,11 @@ namespace rl_tools{
         malloc(device, state.state);
         malloc(device, state.step);
     }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::gru::State<SOURCE_SPEC>& source, nn::layers::gru::State<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.state, target.state);
+        copy(source_device, target_device, source.step, target.step);
+    }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
     void reset_truncate(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;

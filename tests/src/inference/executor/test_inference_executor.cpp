@@ -4,12 +4,7 @@
 #include <rl_tools/operations/cpu.h>
 
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
-#ifndef RL_TOOLS_WASM
-#include <rl_tools/nn/layers/dense/operations_arm/opt.h>
-// #include <rl_tools/nn/layers/dense/operations_generic.h>
-#else
 #include <rl_tools/nn/layers/dense/operations_generic.h>
-#endif
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
@@ -58,41 +53,38 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     rlt::malloc(device, executor);
     rlt::reset(device, executor, policy, rng);
 
-    // RLtoolsAction action;
+    rlt::inference::applications::l2f::Action<SPEC> action;
     // float test_result = rl_tools_test(&action);
     // std::cout << "test: " << test_result << std::endl;
     // for(uint i = 0; i < OUTPUT_DIM; i++){
     //     std::cout << "action[" << i << "] = " << action.action[i] << std::endl;
     // }
-    // RLtoolsObservation observation;
-    // observation.position[0] = 0.0f;
-    // observation.position[1] = 0.0f;
-    // observation.position[2] = 0.0f;
-    // observation.orientation[0] = 1.0f;
-    // observation.orientation[1] = 0.0f;
-    // observation.orientation[2] = 0.0f;
-    // observation.orientation[3] = 0.0f;
-    // observation.linear_velocity[0] = 0.0f;
-    // observation.linear_velocity[1] = 0.0f;
-    // observation.linear_velocity[2] = 0.0f;
-    // observation.angular_velocity[0] = 0.0f;
-    // observation.angular_velocity[1] = 0.0f;
-    // observation.angular_velocity[2] = 0.0f;
-    // for(uint j = 0; j < OUTPUT_DIM; j++){
-    //     observation.previous_action[j] = 0.0f;
-    // }
-    // std::default_random_engine rng;
-    // RLtoolsStatus status;
-    // for(uint64_t timestamp=0; timestamp < 10000000;){
-    //     status = rl_tools_control(timestamp, &observation, &action);
-    //     if(status != RL_TOOLS_STATUS_OK){
-    //
-    //     }
-    //     std::cout << timestamp << " status: " << rl_tools_get_status_message(status) << std::endl;
-    //     for(uint i = 0; i < OUTPUT_DIM; i++){
-    //         std::cout << "action[" << i << "] = " << action.action[i] << std::endl;
-    //     }
-    //     timestamp += 2000; //std::uniform_int_distribution<uint>(500, 5000)(rng);
-    // }
-    // return 0;
+    rlt::inference::applications::l2f::Observation<SPEC> observation;
+    observation.position[0] = 0.0f;
+    observation.position[1] = 0.0f;
+    observation.position[2] = 0.0f;
+    observation.orientation[0] = 1.0f;
+    observation.orientation[1] = 0.0f;
+    observation.orientation[2] = 0.0f;
+    observation.orientation[3] = 0.0f;
+    observation.linear_velocity[0] = 0.0f;
+    observation.linear_velocity[1] = 0.0f;
+    observation.linear_velocity[2] = 0.0f;
+    observation.angular_velocity[0] = 0.0f;
+    observation.angular_velocity[1] = 0.0f;
+    observation.angular_velocity[2] = 0.0f;
+    for(uint j = 0; j < OUTPUT_DIM; j++){
+        observation.previous_action[j] = 0.0f;
+    }
+    for(uint64_t timestamp=0; timestamp < 10000000;){
+        auto status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
+        if(!status.OK){
+            std::cerr << timestamp << " status: " << std::endl;
+        }
+        // std::cout << timestamp << " status: " << rl_tools_get_status_message(status) << std::endl;
+        for(uint i = 0; i < OUTPUT_DIM; i++){
+            std::cout << "action[" << i << "] = " << action.action[i] << std::endl;
+        }
+        timestamp += 2000; //std::uniform_int_distribution<uint>(500, 5000)(rng);
+    }
 }

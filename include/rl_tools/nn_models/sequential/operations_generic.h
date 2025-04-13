@@ -63,6 +63,10 @@ namespace rl_tools{
     void reset(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, nn_models::sequential::ModuleState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         reset(device, model, state.content_state, rng, mode);
     }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ModuleState<SOURCE_SPEC>& source, nn_models::sequential::ModuleState<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.content_state, target.content_state);
+    }
     template <typename DEVICE, typename STATE_SPEC>
     void free(DEVICE& device, nn_models::sequential::ModuleState<STATE_SPEC>& state){
         free(device, state.content_state);

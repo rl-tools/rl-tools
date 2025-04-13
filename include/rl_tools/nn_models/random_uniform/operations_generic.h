@@ -12,6 +12,8 @@ namespace rl_tools{
     void free(const DEVICE& device, nn_models::RandomUniform<SPEC>){ }
     template <typename DEVICE>
     void malloc(const DEVICE& device, nn_models::random_uniform::State){ }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::random_uniform::State& source, nn_models::random_uniform::State& target){}
     template <typename DEVICE>
     void free(const DEVICE& device, nn_models::random_uniform::State){ }
     template <typename DEVICE>

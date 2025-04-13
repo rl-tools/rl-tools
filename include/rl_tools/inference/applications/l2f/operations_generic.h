@@ -68,7 +68,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    inference::executor::Status<SPEC> control(DEVICE& device, inference::applications::L2F<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, inference::applications::l2f::Observation<SPEC>& observation, inference::applications::l2f::Action<SPEC>& action, RNG& rng){
+    auto control(DEVICE& device, inference::applications::L2F<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, inference::applications::l2f::Observation<SPEC>& observation, inference::applications::l2f::Action<SPEC>& action, RNG& rng){
         using TI = typename SPEC::TI;
         if(executor.steps_since_original_control_step == 0){
             for(TI action_i = 0; action_i < SPEC::OUTPUT_DIM; action_i++){
@@ -81,11 +81,14 @@ namespace rl_tools{
             }
         }
         inference::applications::l2f::observe(device, executor, observation, executor.input);
-        auto status = control(device, executor.executor, nanoseconds, policy, executor.input, action, rng);
+        auto status = control(device, executor.executor, nanoseconds, policy, executor.input, executor.output, rng);
+        for (TI output_i=0; output_i < SPEC::OUTPUT_DIM; output_i++){
+            action.action[output_i] = get(device, executor.output, 0, output_i);
+        }
 
         executor.steps_since_original_control_step++; // gets overwritten with 0 in the case of an original control step
-        if(status.source == inference::executor::Status<SPEC>::CONTROL){
-            if(status.step_type == inference::executor::Status<SPEC>::ORIGINAL){
+        if(status.source == decltype(status.source)::CONTROL){
+            if(status.step_type == decltype(status.step_type)::ORIGINAL){
                 // step action history
                 static_assert(SPEC::ACTION_HISTORY_LENGTH >= 1);
                 for(TI step_i = SPEC::ACTION_HISTORY_LENGTH-1; step_i > 0; step_i--){
@@ -96,6 +99,7 @@ namespace rl_tools{
                 executor.steps_since_original_control_step = 0;
             }
         }
+        return status;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

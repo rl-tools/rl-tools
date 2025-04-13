@@ -22,6 +22,8 @@ namespace rl_tools{
                 static constexpr T TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
                 static constexpr T TIMING_BIAS_HIGH_THRESHOLD = 1.2;
                 static constexpr T TIMING_BIAS_LOW_THRESHOLD = 0.8;
+                static constexpr TI INPUT_DIM = POLICY::INPUT_SHAPE::LAST;
+                static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
             };
             template <typename T_SPEC>
             struct JitterStatus{
@@ -55,8 +57,8 @@ namespace rl_tools{
                     ORIGINAL
                 };
                 StepType step_type;
-                JitterStatus<SPEC> jitter;
-                BiasStatus<SPEC> bias;
+                JitterStatus<SPEC> timing_jitter;
+                BiasStatus<SPEC> timing_bias;
             };
         }
         template <typename T_SPEC>
@@ -74,8 +76,7 @@ namespace rl_tools{
             TIMESTAMP control_original_dt[SPEC::TIMING_STATS_NUM_STEPS];
             TIMESTAMP control_original_dt_index = 0;
 
-            static constexpr TI INPUT_DIM = SPEC::POLICY::INPUT_SHAPE::LAST;
-            Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1, INPUT_DIM>, DYNAMIC_ALLOCATION>> observation;
+            Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1, SPEC::INPUT_DIM>, DYNAMIC_ALLOCATION>> observation;
             typename POLICY::template State<DYNAMIC_ALLOCATION> policy_state, policy_state_temp;
             typename POLICY::template Buffer<DYNAMIC_ALLOCATION> policy_buffer;
         };
