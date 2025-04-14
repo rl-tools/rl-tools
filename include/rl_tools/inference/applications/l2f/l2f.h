@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_INFERENCE_APPLICATIONS_L2F_L2F_H
 
+#include "../../executor/executor.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::inference::applications{
     namespace l2f{
