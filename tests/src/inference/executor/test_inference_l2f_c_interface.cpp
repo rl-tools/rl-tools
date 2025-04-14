@@ -3,8 +3,12 @@
 #include <gtest/gtest.h>
 
 TEST(RL_TOOLS_INFERENCE_APPLICATIONS_L2F, MAIN){
-    rl_tools_inference_applications_l2f_init();
     RLtoolsInferenceApplicationL2FObservation observation;
+    RLtoolsInferenceApplicationL2FAction action;
+
+    rl_tools_inference_applications_l2f_init();
+    float diff = rl_tools_inference_applications_l2f_test(&action);
+    std::cout << "test: " << diff << std::endl;
     observation.position[0] = 0.0f;
     observation.position[1] = 0.0f;
     observation.position[2] = 0.0f;
@@ -18,10 +22,18 @@ TEST(RL_TOOLS_INFERENCE_APPLICATIONS_L2F, MAIN){
     observation.angular_velocity[0] = 0.0f;
     observation.angular_velocity[1] = 0.0f;
     observation.angular_velocity[2] = 0.0f;
-    for(uint j = 0; j < OUTPUT_DIM; j++){
+    for(TI j = 0; j < OUTPUT_DIM; j++){
         observation.previous_action[j] = 0.0f;
     }
     RLtoolsInferenceTimestamp timestamp = 0;
-    RLtoolsInferenceApplicationL2FAction action;
-    rl_tools_inference_applications_l2f_control(timestamp, &observation, &action);
+    char message[256];
+    for (int step_i=0; step_i < 10000; step_i++){
+        auto status = rl_tools_inference_applications_l2f_control(timestamp, &observation, &action);
+        rl_tools_inference_executor_status_message(status, message, sizeof(message));
+        std::cout << "status message: " << message << std::endl;
+        if (status.source == RLtoolsInferenceExecutorStatus::CONTROL && status.step_type == RLtoolsInferenceExecutorStatus::NATIVE){
+            std::cout << "Native bias: " << status.timing_bias.MAGNITUDE << std::endl;
+        }
+        timestamp += 1100 * 1000;
+    }
 }

@@ -1,11 +1,7 @@
 #ifndef RL_TOOLS_INFERENCE_APPLICATIONS_L2F_C_INTERFACE_H
 #define RL_TOOLS_INFERENCE_APPLICATIONS_L2F_C_INTERFACE_H
 
-#if defined(__cplusplus)
-#include <cstdint>
-#else
 #include <stdint.h>
-#endif
 
 #include "../../executor/c_interface.h"
 #define RL_TOOLS_INTERFACE_APPLICATIONS_L2F_ACTION_DIM 4
