@@ -77,6 +77,7 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
 }
 
 RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationsL2FObservation* c_observation, RLtoolsInferenceApplicationsL2FAction* c_action){
+    static_assert(RL_TOOLS_INTERFACE_APPLICATIONS_L2F_ACTION_DIM == OUTPUT_DIM);
     rl_tools::inference::applications::l2f::Observation<SPEC> observation;
     for (TI dim_i = 0; dim_i < 3; dim_i++){
         observation.position[dim_i] = c_observation->position[dim_i];
@@ -85,8 +86,10 @@ RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoo
         observation.angular_velocity[dim_i] = c_observation->angular_velocity[dim_i];
     }
     observation.orientation[3] = c_observation->orientation[3];
+    for (TI action_i=0; action_i < OUTPUT_DIM; action_i++){
+        observation.previous_action[action_i] = c_observation->previous_action[action_i];
+    }
     rl_tools::inference::applications::l2f::Action<SPEC> action;
-    static_assert(RL_TOOLS_INTERFACE_APPLICATIONS_L2F_ACTION_DIM == OUTPUT_DIM);
     auto status = rl_tools::control(device, executor, nanoseconds, rl_tools_inference_applications_l2f_policy, observation, action, rng);
     for (TI action_i=0; action_i < OUTPUT_DIM; action_i++){
         c_action->action[action_i] = action.action[action_i];
