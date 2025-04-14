@@ -94,7 +94,7 @@ const char* rl_tools_inference_applications_l2f_checkpoint_name(){
     return (char*)rlt::checkpoint::meta::name;
 }
 
-float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationL2FAction* p_output){
+float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAction* p_output){
 #ifndef RL_TOOLS_DISABLE_TEST
     rlt::Mode<rlt::mode::Evaluation<>> mode;
     float acc = 0;
@@ -124,7 +124,7 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationL2FAct
 #endif
 }
 
-RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationL2FObservation* c_observation, RLtoolsInferenceApplicationL2FAction* c_action){
+RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationsL2FObservation* c_observation, RLtoolsInferenceApplicationsL2FAction* c_action){
     rlt::inference::applications::l2f::Observation<SPEC> observation;
     for (TI dim_i = 0; dim_i < 3; dim_i++){
         observation.position[dim_i] = c_observation->position[dim_i];

@@ -3,8 +3,8 @@
 #include <gtest/gtest.h>
 
 TEST(RL_TOOLS_INFERENCE_APPLICATIONS_L2F, MAIN){
-    RLtoolsInferenceApplicationL2FObservation observation;
-    RLtoolsInferenceApplicationL2FAction action;
+    RLtoolsInferenceApplicationsL2FObservation observation;
+    RLtoolsInferenceApplicationsL2FAction action;
 
     rl_tools_inference_applications_l2f_init();
     float diff = rl_tools_inference_applications_l2f_test(&action);
@@ -31,7 +31,7 @@ TEST(RL_TOOLS_INFERENCE_APPLICATIONS_L2F, MAIN){
         auto status = rl_tools_inference_applications_l2f_control(timestamp, &observation, &action);
         rl_tools_inference_executor_status_message(status, message, sizeof(message));
         std::cout << "status message: " << message << std::endl;
-        if (status.source == RLtoolsInferenceExecutorStatus::CONTROL && status.step_type == RLtoolsInferenceExecutorStatus::NATIVE){
+        if (status.source == RL_TOOLS_INFERENCE_EXECUTOR_STATUS_SOURCE_CONTROL && status.step_type == RL_TOOLS_INFERENCE_EXECUTOR_STATUS_STEP_TYPE_NATIVE){
             std::cout << "Native bias: " << status.timing_bias.MAGNITUDE << std::endl;
         }
         timestamp += 1100 * 1000;
