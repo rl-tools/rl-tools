@@ -64,7 +64,7 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
                 acc += rl_tools::math::abs(device.math, rl_tools::get(device, output, 0, action_i) - rl_tools::get(device, rl_tools::checkpoint::example::output::container, step_i, batch_i, action_i));
                 num_values += 1;
                 rl_tools::utils::assert_exit(device, !rl_tools::math::is_nan(device.math, acc), "output is nan");
-                if(batch_i == 0 && step_i == TEST_SEQUENCE_LENGTH-1){
+                if(batch_i == 0 && step_i == TEST_SEQUENCE_LENGTH_ACTUAL-1){
                     p_output->action[action_i] = rl_tools::get(device, output, 0, action_i);
                 }
             }
