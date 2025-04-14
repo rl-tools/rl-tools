@@ -59,7 +59,7 @@ static constexpr TI OUTPUT_DIM = rlt::get_last(ACTOR_TYPE::OUTPUT_SHAPE{});
 static_assert(OUTPUT_DIM == 4);
 static_assert(INPUT_DIM == (18 + ACTION_HISTORY_LENGTH * OUTPUT_DIM));
 constexpr TI TIMING_STATS_NUM_STEPS = 100;
-static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
+static constexpr bool FORCE_SYNC_INTERMEDIATE = false;
 static constexpr TI FORCE_SYNC_NATIVE = 0;
 static constexpr bool DYNAMIC_ALLOCATION = false;
 using SPEC = rlt::inference::applications::l2f::Specification<T, TI, RLtoolsInferenceTimestamp, ACTION_HISTORY_LENGTH, OUTPUT_DIM, ACTOR_TYPE, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
@@ -135,9 +135,9 @@ RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoo
     observation.orientation[3] = c_observation->orientation[3];
     rlt::inference::applications::l2f::Action<SPEC> action;
     static_assert(RL_TOOLS_INTERFACE_APPLICATIONS_L2F_ACTION_DIM == OUTPUT_DIM);
-    for (TI action_i=0; action_i < OUTPUT_DIM; action_i++){
-        action.action[action_i] = c_action->action[action_i];
-    }
     auto status = rlt::control(device, executor, nanoseconds, policy, observation, action, rng);
+    for (TI action_i=0; action_i < OUTPUT_DIM; action_i++){
+        c_action->action[action_i] = action.action[action_i];
+    }
     return rlt::convert(status);
 }
