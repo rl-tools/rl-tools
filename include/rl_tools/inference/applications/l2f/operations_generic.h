@@ -88,7 +88,7 @@ namespace rl_tools{
 
         executor.steps_since_original_control_step++; // gets overwritten with 0 in the case of an original control step
         if(status.source == decltype(status.source)::CONTROL){
-            if(status.step_type == decltype(status.step_type)::ORIGINAL){
+            if(status.step_type == decltype(status.step_type)::NATIVE){
                 // step action history
                 static_assert(SPEC::ACTION_HISTORY_LENGTH >= 1);
                 for(TI step_i = SPEC::ACTION_HISTORY_LENGTH-1; step_i > 0; step_i--){

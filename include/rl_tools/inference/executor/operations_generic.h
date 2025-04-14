@@ -44,7 +44,7 @@ namespace rl_tools{
             }
             for(TI i = 0; i < SPEC::TIMING_STATS_NUM_STEPS; i++){
                 auto value = ORIGINAL ? executor.control_original_dt[i] : executor.control_dt[i];
-                auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_TRAINING_NS : SPEC::CONTROL_INTERVAL_INFERENCE_NS;
+                auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
                 if(value > expected * SPEC::TIMING_JITTER_HIGH_THRESHOLD_NS || value < expected * SPEC::TIMING_JITTER_LOW_THRESHOLD_NS){
                     T magnitude = (value / (T)expected - 1) * 100;
                     result.OK = false;
@@ -70,7 +70,7 @@ namespace rl_tools{
             }
             bias /= SPEC::TIMING_STATS_NUM_STEPS;
 
-            auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_TRAINING_NS : SPEC::CONTROL_INTERVAL_INFERENCE_NS;
+            auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
             if(bias > expected * SPEC::TIMING_BIAS_HIGH_THRESHOLD || bias < expected * SPEC::TIMING_BIAS_LOW_THRESHOLD){
                 T magnitude = (bias / (T)expected - 1) * 100;
                 result.OK = false;
@@ -151,7 +151,10 @@ namespace rl_tools{
             }
         }
         executor.last_observation_timestamp = nanoseconds;
-        if(time_diff_control >= SPEC::CONTROL_INTERVAL_INFERENCE_NS || reset){
+        status.control_reasons_intermediate.time_diff = time_diff_control >= SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
+        status.control_reasons_intermediate.force_sync = SPEC::FORCE_SYNC;
+        status.control_reasons_intermediate.reset = reset;
+        if(status.control_reasons_intermediate.time_diff || status.control_reasons_intermediate.force_sync || status.control_reasons_intermediate.reset){
             // if it is time to control according to the inference frequency
             status.source = inference::executor::Status<SPEC>::CONTROL;
             if(!reset){ // if the control is due to a reset, we can/shall not rely on time_diff_control
@@ -164,16 +167,19 @@ namespace rl_tools{
                 executor.last_control_timestamp_original_set = true;
             }
             TIMESTAMP time_diff_control_original = nanoseconds - executor.last_control_timestamp_original;
-            bool real_control_step = (time_diff_control_original >= SPEC::CONTROL_INTERVAL_TRAINING_NS) || reset;
 
+
+            status.control_reasons_native.time_diff = time_diff_control_original >= SPEC::CONTROL_INTERVAL_NATIVE_NS;
+            status.control_reasons_native.force_sync = SPEC::FORCE_SYNC;
+            status.control_reasons_native.reset = reset;
             Mode<mode::Evaluation<>> mode;
-            if(real_control_step){
+            if(status.control_reasons_native.time_diff || status.control_reasons_native.force_sync || status.control_reasons_native.reset){
                 evaluate_step(device, policy, observation, executor.policy_state, action, executor.policy_buffer, rng, mode);
                 executor.last_control_timestamp_original = nanoseconds;
                 if(!reset){
                     executor.control_original_dt[executor.control_original_dt_index++ % SPEC::TIMING_STATS_NUM_STEPS] = time_diff_control_original;
                 }
-                status.step_type = inference::executor::Status<SPEC>::ORIGINAL;
+                status.step_type = inference::executor::Status<SPEC>::NATIVE;
                 status.timing_jitter = inference::executor::timing_jitter_status<true>(device, executor);
                 status.timing_bias = inference::executor::timing_bias_status<true>(device, executor);
                 status.OK = status.OK && status.timing_jitter.OK && status.timing_bias.OK;
@@ -181,7 +187,7 @@ namespace rl_tools{
             else{
                 copy(device, device, executor.policy_state, executor.policy_state_temp);
                 evaluate_step(device, policy, observation, executor.policy_state_temp, action, executor.policy_buffer, rng, mode);
-                status.step_type = inference::executor::Status<SPEC>::INFERENCE;
+                status.step_type = inference::executor::Status<SPEC>::INTERMEDIATE;
                 status.timing_jitter = inference::executor::timing_jitter_status<false>(device, executor);
                 status.timing_bias = inference::executor::timing_bias_status<false>(device, executor);
                 status.OK = status.OK && status.timing_jitter.OK && status.timing_bias.OK;

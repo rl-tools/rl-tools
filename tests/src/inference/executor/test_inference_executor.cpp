@@ -80,42 +80,45 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     TIMESTAMP timestamp = 0;
     auto status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::CONTROL);
-    ASSERT_EQ(status.step_type, decltype(status.step_type)::ORIGINAL);
+    ASSERT_EQ(status.step_type, decltype(status.step_type)::NATIVE);
     timestamp += 1000 * 1000; // 1
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::OBSERVATION);
-    timestamp += 1000 * 1000;
+    timestamp += 1000 * 1000; // 2
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::OBSERVATION);
-    timestamp += 1000 * 1000;
+    timestamp += 1000 * 1000; // 3
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::CONTROL);
-    ASSERT_EQ(status.step_type, decltype(status.step_type)::INFERENCE);
-    timestamp += 1000 * 1000;
+    ASSERT_EQ(status.step_type, decltype(status.step_type)::INTERMEDIATE);
+    timestamp += 1000 * 1000; // 4
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::OBSERVATION);
-    timestamp += 1000 * 1000;
+    timestamp += 1000 * 1000; // 5
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::OBSERVATION);
-    timestamp += 1000 * 1000;
+    timestamp += 1000 * 1000; // 6
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::CONTROL);
-    ASSERT_EQ(status.step_type, decltype(status.step_type)::INFERENCE);
-    timestamp += 1000 * 1000;
+    ASSERT_EQ(status.step_type, decltype(status.step_type)::INTERMEDIATE);
+    timestamp += 1000 * 1000; // 7
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::OBSERVATION);
-    timestamp += 1000 * 1000;
+    timestamp += 1000 * 1000; // 8
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::OBSERVATION);
-    timestamp += 1000 * 1000;
+    timestamp += 1000 * 1000; // 9
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::CONTROL);
-    ASSERT_EQ(status.step_type, decltype(status.step_type)::INFERENCE);
-    timestamp += 1000 * 1000;
+    ASSERT_EQ(status.step_type, decltype(status.step_type)::INTERMEDIATE);
+    timestamp += 1000 * 1000; // 10
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::OBSERVATION);
-    timestamp += 1000 * 1000;
+    timestamp += 1000 * 1000; // 11
+    status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
+    ASSERT_EQ(status.source, decltype(status.source)::OBSERVATION);
+    timestamp += 1000 * 1000; // 12
     status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
     ASSERT_EQ(status.source, decltype(status.source)::CONTROL);
-    ASSERT_EQ(status.step_type, decltype(status.step_type)::ORIGINAL);
+    ASSERT_EQ(status.step_type, decltype(status.step_type)::NATIVE);
 }
