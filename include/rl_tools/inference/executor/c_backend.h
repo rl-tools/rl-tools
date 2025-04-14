@@ -1,8 +1,4 @@
-#ifdef __cplusplus
-#include <cstdio>
-#else
 #include <stdio.h>
-#endif
 #include "executor.h"
 
 
@@ -65,13 +61,13 @@ void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus s
                 if(!status.timing_jitter.OK){
                     append(target, target_size, " JITTER ", position);
                     char buffer[50];
-                    snprintf(buffer, 50, "%.2f%%", status.timing_jitter.MAGNITUDE);
+                    snprintf(buffer, 50, "%.2fx EXPECTED", status.timing_jitter.MAGNITUDE);
                     append(target, target_size, buffer, position);
                 }
                 if(!status.timing_bias.OK){
                     append(target, target_size, " BIAS ", position);
                     char buffer[50];
-                    snprintf(buffer, 50, "%.2f%%", status.timing_bias.MAGNITUDE);
+                    snprintf(buffer, 50, "%.2fx EXPECTED", status.timing_bias.MAGNITUDE);
                     append(target, target_size, buffer, position);
                 }
             }

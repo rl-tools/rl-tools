@@ -39,6 +39,7 @@ namespace rl_tools{
             using TI = typename SPEC::TI;
             JitterStatus<SPEC> result;
             result.OK = true;
+            result.MAGNITUDE = 0;
             if((ORIGINAL ? executor.control_original_dt_index : executor.control_dt_index) < SPEC::TIMING_STATS_NUM_STEPS){
                 return result;
             }
@@ -61,6 +62,7 @@ namespace rl_tools{
             using TI = typename SPEC::TI;
             BiasStatus<SPEC> result;
             result.OK = true;
+            result.MAGNITUDE = 0;
             if((ORIGINAL ? executor.control_original_dt_index : executor.control_dt_index) < SPEC::TIMING_STATS_NUM_STEPS){
                 return result;
             }
@@ -71,10 +73,10 @@ namespace rl_tools{
             bias /= SPEC::TIMING_STATS_NUM_STEPS;
 
             auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
+            T magnitude = bias / (T)expected;
+            result.MAGNITUDE = magnitude;
             if(bias > expected * SPEC::TIMING_BIAS_HIGH_THRESHOLD || bias < expected * SPEC::TIMING_BIAS_LOW_THRESHOLD){
-                T magnitude = bias / (T)expected;
                 result.OK = false;
-                result.MAGNITUDE = magnitude;
             }
             return result;
         }
