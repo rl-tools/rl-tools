@@ -52,14 +52,14 @@ using ACTOR_TYPE_TEST = rlt::checkpoint::actor::TYPE::template CHANGE_BATCH_SIZE
 using ACTOR_TYPE = ACTOR_TYPE_ORIGINAL::template CHANGE_BATCH_SIZE<TI, 1>::template CHANGE_SEQUENCE_LENGTH<TI, 1>;
 using T = typename ACTOR_TYPE::SPEC::T;
 constexpr TI ACTION_HISTORY_LENGTH = 1; //rlt::checkpoint::environment::ACTION_HISTORY_LENGTH
-constexpr TI CONTROL_INTERVAL_INTERMEDIATE_NS = 2 * 1000 * 1000; // Inference is at 500hz
+constexpr TI CONTROL_INTERVAL_INTERMEDIATE_NS = 1 * 1000 * 1000; // Inference is at 500hz
 constexpr TI CONTROL_INTERVAL_NATIVE_NS = 10 * 1000 * 1000; // Training is 100hz
 static constexpr TI INPUT_DIM = rlt::get_last(ACTOR_TYPE::INPUT_SHAPE{});
 static constexpr TI OUTPUT_DIM = rlt::get_last(ACTOR_TYPE::OUTPUT_SHAPE{});
 static_assert(OUTPUT_DIM == 4);
 static_assert(INPUT_DIM == (18 + ACTION_HISTORY_LENGTH * OUTPUT_DIM));
 constexpr TI TIMING_STATS_NUM_STEPS = 100;
-static constexpr bool FORCE_SYNC_INTERMEDIATE = false;
+static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
 static constexpr TI FORCE_SYNC_NATIVE = 0;
 static constexpr bool DYNAMIC_ALLOCATION = false;
 using SPEC = rlt::inference::applications::l2f::Specification<T, TI, RLtoolsInferenceTimestamp, ACTION_HISTORY_LENGTH, OUTPUT_DIM, ACTOR_TYPE, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;

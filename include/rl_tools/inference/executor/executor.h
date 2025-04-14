@@ -20,10 +20,14 @@ namespace rl_tools{
                 static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = T_CONTROL_INTERVAL_NATIVE_NS; // the control interval native to the policy (that it was trained at)
                 static constexpr bool FORCE_SYNC_INTERMEDIATE = T_FORCE_SYNC_INTERMEDIATE; // forcing the sync of intermediate steps with the observations: for each observation => run intermediate control
                 static constexpr TI FORCE_SYNC_NATIVE = T_FORCE_SYNC_NATIVE; // 0 means not forcing, != 0 means forcing every FORCE_SYNC_TRAINING inference control steps
-                static constexpr T TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
-                static constexpr T TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
-                static constexpr T TIMING_BIAS_HIGH_THRESHOLD = 1.2;
-                static constexpr T TIMING_BIAS_LOW_THRESHOLD = 0.8;
+                static constexpr T INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
+                static constexpr T INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
+                static constexpr T INTERMEDIATE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
+                static constexpr T INTERMEDIATE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
+                static constexpr T NATIVE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
+                static constexpr T NATIVE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
+                static constexpr T NATIVE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
+                static constexpr T NATIVE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
                 static constexpr TI INPUT_DIM = POLICY::INPUT_SHAPE::LAST;
                 static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
             };
