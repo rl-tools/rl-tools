@@ -6,7 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::inference::applications{
     namespace l2f{
-        template <typename T_T, typename T_TI, typename T_TIMESTAMP, T_TI T_ACTION_HISTORY_LENGTH, T_TI T_OUTPUT_DIM, T_TIMESTAMP T_CONTROL_INTERVAL_INFERENCE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_TRAINING_NS, typename T_POLICY, bool T_DYNAMIC_ALLOCATION=true>
+        template <typename T_T, typename T_TI, typename T_TIMESTAMP, T_TI T_ACTION_HISTORY_LENGTH, T_TI T_OUTPUT_DIM, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, bool T_DYNAMIC_ALLOCATION=true>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
@@ -14,8 +14,10 @@ namespace rl_tools::inference::applications{
             using POLICY = T_POLICY;
             static constexpr T_TI ACTION_HISTORY_LENGTH = T_ACTION_HISTORY_LENGTH;
             static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
-            static constexpr TIMESTAMP CONTROL_INTERVAL_INFERENCE_NS = T_CONTROL_INTERVAL_INFERENCE_NS;
-            static constexpr TIMESTAMP CONTROL_INTERVAL_TRAINING_NS = T_CONTROL_INTERVAL_TRAINING_NS;
+            static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = T_CONTROL_INTERVAL_INTERMEDIATE_NS;
+            static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = T_CONTROL_INTERVAL_NATIVE_NS;
+            static constexpr bool FORCE_SYNC_INTERMEDIATE = T_FORCE_SYNC_INTERMEDIATE;
+            static constexpr T_TI FORCE_SYNC_NATIVE = T_FORCE_SYNC_NATIVE;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         };
         template <typename SPEC>
@@ -37,7 +39,7 @@ namespace rl_tools::inference::applications{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using TIMESTAMP = typename SPEC::TIMESTAMP;
-        using EXECUTOR_SPEC = executor::Specification<T, TI, TIMESTAMP, typename SPEC::POLICY, SPEC::CONTROL_INTERVAL_INFERENCE_NS, SPEC::CONTROL_INTERVAL_TRAINING_NS, SPEC::DYNAMIC_ALLOCATION>;
+        using EXECUTOR_SPEC = executor::Specification<T, TI, TIMESTAMP, typename SPEC::POLICY, SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS, SPEC::CONTROL_INTERVAL_NATIVE_NS, SPEC::FORCE_SYNC_INTERMEDIATE, SPEC::FORCE_SYNC_NATIVE, SPEC::DYNAMIC_ALLOCATION>;
         T action_history[SPEC::ACTION_HISTORY_LENGTH][SPEC::OUTPUT_DIM];
         static constexpr TI INPUT_DIM = 18 + SPEC::OUTPUT_DIM * SPEC::ACTION_HISTORY_LENGTH;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, INPUT_DIM>, SPEC::DYNAMIC_ALLOCATION>> input;
