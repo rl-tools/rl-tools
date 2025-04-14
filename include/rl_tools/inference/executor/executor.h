@@ -7,7 +7,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace inference{
         namespace executor{
-            template <typename T_T, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INFERENCE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_TRAINING_NS, bool T_DYNAMIC_ALLOCATION=true>
+            template <typename T_T, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC=false, T_TI T_FORCE_SYNC_TRAINING=0, bool T_DYNAMIC_ALLOCATION=true>
             struct Specification{
                 using T = T_T;
                 using TI = T_TI;
@@ -16,8 +16,10 @@ namespace rl_tools{
                 using POLICY = T_POLICY;
                 static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
                 static constexpr TI TIMING_STATS_NUM_STEPS = 100;
-                static constexpr TIMESTAMP CONTROL_INTERVAL_INFERENCE_NS = T_CONTROL_INTERVAL_INFERENCE_NS;
-                static constexpr TIMESTAMP CONTROL_INTERVAL_TRAINING_NS = T_CONTROL_INTERVAL_TRAINING_NS;
+                static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = T_CONTROL_INTERVAL_INTERMEDIATE_NS;
+                static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = T_CONTROL_INTERVAL_NATIVE_NS; // the control interval native to the policy (that it was trained at)
+                static constexpr bool FORCE_SYNC = T_FORCE_SYNC; // forcing the sync of intermediate steps with the observations: for each observation => run intermediate control
+                static constexpr TI FORCE_SYNC_TRAINING = T_FORCE_SYNC_TRAINING; // 0 means not forcing, != 0 means forcing every FORCE_SYNC_TRAINING inference control steps
                 static constexpr T TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
                 static constexpr T TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
                 static constexpr T TIMING_BIAS_HIGH_THRESHOLD = 1.2;
@@ -29,7 +31,7 @@ namespace rl_tools{
             struct JitterStatus{
                 using SPEC = T_SPEC;
                 using T = typename SPEC::T;
-                bool OK;
+                bool OK:1;
                 T MAGNITUDE;
 
             };
@@ -37,32 +39,50 @@ namespace rl_tools{
             struct BiasStatus{
                 using SPEC = T_SPEC;
                 using T = typename SPEC::T;
-                bool OK;
+                bool OK:1;
                 T MAGNITUDE;
             };
             template <typename T_SPEC>
             struct Status{
                 using SPEC = T_SPEC;
                 using T = typename SPEC::T;
-                bool OK;
-                bool TIMESTAMP_INVALID;
-                bool LAST_CONTROL_TIMESTAMP_GREATER_THAN_LAST_OBSERVATION_TIMESTAMP;
+                bool OK:1;
+                bool TIMESTAMP_INVALID:1;
+                bool LAST_CONTROL_TIMESTAMP_GREATER_THAN_LAST_OBSERVATION_TIMESTAMP:1;
                 enum Source{
                     OBSERVATION,
                     CONTROL
                 };
-                Source source;
+                Source source:1;
                 enum StepType{
-                    INFERENCE,
-                    ORIGINAL
+                    INTERMEDIATE,
+                    NATIVE
                 };
-                StepType step_type;
+                StepType step_type:1;
+                struct ControlReasons{
+                    bool reset:1;
+                    bool time_diff:1;
+                    bool force_sync:1;
+                };
+                ControlReasons control_reasons_intermediate;
+                ControlReasons control_reasons_native;
                 JitterStatus<SPEC> timing_jitter;
                 BiasStatus<SPEC> timing_bias;
             };
+            namespace assert{
+                struct TestSpec{
+                    using T = float;
+                };
+                static_assert(sizeof(Status<TestSpec>) <= 20);
+            }
         }
         template <typename T_SPEC>
         struct Executor{
+            // The executor gets a (potentially high-frequency) stream of observations and timestamps.
+            // Then decides when to run the policy forward pass (at inference frequency, e.g. 4x faster than during training: 400Hz vs 100Hz)
+            // In between forward passes the observations are averaged (probably the optimal behavior assuming Gaussian additive noise)
+            // Every once in a while the time comes to advance the policy state (at the training frequency, e.g. 100Hz)
+            // This is required because running e.g. a trained RNN at a faster frequency than experienced in training would be heavily OOD
             using SPEC = T_SPEC;
             using TI = typename SPEC::TI;
             using POLICY = typename SPEC::POLICY;
