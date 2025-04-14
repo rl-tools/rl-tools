@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "executor.h"
 #include "c_interface.h"
+#include "helper.h"
 
 static int portable_strlen(const char* str) {
     const char* ptr = str;
@@ -61,13 +62,13 @@ void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus s
                 if(!status.timing_jitter.OK){
                     append(target, target_size, " JITTER ", position);
                     char buffer[50];
-                    snprintf(buffer, 50, "%.2fx EXPECTED", status.timing_jitter.MAGNITUDE);
+                    rl_tools_inference_executor_float_to_str(status.timing_jitter.MAGNITUDE, buffer, 50);
                     append(target, target_size, buffer, position);
                 }
                 if(!status.timing_bias.OK){
                     append(target, target_size, " BIAS ", position);
                     char buffer[50];
-                    snprintf(buffer, 50, "%.2fx EXPECTED", status.timing_bias.MAGNITUDE);
+                    rl_tools_inference_executor_float_to_str(status.timing_bias.MAGNITUDE, buffer, 50);
                     append(target, target_size, buffer, position);
                 }
             }
