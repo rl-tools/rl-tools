@@ -3,39 +3,44 @@
 #include "../../executor/c_backend.h"
 #include "operations_generic.h"
 
-using T = typename ACTOR_TYPE::SPEC::T;
-constexpr TI ACTION_HISTORY_LENGTH = 1; //rl_tools::checkpoint::environment::ACTION_HISTORY_LENGTH
-constexpr TI CONTROL_INTERVAL_INTERMEDIATE_NS = 1 * 1000 * 1000; // Inference is at 500hz
-constexpr TI CONTROL_INTERVAL_NATIVE_NS = 10 * 1000 * 1000; // Training is 100hz
-static constexpr TI INPUT_DIM = rl_tools::get_last(ACTOR_TYPE::INPUT_SHAPE{});
-static constexpr TI OUTPUT_DIM = rl_tools::get_last(ACTOR_TYPE::OUTPUT_SHAPE{});
-static_assert(OUTPUT_DIM == 4);
-static_assert(INPUT_DIM == (18 + ACTION_HISTORY_LENGTH * OUTPUT_DIM));
-constexpr TI TIMING_STATS_NUM_STEPS = 100;
-static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
-static constexpr TI FORCE_SYNC_NATIVE = 0;
-static constexpr bool DYNAMIC_ALLOCATION = false;
-using SPEC = rl_tools::inference::applications::l2f::Specification<T, TI, RLtoolsInferenceTimestamp, ACTION_HISTORY_LENGTH, OUTPUT_DIM, ACTOR_TYPE, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
+namespace rl_tools::inference::applications::l2f{
+    using CONFIG = RL_TOOLS_INFERENCE_APPLICATIONS_L2F_CONFIG;
+    using T = typename CONFIG::T;
+    using TI = typename CONFIG::TI;
+
+    static constexpr TI TEST_SEQUENCE_LENGTH = rlt::checkpoint::example::input::SHAPE::template GET<0>;
+    static constexpr TI TEST_BATCH_SIZE = rlt::checkpoint::example::input::SHAPE::template GET<1>;
+    static_assert(CONFIG::TEST_BATCH_SIZE_ACTUAL <= TEST_BATCH_SIZE);
+    static_assert(CONFIG::TEST_SEQUENCE_LENGTH_ACTUAL <= TEST_SEQUENCE_LENGTH);
+
+    static constexpr TI INPUT_DIM = CONFIG::POLICY::INPUT_SHAPE::LAST;
+    static constexpr TI OUTPUT_DIM = CONFIG::POLICY::OUTPUT_SHAPE::LAST;
+    static_assert(OUTPUT_DIM == 4);
+    static_assert(INPUT_DIM == (18 + CONFIG::ACTION_HISTORY_LENGTH * OUTPUT_DIM));
 
 
-DEVICE device;
-RNG rng;
-static rl_tools::inference::applications::L2F<SPEC> executor;
+    // state
+    using SPEC = rl_tools::inference::applications::l2f::Specification<T, TI, RLtoolsInferenceTimestamp, CONFIG::ACTION_HISTORY_LENGTH, OUTPUT_DIM, typename CONFIG::POLICY, CONFIG::CONTROL_INTERVAL_INTERMEDIATE_NS, CONFIG::CONTROL_INTERVAL_NATIVE_NS, CONFIG::FORCE_SYNC_INTERMEDIATE, CONFIG::FORCE_SYNC_NATIVE, CONFIG::DYNAMIC_ALLOCATION>;
+    typename CONFIG::DEVICE device;
+    typename CONFIG::RNG rng;
+    static rl_tools::inference::applications::L2F<SPEC> executor;
+    // Test Buffers
+    #ifndef RL_TOOLS_DISABLE_TEST
+    static CONFIG::POLICY_TEST::template Buffer<false> buffers_test;
+    static CONFIG::POLICY_TEST::State<false> policy_state_test;
+    static rl_tools::Tensor<rl_tools::tensor::Specification<T, TI, rl_tools::tensor::Shape<TI, 1, OUTPUT_DIM>, false>> output;
+    #endif
+};
 
-// Buffers
-static ACTOR_TYPE_TEST::template Buffer<false> buffers_test;
-static ACTOR_TYPE_TEST::State<false> policy_state_test;
-static ACTOR_TYPE::State<false> policy_state_buffer;
-static ACTOR_TYPE::template Buffer<false> buffers;
-static rl_tools::Tensor<rl_tools::tensor::Specification<T, TI, rl_tools::tensor::Shape<TI, 1, INPUT_DIM>, false>> input;
-static rl_tools::Tensor<rl_tools::tensor::Specification<T, TI, rl_tools::tensor::Shape<TI, 1, OUTPUT_DIM>, false>> output;
 
 
 // Main functions (possibly with side effects)
 void rl_tools_inference_applications_l2f_reset(){
-    rl_tools::reset(device, executor, rl_tools_inference_applications_l2f_policy, rng);
+    using namespace rl_tools::inference::applications::l2f;
+    rl_tools::reset(device, executor, CONFIG::policy(), rng);
 }
 void rl_tools_inference_applications_l2f_init(){
+    using namespace rl_tools::inference::applications::l2f;
     TI seed = 0;
     rl_tools::init(device, rng, seed);
     rl_tools_inference_applications_l2f_reset();
@@ -43,17 +48,19 @@ void rl_tools_inference_applications_l2f_init(){
 
 
 const char* rl_tools_inference_applications_l2f_checkpoint_name(){
-    return (char*)rl_tools::checkpoint::meta::name;
+    using namespace rl_tools::inference::applications::l2f;
+    return rl_tools::checkpoint::meta::name;
 }
 
 float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAction* p_output){
+    using namespace rl_tools::inference::applications::l2f;
 #ifndef RL_TOOLS_DISABLE_TEST
     rl_tools::Mode<rl_tools::mode::Evaluation<>> mode;
     float acc = 0;
     uint64_t num_values = 0;
-    for(TI batch_i = 0; batch_i < TEST_BATCH_SIZE_ACTUAL; batch_i++){
+    for(TI batch_i = 0; batch_i < CONFIG::TEST_BATCH_SIZE_ACTUAL; batch_i++){
         rl_tools::reset(device, rl_tools::checkpoint::actor::module, policy_state_test, rng);
-        for(TI step_i = 0; step_i < TEST_SEQUENCE_LENGTH_ACTUAL; step_i++){
+        for(TI step_i = 0; step_i < CONFIG::TEST_SEQUENCE_LENGTH_ACTUAL; step_i++){
             const auto step_input = rl_tools::view(device, rl_tools::checkpoint::example::input::container, step_i);
             const auto batch_input = rl_tools::view_range(device, step_input, batch_i, rl_tools::tensor::ViewSpec<0, 1>{});
             rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, batch_input), "input is nan");
@@ -64,7 +71,7 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
                 acc += rl_tools::math::abs(device.math, rl_tools::get(device, output, 0, action_i) - rl_tools::get(device, rl_tools::checkpoint::example::output::container, step_i, batch_i, action_i));
                 num_values += 1;
                 rl_tools::utils::assert_exit(device, !rl_tools::math::is_nan(device.math, acc), "output is nan");
-                if(batch_i == 0 && step_i == TEST_SEQUENCE_LENGTH_ACTUAL-1){
+                if(batch_i == 0 && step_i == CONFIG::TEST_SEQUENCE_LENGTH_ACTUAL-1){
                     p_output->action[action_i] = rl_tools::get(device, output, 0, action_i);
                 }
             }
@@ -77,6 +84,7 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
 }
 
 RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationsL2FObservation* c_observation, RLtoolsInferenceApplicationsL2FAction* c_action){
+    using namespace rl_tools::inference::applications::l2f;
     static_assert(RL_TOOLS_INTERFACE_APPLICATIONS_L2F_ACTION_DIM == OUTPUT_DIM);
     rl_tools::inference::applications::l2f::Observation<SPEC> observation;
     for (TI dim_i = 0; dim_i < 3; dim_i++){
@@ -90,7 +98,7 @@ RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoo
         observation.previous_action[action_i] = c_observation->previous_action[action_i];
     }
     rl_tools::inference::applications::l2f::Action<SPEC> action;
-    auto status = rl_tools::control(device, executor, nanoseconds, rl_tools_inference_applications_l2f_policy, observation, action, rng);
+    auto status = rl_tools::control(device, executor, nanoseconds, CONFIG::policy(), observation, action, rng);
     for (TI action_i=0; action_i < OUTPUT_DIM; action_i++){
         c_action->action[action_i] = action.action[action_i];
     }
