@@ -152,7 +152,7 @@ namespace rl_tools{
         }
         executor.last_observation_timestamp = nanoseconds;
         status.control_reasons_intermediate.time_diff = time_diff_control >= SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
-        status.control_reasons_intermediate.force_sync = SPEC::FORCE_SYNC;
+        status.control_reasons_intermediate.force_sync = SPEC::FORCE_SYNC_INTERMEDIATE;
         status.control_reasons_intermediate.reset = reset;
         if(status.control_reasons_intermediate.time_diff || status.control_reasons_intermediate.force_sync || status.control_reasons_intermediate.reset){
             // if it is time to control according to the inference frequency
@@ -170,7 +170,7 @@ namespace rl_tools{
 
 
             status.control_reasons_native.time_diff = time_diff_control_original >= SPEC::CONTROL_INTERVAL_NATIVE_NS;
-            status.control_reasons_native.force_sync = SPEC::FORCE_SYNC;
+            status.control_reasons_native.force_sync = SPEC::FORCE_SYNC_NATIVE;
             status.control_reasons_native.reset = reset;
             Mode<mode::Evaluation<>> mode;
             if(status.control_reasons_native.time_diff || status.control_reasons_native.force_sync || status.control_reasons_native.reset){

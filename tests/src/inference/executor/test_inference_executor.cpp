@@ -27,12 +27,6 @@ using T = float;
 using TIMESTAMP = uint64_t;
 
 using POLICY = rlt::checkpoint::actor::TYPE;
-static constexpr TI ACTION_HISTORY_LENGTH = 1;
-static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
-static constexpr TIMESTAMP CONTROL_INTERVAL_INFERENCE_NS = 2500 * 1000;
-static constexpr TIMESTAMP CONTROL_INTERVAL_TRAINING_NS = 10000 * 1000;
-static constexpr bool DYNAMIC_ALLOCATION = false;
-using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, CONTROL_INTERVAL_INFERENCE_NS, CONTROL_INTERVAL_TRAINING_NS, POLICY, DYNAMIC_ALLOCATION>;
 
 // static constexpr uint OUTPUT_DIM = 4;
 // int main(){
@@ -41,6 +35,14 @@ using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, 
 #include <gtest/gtest.h>
 
 TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
+    static constexpr TI ACTION_HISTORY_LENGTH = 1;
+    static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
+    static constexpr TIMESTAMP CONTROL_INTERVAL_INFERENCE_NS = 2500 * 1000;
+    static constexpr TIMESTAMP CONTROL_INTERVAL_TRAINING_NS = 10000 * 1000;
+    static constexpr bool FORCE_SYNC_INTERMEDIATE = false;
+    static constexpr bool FORCE_SYNC_NATIVE = false;
+    static constexpr bool DYNAMIC_ALLOCATION = false;
+    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INFERENCE_NS, CONTROL_INTERVAL_TRAINING_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
     auto& policy = rlt::checkpoint::actor::module;
     DEVICE device;
     RNG rng;
@@ -122,3 +124,4 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     ASSERT_EQ(status.source, decltype(status.source)::CONTROL);
     ASSERT_EQ(status.step_type, decltype(status.step_type)::NATIVE);
 }
+
