@@ -4,6 +4,7 @@
 #define RL_TOOLS_INFERENCE_APPLICATIONS_L2F_OPERATIONS_GENERIC_H
 
 #include "l2f.h"
+#include "../../executor/operations_generic.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
