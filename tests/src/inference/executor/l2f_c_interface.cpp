@@ -47,9 +47,6 @@ struct RL_TOOLS_INFERENCE_APPLICATIONS_L2F_CONFIG{
     static auto& policy() {
         return rlt::checkpoint::actor::module;
     }
-    static const char* checkopint_name(){
-        return (const char*)rl_tools::checkpoint::meta::name;
-    }
     static constexpr TI ACTION_HISTORY_LENGTH = 1; //rl_tools::checkpoint::environment::ACTION_HISTORY_LENGTH
     static constexpr TI CONTROL_INTERVAL_INTERMEDIATE_NS = 1 * 1000 * 1000; // Inference is at 500hz
     static constexpr TI CONTROL_INTERVAL_NATIVE_NS = 10 * 1000 * 1000; // Training is 100hz
