@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "executor.h"
-
+#include "c_interface.h"
 
 static int portable_strlen(const char* str) {
     const char* ptr = str;
@@ -28,9 +28,9 @@ void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus s
     int position = 0;
     if(status.OK){
         append(target, target_size, "OK", position);
-        if(status.source == RLtoolsInferenceExecutorStatus::CONTROL){
+        if(status.source == RL_TOOLS_INFERENCE_EXECUTOR_STATUS_SOURCE_CONTROL){
             append(target, target_size, " CONTROL", position);
-            if(status.step_type == RLtoolsInferenceExecutorStatus::INTERMEDIATE){
+            if(status.step_type == RL_TOOLS_INFERENCE_EXECUTOR_STATUS_STEP_TYPE_INTERMEDIATE){
                 append(target, target_size, " INTERMEDIATE", position);
             }
             else{
@@ -40,9 +40,9 @@ void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus s
     }
     else{
         append(target, target_size, "PROBLEM", position);
-        if(status.source == RLtoolsInferenceExecutorStatus::CONTROL){
+        if(status.source == RL_TOOLS_INFERENCE_EXECUTOR_STATUS_SOURCE_CONTROL){
             append(target, target_size, " CONTROL", position);
-            if(status.step_type == RLtoolsInferenceExecutorStatus::INTERMEDIATE){
+            if(status.step_type == RL_TOOLS_INFERENCE_EXECUTOR_STATUS_STEP_TYPE_INTERMEDIATE){
                 append(target, target_size, " INTERMEDIATE", position);
             }
             else{
@@ -86,8 +86,8 @@ namespace rl_tools{
         output.OK = status.OK;
         output.TIMESTAMP_INVALID = status.TIMESTAMP_INVALID;
         output.LAST_CONTROL_TIMESTAMP_GREATER_THAN_LAST_OBSERVATION_TIMESTAMP = status.LAST_CONTROL_TIMESTAMP_GREATER_THAN_LAST_OBSERVATION_TIMESTAMP;
-        output.source = status.source == inference::executor::Status<SPEC>::OBSERVATION ? RLtoolsInferenceExecutorStatus::OBSERVATION : RLtoolsInferenceExecutorStatus::CONTROL;
-        output.step_type = status.step_type == inference::executor::Status<SPEC>::INTERMEDIATE ? RLtoolsInferenceExecutorStatus::INTERMEDIATE : RLtoolsInferenceExecutorStatus::NATIVE;
+        output.source = status.source == inference::executor::Status<SPEC>::OBSERVATION ? RL_TOOLS_INFERENCE_EXECUTOR_STATUS_SOURCE_OBSERVATION : RL_TOOLS_INFERENCE_EXECUTOR_STATUS_SOURCE_CONTROL;
+        output.step_type = status.step_type == inference::executor::Status<SPEC>::INTERMEDIATE ? RL_TOOLS_INFERENCE_EXECUTOR_STATUS_STEP_TYPE_INTERMEDIATE : RL_TOOLS_INFERENCE_EXECUTOR_STATUS_STEP_TYPE_NATIVE;
         output.timing_jitter.OK = status.timing_jitter.OK;
         output.timing_jitter.MAGNITUDE = status.timing_jitter.MAGNITUDE;
         output.timing_bias.OK = status.timing_bias.OK;

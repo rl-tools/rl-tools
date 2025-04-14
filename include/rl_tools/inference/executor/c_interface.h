@@ -1,3 +1,6 @@
+#ifndef RL_TOOLS_INFERENCE_EXECUTOR_C_INTERFACE_H
+#define RL_TOOLS_INFERENCE_EXECUTOR_C_INTERFACE_H
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -9,37 +12,39 @@ extern "C" {
     typedef struct{
         bool OK:1;
         float MAGNITUDE;
-    } RltoolsInferenceExecutorJitterStatus;
+    } RLtoolsInferenceExecutorJitterStatus;
     typedef struct{
         bool OK:1;
         float MAGNITUDE;
-    } RltoolsInferenceExecutorBiasStatus;
+    } RLtoolsInferenceExecutorBiasStatus;
     typedef enum{
-        OBSERVATION,
-        CONTROL
-    } RltoolsInferenceExecutorStatusSource;
+        RL_TOOLS_INFERENCE_EXECUTOR_STATUS_SOURCE_OBSERVATION,
+        RL_TOOLS_INFERENCE_EXECUTOR_STATUS_SOURCE_CONTROL
+    } RLtoolsInferenceExecutorStatusSource;
     typedef enum{
-        INTERMEDIATE,
-        NATIVE
-    } RltoolsInferenceExecutorStepType;
+        RL_TOOLS_INFERENCE_EXECUTOR_STATUS_STEP_TYPE_INTERMEDIATE,
+        RL_TOOLS_INFERENCE_EXECUTOR_STATUS_STEP_TYPE_NATIVE
+    } RLtoolsInferenceExecutorStatusStepType;
     typedef struct{
         bool reset:1;
         bool time_diff:1;
         bool force_sync:1;
-    } RltoolsInferenceExecutorControlReasons;
+    } RLtoolsInferenceExecutorControlReasons;
     typedef struct {
         bool OK:1;
         bool TIMESTAMP_INVALID:1;
         bool LAST_CONTROL_TIMESTAMP_GREATER_THAN_LAST_OBSERVATION_TIMESTAMP:1;
-        RltoolsInferenceExecutorStatusSource source:1;
-        RltoolsInferenceExecutorStepType step_type:1;
-        RltoolsInferenceExecutorControlReasons control_reasons_intermediate;
-        RltoolsInferenceExecutorControlReasons control_reasons_native;
-        RltoolsInferenceExecutorJitterStatus timing_jitter;
-        RltoolsInferenceExecutorBiasStatus timing_bias;
+        RLtoolsInferenceExecutorStatusSource source:1;
+        RLtoolsInferenceExecutorStatusStepType step_type:1;
+        RLtoolsInferenceExecutorControlReasons control_reasons_intermediate;
+        RLtoolsInferenceExecutorControlReasons control_reasons_native;
+        RLtoolsInferenceExecutorJitterStatus timing_jitter;
+        RLtoolsInferenceExecutorBiasStatus timing_bias;
     } RLtoolsInferenceExecutorStatus;
     void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus status, char* target, int target_size);
 #ifdef __cplusplus
 }
 #endif
 
+
+#endif
