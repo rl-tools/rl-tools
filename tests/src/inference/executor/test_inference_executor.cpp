@@ -37,12 +37,12 @@ using POLICY = rlt::checkpoint::actor::TYPE;
 TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     static constexpr TI ACTION_HISTORY_LENGTH = 1;
     static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
-    static constexpr TIMESTAMP CONTROL_INTERVAL_INFERENCE_NS = 2500 * 1000;
-    static constexpr TIMESTAMP CONTROL_INTERVAL_TRAINING_NS = 10000 * 1000;
+    static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = 2500 * 1000;
+    static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
     static constexpr bool FORCE_SYNC_INTERMEDIATE = false;
-    static constexpr bool FORCE_SYNC_NATIVE = false;
+    static constexpr TI FORCE_SYNC_NATIVE = 0;
     static constexpr bool DYNAMIC_ALLOCATION = false;
-    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INFERENCE_NS, CONTROL_INTERVAL_TRAINING_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
+    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
     auto& policy = rlt::checkpoint::actor::module;
     DEVICE device;
     RNG rng;
@@ -125,3 +125,139 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     ASSERT_EQ(status.step_type, decltype(status.step_type)::NATIVE);
 }
 
+TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE){
+    static constexpr TI ACTION_HISTORY_LENGTH = 1;
+    static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
+    static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = 2500 * 1000;
+    static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
+    static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
+    static constexpr TI FORCE_SYNC_NATIVE = 0;
+    static constexpr bool DYNAMIC_ALLOCATION = false;
+    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
+    auto& policy = rlt::checkpoint::actor::module;
+    DEVICE device;
+    RNG rng;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    TI seed = 0;
+    rlt::init(device, rng, seed);
+
+    rlt::inference::applications::L2F<SPEC> executor;
+    rlt::malloc(device, executor);
+    rlt::reset(device, executor, policy, rng);
+
+    rlt::inference::applications::l2f::Action<SPEC> action;
+    rlt::inference::applications::l2f::Observation<SPEC> observation;
+    observation.position[0] = 0.0f;
+    observation.position[1] = 0.0f;
+    observation.position[2] = 0.0f;
+    observation.orientation[0] = 1.0f;
+    observation.orientation[1] = 0.0f;
+    observation.orientation[2] = 0.0f;
+    observation.orientation[3] = 0.0f;
+    observation.linear_velocity[0] = 0.0f;
+    observation.linear_velocity[1] = 0.0f;
+    observation.linear_velocity[2] = 0.0f;
+    observation.angular_velocity[0] = 0.0f;
+    observation.angular_velocity[1] = 0.0f;
+    observation.angular_velocity[2] = 0.0f;
+    for(uint j = 0; j < OUTPUT_DIM; j++){
+        observation.previous_action[j] = 0.0f;
+    }
+
+    rlt::inference::executor::Status<SPEC::EXECUTOR_SPEC> status;
+    for (TI step=0; step <= 1000; step++){
+        TIMESTAMP timestamp = step * 1000 * 1000;
+        std::cout << "timestamp: " << timestamp << std::endl;
+        status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
+        ASSERT_EQ(status.source, decltype(status.source)::CONTROL);
+        if(timestamp % CONTROL_INTERVAL_NATIVE_NS == 0){
+            ASSERT_EQ(status.step_type, decltype(status.step_type)::NATIVE);
+            ASSERT_TRUE(status.timing_bias.OK);
+            ASSERT_TRUE(status.timing_jitter.OK);
+        }
+        else{
+            ASSERT_EQ(status.step_type, decltype(status.step_type)::INTERMEDIATE);
+            if (step < 100){
+                ASSERT_TRUE(status.timing_bias.OK);
+                ASSERT_TRUE(status.timing_jitter.OK);
+            }
+            else{
+                ASSERT_FALSE(status.timing_bias.OK);
+                ASSERT_FALSE(status.timing_jitter.OK);
+            }
+        }
+    }
+}
+
+
+TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE_JITTER){
+    static constexpr TI ACTION_HISTORY_LENGTH = 1;
+    static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
+    static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = 2500 * 1000;
+    static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
+    static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
+    static constexpr TI FORCE_SYNC_NATIVE = 0;
+    static constexpr bool DYNAMIC_ALLOCATION = false;
+    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
+    auto& policy = rlt::checkpoint::actor::module;
+    DEVICE device;
+    RNG rng;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    TI seed = 0;
+    rlt::init(device, rng, seed);
+
+    rlt::inference::applications::L2F<SPEC> executor;
+    rlt::malloc(device, executor);
+    rlt::reset(device, executor, policy, rng);
+
+    rlt::inference::applications::l2f::Action<SPEC> action;
+    rlt::inference::applications::l2f::Observation<SPEC> observation;
+    observation.position[0] = 0.0f;
+    observation.position[1] = 0.0f;
+    observation.position[2] = 0.0f;
+    observation.orientation[0] = 1.0f;
+    observation.orientation[1] = 0.0f;
+    observation.orientation[2] = 0.0f;
+    observation.orientation[3] = 0.0f;
+    observation.linear_velocity[0] = 0.0f;
+    observation.linear_velocity[1] = 0.0f;
+    observation.linear_velocity[2] = 0.0f;
+    observation.angular_velocity[0] = 0.0f;
+    observation.angular_velocity[1] = 0.0f;
+    observation.angular_velocity[2] = 0.0f;
+    for(uint j = 0; j < OUTPUT_DIM; j++){
+        observation.previous_action[j] = 0.0f;
+    }
+
+    TIMESTAMP timestamp = 0;
+    rlt::inference::executor::Status<SPEC::EXECUTOR_SPEC> status;
+    for (TI step=0; step <= 10000; step++){
+        std::cout << "timestamp: " << timestamp << std::endl;
+        status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
+        ASSERT_EQ(status.source, decltype(status.source)::CONTROL);
+        if((timestamp - (step > 1500 ? (TIMESTAMP)(1.5 * CONTROL_INTERVAL_NATIVE_NS) : 0)) % CONTROL_INTERVAL_NATIVE_NS == 0 || step == 1501){
+            ASSERT_EQ(status.step_type, decltype(status.step_type)::NATIVE);
+            ASSERT_TRUE(status.timing_bias.OK);
+            if (step > 1500 && step <= 2500){
+                ASSERT_FALSE(status.timing_jitter.OK);
+            }
+            else{
+                ASSERT_TRUE(status.timing_jitter.OK);
+            }
+        }
+        else{
+            ASSERT_EQ(status.step_type, decltype(status.step_type)::INTERMEDIATE);
+            if (step < 100){
+                ASSERT_TRUE(status.timing_bias.OK);
+                ASSERT_TRUE(status.timing_jitter.OK);
+            }
+            else{
+                ASSERT_FALSE(status.timing_bias.OK);
+                ASSERT_FALSE(status.timing_jitter.OK);
+            }
+        }
+        timestamp += step == 1500 ? 1.5 * CONTROL_INTERVAL_NATIVE_NS : 1000 * 1000;
+    }
+}
