@@ -14,11 +14,8 @@ namespace rl_tools::inference::applications{
             using POLICY = T_POLICY;
             static constexpr T_TI ACTION_HISTORY_LENGTH = T_ACTION_HISTORY_LENGTH;
             static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
-            static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = T_CONTROL_INTERVAL_INTERMEDIATE_NS;
-            static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = T_CONTROL_INTERVAL_NATIVE_NS;
-            static constexpr bool FORCE_SYNC_INTERMEDIATE = T_FORCE_SYNC_INTERMEDIATE;
-            static constexpr T_TI FORCE_SYNC_NATIVE = T_FORCE_SYNC_NATIVE;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+            using EXECUTOR_SPEC = executor::Specification<T, TI, TIMESTAMP, POLICY, T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_CONTROL_INTERVAL_NATIVE_NS, T_FORCE_SYNC_INTERMEDIATE, T_FORCE_SYNC_NATIVE, T_DYNAMIC_ALLOCATION>;
         };
         template <typename SPEC>
         struct Observation{
@@ -39,12 +36,11 @@ namespace rl_tools::inference::applications{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using TIMESTAMP = typename SPEC::TIMESTAMP;
-        using EXECUTOR_SPEC = executor::Specification<T, TI, TIMESTAMP, typename SPEC::POLICY, SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS, SPEC::CONTROL_INTERVAL_NATIVE_NS, SPEC::FORCE_SYNC_INTERMEDIATE, SPEC::FORCE_SYNC_NATIVE, SPEC::DYNAMIC_ALLOCATION>;
         T action_history[SPEC::ACTION_HISTORY_LENGTH][SPEC::OUTPUT_DIM];
         static constexpr TI INPUT_DIM = 18 + SPEC::OUTPUT_DIM * SPEC::ACTION_HISTORY_LENGTH;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, INPUT_DIM>, SPEC::DYNAMIC_ALLOCATION>> input;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, SPEC::OUTPUT_DIM>, SPEC::DYNAMIC_ALLOCATION>> output;
-        Executor<EXECUTOR_SPEC> executor;
+        Executor<typename SPEC::EXECUTOR_SPEC> executor;
         TI steps_since_original_control_step;
     };
 }

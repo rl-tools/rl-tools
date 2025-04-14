@@ -46,7 +46,7 @@ namespace rl_tools{
                 auto value = ORIGINAL ? executor.control_original_dt[i] : executor.control_dt[i];
                 auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
                 if(value > expected * SPEC::TIMING_JITTER_HIGH_THRESHOLD_NS || value < expected * SPEC::TIMING_JITTER_LOW_THRESHOLD_NS){
-                    T magnitude = (value / (T)expected - 1) * 100;
+                    T magnitude = value / (T)expected;
                     result.OK = false;
                     result.MAGNITUDE = magnitude;
                     return result;
@@ -72,7 +72,7 @@ namespace rl_tools{
 
             auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
             if(bias > expected * SPEC::TIMING_BIAS_HIGH_THRESHOLD || bias < expected * SPEC::TIMING_BIAS_LOW_THRESHOLD){
-                T magnitude = (bias / (T)expected - 1) * 100;
+                T magnitude = bias / (T)expected;
                 result.OK = false;
                 result.MAGNITUDE = magnitude;
             }
