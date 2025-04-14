@@ -1,4 +1,4 @@
-#include <rl_tools/inference/applications/l2f/c_backend.h>
+#include <rl_tools/inference/applications/l2f/c_interface.h>
 
 #include <gtest/gtest.h>
 
@@ -22,7 +22,7 @@ TEST(RL_TOOLS_INFERENCE_APPLICATIONS_L2F, MAIN){
     observation.angular_velocity[0] = 0.0f;
     observation.angular_velocity[1] = 0.0f;
     observation.angular_velocity[2] = 0.0f;
-    for(TI j = 0; j < OUTPUT_DIM; j++){
+    for(int j = 0; j < RL_TOOLS_INTERFACE_APPLICATIONS_L2F_ACTION_DIM; j++){
         observation.previous_action[j] = 0.0f;
     }
     RLtoolsInferenceTimestamp timestamp = 0;
