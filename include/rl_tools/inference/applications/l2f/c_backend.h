@@ -48,7 +48,6 @@ void rl_tools_inference_applications_l2f_init(){
 
 
 const char* rl_tools_inference_applications_l2f_checkpoint_name(){
-    using namespace rl_tools::inference::applications::l2f;
     return rl_tools::checkpoint::meta::name;
 }
 
