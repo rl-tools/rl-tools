@@ -194,6 +194,11 @@ namespace rl_tools{
                 status.timing_bias = inference::executor::timing_bias_status<false>(device, executor);
                 status.OK = status.OK && status.timing_jitter.OK && status.timing_bias.OK;
             }
+            for (TI action_i = 0; action_i < SPEC::OUTPUT_DIM; action_i++){
+                T raw_value = get(device, action, 0, action_i);
+                T clipped = math::clamp(device.math, raw_value, (T)-1.0, (T)1.0);
+                set(device, action, clipped, 0, action_i);
+            }
         }
         return status;
     }

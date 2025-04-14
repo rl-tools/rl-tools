@@ -34,6 +34,6 @@ TEST(RL_TOOLS_INFERENCE_APPLICATIONS_L2F, MAIN){
         if (status.source == RL_TOOLS_INFERENCE_EXECUTOR_STATUS_SOURCE_CONTROL && status.step_type == RL_TOOLS_INFERENCE_EXECUTOR_STATUS_STEP_TYPE_NATIVE){
             std::cout << "Native bias: " << status.timing_bias.MAGNITUDE << std::endl;
         }
-        timestamp += 1100 * 1000;
+        timestamp += 1000 * 1000;
     }
 }
