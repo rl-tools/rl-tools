@@ -100,6 +100,8 @@ namespace rl_tools{
             TIMESTAMP control_original_dt[SPEC::TIMING_STATS_NUM_STEPS];
             TIMESTAMP control_original_dt_index = 0;
 
+            TI intermediate_step = 0;
+
             Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1, SPEC::INPUT_DIM>, DYNAMIC_ALLOCATION>> observation;
             typename POLICY::template State<DYNAMIC_ALLOCATION> policy_state, policy_state_temp;
             typename POLICY::template Buffer<DYNAMIC_ALLOCATION> policy_buffer;

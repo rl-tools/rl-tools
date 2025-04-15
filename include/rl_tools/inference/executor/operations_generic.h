@@ -30,6 +30,7 @@ namespace rl_tools{
         executor.last_control_timestamp_original_set = false;
         executor.control_dt_index = 0;
         executor.control_original_dt_index = 0;
+        executor.intermediate_step = 0;
     }
 
     namespace inference::executor{
@@ -172,7 +173,7 @@ namespace rl_tools{
 
 
             status.control_reasons_native.time_diff = time_diff_control_original >= SPEC::CONTROL_INTERVAL_NATIVE_NS;
-            status.control_reasons_native.force_sync = SPEC::FORCE_SYNC_NATIVE;
+            status.control_reasons_native.force_sync = (SPEC::FORCE_SYNC_NATIVE != 0) && (executor.intermediate_step % SPEC::FORCE_SYNC_NATIVE == 0);
             status.control_reasons_native.reset = reset;
             Mode<mode::Evaluation<>> mode;
             if(status.control_reasons_native.time_diff || status.control_reasons_native.force_sync || status.control_reasons_native.reset){
@@ -199,6 +200,7 @@ namespace rl_tools{
                 T clipped = math::clamp(device.math, raw_value, (T)-1.0, (T)1.0);
                 set(device, action, clipped, 0, action_i);
             }
+            executor.intermediate_step++;
         }
         return status;
     }

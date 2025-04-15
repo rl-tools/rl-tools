@@ -47,14 +47,14 @@ int rl_tools_inference_executor_float_to_str(float f, char *dst, size_t dst_size
         return 0;
 
     /* --- special IEEE‑754 values --- */
-    if (isnan(f)) {
+    if (std::isnan(f)) {
         const char *s = "nan";
         size_t i = 0;
         for (; s[i] && i < dst_size - 1; ++i) dst[i] = s[i];
         dst[i] = '\0';
         return 3;
     }
-    if (isinf(f)) {
+    if (std::isinf(f)) {
         const char *s = signbit(f) ? "-inf" : "inf";
         size_t len = signbit(f) ? 4 : 3, i = 0;
         for (; i < len && i < dst_size - 1; ++i) dst[i] = s[i];
