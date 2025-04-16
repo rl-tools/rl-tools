@@ -8,6 +8,7 @@
     #include "../../numeric_types/policy.h"
     #include "../../math/operations_wasm32.h"
     #include "../../logging/operations_wasm32.h"
+    #include "../../utils/env/operations_generic.h"
 #else
     #error "Group 1 already imported"
 #endif

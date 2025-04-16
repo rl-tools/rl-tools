@@ -9,6 +9,7 @@
 //    #include "../../utils/assert/declarations_esp32.h"
     #include "../../math/operations_esp32.h"
 //    #include "../../logging/operations_esp32.h"
+    #include "../../utils/env/operations_generic.h"
 #else
     #error "Group 1 already imported"
 #endif

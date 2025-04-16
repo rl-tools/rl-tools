@@ -10,6 +10,7 @@
 //    #include "../../utils/assert/declarations_arm.h"
     #include "../../math/operations_arm.h"
     #include "../../logging/operations_arm.h"
+    #include "../../utils/env/operations_generic.h"
 #else
     #error "Group 1 already imported"
 #endif

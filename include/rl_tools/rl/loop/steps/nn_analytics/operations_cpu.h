@@ -69,11 +69,17 @@ namespace rl_tools{
         using PARAMETERS = typename CONFIG::NN_ANALYTICS_PARAMETERS;
         using STATE = rl::loop::steps::nn_analytics::State<CONFIG>;
         if(ts.step % PARAMETERS::INTERVAL == 0 && (ts.step == 0 || ts.step >= PARAMETERS::WARMUP_STEPS)){
-            std::stringstream step_ss;
-            step_ss << std::setw(15) << std::setfill('0') << ts.step;
-            std::filesystem::path step_path = ts.extrack_paths.seed / "steps" / step_ss.str();
-            std::filesystem::create_directories(step_path);
-            auto data = rl::loop::steps::nn_analytics::accumulate_nns<0>(device, ts);
+            const char * env_var = environment_variable(device, "RL_TOOLS_NN_ANALYTICS");
+            if(env_var != nullptr && std::string(env_var) != "1"){
+                std::cout << "RL_TOOLS_NN_ANALYTICS=" << env_var << " is set. Skipping NN Analytics step." << std::endl;
+            }
+            else
+            {
+                std::stringstream step_ss;
+                step_ss << std::setw(15) << std::setfill('0') << ts.step;
+                std::filesystem::path step_path = ts.extrack_paths.seed / "steps" / step_ss.str();
+                std::filesystem::create_directories(step_path);
+                auto data = rl::loop::steps::nn_analytics::accumulate_nns<0>(device, ts);
 #ifndef RL_TOOLS_ENABLE_ZLIB
                 std::string file_extension = "json";
                 std::string data_output = data;
@@ -85,9 +91,10 @@ namespace rl_tools{
                     return true;
                 }
 #endif
-            std::ofstream file(step_path / ("nn_analytics." + file_extension), std::ios::binary);
-            file.write(reinterpret_cast<const char*>(data_output.data()), data_output.size());
-            file.close();
+                std::ofstream file(step_path / ("nn_analytics." + file_extension), std::ios::binary);
+                file.write(reinterpret_cast<const char*>(data_output.data()), data_output.size());
+                file.close();
+            }
         }
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         return finished;

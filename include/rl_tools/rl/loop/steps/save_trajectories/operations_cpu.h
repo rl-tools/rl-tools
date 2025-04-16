@@ -129,39 +129,43 @@ namespace rl_tools{
         if constexpr(PARAMETERS::SAVE_TRAJECTORIES == true){
             if(ts.step % PARAMETERS::INTERVAL == 0 || ts.save_trajectories_this_step){
                 ts.save_trajectories_this_step = false;
-                if(!ts.save_trajectories_ui_written){
-                    ts.save_trajectories_ui_written = true;
-                    std::string ui = get_ui(device, ts.env_eval);
-                    if(!ui.empty()){
-                        std::filesystem::create_directories(ts.extrack_paths.seed);
-                        std::ofstream ui_jsmf(ts.extrack_paths.seed / "ui.esm.js");
-                        ui_jsmf << ui;
-                        std::cout << "UI written to: " << ts.extrack_paths.seed / "ui.esm.js" << std::endl;
-                    }
-                    std::string description = get_description(device, ts.env_eval);
-                    if(!description.empty()){
-                        std::filesystem::create_directories(ts.extrack_paths.seed);
-                        std::ofstream description_file(ts.extrack_paths.seed / "description.txt");
-                        description_file << description;
-                        std::cout << "Description written to: " << ts.extrack_paths.seed / "description.txt" << std::endl;
-                    }
+                const char * env_var = environment_variable(device, "RL_TOOLS_SAVE_TRAJECTORIES");
+                if(env_var != nullptr && std::string(env_var) != "1"){
+                    std::cout << "RL_TOOLS_SAVE_TRAJECTORIES=" << env_var << " is set. Skipping save trajectories step." << std::endl;
                 }
-                typename TS::SAVE_TRAJECTORIES_ACTOR_TYPE evaluation_actor;
-                malloc(device, evaluation_actor);
-                auto actor = get_actor(ts);
-                copy(device, device, actor, evaluation_actor);
-                evaluate(device, ts.env_eval, ts.ui, evaluation_actor, ts.actor_deterministic_save_trajectories_state, ts.actor_deterministic_save_trajectories_buffers, ts.save_trajectories_buffer, ts.save_trajectories_result, ts.save_trajectories_data, ts.rng_save_trajectories, ts.evaluation_mode);
-                free(device, evaluation_actor);
+                else{
+                    if(!ts.save_trajectories_ui_written){
+                        ts.save_trajectories_ui_written = true;
+                        std::string ui = get_ui(device, ts.env_eval);
+                        if(!ui.empty()){
+                            std::filesystem::create_directories(ts.extrack_paths.seed);
+                            std::ofstream ui_jsmf(ts.extrack_paths.seed / "ui.esm.js");
+                            ui_jsmf << ui;
+                            std::cout << "UI written to: " << ts.extrack_paths.seed / "ui.esm.js" << std::endl;
+                        }
+                        std::string description = get_description(device, ts.env_eval);
+                        if(!description.empty()){
+                            std::filesystem::create_directories(ts.extrack_paths.seed);
+                            std::ofstream description_file(ts.extrack_paths.seed / "description.txt");
+                            description_file << description;
+                            std::cout << "Description written to: " << ts.extrack_paths.seed / "description.txt" << std::endl;
+                        }
+                    }
+                    typename TS::SAVE_TRAJECTORIES_ACTOR_TYPE evaluation_actor;
+                    malloc(device, evaluation_actor);
+                    auto actor = get_actor(ts);
+                    copy(device, device, actor, evaluation_actor);
+                    evaluate(device, ts.env_eval, ts.ui, evaluation_actor, ts.actor_deterministic_save_trajectories_state, ts.actor_deterministic_save_trajectories_buffers, ts.save_trajectories_buffer, ts.save_trajectories_result, ts.save_trajectories_data, ts.rng_save_trajectories, ts.evaluation_mode);
+                    free(device, evaluation_actor);
 
-                using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
+                    using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 
-                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, ts.save_trajectories_data);
-                std::stringstream step_ss;
-                step_ss << std::setw(15) << std::setfill('0') << ts.step;
-                std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();
-                std::filesystem::create_directories(step_folder);
-                if (!rl::loop::steps::save_trajectories::write_to_file(device, trajectories_json, step_folder, "trajectories")){
-                    return false;
+                    std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, ts.save_trajectories_data);
+                    std::stringstream step_ss;
+                    step_ss << std::setw(15) << std::setfill('0') << ts.step;
+                    std::filesystem::path step_folder = ts.extrack_paths.seed / "steps" / step_ss.str();
+                    std::filesystem::create_directories(step_folder);
+                    rl::loop::steps::save_trajectories::write_to_file(device, trajectories_json, step_folder, "trajectories");
                 }
             }
         }
