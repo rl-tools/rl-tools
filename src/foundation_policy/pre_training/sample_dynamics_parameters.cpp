@@ -3,6 +3,7 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 
 #include <fstream>
+#include <filesystem>
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
