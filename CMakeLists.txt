@@ -52,6 +52,7 @@ option(RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS "Memory allocations are 64 by
 option(RL_TOOLS_DEBUG_COMPILER_OPTIONS "Options like -ftemplate-backtrace-limit=0" OFF)
 option(RL_TOOLS_EXPERIMENTAL "Experimental" OFF)
 option(RL_TOOLS_ENABLE_WARNINGS "Enable warnings" OFF)
+option(RL_TOOLS_OUT_OF_TREE_EXTERNAL_PATH "Path to Out-Of-Tree external folder" OFF)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release" AND RL_TOOLS_ENABLE_LTO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
