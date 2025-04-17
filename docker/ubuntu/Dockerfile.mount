@@ -1,0 +1,3 @@
+ARG BASE_IMAGE
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
+COPY configure.sh build.sh /

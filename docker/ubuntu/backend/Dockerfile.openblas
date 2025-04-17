@@ -1,5 +1,5 @@
 ARG OS_VERSION=20.04
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ubuntu:${OS_VERSION}
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y openblas
+RUN apt-get update && apt-get install -y libopenblas-dev
 ENV RL_TOOLS_BACKEND_FLAGS="-DRL_TOOLS_BACKEND_ENABLE_OPENBLAS=ON"

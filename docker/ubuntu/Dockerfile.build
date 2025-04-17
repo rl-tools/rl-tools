@@ -1,5 +1,14 @@
 ARG BASE_IMAGE
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
+RUN git clone https://github.com/rl-tools/rl-tools.git /rl_tools && echo bump_1
+RUN git config --global --add safe.directory /rl_tools
+WORKDIR /rl_tools
+RUN git submodule update --init -- external/highfive external/tensorboard
+RUN git submodule update --init -- tests/lib/googletest
+RUN git submodule update --init -- tests/data
+RUN git submodule update --init -- external/cli11
+RUN git submodule update --init -- external/json
+WORKDIR /
 WORKDIR /rl_tools
 RUN git pull && echo bump_1
 WORKDIR /
