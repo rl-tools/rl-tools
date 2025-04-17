@@ -14,6 +14,10 @@ build() {
   TOOLCHAIN=$6
   FEATURE=$7
 
+  tmp="$(mktemp -d)"
+  git clone .. $tmp/rl-tools
+  cp $OS/*.sh $tmp/
+
   BACKEND_IMAGE_NAME=rltools/rltools:${OS}${OS_VERSION}_${BACKEND}
   TOOLCHAIN_IMAGE_NAME=rltools/rltools:${OS}${OS_VERSION}_${BACKEND}_${CMAKE_VERSION}_${TOOLCHAIN}
   FEATURE_IMAGE_NAME_TMP=rltools/rltools:${OS}${OS_VERSION}_${BACKEND}_${TOOLCHAIN}_${FEATURE}_tmp
@@ -22,8 +26,9 @@ build() {
   docker build -t ${BACKEND_IMAGE_NAME}     -f ${OS}/backend/Dockerfile.${BACKEND}     --build-arg OS=${OS} --build-arg OS_VERSION=${OS_VERSION} --platform ${PLATFORM} .
   docker build -t ${TOOLCHAIN_IMAGE_NAME}   -f ${OS}/toolchain/Dockerfile.${TOOLCHAIN} --build-arg CMAKE_VERSION=${CMAKE_VERSION} --build-arg BASE_IMAGE=${BACKEND_IMAGE_NAME} --platform ${PLATFORM} .
   docker build -t ${FEATURE_IMAGE_NAME_TMP} -f ${OS}/feature/Dockerfile.${FEATURE}     --build-arg BASE_IMAGE=${TOOLCHAIN_IMAGE_NAME} --platform ${PLATFORM} .
-  docker build -t ${FEATURE_IMAGE_NAME}     -f ${OS}/Dockerfile.mount                  --build-arg BASE_IMAGE=${FEATURE_IMAGE_NAME_TMP} --platform ${PLATFORM} $OS
-#  docker build -t ${BUILD_IMAGE_NAME}       -f ${OS}/Dockerfile.build                  --build-arg BASE_IMAGE=${FEATURE_IMAGE_NAME} --platform ${PLATFORM} .
+  docker build -t ${FEATURE_IMAGE_NAME}     -f ${OS}/Dockerfile.all                    --build-arg BASE_IMAGE=${FEATURE_IMAGE_NAME_TMP} --platform ${PLATFORM} $tmp
+  docker build -t ${BUILD_IMAGE_NAME}       -f ${OS}/Dockerfile.build                  --build-arg BASE_IMAGE=${FEATURE_IMAGE_NAME} --platform ${PLATFORM} $tmp
+  rm -rf $tmp
 }
 
 #build linux/amd64 ubuntu 20.04 mkl      gcc base
@@ -41,3 +46,6 @@ build() {
 #docker run -it --gpus all --runtime=nvidia -v $(cd .. && pwd):/rl_tools ${BUILD_IMAGE_NAME} bash -c "./configure.sh && ./build.sh && ctest -j4 -V -S ../rl_tools/CTestScript.cmake -DCDASH_TOKEN=${CDASH_TOKEN}"
 
 build linux/amd64 ubuntu 24.04 openblas default gcc base
+
+
+docker run -it --mount type=bind,source=$(cd .. && pwd),target=/rl-tools,readonly rltools/rltools:ubuntu24.04_openblas_gcc_base bash -c "./configure.sh && ./build.sh && ./test.sh"
