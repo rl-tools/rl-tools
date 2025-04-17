@@ -2,7 +2,7 @@
 """Minimal REST server for RL experiment orchestration."""
 from __future__ import annotations
 
-import http.server, json, os, sqlite3, urllib.parse
+import argparse, http.server, json, os, sqlite3, urllib.parse
 from datetime import datetime, timezone
 from typing import Callable, TypeVar
 
@@ -32,8 +32,9 @@ def with_connection(fn: F) -> F:  # type: ignore[override]
 
 
 class RequestHandler(http.server.BaseHTTPRequestHandler):
-    server_version = "RLJobServer/0.3"
+    server_version = "RLJobServer/0.5"
 
+    # ------------------------------------------------------------- utilities
     def _send(self, status: int, body=None):
         self.send_response(status)
         if body is not None:
@@ -48,8 +49,22 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         l = int(self.headers.get("Content-Length", "0"))
         return self.rfile.read(l).decode() if l else ""
 
+    def _split(self):
+        return urllib.parse.urlparse(self.path).path.strip("/").split("/")
+
+    # --------------------------------------------------------------- routing
+    def do_GET(self):  # noqa: N802
+        parts = self._split()
+        if not parts or parts[0] != "jobs":
+            return self._send(404, {"error": "Unknown endpoint"})
+        if len(parts) == 1:
+            return self._handle_list_jobs()
+        if len(parts) == 2:
+            return self._handle_list_tasks(parts[1])
+        return self._send(404, {"error": "Unknown endpoint"})
+
     def do_POST(self):  # noqa: N802
-        parts = urllib.parse.urlparse(self.path).path.strip("/").split("/")
+        parts = self._split()
         if not parts or parts[0] != "jobs":
             return self._send(404, {"error": "Unknown endpoint"})
         try:
@@ -65,6 +80,30 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             return self._send(400, {"error": "Malformed URL"})
         return self._send(404, {"error": "Unknown endpoint"})
 
+    # ------------------------------------------------------ GET endpoints
+    @with_connection
+    def _handle_list_jobs(self, conn: sqlite3.Connection):
+        rows = conn.execute("SELECT name FROM jobs ORDER BY name").fetchall()
+        return self._send(200, [r[0] for r in rows])
+
+    @with_connection
+    def _handle_list_tasks(self, conn: sqlite3.Connection, job: str):
+        row = conn.execute("SELECT id FROM jobs WHERE name=?", (job,)).fetchone()
+        if not row:
+            return self._send(404, {"error": "Job not found"})
+        job_id = row[0]
+        rows = conn.execute("SELECT id,status,spec,result FROM tasks WHERE job_id=? ORDER BY id", (job_id,)).fetchall()
+        tasks = []
+        for tid, status, spec, result in rows:
+            tasks.append({
+                "id": tid,
+                "status": status,
+                "spec": json.loads(spec),
+                "result": json.loads(result) if result else None,
+            })
+        return self._send(200, tasks)
+
+    # ---------------------------------------------------- POST endpoints
     @with_connection
     def _handle_create_job(self, conn: sqlite3.Connection, job: str):
         if conn.execute("SELECT 1 FROM jobs WHERE name=?", (job,)).fetchone():
@@ -85,7 +124,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         job_id = row[0]
         row = cur.execute("SELECT id,spec FROM tasks WHERE job_id=? AND status='pending' LIMIT 1", (job_id,)).fetchone()
         if not row:
-            conn.execute("COMMIT"); return self._send(204)
+            conn.execute("COMMIT"); return self._send(404, {"error": "no tasks available"})
         task_id, spec = row
         cur.execute("UPDATE tasks SET status='in_progress',updated=? WHERE id=?", (datetime.now(timezone.utc).isoformat(), task_id))
         conn.execute("COMMIT"); return self._send(200, {"task_id": task_id, "spec": json.loads(spec)})
@@ -116,8 +155,12 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    init_db(); port = int(os.environ.get("PORT", "8000"))
-    print(f"\n🚀 RL Job Server listening on http://0.0.0.0:{port}\n")
-    http.server.ThreadingHTTPServer(("", port), RequestHandler).serve_forever()
+    p = argparse.ArgumentParser(description="Minimal RL job orchestration server")
+    p.add_argument("--ip", default="0.0.0.0", help="Host to bind (default 0.0.0.0)")
+    p.add_argument("--port", type=int, default=8000, help="Port to listen on (default 8000)")
+    args = p.parse_args()
 
+    init_db()
+    print(f"RL Job Server listening on http://{args.ip}:{args.port}")
+    http.server.ThreadingHTTPServer((args.ip, args.port), RequestHandler).serve_forever()
 
