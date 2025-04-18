@@ -37,7 +37,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #if defined(RL_TOOLS_BACKEND_ENABLE_OPENBLAS) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
 #ifdef RL_TOOLS_ENABLE_WARNINGS
-#pragma message("RLtools: Uing OpenBLAS backend")
+#pragma message("RLtools: Using OpenBLAS backend")
 #endif
 #include "../operations/cpu_openblas/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
