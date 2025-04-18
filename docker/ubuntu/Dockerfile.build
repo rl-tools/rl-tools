@@ -7,5 +7,6 @@ RUN git submodule update --init -- tests/lib/googletest
 RUN git submodule update --init -- tests/data
 RUN git submodule update --init -- external/cli11
 RUN git submodule update --init -- external/json
+WORKDIR /
 RUN ./configure.sh
 RUN ./build.sh

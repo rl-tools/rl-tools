@@ -74,7 +74,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                 return self._handle_take_task(parts[1])
             if len(parts) == 4 and parts[2] == "tasks":
                 return self._handle_report_task(parts[1], int(parts[3]))
-            if len(parts) == 3 and parts[2] == "reset_in_progress":
+            if len(parts) == 3 and parts[2] == "reset":
                 return self._handle_reset(parts[1])
         except ValueError:
             return self._send(400, {"error": "Malformed URL"})
@@ -111,6 +111,11 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         body = self._read_body(); tasks = [l for l in body.splitlines() if l.strip()]
         if not tasks:
             return self._send(400, {"error": "No tasks provided"})
+        try:
+            tasks = [json.dumps(json.loads(t)) for t in tasks]
+        except json.JSONDecodeError:
+            tasks = [json.dumps(t) for t in tasks]
+
         cur = conn.cursor(); cur.execute("INSERT INTO jobs(name) VALUES (?)", (job,)); job_id = cur.lastrowid
         cur.executemany("INSERT INTO tasks(job_id,spec,status) VALUES (?,?,'pending')", ((job_id, t) for t in tasks))
         conn.commit(); return self._send(201, {"created_tasks": len(tasks)})
@@ -122,7 +127,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         if not row:
             conn.execute("ROLLBACK"); return self._send(404, {"error": "Job not found"})
         job_id = row[0]
-        row = cur.execute("SELECT id,spec FROM tasks WHERE job_id=? AND status='pending' LIMIT 1", (job_id,)).fetchone()
+        row = cur.execute("SELECT id,spec FROM tasks WHERE job_id=? AND status='pending' ORDER BY id ASC LIMIT 1", (job_id,)).fetchone()
         if not row:
             conn.execute("COMMIT"); return self._send(404, {"error": "no tasks available"})
         task_id, spec = row

@@ -27,8 +27,9 @@ build() {
   docker build -t ${TOOLCHAIN_IMAGE_NAME}   -f ${OS}/toolchain/Dockerfile.${TOOLCHAIN} --build-arg CMAKE_VERSION=${CMAKE_VERSION} --build-arg BASE_IMAGE=${BACKEND_IMAGE_NAME} --platform ${PLATFORM} .
   docker build -t ${FEATURE_IMAGE_NAME_TMP} -f ${OS}/feature/Dockerfile.${FEATURE}     --build-arg BASE_IMAGE=${TOOLCHAIN_IMAGE_NAME} --platform ${PLATFORM} .
   docker build -t ${FEATURE_IMAGE_NAME}     -f ${OS}/Dockerfile.all                    --build-arg BASE_IMAGE=${FEATURE_IMAGE_NAME_TMP} --platform ${PLATFORM} $tmp
-  docker build -t ${BUILD_IMAGE_NAME}       -f ${OS}/Dockerfile.build                  --build-arg BASE_IMAGE=${FEATURE_IMAGE_NAME} --platform ${PLATFORM} $tmp
+#  docker build -t ${BUILD_IMAGE_NAME}       -f ${OS}/Dockerfile.build                  --build-arg BASE_IMAGE=${FEATURE_IMAGE_NAME} --platform ${PLATFORM} $tmp
   rm -rf $tmp
+  echo ${FEATURE_IMAGE_NAME}
 }
 
 #build linux/amd64 ubuntu 20.04 mkl      gcc base
@@ -45,7 +46,9 @@ build() {
 #docker run -it --gpus all --runtime=nvidia  --rm -v $(cd .. && pwd):/rl_tools ${BUILD_IMAGE_NAME}
 #docker run -it --gpus all --runtime=nvidia -v $(cd .. && pwd):/rl_tools ${BUILD_IMAGE_NAME} bash -c "./configure.sh && ./build.sh && ctest -j4 -V -S ../rl_tools/CTestScript.cmake -DCDASH_TOKEN=${CDASH_TOKEN}"
 
-build linux/amd64 ubuntu 24.04 openblas default gcc base
+TAG=$(build linux/amd64 ubuntu 24.04 openblas default gcc base)
+REGISTRY="10.8.0.1:5000"
+docker tag ${TAG} ${REGISTRY}/${TAG}
+docker push ${REGISTRY}/${TAG}
 
-
-docker run -it --mount type=bind,source=$(cd .. && pwd),target=/rl-tools,readonly rltools/rltools:ubuntu24.04_openblas_gcc_base bash -c "./configure.sh && ./build.sh && ./test.sh"
+#docker run -it --mount type=bind,source=$(cd .. && pwd),target=/rl-tools,readonly rltools/rltools:ubuntu24.04_openblas_gcc_base bash -c "./configure.sh && ./build.sh && ./test.sh"
