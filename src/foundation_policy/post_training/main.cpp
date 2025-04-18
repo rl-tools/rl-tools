@@ -214,7 +214,7 @@ int main(int argc, char** argv){
 
         T mean_position[3] = {0, 0, 0};
         TI num_positions = 0;
-        for (TI episode_i=STEADY_STATE_POSITION_OFFSET_ESTIMATION_START; episode_i < STEADY_STATE_POSITION_OFFSET_ESTIMATION_END; episode_i++){
+        for (TI episode_i=NUM_EPISODES_EVAL; episode_i < NUM_EPISODES_EVAL; episode_i++){
             for (TI step_i=STEADY_STATE_POSITION_OFFSET_ESTIMATION_START; step_i < STEADY_STATE_POSITION_OFFSET_ESTIMATION_END; step_i++){
                 const auto& state = rlt::get(device, data.states, episode_i, step_i);
                 for (TI dim_i=0; dim_i < 3; dim_i++){
