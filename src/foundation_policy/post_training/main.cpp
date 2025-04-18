@@ -7,6 +7,7 @@
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/random_uniform/operations_generic.h>
@@ -100,6 +101,7 @@ int main(int argc, char** argv){
     std::cout << "Input shape: " << std::endl;
     rlt::print(device, ACTOR::INPUT_SHAPE{});
     std::cout << "Dataset size: " << DATASET_SIZE << std::endl;
+    rlt::Tensor<rlt::tensor::Specification<TeacherMeta<T>, TI, rlt::tensor::Shape<TI, NUM_TEACHERS>>> teacher_metas;
     rlt::Tensor<rlt::tensor::Specification<TI, TI, rlt::tensor::Shape<TI, DATASET_SIZE>>> dataset_episode_start_indices;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::Observation::DIM>>> dataset_input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, DATASET_SIZE, ENVIRONMENT::ACTION_DIM>>> dataset_output_target;
@@ -125,6 +127,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, actor);
     rlt::malloc(device, best_actor);
     rlt::malloc(device, actor_buffer);
+    rlt::malloc(device, teacher_metas);
     rlt::malloc(device, dataset_episode_start_indices);
     rlt::malloc(device, dataset_input);
     rlt::malloc(device, dataset_output_target);
@@ -204,9 +207,31 @@ int main(int argc, char** argv){
         rlt::from_json(device, env, dynamics_parameter_json, teacher_parameters[teacher_i]);
 
         rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT_TEACHER, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>> result;
-        rlt::rl::utils::evaluation::NoData<rlt::rl::utils::evaluation::DataSpecification<decltype(result)::SPEC>> no_data;
+        rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<decltype(result)::SPEC>> data;
         RNG rng_copy = rng;
-        sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], result, no_data, rng_copy);
+        rlt::malloc(device, data);
+        sample_trajectories<ENVIRONMENT_TEACHER>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], result, data, rng_copy);
+
+        T mean_position[3] = {0, 0, 0};
+        TI num_positions = 0;
+        for (TI episode_i=STEADY_STATE_POSITION_OFFSET_ESTIMATION_START; episode_i < STEADY_STATE_POSITION_OFFSET_ESTIMATION_END; episode_i++){
+            for (TI step_i=STEADY_STATE_POSITION_OFFSET_ESTIMATION_START; step_i < STEADY_STATE_POSITION_OFFSET_ESTIMATION_END; step_i++){
+                const auto& state = rlt::get(device, data.states, episode_i, step_i);
+                for (TI dim_i=0; dim_i < 3; dim_i++){
+                    mean_position[dim_i] += state.position[dim_i];
+                }
+                num_positions++;
+            }
+        }
+        for (TI dim_i=0; dim_i < 3; dim_i++){
+            if(num_positions > 0){
+                mean_position[dim_i] /= num_positions;
+            }
+            auto teacher_meta = rlt::get(device, teacher_metas, teacher_i);
+            teacher_meta.steady_state_position_offset[dim_i] = mean_position[dim_i];
+            rlt::set(device, teacher_metas, teacher_meta, teacher_i);
+        }
+        rlt::free(device, data);
         std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ")mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
@@ -232,10 +257,11 @@ int main(int argc, char** argv){
 
         if (epoch_i < EPOCH_TEACHER_FORCING || TEACHER_STUDENT_MIX > 0){ // start with behavioral cloning (data gathering using teacher)
             for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
+                auto teacher_meta = rlt::get(device, teacher_metas, teacher_i);
                 constexpr TI TEACHER_EPOCHS = (TEACHER_STUDENT_MIX > 0 ? TEACHER_STUDENT_MIX : 1);
                 for (TI teacher_epoch_i = 0; teacher_epoch_i < TEACHER_EPOCHS; teacher_epoch_i++){
                     static_assert(DATASET_SIZE >= NUM_TEACHERS * TEACHER_EPOCHS * NUM_EPISODES * ENVIRONMENT::EPISODE_STEP_LIMIT);
-                    auto result = gather_epoch<ENVIRONMENT_TEACHER, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_parameters[teacher_i], actor_teacher[teacher_i], dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
+                    auto result = gather_epoch<ENVIRONMENT_TEACHER, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, NUM_EPISODES, TEACHER_DETERMINISTIC>(device, actor_teacher[teacher_i], teacher_meta, teacher_parameters[teacher_i], actor_teacher[teacher_i], dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
                     if (epoch_i < EPOCH_TEACHER_FORCING){
                         NUM_AVG++;
                         average_result.returns_mean += result.returns_mean;
@@ -275,7 +301,8 @@ int main(int argc, char** argv){
             auto indices = argsort(active_teachers, [](const auto& a, const auto& b) { return std::get<1>(a) < std::get<1>(b); }); // ascending order
             for (TI teacher_i=0; teacher_i < NUM_TEACHERS; teacher_i++){
                 if (indices[teacher_i] < NUM_ACTIVE_TEACHERS){
-                    add_to_dataset<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, TEACHER_DETERMINISTIC>(device, datas[teacher_i], actor_teacher[teacher_i], dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
+                    auto teacher_meta = rlt::get(device, teacher_metas, teacher_i);
+                    add_to_dataset<ENVIRONMENT, ENVIRONMENT_TEACHER::Observation, ENVIRONMENT::Observation, TEACHER_DETERMINISTIC>(device, datas[teacher_i], actor_teacher[teacher_i], teacher_meta, dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
                 }
                 rlt::free(device, datas[teacher_i]);
             }
@@ -417,6 +444,7 @@ int main(int argc, char** argv){
     rlt::free(device, actor);
     rlt::free(device, best_actor);
     rlt::free(device, actor_buffer);
+    rlt::free(device, teacher_metas);
     rlt::free(device, dataset_episode_start_indices);
     rlt::free(device, dataset_input);
     rlt::free(device, dataset_output_target);

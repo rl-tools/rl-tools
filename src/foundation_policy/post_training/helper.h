@@ -1,3 +1,8 @@
+template <typename T>
+struct TeacherMeta{
+    T steady_state_position_offset[3];
+};
+
 template <typename ENVIRONMENT, typename DEVICE, typename POLICY, typename PARAMETERS, typename RESULT, typename DATA, typename RNG>
 void sample_trajectories(DEVICE& device, POLICY& policy, const PARAMETERS& parameters, RESULT& result, DATA& data, RNG& rng){
     using TI = typename DEVICE::index_t;
@@ -34,8 +39,8 @@ void sample_trajectories(DEVICE& device, POLICY& policy, const PARAMETERS& param
     rlt::free(device, rng);
 }
 
-template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, typename STUDENT_OBSERVATION, bool TEACHER_DETERMINISTIC, typename DEVICE, typename TEACHER_ORIG, typename DATA, typename DS_EPISODE_START_INDICES, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TRUNCATED_SPEC, typename RESET_SPEC, typename RNG, typename TI=typename DEVICE::index_t>
-TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor<DS_EPISODE_START_INDICES>& dataset_episode_start_indices, rlt::Tensor<INPUT_SPEC>& dataset_input_student, rlt::Tensor<OUTPUT_SPEC>& dataset_output, rlt::Tensor<TRUNCATED_SPEC>& truncated, rlt::Tensor<RESET_SPEC>& reset, TI& current_episode, TI& current_index, RNG& rng){
+template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, typename STUDENT_OBSERVATION, bool TEACHER_DETERMINISTIC, typename DEVICE, typename TEACHER_ORIG, typename TEACHER_META_SPEC, typename DATA, typename DS_EPISODE_START_INDICES, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TRUNCATED_SPEC, typename RESET_SPEC, typename RNG, typename TI=typename DEVICE::index_t>
+TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, TeacherMeta<TEACHER_META_SPEC>& teacher_meta, rlt::Tensor<DS_EPISODE_START_INDICES>& dataset_episode_start_indices, rlt::Tensor<INPUT_SPEC>& dataset_input_student, rlt::Tensor<OUTPUT_SPEC>& dataset_output, rlt::Tensor<TRUNCATED_SPEC>& truncated, rlt::Tensor<RESET_SPEC>& reset, TI& current_episode, TI& current_index, RNG& rng){
     using T = typename INPUT_SPEC::T;
     TI initial_index = current_index;
     ENVIRONMENT env_eval;
@@ -57,6 +62,10 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
             auto state = get(device, data.states, episode_i, current_step_i);
             rlt::observe(device, env_eval, env_eval_parameters, state, TEACHER_OBSERVATION{}, observation_teacher, rng);
             rlt::observe(device, env_eval, env_eval_parameters, state, STUDENT_OBSERVATION{}, observation_student, rng);
+            for (TI dim_i=0; dim_i < 3; dim_i++){
+                T position = rlt::get(observation_student, 0, dim_i);
+                rlt::set(observation_student, 0, dim_i, position - teacher_meta.steady_state_position_offset[dim_i]);
+            }
             bool truncated_flag = get(device, data.terminated, episode_i, current_step_i) || current_step_i == (ENVIRONMENT::EPISODE_STEP_LIMIT - 1);
             rlt::set(device, truncated, truncated_flag, current_index + current_step_i);
             rlt::set(device, reset, reset_flag, current_index + current_step_i);
@@ -100,15 +109,15 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, rlt::Tensor
 }
 
 
-template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, typename STUDENT_OBSERVATION, auto NUM_EPISODES, bool TEACHER_DETERMINISTIC, typename DEVICE, typename STUDENT, typename TEACHER, typename PARAMETERS, typename DS_EPISODE_START_INDICES_SPEC, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename RNG, typename TI=typename DEVICE::index_t>
-auto gather_epoch(DEVICE& device, TEACHER& teacher, PARAMETERS& parameters, STUDENT& student, rlt::Tensor<DS_EPISODE_START_INDICES_SPEC>& dataset_episode_start_indices, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_episode, TI& current_index, RNG& rng){
+template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, typename STUDENT_OBSERVATION, auto NUM_EPISODES, bool TEACHER_DETERMINISTIC, typename DEVICE, typename STUDENT, typename TEACHER, typename TEACHER_META_SPEC, typename PARAMETERS, typename DS_EPISODE_START_INDICES_SPEC, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename RNG, typename TI=typename DEVICE::index_t>
+auto gather_epoch(DEVICE& device, TEACHER& teacher, TeacherMeta<TEACHER_META_SPEC>& teacher_meta, PARAMETERS& parameters, STUDENT& student, rlt::Tensor<DS_EPISODE_START_INDICES_SPEC>& dataset_episode_start_indices, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_episode, TI& current_index, RNG& rng){
     using T = typename DS_INPUT_SPEC::T;
     using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
     RESULT result;
     rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<typename RESULT::SPEC>> data;
     rlt::malloc(device, data);
     sample_trajectories<ENVIRONMENT>(device, student, parameters, result, data, rng);
-    add_to_dataset<ENVIRONMENT, TEACHER_OBSERVATION, STUDENT_OBSERVATION, TEACHER_DETERMINISTIC>(device, data, teacher, dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
+    add_to_dataset<ENVIRONMENT, TEACHER_OBSERVATION, STUDENT_OBSERVATION, TEACHER_DETERMINISTIC>(device, data, teacher, teacher_meta, dataset_episode_start_indices, dataset_input, dataset_output_target, dataset_truncated, dataset_reset, current_episode, current_index, rng);
     rlt::free(device, data);
     return result;
 }
