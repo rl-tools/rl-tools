@@ -159,7 +159,8 @@ int main(int argc, char** argv){
     // checkpoint_path.experiment = "2025-04-03_21-30-10";
     // checkpoint_path.experiment = "2025-04-04_17-00-11";
     // checkpoint_path.experiment = "2025-04-07_23-12-07";
-    checkpoint_path.experiment = "2025-04-08_23-23-52";
+    // checkpoint_path.experiment = "2025-04-08_23-23-52";
+    checkpoint_path.experiment = "2025-04-16_20-10-58";
     checkpoint_path.name = "foundation-policy-pre-training";
 
     std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";

@@ -78,7 +78,8 @@ int main(){
     // checkpoint_path.experiment = "2025-04-03_21-30-10";
     // checkpoint_path.experiment = "2025-04-04_17-00-11";
     // checkpoint_path.experiment = "2025-04-07_23-12-07";
-    checkpoint_path.experiment = "2025-04-08_23-23-52";
+    // checkpoint_path.experiment = "2025-04-08_23-23-52";
+    checkpoint_path.experiment = "2025-04-16_20-10-58";
     checkpoint_path.name = "foundation-policy-pre-training";
 
 
@@ -136,7 +137,10 @@ int main(){
         auto cpp_copy = checkpoint_path;
         cpp_copy.attributes["dynamics-id"] = checkpoint_info_split[0]; // take from the end because we order by performance and the best are at the end
         cpp_copy.step = checkpoint_info_split[1];
-        rlt::find_latest_run(device, "1k-experiments", cpp_copy);
+        bool found = rlt::find_latest_run(device, "1k-experiments", cpp_copy);
+        if (!found){
+            std::cerr << "Could not find checkpoint: " << cpp_copy.checkpoint_path.string() << std::endl;
+        }
         auto actor_file = HighFive::File(cpp_copy.checkpoint_path.string(), HighFive::File::ReadOnly);
         rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));
 
