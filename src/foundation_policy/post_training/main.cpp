@@ -217,10 +217,12 @@ int main(int argc, char** argv){
         for (TI episode_i=0; episode_i < NUM_EPISODES_EVAL; episode_i++){
             for (TI step_i=STEADY_STATE_POSITION_OFFSET_ESTIMATION_START; step_i < STEADY_STATE_POSITION_OFFSET_ESTIMATION_END; step_i++){
                 const auto& state = rlt::get(device, data.states, episode_i, step_i);
-                for (TI dim_i=0; dim_i < 3; dim_i++){
-                    mean_position[dim_i] += state.position[dim_i];
+                if (STEADY_STATE_POSITION_CORRECTION && state.trajectory.type == rlt::rl::environments::l2f::POSITION){
+                    for (TI dim_i=0; dim_i < 3; dim_i++){
+                        mean_position[dim_i] += state.position[dim_i];
+                    }
+                    num_positions++;
                 }
-                num_positions++;
             }
         }
         for (TI dim_i=0; dim_i < 3; dim_i++){

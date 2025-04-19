@@ -25,6 +25,7 @@ constexpr bool SHUFFLE = true;
 constexpr bool TEACHER_DETERMINISTIC = true;
 constexpr bool ON_POLICY = true;
 constexpr TI TEACHER_STUDENT_MIX = 0; // added teacher epochs in DAgger epochs
+constexpr bool STEADY_STATE_POSITION_CORRECTION = true;
 constexpr TI STEADY_STATE_POSITION_OFFSET_ESTIMATION_START = 250;
 
 
