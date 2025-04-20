@@ -76,6 +76,12 @@ namespace rl_tools::nn::layers::gru{
         RESET_CONTAINER_TYPE reset_container;
     };
 
+    template <typename T_BASE, typename T_SPEC = bool>
+    struct NoAutoResetMode: T_BASE{
+        using SPEC = T_SPEC;
+        using BASE = T_BASE;
+    };
+
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
     struct StateSpecification{
         using SPEC = T_SPEC;

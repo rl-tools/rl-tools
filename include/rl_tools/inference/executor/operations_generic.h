@@ -175,7 +175,8 @@ namespace rl_tools{
             status.control_reasons_native.time_diff = time_diff_control_original >= SPEC::CONTROL_INTERVAL_NATIVE_NS;
             status.control_reasons_native.force_sync = (SPEC::FORCE_SYNC_NATIVE != 0) && (executor.intermediate_step % SPEC::FORCE_SYNC_NATIVE == 0);
             status.control_reasons_native.reset = reset;
-            Mode<mode::Evaluation<>> mode;
+            // Mode<mode::Evaluation<>> mode;
+            Mode<nn::layers::gru::NoAutoResetMode<mode::Evaluation<>>> mode;
             if(status.control_reasons_native.time_diff || status.control_reasons_native.force_sync || status.control_reasons_native.reset){
                 evaluate_step(device, policy, observation, executor.policy_state, action, executor.policy_buffer, rng, mode);
                 executor.last_control_timestamp_original = nanoseconds;
