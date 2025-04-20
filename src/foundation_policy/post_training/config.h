@@ -73,7 +73,7 @@ using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, ENVIRONM
 using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
     static constexpr T ALPHA = 0.0001;
-    static constexpr T WEIGHT_DECAY = 1e-4;
+    static constexpr T WEIGHT_DECAY = 1e-3;
     static constexpr T WEIGHT_DECAY_INPUT = 0;
     static constexpr T WEIGHT_DECAY_OUTPUT = 0;
 };
