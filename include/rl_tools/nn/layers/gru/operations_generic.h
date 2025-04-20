@@ -72,12 +72,12 @@ namespace rl_tools{
         copy(source_device, target_device, source.state, target.state);
         copy(source_device, target_device, source.step, target.step);
     }
-    template<typename DEVICE, typename SPEC, typename STATE_SPEC>
-    void reset_truncate(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state){
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename MODE>
+    void reset_truncate(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, Mode<MODE> mode = Mode<mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-            if(get(device, state.step, batch_i) >= SPEC::SEQUENCE_LENGTH){
+            if(!mode::is<MODE, nn::layers::gru::NoAutoResetMode> && get(device, state.step, batch_i) >= SPEC::SEQUENCE_LENGTH){
                 auto row = view(device, state.state, batch_i);
                 copy(device, device, layer.initial_hidden_state.parameters, row);
                 set(device, state.step, 0, batch_i);
@@ -354,7 +354,7 @@ namespace rl_tools{
         auto input_step = input;
         auto output_step = output;
 
-        reset_truncate(device, layer, state);
+        reset_truncate(device, layer, state, mode);
 
         auto post_activation_batch = view_range(device, buffers.post_activation, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
         auto n_pre_pre_activation_batch = view_range(device, buffers.n_pre_pre_activation, 0, tensor::ViewSpec<0, BATCH_SIZE>{});
@@ -400,7 +400,7 @@ namespace rl_tools{
         copy(device, device, output_step, relevant_state);
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             TI new_step = get(device, state.step, batch_i) + 1;
-            if(new_step >= LAYER_SPEC::SEQUENCE_LENGTH){
+            if(!mode::is<MODE, nn::layers::gru::NoAutoResetMode> && new_step >= LAYER_SPEC::SEQUENCE_LENGTH){
                 new_step = 0;
                 auto row = view(device, relevant_state, batch_i);
                 copy(device, device, layer.initial_hidden_state.parameters, row);
