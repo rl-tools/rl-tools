@@ -234,7 +234,7 @@ int main(int argc, char** argv){
             rlt::set(device, teacher_metas, teacher_meta, teacher_i);
         }
         rlt::free(device, data);
-        std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ")mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
+        std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ")mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << " steady state pos correction: " << mean_position[0] << "," << mean_position[1] << "," << mean_position[2] << std::endl;
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
             return 1;
