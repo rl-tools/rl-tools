@@ -7,3 +7,4 @@ RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRO
 RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
 RUN apt-get update && apt-get install -y intel-oneapi-mkl-devel-2025.0
 ENV RL_TOOLS_BACKEND_FLAGS="-DRL_TOOLS_BACKEND_ENABLE_MKL=ON"
+ENV MKL_NUM_THREADS=1

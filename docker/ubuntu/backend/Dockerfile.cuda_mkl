@@ -9,3 +9,4 @@ RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https:/
 RUN apt-get update && apt-get install -y intel-oneapi-mkl-devel-2023.1.0
 ENV RL_TOOLS_BACKEND_FLAGS="-DRL_TOOLS_BACKEND_ENABLE_MKL=ON -DRL_TOOLS_BACKEND_ENABLE_CUDA=ON"
 ENV CUDA_PATH=/usr/local/cuda-12.3
+ENV MKL_NUM_THREADS=1
