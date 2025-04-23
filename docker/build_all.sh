@@ -51,5 +51,6 @@ build() {
 #docker tag ${TAG} ${REGISTRY}/${TAG}
 #docker push ${REGISTRY}/${TAG}
 TAG=$(build linux/amd64 ubuntu 24.04 mkl default gcc base)
+echo $TAG
 
 #docker run -it --mount type=bind,source=$(cd .. && pwd),target=/rl-tools,readonly rltools/rltools:ubuntu24.04_openblas_gcc_base bash -c "./configure.sh && ./build.sh && ./test.sh"

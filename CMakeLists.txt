@@ -53,6 +53,7 @@ option(RL_TOOLS_DEBUG_COMPILER_OPTIONS "Options like -ftemplate-backtrace-limit=
 option(RL_TOOLS_EXPERIMENTAL "Experimental" OFF)
 option(RL_TOOLS_ENABLE_WARNINGS "Enable warnings" OFF)
 option(RL_TOOLS_OUT_OF_TREE_EXTERNAL_PATH "Path to Out-Of-Tree external folder" OFF)
+option(RL_TOOLS_ENABLE_GIT_DIFF "Enable embedding git diff into ExTrack runs" OFF)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release" AND RL_TOOLS_ENABLE_LTO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
@@ -145,11 +146,6 @@ set_property(TARGET rl_tools_optimizations_cuda PROPERTY EXPORT_NAME Optimizatio
 add_library(rl_tools INTERFACE) # This is the full target (containing, all configured dependencies including UI, Mujoco etc.)
 set_property(TARGET rl_tools PROPERTY EXPORT_NAME RLtools)
 
-if(UNIX)
-    set(RL_TOOLS_ENABLE_GIT_DIFF ON)
-else()
-    set(RL_TOOLS_ENABLE_GIT_DIFF OFF)
-endif()
 if(RL_TOOLS_ENABLE_GIT_DIFF)
     file(GLOB_RECURSE GIT_DIFF_PROJECT_SOURCES
             CONFIGURE_DEPENDS
