@@ -95,9 +95,14 @@ namespace rl_tools::rl::zoo::l2f{
             0.02, // mass_min;
             5.00, // mass_max;
             0.1, // mass_size_deviation;
-            0.0, // motor_time_constant;
-            0.0, // rotor_torque_constant;
-            0.0  // orientation_offset_angle_max;
+            0.0, // rotor_time_constant_rising_min
+            0.0, // rotor_time_constant_rising_max
+            0.0, // rotor_time_constant_falling_min
+            0.0, // rotor_time_constant_falling_max
+            0.0, // rotor_torque_constant_min;
+            0.0, // rotor_torque_constant_max;
+            0.0, // orientation_offset_angle_max;
+            0.0  // disturbance_force_max;
         } : typename PARAMETERS_TYPE::DomainRandomization{
             0.0, // thrust_to_weight_min;
             0.0, // thrust_to_weight_max;
@@ -106,9 +111,14 @@ namespace rl_tools::rl::zoo::l2f{
             0.0, // mass_min;
             0.0, // mass_max;
             0.0, // mass_size_deviation;
-            0.0, // motor_time_constant;
-            0.0, // rotor_torque_constant;
-            0.0  // orientation_offset_angle_max;
+            0.0, // rotor_time_constant_rising_min
+            0.0, // rotor_time_constant_rising_max
+            0.0, // rotor_time_constant_falling_min
+            0.0, // rotor_time_constant_falling_max
+            0.0, // rotor_torque_constant_min;
+            0.0, // rotor_torque_constant_max;
+            0.0, // orientation_offset_angle_max;
+            0.0  // disturbance_force_max;
         };
         static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, //{0, 0.027 * 9.81 / 3}, // random_force;
