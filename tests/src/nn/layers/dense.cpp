@@ -17,7 +17,7 @@ using PARAMETER_TYPE = rlt::nn::parameters::Plain;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, INPUT_DIM>;
 using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
 
-
+#include <chrono>
 
 #include <gtest/gtest.h>
 #include <cstring>
