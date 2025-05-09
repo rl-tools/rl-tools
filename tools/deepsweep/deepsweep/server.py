@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal REST server for RL experiment orchestration."""
+"""Minimal REST server for ML experiment orchestration."""
 from __future__ import annotations
 
 import argparse, http.server, json, os, sqlite3, urllib.parse
@@ -159,13 +159,15 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         return
 
 
-if __name__ == "__main__":
-    p = argparse.ArgumentParser(description="Minimal RL job orchestration server")
+def main():
+    p = argparse.ArgumentParser(description="Minimal REST server for ML experiment orchestration.")
     p.add_argument("--ip", default="0.0.0.0", help="Host to bind (default 0.0.0.0)")
     p.add_argument("--port", type=int, default=8000, help="Port to listen on (default 8000)")
     args = p.parse_args()
 
     init_db()
-    print(f"RL Job Server listening on http://{args.ip}:{args.port}")
+    print(f"DeepSweep Server listening on http://{args.ip}:{args.port}")
     http.server.ThreadingHTTPServer((args.ip, args.port), RequestHandler).serve_forever()
 
+if __name__ == "__main__":
+    main()
