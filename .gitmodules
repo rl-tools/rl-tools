@@ -4,7 +4,7 @@
 	url = https://github.com/rl-tools/documentation.git
 [submodule "tests/data"]
 	path = tests/data
-	url = https://gitlab.com/backprop_tools/test-data.git
+	url = https://gitlab.com/backprop_tools/test-data.git # alternative https://huggingface.co/datasets/rl-tools/test-data
 [submodule "media"]
 	path = media
 	url = https://github.com/rl-tools/media.git
@@ -85,3 +85,6 @@
 [submodule "tests/lib/nlohmann"]
 	path = tests/lib/nlohmann
 	url = https://github.com/nlohmann/json.git
+[submodule "embedded_platforms/betaflight"]
+	path = embedded_platforms/betaflight
+	url = https://github.com/rl-tools/betaflight.git
