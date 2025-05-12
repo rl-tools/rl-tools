@@ -199,10 +199,16 @@ namespace rl_tools::math {
         return x != x;
     }
 
-    template<typename T>
-    bool is_finite(const devices::math::Generic&, const T x) {
-        return x <= 1.7976931348623158e+308 && x >= -1.7976931348623158e+308;
-    }
+    // template<typename T>
+    // bool is_finite(const devices::math::Generic&, const T x) {
+    //     if constexpr (std::is_same_v<T, float>) {
+    //         return x <= 3.402823e+38f && x >= -3.402823e+38f;
+    //     } else if constexpr (std::is_same_v<T, double>) {
+    //         return x <= 1.7976931348623158e+308 && x >= -1.7976931348623158e+308;
+    //     } else {
+    //         return true; // Assume finite for other types
+    //     }
+    // }
 
     template<typename T>
     T clamp(const devices::math::Generic&, T x, T min, T max) {
