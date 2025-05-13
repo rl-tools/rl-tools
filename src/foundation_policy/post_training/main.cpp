@@ -156,6 +156,7 @@ int main(int argc, char** argv){
     rlt::init_weights(device, actor, rng);
 
     //work
+    std::filesystem::path registry_path = "./src/foundation_policy/registry";
     rlt::utils::extrack::Path checkpoint_path;
     // checkpoint_path.experiment = "2025-03-31_21-06-47"; // fails
     // checkpoint_path.experiment = "2025-04-01_13-43-13"; // good
@@ -405,33 +406,36 @@ int main(int argc, char** argv){
             std::filesystem::create_directories(target_path);
         }
         rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT, CHECKPOINT_PARAMETERS>(device, target_path.string(), actor, rng);
-        {
-            using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_EVAL>;
-            using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
-            rlt::rl::environments::DummyUI ui;
-            EVALUATION_ACTOR_TYPE evaluation_actor;
-            EVALUATION_ACTOR_TYPE::Buffer<DYNAMIC_ALLOCATION> eval_buffer;
-            rlt::malloc(device, evaluation_actor);
-            rlt::malloc(device, eval_buffer);
-            rlt::copy(device, device, actor, evaluation_actor);
+        for (const auto& entry : std::filesystem::directory_iterator(registry_path)) {
+            if (entry.is_regular_file()){
+                std::string file_name_without_extension = entry.path().stem().string();
+                using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_EVAL>;
+                using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
+                rlt::rl::environments::DummyUI ui;
+                EVALUATION_ACTOR_TYPE evaluation_actor;
+                EVALUATION_ACTOR_TYPE::Buffer<DYNAMIC_ALLOCATION> eval_buffer;
+                rlt::malloc(device, evaluation_actor);
+                rlt::malloc(device, eval_buffer);
+                rlt::copy(device, device, actor, evaluation_actor);
 
-            ENVIRONMENT env_eval;
-            ENVIRONMENT::Parameters env_eval_parameters;
-            rlt::init(device, env_eval);
-            rlt::sample_initial_parameters(device, env_eval, env_eval_parameters, rng);
-            rlt::Mode<rlt::mode::Default<>> mode;
-            RESULT_EVAL result_eval;
-            DATA_EVAL data_eval;
-            rlt::evaluate(device, env_eval, ui, evaluation_actor, result_eval, data_eval, rng, mode);
-            rlt::add_scalar(device, device.logger, "crazyflie/return/mean", result_eval.returns_mean);
-            rlt::add_scalar(device, device.logger, "crazyflie/return/std", result_eval.returns_std);
-            rlt::add_scalar(device, device.logger, "crazyflie/episode_length/mean", result_eval.episode_length_mean);
-            rlt::add_scalar(device, device.logger, "crazyflie/episode_length/std", result_eval.episode_length_std);
-            rlt::add_scalar(device, device.logger, "crazyflie/share_terminated", result_eval.share_terminated);
-            rlt::log(device, device.logger, "Crazyflie: Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
+                ENVIRONMENT env_eval;
+                ENVIRONMENT::Parameters env_eval_parameters;
+                rlt::init(device, env_eval);
+                rlt::sample_initial_parameters(device, env_eval, env_eval_parameters, rng);
+                rlt::Mode<rlt::mode::Default<>> mode;
+                RESULT_EVAL result_eval;
+                DATA_EVAL data_eval;
+                rlt::evaluate(device, env_eval, ui, evaluation_actor, result_eval, data_eval, rng, mode);
+                rlt::add_scalar(device, device.logger, "crazyflie/return/mean", result_eval.returns_mean);
+                rlt::add_scalar(device, device.logger, "crazyflie/return/std", result_eval.returns_std);
+                rlt::add_scalar(device, device.logger, "crazyflie/episode_length/mean", result_eval.episode_length_mean);
+                rlt::add_scalar(device, device.logger, "crazyflie/episode_length/std", result_eval.episode_length_std);
+                rlt::add_scalar(device, device.logger, "crazyflie/share_terminated", result_eval.share_terminated);
+                rlt::log(device, device.logger, "Crazyflie: Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
 
-            rlt::free(device, evaluation_actor);
-            rlt::free(device, eval_buffer);
+                rlt::free(device, evaluation_actor);
+                rlt::free(device, eval_buffer);
+            }
         }
     }
 
