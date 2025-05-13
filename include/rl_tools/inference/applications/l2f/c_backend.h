@@ -20,7 +20,7 @@ namespace rl_tools::inference::applications::l2f{
 
 
     // state
-    using SPEC = rl_tools::inference::applications::l2f::Specification<T, TI, RLtoolsInferenceTimestamp, CONFIG::ACTION_HISTORY_LENGTH, OUTPUT_DIM, typename CONFIG::POLICY, CONFIG::CONTROL_INTERVAL_INTERMEDIATE_NS, CONFIG::CONTROL_INTERVAL_NATIVE_NS, CONFIG::FORCE_SYNC_INTERMEDIATE, CONFIG::FORCE_SYNC_NATIVE, CONFIG::DYNAMIC_ALLOCATION>;
+    using SPEC = rl_tools::inference::applications::l2f::Specification<T, TI, RLtoolsInferenceTimestamp, CONFIG::ACTION_HISTORY_LENGTH, OUTPUT_DIM, typename CONFIG::POLICY, CONFIG::CONTROL_INTERVAL_INTERMEDIATE_NS, CONFIG::CONTROL_INTERVAL_NATIVE_NS, CONFIG::FORCE_SYNC_INTERMEDIATE, CONFIG::FORCE_SYNC_NATIVE, CONFIG::WARNING_LEVELS, CONFIG::DYNAMIC_ALLOCATION>;
     typename CONFIG::DEVICE device;
     typename CONFIG::RNG rng;
     static rl_tools::inference::applications::L2F<SPEC> executor;

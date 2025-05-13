@@ -7,7 +7,18 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace inference{
         namespace executor{
-            template <typename T_T, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, bool T_DYNAMIC_ALLOCATION=true>
+            template <typename T>
+            struct WarningLevelsDefault{
+                static constexpr T INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
+                static constexpr T INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
+                static constexpr T INTERMEDIATE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
+                static constexpr T INTERMEDIATE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
+                static constexpr T NATIVE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
+                static constexpr T NATIVE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
+                static constexpr T NATIVE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
+                static constexpr T NATIVE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
+            };
+            template <typename T_T, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, typename T_WARNING_LEVELS=WarningLevelsDefault<T_T>, bool T_DYNAMIC_ALLOCATION=true>
             struct Specification{
                 using T = T_T;
                 using TI = T_TI;
@@ -20,16 +31,9 @@ namespace rl_tools{
                 static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = T_CONTROL_INTERVAL_NATIVE_NS; // the control interval native to the policy (that it was trained at)
                 static constexpr bool FORCE_SYNC_INTERMEDIATE = T_FORCE_SYNC_INTERMEDIATE; // forcing the sync of intermediate steps with the observations: for each observation => run intermediate control
                 static constexpr TI FORCE_SYNC_NATIVE = T_FORCE_SYNC_NATIVE; // 0 means not forcing, != 0 means forcing every FORCE_SYNC_TRAINING inference control steps
-                static constexpr T INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
-                static constexpr T INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
-                static constexpr T INTERMEDIATE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
-                static constexpr T INTERMEDIATE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
-                static constexpr T NATIVE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
-                static constexpr T NATIVE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
-                static constexpr T NATIVE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
-                static constexpr T NATIVE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
                 static constexpr TI INPUT_DIM = POLICY::INPUT_SHAPE::LAST;
                 static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
+                using WARNING_LEVELS = T_WARNING_LEVELS;
             };
             template <typename T_SPEC>
             struct JitterStatus{

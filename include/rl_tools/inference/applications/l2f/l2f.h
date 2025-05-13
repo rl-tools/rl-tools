@@ -7,7 +7,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::inference::applications{
     namespace l2f{
-        template <typename T_T, typename T_TI, typename T_TIMESTAMP, T_TI T_ACTION_HISTORY_LENGTH, T_TI T_OUTPUT_DIM, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, bool T_DYNAMIC_ALLOCATION=true>
+        template <typename T_T, typename T_TI, typename T_TIMESTAMP, T_TI T_ACTION_HISTORY_LENGTH, T_TI T_OUTPUT_DIM, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, typename T_WARNING_LEVELS=executor::WarningLevelsDefault<T_T>, bool T_DYNAMIC_ALLOCATION=true>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
@@ -16,7 +16,7 @@ namespace rl_tools::inference::applications{
             static constexpr T_TI ACTION_HISTORY_LENGTH = T_ACTION_HISTORY_LENGTH;
             static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-            using EXECUTOR_SPEC = executor::Specification<T, TI, TIMESTAMP, POLICY, T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_CONTROL_INTERVAL_NATIVE_NS, T_FORCE_SYNC_INTERMEDIATE, T_FORCE_SYNC_NATIVE, T_DYNAMIC_ALLOCATION>;
+            using EXECUTOR_SPEC = executor::Specification<T, TI, TIMESTAMP, POLICY, T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_CONTROL_INTERVAL_NATIVE_NS, T_FORCE_SYNC_INTERMEDIATE, T_FORCE_SYNC_NATIVE, T_WARNING_LEVELS, T_DYNAMIC_ALLOCATION>;
         };
         template <typename SPEC>
         struct Observation{
