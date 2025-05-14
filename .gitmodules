@@ -14,6 +14,10 @@
 [submodule "static/extrack_ui/lib"]
 	path = static/extrack_ui/lib
 	url = https://github.com/rl-tools/extrack-ui-lib.git
+# blob
+[submodule "src/foundation_policy/blob"]
+	path = src/foundation_policy/blob
+	url = https://github.com/rl-tools/foundation-policy-blob.git
 
 # Embedded Platforms
 [submodule "embedded_platforms/px4"]
@@ -31,6 +35,9 @@
 [submodule "embedded_platforms/crazyflie/controller"]
 	path = embedded_platforms/crazyflie/controller
 	url = https://github.com/rl-tools/crazyflie-controller.git
+[submodule "embedded_platforms/betaflight"]
+	path = embedded_platforms/betaflight
+	url = https://github.com/rl-tools/betaflight.git
 
 # Dependencies
 [submodule "external/cli11"]
@@ -85,6 +92,3 @@
 [submodule "tests/lib/nlohmann"]
 	path = tests/lib/nlohmann
 	url = https://github.com/nlohmann/json.git
-[submodule "embedded_platforms/betaflight"]
-	path = embedded_platforms/betaflight
-	url = https://github.com/rl-tools/betaflight.git
