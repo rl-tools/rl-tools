@@ -138,6 +138,15 @@
             "env": {
                 "OMP_NUM_THREADS": "1"
             }
+        },
+        {
+            "name": "src/foundation_policy/analysis/analyze.py",
+            "type": "python",
+            "request": "launch",
+            "program": "src/foundation_policy/analysis/analyze.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
