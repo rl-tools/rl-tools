@@ -158,7 +158,7 @@ int main(int argc, char** argv){
         rlt::free(device, data);
         std::cout << "Teacher policy mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
     }
-    std::ofstream o("./src/foundation_policy/" + experiment + "_hidden_states.json");
+    std::ofstream o("./src/foundation_policy/hidden_states_" + experiment + ".json");
     o << hidden_states.dump();
     o.close();
 
