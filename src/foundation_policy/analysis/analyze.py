@@ -47,17 +47,18 @@ with open(f"src/foundation_policy/hidden_states_{experiment}.json", "r") as f:
                 raise ValueError(f"Unknown dependent: {dependent}")
 
 X = np.array(X)
-X_standardized = (X - X.mean(axis=0)) / X.std(axis=0)
+X_standardized = X # (X - X.mean(axis=0)) / X.std(axis=0)
 U, S, Vt = np.linalg.svd(X_standardized, full_matrices=False)
 var_ratio = S**2 / (S**2).sum()
 cum = np.cumsum(var_ratio)
 
-# import matplotlib.pyplot as plt
-# plt.plot(cum)
-# plt.xlabel("Principal Component")
-# plt.ylabel("Cumulative Explained Variance")
-# plt.title("Cumulative Explained Variance")
-# plt.savefig(f"src/foundation_policy/analysis/cumulative_explained_variance.png", dpi=600)
+import matplotlib.pyplot as plt
+plt.plot(cum)
+plt.xlabel("Principal Component")
+plt.ylabel("Cumulative Explained Variance")
+plt.title("Cumulative Explained Variance")
+plt.savefig(f"src/foundation_policy/analysis/cumulative_explained_variance_non_standardized.png", dpi=600)
+plt.close()
 
 p = S / S.sum()
 erank = np.exp(-(p * np.log(p)).sum())
@@ -75,27 +76,61 @@ models = {}
 for dependent in dependents:
     y = ys[dependent]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
     model = LinearRegression()
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
     print(f"{dependent}: Mean squared error: ", mean_squared_error(y_test, y_pred))
     print("    R2 score: ", r2_score(y_test, y_pred))
-    models[dependent] = {"coef": model.coef_.tolist(), "intercept": model.intercept_}
 
-    preds = X @ model.coef_ + model.intercept_
+    percentile_cutoff = 0
+
+    preds_train = X_train @ model.coef_ + model.intercept_
+    abs_res_train = np.abs(y_train - preds_train)
+    abs_res_min = np.percentile(abs_res_train, percentile_cutoff)
+    abs_res_max = np.percentile(abs_res_train, 100-percentile_cutoff)
+    abs_res_train = np.clip(abs_res_train, abs_res_min, abs_res_max)
+    preds_test = X_test @ model.coef_ + model.intercept_
+    abs_res_test = np.abs(y_test - preds_test)
+    abs_res_test = np.clip(abs_res_test, abs_res_min, abs_res_max)
+    
     # for pred, y_true in zip(preds, y):
     #     print(f"pred: {pred}, y_true: {y_true}")
+    model_std = LinearRegression()
+    model_std.fit(X_train, abs_res_train)
+    abs_res_test_pred = model_std.predict(X_test)
+    print(f"{dependent}: Mean squared error (std): ", mean_squared_error(abs_res_test, abs_res_test_pred))
+    print("    R2 score (std): ", r2_score(abs_res_test, abs_res_test_pred))
+
+    models[dependent] = {
+        "mean": {"coef": model.coef_.tolist(), "intercept": model.intercept_},
+        "std": {"coef": model_std.coef_.tolist(), "intercept": model_std.intercept_}
+    }
+
+    abs_res_train_pred = X_train @ model_std.coef_ + model_std.intercept_
 
     import matplotlib.pyplot as plt
-    plt.scatter(y, preds, alpha=0.01, s=1)
-    min_val = min(y)
-    max_val = max(y)
-    plt.plot([min_val, max_val], [min_val, max_val], color="red", linestyle="--")
+    fig, ax = plt.subplots()
+    plt.scatter(y_test, preds_test, alpha=0.02, s=1)
+    plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], color="red", linestyle="--")
+    plt.xlim([min(y_test), max(y_test)])
+    plt.ylim([min(y_test), max(y_test)])
     plt.xlabel("True")
     plt.ylabel("Predicted")
-    plt.title(f"True vs Predicted {name[dependent]} ratio")
+    plt.title(f"True vs Predicted {name[dependent]} (std) ratio")
+    ax.set_aspect('equal')
     plt.savefig(f"src/foundation_policy/analysis/analyze_{dependent}.png", dpi=600)
     plt.show()
+
+    # import matplotlib.pyplot as plt
+    # plt.figure()
+    # plt.scatter(y_train, preds_train, alpha=0.01, s=1)
+    # plt.plot([min(y_train), max(y_train)], [min(y_train), max(y_train)], color="red", linestyle="--")
+    # plt.xlabel("True")
+    # plt.ylabel("Predicted")
+    # plt.title(f"True vs Predicted {name[dependent]} ratio")
+    # plt.savefig(f"src/foundation_policy/analysis/analyze_{dependent}.png", dpi=600)
+    # plt.show()
 
 with open(f"src/foundation_policy/analysis/models.json", "w") as f:
     f.write(json.dumps(models))

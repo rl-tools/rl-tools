@@ -27,6 +27,15 @@
         }
     </script>
     <script>
+        function check_dependency(path){
+            fetch(path).then((response) => {
+                if(!response.ok){
+                    alert(`Error: Could not load dependency: ${path}. Please run \`./download_dependencies.sh\` in the \`./static/extrack_ui\` directory`)
+                }
+            })
+        }
+        check_dependency("./lib/three.module.js")
+        check_dependency("./lib/OrbitControls.js")
         class Client{
             constructor(restart_callback){
                 this.setParametersCallback = null;
