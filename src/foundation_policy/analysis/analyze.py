@@ -52,12 +52,12 @@ U, S, Vt = np.linalg.svd(X_standardized, full_matrices=False)
 var_ratio = S**2 / (S**2).sum()
 cum = np.cumsum(var_ratio)
 
-import matplotlib.pyplot as plt
-plt.plot(cum)
-plt.xlabel("Principal Component")
-plt.ylabel("Cumulative Explained Variance")
-plt.title("Cumulative Explained Variance")
-plt.savefig(f"src/foundation_policy/analysis/cumulative_explained_variance.png", dpi=600)
+# import matplotlib.pyplot as plt
+# plt.plot(cum)
+# plt.xlabel("Principal Component")
+# plt.ylabel("Cumulative Explained Variance")
+# plt.title("Cumulative Explained Variance")
+# plt.savefig(f"src/foundation_policy/analysis/cumulative_explained_variance.png", dpi=600)
 
 p = S / S.sum()
 erank = np.exp(-(p * np.log(p)).sum())
