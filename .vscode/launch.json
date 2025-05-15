@@ -147,6 +147,15 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "src/foundation_policy/analysis/trajectory.py",
+            "type": "python",
+            "request": "launch",
+            "program": "src/foundation_policy/analysis/trajectory.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
