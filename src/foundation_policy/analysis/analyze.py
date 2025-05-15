@@ -6,7 +6,7 @@ experiment = "2025-04-16_20-10-58"
 dynamics_parameters_path = f"src/foundation_policy/dynamics_parameters_{experiment}"
 dependents = ["t2w"] #, "return"]
 name = {
-    "t2w": "Thrust to Weight",
+    "t2w": "Thrust-to-Weight Ratio",
     "t2i": "Torque to Inertia",
     "return": "Return",
 }
@@ -109,18 +109,101 @@ for dependent in dependents:
 
     abs_res_train_pred = X_train @ model_std.coef_ + model_std.intercept_
 
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots()
-    plt.scatter(y_test, preds_test, alpha=0.02, s=1)
-    plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], color="red", linestyle="--")
-    plt.xlim([min(y_test), max(y_test)])
-    plt.ylim([min(y_test), max(y_test)])
-    plt.xlabel("True")
-    plt.ylabel("Predicted")
-    plt.title(f"True vs Predicted {name[dependent]} (std) ratio")
-    ax.set_aspect('equal')
-    plt.savefig(f"src/foundation_policy/analysis/analyze_{dependent}.png", dpi=600)
-    plt.show()
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots()
+    # plt.scatter(y_test, preds_test, alpha=0.02, s=1)
+    # plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], color="red", linestyle="--")
+    # plt.xlim([min(y_test), max(y_test)])
+    # plt.ylim([min(y_test), max(y_test)])
+    # plt.xlabel("True")
+    # plt.ylabel("Predicted")
+    # plt.title(f"True vs Predicted {name[dependent]} (std) ratio")
+    # ax.set_aspect('equal')
+    # plt.savefig(f"src/foundation_policy/analysis/analyze_{dependent}.png", dpi=600)
+    # plt.show()
+    true = y
+    pred = X @ model.coef_ + model.intercept_
+    COLOR_PRIMARY = "#7DB9B6"
+    COLOR_GREY = "#3B75AF" #(59,117,175)
+    COLOR_GREY = "#347271" #(59,117,175)
+    COLOR_BLACK = "#000000"
+    SCATTER_ALPHA = 0.10
+    SCATTER_SIZE  = 0.5
+    LINEWIDTH     = 2
+    fig, ax = plt.subplots(figsize=(5, 3), dpi=600)
+    for i in range(1):
+        ax.scatter(
+            true,
+            pred,
+            alpha=SCATTER_ALPHA if i == 0 else 1,
+            s=SCATTER_SIZE if i == 0 else 0.05,
+            color=COLOR_GREY if i == 0 else COLOR_BLACK,
+            edgecolors="none",
+            zorder=6,
+            rasterized=True,
+            # label="Predictions"
+        )
+    ax.scatter(
+        [],
+        [],
+        color=COLOR_GREY,
+        edgecolors="none",
+        zorder=6,
+        label="Predictions"
+    )
+    n_bins = 50
+    bins = np.linspace(min(y_test), max(y_test), n_bins+1)
+    idx = np.digitize(y_test,bins)-1
+    centers = 0.5*(bins[:-1]+bins[1:])
+    mean_bin = np.array([preds_test[idx==j].mean() if np.any(idx==j) else np.nan for j in range(n_bins)])
+    std_bin = np.array([preds_test[idx==j].std(ddof=0) if np.any(idx==j) else np.nan for j in range(n_bins)])
+    mask = ~np.isnan(mean_bin)
+    # ax.plot(centers[mask],mean_bin[mask]-std_bin[mask],color=COLOR_PRIMARY,alpha=1.0,linewidth=1,zorder=5)
+    # ax.plot(centers[mask],mean_bin[mask]+std_bin[mask],color=COLOR_PRIMARY,alpha=1.0,linewidth=1,zorder=5)
+    ax.fill_between(
+        centers[mask],
+        mean_bin[mask] - std_bin[mask],
+        mean_bin[mask] + std_bin[mask],
+        color=COLOR_PRIMARY,
+        alpha=0.75,
+        linewidth=0,
+        zorder=5,
+        label="Mean prediction ± $\sigma$",
+    )
+    # ax.plot(
+    #     centers[mask],
+    #     mean_bin[mask],
+    #     color=COLOR_PRIMARY,
+    #     linewidth=1,
+    #     label="Mean prediction",
+    #     zorder=4,
+    # )
+    ax.plot(
+        [min(true), max(true)],
+        [min(true), max(true)],
+        color="red",
+        linestyle="--",
+        linewidth=1,
+        label="Identity",
+        zorder=6,
+    )
+    ax.set_xlim(min(true), max(true))
+    ax.set_ylim(min(true), max(true))
+    # ax.set_aspect("equal", adjustable="box")
+    ax.set_xlabel("True")
+    ax.set_ylabel("Predicted")
+    ax.set_title(f"Linear Probe: {name[dependent]}")
+    ax.margins(x=0)
+    fig.tight_layout()
+    fig.legend(
+        loc="lower right",
+        bbox_to_anchor=(1, 0.05),
+        bbox_transform=ax.transAxes,
+        # fontsize=10,
+        frameon=False,
+    )
+    plt.savefig(f"src/foundation_policy/analysis/analyze_{dependent}.pdf", bbox_inches="tight")
+    # plt.show()
 
     # import matplotlib.pyplot as plt
     # plt.figure()
