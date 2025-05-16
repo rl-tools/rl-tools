@@ -35,8 +35,8 @@ l2f.initialize_environment(device, env)
 l2f.initialize_rng(device, rng, 0)
 
 N_STEPS = 500
-N_TRAJECTORIES = 10
-N_DRONES = 10
+N_TRAJECTORIES = 1
+N_DRONES = 100
 
 experiment = "2025-04-16_20-10-58"
 
