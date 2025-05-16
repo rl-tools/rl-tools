@@ -151,7 +151,7 @@ for dependent in dependents:
         zorder=6,
         label="Predictions"
     )
-    n_bins = 50
+    n_bins = 20
     bins = np.linspace(min(y_test), max(y_test), n_bins+1)
     idx = np.digitize(y_test,bins)-1
     centers = 0.5*(bins[:-1]+bins[1:])
@@ -197,7 +197,7 @@ for dependent in dependents:
     fig.tight_layout()
     fig.legend(
         loc="lower right",
-        bbox_to_anchor=(1, 0.05),
+        bbox_to_anchor=(1, -0.02),
         bbox_transform=ax.transAxes,
         # fontsize=10,
         frameon=False,
