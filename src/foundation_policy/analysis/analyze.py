@@ -57,7 +57,7 @@ plt.plot(cum)
 plt.xlabel("Principal Component")
 plt.ylabel("Cumulative Explained Variance")
 plt.title("Cumulative Explained Variance")
-plt.savefig(f"src/foundation_policy/analysis/cumulative_explained_variance_non_standardized.png", dpi=600)
+plt.savefig(f"src/foundation_policy/analysis/figures/cumulative_explained_variance_non_standardized.png", dpi=600)
 plt.close()
 
 p = S / S.sum()
@@ -119,7 +119,7 @@ for dependent in dependents:
     # plt.ylabel("Predicted")
     # plt.title(f"True vs Predicted {name[dependent]} (std) ratio")
     # ax.set_aspect('equal')
-    # plt.savefig(f"src/foundation_policy/analysis/analyze_{dependent}.png", dpi=600)
+    # plt.savefig(f"src/foundation_policy/analysis/figures/analyze_{dependent}.png", dpi=600)
     # plt.show()
     true = y
     pred = X @ model.coef_ + model.intercept_
@@ -202,7 +202,7 @@ for dependent in dependents:
         # fontsize=10,
         frameon=False,
     )
-    plt.savefig(f"src/foundation_policy/analysis/analyze_{dependent}.pdf", bbox_inches="tight")
+    plt.savefig(f"src/foundation_policy/analysis/figures/analyze_{dependent}.pdf", bbox_inches="tight")
     # plt.show()
 
     # import matplotlib.pyplot as plt
@@ -212,7 +212,7 @@ for dependent in dependents:
     # plt.xlabel("True")
     # plt.ylabel("Predicted")
     # plt.title(f"True vs Predicted {name[dependent]} ratio")
-    # plt.savefig(f"src/foundation_policy/analysis/analyze_{dependent}.png", dpi=600)
+    # plt.savefig(f"src/foundation_policy/analysis/figures/analyze_{dependent}.png", dpi=600)
     # plt.show()
 
 with open(f"src/foundation_policy/analysis/models.json", "w") as f:

@@ -38,15 +38,19 @@ N_STEPS = 500
 N_TRAJECTORIES = 10
 N_DRONES = 10
 
+experiment = "2025-04-16_20-10-58"
 
 with open(os.path.join(os.path.dirname(__file__), "models.json"), "r") as f:
     models = json.load(f)
 
 for drone_i in range(N_DRONES):
+    with open(f"src/foundation_policy/dynamics_parameters_{experiment}/{drone_i}.json", "r") as parameters_file:
+        parameters = json.load(parameters_file)
     hidden_trajectories = []
     trajectories = []
     prediction_trajectories = []
-    l2f.sample_initial_parameters(device, env, params, rng)
+    l2f.initial_parameters(device, env, params)
+    l2f.parameters_from_json(device, env, json.dumps(parameters), params)
     params_json = json.loads(l2f.parameters_to_json(device, env, params))
     max_action = params_json["dynamics"]["action_limit"]["max"]
     thrusts = [np.dot(tc, [max_action ** i for i in range(len(tc))]) for tc in params_json["dynamics"]["rotor_thrust_coefficients"]]
@@ -133,6 +137,6 @@ for drone_i in range(N_DRONES):
         ax.set_xlabel("Time Step")
         # fig.colorbar(im, ax=ax, label='activation')
         # fig.colorbar(im, ax=axs, label="activation", location="right", pad=0.02, fraction=0.04)
-        plt.savefig(f"src/foundation_policy/analysis/trajectory_{drone_i}_{trajectory_i}.png", dpi=600)
+        plt.savefig(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.png", dpi=600)
         # plt.show()
     
