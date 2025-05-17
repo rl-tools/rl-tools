@@ -156,6 +156,15 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "src/ui_server/render/puppeteer.js",
+            "program": "${workspaceFolder}/src/ui_server/render/puppeteer.js",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node"
         }
     ]
 }
