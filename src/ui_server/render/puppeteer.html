@@ -101,15 +101,19 @@
             console.error('UI state not initialized');
             return;
         }
-        const frames = []
+        const framePromises = {}
         return new Promise(async resolve => {
-            function renderFrame(index) {
+            async function renderFrame(index) {
                 if(index > 0){
-                    frames.push(canvas.toDataURL('image/png'));
+                    framePromises[index] = new Promise(resolve => {
+                        resolve(canvas.toDataURL('image/png'))
+                    });
                 }
                 updateFrameLabel(index);
                 if (index >= trajectory.length) {
-                    resolve(frames);
+                    const sortedKeys = Object.keys(framePromises).sort((a, b) => a - b);
+                    const sortedFramePromises = sortedKeys.map(key => framePromises[key]);
+                    resolve(await Promise.all(sortedFramePromises));
                     return;
                 }
                 const state = trajectory[index];
