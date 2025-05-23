@@ -2,6 +2,8 @@ const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const { parse } = require('url');
+
 
 const PORT = 3010;
 const OUTPUT_DIR_NAME = 'canvas_frames';
@@ -10,7 +12,8 @@ const TARGET_FPS = 60;
 
 const HTML_FILE_NAME = 'puppeteer.html';
 
-const DATA = JSON.parse(fs.readFileSync(path.join(__dirname, "data.json"), 'utf8'))
+const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
+const DATA = JSON.parse(DATA_CONTENT)
 
 
 async function recordCanvasAnimation() {
@@ -97,7 +100,8 @@ recordCanvasAnimation().catch(error => {
 
 async function render(){
     const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: false,
+    devtools: true,
     // ignoreDefaultArgs: ['--disable-gpu'],
     args: [
       '--enable-webgl',
@@ -126,28 +130,39 @@ async function render(){
 
 const server = http.createServer((req, res) => {
     console.log(req.url)
-    if (req.url === '/' || req.url === '/' + HTML_FILE_NAME) {
+    // Inside your server handler:
+    const parsedUrl = parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+
+    if (pathname === '/' || pathname === '/' + HTML_FILE_NAME) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         const HTML_CONTENT = fs.readFileSync(path.join(__dirname, HTML_FILE_NAME), 'utf8');
         res.end(HTML_CONTENT);
     } else if (req.url.startsWith('/lib/')) {
         const filePath = path.join(__dirname, req.url);
         fs.readFile(filePath, (err, data) => {
-        if (err) {
-            res.writeHead(404);
-            res.end('File not found');
-            return;
-        }
+            if (err) {
+                res.writeHead(404);
+                res.end('File not found');
+                return;
+            }
 
-        const ext = path.extname(filePath).toLowerCase();
-        let contentType = 'application/octet-stream';
-        if (ext === '.js') contentType = 'application/javascript';
-        else if (ext === '.wasm') contentType = 'application/wasm';
-        else if (ext === '.json') contentType = 'application/json';
+            const ext = path.extname(filePath).toLowerCase();
+            let contentType = 'application/octet-stream';
+            if (ext === '.js') contentType = 'application/javascript';
+            else if (ext === '.wasm') contentType = 'application/wasm';
+            else if (ext === '.json') contentType = 'application/json';
 
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(data);
-    });
+            res.writeHead(200, { 'Content-Type': contentType });
+            res.end(data);
+        })
+    } else if (req.method === 'GET' && req.url === '/data.json') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(DATA));
+    } else if (req.method === 'GET' && req.url === '/ui.js') {
+        res.writeHead(200, { 'Content-Type': 'application/javascript' });
+        const UI = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
+        res.end(UI);
     } else if (req.method === 'POST' && req.url === '/render') {
         let body = '';
         req.on('data', chunk => {
@@ -180,7 +195,8 @@ const server = http.createServer((req, res) => {
 async function main(){
     await new Promise(resolve => server.listen(PORT, resolve));
     // console.log(`Local server running at http://localhost:${PORT}/`);
-    render()
+    // render()
+    await new Promise(resolve => setTimeout(resolve, 100000));
 }
 
 main()

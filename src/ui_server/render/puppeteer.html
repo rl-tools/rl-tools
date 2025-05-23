@@ -31,7 +31,6 @@
 </script>
 <script type="module">
     const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
 
     function resizeCanvas() {
         canvas.width = window.innerWidth;
@@ -42,6 +41,7 @@
 
     let ui_module = null;
     let ui_state = null;
+    let episode_initialized = false;
 
     window.init = async (ui) => {
         const blob = new Blob([ui], { type: 'application/javascript' });
@@ -52,7 +52,35 @@
     }
 
     window.render_single_frame = async (parameters, state) => {
+        if(!ui_module){
+            console.error('UI module not initialized');
+            return;
+        }
+        if(!ui_state){
+            console.error('UI state not initialized');
+            return;
+        }
+        if(!episode_initialized){
+            episode_initialized = true;
+            await ui_module.episode_init(ui_state, parameters);
+        }
         await ui_module.render(ui_state, parameters, state.state, state.action)
+    }
+
+    // get ?DEBUG=1 from url
+    const urlParams = new URLSearchParams(window.location.search);
+    const debug = urlParams.get('DEBUG') === '1';
+    if (debug) {
+        console.log('Debug mode enabled');
+        async function run(){
+            const data_response = await fetch('/data.json');
+            const data = await data_response.json();
+            const ui_response = await fetch('/ui.js');
+            const ui = await ui_response.text();
+            await window.init(ui);
+            await window.render_single_frame(data[0].parameters, data[0].trajectory[0]);
+        }
+        run()
     }
     // const renderLoop = async () => {
     //     if(ui_state && episode_initialized && state){
