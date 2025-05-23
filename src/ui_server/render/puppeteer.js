@@ -15,7 +15,6 @@ const TARGET_FPS = 60;
 
 const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
 const DATA = JSON.parse(DATA_CONTENT)
-const UI = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
 
 
 async function recordCanvasAnimation() {
@@ -100,24 +99,34 @@ async function recordCanvasAnimation() {
 //     process.exit(1);
 // });
 
-async function render(parameters, state){
-    const browser = await puppeteer.launch({headless: "new"});
-    const page = await browser.newPage();
-    await page.setViewport({ width: WIDTH, height: HEIGHT });
-    await page.goto(`http://localhost:${PORT}/`);
+class Renderer{
+    constructor(UI){
+        if(!UI) {
+            this.ui = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
+        }
+    }
+    async init(){
+        this.browser = await puppeteer.launch({headless: "new"});
+        this.page = await this.browser.newPage();
+        await this.page.setViewport({ width: WIDTH, height: HEIGHT });
+        await this.page.goto(`http://localhost:${PORT}/`);
+    }
+    async render(parameters, state){
+        await this.page.evaluate(async (ui, parameters, state) => {
+            await window.init(ui);
+            await window.render_single_frame(parameters, state)
+        }, this.ui, parameters, state);
+        const canvas = await this.page.$('canvas');
+        const buffer = await canvas.screenshot({ type: 'png', omitBackground: true});
 
-    await page.evaluate(async (UI, parameters, state) => {
-        await window.init(UI);
-        await window.render_single_frame(parameters, state)
-    }, UI, parameters, state);
-    const canvas = await page.$('canvas');
-    const buffer = await canvas.screenshot({ type: 'png', omitBackground: true});
-    const outputPath = path.join(__dirname, 'output.png');
-    fs.writeFileSync(outputPath, buffer);
-    console.log(`Screenshot saved to ${outputPath}`);
-
-    await browser.close();
+        await this.browser.close();
+        return buffer
+    }
+    async close(){
+        await this.browser.close();
+    }
 }
+
 
 
 const server = http.createServer((req, res) => {
@@ -185,7 +194,13 @@ const server = http.createServer((req, res) => {
 
 async function main(){
     await new Promise(resolve => server.listen(PORT, resolve));
-    await render(DATA[0].parameters, DATA[0].trajectory[0])
+    const renderer = new Renderer();
+    await renderer.init();
+    const buffer = await renderer.render(DATA[0].parameters, DATA[0].trajectory[0])
+    await renderer.close();
+    const outputPath = path.join(__dirname, 'output.png');
+    fs.writeFileSync(outputPath, buffer);
+    console.log(`Screenshot saved to ${outputPath}`);
     // await new Promise(resolve => setTimeout(resolve, 100000000));
     server.close(() => console.log('Server closed.'));
 }
