@@ -80,7 +80,7 @@ class Renderer{
             quality: 100,
             everyNthFrame: 1
         });
-        await this.page.evaluate(async (parameters, trajectory) => {
+        const frames = await this.page.evaluate(async (parameters, trajectory) => {
             return await window.render_trajectory(parameters, trajectory)
         }, parameters, trajectory);
         await new Promise(resolve => setTimeout(resolve, RECORDING_DURATION_MS));
