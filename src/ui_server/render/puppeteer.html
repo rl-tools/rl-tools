@@ -101,11 +101,15 @@
             console.error('UI state not initialized');
             return;
         }
+        const frames = []
         return new Promise(async resolve => {
             function renderFrame(index) {
+                if(index > 0){
+                    frames.push(canvas.toDataURL('image/png'));
+                }
                 updateFrameLabel(index);
                 if (index >= trajectory.length) {
-                    resolve();
+                    resolve(frames);
                     return;
                 }
                 const state = trajectory[index];
