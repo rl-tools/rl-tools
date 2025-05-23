@@ -51,46 +51,14 @@ class Renderer{
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
-
-        const client = await this.page.target().createCDPSession();
-        
-        let frameCounter  = 0;
-        const frameWrites = [];
-        
-        client.on('Page.screencastFrame', async ({ data, sessionId }) => {
-            const framePath = path.join(
-                outputDir,
-                `frame-${String(frameCounter).padStart(5, '0')}.png`
-            );
-        
-            const buffer = Buffer.from(data, 'base64');
-            frameWrites.push(fs.promises.writeFile(framePath, buffer));
-            frameCounter++;
-            process.stdout.write(`Captured frame: ${frameCounter}\r`);
-            await client.send('Page.screencastFrameAck', { sessionId });
-            console.log(`Frame ${frameCounter} saved to ${framePath}`);
-        });
-
         
         await this.page.evaluate(async (ui) => {
             await window.init(ui);
         }, this.ui);
-        await client.send('Page.startScreencast', {
-            format: 'png',
-            quality: 100,
-            everyNthFrame: 1
-        });
         const frames = await this.page.evaluate(async (parameters, trajectory) => {
             return await window.render_trajectory(parameters, trajectory)
         }, parameters, trajectory);
         await new Promise(resolve => setTimeout(resolve, RECORDING_DURATION_MS));
-        
-        console.log('\nStopping screencast...');
-        await client.send('Page.stopScreencast');
-        
-        console.log('Waiting for all frames to be saved…');
-        await Promise.all(frameWrites);
-        console.log(`${frameCounter} frames saved in: ${outputDir}`);
         
         if (frameCounter > 0) {
             console.log('\n--- Video Creation with FFmpeg ---');
