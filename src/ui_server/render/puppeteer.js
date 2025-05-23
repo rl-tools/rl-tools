@@ -1,7 +1,8 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
-const server = require('./server.js');
+const http = require('http');
+const { parse } = require('url');
 
 
 const WIDTH = 2000
@@ -14,6 +15,7 @@ const TARGET_FPS = 60;
 
 const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
 const DATA = JSON.parse(DATA_CONTENT)
+const UI = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
 
 
 async function recordCanvasAnimation() {
@@ -32,9 +34,9 @@ async function recordCanvasAnimation() {
 
 
     console.log('Launching Puppeteer...');
-    const browser = await puppeteer.launch(/* your launch args */);
+    const browser = await puppeteer.launch();
     const page    = await browser.newPage();
-    await page.setViewport({ width: 800, height: 600 });
+    await page.setViewport({ width: WIDTH, height: HEIGHT});
     
     const client = await page.target().createCDPSession();
     
@@ -98,34 +100,93 @@ async function recordCanvasAnimation() {
 //     process.exit(1);
 // });
 
-async function render(){
+async function render(parameters, state){
     const browser = await puppeteer.launch({headless: "new"});
     const page = await browser.newPage();
     await page.setViewport({ width: WIDTH, height: HEIGHT });
-
-    const UI = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
     await page.goto(`http://localhost:${PORT}/`);
 
-    await page.evaluate(async (input) => {
-        const UI = input.UI;
-        const data = input.DATA
-        await window.init(input.UI);
-        await window.render_single_frame(data[0].parameters, data[0].trajectory[0])
-    }, {UI, DATA});
+    await page.evaluate(async (UI, parameters, state) => {
+        await window.init(UI);
+        await window.render_single_frame(parameters, state)
+    }, UI, parameters, state);
     const canvas = await page.$('canvas');
     const buffer = await canvas.screenshot({ type: 'png', omitBackground: true});
     const outputPath = path.join(__dirname, 'output.png');
     fs.writeFileSync(outputPath, buffer);
     console.log(`Screenshot saved to ${outputPath}`);
+
     await browser.close();
 }
 
 
+const server = http.createServer((req, res) => {
+    console.log(req.url)
+    const parsedUrl = parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+
+    if (pathname === '/' || pathname === '/' + "puppeteer.html"){
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        const HTML_CONTENT = fs.readFileSync(path.join(__dirname, "puppeteer.html"), 'utf8');
+        res.end(HTML_CONTENT);
+    } else if (req.url.startsWith('/lib/')) {
+        const filePath = path.join(__dirname, req.url);
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(404);
+                res.end('File not found');
+                return;
+            }
+
+            const ext = path.extname(filePath).toLowerCase();
+            let contentType = 'application/octet-stream';
+            if (ext === '.js') contentType = 'application/javascript';
+            else if (ext === '.wasm') contentType = 'application/wasm';
+            else if (ext === '.json') contentType = 'application/json';
+
+            res.writeHead(200, { 'Content-Type': contentType });
+            res.end(data);
+        })
+    } else if (req.method === 'GET' && req.url === '/data.json') {
+        const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
+        const DATA = JSON.parse(DATA_CONTENT)
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(DATA));
+    } else if (req.method === 'GET' && req.url === '/ui.js') {
+        res.writeHead(200, { 'Content-Type': 'application/javascript' });
+        const UI = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
+        res.end(UI);
+    } else if (req.method === 'POST' && req.url === '/render') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+
+        req.on('end', async () => {
+            try {
+                const payload = JSON.parse(body);
+                res.writeHead(200, {
+                    'Content-Type': 'image/png',
+                    'Content-Length': buffer.length
+                });
+                res.end(buffer);
+            } catch (err) {
+                console.error('Render error:', err);
+                res.writeHead(500);
+                res.end('Failed to render canvas.');
+            }
+        });
+    } else {
+        res.writeHead(404);
+        res.end('Not Found');
+    }
+});
+
 
 async function main(){
     await new Promise(resolve => server.listen(PORT, resolve));
-    // await render()
-    await new Promise(resolve => setTimeout(resolve, 100000000));
+    await render(DATA[0].parameters, DATA[0].trajectory[0])
+    // await new Promise(resolve => setTimeout(resolve, 100000000));
     server.close(() => console.log('Server closed.'));
 }
 
