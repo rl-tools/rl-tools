@@ -30,6 +30,31 @@
     }
 </script>
 <script type="module">
+    import * as THREE from "three"
+    const labelCanvas   = document.createElement('canvas');
+    labelCanvas.width   = 256;
+    labelCanvas.height  = 128;
+    const labelCtx      = labelCanvas.getContext('2d');
+
+    const labelTex      = new THREE.CanvasTexture(labelCanvas);
+    labelTex.minFilter  = THREE.LinearFilter;
+    const labelMat      = new THREE.SpriteMaterial({map: labelTex, transparent:true});
+    const labelSprite   = new THREE.Sprite(labelMat);
+
+    labelSprite.position.set(0, 0, -0.5);
+    labelSprite.scale.set(0.5, 0.25, 1);
+
+    function updateFrameLabel(n) {
+        labelCtx.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+        labelCtx.font      = '64px monospace';
+        labelCtx.textAlign = 'left';
+        labelCtx.textBaseline = 'top';
+        labelCtx.fillStyle = 'white';
+        labelCtx.fillText(`F${n}`, 8, 8);
+        labelCtx.fillStyle = 'black';
+        labelTex.needsUpdate = true;
+    }
+    updateFrameLabel(0);
     const canvas = document.getElementById('canvas');
 
     function resizeCanvas() {
@@ -49,6 +74,7 @@
         ui_module = await import(url)
         URL.revokeObjectURL(url);
         ui_state = await ui_module.init(canvas, {devicePixelRatio: window.devicePixelRatio});
+        ui_state.camera.add(labelSprite);
     }
 
     window.render_single_frame = async (parameters, state) => {
@@ -77,6 +103,7 @@
         }
         return new Promise(async resolve => {
             function renderFrame(index) {
+                updateFrameLabel(index);
                 if (index >= trajectory.length) {
                     resolve();
                     return;
