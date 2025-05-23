@@ -376,7 +376,7 @@ function clip_position(scale, position){
     })
 }
 
-export function render(ui_state, parameters, state, action) {
+export async function render(ui_state, parameters, state, action) {
     ui_state.drone.droneFrame.position.set(...clip_position(parameters.dynamics.mass, state.position))
     ui_state.drone.droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
     update_camera(ui_state)

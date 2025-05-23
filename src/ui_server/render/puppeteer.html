@@ -66,8 +66,31 @@
         }
         await ui_module.render(ui_state, parameters, state.state, state.action)
     }
+    window.render_trajectory = async (parameters, trajectory) => {
+        if(!ui_module){
+            console.error('UI module not initialized');
+            return;
+        }
+        if(!ui_state){
+            console.error('UI state not initialized');
+            return;
+        }
+        return new Promise(async resolve => {
+            function renderFrame(index) {
+                if (index >= trajectory.length) {
+                    resolve();
+                    return;
+                }
+                const state = trajectory[index];
+                ui_module.render(ui_state, parameters, state.state, state.action).then(() => {
+                    requestAnimationFrame(() => renderFrame(index + 1));
+                });
+            }
+            await ui_module.episode_init(ui_state, parameters);
+            renderFrame(0);
+        })
+    }
 
-    // get ?DEBUG=1 from url
     const urlParams = new URLSearchParams(window.location.search);
     const debug = urlParams.get('DEBUG') === '1';
     if (debug) {
@@ -78,7 +101,8 @@
             const ui_response = await fetch('/ui.js');
             const ui = await ui_response.text();
             await window.init(ui);
-            await window.render_single_frame(data[0].parameters, data[0].trajectory[0]);
+            // await window.render_single_frame(data[0].parameters, data[0].trajectory[0]);
+            await window.render_trajectory(data[0].parameters, data[0].trajectory);
         }
         run()
     }
