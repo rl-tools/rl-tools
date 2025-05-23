@@ -100,8 +100,9 @@ recordCanvasAnimation().catch(error => {
 
 async function render(){
     const browser = await puppeteer.launch({
-    headless: false,
-    devtools: true,
+    // headless: false,
+    // devtools: true,
+    headless: "new",
     // ignoreDefaultArgs: ['--disable-gpu'],
     args: [
       '--enable-webgl',
@@ -116,14 +117,21 @@ async function render(){
     const UI = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
     await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle0' });
 
-    await page.evaluate(async (UI, data) => {
-        await window.init(UI);
-        await window.render_single_frame(data.parameters, data.trajectory[0].state)
-    }, UI, DATA);
+    await page.evaluate(async (input) => {
+        const UI = input.UI;
+        const data = input.DATA
+        await window.init(input.UI);
+        await window.render_single_frame(data[0].parameters, data[0].trajectory[0])
+    }, {UI, DATA});
 
     // Get canvas and take a screenshot
     const canvas = await page.$('canvas');
-    const buffer = await canvas.screenshot({ type: 'png' });
+    const buffer = await canvas.screenshot({ type: 'png', omitBackground: true});
+
+    // Save the screenshot to a file
+    const outputPath = path.join(__dirname, 'output.png');
+    fs.writeFileSync(outputPath, buffer);
+    console.log(`Screenshot saved to ${outputPath}`);
 
     await browser.close();
 }
@@ -195,7 +203,7 @@ const server = http.createServer((req, res) => {
 async function main(){
     await new Promise(resolve => server.listen(PORT, resolve));
     // console.log(`Local server running at http://localhost:${PORT}/`);
-    // render()
+    render()
     await new Promise(resolve => setTimeout(resolve, 100000));
 }
 
