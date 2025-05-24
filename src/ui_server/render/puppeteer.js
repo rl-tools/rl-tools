@@ -30,7 +30,7 @@ class Renderer{
         }
     }
     async init(){
-        this.browser = await puppeteer.launch({headless: "new"});
+        this.browser = await puppeteer.launch({headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox'], timeout: 0});
         this.page = await this.browser.newPage();
         await this.page.setViewport({ width: WIDTH, height: HEIGHT });
         await this.page.goto(`http://localhost:${PORT}/`);
