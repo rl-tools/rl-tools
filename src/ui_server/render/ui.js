@@ -68,7 +68,7 @@ class State{
         this.camera = new THREE.PerspectiveCamera( 40, width / height, 0.1, 1000 );
         this.scene.add(this.camera);  
 
-        const capture = false;
+        const capture = true;
 
         this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: capture} );
         this.renderer.setPixelRatio(this.devicePixelRatio)
