@@ -30,7 +30,7 @@ class Renderer{
         }
     }
     async init(){
-        this.browser = await puppeteer.launch({headless: false});
+        this.browser = await puppeteer.launch({headless: "new"});
         this.page = await this.browser.newPage();
         await this.page.setViewport({ width: WIDTH, height: HEIGHT });
         await this.page.goto(`http://localhost:${PORT}/`);
@@ -46,15 +46,15 @@ class Renderer{
         await this.browser.close();
         return buffer
     }
-    async render_trajectory(parameters, trajectory) {
+    async render_trajectory(parameters, trajectory, options = {}) {
         const outputDir = path.join(__dirname, OUTPUT_DIR_NAME);
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
         
-        await this.page.evaluate(async (ui) => {
-            await window.init(ui);
-        }, this.ui);
+        await this.page.evaluate(async (ui, options) => {
+            await window.init(ui, options);
+        }, this.ui, options);
         const frames = await this.page.evaluate(async (parameters, trajectory) => {
             return await window.render_trajectory(parameters, trajectory)
         }, parameters, trajectory);
@@ -66,6 +66,9 @@ class Renderer{
         })
         await Promise.all(file_promises);
         await new Promise(resolve => setTimeout(resolve, RECORDING_DURATION_MS));
+        const mean_dt = trajectory.reduce((a, c) => a + c.dt, 0) / trajectory.length;
+        const fps = Math.round(1000 / mean_dt);
+        console.log(`FPS: ${fps}`);
     }
     async close(){
         await this.browser.close();
@@ -142,7 +145,7 @@ async function main(){
     const renderer = new Renderer();
     await renderer.init();
     // const buffer = await renderer.render(DATA[0].parameters, DATA[0].trajectory[0])
-    await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory.slice(0, 10))
+    await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory, {frame_counter: false})
     await renderer.close();
     // const outputPath = path.join(__dirname, 'output.png');
     // fs.writeFileSync(outputPath, buffer);
