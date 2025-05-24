@@ -58,22 +58,14 @@ class Renderer{
         const frames = await this.page.evaluate(async (parameters, trajectory) => {
             return await window.render_trajectory(parameters, trajectory)
         }, parameters, trajectory);
+        const file_promises = frames.map((frame, i) => {
+            const buffer = Buffer.from(frame, 'base64');
+            const outputPath = path.join(outputDir, `frame_${i.toString().padStart(5, '0')}.png`);
+            console.log(`Saved frame ${i} to ${outputPath}`);
+            return fs.promises.writeFile(outputPath, buffer);
+        })
+        await Promise.all(file_promises);
         await new Promise(resolve => setTimeout(resolve, RECORDING_DURATION_MS));
-        
-        if (frameCounter > 0) {
-            console.log('\n--- Video Creation with FFmpeg ---');
-            console.log('To create a video from the captured frames, run a command like this in your terminal:');
-            const ffmpegCommand = `ffmpeg -framerate ${TARGET_FPS} -i "${path.join(outputDir, 'frame-%05d.png')}" -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow output.mp4`;
-            console.log(ffmpegCommand);
-            console.log(`\nNotes on FFmpeg command:
-        - Ensure FFmpeg is installed and in your system's PATH.
-        - Adjust '-framerate ${TARGET_FPS}' if your animation's natural framerate is different or you desire a different output speed.
-        - '-crf 18' controls quality (lower is better, 18 is visually lossless for many cases).
-        - '-preset slow' provides better compression (options: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow).
-        - 'output.mp4' is the output file name.`);
-        } else {
-            console.log('No frames were captured.');
-        }
     }
     async close(){
         await this.browser.close();
@@ -94,7 +86,7 @@ const server = http.createServer((req, res) => {
     } else if (req.url.startsWith('/lib/')) {
         const filePath = path.join(__dirname, req.url);
         fs.readFile(filePath, (err, data) => {
-            if (err) {
+            if(err){
                 res.writeHead(404);
                 res.end('File not found');
                 return;
@@ -150,7 +142,7 @@ async function main(){
     const renderer = new Renderer();
     await renderer.init();
     // const buffer = await renderer.render(DATA[0].parameters, DATA[0].trajectory[0])
-    await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory)
+    await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory.slice(0, 10))
     await renderer.close();
     // const outputPath = path.join(__dirname, 'output.png');
     // fs.writeFileSync(outputPath, buffer);
