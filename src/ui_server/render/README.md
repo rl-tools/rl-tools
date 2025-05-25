@@ -34,3 +34,9 @@ jq '{parameters: .[0].parameters, step: .[0].trajectory[0]}' data.json \
 ```
 ffmpeg -framerate 100 -i frame_%05d.png -c:v libx264 -pix_fmt yuv420p -crf 18 output.mp4
 ```
+
+
+## Docker:
+```
+docker run -it --rm -v $(pwd):/mnt -w /mnt ghcr.io/puppeteer/puppeteer:latest node puppeteer.js
+```

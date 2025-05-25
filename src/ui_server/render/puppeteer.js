@@ -162,12 +162,12 @@ const server = http.createServer((req, res) => {
 
 
 
-const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
-const DATA = JSON.parse(DATA_CONTENT)
-
 const PORT = 3010;
 async function main(){
     await new Promise(resolve => server.listen(PORT, resolve));
+    // const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
+    // const DATA = JSON.parse(DATA_CONTENT)
+
     // const renderer = new Renderer();
     // await renderer.init();
     // // const buffer = await renderer.render(DATA[0].parameters, DATA[0].trajectory[0])
