@@ -6,6 +6,8 @@
   "license": "MIT",
   "description": "",
   "dependencies": {
-    "puppeteer": "^24.9.0"
+    "busboy": "^1.6.0",
+    "puppeteer": "^24.9.0",
+    "yazl": "^3.3.1"
   }
 }

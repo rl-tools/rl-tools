@@ -115,15 +115,8 @@
             async function renderFrame(index) {
                 if(index > 0){
                     framePromises[index] = new Promise(resolve => {
-                        // canvas.toBlob(blob => {
-                        //         const reader = new FileReader();
-                        //         reader.onload = () => {
-                        //             resolve(reader.result);
-                        //         };
-                        //         reader.readAsArrayBuffer(blob);
-                        // }, 'image/png');
                         const dataUrl = canvas.toDataURL('image/png');
-                        const base64  = dataUrl.split(',')[1];   // strip "data:image/png;base64,"
+                        const base64  = dataUrl.split(',')[1];
                         resolve(base64);
                     });
                 }
