@@ -4,6 +4,7 @@ const path = require('path');
 const http = require('http');
 const { parse } = require('url');
 const busboy = require('busboy');
+const process = require('process');
 
 const PORT = 13339;
 
@@ -191,6 +192,13 @@ async function main(){
     await new Promise(resolve => setTimeout(resolve, 100000000));
     server.close(() => console.log('Server closed.'));
 }
+process.on('SIGINT', () => {
+    console.log('Shutting down...');
+    process.exit(0);
+});
+
+
+
 
 main()
 
