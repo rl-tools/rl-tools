@@ -11,7 +11,7 @@ cp experiments/2025-05-23_13-40-39/1c19b2c_zoo_environment_algorithm/l2f_sac/000
 ### Trajectory
 ```
 jq '{parameters: .[0].parameters, trajectory: .[0].trajectory[0:10]}' data.json \
-  | curl -X POST http://localhost:3010/render_trajectory \
+  | curl -X POST http://localhost:13339/render_trajectory \
     -F "data=@-;type=application/json" \
     -F "ui=@ui.js" \
     -F "width=2000" \
@@ -21,7 +21,7 @@ jq '{parameters: .[0].parameters, trajectory: .[0].trajectory[0:10]}' data.json 
 ### Single Frame
 ```
 jq '{parameters: .[0].parameters, step: .[0].trajectory[0]}' data.json \
-  | curl -X POST http://localhost:3010/render \
+  | curl -X POST http://localhost:13339/render \
     -F "data=@-;type=application/json" \
     -F "ui=@ui.js" \
     -F "width=2000" \

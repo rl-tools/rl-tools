@@ -5,6 +5,8 @@ const http = require('http');
 const { parse } = require('url');
 const busboy = require('busboy');
 
+const PORT = 13339;
+
 class Renderer{
     constructor(ui, width, height){
         this.ui = ui
@@ -162,7 +164,6 @@ const server = http.createServer((req, res) => {
 
 
 
-const PORT = 3010;
 async function main(){
     await new Promise(resolve => server.listen(PORT, resolve));
     // const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
