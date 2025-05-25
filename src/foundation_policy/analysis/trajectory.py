@@ -36,7 +36,8 @@ l2f.initialize_rng(device, rng, 0)
 
 N_STEPS = 500
 N_TRAJECTORIES = 1
-N_DRONES = 100
+N_DRONES = 10
+ANIMATION_INTERVAL = 10
 
 experiment = "2025-04-16_20-10-58"
 
@@ -49,6 +50,7 @@ for drone_i in range(N_DRONES):
     hidden_trajectories = []
     trajectories = []
     prediction_trajectories = []
+    animations = []
     l2f.initial_parameters(device, env, params)
     l2f.parameters_from_json(device, env, json.dumps(parameters), params)
     params_json = json.loads(l2f.parameters_to_json(device, env, params))
@@ -79,16 +81,58 @@ for drone_i in range(N_DRONES):
         hidden_trajectories.append(hidden_states)
         trajectories.append(states)
         prediction_trajectories.append(predictions)
+        import requests, zipfile
+        import io, imageio.v3 as iio
+
+        def state_to_dict(s, dt):
+            return {
+                "state": {
+                    "position":         [0, 0, 0],
+                    "orientation":      s.orientation,   # w-x-y-z
+                    "linear_velocity":  s.linear_velocity,
+                    "angular_velocity": s.angular_velocity,
+                    "rpm":              s.rpm
+                },
+                "action": [0, 0, 0, 0],
+                "dt": dt
+            }
+
+        trajectory_payload = [state_to_dict(s, params_json["integration"]["dt"]) for s in states[::ANIMATION_INTERVAL]]       # states just computed
+
+        payload = {
+            "parameters": params_json,
+            "trajectory": trajectory_payload
+        }
+
+        url = "http://localhost:13339/render_trajectory"
+
+        with open(os.path.join(os.path.dirname(__file__), "ui.js"), "rb") as ui_file:
+            resp = requests.post(
+                url,
+                data={"width":  "2000", "height": "2000"},
+                files={
+                    "data": ("data.json", json.dumps(payload), "application/json"),
+                    "ui": ("ui.js", ui_file, "application/javascript")
+                }
+            )
+        resp.raise_for_status()
+
+        frames = []
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            for name in sorted(zf.namelist()):
+                frames.append(iio.imread(zf.read(name), extension=".png"))
+        animations.append(frames)
+
     hidden_trajectories = np.array(hidden_trajectories)
     prediction_trajectories = {k:np.array([[step[k] for step in traj] for traj in prediction_trajectories]) for k in models.keys()}
 
 
-    first_hidden_states = hidden_trajectories[:, 0]
-    first_hidden_states_standardized = (first_hidden_states - np.mean(first_hidden_states, axis=0)) / np.std(first_hidden_states, axis=0)
-    U, S, Vt = np.linalg.svd(first_hidden_states_standardized, full_matrices=False)
-    var_ratio = S**2 / (S**2).sum()
-    cum = np.cumsum(var_ratio)
-    import matplotlib.pyplot as plt
+    # first_hidden_states = hidden_trajectories[:, 0]
+    # first_hidden_states_standardized = (first_hidden_states - np.mean(first_hidden_states, axis=0)) / np.std(first_hidden_states, axis=0)
+    # U, S, Vt = np.linalg.svd(first_hidden_states_standardized, full_matrices=False)
+    # var_ratio = S**2 / (S**2).sum()
+    # cum = np.cumsum(var_ratio)
+    # import matplotlib.pyplot as plt
     # plt.plot(np.arange(1, len(cum)+1), cum)
     # plt.xlabel("First N Principal Components")
     # plt.ylabel("Cumulative Explained Variance")
@@ -98,10 +142,11 @@ for drone_i in range(N_DRONES):
 
 
     for trajectory_i, (states, hidden_states) in enumerate(zip(trajectories, hidden_trajectories)):
+        animations = animations[trajectory_i]
         states = states[1:]
         position_error = np.array([np.linalg.norm(s.position) for s in states])
         position_error = position_error / np.max(position_error)
-        orientation_error = np.array([2 * np.acos(s.orientation[0]) for s in states])
+        orientation_error = np.array([2 * np.arccos(s.orientation[0]) for s in states])
         orientation_error = orientation_error / np.max(orientation_error)
         linear_velocity_error = np.array([np.linalg.norm(s.linear_velocity) for s in states])
         linear_velocity_error = linear_velocity_error / np.max(linear_velocity_error)
@@ -110,19 +155,44 @@ for drone_i in range(N_DRONES):
 
         x = np.arange(len(position_error))
 
-        fig, axs = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
-        ax = axs[0]
+        fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True)
+        current_ax = 0
+        ax_anim = axs[current_ax]
+        current_ax += 1
+        zoom = 1.0
+        alpha_scale = 0.35
+        for i, f in enumerate(animations):
+            t = i * ANIMATION_INTERVAL
+            h, w = f.shape[:2]
+            ch, cw = int(h / zoom), int(w / zoom)
+            y0, x0 = h // 2 - ch // 2, w // 2 - cw // 2
+            cropped = f[y0:y0 + ch, x0:x0 + cw]
+            p = t / len(animations)
+            o = p * cw 
+            ax_anim.imshow(cropped, alpha=alpha_scale, interpolation='none', extent=[o - cw/2, o + cw/2, 0, ch])
+        ax_anim.set_xlim(-cw/2, len(animations) - cw/2)
+
+        ax_anim.set_xlim(0, cw)
+        ax_anim.set_ylim(ch, 0)
+        ax_anim.set_axis_off()
+        ax_anim.set_title("Trajectory Frames (Oldest → Newest)")
+        ax = axs[current_ax]
+        current_ax += 1
         ax.plot(position_error, label="position error")
         ax.plot(orientation_error, label="orientation error")
         ax.plot(linear_velocity_error, label="linear velocity error")
         ax.plot(angular_velocity_error, label="angular velocity error")
         ax.set_ylabel("Error (Relative to Maximum)")
         ax.legend()
-        ax = axs[1]
-        ax.plot(prediction_trajectories["t2w"][trajectory_i], label="t2w")
-        ax.plot(np.arange(len(prediction_trajectories["t2w"][trajectory_i])), [ground_truth["t2w"]] * len(prediction_trajectories["t2w"][trajectory_i]), label="ground truth")
+        ax = axs[current_ax]
+        current_ax += 1
+        ax.plot(prediction_trajectories["t2w"][trajectory_i], label="Predicted")
+        ax.plot(np.arange(len(prediction_trajectories["t2w"][trajectory_i])), [ground_truth["t2w"]] * len(prediction_trajectories["t2w"][trajectory_i]), label="Ground Truth")
         ax.set_ylabel("Thrust to Weight Ratio")
-        ax = axs[2]
+        ax.legend()
+        ax = axs[current_ax]
+        ax.set_title(f"Hidden States for Drone {drone_i}, Trajectory {trajectory_i}")
+        current_ax += 1
         hidden_states_standardized = (hidden_states - np.mean(hidden_states, axis=0)) / np.std(hidden_states, axis=0)
         im = ax.imshow(hidden_states_standardized.T,
             aspect='auto',
@@ -139,4 +209,5 @@ for drone_i in range(N_DRONES):
         # fig.colorbar(im, ax=axs, label="activation", location="right", pad=0.02, fraction=0.04)
         plt.savefig(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.png", dpi=600)
         # plt.show()
+        exit(0)
     
