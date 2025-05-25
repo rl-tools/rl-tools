@@ -1,1 +1,1 @@
-docker build -t rltools/render -f Dockerfile $@ . && docker run -it --rm -p 3010:3010 rltools/render
+docker build -t rltools/render -f Dockerfile $@ . && docker run -it --rm -p 13339:13339 rltools/render
