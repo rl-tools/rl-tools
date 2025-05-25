@@ -16,13 +16,6 @@ const TARGET_FPS = 60;
 const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
 const DATA = JSON.parse(DATA_CONTENT)
 
-
-
-// recordCanvasAnimation().catch(error => {
-//     console.error('An error occurred during the recording process:', error);
-//     process.exit(1);
-// });
-
 class Renderer{
     constructor(UI){
         if(!UI) {
@@ -47,10 +40,6 @@ class Renderer{
         return buffer
     }
     async render_trajectory(parameters, trajectory, options = {}) {
-        const outputDir = path.join(__dirname, OUTPUT_DIR_NAME);
-        if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
-        }
         
         await this.page.evaluate(async (ui, options) => {
             await window.init(ui, options);
@@ -58,17 +47,10 @@ class Renderer{
         const frames = await this.page.evaluate(async (parameters, trajectory) => {
             return await window.render_trajectory(parameters, trajectory)
         }, parameters, trajectory);
-        const file_promises = frames.map((frame, i) => {
-            const buffer = Buffer.from(frame, 'base64');
-            const outputPath = path.join(outputDir, `frame_${i.toString().padStart(5, '0')}.png`);
-            console.log(`Saved frame ${i} to ${outputPath}`);
-            return fs.promises.writeFile(outputPath, buffer);
-        })
-        await Promise.all(file_promises);
-        await new Promise(resolve => setTimeout(resolve, RECORDING_DURATION_MS));
         const mean_dt = trajectory.reduce((a, c) => a + c.dt, 0) / trajectory.length;
-        const fps = Math.round(1000 / mean_dt);
+        const fps = Math.round(1 / mean_dt);
         console.log(`FPS: ${fps}`);
+        return frames
     }
     async close(){
         await this.browser.close();
@@ -145,12 +127,24 @@ async function main(){
     const renderer = new Renderer();
     await renderer.init();
     // const buffer = await renderer.render(DATA[0].parameters, DATA[0].trajectory[0])
-    await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory, {frame_counter: false})
+    frames = await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory, {frame_counter: false})
     await renderer.close();
+
+    const outputDir = path.join(__dirname, OUTPUT_DIR_NAME);
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+    }
+    const file_promises = frames.map((frame, i) => {
+        const buffer = Buffer.from(frame, 'base64');
+        const outputPath = path.join(outputDir, `frame_${i.toString().padStart(5, '0')}.png`);
+        console.log(`Saved frame ${i} to ${outputPath}`);
+        return fs.promises.writeFile(outputPath, buffer);
+    })
+    await Promise.all(file_promises);
     // const outputPath = path.join(__dirname, 'output.png');
     // fs.writeFileSync(outputPath, buffer);
     // console.log(`Screenshot saved to ${outputPath}`);
-    // await new Promise(resolve => setTimeout(resolve, 100000000));
+    await new Promise(resolve => setTimeout(resolve, 100000000));
     server.close(() => console.log('Server closed.'));
 }
 
