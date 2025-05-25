@@ -4,18 +4,6 @@ const path = require('path');
 const http = require('http');
 const { parse } = require('url');
 
-
-const WIDTH = 2000
-const HEIGHT = 2000
-const PORT = 3010;
-const OUTPUT_DIR_NAME = 'canvas_frames';
-const RECORDING_DURATION_MS = 10000;
-const TARGET_FPS = 60;
-
-
-const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
-const DATA = JSON.parse(DATA_CONTENT)
-
 class Renderer{
     constructor(UI){
         if(!UI) {
@@ -122,6 +110,13 @@ const server = http.createServer((req, res) => {
 });
 
 
+
+const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
+const DATA = JSON.parse(DATA_CONTENT)
+
+const WIDTH = 2000
+const HEIGHT = 2000
+const PORT = 3010;
 async function main(){
     await new Promise(resolve => server.listen(PORT, resolve));
     const renderer = new Renderer();
@@ -130,7 +125,7 @@ async function main(){
     frames = await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory, {frame_counter: false})
     await renderer.close();
 
-    const outputDir = path.join(__dirname, OUTPUT_DIR_NAME);
+    const outputDir = path.join(__dirname, 'canvas_frames');
     if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
     }
