@@ -155,12 +155,15 @@ for drone_i in range(N_DRONES):
 
         x = np.arange(len(position_error))
 
-        fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True)
+        fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True, gridspec_kw={'height_ratios': [1, 1, 1, 1.5]})
         current_ax = 0
         ax_anim = axs[current_ax]
         current_ax += 1
         alpha_scale = 0.50
         zoom = 10
+        ax_width = ax_anim.get_position().width
+        ax_height = ax_anim.get_position().height
+        height = len(states) * ax_height / ax_width
         for i, f in enumerate(animations):
             # f[:, :, 0] = 255
             # f[:, :, -1] = 255
@@ -168,12 +171,11 @@ for drone_i in range(N_DRONES):
             animation_space = len(states)/len(animations)
             o = animation_space * i
             offset = animation_space / 3
-            ax_anim.imshow(f, alpha=alpha_scale, interpolation='none', extent=[o + offset - animation_space/2 * zoom, o + offset + animation_space/2 * zoom, -animation_space/2*zoom, animation_space/2 * zoom], aspect='auto', clip_on=False)
+            ax_anim.imshow(f, alpha=alpha_scale, interpolation='none', extent=[o + offset - animation_space/2 * zoom, o + offset + animation_space/2 * zoom, height/2 - animation_space/2 * zoom, height/2 + animation_space/2 * zoom], aspect='auto', clip_on=False)
         ax_anim.set_axis_off()
         ax_anim.set_xlim(0, len(states))
-        ax_anim.set_ylim(0, len(states)/5)
+        ax_anim.set_ylim(0, height)
         ax_anim.set_aspect('equal')
-        ax_anim.set_title("Trajectory Frames (Oldest → Newest)")
         ax = axs[current_ax]
         current_ax += 1
         ax.plot(position_error, label="position error")
@@ -207,5 +209,4 @@ for drone_i in range(N_DRONES):
         # fig.colorbar(im, ax=axs, label="activation", location="right", pad=0.02, fraction=0.04)
         plt.savefig(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.png", dpi=600)
         # plt.show()
-        exit(0)
     
