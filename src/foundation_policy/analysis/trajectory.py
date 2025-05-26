@@ -36,8 +36,8 @@ l2f.initialize_rng(device, rng, 0)
 
 N_STEPS = 500
 N_TRAJECTORIES = 1
-N_DRONES = 10
-ANIMATION_INTERVAL = 30
+N_DRONES = 100
+ANIMATION_INTERVAL = 20
 
 experiment = "2025-04-16_20-10-58"
 
@@ -159,8 +159,8 @@ for drone_i in range(N_DRONES):
         current_ax = 0
         ax_anim = axs[current_ax]
         current_ax += 1
-        alpha_scale = 0.50
-        zoom = 10
+        alpha_scale = 0.8
+        zoom = 10 * 2
         ax_width = ax_anim.get_position().width
         ax_height = ax_anim.get_position().height
         height = len(states) * ax_height / ax_width
