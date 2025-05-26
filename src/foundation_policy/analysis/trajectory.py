@@ -37,7 +37,7 @@ l2f.initialize_rng(device, rng, 0)
 N_STEPS = 500
 N_TRAJECTORIES = 1
 N_DRONES = 10
-ANIMATION_INTERVAL = 10
+ANIMATION_INTERVAL = 30
 
 experiment = "2025-04-16_20-10-58"
 
@@ -159,22 +159,20 @@ for drone_i in range(N_DRONES):
         current_ax = 0
         ax_anim = axs[current_ax]
         current_ax += 1
-        zoom = 1.0
-        alpha_scale = 0.35
+        alpha_scale = 0.50
+        zoom = 10
         for i, f in enumerate(animations):
-            t = i * ANIMATION_INTERVAL
-            h, w = f.shape[:2]
-            ch, cw = int(h / zoom), int(w / zoom)
-            y0, x0 = h // 2 - ch // 2, w // 2 - cw // 2
-            cropped = f[y0:y0 + ch, x0:x0 + cw]
-            p = t / len(animations)
-            o = p * cw 
-            ax_anim.imshow(cropped, alpha=alpha_scale, interpolation='none', extent=[o - cw/2, o + cw/2, 0, ch])
-        ax_anim.set_xlim(-cw/2, len(animations) - cw/2)
-
-        ax_anim.set_xlim(0, cw)
-        ax_anim.set_ylim(ch, 0)
+            # f[:, :, 0] = 255
+            # f[:, :, -1] = 255
+            w, h = f.shape[1], f.shape[0]
+            animation_space = len(states)/len(animations)
+            o = animation_space * i
+            offset = animation_space / 3
+            ax_anim.imshow(f, alpha=alpha_scale, interpolation='none', extent=[o + offset - animation_space/2 * zoom, o + offset + animation_space/2 * zoom, -animation_space/2*zoom, animation_space/2 * zoom], aspect='auto', clip_on=False)
         ax_anim.set_axis_off()
+        ax_anim.set_xlim(0, len(states))
+        ax_anim.set_ylim(0, len(states)/5)
+        ax_anim.set_aspect('equal')
         ax_anim.set_title("Trajectory Frames (Oldest → Newest)")
         ax = axs[current_ax]
         current_ax += 1
