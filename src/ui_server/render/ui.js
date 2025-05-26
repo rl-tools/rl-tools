@@ -54,12 +54,13 @@ function Matrix4FromRotMat(rotMat){
 
 
 class State{
-    constructor(canvas, {devicePixelRatio, showAxes=false}){
+    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false}){
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
         this.cursor_grab = false // Instruct the embedding code to make the cursor a grab cursor
         this.render_tick = 0
+        this.capture = capture
     }
     async initialize(){
         const width = this.canvas.width
@@ -68,9 +69,7 @@ class State{
         this.camera = new THREE.PerspectiveCamera( 40, width / height, 0.1, 1000 );
         this.scene.add(this.camera);  
 
-        const capture = true;
-
-        this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: capture} );
+        this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: this.capture} );
         this.renderer.setPixelRatio(this.devicePixelRatio)
         this.renderer.setClearColor(0xffffff, 0);
 
@@ -383,7 +382,7 @@ export async function render(ui_state, parameters, state, action) {
     update_camera(ui_state)
 }
 
-export function render_multi(ui_state, parameters, states, actions){
+export async function render_multi(ui_state, parameters, states, actions){
     states.map((state, i) => {
         const action = actions[i]
         const current_parameters = parameters[i]

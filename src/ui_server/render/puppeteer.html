@@ -53,7 +53,7 @@
         const url = URL.createObjectURL(blob);
         ui_module = await import(url)
         URL.revokeObjectURL(url);
-        ui_state = await ui_module.init(canvas, {devicePixelRatio: window.devicePixelRatio});
+        ui_state = await ui_module.init(canvas, {devicePixelRatio: window.devicePixelRatio, capture: true});
         let labelSprite = null;
         if(options.frame_counter){
             const labelCanvas   = document.createElement('canvas');

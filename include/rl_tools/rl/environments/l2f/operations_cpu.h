@@ -887,22 +887,22 @@ function Matrix4FromRotMat(rotMat){
 
 
 class State{
-    constructor(canvas, {devicePixelRatio, showAxes=false}){
+    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false}){
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
         this.cursor_grab = false // Instruct the embedding code to make the cursor a grab cursor
         this.render_tick = 0
+        this.capture = capture
     }
     async initialize(){
         const width = this.canvas.width
         const height = this.canvas.height
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera( 40, width / height, 0.1, 1000 );
+        this.scene.add(this.camera);  
 
-        const capture = false;
-
-        this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: capture} );
+        this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: this.capture} );
         this.renderer.setPixelRatio(this.devicePixelRatio)
         this.renderer.setClearColor(0xffffff, 0);
 
@@ -1209,13 +1209,13 @@ function clip_position(scale, position){
     })
 }
 
-export function render(ui_state, parameters, state, action) {
+export async function render(ui_state, parameters, state, action) {
     ui_state.drone.droneFrame.position.set(...clip_position(parameters.dynamics.mass, state.position))
     ui_state.drone.droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
     update_camera(ui_state)
 }
 
-export function render_multi(ui_state, parameters, states, actions){
+export async function render_multi(ui_state, parameters, states, actions){
     states.map((state, i) => {
         const action = actions[i]
         const current_parameters = parameters[i]
@@ -1230,7 +1230,6 @@ export function render_multi(ui_state, parameters, states, actions){
     })
     update_camera(ui_state)
 }
-
 
 
         )RL_TOOLS_LITERAL";
