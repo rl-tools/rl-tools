@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 
 ANIMATION_INTERVAL = 20
 name = {
-    "t2w": "Thrust-to-Weight Ratio",
+    "t2w_full_full": "Thrust-to-Weight Ratio (Model: Full, Data: Full)",
+    "t2w_full_final": "Thrust-to-Weight Ratio (Model: Full, Data: Final)",
+    "t2w_final_full": "Thrust-to-Weight Ratio (Model: Final, Data: Full)",
+    "t2w_final_final": "Thrust-to-Weight Ratio (Model: Final, Data: Final)",
 }
 def get_ground_truths(parameters):
     for params_json in parameters:
@@ -62,8 +65,6 @@ def model(dependents, parameters, trajectories, hidden_trajectories, final_step_
             print(f"        R2 score final: ", r2_score(y, y_pred))
 
         X, y = prepare_data(final=False, mask=True)
-        Xs[dependent] = X
-        ys[dependent] = y
 
         model = train(X, y)
         model_final = train(*prepare_data(final=True, mask=True))
@@ -71,6 +72,9 @@ def model(dependents, parameters, trajectories, hidden_trajectories, final_step_
         X_final, y_final = prepare_data(final=True, mask=True)
         test("Full model, final step test", X_final, y_final, model)
         test("Final model, final step test", X_final, y_final, model_final)
+
+        Xs[dependent] = {"full": X, "final": X_final}
+        ys[dependent] = {"full": y, "final": y_final}
 
 
         # y_pred = X @ model.coef_ + model.intercept_
@@ -85,8 +89,8 @@ def model(dependents, parameters, trajectories, hidden_trajectories, final_step_
         # prediction_trajectories[dependent] = X_trajs @ model.coef_ + model.intercept_
 
         models[dependent] = {
-            "mean_full": {"coef": model.coef_.tolist(), "intercept": model.intercept_},
-            "mean_final": {"coef": model_final.coef_.tolist(), "intercept": model_final.intercept_},
+            "mean_full": {"coef": model.coef_.tolist(), "intercept": float(model.intercept_)},
+            "mean_final": {"coef": model_final.coef_.tolist(), "intercept": float(model_final.intercept_)},
             # "std": {"coef": model_std.coef_.tolist(), "intercept": model_std.intercept_}
         }
     return models, prediction_trajectories, ground_truths, Xs, ys
@@ -98,7 +102,7 @@ def plot_model(dependent, model, y, X):
     COLOR_GREY = "#3B75AF" #(59,117,175)
     COLOR_GREY = "#347271" #(59,117,175)
     COLOR_BLACK = "#000000"
-    SCATTER_ALPHA = 0.10 / 500
+    SCATTER_ALPHA = 0.10
     SCATTER_SIZE  = 0.5
     LINEWIDTH     = 2
     fig, ax = plt.subplots(figsize=(5, 3), dpi=600)
@@ -239,7 +243,15 @@ if __name__ == "__main__":
     hidden_trajectories = np.array(hidden_trajectories)
     trajectories = np.array(trajectories)
     models, prediction_trajectories, gts, X, y = model(dependents, parameters, trajectories, hidden_trajectories)
-    plot_model("t2w", models["t2w"]["mean_full"], y["t2w"], X["t2w"])
+    indices = np.arange(X["t2w"]["full"].shape[0])
+    np.random.shuffle(indices)
+    subsample_indices = indices[:len(indices)//500]
+    X_full = X["t2w"]["full"][subsample_indices]
+    y_full = y["t2w"]["full"][subsample_indices]
+    plot_model("t2w_full_full", models["t2w"]["mean_full"], y_full, X_full)
+    plot_model("t2w_full_final", models["t2w"]["mean_full"], y["t2w"]["final"], X["t2w"]["final"])
+    plot_model("t2w_final_final", models["t2w"]["mean_final"], y["t2w"]["final"], X["t2w"]["final"])
+    plot_model("t2w_final_full", models["t2w"]["mean_final"], y_full, X_full)
 
     with open("src/foundation_policy/analysis/models.json", "w") as f:
         json.dump(models, f, indent=4)
