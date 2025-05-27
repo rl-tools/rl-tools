@@ -70,6 +70,7 @@ def generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=False, initial_positio
             np.savez(os.path.join(drone_path, "hidden_trajectories.npz"), np.array(hidden_trajectories).astype(np.float32))
             with open(os.path.join(drone_path, "parameters.json"), "w") as f:
                 json.dump(params_json, f, indent=4)
+            yield None
         else:
             yield params_json, np.array(trajectories).astype(np.float32), np.array(hidden_trajectories).astype(np.float32)
 
@@ -92,4 +93,4 @@ if __name__ == "__main__":
     N_DRONES = 1000
     N_TRAJECTORIES = 100
     N_STEPS = 500
-    generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=True)
+    list(generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=True))
