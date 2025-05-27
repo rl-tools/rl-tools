@@ -6,9 +6,6 @@ from  copy import copy
 import json
 from tqdm import tqdm
 
-N_STEPS = 500
-N_TRAJECTORIES = 100
-N_DRONES = 1000
 trajectories_path = os.path.join(os.path.dirname(__file__), "trajectories")
 
 
@@ -16,7 +13,7 @@ def shrink_state(state):
     return np.concatenate((state.position, state.orientation, state.linear_velocity, state.angular_velocity, state.rpm), axis=None)
 
 
-def generate_data(save=False, initial_position=None, position_clip=None):
+def generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=False, initial_position=None, position_clip=None):
     policy = QuadrotorPolicy()
     policy.reset()
 
@@ -92,4 +89,7 @@ def load():
     return parameters, trajectories, hidden_trajectories
 
 if __name__ == "__main__":
-    generate_data(save=True)
+    N_DRONES = 1000
+    N_TRAJECTORIES = 100
+    N_STEPS = 500
+    generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=True)

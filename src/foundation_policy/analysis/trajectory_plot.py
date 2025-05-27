@@ -1,15 +1,15 @@
-from generate_data import load
+from generate_data import load, generate_data
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import json
 from probe import get_ground_truths
 
-ANIMATION_INTERVAL = 20
+ANIMATION_INTERVAL = 10
 MODEL = "t2w_full"
 
 default_options = {
-    "camera_position": [0.0, 0, 1]
+    "camera_position": [0.0, 0.5, 1]
 }
 
 def render(params_json, states, options=default_options):
@@ -57,7 +57,8 @@ def render(params_json, states, options=default_options):
     return frames
 
 if __name__ == "__main__":
-    all_parameters, all_trajectories, all_hidden_trajectories = load()
+    # all_parameters, all_trajectories, all_hidden_trajectories = load()
+    all_parameters, all_trajectories, all_hidden_trajectories = zip(*generate_data(10, 1, 500, save=False, initial_position=[0, 3, 0], position_clip=1.0))
     models_path = os.path.join(os.path.dirname(__file__), "models.json")
     with open(models_path, "r") as f:
         models = json.load(f)
