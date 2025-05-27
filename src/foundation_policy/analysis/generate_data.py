@@ -13,7 +13,7 @@ trajectories_path = os.path.join(os.path.dirname(__file__), "trajectories")
 
 
 def shrink_state(state):
-    return state.position
+    return np.concatenate((state.position, state.orientation, state.linear_velocity, state.angular_velocity, state.rpm), axis=None)
 
 
 if __name__ == "__main__":
