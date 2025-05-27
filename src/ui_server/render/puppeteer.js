@@ -7,6 +7,8 @@ const busboy = require('busboy');
 const process = require('process');
 
 const PORT = 13339;
+const DEBUG = false
+const DEBUG_TRAJECTORY = false
 
 class Renderer{
     constructor(ui, width, height){
@@ -23,18 +25,18 @@ class Renderer{
         await this.page.setViewport({ width: this.width, height: this.height });
         await this.page.goto(`http://localhost:${PORT}/`);
     }
-    async render(parameters, state){
-        await this.page.evaluate(async (ui, parameters, state) => {
-            await window.init(ui);
+    async render(parameters, state, options){
+        await this.page.evaluate(async (ui, parameters, state, options) => {
+            await window.init(ui, options);
             await window.render_single_frame(parameters, state)
-        }, this.ui, parameters, state);
+        }, this.ui, parameters, state, options);
         const canvas = await this.page.$('canvas');
         const buffer = await canvas.screenshot({ type: 'png', omitBackground: true});
 
         await this.browser.close();
         return buffer
     }
-    async render_trajectory(parameters, trajectory, options = {}) {
+    async render_trajectory(parameters, trajectory, options) {
         
         await this.page.evaluate(async (ui, options) => {
             await window.init(ui, options);
@@ -122,11 +124,12 @@ const server = http.createServer((req, res) => {
             try {
                 const payload = JSON.parse(files["data"]);
                 const ui = files["ui"].toString('utf8');
+                const options = files["options"] ? JSON.parse(files["options"].toString('utf8')) : {};
                 const renderer = new Renderer(ui, parseInt(fields["width"]), parseInt(fields["height"]));
                 await renderer.init();
                 let frames = null;
                 if(req.url === '/render'){
-                    const frame = await renderer.render(payload.parameters, payload.step, {frame_counter: false})
+                    const frame = await renderer.render(payload.parameters, payload.step, options)
                     await renderer.close();
 
                     res.writeHead(200, {
@@ -137,7 +140,7 @@ const server = http.createServer((req, res) => {
                 }
                 else{
                     const yazl = require('yazl');
-                    frames = await renderer.render_trajectory(payload.parameters, payload.trajectory, {frame_counter: false})
+                    frames = await renderer.render_trajectory(payload.parameters, payload.trajectory, options)
                     await renderer.close();
 
                     const zipfile = new yazl.ZipFile();
@@ -167,33 +170,41 @@ const server = http.createServer((req, res) => {
 });
 
 
-
-async function main(){
+async function main_debug(){
     await new Promise(resolve => server.listen(PORT, resolve));
-    // const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
-    // const DATA = JSON.parse(DATA_CONTENT)
+    const DATA_CONTENT = fs.readFileSync(path.join(__dirname, "data.json"), 'utf8')
+    const DATA = JSON.parse(DATA_CONTENT)
+    const UI = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
 
-    // const renderer = new Renderer();
-    // await renderer.init();
-    // // const buffer = await renderer.render(DATA[0].parameters, DATA[0].trajectory[0])
-    // frames = await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory, {frame_counter: false})
-    // await renderer.close();
+    const renderer = new Renderer(UI, 2000, 2000);
+    await renderer.init();
 
-    // const outputDir = path.join(__dirname, 'canvas_frames');
-    // if (!fs.existsSync(outputDir)) {
-    //     fs.mkdirSync(outputDir, { recursive: true });
-    // }
-    // const file_promises = frames.map((frame, i) => {
-    //     const outputPath = path.join(outputDir, `frame_${i.toString().padStart(5, '0')}.png`);
-    //     console.log(`Saved frame ${i} to ${outputPath}`);
-    //     return fs.promises.writeFile(outputPath, frame);
-    // })
-    // await Promise.all(file_promises);
-    // const outputPath = path.join(__dirname, 'output.png');
-    // fs.writeFileSync(outputPath, buffer);
-    // console.log(`Screenshot saved to ${outputPath}`);
+    if(DEBUG_TRAJECTORY){
+        frames = await renderer.render_trajectory(DATA[0].parameters, DATA[0].trajectory, {frame_counter: false})
+        await renderer.close();
+
+        const outputDir = path.join(__dirname, 'canvas_frames');
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+        }
+        const file_promises = frames.map((frame, i) => {
+            const outputPath = path.join(outputDir, `frame_${i.toString().padStart(5, '0')}.png`);
+            console.log(`Saved frame ${i} to ${outputPath}`);
+            return fs.promises.writeFile(outputPath, frame);
+        })
+        await Promise.all(file_promises);
+    }
+    else{
+        const buffer = await renderer.render(DATA[0].parameters, DATA[0].trajectory[DATA[0].trajectory.length - 1], {camera_position: [0, 0, 2]});
+        const outputPath = path.join(__dirname, 'output.png');
+        fs.writeFileSync(outputPath, buffer);
+        console.log(`Screenshot saved to ${outputPath}`);
+    }
     await new Promise(resolve => setTimeout(resolve, 100000000));
     server.close(() => console.log('Server closed.'));
+}
+async function main(){
+    server.listen(PORT);
 }
 process.on('SIGINT', () => {
     console.log('Shutting down...');
@@ -203,5 +214,10 @@ process.on('SIGINT', () => {
 
 
 
-main()
+if (DEBUG) {
+    main_debug()
+}
+else{
+    main()
+}
 
