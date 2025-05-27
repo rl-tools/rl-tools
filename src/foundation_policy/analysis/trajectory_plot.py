@@ -13,7 +13,7 @@ def render(params_json, states):
     import io, imageio.v3 as iio
 
     def state_to_dict(s, dt):
-        d = {
+        return {
             "state": {
                 "position":         [0, 0, 0],
                 "orientation":      s[3:3+4].tolist(),   # w-x-y-z
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     with open(models_path, "r") as f:
         models = json.load(f)
 
-    for parameters, ground_truths, trajectories, hidden_trajectories in zip(all_parameters, get_ground_truths(all_parameters), all_trajectories, all_hidden_trajectories):
+    for drone_i, (parameters, ground_truths, trajectories, hidden_trajectories) in enumerate(zip(all_parameters, get_ground_truths(all_parameters), all_trajectories, all_hidden_trajectories)):
         prediction_trajectories = {k:[] for k in models.keys()}
         ground_truth_trajectories = {k:[] for k in models.keys()}
         for trajectory in hidden_trajectories:
@@ -78,13 +78,18 @@ if __name__ == "__main__":
         for trajectory_i, (states, hidden_states) in enumerate(zip(trajectories, hidden_trajectories)):
             animations = render(parameters, states)
             states = states[1:]
-            position_error = np.array([np.linalg.norm(s.position) for s in states])
+            position = lambda s: s[:3]
+            orientation = lambda s: s[3:3+4]  # w-x-y-z
+            linear_velocity = lambda s: s[3+4:3+4+3]
+            angular_velocity = lambda s: s[3+4+3:3+4+3+3]
+
+            position_error = np.array([np.linalg.norm(position(s)) for s in states])
             position_error = position_error / np.max(position_error)
-            orientation_error = np.array([2 * np.arccos(s.orientation[0]) for s in states])
+            orientation_error = np.array([2 * np.arccos(orientation(s)[0]) for s in states])
             orientation_error = orientation_error / np.max(orientation_error)
-            linear_velocity_error = np.array([np.linalg.norm(s.linear_velocity) for s in states])
+            linear_velocity_error = np.array([np.linalg.norm(linear_velocity(s)) for s in states])
             linear_velocity_error = linear_velocity_error / np.max(linear_velocity_error)
-            angular_velocity_error = np.array([np.linalg.norm(s.angular_velocity) for s in states])
+            angular_velocity_error = np.array([np.linalg.norm(angular_velocity(s)) for s in states])
             angular_velocity_error = angular_velocity_error / np.max(angular_velocity_error)
 
             x = np.arange(len(position_error))
@@ -121,7 +126,8 @@ if __name__ == "__main__":
             ax = axs[current_ax]
             current_ax += 1
             ax.plot(prediction_trajectories[MODEL][trajectory_i], label="Predicted")
-            ax.plot(np.arange(len(prediction_trajectories[MODEL][trajectory_i])), [ground_truth_trajectories[MODEL]] * len(prediction_trajectories[MODEL][trajectory_i]), label="Ground Truth")
+            ax.plot(ground_truth_trajectories[MODEL][trajectory_i], label="Ground Truth")
+            ax.set_ylim(0, 5)
             ax.set_ylabel("Thrust to Weight Ratio")
             ax.legend()
             ax = axs[current_ax]
