@@ -46,14 +46,17 @@
 
     let updateFrameLabel = null;
     window.init = async (ui, options_param) => {
-        const options = options_param || {
+        const  default_options = {
+            devicePixelRatio: window.devicePixelRatio,
+            capture: true,
             frame_counter: false
-        };
+        }
+        const options = {...default_options, ...options_param};
         const blob = new Blob([ui], { type: 'application/javascript' });
         const url = URL.createObjectURL(blob);
         ui_module = await import(url)
         URL.revokeObjectURL(url);
-        ui_state = await ui_module.init(canvas, {devicePixelRatio: window.devicePixelRatio, capture: true});
+        ui_state = await ui_module.init(canvas, options);
         let labelSprite = null;
         if(options.frame_counter){
             const labelCanvas   = document.createElement('canvas');
@@ -148,9 +151,9 @@
             const data = await data_response.json();
             const ui_response = await fetch('/ui.js');
             const ui = await ui_response.text();
-            await window.init(ui);
-            // await window.render_single_frame(data[0].parameters, data[0].trajectory[0]);
-            await window.render_trajectory(data[0].parameters, data[0].trajectory);
+            await window.init(ui, {camera_position: [0, 0, 10]});
+            await window.render_single_frame(data[0].parameters, data[0].trajectory[0]);
+            // await window.render_trajectory(data[0].parameters, data[0].trajectory);
         }
         run()
     }

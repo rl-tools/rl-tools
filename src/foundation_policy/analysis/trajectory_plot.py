@@ -8,7 +8,11 @@ from probe import get_ground_truths
 ANIMATION_INTERVAL = 20
 MODEL = "t2w_full"
 
-def render(params_json, states):
+default_options = {
+    "camera_position": [0.0, 0, 1]
+}
+
+def render(params_json, states, options=default_options):
     import requests, zipfile
     import io, imageio.v3 as iio
 
@@ -40,7 +44,8 @@ def render(params_json, states):
             data={"width":  "2000", "height": "2000"},
             files={
                 "data": ("data.json", json.dumps(payload), "application/json"),
-                "ui": ("ui.js", ui_file, "application/javascript")
+                "ui": ("ui.js", ui_file, "application/javascript"),
+                "options": ("options.json", json.dumps(options), "application/json")
             }
         )
     resp.raise_for_status()

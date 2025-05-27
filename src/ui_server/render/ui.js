@@ -54,13 +54,14 @@ function Matrix4FromRotMat(rotMat){
 
 
 class State{
-    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false}){
+    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1]}){
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
         this.cursor_grab = false // Instruct the embedding code to make the cursor a grab cursor
         this.render_tick = 0
         this.capture = capture
+        this.camera_position = camera_position
     }
     async initialize(){
         const width = this.canvas.width
@@ -78,7 +79,7 @@ class State{
 
         // canvasContainer.appendChild(this.renderer.domElement );
 
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        // this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         // this.controls.enabled = false;
         // window.addEventListener('keydown', (event) => {
         //     if (event.key === 'Alt') {
@@ -117,7 +118,7 @@ class State{
         directionalLight.target.position.set(0, 0, 0)
         this.scene.add( directionalLight )
 
-        this.camera.position.set(0.5, 0, 1)
+        // this.camera.position.set(...this.camera_position)
         // this.camera.quaternion.set(-0.14, 0.70, 0.14, 0.68)
         // this.controls.target.set(0.0, 0.0, 0.0)
         // this.controls.minDistance = 1
@@ -299,7 +300,7 @@ function clear_episode(ui_state){
 }
 function set_camera(ui_state, scale){
     if(!ui_state.camera_set){
-        ui_state.camera.position.set(0.5 * scale, 0.5 * scale, 1 * scale)
+        ui_state.camera.position.set(ui_state.camera_position[0] * scale, ui_state.camera_position[1] * scale, ui_state.camera_position[2] * scale)
         ui_state.camera.lookAt(0, 0, 0)
         ui_state.camera_set = true
     }
@@ -353,7 +354,7 @@ function update_camera(ui_state){
         ui_state.renderer.setSize(width, height)
     }
 
-    ui_state.controls.update()
+    // ui_state.controls.update()
     ui_state.renderer.render(ui_state.scene, ui_state.camera);
 
     ui_state.render_tick += 1
