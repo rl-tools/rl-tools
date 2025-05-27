@@ -149,10 +149,10 @@
             "cwd": "${workspaceFolder}"
         },
         {
-            "name": "src/foundation_policy/analysis/trajectory.py",
+            "name": "src/foundation_policy/analysis/generate_data.py",
             "type": "python",
             "request": "launch",
-            "program": "src/foundation_policy/analysis/trajectory.py",
+            "program": "src/foundation_policy/analysis/generate_data.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}"
