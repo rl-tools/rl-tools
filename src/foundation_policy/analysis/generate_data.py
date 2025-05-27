@@ -16,7 +16,7 @@ def shrink_state(state):
     return np.concatenate((state.position, state.orientation, state.linear_velocity, state.angular_velocity, state.rpm), axis=None)
 
 
-if __name__ == "__main__":
+def generate_data(save=False, initial_position=None, position_clip=None):
     policy = QuadrotorPolicy()
     policy.reset()
 
@@ -42,16 +42,20 @@ if __name__ == "__main__":
         l2f.initial_parameters(device, env, params)
         l2f.parameters_from_json(device, env, json.dumps(parameters_json_input), params)
         params_json = json.loads(l2f.parameters_to_json(device, env, params))
-        for trajectory_i in range(N_TRAJECTORIES):
+        for trajectory_i in range(N_TRAJECTORIES if initial_position is None else 1):
             hidden_states = []
             states = []
             actions = []
             policy.reset()
             l2f.sample_initial_state(device, env, params, state, rng)
+            if initial_position is not None:
+                state.position = np.array(initial_position, dtype=np.float32)
             states.append(shrink_state(copy(state)))
             for step_i in range(N_STEPS):
                 l2f.observe(device, env, params, state, observation, rng)
                 obs = np.array(observation.observation)[:22] # concatenating position, orientation (rotation matrix), linear velocity, angular velocity, and previous action (note in newer versions of l2f the most recent action follows right after the angular velocity)
+                if position_clip is not None:
+                    obs[:3] = np.clip(obs[:3], -position_clip, position_clip)
                 action = policy.evaluate_step(np.array([obs]))[0]
                 hidden_state = policy.layers[1].state[0]
                 hidden_states.append(hidden_state)
@@ -62,12 +66,15 @@ if __name__ == "__main__":
             hidden_trajectories.append(hidden_states)
             trajectories.append(states[:-1])
             trajectories_actions.append(actions)
-        drone_path = os.path.join(trajectories_path, f"{drone_i}")
-        os.makedirs(drone_path, exist_ok=True)
-        np.savez(os.path.join(drone_path, "trajectories.npz"), np.array(trajectories).astype(np.float32))
-        np.savez(os.path.join(drone_path, "hidden_trajectories.npz"), np.array(hidden_trajectories).astype(np.float32))
-        with open(os.path.join(drone_path, "parameters.json"), "w") as f:
-            json.dump(params_json, f, indent=4)
+        if save:
+            drone_path = os.path.join(trajectories_path, f"{drone_i}")
+            os.makedirs(drone_path, exist_ok=True)
+            np.savez(os.path.join(drone_path, "trajectories.npz"), np.array(trajectories).astype(np.float32))
+            np.savez(os.path.join(drone_path, "hidden_trajectories.npz"), np.array(hidden_trajectories).astype(np.float32))
+            with open(os.path.join(drone_path, "parameters.json"), "w") as f:
+                json.dump(params_json, f, indent=4)
+        else:
+            yield params_json, np.array(trajectories).astype(np.float32), np.array(hidden_trajectories).astype(np.float32)
 
 
 def load():
@@ -83,3 +90,6 @@ def load():
     hidden_trajectories = np.array(hidden_trajectories)
     trajectories = np.array(trajectories)
     return parameters, trajectories, hidden_trajectories
+
+if __name__ == "__main__":
+    generate_data(save=True)
