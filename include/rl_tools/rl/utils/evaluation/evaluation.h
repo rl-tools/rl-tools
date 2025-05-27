@@ -32,7 +32,6 @@ namespace rl_tools::rl::utils::evaluation{
     };
     template <typename T_SPEC>
     struct Data{
-
         using SPEC = typename T_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
