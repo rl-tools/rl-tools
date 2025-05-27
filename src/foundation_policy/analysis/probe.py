@@ -5,7 +5,6 @@ import json
 import matplotlib.pyplot as plt
 from generate_data import load
 
-ANIMATION_INTERVAL = 20
 name = {
     "t2w_full_full": "Thrust-to-Weight Ratio (Model: Full, Data: Full)",
     "t2w_full_final": "Thrust-to-Weight Ratio (Model: Full, Data: Final)",
@@ -21,7 +20,7 @@ def get_ground_truths(parameters):
         ground_truth = {"t2w": thrust2weight}
         yield ground_truth
 
-def model(dependents, parameters, trajectories, hidden_trajectories, final_step_only=False):
+def model(dependents, parameters, trajectories, hidden_trajectories):
     N_STEPS = hidden_trajectories.shape[2]
     ground_truths = list(get_ground_truths(parameters))
     Xs = {}
@@ -89,10 +88,11 @@ def model(dependents, parameters, trajectories, hidden_trajectories, final_step_
 
         # prediction_trajectories[dependent] = X_trajs @ model.coef_ + model.intercept_
 
-        models[dependent] = {
-            "mean_full": {"coef": model.coef_.tolist(), "intercept": float(model.intercept_)},
-            "mean_final": {"coef": model_final.coef_.tolist(), "intercept": float(model_final.intercept_)},
-            # "std": {"coef": model_std.coef_.tolist(), "intercept": model_std.intercept_}
+        models[f"{dependent}_full"] = {
+            "mean": {"coef": model.coef_.tolist(), "intercept": float(model.intercept_)}
+        }
+        models[f"{dependent}_final"] = {
+            "mean": {"coef": model_final.coef_.tolist(), "intercept": float(model_final.intercept_)}
         }
     return models, prediction_trajectories, ground_truths, Xs, ys
 
@@ -197,21 +197,11 @@ if __name__ == "__main__":
     subsample_indices = indices[:len(indices)//500]
     X_full = X["t2w"]["full"][subsample_indices]
     y_full = y["t2w"]["full"][subsample_indices]
-    plot_model("t2w_full_full", models["t2w"]["mean_full"], y_full, X_full)
-    plot_model("t2w_full_final", models["t2w"]["mean_full"], y["t2w"]["final"], X["t2w"]["final"])
-    plot_model("t2w_final_final", models["t2w"]["mean_final"], y["t2w"]["final"], X["t2w"]["final"])
-    plot_model("t2w_final_full", models["t2w"]["mean_final"], y_full, X_full)
+    plot_model("t2w_full_full", models["t2w_full"]["mean"], y_full, X_full)
+    plot_model("t2w_full_final", models["t2w_full"]["mean"], y["t2w"]["final"], X["t2w"]["final"])
+    plot_model("t2w_final_final", models["t2w_final"]["mean"], y["t2w"]["final"], X["t2w"]["final"])
+    plot_model("t2w_final_full", models["t2w_final"]["mean"], y_full, X_full)
 
     with open("src/foundation_policy/analysis/models.json", "w") as f:
         json.dump(models, f, indent=4)
-
-
-    
-    # for params_json, trajectories, hidden_trajectories in zip(parameters, trajectories, hidden_trajectories):
-    #     for trajectory in trajectories:
-    #         # animations = render(params_json, trajectory)
-    #         prediction_trajectories = {k:np.array([[step[k] for step in traj] for traj in trajectories]) for k in dependents}
-    #         ground_truth = gts[0]
-    #         plot()
-
 
