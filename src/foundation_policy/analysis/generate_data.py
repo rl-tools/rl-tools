@@ -9,6 +9,7 @@ from tqdm import tqdm
 N_STEPS = 500
 N_TRAJECTORIES = 100
 N_DRONES = 1000
+trajectories_path = os.path.join(os.path.dirname(__file__), "trajectories")
 
 
 def shrink_state(state):
@@ -61,8 +62,24 @@ if __name__ == "__main__":
             hidden_trajectories.append(hidden_states)
             trajectories.append(states[:-1])
             trajectories_actions.append(actions)
-        os.makedirs(f"src/foundation_policy/analysis/trajectories/{drone_i}", exist_ok=True)
-        np.savez(f"src/foundation_policy/analysis/trajectories/{drone_i}/trajectories.npz", np.array(trajectories).astype(np.float32))
-        np.savez(f"src/foundation_policy/analysis/trajectories/{drone_i}/hidden_trajectories.npz", np.array(hidden_trajectories).astype(np.float32))
-        with open(f"src/foundation_policy/analysis/trajectories/{drone_i}/parameters.json", "w") as f:
+        drone_path = os.path.join(trajectories_path, f"{drone_i}")
+        os.makedirs(drone_path, exist_ok=True)
+        np.savez(os.path.join(drone_path, "trajectories.npz"), np.array(trajectories).astype(np.float32))
+        np.savez(os.path.join(drone_path, "hidden_trajectories.npz"), np.array(hidden_trajectories).astype(np.float32))
+        with open(os.path.join(drone_path, "parameters.json"), "w") as f:
             json.dump(params_json, f, indent=4)
+
+
+def load():
+    hidden_trajectories = []
+    trajectories = []
+    parameters = []
+    for drone in tqdm(list(filter(lambda drone: os.path.exists(os.path.join(trajectories_path, drone, "parameters.json")), os.listdir(trajectories_path)))):
+        drone_path = os.path.join(trajectories_path, drone)
+        hidden_trajectories.append(np.load(os.path.join(drone_path, "hidden_trajectories.npz"))["arr_0"])
+        trajectories.append(np.load(os.path.join(drone_path, "trajectories.npz"))["arr_0"])
+        with open(os.path.join(drone_path, "parameters.json"), "r") as f:
+            parameters.append(json.load(f))
+    hidden_trajectories = np.array(hidden_trajectories)
+    trajectories = np.array(trajectories)
+    return parameters, trajectories, hidden_trajectories
