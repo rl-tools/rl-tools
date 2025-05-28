@@ -896,7 +896,7 @@ class State{
         this.render_tick = 0
         this.capture = capture
         this.camera_position = camera_position
-        this.interactive = true
+        this.interactive = interactive
     }
     async initialize(){
         const width = this.canvas.width
