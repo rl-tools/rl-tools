@@ -140,6 +140,7 @@
 
 
             let episode_initialized = false
+            let multi = false;
             let ui_module = null;
             let ui_state = null;
             let state = null;
@@ -147,7 +148,15 @@
 
             const renderLoop = async () => {
                 if(ui_module && ui_state && episode_initialized && state){
-                    await (await ui_module).render(await ui_state, parameters, state.state, state.action)
+                    const uim = await ui_module;
+                    const uis = await ui_state;
+                    if(multi){
+                        console.assert(Array.isArray(parameters) && Array.isArray(state.state) && Array.isArray(state.action))
+                        await uim.render_multi(uis, parameters, state.state, state.action)
+                    }
+                    else{
+                        await uim.render(uis, parameters, state.state, state.action)
+                    }
                 }
                 requestAnimationFrame(renderLoop);
             }
@@ -157,9 +166,20 @@
                     console.log('Parameters:', new_parameters);
                     parameters = new_parameters
                     if(ui_module && ui_state){
-                        if((await ui_module).episode_init){
-                            await (await ui_module).episode_init((await ui_state), parameters)
+                        const uim = await ui_module;
+                        const uis = await ui_state;
+                        if(Array.isArray(parameters)){
+                            console.assert(uim.episode_init_multi)
+                            await uim.episode_init_multi(uis, parameters)
                             episode_initialized = true
+                            multi = true;
+                        }
+                        else{
+                            if((await ui_module).episode_init){
+                                await uim.episode_init(uis, parameters)
+                                multi = false;
+                                episode_initialized = true
+                            }
                         }
                     }
                     else{
@@ -190,7 +210,8 @@
                             ui_module = import(url)
                             ui_state = ui_module.then(async (module)=>{
                                 URL.revokeObjectURL(url);
-                                ui_state = await module.init(canvas, {devicePixelRatio: window.devicePixelRatio})
+                                const options = {...{devicePixelRatio: window.devicePixelRatio}, ...ui.options}
+                                ui_state = await module.init(canvas, options)
                                 if(ui_state.cursor_grab){
                                     this.canvas.style.cursor = "grab"
                                 }
