@@ -213,7 +213,10 @@
                                 const options = {...{devicePixelRatio: window.devicePixelRatio}, ...ui.options}
                                 ui_state = await module.init(canvas, options)
                                 if(ui_state.cursor_grab){
-                                    this.canvas.style.cursor = "grab"
+                                    canvas.style.cursor = "grab"
+                                }
+                                else{
+                                    canvas.style.cursor = "default"
                                 }
                                 renderLoop()
                                 return ui_state
