@@ -892,7 +892,7 @@ class State{
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
-        this.cursor_grab = false // Instruct the embedding code to make the cursor a grab cursor
+        this.cursor_grab = interactive // Instruct the embedding code to make the cursor a grab cursor
         this.render_tick = 0
         this.capture = capture
         this.camera_position = camera_position
