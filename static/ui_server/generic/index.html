@@ -147,16 +147,21 @@
 
 
             const renderLoop = async () => {
-                if(ui_module && ui_state && episode_initialized && state){
-                    const uim = await ui_module;
-                    const uis = await ui_state;
-                    if(multi){
-                        console.assert(Array.isArray(parameters) && Array.isArray(state.state) && Array.isArray(state.action))
-                        await uim.render_multi(uis, parameters, state.state, state.action)
+                try{
+                    if(ui_module && ui_state && episode_initialized && state){
+                        const uim = await ui_module;
+                        const uis = await ui_state;
+                        if(multi){
+                            console.assert(Array.isArray(parameters) && Array.isArray(state.state) && Array.isArray(state.action))
+                            await uim.render_multi(uis, parameters, state.state, state.action)
+                        }
+                        else{
+                            await uim.render(uis, parameters, state.state, state.action)
+                        }
                     }
-                    else{
-                        await uim.render(uis, parameters, state.state, state.action)
-                    }
+                }
+                catch(error){
+                    console.error('Error during render loop:', error);
                 }
                 requestAnimationFrame(renderLoop);
             }
@@ -173,12 +178,14 @@
                             await uim.episode_init_multi(uis, parameters)
                             episode_initialized = true
                             multi = true;
+                            state = null
                         }
                         else{
                             if((await ui_module).episode_init){
                                 await uim.episode_init(uis, parameters)
                                 multi = false;
                                 episode_initialized = true
+                                state = null
                             }
                         }
                     }
