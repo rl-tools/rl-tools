@@ -183,6 +183,15 @@
                 "<node_internals>/**"
             ],
             "type": "node"
-        }
+        },
+        {
+            "name": "embedded_platforms/betaflight/minimal-l2f.py",
+            "type": "python",
+            "request": "launch",
+            "program": "embedded_platforms/betaflight/minimal-l2f.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}"
+        },
     ]
 }
