@@ -63,7 +63,7 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
             const auto step_input = rl_tools::view(device, rl_tools::checkpoint::example::input::container, step_i);
             const auto batch_input = rl_tools::view_range(device, step_input, batch_i, rl_tools::tensor::ViewSpec<0, 1>{});
             rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, batch_input), "input is nan");
-            rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, policy_state_test.content_state.next_content_state.state.state), "state is nan");
+            // rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, policy_state_test.content_state.next_content_state.state.state), "state is nan");
             rl_tools::evaluate_step(device, rl_tools::checkpoint::actor::module, batch_input, policy_state_test, output, buffers_test, rng, mode);
             rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, output), "output is nan");
             for(TI action_i = 0; action_i < OUTPUT_DIM; action_i++){

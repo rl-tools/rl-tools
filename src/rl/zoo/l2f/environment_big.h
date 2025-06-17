@@ -18,7 +18,7 @@ namespace rl_tools::rl::zoo::l2f{
     template <typename DEVICE, typename T, typename TI, typename OPTIONS>
     struct ENVIRONMENT_BIG_FACTORY{
 
-        static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
+        static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::soft;
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
 
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
@@ -125,7 +125,7 @@ namespace rl_tools::rl::zoo::l2f{
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
         };
         static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {
-            {0.5, 0.5}, // mixture weights
+            {1, 0}, // mixture weights
             typename PARAMETERS_TYPE::Trajectory::Langevin{
                 1.00, // gamma
                 2.00, // omega

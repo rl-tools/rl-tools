@@ -99,6 +99,7 @@ int main(int argc, char** argv){
     registry.emplace_back("fs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
     registry.emplace_back("race", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::race<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
     registry.emplace_back("flightmare", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::flightmare<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("soft", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::soft<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
 
     rlt::initial_parameters(device, env, params);
     overwrite(params);
