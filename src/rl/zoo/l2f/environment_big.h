@@ -45,24 +45,37 @@ namespace rl_tools::rl::zoo::l2f{
 
         static constexpr auto BASE_PARAMS = BASE_ENV::SPEC::PARAMETER_VALUES;
 
+        static constexpr auto dynamics = parameters::dynamics::registry<MODEL, typename BASE_ENV::SPEC>;
+        static constexpr auto mdp = [](){
+            auto mdp = BASE_PARAMS.mdp;
+            T x = dynamics.rotor_positions[0][0];
+            T y = dynamics.rotor_positions[0][1];
+            T rotor_distance = ((x > 0 ? x : -x) + (y > 0 ? y : -y))/2 * 1.4142135623730951;
+            mdp.termination.position_threshold = rotor_distance * 20;
+            mdp.init.max_position = rotor_distance * 10;
+            return mdp;
+        }();
+
+        static constexpr auto trajectory = [](){
+                auto traj = BASE_PARAMS.trajectory;
+                // traj.mixture[0] = 1.0; // ensure that the probability of using position control is 1
+                return traj;
+        }();
+
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
                     {
-                        parameters::dynamics::registry<MODEL, typename BASE_ENV::SPEC>,
+                        dynamics,
                         BASE_PARAMS.integration,
-                        BASE_PARAMS.mdp
+                        mdp
                     }, // Base
                     BASE_PARAMS.disturbances
                 }, // Disturbances
                 BASE_PARAMS.domain_randomization
             }, // DomainRandomization
-            [](){
-                auto traj = BASE_PARAMS.trajectory;
-                traj.mixture[0] = 1.0; // ensure that the probability of using position control is 1
-                return traj;
-            }()
-        };
+            trajectory
+        }; // Trajectory
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;

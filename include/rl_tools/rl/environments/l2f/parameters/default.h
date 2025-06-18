@@ -36,11 +36,11 @@ namespace rl_tools::rl::environments::l2f::parameters {
                 01.00, // scale
                 00.50, // constant
                 -100.00, // termination penalty
-                00.50, // position
+                01.00, // position
                 00.00, // position_clip
                 00.10, // orientation
                 00.00, // linear_velocity
-                00.03, // angular_velocity
+                00.00, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
                 00.00, // action
