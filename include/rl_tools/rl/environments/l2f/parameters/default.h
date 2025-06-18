@@ -40,7 +40,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
                 00.00, // position_clip
                 00.10, // orientation
                 00.00, // linear_velocity
-                00.10, // angular_velocity
+                00.05, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
                 00.00, // action
