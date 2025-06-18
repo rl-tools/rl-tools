@@ -75,9 +75,8 @@ namespace rl_tools::rl::zoo::l2f{
                     observation::TrajectoryTrackingLinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocityDelayed<observation::AngularVelocityDelayedSpecification<T, TI, ANGULAR_VELOCITY_DELAY,
                     // observation::RandomForce<observation::RandomForceSpecification<T, TI,
-                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, 1, // one-step action history to Markovify the d_action regularization
-                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>
-            >>>>>>>>>;
+                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, 1 // one-step action history to Markovify the d_action regularization
+            >>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
