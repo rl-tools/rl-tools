@@ -57,7 +57,11 @@ namespace rl_tools::rl::zoo::l2f{
                 }, // Disturbances
                 BASE_PARAMS.domain_randomization
             }, // DomainRandomization
-            BASE_PARAMS.trajectory // Trajectory
+            [](){
+                auto traj = BASE_PARAMS.trajectory;
+                traj.mixture[0] = 1.0; // ensure that the probability of using position control is 1
+                return traj;
+            }()
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
