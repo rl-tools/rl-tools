@@ -20,7 +20,7 @@ namespace rl_tools::rl::zoo::l2f{
 
         using BASE_ENV = rl_tools::rl::environments::Multirotor<Specification<T, TI>>;
 
-        static constexpr auto MODEL = parameters::dynamics::REGISTRY::crazyflie;
+        static constexpr auto MODEL = parameters::dynamics::REGISTRY::soft;
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
 
         using REWARD_FUNCTION = parameters::reward_functions::Squared<T>;
@@ -49,7 +49,7 @@ namespace rl_tools::rl::zoo::l2f{
             {
                 {
                     {
-                        BASE_PARAMS.dynamics,
+                        parameters::dynamics::registry<MODEL, typename BASE_ENV::SPEC>,
                         BASE_PARAMS.integration,
                         BASE_PARAMS.mdp
                     }, // Base
