@@ -23,7 +23,7 @@ namespace rl_tools::rl::zoo::l2f::ppo{
         using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<T, T, TI, OPTIONS>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            static constexpr TI STEP_LIMIT = 6000; // ~2.5M env steps
+            static constexpr TI STEP_LIMIT = 60000; // ~2.5M env steps
 
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
