@@ -1,6 +1,6 @@
 {
-    "name": "rl-tools",
-    "version": "0.0.3",
+    "name": "rltools",
+    "version": "0.0.4",
     "description": "JavaScript wrapper for the inference of RLtools models",
     "main": "main.js",
     "keywords": [
