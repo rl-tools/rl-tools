@@ -53,20 +53,21 @@ namespace rl_tools::rl::zoo::l2f{
             T rotor_distance = ((x > 0 ? x : -x) + (y > 0 ? y : -y))/2 * 1.4142135623730951;
             mdp.termination.position_threshold = rotor_distance * 20;
             mdp.init.max_position = rotor_distance * 10;
+            mdp.init.max_angle = 1.5707963267948966 * 20.0/90.0;   // orientation
             auto& reward = mdp.reward;
-            reward.non_negative            = false;
+            reward.non_negative            = true;
             reward.scale                   = 01.00; // scale
             reward.constant                = 10.00; // constant
             reward.termination_penalty     = 00.00; // termination penalty
-            reward.position                = 02.50; // position
+            reward.position                = 10.00; // position
             reward.position_clip           = 00.00; // position_clip
-            reward.orientation             = 02.50; // orientation
-            reward.linear_velocity         = 00.005; // linear_velocity
-            reward.angular_velocity        = 00.00; // angular_velocity
+            reward.orientation             = 05.00; // orientation
+            reward.linear_velocity         = 10.00; // linear_velocity
+            reward.angular_velocity        = 01.00; // angular_velocity
             reward.linear_acceleration     = 00.00; // linear_acceleration
             reward.angular_acceleration    = 00.00; // angular_acceleration
             reward.action                  = 00.00; // action
-            reward.d_action                = 00.00; // d_action
+            reward.d_action                = 20.00; // d_action
             reward.position_error_integral = 00.00; // position_error_integral
             return mdp;
         }();
