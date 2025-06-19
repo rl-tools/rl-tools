@@ -18,6 +18,30 @@ class Tensor{
     }
 }
 
+class StandardizeLayer{
+    constructor(group){
+        this.mean = group.get("mean").attrs.type === "matrix" ? new Matrix(group.get("mean").get("parameters")) : new Tensor(group.get("mean").get("parameters"))
+        this.input_shape = [null, null, this.mean.shape[1]]
+        this.output_shape = [null, null, this.mean.shape[1]]
+        this.precision = group.get("precision").attrs.type === "matrix" ? new Matrix(group.get("precision").get("parameters")) : new Tensor(group.get("precision").get("parameters"))
+    }
+    description(){
+        return `Standardize(${this.output_shape[2]})`
+    }
+    evaluate(input){
+        const leading_dimension = input.size().slice(0, -1).reduce((a, b) => a * b, 1)
+        const input_reshaped = math.reshape(input, [leading_dimension, input.size()[input.size().length - 1]])
+        let [output, state] = this.evaluate_step(input_reshaped)
+        const output_shape = input.size().slice(0, -1).concat(this.mean.shape[1])
+        output = math.reshape(output, output_shape)
+        return output
+    }
+    evaluate_step(input, state){
+        let output = math.dotMultiply(math.subtract(input, this.mean.data), this.precision.data)
+        return [output, null]
+    }
+}
+
 class DenseLayer{
     constructor(group){
         this.weights = group.get("weights").attrs.type === "matrix" ? new Matrix(group.get("weights").get("parameters")) : new Tensor(group.get("weights").get("parameters"))
@@ -256,6 +280,9 @@ function layer_dispatch(group){
     }
     else if(group.attrs.type === "sample_and_squash") {
         model = new SampleAndSquashLayer(group)
+    }
+    else if(group.attrs.type === "standardize") {
+        model = new StandardizeLayer(group)
     }
     else{
         console.error("Unknown layer type: ", group.attrs.type)

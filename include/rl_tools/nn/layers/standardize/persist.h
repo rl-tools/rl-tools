@@ -13,6 +13,7 @@ namespace rl_tools {
         // todo: forward implementation to Parameter struct
         save(device, layer.mean, group.createGroup("mean"));
         save(device, layer.precision, group.createGroup("precision"));
+        group.createAttribute<std::string>("type", "standardize");
     }
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, HighFive::Group group) {

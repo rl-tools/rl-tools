@@ -12,6 +12,7 @@ namespace rl_tools {
     void save(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, HighFive::Group group) {
         // todo: forward implementation to Parameter struct
         save(device, layer.weights, group.createGroup("weights"));
+        group.createAttribute<std::string>("type", "embedding");
     }
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, HighFive::Group group) {
