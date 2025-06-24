@@ -185,13 +185,24 @@
             "type": "node"
         },
         {
-            "name": "embedded_platforms/betaflight/minimal-l2f.py",
+            "name": "embedded_platforms/betaflight/minimal-l2f.py [macos-mapping]",
             "type": "python",
             "request": "launch",
             "program": "embedded_platforms/betaflight/minimal-l2f.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "args": ["embedded_platforms/betaflight/gamepad_mapping_macos.json"]
+        },
+        {
+            "name": "embedded_platforms/betaflight/minimal-l2f.py [ubuntu-mapping]",
+            "type": "python",
+            "request": "launch",
+            "program": "embedded_platforms/betaflight/minimal-l2f.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "args": ["embedded_platforms/betaflight/gamepad_mapping_ubuntu.json"]
         },
     ]
 }
