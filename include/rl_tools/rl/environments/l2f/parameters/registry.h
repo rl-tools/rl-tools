@@ -10,6 +10,7 @@
 #include "dynamics/x500_sim.h"
 #include "dynamics/fs.h"
 #include "dynamics/flightmare.h"
+#include "dynamics/soft.h"
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -22,6 +23,7 @@ namespace rl_tools::rl::environments::l2f::parameters{
             x500_sim,
             fs_base,
             flightmare,
+            soft,
         };
         template <REGISTRY MODEL, typename SPEC>
         constexpr auto registry = [](){
@@ -37,6 +39,8 @@ namespace rl_tools::rl::environments::l2f::parameters{
                 return dynamics::fs::base<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::flightmare){
                 return dynamics::flightmare<typename SPEC::T, typename SPEC::TI>;
+            }else if constexpr (MODEL == REGISTRY::soft){
+                return dynamics::soft<typename SPEC::T, typename SPEC::TI>;
             }else{
                 static_assert(rl_tools::utils::typing::dependent_false<SPEC>, "Unknown model");
             }
@@ -59,6 +63,8 @@ namespace rl_tools::rl::environments::l2f::parameters{
                 return "fs_base";
             }else if constexpr (MODEL == REGISTRY::flightmare){
                 return "flightmare";
+            }else if constexpr (MODEL == REGISTRY::soft){
+                return "soft";
             }else{
                 static_assert(rl_tools::utils::typing::dependent_false<Dependent<MODEL>>, "Unknown model");
             }
