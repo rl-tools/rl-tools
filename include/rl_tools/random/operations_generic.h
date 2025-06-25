@@ -15,7 +15,7 @@ namespace rl_tools{
     template <template <typename DEV_SPEC> typename DEVICE, typename DEV_SPEC, typename SPEC>
     void init(const DEVICE<DEV_SPEC>& dev, devices::generic::random::ENGINE<SPEC>& rng, typename DEV_SPEC::MATH::index_t seed = 1){
         rng.state = 0b10101010101010101010101010101010 + seed;
-    };
+    }
     namespace random{
         namespace generic{
             template <typename MATH_DEV>

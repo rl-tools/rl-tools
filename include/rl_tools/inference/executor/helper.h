@@ -65,7 +65,7 @@ int rl_tools_inference_executor_float_to_str(float f, char *dst, size_t dst_size
     int neg = (f < 0.0f);
     double d = neg ? -(double)f : (double)f;
 
-    d += 0.5e-6;
+    d += (double)0.5e-6;
 
     double int_d;
     double frac = modf(d, &int_d);
@@ -73,13 +73,13 @@ int rl_tools_inference_executor_float_to_str(float f, char *dst, size_t dst_size
     char   tmp[64];
     size_t tmp_len = 0;
 
-    if (int_d == 0.0) {
+    if (int_d == (double)0.0) {
         tmp[tmp_len++] = '0';
     } else {
-        while (int_d >= 1.0 && tmp_len < sizeof(tmp)) {
+        while (int_d >= (double)1.0 && tmp_len < sizeof(tmp)) {
             int digit = (int)fmod(int_d, 10.0);
             tmp[tmp_len++] = (char)('0' + digit);
-            int_d = floor(int_d / 10.0);
+            int_d = floor(int_d / (double)10.0);
         }
     }
 

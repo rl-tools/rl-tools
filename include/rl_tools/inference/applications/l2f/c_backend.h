@@ -30,7 +30,7 @@ namespace rl_tools::inference::applications::l2f{
     static CONFIG::POLICY_TEST::State<false> policy_state_test;
     static rl_tools::Tensor<rl_tools::tensor::Specification<T, TI, rl_tools::tensor::Shape<TI, 1, OUTPUT_DIM>, false>> output;
     #endif
-};
+}
 
 
 
