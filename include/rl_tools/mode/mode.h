@@ -50,7 +50,7 @@ namespace rl_tools{
             else{
                 return utils::typing::is_same_v<MODE<typename INPUT::BASE, typename INPUT::SPEC>, INPUT> || _is<typename INPUT::BASE, MODE>();
             }
-        };
+        }
 
         template <typename INPUT, template <typename, typename> typename MODE>
         constexpr bool is = _is<INPUT, MODE>();
