@@ -59,15 +59,15 @@ namespace rl_tools::rl::zoo::l2f{
             reward.scale                   = 01.00; // scale
             reward.constant                = 10.00; // constant
             reward.termination_penalty     = 00.00; // termination penalty
-            reward.position                = 10.00; // position
+            reward.position                = 01.00; // position
             reward.position_clip           = 00.00; // position_clip
-            reward.orientation             = 05.00; // orientation
-            reward.linear_velocity         = 10.00; // linear_velocity
+            reward.orientation             = 00.50; // orientation
+            reward.linear_velocity         = 01.00; // linear_velocity
             reward.angular_velocity        = 01.00; // angular_velocity
             reward.linear_acceleration     = 00.00; // linear_acceleration
             reward.angular_acceleration    = 00.00; // angular_acceleration
             reward.action                  = 00.00; // action
-            reward.d_action                = 20.00; // d_action
+            reward.d_action                = 01.00; // d_action
             reward.position_error_integral = 00.00; // position_error_integral
             return mdp;
         }();
