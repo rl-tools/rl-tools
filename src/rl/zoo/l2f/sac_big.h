@@ -18,8 +18,8 @@ namespace rl_tools::rl::zoo::l2f::sac{
 
         struct LOOP_CORE_PARAMETERS: rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI>{
-                static constexpr TI ACTOR_BATCH_SIZE = 256;
-                static constexpr TI CRITIC_BATCH_SIZE = 256;
+                static constexpr TI ACTOR_BATCH_SIZE = 512;
+                static constexpr TI CRITIC_BATCH_SIZE = 512;
                 static constexpr TI TRAINING_INTERVAL = 16;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
@@ -32,7 +32,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
                 static constexpr bool ENTROPY_BONUS_NEXT_STEP = false;
             };
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 1000000;
+            static constexpr TI STEP_LIMIT = 3000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 128;
