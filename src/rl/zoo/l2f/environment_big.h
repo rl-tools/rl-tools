@@ -55,7 +55,7 @@ namespace rl_tools::rl::zoo::l2f{
             mdp.init.max_position = rotor_distance * 10;
             mdp.init.max_angle = 1.5707963267948966 * 20.0/90.0;   // orientation
             auto& reward = mdp.reward;
-            reward.non_negative            = true;
+            reward.non_negative            = false;
             reward.scale                   = 01.00; // scale
             reward.constant                = 10.00; // constant
             reward.termination_penalty     = 00.00; // termination penalty
