@@ -63,7 +63,7 @@ namespace rl_tools::rl::zoo::l2f{
             reward.position_clip           = 00.00; // position_clip
             reward.orientation             = 00.50; // orientation
             reward.linear_velocity         = 01.00; // linear_velocity
-            reward.angular_velocity        = 01.00; // angular_velocity
+            reward.angular_velocity        = 00.00; // angular_velocity
             reward.linear_acceleration     = 00.00; // linear_acceleration
             reward.angular_acceleration    = 00.00; // angular_acceleration
             reward.action                  = 00.00; // action
