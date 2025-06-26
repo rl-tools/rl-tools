@@ -67,7 +67,7 @@ namespace rl_tools::rl::zoo::l2f{
             reward.linear_acceleration     = 00.00; // linear_acceleration
             reward.angular_acceleration    = 00.00; // angular_acceleration
             reward.action                  = 00.00; // action
-            reward.d_action                = 01.00; // d_action
+            reward.d_action                = 00.10; // d_action
             reward.position_error_integral = 00.00; // position_error_integral
             return mdp;
         }();
