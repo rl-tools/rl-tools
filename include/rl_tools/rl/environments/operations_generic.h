@@ -27,7 +27,7 @@ namespace rl_tools{
     template <typename DEVICE, typename ENV, typename PARAMS, typename NAMESPACE, typename = utils::typing::enable_if_t<!rl_tools::rl::environments::PREVENT_DEFAULT<ENV>::value>>
     auto save_code_env(DEVICE&, ENV&, PARAMS&, const NAMESPACE&){return "";}
     template<typename DEVICE, typename ENVIRONMENT, typename PARAMETERS, typename STATE, typename ACTION, typename RNG>
-    void log_reward(DEVICE& device, ENVIRONMENT& env, PARAMETERS& parameters, const STATE& state, ACTION& action, STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){}
+    void log_reward(const DEVICE& device, const ENVIRONMENT& env, const PARAMETERS& parameters, const STATE& state, const ACTION& action, const STATE& next_state, const RNG& rng, const typename DEVICE::index_t cadence = 1){} // just make em all const such that the conversion makes the compiler prefer other overloads if available
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

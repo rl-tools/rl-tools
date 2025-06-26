@@ -9,8 +9,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
-    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const StateBase<STATE_SPEC>& state_dispatch, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, typename Squared<T>::Components& components, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void _reward_components(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const Squared<T>& reward_parameters, const StateBase<STATE_SPEC>& state_dispatch, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, typename Squared<T>::Components& components, RNG& rng){
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         STATE desired_state;
@@ -44,11 +44,11 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         components.action_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         components.action_cost *= components.action_cost;
     }
-    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const StateLastAction<STATE_SPEC>& state_dispatch, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, typename Squared<T>::Components& components, RNG& rng) {
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void _reward_components(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const Squared<T>& reward_parameters, const StateLastAction<STATE_SPEC>& state_dispatch, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, typename Squared<T>::Components& components, RNG& rng) {
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
-        reward_components(device, env, parameters, reward_parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), state, action, next_state, components, rng);
+        _reward_components(device, env, parameters, reward_parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), state, action, next_state, components, rng);
         components.d_action_cost = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T d_action_value = get(action, 0, action_i) - state.last_action[action_i];
@@ -56,15 +56,43 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         }
         components.d_action_cost = math::sqrt(device.math, components.d_action_cost);
     }
-    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const StatePoseErrorIntegral<STATE_SPEC>& state_dispatch, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, typename Squared<T>::Components& components, RNG& rng){
-        reward_components(device, env, parameters, reward_parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), state, action, next_state, components, rng);
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void _reward_components(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const Squared<T>& reward_parameters, const StatePoseErrorIntegral<STATE_SPEC>& state_dispatch, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, typename Squared<T>::Components& components, RNG& rng){
+        _reward_components(device, env, parameters, reward_parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), state, action, next_state, components, rng);
         static constexpr T EPSILON = 1e-4;
         components.position_error_integral_cost = math::sqrt(device.math, next_state.position_integral[0]*next_state.position_integral[0] + next_state.position_integral[1]*next_state.position_integral[1] + next_state.position_integral[2]*next_state.position_integral[2] + EPSILON);
     }
-    template<typename DEVICE, typename SPEC, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
-        auto components = reward_components(device, env, parameters, reward_parameters, state, action, next_state, rng);
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const Squared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, typename Squared<T>::Components& components, RNG& rng){
+        components.d_action_cost = 0;
+        components.position_error_integral_cost = 0;
+        _reward_components(device, env, parameters, reward_parameters, state, state, action, next_state, components, rng);
+        components.weighted_cost = 0;
+        components.weighted_cost += reward_parameters.position * components.position_cost;
+        components.weighted_cost += reward_parameters.orientation * components.orientation_cost;
+        components.weighted_cost += reward_parameters.linear_velocity * components.linear_vel_cost;
+        components.weighted_cost += reward_parameters.angular_velocity * components.angular_vel_cost;
+        components.weighted_cost += reward_parameters.linear_acceleration * components.linear_acc_cost;
+        components.weighted_cost += reward_parameters.angular_acceleration * components.angular_acc_cost;
+        components.weighted_cost += reward_parameters.action * components.action_cost;
+        components.weighted_cost += reward_parameters.d_action * components.d_action_cost;
+        components.weighted_cost += reward_parameters.position_error_integral * components.position_error_integral_cost;
+
+        bool terminated_flag = terminated(device, env, parameters, next_state, rng);
+        components.scaled_weighted_cost = reward_parameters.scale * components.weighted_cost;
+
+        if(terminated_flag){
+            components.reward = reward_parameters.termination_penalty;
+        }
+        else{
+            components.reward = -components.scaled_weighted_cost + reward_parameters.constant;
+            components.reward = (components.reward > 0 || !reward_parameters.non_negative) ? components.reward : 0;
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const Squared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
+        typename Squared<T>::Components components;
+        reward_components(device, env, parameters, reward_parameters, state, action, next_state, components, rng);
         add_scalar(device, device.logger, "reward/orientation_cost", components.orientation_cost, cadence);
         add_scalar(device, device.logger, "reward/position_cost",    components.position_cost, cadence);
         add_scalar(device, device.logger, "reward/linear_vel_cost",  components.linear_vel_cost, cadence);
@@ -96,35 +124,14 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward/reward",               components.reward, cadence);
         add_scalar(device, device.logger, "reward/reward_zero",          components.reward == 0, cadence);
     }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename STATE, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const Multirotor<SPEC>& env, const typename Multirotor<SPEC>::Parameters& parameters, const Squared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename ACTION_SPEC, typename STATE, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const Squared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action,  const STATE& next_state, RNG& rng){
         typename Squared<T>::Components components;
         // initializing optional components
         components.d_action_cost = 0;
         components.position_error_integral_cost = 0;
-        reward_components(device, env, parameters, reward_parameters, state, state, action, next_state, components, rng);
+        reward_components(device, env, parameters, reward_parameters, state, action, next_state, components, rng);
 
-        components.weighted_cost = 0;
-        components.weighted_cost += reward_parameters.position * components.position_cost;
-        components.weighted_cost += reward_parameters.orientation * components.orientation_cost;
-        components.weighted_cost += reward_parameters.linear_velocity * components.linear_vel_cost;
-        components.weighted_cost += reward_parameters.angular_velocity * components.angular_vel_cost;
-        components.weighted_cost += reward_parameters.linear_acceleration * components.linear_acc_cost;
-        components.weighted_cost += reward_parameters.angular_acceleration * components.angular_acc_cost;
-        components.weighted_cost += reward_parameters.action * components.action_cost;
-        components.weighted_cost += reward_parameters.d_action * components.d_action_cost;
-        components.weighted_cost += reward_parameters.position_error_integral * components.position_error_integral_cost;
-
-        bool terminated_flag = terminated(device, env, parameters, next_state, rng);
-        components.scaled_weighted_cost = reward_parameters.scale * components.weighted_cost;
-
-        if(terminated_flag){
-            components.reward = reward_parameters.termination_penalty;
-        }
-        else{
-            components.reward = -components.scaled_weighted_cost + reward_parameters.constant;
-            components.reward = (components.reward > 0 || !reward_parameters.non_negative) ? components.reward : 0;
-        }
         return components.reward;
     }
     template<typename DEVICE, typename T>
