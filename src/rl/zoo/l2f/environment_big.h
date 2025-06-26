@@ -53,7 +53,7 @@ namespace rl_tools::rl::zoo::l2f{
             T rotor_distance = ((x > 0 ? x : -x) + (y > 0 ? y : -y))/2 * 1.4142135623730951;
             mdp.termination.position_threshold = rotor_distance * 20;
             mdp.init.max_position = rotor_distance * 10;
-            mdp.init.max_angle = 1.5707963267948966 * 20.0/90.0;   // orientation
+            mdp.init.max_angle = 1.5707963267948966 * 90.0/90.0;   // orientation
             auto& reward = mdp.reward;
             reward.non_negative            = false;
             reward.scale                   = 01.00; // scale
@@ -61,7 +61,7 @@ namespace rl_tools::rl::zoo::l2f{
             reward.termination_penalty     = 00.00; // termination penalty
             reward.position                = 01.00; // position
             reward.position_clip           = 00.00; // position_clip
-            reward.orientation             = 00.50; // orientation
+            reward.orientation             = 00.10; // orientation
             reward.linear_velocity         = 00.00; // linear_velocity
             reward.angular_velocity        = 00.00; // angular_velocity
             reward.linear_acceleration     = 00.00; // linear_acceleration
@@ -74,7 +74,7 @@ namespace rl_tools::rl::zoo::l2f{
 
         static constexpr auto trajectory = [](){
                 auto traj = BASE_PARAMS.trajectory;
-                // traj.mixture[0] = 1.0; // ensure that the probability of using position control is 1
+                traj.mixture[0] = 1.0; // ensure that the probability of using position control is 1
                 return traj;
         }();
 
