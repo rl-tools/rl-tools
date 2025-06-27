@@ -20,7 +20,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 512;
                 static constexpr TI CRITIC_BATCH_SIZE = 512;
-                static constexpr TI TRAINING_INTERVAL = 1;
+                static constexpr TI TRAINING_INTERVAL = 16;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
