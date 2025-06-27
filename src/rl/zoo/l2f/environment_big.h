@@ -50,25 +50,27 @@ namespace rl_tools::rl::zoo::l2f{
             auto mdp = BASE_PARAMS.mdp;
             T x = dynamics.rotor_positions[0][0];
             T y = dynamics.rotor_positions[0][1];
-            T rotor_distance = ((x > 0 ? x : -x) + (y > 0 ? y : -y))/2 * 1.4142135623730951;
+            T rotor_distance = ((x > 0 ? x : -x) + (y > 0 ? y : -y))/2 * 1.4142135623730951; // sqrt is not available in constexpr
             mdp.termination.position_threshold = rotor_distance * 20;
             mdp.init.max_position = rotor_distance * 10;
             mdp.init.max_angle = 1.5707963267948966 * 90.0/90.0;   // orientation
             auto& reward = mdp.reward;
-            reward.non_negative            = false;
-            reward.scale                   = 01.00; // scale
-            reward.constant                = 10.00; // constant
-            reward.termination_penalty     = 00.00; // termination penalty
-            reward.position                = 01.00; // position
-            reward.position_clip           = 00.00; // position_clip
-            reward.orientation             = 00.10; // orientation
-            reward.linear_velocity         = 00.00; // linear_velocity
-            reward.angular_velocity        = 00.00; // angular_velocity
-            reward.linear_acceleration     = 00.00; // linear_acceleration
-            reward.angular_acceleration    = 00.00; // angular_acceleration
-            reward.action                  = 00.00; // action
-            reward.d_action                = 00.10; // d_action
-            reward.position_error_integral = 00.00; // position_error_integral
+            reward = {
+                false, // non-negative
+                01.00, // scale
+                01.50, // constant
+                -100.00, // termination penalty
+                01.00, // position
+                00.00, // position_clip
+                00.10, // orientation
+                00.00, // linear_velocity
+                00.00, // angular_velocity
+                00.00, // linear_acceleration
+                00.00, // angular_acceleration
+                00.00, // action
+                01.00, // d_action
+                00.00, // position_error_integral
+            };
             return mdp;
         }();
 
