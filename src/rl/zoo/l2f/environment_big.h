@@ -92,8 +92,8 @@ namespace rl_tools::rl::zoo::l2f{
             0.10, // motor_time_constant_rising_max;
             0.03, // motor_time_constant_falling_min;
             0.30, // motor_time_constant_falling_max;
-            0.005, // rotor_torque_constant_min;
-            0.05, // rotor_torque_constant_max;
+            0.1, // rotor_torque_constant_min;
+            0.4, // rotor_torque_constant_max;
             0.0, // orientation_offset_angle_max;
             0.3  // disturbance_force_max;
         };
