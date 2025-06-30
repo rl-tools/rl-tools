@@ -53,7 +53,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
                     {-0.13662779341843762, 4.247460030890121, 3.766033614431835},
             },
             // torque constant
-            {7.065e-3, 7.065e-3, 7.065e-3, 7.065e-3},
+            {0.2, 0.2, 0.2, 0.2},
             // T, RPM time constant
             {
                     0.040,

@@ -25,7 +25,7 @@ namespace rl_tools::rl::zoo::l2f{
 
         using REWARD_FUNCTION = parameters::reward_functions::Squared<T>;
         struct DOMAIN_RANDOMIZATION_OPTIONS{
-            static constexpr bool ENABLED = true;
+            static constexpr bool ENABLED = false;
             static constexpr bool THRUST_TO_WEIGHT = ENABLED;
             static constexpr bool MASS = ENABLED;
             static constexpr bool TORQUE_TO_INERTIA = ENABLED;
@@ -81,21 +81,21 @@ namespace rl_tools::rl::zoo::l2f{
         }();
 
         static constexpr decltype(BASE_PARAMS.domain_randomization) domain_randomization = {
-            3, // thrust_to_weight_min;
-            4, // thrust_to_weight_max;
-            150, // torque_to_inertia_min;
-            350, // torque_to_inertia_max;
-            0.9, // mass_min;
-            1.1, // mass_max;
-            0.1, // mass_size_deviation;
-            0.03, // motor_time_constant_rising_min;
-            0.10, // motor_time_constant_rising_max;
-            0.03, // motor_time_constant_falling_min;
-            0.30, // motor_time_constant_falling_max;
-            0.1, // rotor_torque_constant_min;
-            0.4, // rotor_torque_constant_max;
-            0.0, // orientation_offset_angle_max;
-            0.3  // disturbance_force_max;
+            0, // thrust_to_weight_min;
+            0, // thrust_to_weight_max;
+            0, // torque_to_inertia_min;
+            0, // torque_to_inertia_max;
+            0, // mass_min;
+            0, // mass_max;
+            0, // mass_size_deviation;
+            0, // motor_time_constant_rising_min;
+            0, // motor_time_constant_rising_max;
+            0, // motor_time_constant_falling_min;
+            0, // motor_time_constant_falling_max;
+            0, // rotor_torque_constant_min;
+            0, // rotor_torque_constant_max;
+            0, // orientation_offset_angle_max;
+            0  // disturbance_force_max;
         };
 
         static constexpr PARAMETERS_TYPE nominal_parameters = {
