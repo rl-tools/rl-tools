@@ -334,11 +334,40 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
         std::cout << "Evaluation Interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
         std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
+        T difficulty = 0; // [0, 1]
+        const auto initial_parameters = rlt::get(ts.off_policy_runner.envs, 0, 0).parameters;
+        auto set_difficulty = [&device, &initial_parameters](auto& env, T difficulty) {
+            env.parameters.mdp.init.guidance = (T)0.5 + ((T)1-difficulty)/(T)2;
+            env.parameters.mdp.init.max_angle = initial_parameters.mdp.init.max_angle * difficulty;   // orientation
+            env.parameters.mdp.init.max_linear_velocity = initial_parameters.mdp.init.max_linear_velocity * difficulty; // velocity
+            rlt::add_scalar(device, device.logger, "env/parameters/init/guidance", env.parameters.mdp.init.guidance);
+            rlt::add_scalar(device, device.logger, "env/parameters/init/max_angle", env.parameters.mdp.init.max_angle);
+            rlt::add_scalar(device, device.logger, "env/parameters/init/max_linear_velocity", env.parameters.mdp.init.max_linear_velocity);
+        };
+        auto update_parameters = [&device, &ts, set_difficulty](T difficulty) {
+            rlt::log(device, device.logger, "Increasing difficulty to ", difficulty);
+            set_difficulty(ts.env_eval, difficulty);
+            for (TI env_i=0; env_i<decltype(ts.off_policy_runner)::SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++) {
+                auto& env = rlt::get(ts.off_policy_runner.envs, 0, env_i);
+                set_difficulty(env, difficulty);
+            }
+        };
 #endif
         while(!rlt::step(device, ts)){
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
 #endif
+            TI previous_step = ts.step-1;
+            TI evaluation_index = previous_step / LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL;
+            bool evaluate_scheduled = previous_step % LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS;
+            if (evaluate_scheduled){
+                auto& results = rlt::get(ts.evaluation_results, 0, evaluation_index);
+                T share_terminated = results.share_terminated;
+                if (share_terminated < 0.1) {
+                    difficulty = rlt::math::min(device.math, difficulty + (T)0.1, (T)1);
+                    update_parameters(difficulty);
+                }
+            }
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
             if(signal_flag){
                 ts.evaluate_this_step = true;
