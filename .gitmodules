@@ -38,6 +38,9 @@
 [submodule "embedded_platforms/betaflight"]
 	path = embedded_platforms/betaflight
 	url = https://github.com/rl-tools/betaflight.git
+[submodule "embedded_platforms/M5StampFly"]
+	path = embedded_platforms/M5StampFly
+	url = https://github.com/rl-tools/M5StampFly.git
 
 # Dependencies
 [submodule "external/cli11"]
