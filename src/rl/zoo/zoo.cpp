@@ -335,6 +335,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::cout << "Evaluation Interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
         std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
         T difficulty = 0; // [0, 1]
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
         const auto initial_parameters = rlt::get(ts.off_policy_runner.envs, 0, 0).parameters;
         auto set_difficulty = [&device, &initial_parameters](auto& env, T difficulty) {
             env.parameters.mdp.init.guidance = (T)0.5 + ((T)1-difficulty)/(T)2;
@@ -353,10 +354,14 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             }
         };
 #endif
+#endif
         while(!rlt::step(device, ts)){
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
 #endif
+
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
+            // hacked L2F curriculum
             TI previous_step = ts.step-1;
             TI evaluation_index = previous_step / LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL;
             bool evaluate_scheduled = previous_step % LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS;
@@ -368,6 +373,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
                     update_parameters(difficulty);
                 }
             }
+#endif
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
             if(signal_flag){
                 ts.evaluate_this_step = true;
