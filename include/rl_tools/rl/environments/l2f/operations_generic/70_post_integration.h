@@ -79,7 +79,31 @@ namespace rl_tools::rl::environments::l2f{
             }
         }
     }
-//    template<typename DEVICE, typename SPEC, typename T, typename TI, typename NEXT_COMPONENT>
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearVelocityDelay<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateLinearVelocityDelay<STATE_SPEC>& next_state, RNG& rng) {
+        using TI = typename DEVICE::index_t;
+        post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
+
+        if constexpr (STATE_SPEC::HISTORY_LENGTH == 0){
+            for(TI dim_i = 0; dim_i < 3; dim_i++){
+                next_state.linear_velocity_history[0][dim_i] = next_state.linear_velocity[dim_i];
+            }
+        }
+        else
+        {
+            for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
+                for(TI dim_i = 0; dim_i < 3; dim_i++){
+                    if (step_i == (STATE_SPEC::HISTORY_LENGTH - 1)){
+                        next_state.linear_velocity_history[STATE_SPEC::HISTORY_LENGTH-1][dim_i] = state.linear_velocity[dim_i];
+                    }
+                    else{
+                        next_state.linear_velocity_history[step_i][dim_i] = state.linear_velocity_history[step_i+1][dim_i];
+                    }
+                }
+            }
+        }
+    }
+    //    template<typename DEVICE, typename SPEC, typename T, typename TI, typename NEXT_COMPONENT>
 //    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, StateRotors<STATE_SPEC>& state) {
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateRotors<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateRotors<STATE_SPEC>& next_state, RNG& rng) {

@@ -476,6 +476,30 @@ namespace rl_tools{
         return json_string;
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>& state, bool top_level=true){
+        using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>;
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"linear_velocity_history\": [";
+        for (TI step_i = 0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
+            json_string += "[";
+            for (TI dim_i = 0; dim_i < 3; dim_i++){
+                json_string += std::to_string(state.linear_velocity_history[step_i][dim_i]);
+                if (dim_i < 2) {
+                    json_string += ", ";
+                }
+            }
+            json_string += "]";
+            if (step_i < STATE::HISTORY_MEM_LENGTH - 1) {
+                json_string += ", ";
+            }
+        }
+        json_string += "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state, bool top_level=true){
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
@@ -759,6 +783,17 @@ namespace rl_tools{
         for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
             for(TI dim_i = 0; dim_i < 3; dim_i++){
                 state.angular_velocity_history[step_i][dim_i] = json_object["angular_velocity_history"][step_i][dim_i];
+            }
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE::NEXT_COMPONENT&>(state));
+        for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
+            for(TI dim_i = 0; dim_i < 3; dim_i++){
+                state.linear_velocity_history[step_i][dim_i] = json_object["linear_velocity_history"][step_i][dim_i];
             }
         }
     }
