@@ -112,6 +112,17 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLinearVelocityDelay<STATE_SPEC>& state, RNG& rng){
+            using TI = typename DEVICE::index_t;
+            using STATE = StateLinearVelocityDelay<STATE_SPEC>;
+            sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
+            for (TI step_i=0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
+                for (TI dim_i=0; dim_i < 3; dim_i++){
+                    state.angular_velocity_history[step_i][dim_i] = state.angular_velocity[dim_i];
+                }
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StatePoseErrorIntegral<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);

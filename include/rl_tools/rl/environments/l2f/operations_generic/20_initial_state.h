@@ -63,6 +63,17 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>& state){
+            using TI = typename DEVICE::index_t;
+            using STATE = rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>;
+            initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            for (TI step_i=0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
+                for (TI dim_i=0; dim_i < 3; dim_i++){
+                    state.linear_velocity_history[step_i][dim_i] = state.linear_velocity[dim_i];
+                }
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
         static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
