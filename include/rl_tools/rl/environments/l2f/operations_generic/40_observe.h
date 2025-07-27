@@ -252,6 +252,15 @@ namespace rl_tools{
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
+        template <typename PARAMETERS, typename OBS_SPEC>
+        constexpr auto _observe_linear_velocity_delay(const PARAMETERS&, const observation::LinearVelocityDelayed<OBS_SPEC>&){
+            using OBSERVATION = observation::LinearVelocityDelayed<OBS_SPEC>;
+            return OBSERVATION::LINEAR_VELOCITY_DELAY;
+        }
+        template <typename SPEC, typename OBS_SPEC>
+        constexpr auto _observe_linear_velocity_delay(const ParametersObservationDelay<SPEC>& parameters, const observation::LinearVelocityDelayed<OBS_SPEC>&){
+            return parameters.linear_velocity_observation_delay;
+        }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _observe_linear_velocity_delayed(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearVelocityDelay<STATE_SPEC>& state, observation::LinearVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             // this function is separate such that we can extract the angular velocity state from the generic state
@@ -267,11 +276,12 @@ namespace rl_tools{
                     noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.linear_velocity, rng);
                 }
                 T base;
-                if constexpr (OBSERVATION_SPEC::DELAY == 0){
+                TI delay = _observe_linear_velocity_delay(parameters, OBSERVATION{});
+                if (delay == 0){
                      base = state.linear_velocity[i];
                 }
                 else{
-                     base = state.linear_velocity_history[STATE::HISTORY_MEM_LENGTH - OBSERVATION_SPEC::DELAY][i];
+                     base = state.linear_velocity_history[STATE::HISTORY_MEM_LENGTH - delay][i];
                 }
                 set(observation, 0, i, base + noise);
             }

@@ -118,9 +118,10 @@ int main(int argc, char** argv){
     TI seed = 0;
     rlt::init(device, rng, seed);
     ENVIRONMENT env;
-    ENVIRONMENT::Parameters params;
     rlt::malloc(device, env);
     rlt::init(device, env);
+    // env.parameters.mdp.init.max_angular_velocity = 0;
+    env.parameters.mdp.init.max_linear_velocity = 0.2;
 
     using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
     rlt::rl::utils::evaluation::Result<EVAL_SPEC> result;
@@ -129,6 +130,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, data);
     rlt::Mode<rlt::mode::Evaluation<rlt::nn::layers::sample_and_squash::mode::DisableEntropy<rlt::nn::layers::gru::NoAutoResetMode<rlt::mode::Final>>>> mode;
     rlt::rl::environments::DummyUI ui;
+
     T original_thrust_to_weight_ratio = 0;
     for (TI motor_i = 0; motor_i < 4; ++motor_i) {
         T thrust = 0;
@@ -138,6 +140,7 @@ int main(int argc, char** argv){
         original_thrust_to_weight_ratio += thrust;
     }
     original_thrust_to_weight_ratio /= env.parameters.dynamics.mass * 9.81;
+    T original_mass = env.parameters.dynamics.mass;
 
     std::vector<T> test_t2w(18);
     std::generate(test_t2w.begin(), test_t2w.end(), [n = 0]() mutable { return 1.5 + 0.5 * n++; });
@@ -145,6 +148,9 @@ int main(int argc, char** argv){
     static constexpr TI MAX_LINEAR_VELOCITY_DELAY = 20;
 
     for (auto t2w : test_t2w){
+        T ratio = t2w / original_thrust_to_weight_ratio;
+        env.parameters.dynamics.mass = original_mass / ratio;
+
         for (TI linear_velocity_delay = 0; linear_velocity_delay < MAX_LINEAR_VELOCITY_DELAY; ++linear_velocity_delay){
             {
                 static constexpr bool DYNAMIC_ALLOCATION = true;
@@ -156,11 +162,7 @@ int main(int argc, char** argv){
                 rlt::malloc(device, policy_evaluation_buffers);
                 rlt::malloc(device, evaluation_buffers);
                 rlt::evaluate(device, env, ui, rlt::checkpoint::actor::module, policy_state, policy_evaluation_buffers, evaluation_buffers, result, data, rng, mode);
-                for (TI episode_i = 0; episode_i < EVAL_SPEC::N_EPISODES; ++episode_i) {
-                    if (result.episode_length[episode_i] == EVAL_SPEC::STEP_LIMIT) {
-                        std::cout << "Episode " << episode_i << ": Return = " << result.returns[episode_i] << " Length: " << result.episode_length[episode_i] << std::endl;
-                    }
-                }
+                std::cout << "T2W: " << t2w << " LV delay: " << linear_velocity_delay << " Episode lengths mean: " << result.episode_length_mean << ", std: " << result.episode_length_std << std::endl;
                 rlt::free(device, policy_state);
                 rlt::free(device, policy_evaluation_buffers);
                 rlt::free(device, evaluation_buffers);
