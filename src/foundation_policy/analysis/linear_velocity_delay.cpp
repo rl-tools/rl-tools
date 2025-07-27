@@ -121,6 +121,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, env);
     rlt::init(device, env);
     // env.parameters.mdp.init.max_angular_velocity = 0;
+    // env.parameters.mdp.init.max_angle = 0;
     env.parameters.mdp.init.max_linear_velocity = 0.2;
 
     using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
@@ -142,31 +143,66 @@ int main(int argc, char** argv){
     original_thrust_to_weight_ratio /= env.parameters.dynamics.mass * 9.81;
     T original_mass = env.parameters.dynamics.mass;
 
-    std::vector<T> test_t2w(18);
-    std::generate(test_t2w.begin(), test_t2w.end(), [n = 0]() mutable { return 1.5 + 0.5 * n++; });
+    std::vector<T> test_t2w(19);
+    std::generate(test_t2w.begin(), test_t2w.end(), [n = 0]() mutable { return 1.25 + 0.25 * n++; });
 
     static constexpr TI MAX_LINEAR_VELOCITY_DELAY = 20;
 
     for (auto t2w : test_t2w){
         T ratio = t2w / original_thrust_to_weight_ratio;
         env.parameters.dynamics.mass = original_mass / ratio;
-
         for (TI linear_velocity_delay = 0; linear_velocity_delay < MAX_LINEAR_VELOCITY_DELAY; ++linear_velocity_delay){
-            {
-                static constexpr bool DYNAMIC_ALLOCATION = true;
-                using ADJUSTED_POLICY = typename EVAL_ACTOR::template CHANGE_BATCH_SIZE<TI, EVAL_SPEC::N_EPISODES>;
-                ADJUSTED_POLICY::template State<DYNAMIC_ALLOCATION> policy_state;
-                ADJUSTED_POLICY::template Buffer<DYNAMIC_ALLOCATION> policy_evaluation_buffers;
-                rlt::rl::utils::evaluation::Buffer<rlt::rl::utils::evaluation::BufferSpecification<EVAL_SPEC, DYNAMIC_ALLOCATION>> evaluation_buffers;
-                rlt::malloc(device, policy_state);
-                rlt::malloc(device, policy_evaluation_buffers);
-                rlt::malloc(device, evaluation_buffers);
-                rlt::evaluate(device, env, ui, rlt::checkpoint::actor::module, policy_state, policy_evaluation_buffers, evaluation_buffers, result, data, rng, mode);
-                std::cout << "T2W: " << t2w << " LV delay: " << linear_velocity_delay << " Episode lengths mean: " << result.episode_length_mean << ", std: " << result.episode_length_std << std::endl;
-                rlt::free(device, policy_state);
-                rlt::free(device, policy_evaluation_buffers);
-                rlt::free(device, evaluation_buffers);
+            env.parameters.linear_velocity_observation_delay = linear_velocity_delay;
+            static constexpr bool DYNAMIC_ALLOCATION = true;
+            using ADJUSTED_POLICY = typename EVAL_ACTOR::template CHANGE_BATCH_SIZE<TI, EVAL_SPEC::N_EPISODES>;
+            ADJUSTED_POLICY::template State<DYNAMIC_ALLOCATION> policy_state;
+            ADJUSTED_POLICY::template Buffer<DYNAMIC_ALLOCATION> policy_evaluation_buffers;
+            rlt::rl::utils::evaluation::Buffer<rlt::rl::utils::evaluation::BufferSpecification<EVAL_SPEC, DYNAMIC_ALLOCATION>> evaluation_buffers;
+            rlt::malloc(device, policy_state);
+            rlt::malloc(device, policy_evaluation_buffers);
+            rlt::malloc(device, evaluation_buffers);
+            rlt::evaluate(device, env, ui, rlt::checkpoint::actor::module, policy_state, policy_evaluation_buffers, evaluation_buffers, result, data, rng, mode);
+            T action_mean = 0;
+            T action_std = 0;
+            TI num_action_values = 0;
+            T speed_mean = 0;
+            TI num_speed_values = 0;
+            for (TI episode_i = 0; episode_i < EVAL_SPEC::N_EPISODES; ++episode_i) {
+                if (result.episode_length[episode_i] == EVAL_SPEC::STEP_LIMIT){
+                    for (TI step_i = EVAL_SPEC::STEP_LIMIT/2; step_i < EVAL_SPEC::STEP_LIMIT; ++step_i){
+                        for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; ++action_i){
+                            T action = rlt::get(device, data.actions, episode_i, step_i, action_i);
+                            action_mean += action;
+                            action_std += action * action;
+                            num_action_values += 1;
+                        }
+                        const auto& state = rlt::get(device, data.states, episode_i, step_i);
+                        T speed = 0;
+                        for (TI axis_i=0; axis_i < 3; axis_i++){
+                            speed += state.linear_velocity[axis_i] * state.linear_velocity[axis_i];
+                        }
+                        speed = std::sqrt(speed);
+                        speed_mean += speed;
+                        num_speed_values += 1;
+                    }
+                }
             }
+            if (num_action_values > 0) {
+                action_mean /= num_action_values;
+                action_std = std::sqrt(std::max((T)0, action_std / num_action_values - action_mean * action_mean));
+            } else {
+                action_mean = 0;
+                action_std = 0;
+            }
+            if (num_speed_values > 0) {
+                speed_mean /= num_speed_values;
+            } else {
+                speed_mean = 0;
+            }
+            std::cout << "T2W: " << t2w << " LV delay: " << linear_velocity_delay << " Episode lengths mean: " << result.episode_length_mean << ", Returns mean: " << result.returns_mean << " action std: " << action_std << " speed mean: " << speed_mean << std::endl;
+            rlt::free(device, policy_state);
+            rlt::free(device, policy_evaluation_buffers);
+            rlt::free(device, evaluation_buffers);
         }
     }
 }
