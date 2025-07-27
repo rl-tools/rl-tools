@@ -118,7 +118,7 @@ namespace rl_tools{
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             for (TI step_i=0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
                 for (TI dim_i=0; dim_i < 3; dim_i++){
-                    state.angular_velocity_history[step_i][dim_i] = state.angular_velocity[dim_i];
+                    state.linear_velocity_history[step_i][dim_i] = state.linear_velocity[dim_i];
                 }
             }
         }
@@ -211,7 +211,7 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
             using T = typename SPEC::T;
             using STATE = StateTrajectory<STATE_SPEC>;
-            using OPTS = typename PARAMETERS::SPEC::TRAJECTORY_OPTIONS;
+            using OPTS = typename PARAMETERS::TRAJECTORY_OPTIONS;
             sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
             if constexpr(OPTS::LANGEVIN){
                 T threshold = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
