@@ -202,9 +202,24 @@ namespace rl_tools::rl::environments::l2f{
     template <typename T_SPEC>
     struct ParametersTrajectory: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
+        using TRAJECTORY_OPTIONS = typename SPEC::TRAJECTORY_OPTIONS;
         static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
         using Trajectory = parameters::Trajectory<typename SPEC::T, typename SPEC::TI>;
         Trajectory trajectory;
+    };
+
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    struct ParametersObservationDelaySpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename T_SPEC>
+    struct ParametersObservationDelay: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using TI = typename SPEC::TI;
+        TI linear_velocity_observation_delay;
+        TI angular_velocity_observation_delay;
     };
 
 
