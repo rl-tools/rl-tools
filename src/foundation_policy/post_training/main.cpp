@@ -161,9 +161,17 @@ int main(int argc, char** argv){
     T best_return = 0;
     bool best_return_set = false;
 
-#ifdef RL_TOOLS_ENABLE_TENSORBOARD
     auto timestamp_string = rlt::utils::extrack::get_timestamp_string();
+    // check env vars for RL_TOOLS_RUN_PATH
+    const char* run_path_env = std::getenv("RL_TOOLS_RUN_PATH");
     std::filesystem::path run_path = "logs/" + timestamp_string;
+    if (run_path_env != nullptr) {
+        run_path = run_path_env;
+        std::cout << "Using run path from environment variable: RL_TOOLS_RUN_PATH=" << run_path << std::endl;
+    }
+
+
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::init(device, device.logger, run_path.string());
 #endif
     std::ofstream test_stats_file(run_path / "test_stats.csv");
@@ -254,7 +262,7 @@ int main(int argc, char** argv){
             rlt::set(device, teacher_metas, teacher_meta, teacher_i);
         }
         rlt::free(device, data);
-        std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ")mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << " steady state pos correction: " << mean_position[0] << "," << mean_position[1] << "," << mean_position[2] << std::endl;
+        std::cout << "Teacher policy (" << cpp_copy.checkpoint_path.string() << ") mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << " steady state pos correction: " << mean_position[0] << "," << mean_position[1] << "," << mean_position[2] << std::endl;
         if (result.returns_mean < SOLVED_RETURN){
             std::cerr << "Mean return (" << result.returns_mean << ") too low for " << checkpoint_path.checkpoint_path << std::endl;
             return 1;

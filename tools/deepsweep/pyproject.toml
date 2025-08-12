@@ -15,4 +15,4 @@ dependencies = []
 packages = ["deepsweep"]
 
 [project.scripts]
-deepsweep = "deepsweep:main"
+deepsweep = "deepsweep.client:main"
