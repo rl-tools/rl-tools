@@ -114,6 +114,20 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> batch_reset;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
 
+    ENVIRONMENT env_eval;
+    auto permute_rotors_px4_to_cf = [&device, &env_eval](const auto& dynamics){
+        auto copy = dynamics;
+        rlt::permute_rotors(device, env_eval, copy, 0, 3, 1, 2);
+        return copy;
+    };
+
+    // std::map<std::string, ENVIRONMENT::Parameters::Dynamics> env_eval_parameters = {
+    //     {"crazyflie", rlt::rl::environments::l2f::parameters::dynamics::registry<rlt::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, typename ENVIRONMENT::SPEC>},
+    //     {"arpl", rlt::rl::environments::l2f::parameters::dynamics::registry<rlt::rl::environments::l2f::parameters::dynamics::REGISTRY::arpl, typename ENVIRONMENT::SPEC>},
+    //     {"flightmare", rlt::rl::environments::l2f::parameters::dynamics::registry<rlt::rl::environments::l2f::parameters::dynamics::REGISTRY::flightmare, typename ENVIRONMENT::SPEC>},
+    //     {"x500", rlt::rl::environments::l2f::parameters::dynamics::registry<rlt::rl::environments::l2f::parameters::dynamics::REGISTRY::x500_real, typename ENVIRONMENT::SPEC>}
+    // };
+
     // device init
     rlt::init(device);
 
@@ -152,6 +166,9 @@ int main(int argc, char** argv){
     std::filesystem::path run_path = "logs/" + timestamp_string;
     rlt::init(device, device.logger, run_path.string());
 #endif
+    std::ofstream test_stats_file(run_path / "test_stats.csv");
+    // header
+    test_stats_file << "epoch,global_batch,model,return_mean,return_std,episode_length_mean,episode_length_std,share_terminated" << std::endl;
     rlt::init(device, rng, seed);
     rlt::init_weights(device, actor, rng);
 
@@ -166,6 +183,8 @@ int main(int argc, char** argv){
     // checkpoint_path.experiment = "2025-04-08_23-23-52";
     checkpoint_path.experiment = "2025-04-16_20-10-58";
     checkpoint_path.name = "foundation-policy-pre-training";
+
+
 
     std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
     std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_" + checkpoint_path.experiment + ".txt";
@@ -354,7 +373,9 @@ int main(int argc, char** argv){
         TI batch_i = 0;
         TI epoch_episode = rlt::get(device, epoch_indices, epoch_episode_index);
         TI current_sample = rlt::get(device, dataset_episode_start_indices, epoch_episode);
+        TI global_batch = 0;
         while(true){
+            global_batch = epoch_i * (N/BATCH_SIZE) + batch_i;
             for (TI sample_i=0; sample_i<BATCH_SIZE; sample_i++){
                 // TI current_epoch_index = batch_i * BATCH_SIZE + sample_i;
                 bool reset = false;
@@ -390,7 +411,7 @@ int main(int argc, char** argv){
             auto d_output_matrix_view = rlt::matrix_view(device, d_output);
             rlt::nn::loss_functions::mse::gradient(device, output_matrix_view, output_target_matrix_view, d_output_matrix_view);
             T loss = rlt::nn::loss_functions::mse::evaluate(device, output_matrix_view, output_target_matrix_view);
-            rlt::set_step(device, device.logger, epoch_i * (N/BATCH_SIZE) + batch_i);
+            rlt::set_step(device, device.logger, global_batch);
             rlt::add_scalar(device, device.logger, "loss", loss);
             epoch_loss += loss;
             epoch_loss_count++;
@@ -409,6 +430,17 @@ int main(int argc, char** argv){
         for (const auto& entry : std::filesystem::directory_iterator(registry_path)) {
             if (entry.is_regular_file()){
                 std::string file_name_without_extension = entry.path().stem().string();
+                if (file_name_without_extension == ".gitignore") {
+                    continue;
+                }
+                std::ifstream parameters_file(entry.path());
+                if (!parameters_file){
+                    std::cerr << "Failed to open parameters file: " << entry.path() << std::endl;
+                    continue;
+                }
+                std::stringstream parameters_json;
+                parameters_json << parameters_file.rdbuf();
+                parameters_file.close();
                 using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_EVAL>;
                 using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>>;
                 rlt::rl::environments::DummyUI ui;
@@ -418,20 +450,22 @@ int main(int argc, char** argv){
                 rlt::malloc(device, eval_buffer);
                 rlt::copy(device, device, actor, evaluation_actor);
 
-                ENVIRONMENT env_eval;
                 ENVIRONMENT::Parameters env_eval_parameters;
+                rlt::from_json(device, env_eval, parameters_json.str(), env_eval_parameters);
                 rlt::init(device, env_eval);
+                env_eval.parameters.dynamics = env_eval_parameters.dynamics;
                 rlt::sample_initial_parameters(device, env_eval, env_eval_parameters, rng);
                 rlt::Mode<rlt::mode::Default<>> mode;
                 RESULT_EVAL result_eval;
                 DATA_EVAL data_eval;
                 rlt::evaluate(device, env_eval, ui, evaluation_actor, result_eval, data_eval, rng, mode);
-                rlt::add_scalar(device, device.logger, "crazyflie/return/mean", result_eval.returns_mean);
-                rlt::add_scalar(device, device.logger, "crazyflie/return/std", result_eval.returns_std);
-                rlt::add_scalar(device, device.logger, "crazyflie/episode_length/mean", result_eval.episode_length_mean);
-                rlt::add_scalar(device, device.logger, "crazyflie/episode_length/std", result_eval.episode_length_std);
-                rlt::add_scalar(device, device.logger, "crazyflie/share_terminated", result_eval.share_terminated);
-                rlt::log(device, device.logger, "Crazyflie: Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
+                rlt::add_scalar(device, device.logger, "test/" + file_name_without_extension + "/return/mean", result_eval.returns_mean);
+                rlt::add_scalar(device, device.logger, "test/" + file_name_without_extension + "/return/std", result_eval.returns_std);
+                rlt::add_scalar(device, device.logger, "test/" + file_name_without_extension + "/episode_length/mean", result_eval.episode_length_mean);
+                rlt::add_scalar(device, device.logger, "test/" + file_name_without_extension + "/episode_length/std", result_eval.episode_length_std);
+                rlt::add_scalar(device, device.logger, "test/" + file_name_without_extension + "/share_terminated", result_eval.share_terminated);
+                rlt::log(device, device.logger, file_name_without_extension + ": Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
+                test_stats_file << epoch_i << "," << global_batch << "," << file_name_without_extension << "," << result_eval.returns_mean << "," << result_eval.returns_std << "," << result_eval.episode_length_mean << "," << result_eval.episode_length_std << "," << result_eval.share_terminated << std::endl;
 
                 rlt::free(device, evaluation_actor);
                 rlt::free(device, eval_buffer);
