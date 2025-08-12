@@ -16,7 +16,12 @@ constexpr TI N_PRE_TRAINING_SEEDS = 1;
 constexpr TI SEQUENCE_LENGTH = 500;
 constexpr TI BATCH_SIZE = 64;
 constexpr T SOLVED_RETURN = 300;
+#ifdef DMODEL
+#warning "Using DMODEL for hidden dimension"
+constexpr TI HIDDEN_DIM = DMODEL;
+#else
 constexpr TI HIDDEN_DIM = 16;
+#endif
 constexpr TI NUM_TEACHERS = 1000;
 constexpr TI NUM_ACTIVE_TEACHERS = NUM_TEACHERS;
 constexpr TI EPOCH_TEACHER_FORCING = 10;

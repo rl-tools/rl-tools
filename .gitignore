@@ -15,6 +15,7 @@
 /conan_provider.cmake
 /**/*tfevents*
 /lightning_logs
+/deepsweep_runs
 
 
 /.idea
