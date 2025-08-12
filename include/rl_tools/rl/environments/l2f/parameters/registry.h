@@ -5,7 +5,7 @@
 
 #include "dynamics/crazyflie.h"
 #include "dynamics/mrs.h"
-#include "dynamics/race.h"
+#include "dynamics/arpl.h"
 #include "dynamics/x500_real.h"
 #include "dynamics/x500_sim.h"
 #include "dynamics/fs.h"
@@ -22,6 +22,7 @@ namespace rl_tools::rl::environments::l2f::parameters{
             mrs,
             x500_real,
             x500_sim,
+            arpl,
             fs_base,
             flightmare,
             soft,
@@ -37,6 +38,8 @@ namespace rl_tools::rl::environments::l2f::parameters{
                 return dynamics::x500::real<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_sim){
                 return dynamics::x500::sim<typename SPEC::T, typename SPEC::TI>;
+            }else if constexpr (MODEL == REGISTRY::arpl){
+                return dynamics::arpl<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::fs_base){
                 return dynamics::fs::base<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::flightmare){
