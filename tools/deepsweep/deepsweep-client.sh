@@ -7,7 +7,7 @@ echo DModel $DMODEL, Seed $SEED
 EXPERIMENT=deepsweep_runs/$DEEPSWEEP_JOB/$DMODEL/$SEED
 mkdir -p $EXPERIMENT
 MACOS_OPTS="-I /opt/homebrew/include -L /opt/homebrew/lib -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE -framework Accelerate"
-LINUX_OPTS="-I /usr/include/hdf5/serial/ -L/usr/lib/x86_64-linux-gnu/hdf5/serial"
+LINUX_OPTS="-I /usr/include/hdf5/serial/ -L/usr/lib/x86_64-linux-gnu/hdf5/serial -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -lopenblas"
 # check os type
 OS=$(uname -s)
 OPTS=$LINUX_OPTS
