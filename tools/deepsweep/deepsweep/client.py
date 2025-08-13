@@ -99,6 +99,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     task_id, spec = task
     env = os.environ.copy()
+    env["DEEPSWEEP_SERVER"] = args.url
     env["DEEPSWEEP_TASK_ID"] = str(task_id)
     env["DEEPSWEEP_SPEC"] = json.dumps(spec, separators=(",", ":"))
     env["DEEPSWEEP_JOB"] = args.job
@@ -113,6 +114,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         def _sq(val: str) -> str:
             return "'" + val.replace("'", "'\"'\"'") + "'"
 
+        print(f"export DEEPSWEEP_SERVER={_sq(env['DEEPSWEEP_SERVER'])}")
         print(f"export DEEPSWEEP_TASK_ID={_sq(env['DEEPSWEEP_TASK_ID'])}")
         print(f"export DEEPSWEEP_SPEC={_sq(env['DEEPSWEEP_SPEC'])}")
         print(f"export DEEPSWEEP_JOB={_sq(env['DEEPSWEEP_JOB'])}")

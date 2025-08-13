@@ -10,3 +10,6 @@ g++ -std=c++17 -O3 -ffast-math -I include -I external/highfive/include -I /opt/h
 CMD="MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 RL_TOOLS_EXTRACK_EXPERIMENT=$JOB_ID RL_TOOLS_RUN_PATH=$EXPERIMENT ./$EXPERIMENT/a.out $SEED"
 echo "Executing: $CMD"
 eval $CMD
+
+TEST_STATS_PATH=$EXPERIMENT/test_stats.csv
+jq -n --rawfile csv "$TEST_STATS_PATH" '{test_stats: $csv}' | curl -sS -X POST -H 'Content-Type: application/json' --data @- "$DEEPSWEEP_SERVER/jobs/$DEEPSWEEP_JOB/tasks/$DEEPSWEEP_TASK_ID"
