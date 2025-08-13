@@ -1,4 +1,5 @@
 import itertools
+import json
 
 sweep = {
     "dmodel": [8, 16, 32, 64, 128],
@@ -12,6 +13,5 @@ def cartesian_product(sweep):
     for instance in itertools.product(*values):
         yield dict(zip(keys, instance))
 
-with open("jobs.ndjson", "w") as f:
-    for job in cartesian_product(sweep):
-        f.write(f"{job}\n")
+for job in cartesian_product(sweep):
+    print(f"{json.dumps(job)}")
