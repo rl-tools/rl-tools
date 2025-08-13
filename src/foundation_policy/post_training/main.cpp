@@ -430,11 +430,13 @@ int main(int argc, char** argv){
         }
         end_of_epoch:
         std::cout << "Epoch: " << epoch_i << " #Batches: " << batch_i << " Loss: " << epoch_loss/epoch_loss_count << std::endl;
+        #ifndef RL_TOOLS_DISABLE_INTERMEDIATE_CHECKPOINTS
         auto target_path = run_path / "checkpoints" / std::to_string(epoch_i);
         if (!std::filesystem::exists(target_path)){
             std::filesystem::create_directories(target_path);
         }
         rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT, CHECKPOINT_PARAMETERS>(device, target_path.string(), actor, rng);
+        #endif
         for (const auto& entry : std::filesystem::directory_iterator(registry_path)) {
             if (entry.is_regular_file()){
                 std::string file_name_without_extension = entry.path().stem().string();

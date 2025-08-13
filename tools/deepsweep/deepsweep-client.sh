@@ -15,7 +15,7 @@ if [ "$OS" == "Darwin" ]; then
   OPTS=$MACOS_OPTS
 fi
 
-g++ -std=c++17 -O3 -ffast-math -I include -I external/highfive/include -DRL_TOOLS_ENABLE_JSON -DRL_TOOLS_ENABLE_HDF5 -DDMODEL=$DMODEL src/foundation_policy/post_training/main.cpp $OPTS -lhdf5 -o $EXPERIMENT/a.out
+g++ -std=c++17 -O3 -ffast-math -I include -I external/highfive/include -DRL_TOOLS_ENABLE_JSON -DRL_TOOLS_DISABLE_INTERMEDIATE_CHECKPOINTS -DRL_TOOLS_ENABLE_HDF5 -DDMODEL=$DMODEL src/foundation_policy/post_training/main.cpp $OPTS -lhdf5 -o $EXPERIMENT/a.out
 CMD="MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 RL_TOOLS_EXTRACK_EXPERIMENT=$JOB_ID RL_TOOLS_RUN_PATH=$EXPERIMENT ./$EXPERIMENT/a.out $SEED"
 echo "Executing: $CMD"
 eval $CMD
