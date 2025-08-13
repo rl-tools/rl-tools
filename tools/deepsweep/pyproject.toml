@@ -16,3 +16,4 @@ packages = ["deepsweep"]
 
 [project.scripts]
 deepsweep = "deepsweep.client:main"
+sweeptop = "deepsweep.sweeptop:main"
