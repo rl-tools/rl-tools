@@ -72,7 +72,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("job", help="Job name to fetch tasks from")
     parser.add_argument(
         "--url",
-        default=os.environ.get("DEEPSWEEP_URL", "http://localhost:13338"),
+        default=os.environ.get("DEEPSWEEP_SERVER", "http://localhost:13338"),
         help="Base URL of the DeepSweep server (default: %(default)s)",
     )
     parser.add_argument(
