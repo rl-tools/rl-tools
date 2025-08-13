@@ -1,12 +1,12 @@
 set -e
-: "${SWEEP_SERVER:?SWEEP_SERVER is not set}"
+: "${DEEPSWEEP_SERVER:?DEEPSWEEP_SERVER is not set}"
 : "${JOB_ID:?JOB_ID is not set}"
 
 # work
 cd rl-tools
 while true; do
-  echo curl --fail -X POST $SWEEP_SERVER/jobs/$JOB_ID/tasks
-  task=$(curl --fail -X POST $SWEEP_SERVER/jobs/$JOB_ID/tasks)
+  echo curl --fail -X POST $DEEPSWEEP_SERVER/jobs/$JOB_ID/tasks
+  task=$(curl --fail -X POST $DEEPSWEEP_SERVER/jobs/$JOB_ID/tasks)
   echo task: $task
   task_id=$(echo $task | jq -r '.task_id')
   echo $task $task_id
@@ -14,7 +14,7 @@ while true; do
   echo $CMD
   eval $CMD
   result='{"return": "finished"}'
-  curl -X POST -H 'Content-Type: application/json' --data "$result" $SWEEP_SERVER/jobs/$JOB_ID/tasks/$task_id
+  curl -X POST -H 'Content-Type: application/json' --data "$result" $DEEPSWEEP_SERVER/jobs/$JOB_ID/tasks/$task_id
 done
 
 # done

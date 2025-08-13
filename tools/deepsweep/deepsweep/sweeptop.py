@@ -43,7 +43,7 @@ def sweeptop(server: str):
         print(f"{job} {done}/{in_prog}/{total}")
 
 def main():
-    server = os.environ.get("SWEEP_SERVER", "localhost:13338")
+    server = os.environ.get("DEEPSWEEP_SERVER", "localhost:13338")
     sweeptop(server)
 
 if __name__ == "__main__":
