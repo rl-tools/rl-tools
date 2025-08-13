@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "deepsweep"
-version = "0.0.2"
+version = "0.0.3"
 description = "Minimal REST server for ML experiment orchestration."
 readme = "README.md"
 authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
