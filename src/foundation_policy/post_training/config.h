@@ -10,7 +10,7 @@ struct OPTIONS_POST_TRAINING: OPTIONS_PRE_TRAINING{
 static_assert(sizeof(TI) == 8);
 // constants parameters
 #ifdef RL_TOOLS_NUM_EPISODES
-#warning "Using NUM_EPISODES for number of episodes"
+#warning "Using RL_TOOLS_NUM_EPISODES for number of episodes"
 constexpr TI NUM_EPISODES = RL_TOOLS_NUM_EPISODES;
 #else
 constexpr TI NUM_EPISODES = 10;
@@ -22,18 +22,39 @@ constexpr TI SEQUENCE_LENGTH = 500;
 constexpr TI BATCH_SIZE = 64;
 constexpr T SOLVED_RETURN = 300;
 #ifdef RL_TOOLS_DMODEL
-#warning "Using DMODEL for hidden dimension"
+#warning "Using RL_TOOLS_DMODEL for hidden dimension"
 constexpr TI HIDDEN_DIM = RL_TOOLS_DMODEL;
 #else
 constexpr TI HIDDEN_DIM = 16;
 #endif
 #ifdef RL_TOOLS_NUM_TEACHERS
-#warning "Using NUM_TEACHERS for number of teachers"
+#warning "Using RL_TOOLS_NUM_TEACHERS for number of teachers"
 constexpr TI NUM_TEACHERS = RL_TOOLS_NUM_TEACHERS;
 #else
 constexpr TI NUM_TEACHERS = 1000;
 #endif
 constexpr TI NUM_ACTIVE_TEACHERS = NUM_TEACHERS;
+enum class TEACHER_SELECTION_MODE {
+    ALL,
+    BEST,
+    WORST,
+    RANDOM,
+};
+#if !defined(RL_TOOLS_TEACHER_SELECTION_MODE_ALL) or !defined(RL_TOOLS_TEACHER_SELECTION_MODE_BEST) or !defined(RL_TOOLS_TEACHER_SELECTION_MODE_WORST) or !defined(RL_TOOLS_TEACHER_SELECTION_MODE_RANDOM)
+constexpr TEACHER_SELECTION_MODE TEACHER_SELECTION = TEACHER_SELECTION_MODE::ALL;
+#elif defined(RL_TOOLS_TEACHER_SELECTION_MODE_ALL)
+#warning "Using RL_TOOLS_TEACHER_SELECTION_MODE_ALL for teacher selection mode"
+constexpr TEACHER_SELECTION_MODE TEACHER_SELECTION = TEACHER_SELECTION_MODE::ALL;
+#elif defined(RL_TOOLS_TEACHER_SELECTION_MODE_BEST)
+#warning "Using RL_TOOLS_TEACHER_SELECTION_MODE_BEST for teacher selection mode"
+constexpr TEACHER_SELECTION_MODE TEACHER_SELECTION = TEACHER_SELECTION_MODE::BEST;
+#elif defined(RL_TOOLS_TEACHER_SELECTION_MODE_WORST)
+#warning "Using RL_TOOLS_TEACHER_SELECTION_MODE_WORST for teacher selection mode"
+constexpr TEACHER_SELECTION_MODE TEACHER_SELECTION = TEACHER_SELECTION_MODE::WORST;
+#elif defined(RL_TOOLS_TEACHER_SELECTION_MODE_RANDOM)
+#warning "Using RL_TOOLS_TEACHER_SELECTION_MODE_RANDOM for teacher selection mode"
+constexpr TEACHER_SELECTION_MODE TEACHER_SELECTION = TEACHER_SELECTION_MODE::RANDOM;
+#endif
 constexpr TI EPOCH_TEACHER_FORCING = 10;
 constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr bool SHUFFLE = true;
