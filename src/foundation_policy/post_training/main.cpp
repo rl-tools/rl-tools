@@ -89,6 +89,7 @@ struct CHECKPOINT_PARAMETERS{
 // note: make sure that the rng_params is invoked in the exact same way in pre- as in post-training, to make sure the params used to sample parameters to generate data from the trained policy are matching the ones seen by the particular policy for the seed during pretraining
 
 int main(int argc, char** argv){
+
     // declarations
     DEVICE device;
     RNG rng;
@@ -155,6 +156,10 @@ int main(int argc, char** argv){
 
     // init
     TI seed = argc >= 2 ? std::stoi(argv[1]) : 0;
+    std::cout << "SEED: " << seed << std::endl;
+    std::cout << "HIDDEN_DIM: " << HIDDEN_DIM << std::endl;
+    std::cout << "NUM_EPISODES: " << NUM_EPISODES << std::endl;
+    std::cout << "NUM_TEACHERS: " << NUM_TEACHERS << std::endl;
     TI current_episode = 0;
     TI current_index = 0;
 
