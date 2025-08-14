@@ -3,7 +3,7 @@ import json
 
 sweep = {
     "dmodel": [8, 16, 32, 64, 128],
-    "seed": list(range(10))
+    "seed": list(range(5))
 }
 
 def cartesian_product(sweep):

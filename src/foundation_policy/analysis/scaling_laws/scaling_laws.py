@@ -3,6 +3,7 @@ import numpy as np
 from io import StringIO
 from numpy.lib import recfunctions as rfn
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 results_path = "results.json"
 
@@ -14,8 +15,9 @@ data = []
 for job in results:
     if job["status"] != "done":
         continue
-    f = StringIO(job["result"]["test_stats"])
-    job_data = np.genfromtxt(f, delimiter=",", names=True)  # skip header row if present
+    csv_data = job["result"]["test_stats"]
+    f = StringIO(csv_data)
+    job_data = np.genfromtxt(f, delimiter=",", dtype=None, names=True)  # skip header row if present
     for k, v in job["spec"].items():
         job_data = rfn.append_fields(job_data, k, np.full(len(job_data), v), usemask=False)
     data.append(job_data)
@@ -23,18 +25,38 @@ for job in results:
 data = np.concatenate(data)
 
 
-default_mask = data["dmodel"] == 16
-seed_data = {seed:data[default_mask][data[default_mask]["seed"] == seed] for seed in np.unique(data[default_mask]["seed"])}
-assert all(len(np.unique(v["epoch"])) == len(np.unique(seed_data[list(seed_data.keys())[0]]["epoch"])) for v in seed_data.values()), "Epochs must be unique"
-
-vertical_axis = "return_mean"
+filters = {
+    "dmodel": ("==", 16),
+    "epoch": ("<=", 200),
+}
+# vertical_axis = "return_mean"
+vertical_axis = "episode_length_mean"
 horizontal_axis = "epoch"
 # group_axis = "dmodel"
 group_axis = "model"
 aggregation_function = np.mean
 
+def filter_mask(col, filter):
+    operation, value = filter
+    if operation == "==":
+        return col == value
+    elif operation == "!=":
+        return col != value
+    elif operation == ">":
+        return col > value
+    elif operation == "<":
+        return col < value
+    elif operation == ">=":
+        return col >= value
+    elif operation == "<=":
+        return col <= value
+    else:
+        raise ValueError(f"Invalid operation: {operation}")
+
+data = data[np.all([filter_mask(data[k], v) for k, v in filters.items()], axis=0)]
+
 plt.figure()
-for group_axis_value in np.unique(data[group_axis]):
+for group_axis_value in tqdm(np.unique(data[group_axis])):
     group_mask = data[group_axis] == group_axis_value
     horizontal_values = np.unique(data[group_mask][horizontal_axis])
     aggregated_data = [aggregation_function(data[group_mask][data[group_mask][horizontal_axis] == v][vertical_axis]) for v in horizontal_values]
