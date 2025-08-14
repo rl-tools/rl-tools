@@ -181,7 +181,7 @@ int main(int argc, char** argv){
 #endif
     std::ofstream test_stats_file(run_path / "test_stats.csv");
     // header
-    test_stats_file << "epoch,global_batch,model,return_mean,return_std,episode_length_mean,episode_length_std,share_terminated" << std::endl;
+    test_stats_file << "epoch,global_batch,model,teacher_selection,return_mean,return_std,episode_length_mean,episode_length_std,share_terminated" << std::endl;
     rlt::init(device, rng, seed);
     rlt::init_weights(device, actor, rng);
 
@@ -497,8 +497,24 @@ int main(int argc, char** argv){
                 rlt::add_scalar(device, device.logger, "test/" + file_name_without_extension + "/episode_length/std", result_eval.episode_length_std);
                 rlt::add_scalar(device, device.logger, "test/" + file_name_without_extension + "/share_terminated", result_eval.share_terminated);
                 rlt::log(device, device.logger, file_name_without_extension + ": Mean return: ", result_eval.returns_mean, " Mean episode length: ", result_eval.episode_length_mean, " Share terminated: ", result_eval.share_terminated * 100, "%");
-                test_stats_file << epoch_i << "," << global_batch << "," << file_name_without_extension << "," << result_eval.returns_mean << "," << result_eval.returns_std << "," << result_eval.episode_length_mean << "," << result_eval.episode_length_std << "," << result_eval.share_terminated << std::endl;
-
+                std::string teacher_selection;
+                switch (TEACHER_SELECTION) {
+                    case TEACHER_SELECTION_MODE::ALL:
+                        teacher_selection = "all";
+                        break;
+                    case TEACHER_SELECTION_MODE::BEST:
+                        teacher_selection = "best";
+                        break;
+                    case TEACHER_SELECTION_MODE::WORST:
+                        teacher_selection = "worst";
+                        break;
+                    case TEACHER_SELECTION_MODE::RANDOM:
+                        teacher_selection = "random";
+                        break;
+                    default:
+                        teacher_selection = "unknown";
+                }
+                test_stats_file << epoch_i << "," << global_batch << "," << file_name_without_extension << "," << teacher_selection << "," << result_eval.returns_mean << "," << result_eval.returns_std << "," << result_eval.episode_length_mean << "," << result_eval.episode_length_std << "," << result_eval.share_terminated << std::endl;
                 rlt::free(device, evaluation_actor);
                 rlt::free(device, eval_buffer);
             }
