@@ -204,16 +204,5 @@
             "cwd": "${workspaceFolder}",
             "args": ["embedded_platforms/betaflight/gamepad_mapping_ubuntu.json"]
         },
-        {
-            "name": "src/foundation_policy/analysis/scaling_laws/scaling_laws.py",
-            "type": "python",
-            "request": "launch",
-            "program": "scaling_laws.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}/src/foundation_policy/analysis/scaling_laws",
-            "args": [],
-            "justMyCode": false
-        },
     ]
 }
