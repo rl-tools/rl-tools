@@ -24,6 +24,7 @@ sweep_dmodel = {
     "dmodel": [4, 8, 16, 32, 48, 64],
     "seed": list(range(10)),
     "num_teachers:num_episodes": [(1000, 10)],
+    "teacher_selection": ["all"],
 }
 
 sweep_num_teachers = {

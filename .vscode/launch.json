@@ -212,7 +212,8 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}/src/foundation_policy/analysis/scaling_laws",
-            "args": []
+            "args": [],
+            "justMyCode": false
         },
     ]
 }
