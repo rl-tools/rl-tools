@@ -4,6 +4,9 @@ from io import StringIO
 from numpy.lib import recfunctions as rfn
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import pickle
+import os
 
 def load(results_path):
     with open(results_path, "r") as f:
@@ -116,6 +119,73 @@ def plot_teacher_curve(data, filters, horizontal_axis, vertical_axis, group_axis
     plt.legend() if group_axis else None
     plt.show()
 
+
+def plot_learning_curve(
+    data, filters, horizontal_axis, vertical_axis, group_axis,
+    aggregation_function, scatter=False,
+    show_inset=True, inset_slice=(0, 60), use_cache=True
+):
+    fig, ax = plt.subplots()
+
+    # Plot & remember series so we can replot into inset
+    series = []
+    if use_cache and os.path.exists("learning_curve_tmp.pkl"):
+        processed_data = pickle.load(open("learning_curve_tmp.pkl", "rb"))
+    else:
+        processed_data = list(process(data, filters, horizontal_axis, vertical_axis, group_axis, aggregation_function))
+        if use_cache:
+            pickle.dump(processed_data, open("learning_curve_tmp.pkl", "wb"))
+    for horizontal_values, aggregated_data, group_axis_value in processed_data:
+        (line,) = ax.plot(horizontal_values, aggregated_data, label=group_axis_value)
+        if scatter:
+            ax.scatter(horizontal_values, aggregated_data, s=10, color=line.get_color(), zorder=3)
+        series.append({
+            "x": horizontal_values,
+            "y": aggregated_data,
+            "label": group_axis_value,
+            "style": {
+                "color": line.get_color(),
+                "lw": line.get_linewidth(),
+                "ls": line.get_linestyle(),
+                "marker": line.get_marker(),
+            },
+        })
+
+    ax.set_xlabel(label_map[horizontal_axis] if horizontal_axis in label_map else horizontal_axis)
+    ax.set_ylabel(label_map[vertical_axis] if vertical_axis in label_map else vertical_axis)
+    if group_axis:
+        ax.legend()
+
+    # Build a full-height inset that slices a small x-range
+    if show_inset:
+        y1, y2 = ax.get_ylim()
+        axins = inset_axes(ax, width="70%", height="60%", loc="lower right", borderpad=2)
+        # Re-plot the same series into the inset
+        for s in series:
+            axins.plot(s["x"], s["y"],
+                       color=s["style"]["color"], lw=s["style"]["lw"], ls=s["style"]["ls"])
+            if scatter:
+                axins.scatter(s["x"], s["y"], s=10, color=s["style"]["color"], zorder=3)
+
+        axins.set_xlim(*inset_slice)
+        axins.set_ylim(y1, y2)
+
+        # keep it clean: no y labels; a couple of x ticks are fine
+        axins.tick_params(axis="y", left=False, labelleft=False)
+        axins.grid(False)
+        # optional: slightly opaque background so it reads as an overlay
+        axins.patch.set_alpha(0.9)
+
+        # draw guides showing the sliced region (will become two vertical bars at x=limits)
+        try:
+            ax.indicate_inset_zoom(axins)
+        except AttributeError:
+            from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+            mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+
+    plt.tight_layout()
+    plt.show()
+
 paper_drones = [
     b'arpl',
     b'crazyflie',
@@ -128,7 +198,7 @@ paper_drones = [
 
 filters = {
     "dmodel": ("==", 16),
-    "epoch": ("<=", 100),
+    # "epoch": ("<=", 100),
     "model": ("in", paper_drones),
     "num_teachers": ("==", 1000)
 }
@@ -139,7 +209,7 @@ horizontal_axis = "epoch"
 group_axis = "model"
 aggregation_function = np.mean
 
-plot(data, filters, horizontal_axis, vertical_axis, group_axis, aggregation_function)
+plot_learning_curve(data, filters, horizontal_axis, vertical_axis, group_axis, aggregation_function)
 
 
 
@@ -199,3 +269,4 @@ for model in np.unique(data["model"]):
     print(model)
 
 plot_teacher_curve(data, filters, horizontal_axis, vertical_axis, group_axis, aggregation_function)
+
