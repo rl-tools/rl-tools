@@ -1042,7 +1042,8 @@ export class DroneMesh{
     const base64url = "data:application/gltf-binary;base64," + model.model
     this.group = new THREE.Group()
     const loader = new GLTFLoader()
-    loader.load(base64url, (gltf) => {
+    this.loaded = loader.loadAsync(base64url)
+    this.loaded.then((gltf) => {
       const object = gltf.scene
       const object_group = new THREE.Group()
       object_group.add(object)
@@ -1052,7 +1053,6 @@ export class DroneMesh{
         object_group.scale.set(scale, scale, scale)
       }
       this.group.add(object_group)
-      
     })
     if (displayIMUCoordinateSystem) {
       const scale = 1 //model.mass
@@ -1180,9 +1180,11 @@ export class DroneDefault{
 
 }
 
-function drone_factory(parameters, origin, displayIMUCoordinateSystem, displayActions){
+async function drone_factory(parameters, origin, displayIMUCoordinateSystem, displayActions){
   if(parameters.model){
-    return new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions)
+    const model = new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions)
+    await model.loaded
+    return model
   }
   else{
     return new DroneDefault(parameters, origin, displayIMUCoordinateSystem, displayActions)
@@ -1220,7 +1222,7 @@ export async function episode_init(ui_state, parameters){
     const scale = Math.cbrt(parameters.dynamics.mass) * 2 * camera_distance
     set_camera(ui_state, scale)
     clear_episode(ui_state)
-    ui_state.drone = drone_factory(parameters, [0, 0, 0], ui_state.showAxes)
+    ui_state.drone = await drone_factory(parameters, [0, 0, 0], ui_state.showAxes)
     ui_state.simulator.add(ui_state.drone.get())
     if(ui_state.showAxes){
         ui_state.origin_coordinate_system = new CoordinateSystem([0, 0, 0], 1 * scale, 0.01 * scale)
