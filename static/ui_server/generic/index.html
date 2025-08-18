@@ -22,7 +22,8 @@
         {
             "imports": {
                 "three": "./lib/three.module.js",
-                "three-orbitcontrols": "./lib/OrbitControls.js"
+                "three-orbitcontrols": "./lib/OrbitControls.js",
+                "three-gltfloader": "./lib/gltf-loader/GLTFLoader.js"
             }
         }
     </script>
@@ -36,6 +37,7 @@
         }
         check_dependency("./lib/three.module.js")
         check_dependency("./lib/OrbitControls.js")
+        check_dependency("./lib/GLTFLoader.js")
         class Client{
             constructor(restart_callback){
                 this.setParametersCallback = null;
@@ -212,11 +214,19 @@
                     console.log('UI:', ui);
                     if(ui.type === "2d"){
                         if(!ui_module){
-                            const blob = new Blob([ui.render_function], { type: 'application/javascript' });
-                            const url = URL.createObjectURL(blob);
-                            ui_module = import(url)
+                            let url = null
+                            if(!ui.debug){
+                                const blob = new Blob([ui.render_function], { type: 'application/javascript' });
+                                url = URL.createObjectURL(blob);
+                                ui_module = import(url)
+                            }
+                            else{
+                                ui_module = import(`./debug/${ui.debug}`)
+                            }
                             ui_state = ui_module.then(async (module)=>{
-                                URL.revokeObjectURL(url);
+                                if(url){
+                                    URL.revokeObjectURL(url);
+                                }
                                 const options = {...{devicePixelRatio: window.devicePixelRatio}, ...ui.options}
                                 ui_state = await module.init(canvas, options)
                                 if(ui_state.cursor_grab){
