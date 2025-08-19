@@ -1180,7 +1180,7 @@ export class DroneDefault{
 }
 
 async function drone_factory(parameters, origin, displayIMUCoordinateSystem, displayActions){
-  if(parameters.model){
+  if(parameters.ui && parameters.ui.model){
     const model = new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions)
     await model.loaded
     return model
