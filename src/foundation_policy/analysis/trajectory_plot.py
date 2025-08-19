@@ -19,6 +19,18 @@ PARAMETERS_UI_CONFIG = {
 N_DRONES = 10
 N_TRAJECTORIES = 1
 
+palette = [
+    "#7DB9B6",
+    "#DAAA81",
+    "#818CDA",
+    "#DA818F",
+    "#81BCDA",
+    "#B7D59C",
+    "#D381DA"
+]
+
+COLOR_PRIMARY = "#7DB9B6"
+
 default_options = {
     "camera_position": [0.0, 0.5, 1]
 }
@@ -137,19 +149,20 @@ if __name__ == "__main__":
             ax_anim.set_aspect('equal')
             ax = axs[current_ax]
             current_ax += 1
-            ax.plot(position_error, label="Position")
-            ax.plot(orientation_error, label="Orientation")
-            ax.plot(linear_velocity_error, label="Linear Velocity")
-            ax.plot(angular_velocity_error, label="Angular Velocity")
+            error_lw = 3
+            ax.plot(position_error, label="Position", color=palette[0], linewidth=error_lw)
+            ax.plot(orientation_error, label="Orientation", color=palette[1], linewidth=error_lw)
+            ax.plot(linear_velocity_error, label="Linear Velocity", color=palette[2], linewidth=error_lw)
+            ax.plot(angular_velocity_error, label="Angular Velocity", color=palette[3], linewidth=error_lw)
             ax.set_ylabel("Error [relative]")
             ax.legend(loc="upper right")
             ax = axs[current_ax]
             current_ax += 1
-            ax.plot(prediction_trajectories[MODEL][trajectory_i], label="Predicted")
-            ax.plot(ground_truth_trajectories[MODEL][trajectory_i], label="Ground Truth")
+            gt = ax.plot(ground_truth_trajectories[MODEL][trajectory_i], label="Ground Truth", color="#000000", linewidth=4, linestyle="--")
+            pred = ax.plot(prediction_trajectories[MODEL][trajectory_i], label="Predicted", color=COLOR_PRIMARY, linewidth=4)
             ax.set_ylim(0, 5)
             ax.set_ylabel("Thrust to Weight Ratio")
-            ax.legend(loc="lower right")
+            ax.legend([pred[0], gt[0]], ["Predicted", "Ground Truth"], loc="lower right")
             ax = axs[current_ax]
             # ax.set_title(f"Hidden States for Drone {drone_i}, Trajectory {trajectory_i}")
             current_ax += 1
