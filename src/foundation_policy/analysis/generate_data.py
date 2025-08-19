@@ -47,7 +47,7 @@ def generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=False, position_clip=N
             l2f.initial_state(device, env, params, state)
             state.position = [2, 2, 0]
             roll_angle = -np.pi / 2
-            state.orientation = [np.cos(roll_angle / 2), np.sin(roll_angle / 2), 0, 0]
+            state.orientation = [np.cos(roll_angle / 2), 0, np.sin(roll_angle / 2), 0]
             state.linear_velocity = [0, 0, 0]
             state.angular_velocity = [0, 0, 0]
             state.rpm = [0, 0, 0, 0]
