@@ -9,7 +9,7 @@ import json
 from probe import get_ground_truths
 from copy import deepcopy
 
-ANIMATION_INTERVAL = 20
+ANIMATION_INTERVAL = 10
 MODEL = "t2w_full"
 PARAMETERS_UI_CONFIG = {
     "model": "11f470c8206d4ca43bf3f7e1ba1d7acc456d3c34",
@@ -122,7 +122,7 @@ if __name__ == "__main__":
             alpha_scale = 0.8
             zoom = 4
             ANIMATION_START = 0
-            ANIMATION_END = len(animations)//2
+            ANIMATION_END = len(animations)//3
             animation_range = animations[ANIMATION_START:ANIMATION_END]
             animation_space = len(states)/(len(animation_range)-1)
             for i, f in enumerate(animation_range):
@@ -188,14 +188,20 @@ if __name__ == "__main__":
             
             control_offset = 1.0 * (ts_pos.y1 - anim_pos.y0)
             
-            for x_top, x_bottom in [(x0_top, x0_bottom), (x1_top, x1_bottom)]:
-                start_fig = data_to_fig(x_top, ax_anim.get_ylim()[0]*3/4, ax_anim)
+            for i, (x_top, x_bottom) in enumerate([(x0_top, x0_bottom), (x1_top, x1_bottom)]):
+                start_fig_x, start_fig_y = data_to_fig(x_top, ax_anim.get_ylim()[0]*3/4, ax_anim)
+                if i == 0:
+                    start_fig_x -= 0.03
+                    start_fig_y += 0.1
+                else:
+                    start_fig_x += 0.03
+                    # start_fig_y += 0.1
                 end_fig = data_to_fig(x_bottom, ax_first_ts.get_ylim()[1], ax_first_ts)
                 
-                ctrl1_fig = (start_fig[0], start_fig[1] + control_offset)
+                ctrl1_fig = (start_fig_x, start_fig_y + control_offset)
                 ctrl2_fig = (end_fig[0], end_fig[1] - control_offset)
                 
-                verts = [start_fig, ctrl1_fig, ctrl2_fig, end_fig]
+                verts = [(start_fig_x, start_fig_y), ctrl1_fig, ctrl2_fig, (end_fig[0], end_fig[1])]
                 codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
                 path = Path(verts, codes)
                 
