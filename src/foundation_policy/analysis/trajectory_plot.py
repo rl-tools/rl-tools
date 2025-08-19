@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
             x = np.arange(len(position_error))
 
-            fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True, gridspec_kw={'height_ratios': [1, 1, 1, 1.5]})
+            fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 2]})
             current_ax = 0
             ax_anim = axs[current_ax]
             current_ax += 1
@@ -178,21 +178,21 @@ if __name__ == "__main__":
                     fig.patches.append(patch)
             ax = axs[current_ax]
             current_ax += 1
-            ax.plot(position_error, label="position error")
-            ax.plot(orientation_error, label="orientation error")
-            ax.plot(linear_velocity_error, label="linear velocity error")
-            ax.plot(angular_velocity_error, label="angular velocity error")
-            ax.set_ylabel("Error (Relative to Maximum)")
-            ax.legend()
+            ax.plot(position_error, label="Position")
+            ax.plot(orientation_error, label="Orientation")
+            ax.plot(linear_velocity_error, label="Linear Velocity")
+            ax.plot(angular_velocity_error, label="Angular Velocity")
+            ax.set_ylabel("Error [relative]")
+            ax.legend(loc="upper right")
             ax = axs[current_ax]
             current_ax += 1
             ax.plot(prediction_trajectories[MODEL][trajectory_i], label="Predicted")
             ax.plot(ground_truth_trajectories[MODEL][trajectory_i], label="Ground Truth")
             ax.set_ylim(0, 5)
             ax.set_ylabel("Thrust to Weight Ratio")
-            ax.legend()
+            ax.legend(loc="lower right")
             ax = axs[current_ax]
-            ax.set_title(f"Hidden States for Drone {drone_i}, Trajectory {trajectory_i}")
+            # ax.set_title(f"Hidden States for Drone {drone_i}, Trajectory {trajectory_i}")
             current_ax += 1
             hidden_states_standardized = (hidden_states - np.mean(hidden_states, axis=0)) / np.std(hidden_states, axis=0)
             im = ax.imshow(hidden_states_standardized.T,
@@ -209,5 +209,5 @@ if __name__ == "__main__":
             # fig.colorbar(im, ax=ax, label='activation')
             # fig.colorbar(im, ax=axs, label="activation", location="right", pad=0.02, fraction=0.04)
             plt.savefig(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.png", dpi=600)
-            # plt.show()
+            # plt.show() error
         
