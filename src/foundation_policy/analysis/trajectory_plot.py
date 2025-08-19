@@ -1,5 +1,8 @@
 from generate_data import load, generate_data
 import matplotlib.pyplot as plt
+from matplotlib.patches import ConnectionPatch
+from matplotlib.path import Path
+import matplotlib.patches as patches
 import numpy as np
 import os
 import json
@@ -136,6 +139,43 @@ if __name__ == "__main__":
             ax_anim.set_xlim(0, len(states))
             ax_anim.set_ylim(0, height)
             ax_anim.set_aspect('equal')
+            if len(animation_range) > 0:
+                animation_space = len(states) / len(animation_range)
+                offset = animation_space / 3.0
+                half_width = 0.5 * animation_space * zoom
+                x0_top = float(np.clip(offset - half_width, 0, len(states)))
+                x1_top = float(np.clip((len(animation_range) - 1) * animation_space + offset + half_width, 0, len(states)))
+                
+                total_frames = len(animations)
+                frames_to_states_ratio = len(states) / total_frames if total_frames > 0 else 0.0
+                x0_bottom = float(np.clip(ANIMATION_START * frames_to_states_ratio, 0, len(states)))
+                x1_bottom = float(np.clip(ANIMATION_END * frames_to_states_ratio, 0, len(states)))
+
+                ax_first_ts = axs[1]
+                
+                anim_pos = ax_anim.get_position()
+                ts_pos = ax_first_ts.get_position()
+                
+                def data_to_fig(x, y, ax):
+                    display_coords = ax.transData.transform([(x, y)])[0]
+                    return fig.transFigure.inverted().transform(display_coords)
+                
+                control_offset = 1.0 * (ts_pos.y1 - anim_pos.y0)
+                
+                for x_top, x_bottom in [(x0_top, x0_bottom), (x1_top, x1_bottom)]:
+                    start_fig = data_to_fig(x_top, 0.0, ax_anim)
+                    end_fig = data_to_fig(x_bottom, 1.0, ax_first_ts)
+                    
+                    ctrl1_fig = (start_fig[0], start_fig[1] + control_offset)
+                    ctrl2_fig = (end_fig[0], end_fig[1] - control_offset)
+                    
+                    verts = [start_fig, ctrl1_fig, ctrl2_fig, end_fig]
+                    codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
+                    path = Path(verts, codes)
+                    
+                    patch = patches.PathPatch(path, facecolor='none', edgecolor='0.3', 
+                                            linewidth=1.2, alpha=0.8, transform=fig.transFigure)
+                    fig.patches.append(patch)
             ax = axs[current_ax]
             current_ax += 1
             ax.plot(position_error, label="position error")
