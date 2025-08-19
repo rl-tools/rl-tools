@@ -119,10 +119,10 @@ if __name__ == "__main__":
             current_ax = 0
             ax_anim = axs[current_ax]
             current_ax += 1
-            alpha_scale = 0.8
+            alpha_scale = 1.0
             zoom = 4
             ANIMATION_START = 0
-            ANIMATION_END = len(animations)//3
+            ANIMATION_END = round(len(animations) * 0.4)
             animation_range = animations[ANIMATION_START:ANIMATION_END]
             animation_space = len(states)/(len(animation_range)-1)
             for i, f in enumerate(animation_range):
@@ -161,6 +161,7 @@ if __name__ == "__main__":
                 # cmap='magma',
                 # cmap='hot',
                 interpolation='none',
+                rasterized=True,  # Force rasterization for PDF export to prevent blurriness
                 extent=[x[0], x[-1], 0, 15]
             )
             ax.set_ylabel("Hidden Dimension")
@@ -211,5 +212,6 @@ if __name__ == "__main__":
             # fig.colorbar(im, ax=ax, label='activation')
             # fig.colorbar(im, ax=axs, label="activation", location="right", pad=0.02, fraction=0.04)
             plt.savefig(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.png", dpi=600)
+            plt.savefig(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.pdf")
             # plt.show() error
         
