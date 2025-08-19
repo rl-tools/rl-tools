@@ -1037,16 +1037,16 @@ function thrust_direction_to_quaternion(thrust_direction){
 }
 
 export class DroneMesh{
-  constructor(model, origin, displayIMUCoordinateSystem, displayActions){
-    console.assert(model.model)
+  constructor(parameters, origin, displayIMUCoordinateSystem, displayActions){
+    console.assert(parameters.ui)
     this.group = new THREE.Group()
-    const url = `./conta/${model.model}`
+    const url = `./conta/${parameters.ui.model}`
     this.loaded = new GLTFLoader().loadAsync(url)
     this.loaded.then((gltf) => {
       const object = gltf.scene
       const object_group = new THREE.Group()
       object_group.add(object)
-      if(model.model_name == "x500"){
+      if(parameters.ui.name == "x500"){
         object_group.rotation.set(Math.PI / 2, 0, Math.PI / 2, 'ZYX')
         const scale = 0.5
         object_group.scale.set(scale, scale, scale)
