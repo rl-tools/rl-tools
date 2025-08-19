@@ -6,8 +6,13 @@ import json
 from probe import get_ground_truths
 from copy import deepcopy
 
-ANIMATION_INTERVAL = 10
+ANIMATION_INTERVAL = 50
 MODEL = "t2w_full"
+PARAMETERS_UI_CONFIG = {
+    "model": "11f470c8206d4ca43bf3f7e1ba1d7acc456d3c34",
+    "name": "x500",
+    "camera_distance": 2
+}
 
 default_options = {
     "camera_position": [0.0, 0.5, 1]
@@ -55,7 +60,7 @@ def render(params_json, states, options=default_options):
     with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
         for name in sorted(zf.namelist()):
             frames.append(iio.imread(zf.read(name), extension=".png"))
-    return frames
+    return frames, resp.content
 
 if __name__ == "__main__":
     # all_parameters, all_trajectories, all_hidden_trajectories = load()
@@ -66,10 +71,7 @@ if __name__ == "__main__":
 
     for drone_i, (parameters, ground_truths, trajectories, hidden_trajectories) in enumerate(zip(all_parameters, get_ground_truths(all_parameters), all_trajectories, all_hidden_trajectories)):
         parameters = deepcopy(parameters)
-        parameters["ui"] = {
-            "model": "11f470c8206d4ca43bf3f7e1ba1d7acc456d3c34",
-            "name": "x500"
-        }
+        parameters["ui"] = PARAMETERS_UI_CONFIG
         prediction_trajectories = {k:[] for k in models.keys()}
         ground_truth_trajectories = {k:[] for k in models.keys()}
         for trajectory in hidden_trajectories:
@@ -88,7 +90,9 @@ if __name__ == "__main__":
             ground_truth_trajectories[k] = np.array(ground_truth_trajectories[k])
             
         for trajectory_i, (states, hidden_states) in enumerate(zip(trajectories, hidden_trajectories)):
-            animations = render(parameters, states)
+            animations, frames_zip = render(parameters, states)
+            with open(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.zip", "wb") as f:
+                f.write(frames_zip)
             states = states[1:]
             position = lambda s: s[:3]
             orientation = lambda s: s[3:3+4]  # w-x-y-z
@@ -111,7 +115,7 @@ if __name__ == "__main__":
             ax_anim = axs[current_ax]
             current_ax += 1
             alpha_scale = 0.8
-            zoom = 10 * 2
+            zoom = 1 * 2
             ax_width = ax_anim.get_position().width
             ax_height = ax_anim.get_position().height
             height = len(states) * ax_height / ax_width

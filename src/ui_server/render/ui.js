@@ -1,5 +1,6 @@
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
+import {GLTFLoader} from "three-gltfloader"
 
 export class CoordinateSystem{
     constructor(origin, length=1, diameter=0.01) {
@@ -166,8 +167,36 @@ function thrust_direction_to_quaternion(thrust_direction){
     return [qw, qx, qy, qz];
 }
 
+export class DroneMesh{
+  constructor(parameters, origin, displayIMUCoordinateSystem, displayActions){
+    console.assert(parameters.ui)
+    this.group = new THREE.Group()
+    const url = `./conta/${parameters.ui.model}`
+    this.loaded = new GLTFLoader().loadAsync(url)
+    this.loaded.then((gltf) => {
+      const object = gltf.scene
+      const object_group = new THREE.Group()
+      object_group.add(object)
+      if(parameters.ui.name == "x500"){
+        object_group.rotation.set(Math.PI / 2, 0, Math.PI / 2, 'ZYX')
+        const scale = 0.5
+        object_group.scale.set(scale, scale, scale)
+      }
+      this.group.add(object_group)
+    })
+    if (displayIMUCoordinateSystem) {
+      const scale = 1 //model.mass
+      const coordinateSystemLength = Math.cbrt(scale)
+      const coordinateSystemThickness = 0.01 * coordinateSystemLength
+      this.group.add((new CoordinateSystem([0, 0, 0], coordinateSystemLength, coordinateSystemThickness)).get())
+    }
+  }
+  get(){
+    return this.group
+  }
+}
 
-export class Drone{
+export class DroneDefault{
     constructor(parameters, origin, displayIMUCoordinateSystem, displayActions){
         const url = window.location.href;
         const urlObj = new URL(url);
@@ -281,6 +310,17 @@ export class Drone{
 
 }
 
+async function drone_factory(parameters, origin, displayIMUCoordinateSystem, displayActions){
+  if(parameters.ui && parameters.ui.model){
+    const model = new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions)
+    await model.loaded
+    return model
+  }
+  else{
+    return new DroneDefault(parameters, origin, displayIMUCoordinateSystem, displayActions)
+  }
+}
+
 export async function init(canvas, options){
     const state = new State(canvas, options)
     await state.initialize()
@@ -300,7 +340,8 @@ function clear_episode(ui_state){
         }
     }
 }
-function set_camera(ui_state, scale){
+function set_camera(ui_state, distance){
+    const scale = 1/Math.sqrt(ui_state.camera_position[0]**2 + ui_state.camera_position[1]**2 + ui_state.camera_position[2]**2) * distance
     if(!ui_state.camera_set){
         ui_state.camera.position.set(ui_state.camera_position[0] * scale, ui_state.camera_position[1] * scale, ui_state.camera_position[2] * scale)
         ui_state.camera.lookAt(0, 0, 0)
@@ -308,11 +349,10 @@ function set_camera(ui_state, scale){
     }
 }
 export async function episode_init(ui_state, parameters){
-    const camera_distance = (parameters.ui ? parameters.ui.camera_distance || 1 : 1)
-    const scale = Math.cbrt(parameters.dynamics.mass) * 2 * camera_distance
-    set_camera(ui_state, scale)
+    const distance = (parameters.ui && parameters.ui.camera_distance) ? parameters.ui.camera_distance : Math.cbrt(parameters.dynamics.mass) * 2
+    set_camera(ui_state, distance)
     clear_episode(ui_state)
-    ui_state.drone = new Drone(parameters, [0, 0, 0], ui_state.showAxes)
+    ui_state.drone = await drone_factory(parameters, [0, 0, 0], ui_state.showAxes)
     ui_state.simulator.add(ui_state.drone.get())
     if(ui_state.showAxes){
         ui_state.origin_coordinate_system = new CoordinateSystem([0, 0, 0], 1 * scale, 0.01 * scale)
@@ -335,7 +375,7 @@ export async function episode_init_multi(ui_state, parameters){
     parameters.map((parameter, i) => {
         const x = (i % grid_size) * grid_distance
         const y = Math.floor(i / grid_size) * grid_distance
-        const drone = new Drone(parameter, [x, y, 0], ui_state.showAxes)
+        const drone = drone_factory(parameter, [x, y, 0], ui_state.showAxes)
         ui_state.simulator.add(drone.get())
         if(ui_state.showAxes){
             const cs = new CoordinateSystem([x, y, 0], 1, 0.01)
@@ -382,8 +422,8 @@ function clip_position(scale, position){
 }
 
 export async function render(ui_state, parameters, state, action) {
-    ui_state.drone.droneFrame.position.set(...clip_position(parameters.dynamics.mass, state.position))
-    ui_state.drone.droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+    ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, state.position))
+    ui_state.drone.get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
     update_camera(ui_state)
 }
 
@@ -391,8 +431,8 @@ export async function render_multi(ui_state, parameters, states, actions){
     states.map((state, i) => {
         const action = actions[i]
         const current_parameters = parameters[i]
-        ui_state.drones[i].droneFrame.position.set(...clip_position(current_parameters.dynamics.mass, state.position))
-        ui_state.drones[i].droneFrame.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+        ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
+        ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
         for(let j = 0; j < 4; j++){
             const forceArrow = ui_state.drones[i].rotors[j].forceArrow
             const force_magnitude = action[j]
@@ -402,7 +442,3 @@ export async function render_multi(ui_state, parameters, states, actions){
     })
     update_camera(ui_state)
 }
-
-
-
-
