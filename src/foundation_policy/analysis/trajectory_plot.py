@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
             x = np.arange(len(position_error))
 
-            fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 2]})
+            fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True, gridspec_kw={'height_ratios': [1.0, 1, 1, 1.5]})
             current_ax = 0
             ax_anim = axs[current_ax]
             current_ax += 1
@@ -139,43 +139,6 @@ if __name__ == "__main__":
             ax_anim.set_xlim(0, len(states))
             ax_anim.set_ylim(0, height)
             ax_anim.set_aspect('equal')
-            if len(animation_range) > 0:
-                animation_space = len(states) / len(animation_range)
-                offset = animation_space / 3.0
-                half_width = 0.5 * animation_space * zoom
-                x0_top = float(np.clip(offset - half_width, 0, len(states)))
-                x1_top = float(np.clip((len(animation_range) - 1) * animation_space + offset + half_width, 0, len(states)))
-                
-                total_frames = len(animations)
-                frames_to_states_ratio = len(states) / total_frames if total_frames > 0 else 0.0
-                x0_bottom = float(np.clip(ANIMATION_START * frames_to_states_ratio, 0, len(states)))
-                x1_bottom = float(np.clip(ANIMATION_END * frames_to_states_ratio, 0, len(states)))
-
-                ax_first_ts = axs[1]
-                
-                anim_pos = ax_anim.get_position()
-                ts_pos = ax_first_ts.get_position()
-                
-                def data_to_fig(x, y, ax):
-                    display_coords = ax.transData.transform([(x, y)])[0]
-                    return fig.transFigure.inverted().transform(display_coords)
-                
-                control_offset = 1.0 * (ts_pos.y1 - anim_pos.y0)
-                
-                for x_top, x_bottom in [(x0_top, x0_bottom), (x1_top, x1_bottom)]:
-                    start_fig = data_to_fig(x_top, 0.0, ax_anim)
-                    end_fig = data_to_fig(x_bottom, 1.0, ax_first_ts)
-                    
-                    ctrl1_fig = (start_fig[0], start_fig[1] + control_offset)
-                    ctrl2_fig = (end_fig[0], end_fig[1] - control_offset)
-                    
-                    verts = [start_fig, ctrl1_fig, ctrl2_fig, end_fig]
-                    codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
-                    path = Path(verts, codes)
-                    
-                    patch = patches.PathPatch(path, facecolor='none', edgecolor='0.3', 
-                                            linewidth=1.2, alpha=0.8, transform=fig.transFigure)
-                    fig.patches.append(patch)
             ax = axs[current_ax]
             current_ax += 1
             ax.plot(position_error, label="Position")
@@ -206,6 +169,43 @@ if __name__ == "__main__":
             )
             ax.set_ylabel("Hidden Dimension")
             ax.set_xlabel("Time Step")
+            plt.tight_layout()
+            animation_space = len(states) / len(animation_range)
+            offset = animation_space / 3.0
+            half_width = 0.5 * animation_space * zoom
+            x0_top = float(np.clip(offset - half_width, 0, len(states)))
+            x1_top = float(np.clip((len(animation_range) - 1) * animation_space + offset + half_width, 0, len(states)))
+            
+            total_frames = len(animations)
+            frames_to_states_ratio = len(states) / total_frames if total_frames > 0 else 0.0
+            x0_bottom = float(np.clip(ANIMATION_START * frames_to_states_ratio, 0, len(states)))
+            x1_bottom = float(np.clip(ANIMATION_END * frames_to_states_ratio, 0, len(states)))
+
+            ax_first_ts = axs[1]
+            
+            anim_pos = ax_anim.get_position()
+            ts_pos = ax_first_ts.get_position()
+            
+            def data_to_fig(x, y, ax):
+                display_coords = ax.transData.transform([(x, y)])[0]
+                return fig.transFigure.inverted().transform(display_coords)
+            
+            control_offset = 1.0 * (ts_pos.y1 - anim_pos.y0)
+            
+            for x_top, x_bottom in [(x0_top, x0_bottom), (x1_top, x1_bottom)]:
+                start_fig = data_to_fig(x_top, 0.0, ax_anim)
+                end_fig = data_to_fig(x_bottom, ax_first_ts.get_ylim()[1], ax_first_ts)
+                
+                ctrl1_fig = (start_fig[0], start_fig[1] + control_offset)
+                ctrl2_fig = (end_fig[0], end_fig[1] - control_offset)
+                
+                verts = [start_fig, ctrl1_fig, ctrl2_fig, end_fig]
+                codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
+                path = Path(verts, codes)
+                
+                patch = patches.PathPatch(path, facecolor='none', edgecolor='0.3', 
+                                        linewidth=1.2, alpha=0.8, transform=fig.transFigure)
+                fig.patches.append(patch)
             # fig.colorbar(im, ax=ax, label='activation')
             # fig.colorbar(im, ax=axs, label="activation", location="right", pad=0.02, fraction=0.04)
             plt.savefig(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.png", dpi=600)
