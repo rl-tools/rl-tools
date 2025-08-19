@@ -96,8 +96,8 @@ if __name__ == "__main__":
             
         for trajectory_i, (states, hidden_states) in enumerate(zip(trajectories, hidden_trajectories)):
             animations, frames_zip = render(parameters, states)
-            # with open(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.zip", "wb") as f:
-            #     f.write(frames_zip)
+            with open(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.zip", "wb") as f:
+                f.write(frames_zip)
             states = states[1:]
             position = lambda s: s[:3]
             orientation = lambda s: s[3:3+4]  # w-x-y-z
@@ -115,29 +115,25 @@ if __name__ == "__main__":
 
             x = np.arange(len(position_error))
 
-            fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True, gridspec_kw={'height_ratios': [1.0, 1, 1, 1.5]})
+            fig, axs = plt.subplots(4, 1, figsize=(12, 10), sharex=True, gridspec_kw={'height_ratios': [2.0, 1, 1, 1.5]})
             current_ax = 0
             ax_anim = axs[current_ax]
             current_ax += 1
             alpha_scale = 0.8
-            zoom = 2 * 2
-            ax_width = ax_anim.get_position().width
-            ax_height = ax_anim.get_position().height
-            height = len(states) * ax_height / ax_width
+            zoom = 4
             ANIMATION_START = 0
             ANIMATION_END = len(animations)//2
             animation_range = animations[ANIMATION_START:ANIMATION_END]
+            animation_space = len(states)/(len(animation_range)-1)
             for i, f in enumerate(animation_range):
-                # f[:, :, 0] = 255
-                # f[:, :, -1] = 255
                 w, h = f.shape[1], f.shape[0]
-                animation_space = len(states)/len(animation_range)
                 o = animation_space * i
                 offset = animation_space / 3
-                ax_anim.imshow(f, alpha=alpha_scale, interpolation='none', extent=[o + offset - animation_space/2 * zoom, o + offset + animation_space/2 * zoom, height/2 - animation_space/2 * zoom, height/2 + animation_space/2 * zoom], aspect='auto', clip_on=False)
-            ax_anim.set_axis_off()
+                offset = 0
+                ax_anim.imshow(f, alpha=alpha_scale, interpolation='none', extent=[o + offset - animation_space/2 * zoom, o + offset + animation_space/2 * zoom, 0, animation_space * zoom], clip_on=False)
             ax_anim.set_xlim(0, len(states))
-            ax_anim.set_ylim(0, height)
+            ax_anim.set_ylim(animation_space * zoom * 0.4, animation_space * zoom * 1.0)
+            ax_anim.set_axis_off()
             ax_anim.set_aspect('equal')
             ax = axs[current_ax]
             current_ax += 1
@@ -169,12 +165,12 @@ if __name__ == "__main__":
             )
             ax.set_ylabel("Hidden Dimension")
             ax.set_xlabel("Time Step")
-            plt.tight_layout()
-            animation_space = len(states) / len(animation_range)
-            offset = animation_space / 3.0
+            plt.tight_layout(h_pad=0.2)
+            plt.subplots_adjust(hspace=0.1)
+            offset = 0 #animation_space / 3.0
             half_width = 0.5 * animation_space * zoom
-            x0_top = float(np.clip(offset - half_width, 0, len(states)))
-            x1_top = float(np.clip((len(animation_range) - 1) * animation_space + offset + half_width, 0, len(states)))
+            x0_top = 0
+            x1_top = len(states)
             
             total_frames = len(animations)
             frames_to_states_ratio = len(states) / total_frames if total_frames > 0 else 0.0
@@ -193,7 +189,7 @@ if __name__ == "__main__":
             control_offset = 1.0 * (ts_pos.y1 - anim_pos.y0)
             
             for x_top, x_bottom in [(x0_top, x0_bottom), (x1_top, x1_bottom)]:
-                start_fig = data_to_fig(x_top, 0.0, ax_anim)
+                start_fig = data_to_fig(x_top, ax_anim.get_ylim()[0]*3/4, ax_anim)
                 end_fig = data_to_fig(x_bottom, ax_first_ts.get_ylim()[1], ax_first_ts)
                 
                 ctrl1_fig = (start_fig[0], start_fig[1] + control_offset)
