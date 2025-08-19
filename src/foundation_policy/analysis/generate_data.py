@@ -13,7 +13,7 @@ def shrink_state(state):
     return np.concatenate((state.position, state.orientation, state.linear_velocity, state.angular_velocity, state.rpm), axis=None)
 
 
-def generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=False, initial_position=None, position_clip=None):
+def generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=False, position_clip=None):
     policy = QuadrotorPolicy()
     policy.reset()
 
@@ -39,14 +39,18 @@ def generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=False, initial_positio
         l2f.initial_parameters(device, env, params)
         l2f.parameters_from_json(device, env, json.dumps(parameters_json_input), params)
         params_json = json.loads(l2f.parameters_to_json(device, env, params))
-        for trajectory_i in range(N_TRAJECTORIES if initial_position is None else 1):
+        for trajectory_i in range(N_TRAJECTORIES):
             hidden_states = []
             states = []
             actions = []
             policy.reset()
-            l2f.sample_initial_state(device, env, params, state, rng)
-            if initial_position is not None:
-                state.position = np.array(initial_position, dtype=np.float32)
+            l2f.initial_state(device, env, params, state)
+            state.position = [2, 2, 0]
+            roll_angle = -np.pi / 2
+            state.orientation = [np.cos(roll_angle / 2), np.sin(roll_angle / 2), 0, 0]
+            state.linear_velocity = [0, 0, 0]
+            state.angular_velocity = [0, 0, 0]
+            state.rpm = [0, 0, 0, 0]
             states.append(shrink_state(copy(state)))
             for step_i in range(N_STEPS):
                 l2f.observe(device, env, params, state, observation, rng)
