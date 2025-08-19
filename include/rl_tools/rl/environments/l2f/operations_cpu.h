@@ -867,6 +867,7 @@ namespace rl_tools{
 
 
 
+
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 import {GLTFLoader} from "three-gltfloader"
@@ -1209,7 +1210,8 @@ function clear_episode(ui_state){
         }
     }
 }
-function set_camera(ui_state, scale){
+function set_camera(ui_state, distance){
+    const scale = 1/Math.sqrt(ui_state.camera_position[0]**2 + ui_state.camera_position[1]**2 + ui_state.camera_position[2]**2) * distance
     if(!ui_state.camera_set){
         ui_state.camera.position.set(ui_state.camera_position[0] * scale, ui_state.camera_position[1] * scale, ui_state.camera_position[2] * scale)
         ui_state.camera.lookAt(0, 0, 0)
@@ -1217,9 +1219,8 @@ function set_camera(ui_state, scale){
     }
 }
 export async function episode_init(ui_state, parameters){
-    const camera_distance = (parameters.ui ? parameters.ui.camera_distance || 1 : 1)
-    const scale = Math.cbrt(parameters.dynamics.mass) * 2 * camera_distance
-    set_camera(ui_state, scale)
+    const distance = (parameters.ui && parameters.ui.camera_distance) ? parameters.ui.camera_distance : Math.cbrt(parameters.dynamics.mass) * 2
+    set_camera(ui_state, distance)
     clear_episode(ui_state)
     ui_state.drone = await drone_factory(parameters, [0, 0, 0], ui_state.showAxes)
     ui_state.simulator.add(ui_state.drone.get())
@@ -1311,6 +1312,12 @@ export async function render_multi(ui_state, parameters, states, actions){
     })
     update_camera(ui_state)
 }
+
+
+
+
+
+
 
 
 
