@@ -4,6 +4,7 @@ import numpy as np
 import os
 import json
 from probe import get_ground_truths
+from copy import deepcopy
 
 ANIMATION_INTERVAL = 10
 MODEL = "t2w_full"
@@ -64,6 +65,11 @@ if __name__ == "__main__":
         models = json.load(f)
 
     for drone_i, (parameters, ground_truths, trajectories, hidden_trajectories) in enumerate(zip(all_parameters, get_ground_truths(all_parameters), all_trajectories, all_hidden_trajectories)):
+        parameters = deepcopy(parameters)
+        parameters["ui"] = {
+            "model": "11f470c8206d4ca43bf3f7e1ba1d7acc456d3c34",
+            "name": "x500"
+        }
         prediction_trajectories = {k:[] for k in models.keys()}
         ground_truth_trajectories = {k:[] for k in models.keys()}
         for trajectory in hidden_trajectories:
