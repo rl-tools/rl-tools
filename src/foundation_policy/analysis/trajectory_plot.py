@@ -6,13 +6,15 @@ import json
 from probe import get_ground_truths
 from copy import deepcopy
 
-ANIMATION_INTERVAL = 50
+ANIMATION_INTERVAL = 20
 MODEL = "t2w_full"
 PARAMETERS_UI_CONFIG = {
     "model": "11f470c8206d4ca43bf3f7e1ba1d7acc456d3c34",
     "name": "x500",
     "camera_distance": 2
 }
+N_DRONES = 10
+N_TRAJECTORIES = 1
 
 default_options = {
     "camera_position": [0.0, 0.5, 1]
@@ -25,7 +27,7 @@ def render(params_json, states, options=default_options):
     def state_to_dict(s, dt):
         return {
             "state": {
-                "position":         [0, 0, 0],
+                "position":         [float(s[0]), 0, float(s[2])],
                 "orientation":      s[3:3+4].tolist(),   # w-x-y-z
                 "linear_velocity":  s[3+4:3+4+3].tolist(),
                 "angular_velocity": s[3+4+3:3+4+3+3].tolist(),
@@ -64,7 +66,7 @@ def render(params_json, states, options=default_options):
 
 if __name__ == "__main__":
     # all_parameters, all_trajectories, all_hidden_trajectories = load()
-    all_parameters, all_trajectories, all_hidden_trajectories = zip(*generate_data(10, 1, 500, save=False, initial_position=[0, 3, 0], position_clip=1.0))
+    all_parameters, all_trajectories, all_hidden_trajectories = zip(*generate_data(N_DRONES, N_TRAJECTORIES, 500, save=False, position_clip=1.0))
     models_path = os.path.join(os.path.dirname(__file__), "models.json")
     with open(models_path, "r") as f:
         models = json.load(f)
@@ -91,8 +93,8 @@ if __name__ == "__main__":
             
         for trajectory_i, (states, hidden_states) in enumerate(zip(trajectories, hidden_trajectories)):
             animations, frames_zip = render(parameters, states)
-            with open(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.zip", "wb") as f:
-                f.write(frames_zip)
+            # with open(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.zip", "wb") as f:
+            #     f.write(frames_zip)
             states = states[1:]
             position = lambda s: s[:3]
             orientation = lambda s: s[3:3+4]  # w-x-y-z
@@ -115,15 +117,18 @@ if __name__ == "__main__":
             ax_anim = axs[current_ax]
             current_ax += 1
             alpha_scale = 0.8
-            zoom = 1 * 2
+            zoom = 2 * 2
             ax_width = ax_anim.get_position().width
             ax_height = ax_anim.get_position().height
             height = len(states) * ax_height / ax_width
-            for i, f in enumerate(animations):
+            ANIMATION_START = 0
+            ANIMATION_END = len(animations)//2
+            animation_range = animations[ANIMATION_START:ANIMATION_END]
+            for i, f in enumerate(animation_range):
                 # f[:, :, 0] = 255
                 # f[:, :, -1] = 255
                 w, h = f.shape[1], f.shape[0]
-                animation_space = len(states)/len(animations)
+                animation_space = len(states)/len(animation_range)
                 o = animation_space * i
                 offset = animation_space / 3
                 ax_anim.imshow(f, alpha=alpha_scale, interpolation='none', extent=[o + offset - animation_space/2 * zoom, o + offset + animation_space/2 * zoom, height/2 - animation_space/2 * zoom, height/2 + animation_space/2 * zoom], aspect='auto', clip_on=False)
