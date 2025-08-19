@@ -54,21 +54,22 @@ function Matrix4FromRotMat(rotMat){
 
 
 class State{
-    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1]}){
+    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1], interactive=true}){
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
-        this.cursor_grab = false // Instruct the embedding code to make the cursor a grab cursor
+        this.cursor_grab = interactive // Instruct the embedding code to make the cursor a grab cursor
         this.render_tick = 0
         this.capture = capture
         this.camera_position = camera_position
+        this.interactive = interactive
     }
     async initialize(){
         const width = this.canvas.width
         const height = this.canvas.height
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera( 40, width / height, 0.1, 1000 );
-        this.scene.add(this.camera);  
+        this.scene.add(this.camera);
 
         this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: this.capture} );
         this.renderer.setPixelRatio(this.devicePixelRatio)
@@ -79,7 +80,8 @@ class State{
 
         // canvasContainer.appendChild(this.renderer.domElement );
 
-        // this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls = this.interactive ? new OrbitControls(this.camera, this.renderer.domElement) : null;
+
         // this.controls.enabled = false;
         // window.addEventListener('keydown', (event) => {
         //     if (event.key === 'Alt') {
@@ -354,7 +356,9 @@ function update_camera(ui_state){
         ui_state.renderer.setSize(width, height)
     }
 
-    // ui_state.controls.update()
+    if(ui_state.interactive){
+        ui_state.controls.update()
+    }
     ui_state.renderer.render(ui_state.scene, ui_state.camera);
 
     ui_state.render_tick += 1
@@ -398,3 +402,7 @@ export async function render_multi(ui_state, parameters, states, actions){
     })
     update_camera(ui_state)
 }
+
+
+
+

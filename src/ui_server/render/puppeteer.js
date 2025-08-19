@@ -2,6 +2,9 @@ const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const https = require('https');
+const crypto = require('crypto');
+const os = require('os');
 const { parse } = require('url');
 const busboy = require('busboy');
 const process = require('process');
@@ -10,8 +13,50 @@ const PORT = 13339;
 const DEBUG = false
 const DEBUG_TRAJECTORY = false
 
+// Content-addressed cache functionality
+function getCacheDir() {
+    const cacheDir = path.join(os.homedir(), '.cache', 'rl_tools', 'conta');
+    if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+    }
+    return cacheDir;
+}
+
+async function downloadFile(url, filePath, redirectCount = 0) {
+    if (redirectCount > 5) throw new Error('Too many redirects');
+    
+    return new Promise((resolve, reject) => {
+        const request = https.get(url, (response) => {
+            console.log(`Response status: ${response.statusCode}`);
+            // Handle redirects
+            if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                console.log(`Redirecting to ${response.headers.location}`);
+                return downloadFile(response.headers.location, filePath, redirectCount + 1)
+                    .then(resolve).catch(reject);
+            }
+            
+            if (response.statusCode !== 200) {
+                return resolve({ status: response.statusCode, contentType: null, data: null });
+            }
+
+            const chunks = [];
+            response.on('data', chunk => chunks.push(chunk));
+            response.on('end', () => {
+                const data = Buffer.concat(chunks);
+                fs.writeFileSync(filePath, data);
+                resolve({ 
+                    status: 200, 
+                    contentType: response.headers['content-type'] || 'application/octet-stream', 
+                    data 
+                });
+            });
+        });
+        request.on('error', reject);
+    });
+}
+
 class Renderer{
-    constructor(ui, width, height){
+    constructor(ui, width, height, model){
         this.ui = ui
         this.width = width
         this.height = height
@@ -93,6 +138,49 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/javascript' });
         const UI = fs.readFileSync(path.join(__dirname, "ui.js"), 'utf8');
         res.end(UI);
+    } else if (req.method === 'GET' && pathname.startsWith('/conta/')) {
+        // Handle content-addressed asset requests
+        const sha1Hash = pathname.split('/conta/')[1];
+        
+        // Validate hash format
+        if (!sha1Hash || sha1Hash.length !== 40 || !/^[0-9a-fA-F]+$/.test(sha1Hash)) {
+            res.writeHead(400, { 'Content-Type': 'text/plain' });
+            res.end('Invalid SHA-1 hash format');
+            return;
+        }
+        
+        const cacheFile = path.join(getCacheDir(), sha1Hash);
+        
+        // Return cached file if it exists
+        if (fs.existsSync(cacheFile)) {
+            res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+            fs.createReadStream(cacheFile).pipe(res);
+            return;
+        }
+        
+        // Download and verify
+        const url = `https://rl-tools.github.io/conta-data/data/${sha1Hash}`;
+        console.log(`Downloading ${url}`);
+        
+        downloadFile(url, cacheFile).then(result => {
+            if (result.status === 404) return res.writeHead(404) || res.end('Asset not found');
+            if (result.status !== 200) return res.writeHead(502) || res.end(`Failed to fetch asset: HTTP ${result.status}`);
+            
+            // Verify hash
+            const computedHash = crypto.createHash('sha1').update(result.data).digest('hex');
+            if (computedHash !== sha1Hash.toLowerCase()) {
+                fs.existsSync(cacheFile) && fs.unlinkSync(cacheFile);
+                return res.writeHead(422) || res.end('Hash mismatch: downloaded content does not match requested hash');
+            }
+            
+            res.writeHead(200, { 'Content-Type': result.contentType, 'Content-Length': result.data.length });
+            res.end(result.data);
+            
+        }).catch(err => {
+            console.error('Download error:', err);
+            res.writeHead(502, { 'Content-Type': 'text/plain' });
+            res.end(`Network error: ${err.message}`);
+        });
     } else if (req.method === 'POST' && (req.url === '/render_trajectory' || req.url === '/render')) {
         // input: {parameters, trajectory: [{state, action, dt, ...}]}, ui: ui.js
         const bb = busboy({ headers: req.headers });
