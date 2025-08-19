@@ -1039,10 +1039,9 @@ function thrust_direction_to_quaternion(thrust_direction){
 export class DroneMesh{
   constructor(model, origin, displayIMUCoordinateSystem, displayActions){
     console.assert(model.model)
-    const base64url = "data:application/gltf-binary;base64," + model.model
     this.group = new THREE.Group()
-    const loader = new GLTFLoader()
-    this.loaded = loader.loadAsync(base64url)
+    const url = `./conta/${model.model}`
+    this.loaded = new GLTFLoader().loadAsync(url)
     this.loaded.then((gltf) => {
       const object = gltf.scene
       const object_group = new THREE.Group()
@@ -1312,6 +1311,7 @@ export async function render_multi(ui_state, parameters, states, actions){
     })
     update_camera(ui_state)
 }
+
 
 
 
