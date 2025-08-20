@@ -110,7 +110,6 @@ if __name__ == "__main__":
             animations, frames_zip = render(parameters, states)
             with open(f"src/foundation_policy/analysis/figures/trajectory_{drone_i}_{trajectory_i}.zip", "wb") as f:
                 f.write(frames_zip)
-            states = states[1:]
             position = lambda s: s[:3]
             orientation = lambda s: s[3:3+4]  # w-x-y-z
             linear_velocity = lambda s: s[3+4:3+4+3]
@@ -181,6 +180,7 @@ if __name__ == "__main__":
             ax.spines['right'].set_visible(False)
             ax.set_ylabel("Hidden Dimension")
             ax.set_xlabel("Time Step")
+            
             plt.tight_layout(h_pad=0.2)
             plt.subplots_adjust(hspace=0.1)
             offset = 0 #animation_space / 3.0

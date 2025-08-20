@@ -59,13 +59,15 @@ def generate_data(N_DRONES, N_TRAJECTORIES, N_STEPS, save=False, position_clip=N
                     obs[:3] = np.clip(obs[:3], -position_clip, position_clip)
                 action = policy.evaluate_step(np.array([obs]))[0]
                 hidden_state = policy.layers[1].state[0]
+                if len(hidden_states) == 0:
+                    hidden_states.append(np.zeros_like(hidden_state))
                 hidden_states.append(hidden_state)
                 l2f.step(device, env, params, state, action, next_state, rng)
                 state.assign(next_state)
                 states.append(shrink_state(copy(state)))
                 actions.append(copy(action))
             hidden_trajectories.append(hidden_states)
-            trajectories.append(states[:-1])
+            trajectories.append(states)
             trajectories_actions.append(actions)
         if save:
             drone_path = os.path.join(trajectories_path, f"{drone_i}")
