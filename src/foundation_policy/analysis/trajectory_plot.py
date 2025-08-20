@@ -16,7 +16,7 @@ PARAMETERS_UI_CONFIG = {
     "name": "x500",
     "camera_distance": 2
 }
-N_DRONES = 10
+N_DRONES = 100
 N_TRAJECTORIES = 1
 
 palette = [
@@ -177,6 +177,8 @@ if __name__ == "__main__":
                 rasterized=True,  # Force rasterization for PDF export to prevent blurriness
                 extent=[x[0], x[-1], 0, 15]
             )
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
             ax.set_ylabel("Hidden Dimension")
             ax.set_xlabel("Time Step")
             plt.tight_layout(h_pad=0.2)
