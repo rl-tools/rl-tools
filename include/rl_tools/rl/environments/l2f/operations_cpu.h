@@ -1242,7 +1242,7 @@ export async function episode_init_multi(ui_state, parameters){
         })
     }
     ui_state.origin_coordinate_systems = []
-    parameters.map((parameter, i) => {
+    await Promise.all(parameters.map(async (parameter, i) => {
         const x = (i % grid_size) * grid_distance
         const y = Math.floor(i / grid_size) * grid_distance
         const drone = await drone_factory(parameter, [x, y, 0], ui_state.showAxes)
@@ -1253,7 +1253,7 @@ export async function episode_init_multi(ui_state, parameters){
             ui_state.origin_coordinate_systems.push(cs)
         }
         ui_state.drones.push(drone)
-    })
+    }))
 }
 
 function update_camera(ui_state){
