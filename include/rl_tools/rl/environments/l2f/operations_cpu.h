@@ -895,7 +895,6 @@ export class CoordinateSystem{
     get(){
         return this.cs
     }
-    set_action(action){ }
 }
 
 function norm(a){
@@ -1065,6 +1064,7 @@ export class DroneMesh{
   get(){
     return this.group
   }
+  set_action(action){ }
 }
 
 export class DroneDefault{
