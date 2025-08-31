@@ -895,6 +895,7 @@ export class CoordinateSystem{
     get(){
         return this.cs
     }
+    set_action(action){ }
 }
 
 function norm(a){
@@ -1177,6 +1178,14 @@ export class DroneDefault{
     //     forceArrow.setLength(Math.cbrt(this.this.scale)/10) //Math.abs(force_magnitude))
     //   })
     // }
+    set_action(action){
+        for(let i = 0; i < 4; i++){
+            const forceArrow = this.rotors[i].forceArrow
+            const force_magnitude = action[i]
+            forceArrow.setDirection(new THREE.Vector3(0, 0, force_magnitude))
+            forceArrow.setLength(Math.cbrt(this.scale)/10)
+        }
+    }
 
 }
 
@@ -1303,12 +1312,7 @@ export async function render_multi(ui_state, parameters, states, actions){
         const current_parameters = parameters[i]
         ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
         ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
-        for(let j = 0; j < 4; j++){
-            const forceArrow = ui_state.drones[i].rotors[j].forceArrow
-            const force_magnitude = action[j]
-            forceArrow.setDirection(new THREE.Vector3(0, 0, force_magnitude))
-            forceArrow.setLength(Math.cbrt(ui_state.drones[i].scale)/10)
-        }
+        ui_state.drones[i].set_action(action)
     })
     update_camera(ui_state)
 }
