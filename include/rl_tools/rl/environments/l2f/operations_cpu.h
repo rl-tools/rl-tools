@@ -1306,21 +1306,26 @@ function clip_position(scale, position){
 }
 
 export async function render(ui_state, parameters, state, action) {
-    ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, state.position))
-    ui_state.drone.get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+    if(ui_state.drone){
+        ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, state.position))
+        ui_state.drone.get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+    }
     update_camera(ui_state)
 }
 
 export async function render_multi(ui_state, parameters, states, actions){
-    states.map((state, i) => {
-        const action = actions[i]
-        const current_parameters = parameters[i]
-        ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
-        ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
-        ui_state.drones[i].set_action(action)
-    })
+    if(ui_state.drones && ui_state.drones.length == states.length){
+        states.map((state, i) => {
+            const action = actions[i]
+            const current_parameters = parameters[i]
+            ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
+            ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+            ui_state.drones[i].set_action(action)
+        })
+    }
     update_camera(ui_state)
 }
+
 
 
 
