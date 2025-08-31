@@ -868,6 +868,8 @@ namespace rl_tools{
 
 
 
+
+
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 import {GLTFLoader} from "three-gltfloader"
@@ -1191,13 +1193,16 @@ export class DroneDefault{
 
 async function drone_factory(parameters, origin, displayIMUCoordinateSystem, displayActions){
   if(parameters.ui && parameters.ui.model){
-    const model = new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions)
-    await model.loaded
-    return model
+    try{
+      const model = new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions)
+      await model.loaded
+      return model
+    }
+    catch(error){
+      console.error("An error occurred:", error.message);
+    }
   }
-  else{
-    return new DroneDefault(parameters, origin, displayIMUCoordinateSystem, displayActions)
-  }
+  return new DroneDefault(parameters, origin, displayIMUCoordinateSystem, displayActions)
 }
 
 export async function init(canvas, options){
@@ -1316,6 +1321,7 @@ export async function render_multi(ui_state, parameters, states, actions){
     })
     update_camera(ui_state)
 }
+
 
 
 
