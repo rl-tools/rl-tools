@@ -1245,7 +1245,7 @@ export async function episode_init_multi(ui_state, parameters){
     parameters.map((parameter, i) => {
         const x = (i % grid_size) * grid_distance
         const y = Math.floor(i / grid_size) * grid_distance
-        const drone = drone_factory(parameter, [x, y, 0], ui_state.showAxes)
+        const drone = await drone_factory(parameter, [x, y, 0], ui_state.showAxes)
         ui_state.simulator.add(drone.get())
         if(ui_state.showAxes){
             const cs = new CoordinateSystem([x, y, 0], 1, 0.01)
