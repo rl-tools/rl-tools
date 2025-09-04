@@ -52,7 +52,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_OPTIONS, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
+        using PARAMETERS_TYPE = ParametersObservationDelay<ParametersObservationDelaySpecification<T, TI, ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_OPTIONS, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>>>;
 
         static constexpr auto dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 
@@ -137,16 +137,22 @@ namespace rl_tools::rl::environments::l2f::parameters {
             {
                 {
                     {
-                        dynamics,
-                        integration,
-                        mdp
-                    }, // Base
-                    disturbances
-                }, // Disturbances
-                domain_randomization
-            }, // DomainRandomization
-            trajectory // Trajectory
-        };
+                        {
+                            dynamics,
+                            integration,
+                            mdp
+                        }, // Base
+                        disturbances
+                    }, // Disturbances
+                    domain_randomization
+                }, // DomainRandomization
+                trajectory // Trajectory
+            },
+            {
+                0, // linear_velocity
+                0, // angular_velocity
+            }
+        }; // ObservationDelay
 
         struct STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;

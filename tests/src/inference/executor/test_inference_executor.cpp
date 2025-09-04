@@ -42,7 +42,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     static constexpr bool FORCE_SYNC_INTERMEDIATE = false;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
     static constexpr bool DYNAMIC_ALLOCATION = false;
-    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
+    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<T>, DYNAMIC_ALLOCATION>;
     auto& policy = rlt::checkpoint::actor::module;
     DEVICE device;
     RNG rng;
@@ -133,7 +133,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE){
     static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
     static constexpr bool DYNAMIC_ALLOCATION = false;
-    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
+    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<T>, DYNAMIC_ALLOCATION>;
     auto& policy = rlt::checkpoint::actor::module;
     DEVICE device;
     RNG rng;
@@ -199,7 +199,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE_JITTER){
     static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
     static constexpr bool DYNAMIC_ALLOCATION = false;
-    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, DYNAMIC_ALLOCATION>;
+    using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<T>, DYNAMIC_ALLOCATION>;
     auto& policy = rlt::checkpoint::actor::module;
     DEVICE device;
     RNG rng;

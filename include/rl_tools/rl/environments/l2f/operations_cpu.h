@@ -409,6 +409,22 @@ namespace rl_tools{
         json_string += (top_level ? "}" : "");
         return json_string;
     }
+    template <typename DEVICE, typename SPEC, typename T, typename TI>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::ObservationDelay<T, TI>& parameters) {
+        std::string json_string = "{";
+        json_string += "\"linear_velocity\": " + std::to_string(parameters.linear_velocity) + ", ";
+        json_string += "\"angular_velocity\": " + std::to_string(parameters.angular_velocity);
+        json_string += "}";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersObservationDelay<PARAM_SPEC>& parameters, bool top_level=true){
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
+        json_string += ", \"observation_delay\": " + json(device, env, parameters.observation_delay);
+        json_string += (top_level ? "}" : "");
+        return json_string;
+    }
 
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state, bool top_level=true){
@@ -742,6 +758,16 @@ namespace rl_tools{
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersTrajectory<PARAM_SPEC>& parameters){
         from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
         from_json(device, env, json_object["trajectory"], parameters.trajectory);
+    }
+    template <typename DEVICE, typename SPEC, typename T, typename TI>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::ObservationDelay<T, TI>& parameters) {
+        parameters.linear_velocity = json_object["linear_velocity"];
+        parameters.angular_velocity = json_object["angular_velocity"];
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersObservationDelay<PARAM_SPEC>& parameters){
+        from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
+        from_json(device, env, json_object["observation_delay"], parameters.observation_delay);
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, PARAMETERS& parameters){

@@ -91,8 +91,10 @@ namespace builder{
         using PARAMETERS = PARAMETERS_TYPE;
         static constexpr PARAMETERS_TYPE PARAMETER_VALUES = {
             SUPER::BASE_ENV::nominal_parameters,
-            (TI)0,
-            (TI)0,
+            {
+                (TI)0, // linear_velocity
+                (TI)0 // angular_velocity
+            }
         };
         static constexpr T STATE_LIMIT_POSITION = 100000;
         static constexpr T STATE_LIMIT_VELOCITY = 100000;
@@ -152,7 +154,7 @@ int main(int argc, char** argv){
         T ratio = t2w / original_thrust_to_weight_ratio;
         env.parameters.dynamics.mass = original_mass / ratio;
         for (TI linear_velocity_delay = 0; linear_velocity_delay < MAX_LINEAR_VELOCITY_DELAY; ++linear_velocity_delay){
-            env.parameters.linear_velocity_observation_delay = linear_velocity_delay;
+            env.parameters.observation_delay.linear_velocity = linear_velocity_delay;
             static constexpr bool DYNAMIC_ALLOCATION = true;
             using ADJUSTED_POLICY = typename EVAL_ACTOR::template CHANGE_BATCH_SIZE<TI, EVAL_SPEC::N_EPISODES>;
             ADJUSTED_POLICY::template State<DYNAMIC_ALLOCATION> policy_state;
