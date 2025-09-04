@@ -149,24 +149,6 @@
             "cwd": "${workspaceFolder}"
         },
         {
-            "name": "src/foundation_policy/analysis/generate_data.py",
-            "type": "python",
-            "request": "launch",
-            "program": "src/foundation_policy/analysis/generate_data.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "name": "src/foundation_policy/analysis/probe.py",
-            "type": "python",
-            "request": "launch",
-            "program": "src/foundation_policy/analysis/probe.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "cwd": "${workspaceFolder}"
-        },
-        {
             "name": "src/ui_server/render/puppeteer.js",
             "program": "${workspaceFolder}/src/ui_server/render/puppeteer.js",
             "request": "launch",
