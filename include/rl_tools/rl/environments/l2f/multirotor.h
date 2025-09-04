@@ -138,6 +138,11 @@ namespace rl_tools::rl::environments::l2f{
             };
             Langevin langevin;
         };
+        template <typename T, typename TI>
+        struct ObservationDelay{
+            TI linear_velocity;
+            TI angular_velocity;
+        };
     }
     template <typename T_SPEC>
     struct ParametersBase{
@@ -218,8 +223,8 @@ namespace rl_tools::rl::environments::l2f{
     struct ParametersObservationDelay: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
-        TI linear_velocity_observation_delay;
-        TI angular_velocity_observation_delay;
+        using ObservationDelay = parameters::ObservationDelay<typename SPEC::T, typename SPEC::TI>;
+        ObservationDelay observation_delay;
     };
 
 
@@ -779,8 +784,8 @@ namespace rl_tools::rl::environments::l2f{
     };
 
 
-    template <typename T, typename TI, TI ANGULAR_VELOCITY_HISTORY = 0>
-    using DefaultState = StateAngularVelocityDelay<StateAngularVelocityDelaySpecification<T, TI, ANGULAR_VELOCITY_HISTORY, StateLastAction<StateSpecification<T, TI, StateBase<StateSpecification<T, TI>>>>>>; // make sure to also change the observation to the delayed one
+    template <typename T, typename TI, TI LINEAR_VELOCITY_HISTORY = 0, TI ANGULAR_VELOCITY_HISTORY = 0>
+    using DefaultState = StateLinearVelocityDelay<StateLinearVelocityDelaySpecification<T, TI, LINEAR_VELOCITY_HISTORY, StateAngularVelocityDelay<StateAngularVelocityDelaySpecification<T, TI, ANGULAR_VELOCITY_HISTORY, StateLastAction<StateSpecification<T, TI, StateBase<StateSpecification<T, TI>>>>>>>>; // make sure to also change the observation to the delayed one
     template <typename T, typename TI, TI ACTION_HISTORY_LENGTH = 1, TI ANGULAR_VELOCITY_HISTORY = 0, bool CLOSED_FORM = false>
     using DefaultActionHistoryState = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, DefaultState<T, TI, ANGULAR_VELOCITY_HISTORY>>>>>;
     template <typename T, typename TI, TI ANGULAR_VELOCITY_DELAY=0, typename NEXT_OBSERVATION = observation::LastComponent<TI>>

@@ -41,6 +41,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     env.parameters.trajectory.langevin.alpha = 1337;
     env.parameters.dynamics.rotor_positions[0][0] = 1337;
     rlt::init(device, env);
+    env.parameters.observation_delay.linear_velocity = 1337;
+    env.parameters.observation_delay.angular_velocity = 1338;
     unsigned char* raw = reinterpret_cast<unsigned char*>(&params);
     unsigned char* raw_reconstruct = reinterpret_cast<unsigned char*>(&params_reconstruct);
     std::generate(raw, raw + sizeof(params), [] { return static_cast<unsigned char>(std::rand() % 256); });
@@ -67,6 +69,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
 
     params_json_reconstruct = rlt::json(device, env, params_reconstruct);
     ASSERT_EQ(params_json_reconstruct, params_json);
+    ASSERT_NEAR(params_reconstruct.observation_delay.linear_velocity, 1337, EPSILON);
+    ASSERT_NEAR(params_reconstruct.observation_delay.angular_velocity, 1338, EPSILON);
 
     {
         auto params_temp = params;

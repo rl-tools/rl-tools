@@ -259,7 +259,7 @@ namespace rl_tools{
         }
         template <typename SPEC, typename OBS_SPEC>
         constexpr auto _observe_linear_velocity_delay(const ParametersObservationDelay<SPEC>& parameters, const observation::LinearVelocityDelayed<OBS_SPEC>&){
-            return parameters.linear_velocity_observation_delay;
+            return parameters.observation_delay.linear_velocity;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _observe_linear_velocity_delayed(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearVelocityDelay<STATE_SPEC>& state, observation::LinearVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){

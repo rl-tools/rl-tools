@@ -360,20 +360,20 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             FrameMark;
 #endif
 
-#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
-            // hacked L2F curriculum
-            TI previous_step = ts.step-1;
-            TI evaluation_index = previous_step / LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL;
-            bool evaluate_scheduled = previous_step % LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS;
-            if (evaluate_scheduled){
-                auto& results = rlt::get(ts.evaluation_results, 0, evaluation_index);
-                T share_terminated = results.share_terminated;
-                if (share_terminated < 0.1) {
-                    difficulty = rlt::math::min(device.math, difficulty + (T)0.1, (T)1);
-                    update_parameters(difficulty);
-                }
-            }
-#endif
+// #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
+//             // hacked L2F curriculum
+//             TI previous_step = ts.step-1;
+//             TI evaluation_index = previous_step / LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL;
+//             bool evaluate_scheduled = previous_step % LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS;
+//             if (evaluate_scheduled){
+//                 auto& results = rlt::get(ts.evaluation_results, 0, evaluation_index);
+//                 T share_terminated = results.share_terminated;
+//                 if (share_terminated < 0.1) {
+//                     difficulty = rlt::math::min(device.math, difficulty + (T)0.1, (T)1);
+//                     update_parameters(difficulty);
+//                 }
+//             }
+// #endif
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
             if(signal_flag){
                 ts.evaluate_this_step = true;
