@@ -1,6 +1,7 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
+#include <nlohmann/json.hpp>
 
 #include <fstream>
 #include <filesystem>
@@ -33,27 +34,37 @@ int main(int argc, char** argv){
         std::cerr << "CWD: " << std::filesystem::current_path() << std::endl;
         return 1;
     }
-    std::vector<std::tuple<std::string, ENVIRONMENT::Parameters::Dynamics>> registry;
+    std::vector<std::tuple<std::string, std::string, ENVIRONMENT::Parameters::Dynamics>> registry;
     auto permute_rotors_px4_to_cf = [&device, &env](const auto& dynamics){
         auto copy = dynamics;
         rlt::permute_rotors(device, env, copy, 0, 3, 1, 2);
         return copy;
     };
-    registry.emplace_back("crazyflie", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
-    registry.emplace_back("x500", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("mrs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("fs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("arpl", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::arpl<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("flightmare", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::flightmare<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("soft", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::soft<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("crazyflie" , "95d22881d444145176db6027d44ebd3a15e9699a", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("x500"      , "11f470c8206d4ca43bf3f7e1ba1d7acc456d3c34", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("mrs"       , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("fs"        , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("arpl"      , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::arpl<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("flightmare", "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::flightmare<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("soft"      , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::soft<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
 
     rlt::initial_parameters(device, env, params);
     std::ofstream index(output_path_registry / ("index.json"));
-    for (const auto& [name, dynamics] : registry){
+    for (const auto& [name, model_hash, dynamics] : registry){
         params.dynamics = dynamics;
         std::ofstream output(output_path_registry / (name + ".json"));
         auto params_copy = params;
-        output << rlt::json(device, env, params_copy);
+        std::string json_string = rlt::json(device, env, params_copy);
+        if (model_hash != ""){
+            nlohmann::json json_ui;
+            json_ui["enable"] = true;
+            json_ui["name"] = name;
+            json_ui["model"] = model_hash;
+            auto json_par = nlohmann::json::parse(json_string);
+            json_par["ui"] = json_ui;
+            json_string = json_par.dump();
+        }
+        output << json_string;
         output.close();
         index << name << std::endl;
     }
