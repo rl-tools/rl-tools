@@ -55,7 +55,7 @@ function Matrix4FromRotMat(rotMat){
 
 
 class State{
-    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1], interactive=true}){
+    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1], camera_distance=null, interactive=true, conta_url="/conta/"}){
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
@@ -63,8 +63,22 @@ class State{
         this.render_tick = 0
         this.capture = capture
         this.camera_position = camera_position
+        this.camera_distance = camera_distance
         this.interactive = interactive
+        this.IS_MOBILE = this.is_mobile();
+        this.lastCanvasWidth = 0
+        this.lastCanvasHeight = 0
+        this.conta_url = conta_url
     }
+
+    is_mobile() {
+        const isIOS = /iP(hone|ad|od)/.test(navigator.platform) || /iPhone|iPad|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        const isMobile = /Mobi|Android/i.test(navigator.userAgent) || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const isTablet = /iPad|Android(?!.*Mobile)/.test(navigator.userAgent);
+        return isIOS || isAndroid || isMobile || isTablet;
+    }
+
     async initialize(){
         const width = this.canvas.width
         const height = this.canvas.height
@@ -72,11 +86,16 @@ class State{
         this.camera = new THREE.PerspectiveCamera( 40, width / height, 0.1, 1000 );
         this.scene.add(this.camera);
 
-        this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: this.capture} );
-        this.renderer.setPixelRatio(this.devicePixelRatio)
+        this.renderer = new THREE.WebGLRenderer({canvas: this.canvas, antialias: true, alpha: !this.IS_MOBILE, preserveDrawingBuffer: this.capture && !this.IS_MOBILE} );
+
+        const dpr = !this.IS_MOBILE ? this.devicePixelRatio : Math.min(this.devicePixelRatio || window.devicePixelRatio || 1, 2)
+        this.renderer.setPixelRatio(dpr)
         this.renderer.setClearColor(0xffffff, 0);
 
         this.renderer.setSize(width/this.devicePixelRatio, height/this.devicePixelRatio);
+
+        this.lastCanvasWidth = this.canvas.width
+        this.lastCanvasHeight = this.canvas.height
 
 
         // canvasContainer.appendChild(this.renderer.domElement );
@@ -168,20 +187,20 @@ function thrust_direction_to_quaternion(thrust_direction){
 }
 
 export class DroneMesh{
-  constructor(parameters, origin, displayIMUCoordinateSystem, displayActions){
+  constructor(parameters, origin, displayIMUCoordinateSystem, displayActions, conta_url){
     console.assert(parameters.ui)
     this.group = new THREE.Group()
-    const url = `./conta/${parameters.ui.model}`
+    const url = `${conta_url}${parameters.ui.model}`
     this.loaded = new GLTFLoader().loadAsync(url)
     this.loaded.then((gltf) => {
       const object = gltf.scene
       const object_group = new THREE.Group()
       object_group.add(object)
-      if(parameters.ui.name == "x500"){
-        object_group.rotation.set(Math.PI / 2, 0, Math.PI / 2, 'ZYX')
-        const scale = 0.5
-        object_group.scale.set(scale, scale, scale)
-      }
+//      if(parameters.ui.name == "x500"){
+      object_group.rotation.set(Math.PI / 2, 0, Math.PI / 2, 'ZYX')
+      const scale = 0.5
+      object_group.scale.set(scale, scale, scale)
+//      }
       this.group.add(object_group)
     })
     if (displayIMUCoordinateSystem) {
@@ -194,6 +213,7 @@ export class DroneMesh{
   get(){
     return this.group
   }
+  set_action(action){ }
 }
 
 export class DroneDefault{
@@ -307,18 +327,29 @@ export class DroneDefault{
     //     forceArrow.setLength(Math.cbrt(this.this.scale)/10) //Math.abs(force_magnitude))
     //   })
     // }
+    set_action(action){
+        for(let i = 0; i < 4; i++){
+            const forceArrow = this.rotors[i].forceArrow
+            const force_magnitude = action[i]
+            forceArrow.setDirection(new THREE.Vector3(0, 0, force_magnitude))
+            forceArrow.setLength(Math.cbrt(this.scale)/10)
+        }
+    }
 
 }
 
-async function drone_factory(parameters, origin, displayIMUCoordinateSystem, displayActions){
-  if(parameters.ui && parameters.ui.model){
-    const model = new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions)
-    await model.loaded
-    return model
+async function drone_factory(parameters, origin, displayIMUCoordinateSystem, displayActions, conta_url){
+  if(parameters.ui && parameters.ui.enable && parameters.ui.model){
+    try{
+      const model = new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions, conta_url)
+      await model.loaded
+      return model
+    }
+    catch(error){
+      console.error("An error occurred:", error.message);
+    }
   }
-  else{
-    return new DroneDefault(parameters, origin, displayIMUCoordinateSystem, displayActions)
-  }
+  return new DroneDefault(parameters, origin, displayIMUCoordinateSystem, displayActions)
 }
 
 export async function init(canvas, options){
@@ -346,13 +377,17 @@ function set_camera(ui_state, distance){
         ui_state.camera.position.set(ui_state.camera_position[0] * scale, ui_state.camera_position[1] * scale, ui_state.camera_position[2] * scale)
         ui_state.camera.lookAt(0, 0, 0)
         ui_state.camera_set = true
+        ui_state.controls.update()
     }
 }
 export async function episode_init(ui_state, parameters){
-    const distance = (parameters.ui && parameters.ui.camera_distance) ? parameters.ui.camera_distance : Math.cbrt(parameters.dynamics.mass) * 2
+    let distance = (parameters.ui && parameters.ui.camera_distance) ? parameters.ui.camera_distance : Math.cbrt(parameters.dynamics.mass) * 2
+    if(ui_state.camera_distance){
+        distance = ui_state.camera_distance
+    }
     set_camera(ui_state, distance)
     clear_episode(ui_state)
-    ui_state.drone = await drone_factory(parameters, [0, 0, 0], ui_state.showAxes)
+    ui_state.drone = await drone_factory(parameters, [0, 0, 0], ui_state.showAxes, false, ui_state.conta_url)
     ui_state.simulator.add(ui_state.drone.get())
     if(ui_state.showAxes){
         ui_state.origin_coordinate_system = new CoordinateSystem([0, 0, 0], 1 * scale, 0.01 * scale)
@@ -363,7 +398,14 @@ export async function episode_init(ui_state, parameters){
 export async function episode_init_multi(ui_state, parameters){
     const grid_distance = 0.0
     const grid_size = Math.ceil(Math.sqrt(parameters.length))
-    set_camera(ui_state, (grid_distance > 0 ? grid_distance * grid_size * 2 : Math.cbrt(parameters[0].dynamics.mass)))
+    let distance = (grid_distance > 0 ? grid_distance * grid_size * 2 : Math.cbrt(parameters[0].dynamics.mass))
+    if(parameters.ui && parameters.ui.camera_distance){
+        distance = parameters.ui.camera_distance
+    }
+    if(ui_state.camera_distance){
+        distance = ui_state.camera_distance
+    }
+    set_camera(ui_state, distance)
     clear_episode(ui_state)
     ui_state.drones = []
     if(!ui_state.showAxes && ui_state.origin_coordinate_systems){
@@ -372,10 +414,10 @@ export async function episode_init_multi(ui_state, parameters){
         })
     }
     ui_state.origin_coordinate_systems = []
-    parameters.map((parameter, i) => {
+    await Promise.all(parameters.map(async (parameter, i) => {
         const x = (i % grid_size) * grid_distance
         const y = Math.floor(i / grid_size) * grid_distance
-        const drone = drone_factory(parameter, [x, y, 0], ui_state.showAxes)
+        const drone = await drone_factory(parameter, [x, y, 0], ui_state.showAxes, false, ui_state.conta_url)
         ui_state.simulator.add(drone.get())
         if(ui_state.showAxes){
             const cs = new CoordinateSystem([x, y, 0], 1, 0.01)
@@ -383,24 +425,38 @@ export async function episode_init_multi(ui_state, parameters){
             ui_state.origin_coordinate_systems.push(cs)
         }
         ui_state.drones.push(drone)
-    })
+    }))
 }
 
 function update_camera(ui_state){
-    if(ui_state.render_tick % 10 == 0){
-        const width = ui_state.canvas.width/ui_state.devicePixelRatio
-        const height = ui_state.canvas.height/ui_state.devicePixelRatio
-        ui_state.camera.aspect =  width / height
-        ui_state.camera.updateProjectionMatrix()
-        ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio)
-        ui_state.renderer.setSize(width, height)
+    const currentWidth = ui_state.canvas.width
+    const currentHeight = ui_state.canvas.height
+    const hasResized = currentWidth !== ui_state.lastCanvasWidth || currentHeight !== ui_state.lastCanvasHeight
+
+    if (hasResized) {
+        const width = currentWidth / ui_state.devicePixelRatio;
+        const height = currentHeight / ui_state.devicePixelRatio;
+
+        if (ui_state.camera.aspect !== width / height) {
+            ui_state.camera.aspect = width / height;
+            ui_state.camera.updateProjectionMatrix();
+        }
+
+        if (ui_state.renderer) {
+            ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio);
+            ui_state.renderer.setSize(width, height, false);
+        }
+
+        ui_state.lastCanvasWidth = currentWidth
+        ui_state.lastCanvasHeight = currentHeight
     }
 
-    if(ui_state.interactive){
+    if(ui_state.interactive && ui_state.controls){
         ui_state.controls.update()
     }
-    ui_state.renderer.render(ui_state.scene, ui_state.camera);
-
+    if(ui_state.renderer){
+        ui_state.renderer.render(ui_state.scene, ui_state.camera);
+    }
     ui_state.render_tick += 1
 }
 
@@ -422,23 +478,22 @@ function clip_position(scale, position){
 }
 
 export async function render(ui_state, parameters, state, action) {
-    ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, state.position))
-    ui_state.drone.get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+    if(ui_state.drone){
+        ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, state.position))
+        ui_state.drone.get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+    }
     update_camera(ui_state)
 }
 
 export async function render_multi(ui_state, parameters, states, actions){
-    states.map((state, i) => {
-        const action = actions[i]
-        const current_parameters = parameters[i]
-        ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
-        ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
-        for(let j = 0; j < 4; j++){
-            const forceArrow = ui_state.drones[i].rotors[j].forceArrow
-            const force_magnitude = action[j]
-            forceArrow.setDirection(new THREE.Vector3(0, 0, force_magnitude))
-            forceArrow.setLength(Math.cbrt(ui_state.drones[i].scale)/10)
-        }
-    })
+    if(ui_state.drones && ui_state.drones.length == states.length){
+        states.map((state, i) => {
+            const action = actions[i]
+            const current_parameters = parameters[i]
+            ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
+            ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+            ui_state.drones[i].set_action(action)
+        })
+    }
     update_camera(ui_state)
 }
