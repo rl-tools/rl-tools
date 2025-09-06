@@ -40,11 +40,11 @@ int main(int argc, char** argv){
         rlt::permute_rotors(device, env, copy, 0, 3, 1, 2);
         return copy;
     };
-    registry.emplace_back("crazyflie" , "95d22881d444145176db6027d44ebd3a15e9699a", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
-    registry.emplace_back("x500"      , "11f470c8206d4ca43bf3f7e1ba1d7acc456d3c34", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("crazyflie" , "b75f5120e17783744a8fac5e1ab69c2dce10f0e3", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("x500"      , "9602ffc2ffb77f62c4cf6fdc78fe67d32088870d",  permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
     registry.emplace_back("mrs"       , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
     registry.emplace_back("fs"        , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("arpl"      , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::arpl<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("arpl"      , "775ba8559aeed800dbcdab93806601e39d84fede", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::arpl<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
     registry.emplace_back("flightmare", "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::flightmare<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
     registry.emplace_back("soft"      , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::soft<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
 
