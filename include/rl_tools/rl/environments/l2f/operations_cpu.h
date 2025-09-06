@@ -962,7 +962,19 @@ class State{
         this.capture = capture
         this.camera_position = camera_position
         this.interactive = interactive
+        this.IS_MOBILE = this.is_mobile();
+        this.lastCanvasWidth = 0
+        this.lastCanvasHeight = 0
     }
+    
+    is_mobile() {
+        const isIOS = /iP(hone|ad|od)/.test(navigator.platform) || /iPhone|iPad|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        const isMobile = /Mobi|Android/i.test(navigator.userAgent) || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const isTablet = /iPad|Android(?!.*Mobile)/.test(navigator.userAgent);
+        return isIOS || isAndroid || isMobile || isTablet;
+    }
+    
     async initialize(){
         const width = this.canvas.width
         const height = this.canvas.height
@@ -970,11 +982,16 @@ class State{
         this.camera = new THREE.PerspectiveCamera( 40, width / height, 0.1, 1000 );
         this.scene.add(this.camera);
 
-        this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: this.capture} );
-        this.renderer.setPixelRatio(this.devicePixelRatio)
+        this.renderer = new THREE.WebGLRenderer({canvas: this.canvas, antialias: true, alpha: !this.IS_MOBILE, preserveDrawingBuffer: this.capture && !this.IS_MOBILE} );
+
+        const dpr = !this.IS_MOBILE ? this.devicePixelRatio : Math.min(this.devicePixelRatio || window.devicePixelRatio || 1, 2)
+        this.renderer.setPixelRatio(dpr)
         this.renderer.setClearColor(0xffffff, 0);
 
         this.renderer.setSize(width/this.devicePixelRatio, height/this.devicePixelRatio);
+        
+        this.lastCanvasWidth = this.canvas.width
+        this.lastCanvasHeight = this.canvas.height
 
 
         // canvasContainer.appendChild(this.renderer.domElement );
@@ -1218,7 +1235,7 @@ export class DroneDefault{
 }
 
 async function drone_factory(parameters, origin, displayIMUCoordinateSystem, displayActions){
-  if(parameters.ui && parameters.ui.model){
+  if(parameters.ui && parameters.ui.enable && parameters.ui.model){
     try{
       const model = new DroneMesh(parameters, origin, displayIMUCoordinateSystem, displayActions)
       await model.loaded
@@ -1297,20 +1314,34 @@ export async function episode_init_multi(ui_state, parameters){
 }
 
 function update_camera(ui_state){
-    if(ui_state.render_tick % 10 == 0){
-        const width = ui_state.canvas.width/ui_state.devicePixelRatio
-        const height = ui_state.canvas.height/ui_state.devicePixelRatio
-        ui_state.camera.aspect =  width / height
-        ui_state.camera.updateProjectionMatrix()
-        ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio)
-        ui_state.renderer.setSize(width, height)
+    const currentWidth = ui_state.canvas.width
+    const currentHeight = ui_state.canvas.height
+    const hasResized = currentWidth !== ui_state.lastCanvasWidth || currentHeight !== ui_state.lastCanvasHeight
+    
+    if (hasResized) {
+        const width = currentWidth / ui_state.devicePixelRatio;
+        const height = currentHeight / ui_state.devicePixelRatio;
+        
+        if (ui_state.camera.aspect !== width / height) {
+            ui_state.camera.aspect = width / height;
+            ui_state.camera.updateProjectionMatrix();
+        }
+        
+        if (ui_state.renderer) {
+            ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio);
+            ui_state.renderer.setSize(width, height, false);
+        }
+        
+        ui_state.lastCanvasWidth = currentWidth
+        ui_state.lastCanvasHeight = currentHeight
     }
 
-    if(ui_state.interactive){
+    if(ui_state.interactive && ui_state.controls){
         ui_state.controls.update()
     }
-    ui_state.renderer.render(ui_state.scene, ui_state.camera);
-
+    if(ui_state.renderer){
+        ui_state.renderer.render(ui_state.scene, ui_state.camera);
+    }
     ui_state.render_tick += 1
 }
 
