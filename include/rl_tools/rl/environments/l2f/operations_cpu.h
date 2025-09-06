@@ -896,6 +896,9 @@ namespace rl_tools{
 
 
 
+
+
+
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 import {GLTFLoader} from "three-gltfloader"
@@ -953,7 +956,7 @@ function Matrix4FromRotMat(rotMat){
 
 
 class State{
-    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1], interactive=true, conta_url="/conta/"}){
+    constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1], camera_distance=null, interactive=true, conta_url="/conta/"}){
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
         this.showAxes = showAxes
@@ -961,6 +964,7 @@ class State{
         this.render_tick = 0
         this.capture = capture
         this.camera_position = camera_position
+        this.camera_distance = camera_distance
         this.interactive = interactive
         this.IS_MOBILE = this.is_mobile();
         this.lastCanvasWidth = 0
@@ -1274,10 +1278,14 @@ function set_camera(ui_state, distance){
         ui_state.camera.position.set(ui_state.camera_position[0] * scale, ui_state.camera_position[1] * scale, ui_state.camera_position[2] * scale)
         ui_state.camera.lookAt(0, 0, 0)
         ui_state.camera_set = true
+        ui_state.controls.update()
     }
 }
 export async function episode_init(ui_state, parameters){
-    const distance = (parameters.ui && parameters.ui.camera_distance) ? parameters.ui.camera_distance : Math.cbrt(parameters.dynamics.mass) * 2
+    let distance = (parameters.ui && parameters.ui.camera_distance) ? parameters.ui.camera_distance : Math.cbrt(parameters.dynamics.mass) * 2
+    if(ui_state.camera_distance){
+        distance = ui_state.camera_distance
+    }
     set_camera(ui_state, distance)
     clear_episode(ui_state)
     ui_state.drone = await drone_factory(parameters, [0, 0, 0], ui_state.showAxes, false, ui_state.conta_url)
@@ -1291,7 +1299,14 @@ export async function episode_init(ui_state, parameters){
 export async function episode_init_multi(ui_state, parameters){
     const grid_distance = 0.0
     const grid_size = Math.ceil(Math.sqrt(parameters.length))
-    set_camera(ui_state, (grid_distance > 0 ? grid_distance * grid_size * 2 : Math.cbrt(parameters[0].dynamics.mass)))
+    let distance = (grid_distance > 0 ? grid_distance * grid_size * 2 : Math.cbrt(parameters[0].dynamics.mass))
+    if(parameters.ui && parameters.ui.camera_distance){
+        distance = parameters.ui.camera_distance
+    }
+    if(ui_state.camera_distance){
+        distance = ui_state.camera_distance
+    }
+    set_camera(ui_state, distance)
     clear_episode(ui_state)
     ui_state.drones = []
     if(!ui_state.showAxes && ui_state.origin_coordinate_systems){
