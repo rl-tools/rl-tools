@@ -333,7 +333,7 @@ namespace rl_tools{
         using VIEW_POINT = Tensor<tensor::spec::view::point::Specification<SPEC, VIEW_SPEC, SPEC::CONST>>;
         template <typename VIEW_SPEC>
         using VIEW_RANGE = Tensor<tensor::spec::view::range::Specification<SPEC, VIEW_SPEC, SPEC::CONST>>;
-        Tensor() = default;
+        // Tensor() = default;
 //        Tensor(DATA_TYPE data): _data(data){};
     };
 

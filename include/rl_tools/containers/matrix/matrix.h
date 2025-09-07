@@ -89,7 +89,7 @@ namespace rl_tools{
 //        virtual void _abstract_tag(){};
 //        // pure virtual function to make this class abstract (should be instantiated by either the MatrixStatic or MatrixDynamic subclasses class)
 //        virtual void _abstract_tag() = 0;
-        Matrix() = default;
+        // Matrix() = default;
 //        T* _data = nullptr;
 //        Matrix() = default;
 //        Matrix(T* data): _data(data){};
