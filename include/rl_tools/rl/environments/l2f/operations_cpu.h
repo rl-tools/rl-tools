@@ -899,6 +899,7 @@ namespace rl_tools{
 
 
 
+
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 import {GLTFLoader} from "three-gltfloader"
@@ -958,7 +959,9 @@ function Matrix4FromRotMat(rotMat){
 class State{
     constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1], camera_distance=null, interactive=true, conta_url="/conta/"}){
         this.canvas = canvas
-        this.devicePixelRatio = devicePixelRatio
+        this.IS_MOBILE = true; //this.is_mobile();
+        this.actualDevicePixelRatio = devicePixelRatio || window.devicePixelRatio
+        this.devicePixelRatio = !this.IS_MOBILE ? this.actualDevicePixelRatio : Math.min(this.actualDevicePixelRatio || 1, 2)
         this.showAxes = showAxes
         this.cursor_grab = interactive // Instruct the embedding code to make the cursor a grab cursor
         this.render_tick = 0
@@ -966,7 +969,6 @@ class State{
         this.camera_position = camera_position
         this.camera_distance = camera_distance
         this.interactive = interactive
-        this.IS_MOBILE = this.is_mobile();
         this.lastCanvasWidth = 0
         this.lastCanvasHeight = 0
         this.conta_url = conta_url
@@ -987,13 +989,18 @@ class State{
         this.camera = new THREE.PerspectiveCamera( 40, width / height, 0.1, 1000 );
         this.scene.add(this.camera);
 
-        this.renderer = new THREE.WebGLRenderer({canvas: this.canvas, antialias: true, alpha: !this.IS_MOBILE, preserveDrawingBuffer: this.capture && !this.IS_MOBILE} );
+        this.renderer = new THREE.WebGLRenderer({
+            canvas: this.canvas,
+            antialias: !this.IS_MOBILE,
+            alpha: !this.IS_MOBILE,
+            powerPreference: this.IS_MOBILE ? 'low-power' : 'high-performance',
+            preserveDrawingBuffer: this.capture && !this.IS_MOBILE
+          });
 
-        const dpr = !this.IS_MOBILE ? this.devicePixelRatio : Math.min(this.devicePixelRatio || window.devicePixelRatio || 1, 2)
-        this.renderer.setPixelRatio(dpr)
+        this.renderer.setPixelRatio(this.devicePixelRatio)
         this.renderer.setClearColor(0xffffff, 0);
 
-        this.renderer.setSize(width/this.devicePixelRatio, height/this.devicePixelRatio);
+        this.renderer.setSize(width/this.actualDevicePixelRatio, height/this.actualDevicePixelRatio);
 
         this.lastCanvasWidth = this.canvas.width
         this.lastCanvasHeight = this.canvas.height
@@ -1398,7 +1405,6 @@ export async function render_multi(ui_state, parameters, states, actions){
     }
     update_camera(ui_state)
 }
-
 
 
 
