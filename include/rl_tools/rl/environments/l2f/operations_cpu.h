@@ -900,6 +900,7 @@ namespace rl_tools{
 
 
 
+
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 import {GLTFLoader} from "three-gltfloader"
@@ -1095,13 +1096,30 @@ function thrust_direction_to_quaternion(thrust_direction){
 }
 
 export class DroneMesh{
+  static glbCache = new Map();
+  static gltfLoader = new GLTFLoader();
+
   constructor(parameters, origin, displayIMUCoordinateSystem, displayActions, conta_url){
     console.assert(parameters.ui)
     this.group = new THREE.Group()
     const url = `${conta_url}${parameters.ui.model}`
-    this.loaded = new GLTFLoader().loadAsync(url)
+
+    if (DroneMesh.glbCache.has(url)) {
+      this.loaded = DroneMesh.glbCache.get(url)
+    } else {
+      const loadingPromise = DroneMesh.gltfLoader.loadAsync(url).then((gltf) => {
+        return gltf
+      }).catch((error) => {
+        DroneMesh.glbCache.delete(url)
+        throw error
+      })
+
+      DroneMesh.glbCache.set(url, loadingPromise)
+      this.loaded = loadingPromise
+    }
+
     this.loaded.then((gltf) => {
-      const object = gltf.scene
+      const object = gltf.scene.clone()
       const object_group = new THREE.Group()
       object_group.add(object)
 //      if(parameters.ui.name == "x500"){
@@ -1405,6 +1423,7 @@ export async function render_multi(ui_state, parameters, states, actions){
     }
     update_camera(ui_state)
 }
+
 
 
 
