@@ -901,6 +901,7 @@ namespace rl_tools{
 
 
 
+
 import * as THREE from "three"
 import {OrbitControls} from "three-orbitcontrols"
 import {GLTFLoader} from "three-gltfloader"
@@ -960,7 +961,7 @@ function Matrix4FromRotMat(rotMat){
 class State{
     constructor(canvas, {devicePixelRatio, showAxes=false, capture=false, camera_position=[0.5, 0.5, 1], camera_distance=null, interactive=true, conta_url="/conta/"}){
         this.canvas = canvas
-        this.IS_MOBILE = true; //this.is_mobile();
+        this.IS_MOBILE = this.is_mobile();
         this.actualDevicePixelRatio = devicePixelRatio || window.devicePixelRatio
         this.devicePixelRatio = !this.IS_MOBILE ? this.actualDevicePixelRatio : Math.min(this.actualDevicePixelRatio || 1, 2)
         this.showAxes = showAxes
@@ -1103,7 +1104,7 @@ export class DroneMesh{
     console.assert(parameters.ui)
     this.group = new THREE.Group()
     const url = `${conta_url}${parameters.ui.model}`
-
+    
     if (DroneMesh.glbCache.has(url)) {
       this.loaded = DroneMesh.glbCache.get(url)
     } else {
@@ -1113,11 +1114,11 @@ export class DroneMesh{
         DroneMesh.glbCache.delete(url)
         throw error
       })
-
+      
       DroneMesh.glbCache.set(url, loadingPromise)
       this.loaded = loadingPromise
     }
-
+    
     this.loaded.then((gltf) => {
       const object = gltf.scene.clone()
       const object_group = new THREE.Group()
@@ -1423,6 +1424,10 @@ export async function render_multi(ui_state, parameters, states, actions){
     }
     update_camera(ui_state)
 }
+
+
+
+
 
 
 
