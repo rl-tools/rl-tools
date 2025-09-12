@@ -33,8 +33,10 @@ target_compile_definitions(test_nn_layers_gru PRIVATE -DRL_TOOLS_DEBUG_CONTAINER
 
 endif()
 
+if(RL_TOOLS_ENABLE_HDF5)
 add_executable(test_nn_layers_gru_training gru_training.cpp)
 target_link_libraries(test_nn_layers_gru_training PRIVATE RLtools::RLtools)
+endif()
 
 add_executable(test_nn_layers_gru_training_copy gru_training_copy.cpp)
 target_link_libraries(test_nn_layers_gru_training_copy PRIVATE RLtools::RLtools)
