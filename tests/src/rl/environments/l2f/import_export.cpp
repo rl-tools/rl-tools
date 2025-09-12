@@ -23,7 +23,6 @@ constexpr T EPSILON = 1e-6;
 using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI>;
 using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
 
-#include <boost/pfr.hpp>
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     DEVICE device;
     RNG rng;
