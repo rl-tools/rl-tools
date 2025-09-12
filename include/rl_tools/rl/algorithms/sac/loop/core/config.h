@@ -59,9 +59,6 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using ENVIRONMENT_EVALUATION = T_ENVIRONMENT;
         using CORE_PARAMETERS = T_PARAMETERS;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-#ifndef RL_TOOLS_EXPERIMENTAL
-        static_assert(CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH == 1);
-#endif
 
         static constexpr TI ENVIRONMENT_STEPS_PER_LOOP_STEP = CORE_PARAMETERS::N_ENVIRONMENTS;
 
