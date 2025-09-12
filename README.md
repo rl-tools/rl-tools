@@ -98,7 +98,7 @@
 ## Quick Start
 Clone this repo, then build a Zoo example:
 ```
-g++ -std=c++17 -Ofast -I include src/rl/zoo/l2f/sac.cpp
+g++ -std=c++17 -O3 -ffast-math -I include src/rl/zoo/l2f/sac.cpp
 ```
 Run it `./a.out 1337` (number = seed) then run `python3 -m http.server` to visualize the results. Open `http://localhost:8000` and navigate to the ExTrack UI to watch the quadrotor flying. 
 
