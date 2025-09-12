@@ -23,7 +23,7 @@ namespace rl_tools {
             using TI = typename DEVICE::index_t;
             std::stringstream ss, ss_header;
             ss_header << input.header;
-            ss_header << "#include <rl_tools/nn/layers/sample_and_squash/layer.h>\n";
+            ss_header << "#include <rl_tools/nn/layers/td3_sampling/layer.h>\n";
             ss << input.body;
             ss << ind << "namespace " << name << " {\n";
 //            template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS = DefaultParameters<T_T>, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, typename T_INPUT_SHAPE_FACTORY = nn::layers::dense::DefaultInputShapeFactory>
