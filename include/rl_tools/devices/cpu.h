@@ -184,7 +184,9 @@ namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::CPU<DEV_SPEC>& device){
         if(!device.initialized){
+#ifndef __CLING__
             devices::cpu::display_compile_options();
+#endif
             device.initialized = true;
         }
     }
