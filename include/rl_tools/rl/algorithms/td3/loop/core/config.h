@@ -61,9 +61,6 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
 
         using CORE_PARAMETERS = T_PARAMETERS;
-#ifndef RL_TOOLS_EXPERIMENTAL
-        static_assert(CORE_PARAMETERS::TD3_PARAMETERS::SEQUENCE_LENGTH == 1);
-#endif
 
         static constexpr TI ENVIRONMENT_STEPS_PER_LOOP_STEP = CORE_PARAMETERS::N_ENVIRONMENTS;
 
