@@ -75,7 +75,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     observation.angular_velocity[0] = 0.0f;
     observation.angular_velocity[1] = 0.0f;
     observation.angular_velocity[2] = 0.0f;
-    for(uint j = 0; j < OUTPUT_DIM; j++){
+    for(TI j = 0; j < OUTPUT_DIM; j++){
         observation.previous_action[j] = 0.0f;
     }
 
@@ -161,7 +161,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE){
     observation.angular_velocity[0] = 0.0f;
     observation.angular_velocity[1] = 0.0f;
     observation.angular_velocity[2] = 0.0f;
-    for(uint j = 0; j < OUTPUT_DIM; j++){
+    for(TI j = 0; j < OUTPUT_DIM; j++){
         observation.previous_action[j] = 0.0f;
     }
 
@@ -227,7 +227,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE_JITTER){
     observation.angular_velocity[0] = 0.0f;
     observation.angular_velocity[1] = 0.0f;
     observation.angular_velocity[2] = 0.0f;
-    for(uint j = 0; j < OUTPUT_DIM; j++){
+    for(TI j = 0; j < OUTPUT_DIM; j++){
         observation.previous_action[j] = 0.0f;
     }
 
