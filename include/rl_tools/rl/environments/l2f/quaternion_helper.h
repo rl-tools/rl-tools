@@ -30,7 +30,7 @@ namespace rl_tools::rl::environments::l2f{
         cross_product<DEVICE, T>(&q[1], v, var); // 6 flops
         scalar_multiply<DEVICE, T, 3>(var, 2); // 3 flops
         cross_product<DEVICE, T>(&q[1], var, v_out); // 6 flops
-        scalar_multiply_accumulate<DEVICE, T, 3>(var, q[0], v_out); // 3 flops
+        rl_tools::utils::vector_operations::scalar_multiply_accumulate<DEVICE, T, 3>(var, q[0], v_out); // 3 flops
         add_accumulate<DEVICE, T, 3>(v, v_out); // 3 flops
     }
 

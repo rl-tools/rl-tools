@@ -176,7 +176,7 @@ namespace rl_tools{
             ts.checkpoint_this_step = false;
             auto step_folder = get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
             auto& actor = get_actor(ts);
-            rl::loop::steps::checkpoint::save<CONFIG::DYNAMIC_ALLOCATION, typename CONFIG::ENVIRONMENT, typename CONFIG::CHECKPOINT_PARAMETERS>(device, step_folder, actor, ts.rng_checkpoint);
+            rl::loop::steps::checkpoint::save<CONFIG::DYNAMIC_ALLOCATION, typename CONFIG::ENVIRONMENT, typename CONFIG::CHECKPOINT_PARAMETERS>(device, step_folder.string(), actor, ts.rng_checkpoint);
         }
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         return finished;
