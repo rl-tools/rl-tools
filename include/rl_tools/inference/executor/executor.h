@@ -39,7 +39,7 @@ namespace rl_tools{
             struct JitterStatus{
                 using SPEC = T_SPEC;
                 using T = typename SPEC::T;
-                bool OK:1;
+                bool OK;
                 T MAGNITUDE;
 
             };
@@ -47,30 +47,30 @@ namespace rl_tools{
             struct BiasStatus{
                 using SPEC = T_SPEC;
                 using T = typename SPEC::T;
-                bool OK:1;
+                bool OK;
                 T MAGNITUDE;
             };
             template <typename T_SPEC>
             struct Status{
                 using SPEC = T_SPEC;
                 using T = typename SPEC::T;
-                bool OK:1;
-                bool TIMESTAMP_INVALID:1;
-                bool LAST_CONTROL_TIMESTAMP_GREATER_THAN_LAST_OBSERVATION_TIMESTAMP:1;
+                bool OK;
+                bool TIMESTAMP_INVALID;
+                bool LAST_CONTROL_TIMESTAMP_GREATER_THAN_LAST_OBSERVATION_TIMESTAMP;
                 enum Source{
                     OBSERVATION,
                     CONTROL
                 };
-                Source source:1;
+                Source source;
                 enum StepType{
                     INTERMEDIATE,
                     NATIVE
                 };
-                StepType step_type:1;
+                StepType step_type;
                 struct ControlReasons{
-                    bool reset:1;
-                    bool time_diff:1;
-                    bool force_sync:1;
+                    bool reset;
+                    bool time_diff;
+                    bool force_sync;
                 };
                 ControlReasons control_reasons_intermediate;
                 ControlReasons control_reasons_native;
