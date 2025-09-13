@@ -888,6 +888,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     std::string get_ui(DEVICE& device, rl::environments::Multirotor<SPEC>& env){
         // just the body of `function render(ctx, state, action) {` (so that it can be easily processed by `new Function("ctx", "state", "action", body)`
+#ifndef _MSC_VER
         std::string ui = R"RL_TOOLS_LITERAL(
 
 
@@ -1445,6 +1446,9 @@ export async function render_multi(ui_state, parameters, states, actions){
 
 
         )RL_TOOLS_LITERAL";
+#else
+        std::string ui = "";
+#endif
         return ui;
     }
 }
