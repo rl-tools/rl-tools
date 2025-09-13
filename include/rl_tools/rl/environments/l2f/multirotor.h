@@ -165,10 +165,11 @@ namespace rl_tools::rl::environments::l2f{
     };
 
 
-    template <typename SPEC>
-    struct ParametersDisturbances: SPEC::NEXT_COMPONENT{
-        static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
-        using Disturbances = parameters::Disturbances<typename SPEC::T>;
+    template <typename SPECC>
+    struct ParametersDisturbances: SPECC::NEXT_COMPONENT{
+        using NEXT_COMPONENT = typename SPECC::NEXT_COMPONENT;
+        static constexpr typename SPECC::TI N = NEXT_COMPONENT::N;
+        using Disturbances = parameters::Disturbances<typename SPECC::T>;
         Disturbances disturbances;
     };
 
@@ -188,10 +189,11 @@ namespace rl_tools::rl::environments::l2f{
         using DOMAIN_RANDOMIZATION_OPTIONS = T_OPTIONS;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
-    template <typename SPEC>
-    struct ParametersDomainRandomization: SPEC::NEXT_COMPONENT{
-        static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
-        using DomainRandomization = parameters::DomainRandomization<typename SPEC::T>;
+    template <typename SPECC>
+    struct ParametersDomainRandomization: SPECC::NEXT_COMPONENT{
+        using NEXT_COMPONENT = typename SPECC::NEXT_COMPONENT;
+        static constexpr typename SPECC::TI N = NEXT_COMPONENT::N;
+        using DomainRandomization = parameters::DomainRandomization<typename SPECC::T>;
         DomainRandomization domain_randomization;
     };
     struct DefaultParametersTrajectoryOptions{
