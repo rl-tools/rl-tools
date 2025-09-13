@@ -46,7 +46,12 @@ struct RL_TOOLS_INFERENCE_APPLICATIONS_L2F_CONFIG{
     using POLICY = ACTOR_TYPE_ORIGINAL::template CHANGE_BATCH_SIZE<TI, 1>::template CHANGE_SEQUENCE_LENGTH<TI, 1>;
     using T = typename POLICY::SPEC::T;
     static auto& policy() {
+#ifdef _MSC_VER
+        static auto _policy = rl_tools::checkpoint::actor::factory_function();
+        return _policy;
+#else
         return rlt::checkpoint::actor::module;
+#endif
     }
     static constexpr TI ACTION_HISTORY_LENGTH = 1; //rl_tools::checkpoint::environment::ACTION_HISTORY_LENGTH
     static constexpr TI CONTROL_INTERVAL_INTERMEDIATE_NS = 1 * 1000 * 1000; // Inference is at 500hz

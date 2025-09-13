@@ -42,6 +42,7 @@ void rl_tools_inference_applications_l2f_reset(){
 void rl_tools_inference_applications_l2f_init(){
     using namespace rl_tools::inference::applications::l2f;
     TI seed = 0;
+    rl_tools::malloc(device, executor);
     rl_tools::init(device, rng, seed);
     rl_tools_inference_applications_l2f_reset();
 }
@@ -58,13 +59,13 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
     float acc = 0;
     uint64_t num_values = 0;
     for(TI batch_i = 0; batch_i < CONFIG::TEST_BATCH_SIZE_ACTUAL; batch_i++){
-        rl_tools::reset(device, rl_tools::checkpoint::actor::module, policy_state_test, rng);
+        rl_tools::reset(device, CONFIG::policy(), policy_state_test, rng);
         for(TI step_i = 0; step_i < CONFIG::TEST_SEQUENCE_LENGTH_ACTUAL; step_i++){
             const auto step_input = rl_tools::view(device, rl_tools::checkpoint::example::input::container, step_i);
             const auto batch_input = rl_tools::view_range(device, step_input, batch_i, rl_tools::tensor::ViewSpec<0, 1>{});
             rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, batch_input), "input is nan");
             // rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, policy_state_test.content_state.next_content_state.state.state), "state is nan");
-            rl_tools::evaluate_step(device, rl_tools::checkpoint::actor::module, batch_input, policy_state_test, output, buffers_test, rng, mode);
+            rl_tools::evaluate_step(device, CONFIG::policy(), batch_input, policy_state_test, output, buffers_test, rng, mode);
             rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, output), "output is nan");
             for(TI action_i = 0; action_i < OUTPUT_DIM; action_i++){
                 acc += rl_tools::math::abs(device.math, rl_tools::get(device, output, 0, action_i) - rl_tools::get(device, rl_tools::checkpoint::example::output::container, step_i, batch_i, action_i));
