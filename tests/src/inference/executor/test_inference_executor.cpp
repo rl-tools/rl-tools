@@ -41,18 +41,27 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
     static constexpr bool FORCE_SYNC_INTERMEDIATE = false;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
+#if _MSC_VER
+    static constexpr bool DYNAMIC_ALLOCATION = true; // MSVC doesn't like these large stack objects
+    auto policy = rl_tools::checkpoint::actor::factory_function();
+#else
     static constexpr bool DYNAMIC_ALLOCATION = false;
+    auto& policy = rl_tools::checkpoint::actor::module;
+#endif
     using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<T>, DYNAMIC_ALLOCATION>;
-    auto& policy = rlt::checkpoint::actor::module;
+
     DEVICE device;
     RNG rng;
     rlt::init(device);
     rlt::malloc(device, rng);
     TI seed = 0;
     rlt::init(device, rng, seed);
+    // rlt::print(device, rl_tools::checkpoint::actor::layer_0::weights::parameters.parameters);
+    rlt::print(device, rl_tools::checkpoint::actor::layer_1::initial_hidden_state::parameters.parameters);
 
     rlt::inference::applications::L2F<SPEC> executor;
     rlt::malloc(device, executor);
+    rlt::print(device, executor.executor.policy_state.content_state.next_content_state.state.step);
     rlt::reset(device, executor, policy, rng);
 
     rlt::inference::applications::l2f::Action<SPEC> action;
@@ -132,9 +141,14 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE){
     static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
     static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
+#if _MSC_VER
+    static constexpr bool DYNAMIC_ALLOCATION = true; // MSVC doesn't like these large stack objects
+    auto policy = rl_tools::checkpoint::actor::factory_function();
+#else
     static constexpr bool DYNAMIC_ALLOCATION = false;
+    auto& policy = rl_tools::checkpoint::actor::module;
+#endif
     using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<T>, DYNAMIC_ALLOCATION>;
-    auto& policy = rlt::checkpoint::actor::module;
     DEVICE device;
     RNG rng;
     rlt::init(device);
@@ -198,9 +212,14 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE_JITTER){
     static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
     static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
+#if _MSC_VER
+    static constexpr bool DYNAMIC_ALLOCATION = true; // MSVC doesn't like these large stack objects
+    auto policy = rl_tools::checkpoint::actor::factory_function();
+#else
     static constexpr bool DYNAMIC_ALLOCATION = false;
+    auto& policy = rl_tools::checkpoint::actor::module;
+#endif
     using SPEC = rlt::inference::applications::l2f::Specification<T, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<T>, DYNAMIC_ALLOCATION>;
-    auto& policy = rlt::checkpoint::actor::module;
     DEVICE device;
     RNG rng;
     rlt::init(device);
