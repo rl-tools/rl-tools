@@ -159,7 +159,7 @@ namespace rl_tools{
         utils::extrack::Path current_path;
         for (auto& experiment : experiments){
             if(!in(exclude_filenames, experiment.path().filename()) && experiment.is_directory() && (query.experiment.empty() || experiment.path().filename() == query.experiment)){
-                current_path.experiment = experiment.path().filename();
+                current_path.experiment = experiment.path().filename().string();
                 std::vector<std::filesystem::directory_entry> setups{std::filesystem::directory_iterator(experiment), std::filesystem::directory_iterator()};
                 std::sort(setups.begin(), setups.end());
                 for (auto& setup : setups){
