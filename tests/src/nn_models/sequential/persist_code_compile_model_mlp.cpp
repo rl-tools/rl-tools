@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 
-#include "../../../data/nn_models_sequential_persist_code_model_mlp.h"
+#include "../../../../../external/rl-tools-test-data/nn_models_sequential_persist_code_model_mlp.h"
 
 #include <rl_tools/nn/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
