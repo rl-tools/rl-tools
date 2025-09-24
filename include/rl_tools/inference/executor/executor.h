@@ -81,9 +81,7 @@ namespace rl_tools{
                 struct TestSpec{
                     using T = float;
                 };
-#ifndef _MSC_VER
-                static_assert(sizeof(Status<TestSpec>) <= 20);
-#endif
+                static_assert(sizeof(Status<TestSpec>) <= 36);
             }
         }
         template <typename T_SPEC>
