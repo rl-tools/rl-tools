@@ -26,7 +26,6 @@ target_link_libraries(rl_environments_car_interactive
         tensorboard_logger
 )
 target_compile_definitions(rl_environments_car_interactive PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
-RL_TOOLS_INSTALL(rl_environments_car_interactive)
 endif()
 
 if(RL_TOOLS_ENABLE_GTK AND RL_TOOLS_ENABLE_SDL2)

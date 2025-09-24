@@ -39,7 +39,7 @@
 namespace rlt = rl_tools;
 
 #include "../post_training/helper.h"
-#include "../blob/checkpoint.h"
+#include "../../../../external/raptor-blob/checkpoint.h"
 
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;

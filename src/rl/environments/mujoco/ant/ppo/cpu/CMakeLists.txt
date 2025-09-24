@@ -15,7 +15,6 @@ target_link_libraries(
 target_compile_definitions(rl_environments_mujoco_ant_ppo_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
 target_compile_definitions(rl_environments_mujoco_ant_ppo_standalone PRIVATE RL_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_mujoco_ant_ppo_standalone PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
-RL_TOOLS_INSTALL(rl_environments_mujoco_ant_ppo_standalone)
 
 if(RL_TOOLS_BACKEND_ENABLE_BLAS)
     add_executable(
@@ -32,7 +31,6 @@ if(RL_TOOLS_BACKEND_ENABLE_BLAS)
     # todo: link mujoco like this everywhere
     target_compile_definitions(rl_environments_mujoco_ant_ppo_blas_benchmark PRIVATE RL_TOOLS_DISABLE_HDF5)
     target_compile_definitions(rl_environments_mujoco_ant_ppo_blas_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
-    RL_TOOLS_INSTALL(rl_environments_mujoco_ant_ppo_blas_benchmark)
 endif()
 
 if(RL_TOOLS_BACKEND_ENABLE_BLAS AND RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_TENSORBOARD)
@@ -48,6 +46,5 @@ target_link_libraries(
         Threads::Threads
 )
 # todo: link mujoco like this everywhere
-RL_TOOLS_INSTALL(rl_environments_mujoco_ant_ppo_blas)
 endif()
 

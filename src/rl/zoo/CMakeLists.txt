@@ -61,7 +61,7 @@ target_compile_definitions(rl_zoo_pendulum_multitask_v1_sac PRIVATE RL_TOOLS_RL_
 #target_compile_definitions(rl_zoo_pendulum_multitask_v1_sac PRIVATE RL_TOOLS_RL_ZOO_BENCHMARK)
 if(RL_TOOLS_ENABLE_TRACY)
     target_link_libraries(rl_zoo_pendulum_multitask_v1_sac PRIVATE Tracy::TracyClient)
-    target_include_directories(rl_zoo_pendulum_multitask_v1_sac PRIVATE ${PROJECT_SOURCE_DIR}/external/tracy/public/tracy)
+    target_include_directories(rl_zoo_pendulum_multitask_v1_sac PRIVATE ${PROJECT_SOURCE_DIR}/../external/tracy/public/tracy)
     target_compile_definitions(rl_zoo_pendulum_multitask_v1_sac PRIVATE RL_TOOLS_ENABLE_TRACY)
 endif()
 # TD3

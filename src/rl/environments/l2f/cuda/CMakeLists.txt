@@ -12,4 +12,4 @@ target_link_libraries(rl_environments_l2f_cuda_benchmark
         RLtools::Minimal
         RLtools::OptimizationsCUDA
 )
-RL_TOOLS_TAG_IS_CUDA(rl_environments_l2f_cuda_benchmark)
+#RL_TOOLS_TAG_IS_CUDA(rl_environments_l2f_cuda_benchmark)

@@ -10,7 +10,7 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
-#include "../../../../../data/test_nn_layers_gru_persist_code.h"
+#include "../../../../../../../external/rl-tools-test-data/test_nn_layers_gru_persist_code.h"
 
 namespace rlt = rl_tools;
 

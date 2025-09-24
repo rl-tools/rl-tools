@@ -24,12 +24,9 @@ if(RL_TOOLS_TESTS_CODE_COVERAGE)
     add_compile_definitions(-DRL_TOOLS_TESTS_CODE_COVERAGE)
 endif()
 
-set(INSTALL_GTEST OFF CACHE BOOL "")
-set(BUILD_GMOCK OFF CACHE BOOL "")
-add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
 include(GoogleTest)
 
-set(RL_TOOLS_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set(RL_TOOLS_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../external/rl-tools-test-data)
 add_library(rl_tools_test INTERFACE)
 target_link_libraries(rl_tools_test INTERFACE GTest::gtest_main)
 target_compile_definitions(rl_tools_test INTERFACE RL_TOOLS_TESTS_DATA_PATH=${RL_TOOLS_TESTS_DATA_PATH})
