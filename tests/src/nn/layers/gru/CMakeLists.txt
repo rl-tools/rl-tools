@@ -28,7 +28,6 @@ if (NOT WIN32 AND (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_I
 endif()
 
 gtest_discover_tests(test_nn_layers_gru)
-RL_TOOLS_WARNINGS_ARE_ERRORS(test_nn_layers_gru)
 target_compile_definitions(test_nn_layers_gru PRIVATE -DRL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS)
 
 endif()

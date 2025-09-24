@@ -26,7 +26,7 @@ target_link_libraries(
         RLtools::Test
 )
 RL_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
-RL_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)
+#RL_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)
 gtest_discover_tests(test_nn_cuda_basics)
 
 #add_executable(

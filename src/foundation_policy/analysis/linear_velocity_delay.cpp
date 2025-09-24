@@ -29,7 +29,7 @@
 
 namespace rlt = rl_tools;
 
-#include "../blob/checkpoint.h"
+#include "../../../../external/raptor-blob/checkpoint.h"
 #include "../post_training/environment.h"
 
 
