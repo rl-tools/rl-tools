@@ -1,4 +1,0 @@
-ARG BASE_IMAGE
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
-RUN git config --global --add safe.directory /rl-tools
-COPY configure.sh build.sh test.sh /

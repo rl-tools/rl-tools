@@ -1,1 +1,0 @@
-docker run -d -p 10.8.0.1:5000:5000 --restart unless-stopped --name registry registry:3

@@ -1,9 +1,0 @@
-ARG BASE_IMAGE
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
-RUN apt-get update && apt-get install -y \
-    git \
-    libhdf5-dev \
-    libboost-all-dev \
-    protobuf-compiler \
-    libprotobuf-dev
-ENV RL_TOOLS_FEATURE_FLAGS="-DRL_TOOLS_ENABLE_HDF5=ON -DRL_TOOLS_ENABLE_JSON=ON -DRL_TOOLS_ENABLE_TENSORBOARD=ON -DRL_TOOLS_ENABLE_CLI11=ON RL_TOOLS"
