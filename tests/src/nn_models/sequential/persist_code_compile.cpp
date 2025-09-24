@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 
-#include "../../../data/nn_models_sequential_persist_code.h"
+#include "../../../../../external/rl-tools-test-data/nn_models_sequential_persist_code.h"
 
 #include <rl_tools/nn/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
