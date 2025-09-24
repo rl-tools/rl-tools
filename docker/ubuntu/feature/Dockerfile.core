@@ -1,6 +1,0 @@
-ARG BASE_IMAGE
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
-RUN apt-get update && apt-get install -y \
-    git
-WORKDIR /
-ENV RL_TOOLS_FEATURE_FLAGS=""
