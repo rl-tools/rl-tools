@@ -164,12 +164,12 @@ namespace rl_tools{
                 std::sort(setups.begin(), setups.end());
                 for (auto& setup : setups){
                     if(setup.is_directory()){
-                        parse_setup(device, setup.path().filename(), current_path);
+                        parse_setup(device, setup.path().filename().string(), current_path);
                         if((query.commit.empty() || query.commit == current_path.commit) && (query.name.empty() || query.name == current_path.name)){
                             std::vector<std::filesystem::directory_entry> configs{std::filesystem::directory_iterator(setup), std::filesystem::directory_iterator()};
                             std::sort(configs.begin(), configs.end());
                             for (auto& config : configs){
-                                parse_config(device, config.path().filename(), current_path);
+                                parse_config(device, config.path().filename().string(), current_path);
                                 bool matches_query = true;
                                 for (const auto& [key, value] : query.attributes){
                                     auto it = current_path.attributes.find(key);
@@ -200,7 +200,7 @@ namespace rl_tools{
                                                         }
                                                     }
                                                 }
-                                                current_path.seed = seed.path().filename();
+                                                current_path.seed = seed.path().filename().string();
                                                 current_path.path = seed.path();
                                                 if(!query.require_checkpoint || has_checkpoint){
                                                     p_query = current_path;

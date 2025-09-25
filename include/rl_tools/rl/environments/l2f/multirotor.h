@@ -831,7 +831,7 @@ namespace rl_tools::rl::environments{
         static constexpr TI ACTION_DIM = 4;
         static constexpr TI EPISODE_STEP_LIMIT = SPEC::STATIC_PARAMETERS::EPISODE_STEP_LIMIT;
 
-        static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
+        // static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
 
         using State = typename SPEC::STATE_TYPE;
         using Observation = typename SPEC::OBSERVATION_TYPE;

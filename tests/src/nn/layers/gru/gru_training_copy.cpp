@@ -127,13 +127,13 @@ int main(){
                 std::filesystem::path FILE_PATH = "model_checkpoint.h5";
                 {
                     std::cout << "Checkpointing" << std::endl;
-                    auto file = HighFive::File(FILE_PATH, HighFive::File::Overwrite);
+                    auto file = HighFive::File(FILE_PATH.string(), HighFive::File::Overwrite);
                     rlt::zero_gradient(device, model);
                     rlt::reset_forward_state(device, model);
                     rlt::save(device, model, file.createGroup("checkpoint"));
                 }
                 if(sample_i == 0 || sample_i == PARAMS::BATCH_SIZE){ // reload check
-                    auto file = HighFive::File(FILE_PATH, HighFive::File::ReadOnly);
+                    auto file = HighFive::File(FILE_PATH.string(), HighFive::File::ReadOnly);
                     CONFIG::MODEL model_copy;
                     rlt::malloc(device, model_copy);
                     rlt::load(device, model_copy, file.getGroup("checkpoint"));
