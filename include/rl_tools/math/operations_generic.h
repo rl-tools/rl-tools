@@ -7,6 +7,10 @@
 #define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+#ifdef _MSC_VER
+#include <limits>
+#endif
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::math {
 
@@ -235,7 +239,7 @@ namespace rl_tools::math {
 #ifndef _MSC_VER
         return 0.0 / 0.0; // Produces NaN
 #else
-        return NAN;
+        return std::numeric_limits<T>::quiet_NaN();
 #endif
     }
 
