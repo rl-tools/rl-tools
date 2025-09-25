@@ -121,7 +121,7 @@ int main(){
     std::map<std::string, std::string> best_teacher;
     std::map<std::string, T> best_return;
 #pragma omp parallel for
-    for (int teacher_i=0; teacher_i < num_teachers; ++teacher_i){
+    for (int teacher_i=0; teacher_i < (int)num_teachers; ++teacher_i){
         RNG rank_rng;
         ENVIRONMENT env;
         EVALUATION_ACTOR_TYPE evaluation_actor;
