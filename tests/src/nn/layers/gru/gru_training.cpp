@@ -136,7 +136,7 @@ int main(){
     bool resuming_from_checkpoint = false;
     decltype(rng.state) shuffle_rng_state_checkpoint;
     if (!resume_checkpoint.empty()){
-        auto file = HighFive::File(resume_checkpoint, HighFive::File::ReadOnly);
+        auto file = HighFive::File(resume_checkpoint.string(), HighFive::File::ReadOnly);
         auto checkpoint_group = file.getGroup("checkpoint");
         rlt::load(device, model, checkpoint_group);
         epoch_i = checkpoint_group.getAttribute("epoch").read<TI>();
@@ -176,7 +176,7 @@ int main(){
                 std::filesystem::path checkpoint_path = checkpoint_folder / "checkpoint.h5";
                 {
                     std::cout << "Checkpointing to: " << checkpoint_path << std::endl;
-                    auto file = HighFive::File(checkpoint_path, HighFive::File::Overwrite);
+                    auto file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
                     rlt::zero_gradient(device, model);
                     rlt::reset_forward_state(device, model);
                     auto checkpoint_group = file.createGroup("checkpoint");
@@ -188,7 +188,7 @@ int main(){
                     rlt::save(device, model, checkpoint_group);
                 }
                 if(sample_i == 0 || sample_i == CONFIG::PARAMS::BATCH_SIZE){ // reload check
-                    auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
+                    auto file = HighFive::File(checkpoint_path.string(), HighFive::File::ReadOnly);
                     CONFIG::MODEL model_copy;
                     rlt::malloc(device, model_copy);
                     auto checkpoint_group = file.getGroup("checkpoint");

@@ -22,6 +22,7 @@ namespace rlt = rl_tools;
 #include <chrono>
 #include <filesystem>
 #include <thread>
+#include <fstream>
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using TI = typename DEVICE::index_t;
