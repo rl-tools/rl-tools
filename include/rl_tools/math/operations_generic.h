@@ -232,7 +232,11 @@ namespace rl_tools::math {
 
     template<typename T>
     T nan(const devices::math::Generic&) {
+#ifndef _MSC_VER
         return 0.0 / 0.0; // Produces NaN
+#else
+        return NAN;
+#endif
     }
 
     template<typename T>
