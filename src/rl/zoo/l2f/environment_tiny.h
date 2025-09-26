@@ -44,6 +44,23 @@ namespace rl_tools::rl::zoo::l2f{
             p.rotor_time_constants_falling[1] = 0.072;
             p.rotor_time_constants_falling[2] = 0.072;
             p.rotor_time_constants_falling[3] = 0.072;
+            p.mass = 0.025;
+            p.rotor_thrust_coefficients[0][0] = 0;
+            p.rotor_thrust_coefficients[1][0] = 0;
+            p.rotor_thrust_coefficients[2][0] = 0;
+            p.rotor_thrust_coefficients[3][0] = 0;
+            p.rotor_thrust_coefficients[0][1] = 0;
+            p.rotor_thrust_coefficients[1][1] = 0;
+            p.rotor_thrust_coefficients[2][1] = 0;
+            p.rotor_thrust_coefficients[3][1] = 0;
+            p.rotor_thrust_coefficients[0][1] = 0;
+            p.rotor_thrust_coefficients[1][1] = 0;
+            p.rotor_thrust_coefficients[2][1] = 0;
+            p.rotor_thrust_coefficients[3][1] = 0;
+            p.rotor_thrust_coefficients[0][2] = 0.1302;
+            p.rotor_thrust_coefficients[1][2] = 0.1302;
+            p.rotor_thrust_coefficients[2][2] = 0.1302;
+            p.rotor_thrust_coefficients[3][2] = 0.1302;
             return p;
         }();
 
