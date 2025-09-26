@@ -78,7 +78,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
     auto b_out = rlt::view_range(device, bias_out, 0*OUTPUT_DIM, rlt::tensor::ViewSpec<0, OUTPUT_DIM>{});
 
     std::string DATA_FILE_NAME = "gru_training_trace.h5";
-    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
     auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadOnly);
@@ -391,7 +391,7 @@ bool save_and_load_one_way(DEVICE& device){
     rlt::malloc(device, tensor);
     rlt::randn(device, tensor, rng);
     std::string DATA_FILE_NAME = "tensor_persist_test_save_load.h5";
-    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
     auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);

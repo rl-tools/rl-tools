@@ -16,7 +16,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
     typedef rlt::rl::environments::acrobot::Specification<T, DEVICE::index_t, rlt::rl::environments::acrobot::DefaultParameters<T>> ACROBOT_SPEC;
     typedef rlt::rl::environments::Acrobot<ACROBOT_SPEC> ENVIRONMENT;
     std::string DATA_FILE_NAME = "rl_environments_acrobot_test_data.h5";
-    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
     DEVICE device;

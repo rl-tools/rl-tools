@@ -20,7 +20,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 std::string get_data_file_path(){
     std::string DATA_FILE_NAME = "model_first_stage.hdf5";
-    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "Using data file: " << DATA_FILE_PATH << std::endl;
     return DATA_FILE_PATH;

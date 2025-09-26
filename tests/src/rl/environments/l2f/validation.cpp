@@ -76,7 +76,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     std::string DATA_FILE_NAME = "quad_dynamics.json";
-    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
     std::ifstream ifs(DATA_FILE_PATH);
