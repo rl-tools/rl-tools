@@ -24,7 +24,7 @@ add_executable(tensor_test tensor.cpp)
 target_link_libraries(tensor_test PRIVATE RLtools::Core GTest::gtest_main)
 gtest_discover_tests(tensor_test)
 
-if(RL_TOOLS_ENABLE_HDF5)
+if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_TEST_DATA_PATH)
     add_executable(tensor_persist_test tensor_persist.cpp)
     target_link_libraries(tensor_persist_test PRIVATE RLtools::RLtools GTest::gtest_main)
     gtest_discover_tests(tensor_persist_test)
