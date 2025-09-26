@@ -142,7 +142,7 @@ void test_loading(std::string DATA_FILE_NAME){
 
     rlt::init_weights(device, gru, rng);
 
-    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
     auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadOnly);

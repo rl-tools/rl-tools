@@ -63,7 +63,7 @@ constexpr typename DEVICE::index_t OUTPUT_DIM = rlt::get_last(typename NetworkTy
 TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
     std::string DATA_FILE_NAME = "mlp_data.hdf5";
-    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);

@@ -26,10 +26,11 @@ endif()
 
 include(GoogleTest)
 
-set(RL_TOOLS_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../external/rl-tools-test-data)
 add_library(rl_tools_test INTERFACE)
 target_link_libraries(rl_tools_test INTERFACE GTest::gtest_main)
-target_compile_definitions(rl_tools_test INTERFACE RL_TOOLS_TESTS_DATA_PATH=${RL_TOOLS_TESTS_DATA_PATH})
+if(RL_TOOLS_TEST_DATA_PATH)
+    target_compile_definitions(rl_tools_test INTERFACE RL_TOOLS_TEST_DATA_PATH=${RL_TOOLS_TEST_DATA_PATH})
+endif()
 add_library(RLtools::Test ALIAS rl_tools_test)
 
 
