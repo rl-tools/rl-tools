@@ -11,6 +11,7 @@ target_include_directories(rl_tools_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/i
 add_library(rl_tools_full INTERFACE)
 add_library(RLtools::RLtools ALIAS rl_tools_full)
 target_link_libraries(rl_tools_full INTERFACE rl_tools_core)
+target_compile_options(rl_tools_full INTERFACE -O3 -ffast-math -march=native)
 
 # tiers of optional dependencies
 # tier 0: none
@@ -85,10 +86,14 @@ if(RL_TOOLS_ENABLE_TENSORBOARD)
             GIT_TAG   9761224e07c34f672523808c3f688651e2822cbc
     )
     FetchContent_MakeAvailable(tensorboard)
-    target_link_libraries(tensorboard INTERFACE tensorboard_logger)
+    target_link_libraries(rl_tools_full INTERFACE tensorboard_logger)
     target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_TENSORBOARD)
 endif()
 
+
+####################################################################################################
+####################################################################################################
+####################################################################################################
 
 
 if(RL_TOOLS_ENABLE_TESTS)
