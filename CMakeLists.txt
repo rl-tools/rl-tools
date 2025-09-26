@@ -21,7 +21,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         # unused warnings are very noisy, we don't care that much
         target_compile_options(rl_tools_full INTERFACE -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-unused-variable -Wno-unused-but-set-variable)
         # todo
-        target_compile_options(rl_tools_full INTERFACE -Wno-missing-field-initializers)
+#        target_compile_options(rl_tools_full INTERFACE -Wno-missing-field-initializers)
     endif()
 endif()
 
