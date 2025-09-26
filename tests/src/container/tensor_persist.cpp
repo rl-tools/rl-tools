@@ -14,7 +14,7 @@ constexpr double EPSILON = 1e-8;
 
 
 
-TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
+TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TI = DEVICE::index_t;
