@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.14)
+#cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.18) # for BLAS::BLAS
 project(rl_tools_core)
 
 option(RL_TOOLS_OFFLINE_BUILD "Use the dependencies in .dependencies without checking for updates (useful after nuking the build directory when offline)" OFF)
@@ -54,6 +55,15 @@ if(RL_TOOLS_BACKEND_ENABLE_MKL)
     find_package(MKL REQUIRED)
     target_link_libraries(rl_tools_full INTERFACE MKL::MKL)
     target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_BACKEND_ENABLE_MKL)
+endif()
+if(RL_TOOLS_BACKEND_ENABLE_OPENBLAS OR RL_TOOLS_BACKEND_ENABLE_ACCELERATE)
+    find_package(BLAS REQUIRED)
+    target_link_libraries(rl_tools_full INTERFACE BLAS::BLAS)
+    if(RL_TOOLS_BACKEND_ENABLE_OPENBLAS)
+        target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_BACKEND_ENABLE_OPENBLAS)
+    else()
+        target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_BACKEND_ENABLE_ACCELERATE)
+    endif()
 endif()
 
 ####################################################################################################
