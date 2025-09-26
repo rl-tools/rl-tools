@@ -65,7 +65,7 @@
 #include "l2f/sac_tiny.h"
 // #include "l2f/sac_big.h"
 #else
-#include "l2f/sac.h"
+#include "l2f/sac_tiny.h"
 #endif
 #include "l2f/td3.h"
 #include "l2f/ppo.h"

@@ -34,7 +34,19 @@ namespace rl_tools::rl::zoo::l2f{
 
         static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
-        static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = [](){
+            auto p = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
+            p.rotor_time_constants_rising[0] = 0.072;
+            p.rotor_time_constants_rising[1] = 0.072;
+            p.rotor_time_constants_rising[2] = 0.072;
+            p.rotor_time_constants_rising[3] = 0.072;
+            p.rotor_time_constants_falling[0] = 0.072;
+            p.rotor_time_constants_falling[1] = 0.072;
+            p.rotor_time_constants_falling[2] = 0.072;
+            p.rotor_time_constants_falling[3] = 0.072;
+            return p;
+        }();
+
         static constexpr typename ParametersBase<PARAMETERS_SPEC>::MDP::Initialization init = {
                 0.0, // guidance
                 0.5, // position
@@ -52,6 +64,7 @@ namespace rl_tools::rl::zoo::l2f{
                 01.10, // constant
                 00.00, // termination penalty
                 10.00, // position
+                00.00, // position_clip;
                 02.50, // orientation
                 01.00, // linear_velocity
                 00.00, // angular_velocity
@@ -59,6 +72,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_acceleration
                 02.00, // action
                 00.00, // d_action
+                00.00, // position_error_integral
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
@@ -72,7 +86,7 @@ namespace rl_tools::rl::zoo::l2f{
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
 
-        decltype(ENVIRONMENT_FACTORY_BASE::trajectory) trajectory = {
+        static constexpr decltype(ENVIRONMENT_FACTORY_BASE::trajectory) trajectory = {
             {1.0, 0.0}, // mixture weights
             typename PARAMETERS_TYPE::Trajectory::Langevin{
                 1.00, // gamma
