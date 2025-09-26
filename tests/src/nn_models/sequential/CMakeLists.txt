@@ -1,33 +1,21 @@
 
 if(RL_TOOLS_ENABLE_HDF5)
-add_executable(test_nn_models_sequential_persist persist.cpp)
-target_link_libraries(test_nn_models_sequential_persist
-    PRIVATE
-    RLtools::Core
-    GTest::gtest_main
-)
-gtest_discover_tests(test_nn_models_sequential_persist)
+        add_executable(test_nn_models_sequential_persist persist.cpp)
+        target_link_libraries(test_nn_models_sequential_persist PRIVATE RLtools::RLtools GTest::gtest_main)
+        gtest_discover_tests(test_nn_models_sequential_persist)
 
 endif()
 
 add_executable(test_nn_models_sequential_persist_code persist_code.cpp)
-target_link_libraries(test_nn_models_sequential_persist_code
-        PRIVATE
-        RLtools::Core
-        GTest::gtest_main
-)
+target_link_libraries(test_nn_models_sequential_persist_code PRIVATE RLtools::RLtools GTest::gtest_main)
 gtest_discover_tests(test_nn_models_sequential_persist_code)
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code.h)
-add_executable(test_nn_models_sequential_persist_code_compile persist_code_compile.cpp)
-target_link_libraries(test_nn_models_sequential_persist_code_compile
-        PRIVATE
-        RLtools::Core
-        GTest::gtest_main
-        )
-gtest_discover_tests(test_nn_models_sequential_persist_code_compile)
+        add_executable(test_nn_models_sequential_persist_code_compile persist_code_compile.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile PRIVATE RLtools::Core GTest::gtest_main)
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile)
 else()
-message(WARNING "test_nn_models_sequential_persist_code_compile is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code.h")
+        message(WARNING "test_nn_models_sequential_persist_code_compile is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2.h)
@@ -126,24 +114,12 @@ else()
         message(WARNING "test_nn_models_sequential_persist_code_compile_model_sas_gradient is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sas_gradient.h")
 endif()
 
-add_executable(
-        test_nn_models_sequential_d_input_benchmark
-        d_input_benchmark.cpp
-)
-target_link_libraries(
-        test_nn_models_sequential_d_input_benchmark
-        PRIVATE
-        RLtools::Core
-        GTest::gtest_main
-)
+add_executable(test_nn_models_sequential_d_input_benchmark d_input_benchmark.cpp)
+target_link_libraries(test_nn_models_sequential_d_input_benchmark PRIVATE RLtools::Core GTest::gtest_main)
 gtest_discover_tests(test_nn_models_sequential_d_input_benchmark)
 
 add_executable(test_nn_models_sequential_compose compose.cpp)
-target_link_libraries(test_nn_models_sequential_compose
-        PRIVATE
-        RLtools::Core
-        GTest::gtest_main
-)
+target_link_libraries(test_nn_models_sequential_compose PRIVATE RLtools::Core GTest::gtest_main)
 gtest_discover_tests(test_nn_models_sequential_compose)
 
 
