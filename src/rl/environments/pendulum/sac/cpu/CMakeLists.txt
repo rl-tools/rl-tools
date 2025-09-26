@@ -9,7 +9,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_sac_standalone
         PRIVATE
-        rl_tools
+        RLtools::Core
         Threads::Threads
 )
 target_compile_definitions(rl_environments_pendulum_sac_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
@@ -25,7 +25,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_sac_blas
         PRIVATE
-        rl_tools
+        RLtools::Core
 )
 target_compile_definitions(rl_environments_pendulum_sac_blas PRIVATE RL_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_sac_blas PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)

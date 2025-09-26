@@ -8,8 +8,8 @@ add_executable(
 target_link_libraries(
         test_rl_components_replay_buffer
         PRIVATE
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_rl_components_replay_buffer)
 endif()
@@ -22,8 +22,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_components_on_policy_runner
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_rl_components_on_policy_runner)
 endif()
@@ -36,8 +36,8 @@ if(RL_TOOLS_ENABLE_HDF5)
 #target_link_libraries(
 #        test_rl_components_running_normalizer
 #        PRIVATE
-#        rl_tools
-#        rl_tools_test
+#        RLtools::Core
+#        GTest::gtest_main
 #)
 #gtest_discover_tests(test_rl_components_running_normalizer)
 endif()
@@ -50,8 +50,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_components_off_policy_runner
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_rl_components_off_policy_runner)
 

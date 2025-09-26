@@ -8,8 +8,8 @@ add_executable(
 target_link_libraries(
         test_random_arm
         PRIVATE
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_random_arm)
 endif()
