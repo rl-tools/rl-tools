@@ -72,6 +72,16 @@ namespace rl_tools::rl::zoo::l2f{
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
 
+        decltype(ENVIRONMENT_FACTORY_BASE::trajectory) trajectory = {
+            {1.0, 0.0}, // mixture weights
+            typename PARAMETERS_TYPE::Trajectory::Langevin{
+                1.00, // gamma
+                2.00, // omega
+                0.50, // sigma
+                0.01 // alpha
+            }
+        };
+
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
