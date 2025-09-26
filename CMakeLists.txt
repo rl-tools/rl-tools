@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 project(rl_tools_core)
 
 option(RL_TOOLS_OFFLINE_BUILD "Use the dependencies in .dependencies without checking for updates (useful after nuking the build directory when offline)" OFF)
+option(RL_TOOLS_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
 add_library(rl_tools_core INTERFACE)
 add_library(RLtools::Core ALIAS rl_tools_core)
@@ -11,7 +12,17 @@ target_include_directories(rl_tools_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/i
 add_library(rl_tools_full INTERFACE)
 add_library(RLtools::RLtools ALIAS rl_tools_full)
 target_link_libraries(rl_tools_full INTERFACE rl_tools_core)
-target_compile_options(rl_tools_full INTERFACE -O3 -ffast-math -march=native)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(rl_tools_full INTERFACE -O3 -ffast-math -march=native)
+    if(RL_TOOLS_WARNINGS_AS_ERRORS)
+        target_compile_options(rl_tools_full INTERFACE -Werror -Wall -Wextra)
+        # unused warnings are very noisy, we don't care that much
+        target_compile_options(rl_tools_full INTERFACE -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-unused-variable -Wno-unused-but-set-variable)
+        # todo
+        target_compile_options(rl_tools_full INTERFACE -Wno-missing-field-initializers)
+    endif()
+endif()
 
 # tiers of optional dependencies
 # tier 0: none
