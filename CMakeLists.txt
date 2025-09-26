@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 project(rl_tools_core)
 
+option(RL_TOOLS_OFFLINE_BUILD "Use the dependencies in .dependencies without checking for updates (useful after nuking the build directory when offline)" OFF)
+
 add_library(rl_tools_core INTERFACE)
 add_library(RLtools::Core ALIAS rl_tools_core)
 target_compile_features(rl_tools_core INTERFACE cxx_std_17)
@@ -16,10 +18,15 @@ target_link_libraries(rl_tools_full INTERFACE rl_tools_core)
 # tier 2: json, hdf5
 # tier 3: tensorboard
 
+
+get_filename_component(CMAKE_BINARY_DIR_BASENAME ${CMAKE_BINARY_DIR} NAME)
 if(NOT DEFINED FETCHCONTENT_BASE_DIR)
-    set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.dependencies" CACHE PATH "Base dir for FetchContent downloads" FORCE)
+    set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.dependencies/${CMAKE_BINARY_DIR_BASENAME}" CACHE PATH "Base dir for FetchContent downloads" FORCE)
 else()
-    set(FETCHCONTENT_BASE_DIR "${FETCHCONTENT_BASE_DIR}" CACHE PATH "Base dir for FetchContent downloads")
+    set(FETCHCONTENT_BASE_DIR "${FETCHCONTENT_BASE_DIR}/${CMAKE_BINARY_DIR_BASENAME}" CACHE PATH "Base dir for FetchContent downloads")
+endif()
+if(RL_TOOLS_OFFLINE_BUILD)
+    set(FETCHCONTENT_FULLY_DISCONNECTED ON)
 endif()
 include(FetchContent)
 
