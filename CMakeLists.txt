@@ -86,6 +86,7 @@ if(RL_TOOLS_ENABLE_JSON)
 endif()
 
 if(RL_TOOLS_ENABLE_HDF5)
+    set(HIGHFIVE_USE_BOOST OFF)
     find_package(HighFive QUIET)
     if(NOT HighFive_FOUND)
         message(INFO "HighFive is required but not found. Using FetchContent.")
