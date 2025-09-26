@@ -42,11 +42,19 @@ int main(int argc, char** argv) {
     parameters.domain_randomization = {
         1.5, // thrust_to_weight_min;
         5.0, // thrust_to_weight_max;
+        0.0, //torque_to_inertia_min; // cf: torque_to_inertia ~[536, 933]
+        0.0, //torque_to_inertia_max;
         0.027, // mass_min;
         5.00, // mass_max;
         1.0, // mass_size_deviation;
-        0.0, // motor_time_constant;
-        0.0 // rotor_torque_constant;
+        0.0, // rotor_time_constant_rising_min; // cf: rising: ~[0.05, 0.09], falling: ~[0.07, 0.3]
+        0.0, // rotor_time_constant_rising_max;
+        0.0, // rotor_time_constant_falling_min;
+        0.0, // rotor_time_constant_falling_max;
+        0.0, // rotor_torque_constant_min; // cf: ~0.005
+        0.0, // rotor_torque_constant_max;
+        0.0, // orientation_offset_angle_max;
+        0.0 // disturbance_force_max; // in multiples of the surplus thrust to weight ratio max(0, t2w - 1.0)
     };
     rlt::sample_initial_parameters(device, env, parameters, rng);
 
