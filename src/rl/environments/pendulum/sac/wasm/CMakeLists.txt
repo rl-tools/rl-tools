@@ -5,5 +5,5 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_sac_wasm_test
         PRIVATE
-        rl_tools
+        RLtools::Core
 )

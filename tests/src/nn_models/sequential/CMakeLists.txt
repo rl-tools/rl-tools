@@ -3,8 +3,8 @@ if(RL_TOOLS_ENABLE_HDF5)
 add_executable(test_nn_models_sequential_persist persist.cpp)
 target_link_libraries(test_nn_models_sequential_persist
     PRIVATE
-    rl_tools
-    rl_tools_test
+    RLtools::Core
+    GTest::gtest_main
 )
 gtest_discover_tests(test_nn_models_sequential_persist)
 
@@ -13,8 +13,8 @@ endif()
 add_executable(test_nn_models_sequential_persist_code persist_code.cpp)
 target_link_libraries(test_nn_models_sequential_persist_code
         PRIVATE
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_nn_models_sequential_persist_code)
 
@@ -22,8 +22,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code.h)
 add_executable(test_nn_models_sequential_persist_code_compile persist_code_compile.cpp)
 target_link_libraries(test_nn_models_sequential_persist_code_compile
         PRIVATE
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
         )
 gtest_discover_tests(test_nn_models_sequential_persist_code_compile)
 else()
@@ -34,8 +34,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code_model_2.
         add_executable(test_nn_models_sequential_persist_code_compile_model_2 persist_code_compile_model_2.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_2
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2)
 else()
@@ -46,8 +46,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code_model_2_
         add_executable(test_nn_models_sequential_persist_code_compile_model_2_forward persist_code_compile_model_2_forward.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_2_forward
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2_forward)
 else()
@@ -58,8 +58,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code_model_2_
         add_executable(test_nn_models_sequential_persist_code_compile_model_2_backward persist_code_compile_model_2_backward.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_2_backward
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2_backward)
 else()
@@ -70,8 +70,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code_model_ml
         add_executable(test_nn_models_sequential_persist_code_compile_model_mlp persist_code_compile_model_mlp.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_mlp
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_mlp)
 else()
@@ -82,8 +82,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code_model_ml
         add_executable(test_nn_models_sequential_persist_code_compile_model_mlp_forward persist_code_compile_model_mlp_forward.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_mlp_forward
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_mlp_forward)
 else()
@@ -94,8 +94,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code_model_sa
         add_executable(test_nn_models_sequential_persist_code_compile_model_sas_forward persist_code_compile_model_sample_and_squash_forward.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sas_forward
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sas_forward)
 else()
@@ -106,8 +106,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code_model_sa
         add_executable(test_nn_models_sequential_persist_code_compile_model_sas_backward persist_code_compile_model_sample_and_squash_backward.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sas_backward
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sas_backward)
 else()
@@ -118,8 +118,8 @@ if(EXISTS ${RL_TOOLS_TESTS_DATA_PATH}/nn_models_sequential_persist_code_model_sa
         add_executable(test_nn_models_sequential_persist_code_compile_model_sas_gradient persist_code_compile_model_sample_and_squash_gradient.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sas_gradient
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sas_gradient)
 else()
@@ -133,16 +133,16 @@ add_executable(
 target_link_libraries(
         test_nn_models_sequential_d_input_benchmark
         PRIVATE
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_nn_models_sequential_d_input_benchmark)
 
 add_executable(test_nn_models_sequential_compose compose.cpp)
 target_link_libraries(test_nn_models_sequential_compose
         PRIVATE
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_nn_models_sequential_compose)
 

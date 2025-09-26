@@ -6,7 +6,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_td3_arm_test
         PRIVATE
-        rl_tools
+        RLtools::Core
 )
 
 endif()

@@ -6,8 +6,7 @@ add_executable(
 target_link_libraries(
         test_container
         PRIVATE
-        RLtools::Backend
-        RLtools::Test
+        RLtools::Core
 )
 gtest_discover_tests(test_container)
 
@@ -22,8 +21,8 @@ add_executable(
 )
 target_link_libraries(
         test_container_persist_code_store
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_container_persist_code_store)
 
@@ -45,8 +44,7 @@ add_executable(tensor_persist_test
 target_link_libraries(
         tensor_persist_test
         PRIVATE
-        RLtools::Minimal
-        RLtools::Test
+        RLtools::Core
         GTest::gtest_main
 )
 gtest_discover_tests(tensor_persist_test)
@@ -58,8 +56,7 @@ add_executable(test_tensor_persist_code_store
 target_link_libraries(
         test_tensor_persist_code_store
         PRIVATE
-        RLtools::Minimal
-        RLtools::Test
+        RLtools::Core
         GTest::gtest_main
 )
 gtest_discover_tests(test_tensor_persist_code_store)
@@ -70,8 +67,7 @@ add_executable(test_tensor_persist_code_compile
 target_link_libraries(
         test_tensor_persist_code_compile
         PRIVATE
-        RLtools::Minimal
-        RLtools::Test
+        RLtools::Core
         GTest::gtest_main
 )
 gtest_discover_tests(test_tensor_persist_code_compile)
@@ -87,7 +83,7 @@ target_link_libraries(
 
 
 add_executable(test_container_matmul matmul.cpp)
-target_link_libraries(test_container_matmul RLtools::Core RLtools::Test)
+target_link_libraries(test_container_matmul RLtools::Core)
 gtest_discover_tests(test_container_matmul)
 
 add_executable(test_container_matmul_fast matmul_fast.cpp)

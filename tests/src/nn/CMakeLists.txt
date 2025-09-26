@@ -4,8 +4,8 @@ add_executable(
 )
 target_link_libraries(
         test_nn_models_sequential
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_nn_models_sequential)
 
@@ -17,8 +17,8 @@ if(RL_TOOLS_ENABLE_HDF5)
     )
     target_link_libraries(
             test_neural_network_mlp
-            rl_tools
-            rl_tools_test
+            RLtools::Core
+            GTest::gtest_main
     )
     gtest_discover_tests(test_neural_network_mlp)
     # Neural Network Test Full Training MLP
@@ -28,8 +28,8 @@ if(RL_TOOLS_ENABLE_HDF5)
     )
     target_link_libraries(
             test_neural_network_full_training_mlp
-            rl_tools
-            rl_tools_test
+            RLtools::Core
+            GTest::gtest_main
     )
     gtest_discover_tests(test_neural_network_full_training_mlp)
 
@@ -40,8 +40,8 @@ if(RL_TOOLS_ENABLE_HDF5)
     )
     target_link_libraries(
             test_neural_network_persistence
-            rl_tools
-            rl_tools_test
+            RLtools::Core
+            GTest::gtest_main
     )
     gtest_discover_tests(test_neural_network_persistence)
     # Neural Network Test Conversions
@@ -52,8 +52,8 @@ if(RL_TOOLS_ENABLE_HDF5)
     target_link_libraries(
             test_neural_network_conversions
             PRIVATE
-            rl_tools
-            rl_tools_test
+            RLtools::Core
+            GTest::gtest_main
     )
     gtest_discover_tests(test_neural_network_conversions)
 
@@ -68,8 +68,8 @@ if(RL_TOOLS_ENABLE_HDF5)
         target_link_libraries(
                 test_neural_network_benchmark
                 PRIVATE
-                rl_tools
-                rl_tools_test
+                RLtools::Core
+                GTest::gtest_main
                 Eigen3::Eigen
                 #        CUDA::cudart
         )
@@ -83,8 +83,8 @@ add_executable(
 )
 target_link_libraries(
         test_nn_arm
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_nn_arm)
 
@@ -100,7 +100,7 @@ add_executable(
 )
 target_link_libraries(
         test_nn_mode
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_nn_mode)

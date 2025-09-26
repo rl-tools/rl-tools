@@ -6,8 +6,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_td3_first_stage_mlp
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
 endif()
@@ -21,8 +21,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_td3_second_stage_mlp
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
     target_link_libraries(
@@ -50,8 +50,8 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_full_training_debug
         PRIVATE
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 
 if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
@@ -81,8 +81,8 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_full_training
         PRIVATE
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 target_compile_options(test_rl_algorithms_td3_full_training PRIVATE -Ofast)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
@@ -94,8 +94,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_td3_full_training_dummy_dep_compilation
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 add_test(
         NAME test_rl_algorithms_td3_full_training_dummy_dep_compilation
@@ -110,8 +110,8 @@ add_executable(
 target_compile_definitions(test_rl_algorithms_td3_full_training_dummy_dep_training PRIVATE RL_TOOLS_OPERATIONS_CPU)
 target_link_libraries(
         test_rl_algorithms_td3_full_training_dummy_dep_training
-        rl_tools
-        rl_tools_test
+        RLtools::Core
+        GTest::gtest_main
 )
 add_test(
         NAME test_rl_algorithms_td3_full_training_dummy_dep_training
