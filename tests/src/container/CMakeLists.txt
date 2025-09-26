@@ -7,6 +7,7 @@ target_link_libraries(
         test_container
         PRIVATE
         RLtools::Core
+        GTest::gtest_main
 )
 gtest_discover_tests(test_container)
 
@@ -83,7 +84,7 @@ target_link_libraries(
 
 
 add_executable(test_container_matmul matmul.cpp)
-target_link_libraries(test_container_matmul RLtools::Core)
+target_link_libraries(test_container_matmul RLtools::Core GTest::gtest_main)
 gtest_discover_tests(test_container_matmul)
 
 add_executable(test_container_matmul_fast matmul_fast.cpp)
