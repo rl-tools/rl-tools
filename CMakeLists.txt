@@ -15,13 +15,15 @@ add_library(RLtools::RLtools ALIAS rl_tools_full)
 target_link_libraries(rl_tools_full INTERFACE rl_tools_core)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(rl_tools_full INTERFACE -O3 -ffast-math -march=native)
+    # check for Release mode
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_options(rl_tools_full INTERFACE -O3 -ffast-math -march=native)
+    endif()
     if(RL_TOOLS_WARNINGS_AS_ERRORS)
         target_compile_options(rl_tools_full INTERFACE -Werror -Wall -Wextra)
         # unused warnings are very noisy, we don't care that much
         target_compile_options(rl_tools_full INTERFACE -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-unused-variable -Wno-unused-but-set-variable)
-        # todo
-#        target_compile_options(rl_tools_full INTERFACE -Wno-missing-field-initializers)
+        # todo (put exclusions here)
     endif()
 endif()
 
