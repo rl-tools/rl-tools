@@ -16,6 +16,7 @@
 /**/*tfevents*
 /lightning_logs
 /deepsweep_runs
+.dependencies
 
 
 /.idea
