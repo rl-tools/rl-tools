@@ -8,8 +8,7 @@ if(NOT RL_TOOLS_DISABLE_JSON)
         message(STATUS "nlohmann_json is required but not found. Using FetchContent.")
         FetchContent_Declare(nlohmann_json
                 GIT_REPOSITORY https://github.com/nlohmann/json.git
-                GIT_TAG        v3.11.3
-                GIT_SHALLOW    TRUE
+                GIT_TAG        a0c1318830519eac027a31edec1a99ce1ae5670e
         )
         FetchContent_MakeAvailable(nlohmann_json)
         target_include_directories(rl_tools_full INTERFACE ${nlohmann_json_SOURCE_DIR}/include)
