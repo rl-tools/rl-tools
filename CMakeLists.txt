@@ -24,8 +24,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     endif()
     if(RL_TOOLS_WARNINGS_AS_ERRORS)
         target_compile_options(rl_tools_full INTERFACE -Werror -Wall -Wextra)
-        target_compile_options(rl_tools_full INTERFACE -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-unused-variable -Wno-unused-but-set-variable)
+        target_compile_options(rl_tools_full INTERFACE -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-lambda-capture)
         # todo (put exclusions here)
+        target_compile_options(rl_tools_full INTERFACE -Wno-error=nan-infinity-disabled) # clang does not like some NaN handling in nlohmann_json when -ffast-math is on
     endif()
 endif()
 
