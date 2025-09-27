@@ -24,7 +24,7 @@ if(NOT RL_TOOLS_DISABLE_HDF5)
     else()
         FetchContent_Declare(hdf5
                 GIT_REPOSITORY https://github.com/HDFGroup/hdf5.git
-                GIT_TAG   7bf340440909d468dbb3cf41f0ea0d87f5050cea
+                GIT_TAG   hdf5_1.14.6
                 GIT_SHALLOW    TRUE
         )
         FetchContent_MakeAvailable(hdf5)
@@ -34,7 +34,6 @@ if(NOT RL_TOOLS_DISABLE_HDF5)
     FetchContent_Declare(highfive
             GIT_REPOSITORY https://github.com/rl-tools/highfive.git
             GIT_TAG   be68bd0efcef338a016fba448d6444089fd196d5
-            GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(highfive)
     target_include_directories(rl_tools_full INTERFACE ${highfive_SOURCE_DIR}/include)
