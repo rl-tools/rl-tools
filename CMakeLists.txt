@@ -34,6 +34,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 
         # todo (put exclusions here)
         if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            include(CheckCXXCompilerFlag)
             check_cxx_compiler_flag("-Wnan-infinity-disabled" HAS_NAN_INF_WARN)
             if (HAS_NAN_INF_WARN)
                 target_compile_options(rl_tools_full INTERFACE -Wno-error=nan-infinity-disabled) # clang does not like some NaN handling in nlohmann_json when -ffast-math is on
