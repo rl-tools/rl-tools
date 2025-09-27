@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.19) # for HDF5::HDF5
 project(rl_tools_core)
 
 option(RL_TOOLS_ENABLE_TARGETS "Enable building the main targets" ON)
-option(RL_TOOLS_ENABLE_TESTS "Enable building the tests" OFF)
+option(RL_TOOLS_ENABLE_TESTS "Enable building the tests" ON)
 option(RL_TOOLS_OFFLINE_BUILD "Use the dependencies in .dependencies without checking for updates (useful after nuking the build directory when offline)" OFF)
 option(RL_TOOLS_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
@@ -54,7 +54,6 @@ include(cmake/tier3-tensorboard.cmake)
 include(cmake/git-diff.cmake)
 
 if(RL_TOOLS_ENABLE_TESTS)
-    find_package(GTest REQUIRED)
 endif()
 
 if(RL_TOOLS_ENABLE_TARGETS)
@@ -62,6 +61,11 @@ if(RL_TOOLS_ENABLE_TARGETS)
 endif()
 
 if (RL_TOOLS_ENABLE_TESTS)
-    include(CTest)
-    add_subdirectory(tests)
+    find_package(GTest)
+    if(GTest_FOUND)
+        include(CTest)
+        add_subdirectory(tests)
+    else()
+        message(WARNING "GTest not found. Skipping tests. Disable RL_TOOLS_ENABLE_TESTS to suppress this warning.")
+    endif()
 endif()
