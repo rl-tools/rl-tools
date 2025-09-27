@@ -29,6 +29,8 @@ if(NOT RL_TOOLS_DISABLE_HDF5)
             GIT_TAG   be68bd0efcef338a016fba448d6444089fd196d5
     )
     set(HIGHFIVE_USE_BOOST OFF CACHE BOOL "Disable Boost usage in HighFive" FORCE)
+    set(HIGHFIVE_EXAMPLES OFF CACHE BOOL "Disable HighFive examples" FORCE)
+    set(HIGHFIVE_UNIT_TESTS OFF CACHE BOOL "Disable HighFive tests" FORCE)
     FetchContent_MakeAvailable(highfive)
     target_include_directories(rl_tools_full INTERFACE ${highfive_SOURCE_DIR}/include)
     target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_HDF5)
