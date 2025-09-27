@@ -5,9 +5,9 @@ name: Coverage
 on:
   workflow_dispatch:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -51,22 +51,6 @@ jobs:
         if: startsWith(matrix.os, 'macos')
         run: |
           brew install cmake boost hdf5 protobuf
-      - name: Checkout External Submodules
-        run: |
-          git submodule update --init -- external/json
-          git submodule update --init -- external/highfive
-          git submodule update --init -- external/cli11
-          git submodule update --init -- external/tensorboard
-          git submodule update --init -- external/mujoco
-
-      - name: Checkout Test Submodules
-        run: |
-          git submodule update --init -- tests/lib/googletest
-
-      - name: Checkout Test Data Submodule
-        run: |
-          git submodule update --init -- tests/data
-
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -84,16 +68,6 @@ jobs:
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -S ${{ github.workspace }}
-          -DRL_TOOLS_ENABLE_TESTS=ON
-          -DRL_TOOLS_ENABLE_TESTS:BOOL=ON
-          -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
-          -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
-          -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
-          -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
-          -DRL_TOOLS_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
-          -DRL_TOOLS_TESTS_DEBUG:BOOL=ON
-          -DRL_TOOLS_CONTAINER_INIT_NAN:BOOL=ON
-          -DRL_TOOLS_TESTS_CODE_COVERAGE:BOOL=ON
           ${{ matrix.rl_tools_backend }}
 
 
@@ -111,7 +85,7 @@ jobs:
         uses: codecov/codecov-action@v4.0.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: rl-tools/rl-tools
+          slug: rl-tools/core
 
 #      - name: Generate the coverage report
 #        if: startsWith(matrix.os, 'ubuntu') && matrix.c_compiler == 'gcc'
