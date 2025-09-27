@@ -11,6 +11,7 @@ if(NOT RL_TOOLS_DISABLE_JSON)
                 GIT_TAG        v3.11.3
                 GIT_SHALLOW    TRUE
         )
+        FetchContent_MakeAvailable(nlohmann_json)
         target_include_directories(rl_tools_full INTERFACE ${nlohmann_json_SOURCE_DIR}/include)
     endif()
     target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_JSON)
