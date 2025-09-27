@@ -27,6 +27,7 @@ if(NOT RL_TOOLS_DISABLE_HDF5)
                 GIT_TAG   hdf5_1.14.6
                 GIT_SHALLOW    TRUE
         )
+        set(HDF5_ENABLE_Z_LIB_SUPPORT OFF CACHE BOOL "Disable Zlib for HDF5" FORCE)
         FetchContent_MakeAvailable(hdf5)
         target_link_libraries(rl_tools_full INTERFACE hdf5-static)
     endif()
@@ -35,6 +36,7 @@ if(NOT RL_TOOLS_DISABLE_HDF5)
             GIT_REPOSITORY https://github.com/rl-tools/highfive.git
             GIT_TAG   be68bd0efcef338a016fba448d6444089fd196d5
     )
+    set(HIGHFIVE_USE_BOOST OFF CACHE BOOL "Disable Boost for HighFive" FORCE)
     FetchContent_MakeAvailable(highfive)
     target_include_directories(rl_tools_full INTERFACE ${highfive_SOURCE_DIR}/include)
     target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_HDF5)
