@@ -1,6 +1,8 @@
 #cmake_minimum_required(VERSION 3.14)
 #cmake_minimum_required(VERSION 3.18) # for BLAS::BLAS
 cmake_minimum_required(VERSION 3.19) # for HDF5::HDF5
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5) # to prevent warnings about "Compatibility with CMake < 3.5 has been removed from CMake."
+
 project(rl_tools_core)
 
 option(RL_TOOLS_ENABLE_TARGETS "Enable building the main targets" ON)
