@@ -11,8 +11,8 @@ on:
       acrobot:
         description: 'Enable Acrobot "true"/"false"'
         default: 'false'
-  push:
-    branches: [ "main" ]
+#  push:
+#    branches: [ "main" ]
 jobs:
   zoo:
     runs-on: ubuntu-latest
