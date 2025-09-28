@@ -12,6 +12,7 @@ using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<>;
 
 template <typename T, typename TI, typename SHAPE, typename DEVICE, typename DEVICE_CPU>
 void test(DEVICE& device, DEVICE_CPU& device_cpu, T epsilon) {
+    epsilon *= pow(10, SHAPE::LENGTH);
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, true>> tensor, tensor_cpu, target;
     rlt::malloc(device, tensor);
     rlt::malloc(device_cpu, tensor_cpu);
@@ -48,8 +49,8 @@ void test(DEVICE& device, DEVICE_CPU& device_cpu, T epsilon) {
         rlt::cast_reduce_sum<T>(device_cpu, tensor_cpu, result_target);
         rlt::copy(device, device_cpu, result, result_cpu);
         T diff = rlt::abs_diff(device_cpu, result_cpu, result_target);
-        std::cout << "Result target: " << std::endl;
-        rlt::print(device_cpu, result_target);
+        std::cout << "Result target: " << rlt::get(device, result_target, 0) << std::endl;
+        std::cout << "Result cpu: " << rlt::get(device_cpu, result_cpu, 0) << std::endl;
         std::cout << "unary associative reduce: sum diff: " << diff << std::endl;
         ASSERT_LT(diff, epsilon);
         rlt::free(device, result);
@@ -58,13 +59,12 @@ void test(DEVICE& device, DEVICE_CPU& device_cpu, T epsilon) {
     }
 }
 
-TEST(RL_TOOLS_CONTAINER_TENSOR_CUDA, MAIN){
+template <typename T>
+void test(T epsilon){
     DEVICE device;
     DEVICE_CPU device_cpu;
     rlt::init(device);
-    using T = float;
     using TI = typename DEVICE::index_t;
-    T epsilon = 1e-6;
     test<T, TI, rlt::tensor::Shape<TI, 1>>(device, device_cpu, epsilon);
     test<T, TI, rlt::tensor::Shape<TI, 2>>(device, device_cpu, epsilon);
     test<T, TI, rlt::tensor::Shape<TI, 10>>(device, device_cpu, epsilon);
@@ -75,5 +75,17 @@ TEST(RL_TOOLS_CONTAINER_TENSOR_CUDA, MAIN){
     test<T, TI, rlt::tensor::Shape<TI, 10, 1, 10>>(device, device_cpu, epsilon);
     test<T, TI, rlt::tensor::Shape<TI, 1, 10, 10>>(device, device_cpu, epsilon);
     test<T, TI, rlt::tensor::Shape<TI, 10, 10, 10>>(device, device_cpu, epsilon);
+}
+
+TEST(RL_TOOLS_CONTAINER_TENSOR_CUDA, FP64){
+    using T = double;
+    T epsilon = 1e-13;
+    test<T>(epsilon);
+}
+
+TEST(RL_TOOLS_CONTAINER_TENSOR_CUDA, FP32){
+    using T = float;
+    T epsilon = 1e-5;
+    test<T>(epsilon);
 }
 
