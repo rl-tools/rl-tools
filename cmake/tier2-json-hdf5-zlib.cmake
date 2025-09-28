@@ -39,7 +39,7 @@ endif()
 
 
 if(NOT RL_TOOLS_DISABLE_ZLIB)
-    find_package(ZLIB QUIET)
+#    find_package(ZLIB QUIET)
     if(ZLIB_FOUND)
         message(STATUS "Found existing/system ZLIB ${ZLIB_VERSION} at ${ZLIB_INCLUDE_DIRS}")
         target_link_libraries(rl_tools_full INTERFACE ZLIB::ZLIB)
@@ -48,12 +48,13 @@ if(NOT RL_TOOLS_DISABLE_ZLIB)
         set(ZLIB_BUILD_EXAMPLES OFF)
         set(ZLIB_ENABLE_TESTS OFF)
         set(ZLIB_COMPAT ON)
-        FetchContent_Declarezl(zlib
+        FetchContent_Declare(zlib
                 GIT_REPOSITORY https://github.com/zlib-ng/zlib-ng.git
                 GIT_TAG   8d10c309d7d468b9b2ecfd8d5f1b063d6396af17
         )
+        FetchContent_MakeAvailable(zlib)
         target_link_libraries(rl_tools_full INTERFACE zlibstatic)
-        target_compile_definitions(rl_tools_zlib INTERFACE RL_TOOLS_ENABLE_ZLIB)
+        target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_ZLIB)
     endif()
 endif()
 
