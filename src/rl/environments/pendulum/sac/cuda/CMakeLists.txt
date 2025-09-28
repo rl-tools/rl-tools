@@ -11,7 +11,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     target_link_libraries(
             rl_environments_pendulum_sac_cuda_init_test
             PRIVATE
-            RLtools::Backend # required for cuBLAS
+            rl_tools_full # required for cuBLAS
     )
     target_compile_options(rl_environments_pendulum_sac_cuda_init_test PRIVATE -O3)
     target_compile_definitions(rl_environments_pendulum_sac_cuda_init_test PRIVATE RL_TOOLS_BACKEND_ENABLE_CUDA)
@@ -26,7 +26,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     target_link_libraries(
             rl_environments_pendulum_sac_cuda
             PRIVATE
-            RLtools::Backend # required for cuBLAS
+            rl_tools_full # required for cuBLAS
     )
     target_compile_definitions(rl_environments_pendulum_sac_cuda PRIVATE RL_TOOLS_BACKEND_ENABLE_CUDA)
     target_compile_options(rl_environments_pendulum_sac_cuda PRIVATE -g -Xcompiler -fno-omit-frame-pointer --diag-suppress=186,177)
@@ -41,7 +41,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     target_link_libraries(
             rl_environments_pendulum_sac_cuda_benchmark
             PRIVATE
-            RLtools::Backend # required for cuBLAS
+            rl_tools_full # required for cuBLAS
     )
     target_compile_definitions(rl_environments_pendulum_sac_cuda_benchmark PRIVATE RL_TOOLS_BACKEND_ENABLE_CUDA)
     target_compile_definitions(rl_environments_pendulum_sac_cuda_benchmark PRIVATE BENCHMARK)

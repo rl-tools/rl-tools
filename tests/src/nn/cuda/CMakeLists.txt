@@ -15,16 +15,8 @@ function(RL_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS TARGET)
     endif()
 endfunction()
 
-add_executable(
-        test_nn_cuda_basics
-        cuda_basics.cu
-)
-target_link_libraries(
-        test_nn_cuda_basics
-        PRIVATE
-        RLtools::Minimal
-        RLtools::Test
-)
+add_executable(test_nn_cuda_basics cuda_basics.cu)
+target_link_libraries(test_nn_cuda_basics PRIVATE rl_tools_full GTest::gtest_main)
 RL_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
 #RL_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)
 gtest_discover_tests(test_nn_cuda_basics)

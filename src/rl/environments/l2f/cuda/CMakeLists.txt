@@ -8,8 +8,5 @@ set(CMAKE_CUDA_ARCHITECTURES "native")
 
 add_executable(rl_environments_l2f_cuda_benchmark benchmark.cu)
 
-target_link_libraries(rl_environments_l2f_cuda_benchmark
-        RLtools::Minimal
-        RLtools::OptimizationsCUDA
-)
+target_link_libraries(rl_environments_l2f_cuda_benchmark rl_tools_full)
 #RL_TOOLS_TAG_IS_CUDA(rl_environments_l2f_cuda_benchmark)
