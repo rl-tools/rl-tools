@@ -26,8 +26,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     endif()
     if(RL_TOOLS_WARNINGS_AS_ERRORS)
         # Safe (just unused warnings)
-        target_compile_options(rl_tools_full INTERFACE -Werror -Wall -Wextra)
-        target_compile_options(rl_tools_full INTERFACE -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-unused-variable -Wno-unused-but-set-variable)
+        target_compile_options(rl_tools_full INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-Werror -Wall -Wextra>) # the $<$<COMPILE_LANGUAGE:CXX>: is required for NVCC to not complain about -Wall
+        target_compile_options(rl_tools_full INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-Wno-unused-parameter -Wno-unused-local-typedefs -Wno-unused-variable -Wno-unused-but-set-variable>)
         if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             target_compile_options(rl_tools_full INTERFACE -Wno-unused-lambda-capture)
         endif()
@@ -37,7 +37,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             include(CheckCXXCompilerFlag)
             check_cxx_compiler_flag("-Wnan-infinity-disabled" HAS_NAN_INF_WARN)
             if (HAS_NAN_INF_WARN)
-                target_compile_options(rl_tools_full INTERFACE -Wno-error=nan-infinity-disabled) # clang does not like some NaN handling in nlohmann_json when -ffast-math is on
+                target_compile_options(rl_tools_full INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=nan-infinity-disabled>) # clang does not like some NaN handling in nlohmann_json when -ffast-math is on
             endif()
         endif()
     endif()
@@ -61,9 +61,11 @@ include(FetchContent)
 # tier 1: backend (MKL, OpenBLAS, Accelerate)
 # tier 2: json, hdf5
 # tier 3: tensorboard
+# tier 4: cuda
 include(cmake/tier1-blas.cmake)
 include(cmake/tier2-json-hdf5-zlib.cmake)
 include(cmake/tier3-tensorboard.cmake)
+include(cmake/tier4-cuda.cmake)
 
 include(cmake/git-diff.cmake)
 
