@@ -17,7 +17,7 @@ if(NOT RL_TOOLS_DISABLE_JSON)
 endif()
 
 if(NOT RL_TOOLS_DISABLE_HDF5)
-    find_package(HDF5)
+    find_package(HDF5 QUIET)
     if(HDF5_FOUND)
         message(STATUS "Found existing/system HDF5 ${HDF5_VERSION} at ${HDF5_INCLUDE_DIRS}")
         target_link_libraries(rl_tools_full INTERFACE HDF5::HDF5)
@@ -36,3 +36,24 @@ if(NOT RL_TOOLS_DISABLE_HDF5)
         message(WARNING "HDF5 not found. HDF5 is disabled. Suppress this warning by setting RL_TOOLS_DISABLE_HDF5=ON")
     endif()
 endif()
+
+
+if(NOT RL_TOOLS_DISABLE_ZLIB)
+    find_package(ZLIB QUIET)
+    if(ZLIB_FOUND)
+        message(STATUS "Found existing/system ZLIB ${ZLIB_VERSION} at ${ZLIB_INCLUDE_DIRS}")
+        target_link_libraries(rl_tools_full INTERFACE ZLIB::ZLIB)
+        target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_ZLIB)
+    else()
+        set(ZLIB_BUILD_EXAMPLES OFF)
+        set(ZLIB_ENABLE_TESTS OFF)
+        set(ZLIB_COMPAT ON)
+        FetchContent_Declarezl(zlib
+                GIT_REPOSITORY https://github.com/zlib-ng/zlib-ng.git
+                GIT_TAG   8d10c309d7d468b9b2ecfd8d5f1b063d6396af17
+        )
+        target_link_libraries(rl_tools_full INTERFACE zlibstatic)
+        target_compile_definitions(rl_tools_zlib INTERFACE RL_TOOLS_ENABLE_ZLIB)
+    endif()
+endif()
+

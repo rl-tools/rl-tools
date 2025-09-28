@@ -62,7 +62,7 @@ include(FetchContent)
 # tier 2: json, hdf5
 # tier 3: tensorboard
 include(cmake/tier1-blas.cmake)
-include(cmake/tier2-json-hdf5.cmake)
+include(cmake/tier2-json-hdf5-zlib.cmake)
 include(cmake/tier3-tensorboard.cmake)
 
 include(cmake/git-diff.cmake)
