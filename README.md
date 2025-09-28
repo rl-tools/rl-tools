@@ -95,7 +95,7 @@ Clone this repo, then build a Zoo example:
 ```
 g++ -std=c++17 -O3 -ffast-math -I include src/rl/zoo/l2f/sac.cpp
 ```
-Run it `./a.out 1337` (number = seed) then run `python3 -m http.server` to visualize the results. Open `http://localhost:8000` and navigate to the ExTrack UI to watch the quadrotor flying. 
+Run it `./a.out 1337` (number = seed) then run `./tools/serve.sh` to visualize the results. Open `http://localhost:8000` and navigate to the ExTrack UI to watch the quadrotor flying. 
 
 - **macOS**: Append `-framework Accelerate -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE` for fast training (~4s on M3)
 - **Ubuntu**: Use `apt install libopenblas-dev` and append `-lopenblas -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS` (~6s on Zen 5).
@@ -116,24 +116,8 @@ Run it `./a.out 1337` (number = seed) then run `python3 -m http.server` to visua
 # Getting Started
 > **⚠️ Note**: Check out [Getting Started](https://docs.rl.tools/getting_started.html) in the documentation for a more thorough guide
 
-Simple example on how to implement your own environment and train a policy using PPO:
+To get started implementing your own environment please refer to [rl-tools/example](https://github.com/rl-tools/example)
 
-Clone and checkout:
-```
-git clone https://github.com/rl-tools/example
-cd example
-git submodule update --init external/rl_tools
-```
-build and run:
-```
-mkdir build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-./my_pendulum
-```
-
-Note this example does not have dependencies and should work on any system with CMake and a C++ 17 compiler.
 
 # Documentation
 The documentation is available at [docs.rl.tools](https://docs.rl.tools) and consists of C++ notebooks. You can also run them locally to tinker around:
