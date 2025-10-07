@@ -74,8 +74,10 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 };
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 // -------------- added for cuda training ----------------
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
+using RNG_GPU = DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 // -------------------------------------------------------
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -170,8 +172,8 @@ int main(int argc, char** argv){
         // -------------------------------------------------------
         prl::ACTOR_OPTIMIZER actor_optimizer;
         prl::CRITIC_OPTIMIZER critic_optimizer;
-        auto rng = rlt::random::default_engine(DEVICE{}, seed);
-        auto evaluation_rng = rlt::random::default_engine(DEVICE{}, 12);
+        RNG rng, evaluation_rng;;
+        RNG_GPU rng_gpu;
         prl::PPO_TYPE ppo;
         // -------------- added for cuda training ----------------
         prl::PPO_TYPE ppo_gpu;
@@ -204,6 +206,12 @@ int main(int argc, char** argv){
         rlt::init(device);
         rlt::init(device_gpu);
         // -------------------------------------------------------
+        rlt::malloc(device, rng);
+        rlt::malloc(device, evaluation_rng);
+        rlt::init(device, rng, seed);
+        rlt::init(device, evaluation_rng, seed);
+        rlt::malloc(device, actor_optimizer);
+        rlt::malloc(device, critic_optimizer);
         rlt::malloc(device, ppo);
         rlt::malloc(device, ppo_buffers);
         rlt::malloc(device, on_policy_runner_dataset);
@@ -225,6 +233,7 @@ int main(int argc, char** argv){
         }
         rlt::malloc(device, evaluation_env);
         // -------------- added for cuda training ----------------
+        rlt::malloc(device_gpu, rng_gpu);
         rlt::malloc(device_gpu, actor_buffers);
         rlt::malloc(device_gpu, critic_buffers);
         rlt::malloc(device_gpu, critic_buffers_gae);
@@ -247,6 +256,7 @@ int main(int argc, char** argv){
         rlt::copy(device, device_gpu, ppo, ppo_gpu);
         // -------------------------------------------------------
         rlt::init(device, device.logger);
+        rlt::init(device_gpu, rng_gpu, seed);
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
@@ -295,7 +305,7 @@ int main(int argc, char** argv){
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, penv::ENVIRONMENT, NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-                rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, actor_deterministic_eval_buffers, evaluation_rng);
+                rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, evaluation_rng);
 //                rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
 //                rlt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
@@ -315,7 +325,7 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng);
+                rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng, rng_gpu);
                 // ----------------------------------------------------------
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
                     rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
