@@ -12,6 +12,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace TEST_DEFINITIONS{
     using DEVICE = rlt::devices::DefaultCPU_TENSORBOARD;
+    using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
     using T = double;
     using TI = typename DEVICE::index_t;
     using ENVIRONMENT_SPEC = rlt::rl::environments::mujoco::ant::Specification<T, TI, rlt::rl::environments::mujoco::ant::DefaultParameters<T, TI>>;
@@ -30,7 +31,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     rlt::malloc(dev, env);
     rlt::init(dev, env, env_parameters, ui);
 
-    auto rng = rlt::random::default_engine(DEVICE{}, 10);
+    RNG rng;
+    rlt::malloc(dev, rng);
+    rlt::init(dev, rng, 10);
 
     typename ENVIRONMENT::State state, next_state;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;

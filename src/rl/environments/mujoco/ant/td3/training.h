@@ -18,6 +18,7 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 };
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
+using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
 using TI = typename DEVICE::index_t;
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -147,8 +148,7 @@ void run(){
         auto& run_eval_step = eval_step.back();
         auto& run_eval_return = eval_return.back();
 
-        auto rng = rlt::random::default_engine(DEVICE{}, run_i + 1);
-        auto evaluation_rng = rlt::random::default_engine(DEVICE{}, run_i); // separate evaluation rng to make runs reproducible/deterministic even if evaluation is turned on or off
+        RNG rng, evaluation_rng;
 
         // device
         typename DEVICE::SPEC::LOGGING logger;
@@ -170,6 +170,10 @@ void run(){
 
         // rl
         parameters_rl::ActorCriticType actor_critic;
+        rlt::malloc(device, rng);
+        rlt::malloc(device, evaluation_rng);
+        rlt::init(device, rng, run_i + 1);
+        rlt::init(device, evaluation_rng, run_i + 1000);
         rlt::malloc(device, actor_critic);
         rlt::init(device, actor_critic, rng);
 
@@ -199,14 +203,15 @@ void run(){
 
         using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::SequentialBatchSpecification<decltype(off_policy_runner)::SPEC, SEQUENCE_LENGTH, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
         rlt::rl::components::off_policy_runner::SequentialBatch<ACTOR_BATCH_SPEC> actor_batch;
-        rlt::rl::algorithms::td3::ActorTrainingBuffers<rlt::rl::algorithms::td3::ActorTrainingBuffersSpecification<parameters_rl::ActorCriticType::SPEC, true>> actor_training_buffers;
+        rlt::rl::algorithms::td3::ActorTrainingBuffers<rlt::rl::algorithms::td3::ActorTrainingBuffersSpecification<parameters_rl::ActorCriticType::SPEC, true>> actor_training_buffers[2];
         parameters_rl::ACTOR_TYPE::Buffer<> actor_buffers[2];
         using ACTOR_EVAL_TYPE = typename parameters_rl::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, decltype(off_policy_runner)::N_ENVIRONMENTS>;
         ACTOR_EVAL_TYPE::Buffer<> actor_buffers_eval;
         using ACTOR_DETERMINISTIC_EVAL_TYPE = typename parameters_rl::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, 10>;
         ACTOR_DETERMINISTIC_EVAL_TYPE::Buffer<> actor_buffers_deterministic_eval;
         rlt::malloc(device, actor_batch);
-        rlt::malloc(device, actor_training_buffers);
+        rlt::malloc(device, actor_training_buffers[0]);
+        rlt::malloc(device, actor_training_buffers[1]);
         rlt::malloc(device, actor_buffers[0]);
         rlt::malloc(device, actor_buffers[1]);
         rlt::malloc(device, actor_buffers_eval);
@@ -224,7 +229,7 @@ void run(){
             if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_CRITIC){
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
-                        auto train_critic = [&device, &actor_critic, &off_policy_runner](parameters_rl::CRITIC_TYPE& critic, decltype(critic_batches[0])& critic_batch, parameters_rl::OPTIMIZER& optimizer, decltype(actor_buffers[0])& actor_buffers, decltype(critic_buffers[0])& critic_buffers, decltype(critic_training_buffers[0])& critic_training_buffers, decltype(rng)& rng){
+                        auto train_critic = [&device, &actor_critic, &off_policy_runner](parameters_rl::CRITIC_TYPE& critic, decltype(critic_batches[0])& critic_batch, parameters_rl::OPTIMIZER& optimizer, decltype(actor_buffers[0])& actor_buffers, decltype(actor_training_buffers[0])& actor_training_buffers, decltype(critic_buffers[0])& critic_buffers, decltype(critic_training_buffers[0])& critic_training_buffers, decltype(rng)& rng){
                             auto gather_batch_start = std::chrono::high_resolution_clock::now();
                             auto target_action_noise_matrix_view = rlt::matrix_view(device, critic_training_buffers.target_next_action_noise);
                             rlt::target_action_noise(device, actor_critic, target_action_noise_matrix_view, rng);
@@ -232,16 +237,20 @@ void run(){
                             auto gather_batch_end = std::chrono::high_resolution_clock::now();
                             rlt::add_scalar(device, device.logger, "performance/gather_batch_duration", std::chrono::duration_cast<std::chrono::microseconds>(gather_batch_end - gather_batch_start).count(), performance_logging_interval);
                             auto critic_training_start = std::chrono::high_resolution_clock::now();
-                            rlt::train_critic(device, actor_critic, critic, critic_batch, optimizer, actor_buffers, critic_buffers, critic_training_buffers, rng);
+                            rlt::train_critic(device, actor_critic, critic, critic_batch, optimizer, actor_buffers, actor_training_buffers, critic_buffers, critic_training_buffers, rng);
                             auto critic_training_end = std::chrono::high_resolution_clock::now();
                             rlt::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
                         };
-                        auto rng1 = rlt::random::default_engine(DEVICE{}, std::uniform_int_distribution<DEVICE::index_t>()(rng));
-                        auto rng2 = rlt::random::default_engine(DEVICE{}, std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        RNG rng[2];
+                        rlt::malloc(device, rng[0]);
+                        rlt::malloc(device, rng[1]);
+                        rlt::init(device, rng[0], step_i * 2 + 12345);
+                        rlt::init(device, rng[1], step_i * 2 + 12346);
+
 
                         if(std::getenv("RL_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
-                            auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
-                            auto critic_2_training = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], critic_optimizers[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
+                            auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], critic_optimizers[0], actor_buffers[0], actor_training_buffers[0], critic_buffers[0], critic_training_buffers[0], rng[0]);});
+                            auto critic_2_training = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], critic_optimizers[1], actor_buffers[1], actor_training_buffers[1], critic_buffers[1], critic_training_buffers[1], rng[1]);});
                             critic_1_training.wait();
                             critic_2_training.wait();
                         }
