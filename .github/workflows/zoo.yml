@@ -70,10 +70,6 @@ jobs:
           cmake -B build
           -DCMAKE_BUILD_TYPE=Release
           -S .
-          -DRL_TOOLS_ENABLE_TARGETS=ON
-          -DRL_TOOLS_ENABLE_CLI11=ON
-          -DRL_TOOLS_ENABLE_ZLIB=ON
-          -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
           $MUJOCO_OPTION
 
       - name: Build
