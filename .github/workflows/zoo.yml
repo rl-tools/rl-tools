@@ -11,8 +11,8 @@ on:
       acrobot:
         description: 'Enable Acrobot "true"/"false"'
         default: 'false'
-#  push:
-#    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
 jobs:
   zoo:
     runs-on: ubuntu-latest
@@ -38,12 +38,6 @@ jobs:
       - name: List Environment Variables
         run: env
       - uses: actions/checkout@v3
-      - name: Checkout Submodules CLI11 and zlib
-        run: git submodule update --init --recursive external/cli11 external/zlib
-      - name: Clone MuJoCo
-        if: ${{ env.MUJOCO == 'true' }}
-        run: |
-          git submodule update --init --recursive external/mujoco
 
       - name: Setup Git
         run: |
