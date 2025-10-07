@@ -62,12 +62,13 @@ include(FetchContent)
 # tier 2: json, hdf5
 # tier 3: tensorboard
 # tier 4: cuda
-include(cmake/tier1-blas.cmake)
-include(cmake/tier2-json-hdf5-zlib.cmake)
-include(cmake/tier3-tensorboard.cmake)
-include(cmake/tier4-cuda.cmake)
+include(cmake/autodetect/tier1-blas.cmake)
+include(cmake/autodetect/tier2-json-hdf5-zlib.cmake)
+include(cmake/autodetect/tier3-tensorboard.cmake)
+include(cmake/autodetect/tier4-cuda.cmake)
 
-include(cmake/git-diff.cmake)
+include(cmake/autodetect/git-hash.cmake)
+include(cmake/autodetect/git-diff.cmake)
 
 if(RL_TOOLS_ENABLE_TESTS)
 endif()

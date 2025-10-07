@@ -37,8 +37,14 @@ namespace rl_tools{
             paths.experiment = config.base_path / config.experiment;
         }
         {
+#ifdef RL_TOOLS_COMMIT_HASH_SET
             std::string commit_hash = RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH);
-            std::string setup_name = commit_hash.substr(0, 7) + "_" + config.name;
+            std::string short_hash = commit_hash.substr(0, 7);
+#else
+            std::string short_hash = "no-hash";
+#endif
+
+            std::string setup_name = short_hash + "_" + config.name;
             if(!config.population_variates.empty()){
                 setup_name = setup_name + "_" + config.population_variates;
             }
