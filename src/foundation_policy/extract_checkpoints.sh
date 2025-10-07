@@ -1,1 +1,0 @@
-find $EXPERIMENT -type f | grep return.json\$ | p2s.sort 'float(x.split("/")[-3])' | xargs -I{} bash -c 'echo {},$(jq -r "map(select(.step % 100000 == 0)) | max_by(.returns_mean) | [.step, .returns_mean] | @csv" {}),$(jq ".[-1].returns_mean" {})' | p2s.sort 'float(x.split(",")[2])' | p2s.map 'x.split("/")[-3]+","+x.split(",")[1]'
