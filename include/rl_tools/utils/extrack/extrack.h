@@ -21,15 +21,31 @@ namespace rl_tools{
     namespace utils::extrack{
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
         namespace git{
-            extern const char* const commit;
-            extern const char* const diff;
-            extern const char* const diff_color;
-            extern const char* const word_diff;
-            extern const char* const word_diff_color;
-            extern const char* const diff_staged;
-            extern const char* const diff_staged_color;
-            extern const char* const word_diff_staged;
-            extern const char* const word_diff_staged_color;
+            // rl-tools library repository
+            namespace rl_tools{
+                extern const char* const commit;
+                extern const char* const diff;
+                extern const char* const diff_color;
+                extern const char* const word_diff;
+                extern const char* const word_diff_color;
+                extern const char* const diff_staged;
+                extern const char* const diff_staged_color;
+                extern const char* const word_diff_staged;
+                extern const char* const word_diff_staged_color;
+            }
+            // Parent project repository (if used via add_subdirectory)
+            namespace project{
+                extern const bool available; // true if parent project exists
+                extern const char* const commit;
+                extern const char* const diff;
+                extern const char* const diff_color;
+                extern const char* const word_diff;
+                extern const char* const word_diff_color;
+                extern const char* const diff_staged;
+                extern const char* const diff_staged_color;
+                extern const char* const word_diff_staged;
+                extern const char* const word_diff_staged_color;
+            }
         }
 #endif
 

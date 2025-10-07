@@ -53,52 +53,104 @@ namespace rl_tools{
         std::cerr << "Seed: " << seed << std::endl;
         std::cerr << "Extrack Experiment: " << paths.seed << std::endl;
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
-        std::filesystem::path git_path = paths.seed / "git";
-        std::filesystem::create_directories(git_path);
+        // Save rl-tools library git info
+        std::filesystem::path git_library_path = paths.seed / "git" / "rl_tools";
+        std::filesystem::create_directories(git_library_path);
         {
-            std::ofstream diff_file(git_path / "commit.txt");
-            diff_file << rl_tools::utils::extrack::git::commit;
+            std::ofstream diff_file(git_library_path / "commit.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::commit;
             diff_file.close();
         }
         {
-            std::ofstream diff_file(git_path / "diff.txt");
-            diff_file << rl_tools::utils::extrack::git::diff;
+            std::ofstream diff_file(git_library_path / "diff.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::diff;
             diff_file.close();
         }
         {
-            std::ofstream diff_file(git_path / "diff_color.txt");
-            diff_file << rl_tools::utils::extrack::git::diff_color;
+            std::ofstream diff_file(git_library_path / "diff_color.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::diff_color;
             diff_file.close();
         }
         {
-            std::ofstream diff_file(git_path / "word_diff.txt");
-            diff_file << rl_tools::utils::extrack::git::word_diff;
+            std::ofstream diff_file(git_library_path / "word_diff.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::word_diff;
             diff_file.close();
         }
         {
-            std::ofstream diff_file(git_path / "word_diff_color.txt");
-            diff_file << rl_tools::utils::extrack::git::word_diff_color;
+            std::ofstream diff_file(git_library_path / "word_diff_color.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::word_diff_color;
             diff_file.close();
         }
         {
-            std::ofstream diff_file(git_path / "diff_staged.txt");
-            diff_file << rl_tools::utils::extrack::git::diff_staged;
+            std::ofstream diff_file(git_library_path / "diff_staged.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::diff_staged;
             diff_file.close();
         }
         {
-            std::ofstream diff_file(git_path / "diff_staged_color.txt");
-            diff_file << rl_tools::utils::extrack::git::diff_staged_color;
+            std::ofstream diff_file(git_library_path / "diff_staged_color.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::diff_staged_color;
             diff_file.close();
         }
         {
-            std::ofstream diff_file(git_path / "word_diff_staged.txt");
-            diff_file << rl_tools::utils::extrack::git::word_diff_staged;
+            std::ofstream diff_file(git_library_path / "word_diff_staged.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::word_diff_staged;
             diff_file.close();
         }
         {
-            std::ofstream diff_file(git_path / "word_diff_staged_color.txt");
-            diff_file << rl_tools::utils::extrack::git::word_diff_staged_color;
+            std::ofstream diff_file(git_library_path / "word_diff_staged_color.txt");
+            diff_file << rl_tools::utils::extrack::git::rl_tools::word_diff_staged_color;
             diff_file.close();
+        }
+        
+        // Save parent project git info if available
+        if(rl_tools::utils::extrack::git::project::available){
+            std::filesystem::path git_project_path = paths.seed / "git" / "project";
+            std::filesystem::create_directories(git_project_path);
+            {
+                std::ofstream diff_file(git_project_path / "commit.txt");
+                diff_file << rl_tools::utils::extrack::git::project::commit;
+                diff_file.close();
+            }
+            {
+                std::ofstream diff_file(git_project_path / "diff.txt");
+                diff_file << rl_tools::utils::extrack::git::project::diff;
+                diff_file.close();
+            }
+            {
+                std::ofstream diff_file(git_project_path / "diff_color.txt");
+                diff_file << rl_tools::utils::extrack::git::project::diff_color;
+                diff_file.close();
+            }
+            {
+                std::ofstream diff_file(git_project_path / "word_diff.txt");
+                diff_file << rl_tools::utils::extrack::git::project::word_diff;
+                diff_file.close();
+            }
+            {
+                std::ofstream diff_file(git_project_path / "word_diff_color.txt");
+                diff_file << rl_tools::utils::extrack::git::project::word_diff_color;
+                diff_file.close();
+            }
+            {
+                std::ofstream diff_file(git_project_path / "diff_staged.txt");
+                diff_file << rl_tools::utils::extrack::git::project::diff_staged;
+                diff_file.close();
+            }
+            {
+                std::ofstream diff_file(git_project_path / "diff_staged_color.txt");
+                diff_file << rl_tools::utils::extrack::git::project::diff_staged_color;
+                diff_file.close();
+            }
+            {
+                std::ofstream diff_file(git_project_path / "word_diff_staged.txt");
+                diff_file << rl_tools::utils::extrack::git::project::word_diff_staged;
+                diff_file.close();
+            }
+            {
+                std::ofstream diff_file(git_project_path / "word_diff_staged_color.txt");
+                diff_file << rl_tools::utils::extrack::git::project::word_diff_staged_color;
+                diff_file.close();
+            }
         }
 #endif
 
