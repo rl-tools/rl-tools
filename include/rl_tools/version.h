@@ -1,4 +1,7 @@
-#if !defined(RL_TOOLS_COMMIT_HASH)
+#if defined(RL_TOOLS_COMMIT_HASH_EXTERNAL)
+#define RL_TOOLS_COMMIT_HASH_SET
+#define RL_TOOLS_COMMIT_HASH RL_TOOLS_COMMIT_HASH_EXTERNAL
+#else
 #ifdef RL_TOOLS_ENABLE_WARNINGS
 #pragma message("RL_TOOLS_COMMIT_HASH and RL_TOOLS_COMMIT_HASH_SHORT are not passed by the build system")
 #endif
