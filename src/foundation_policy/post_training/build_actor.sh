@@ -1,1 +1,0 @@
-g++ -std=c++17 load_actor.cpp -I../../../include && ./a.out
