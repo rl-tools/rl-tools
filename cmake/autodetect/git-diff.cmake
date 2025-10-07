@@ -228,6 +228,7 @@ add_custom_command(
 )
 
 add_library(rl_tools_git_diff STATIC ${GIT_DIFF_OUTPUT})
+target_compile_features(rl_tools_git_diff PRIVATE cxx_std_11)
 target_compile_definitions(rl_tools_git_diff PUBLIC RL_TOOLS_EXTRACK_GIT_DIFF)
 
 if(TARGET rl_tools_full)
