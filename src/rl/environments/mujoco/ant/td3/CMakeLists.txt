@@ -7,8 +7,7 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_td3_standalone
         PRIVATE
-        RLtools::Core
-        mujoco::mujoco
+        RLtools::RLtools
         Threads::Threads
 )
 target_compile_definitions(rl_environments_mujoco_ant_td3_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
@@ -24,6 +23,5 @@ target_link_libraries(
         rl_environments_mujoco_ant_td3_blas
         PRIVATE
         RLtools::RLtools
-        mujoco::mujoco
 )
 endif()

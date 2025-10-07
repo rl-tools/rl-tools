@@ -30,6 +30,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace TEST_DEFINITIONS{
     using DEVICE = rlt::devices::DefaultCPU;
+    using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
     using T = double;
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;
@@ -66,9 +67,10 @@ int main(int argc, char** argv) {
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
-    auto rng = rlt::random::default_engine(DEVICE{}, 10);
+    RNG rng;
     rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, ENVIRONMENT::Observation::DIM>> observation_normalizer;
 
+    rlt::malloc(dev, rng);
     rlt::malloc(dev, env);
     rlt::malloc(dev, actor);
     rlt::malloc(dev, actor_buffer);
@@ -76,6 +78,7 @@ int main(int argc, char** argv) {
     rlt::malloc(dev, observation);
     rlt::malloc(dev, observation_normalizer);
 
+    rlt::init(dev, rng, 0);
     rlt::init(dev, env, env_parameters, ui);
     rlt::init(dev, observation_normalizer);
     DEVICE::index_t episode_i = 0;

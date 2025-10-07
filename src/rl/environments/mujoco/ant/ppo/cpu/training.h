@@ -60,6 +60,7 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 };
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
+using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -137,8 +138,7 @@ void run(){
         prl::CRITIC_OPTIMIZER critic_optimizer;
         actor_optimizer.parameters.alpha = 3e-4;
         critic_optimizer.parameters.alpha = 3e-4 * 2;
-        auto rng = rlt::random::default_engine(DEVICE{}, seed);
-        auto evaluation_rng = rlt::random::default_engine(DEVICE{}, 12);
+        RNG rng, evaluation_rng;
         prl::PPO_TYPE ppo;
         prl::PPO_BUFFERS_TYPE ppo_buffers;
         prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
@@ -157,6 +157,8 @@ void run(){
         TI next_checkpoint_id = 0;
         TI next_evaluation_id = 0;
 
+        rlt::malloc(device, rng);
+        rlt::malloc(device, evaluation_rng);
         rlt::malloc(device, ppo);
         rlt::malloc(device, ppo_buffers);
         rlt::malloc(device, on_policy_runner_dataset);
@@ -167,6 +169,8 @@ void run(){
         rlt::malloc(device, critic_buffers);
         rlt::malloc(device, critic_buffers_gae);
         rlt::malloc(device, observation_normalizer);
+        rlt::malloc(device, actor_optimizer);
+        rlt::malloc(device, critic_optimizer);
         for(TI env_i = 0; env_i < prl::N_ENVIRONMENTS; env_i++){
             rlt::malloc(device, envs[env_i]);
         }
@@ -176,6 +180,8 @@ void run(){
 //        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
         rlt::init(device);
+        rlt::init(device, rng, seed);
+        rlt::init(device, evaluation_rng, seed);
         rlt::init(device, on_policy_runner, envs, env_parameters, rng);
         rlt::init(device, observation_normalizer);
         rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
@@ -224,7 +230,7 @@ void run(){
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(evaluation_env), NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
-                rlt::evaluate(device, evaluation_env, evaluation_env_parameters, ui, ppo.actor, result, actor_deterministic_eval_buffers, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+                rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);

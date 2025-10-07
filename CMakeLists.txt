@@ -10,6 +10,8 @@ option(RL_TOOLS_ENABLE_TESTS "Enable building the tests" ON)
 option(RL_TOOLS_OFFLINE_BUILD "Use the dependencies in .dependencies without checking for updates (useful after nuking the build directory when offline)" OFF)
 option(RL_TOOLS_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
+option(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
+
 add_library(rl_tools_core INTERFACE)
 add_library(RLtools::Core ALIAS rl_tools_core)
 target_compile_features(rl_tools_core INTERFACE cxx_std_17)
@@ -66,9 +68,14 @@ include(cmake/autodetect/tier1-blas.cmake)
 include(cmake/autodetect/tier2-json-hdf5-zlib.cmake)
 include(cmake/autodetect/tier3-tensorboard.cmake)
 include(cmake/autodetect/tier4-cuda.cmake)
+include(cmake/autodetect/tier5-cli11.cmake)
 
 include(cmake/autodetect/git-hash.cmake)
 include(cmake/autodetect/git-diff.cmake)
+
+if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
+    include(cmake/optional/mujoco.cmake)
+endif()
 
 if(RL_TOOLS_ENABLE_TESTS)
 endif()
