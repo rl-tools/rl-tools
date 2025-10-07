@@ -148,6 +148,13 @@ namespace rl_tools{
     static bool terminated(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const typename rl::environments::mujoco::ant::State<SPEC> state, RNG& rng){
         return env.last_terminated;
     }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env){
+        std::string json_string = "{";
+        json_string += "\"name\": \"Ant-v4\"";
+        json_string += "\"}";
+        return json_string;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -1,5 +1,5 @@
 add_subdirectory(ppo)
-add_subdirectory(td3)
+#add_subdirectory(td3)
 
 if(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI AND RL_TOOLS_ENABLE_CLI11)
     add_executable(rl_environments_mujoco_ant_evaluation_td3 evaluate_actor.cpp)
