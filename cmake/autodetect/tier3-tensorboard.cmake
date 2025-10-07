@@ -4,7 +4,6 @@ if(NOT RL_TOOLS_DISABLE_TENSORBOARD)
         FetchContent_Declare(tensorboard
                 GIT_REPOSITORY https://github.com/rl-tools/tensorboard_logger.git
                 GIT_TAG   9761224e07c34f672523808c3f688651e2822cbc
-                GIT_SHALLOW    TRUE
         )
         FetchContent_MakeAvailable(tensorboard)
         target_link_libraries(rl_tools_full INTERFACE tensorboard_logger)
