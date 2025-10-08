@@ -32,7 +32,7 @@ export class TableExplorer {
         this.loadCommitMessages()
             .catch(() => { this.commitMessages = {}; })
             .finally(() => {
-                index.refresh().then(() => this.initialize());
+                this.initialize();
             });
     }
     
@@ -59,8 +59,8 @@ export class TableExplorer {
     async loadRunsData(limit = null) {
         const runs = [];
         const runList = window.idx.run_list;
-        const loadLimit = limit || runList.length;
         
+        // First pass: Create runData objects for all runs
         for (let i = 0; i < runList.length; i++) {
             const run = runList[i];
             const runData = {
@@ -77,11 +77,23 @@ export class TableExplorer {
                 returnStats: null,
                 detailedDataLoaded: false
             };
-            
-            // Load return statistics only for the first N runs
-            if (i < loadLimit && run.return) {
+            runs.push(runData);
+        }
+        
+        // Sort by experiment (timestamp) descending to get most recent runs first
+        runs.sort((a, b) => {
+            const valA = a.experiment.toLowerCase();
+            const valB = b.experiment.toLowerCase();
+            return valB.localeCompare(valA); // Descending order
+        });
+        
+        // Second pass: Load detailed data for the first N most recent runs
+        const loadLimit = limit || runs.length;
+        for (let i = 0; i < Math.min(loadLimit, runs.length); i++) {
+            const runData = runs[i];
+            if (runData.run.return) {
                 try {
-                    const returnData = await (await fetch(run.return)).json();
+                    const returnData = await (await fetch(runData.run.return)).json();
                     if (returnData && returnData.length > 0) {
                         const final = returnData[returnData.length - 1];
                         runData.returnStats = {
@@ -96,11 +108,9 @@ export class TableExplorer {
                     console.warn(`Failed to load return data for run:`, e);
                 }
             }
-            
-            runs.push(runData);
         }
         
-        if (!limit || limit >= runList.length) {
+        if (!limit || limit >= runs.length) {
             this.allDataLoaded = true;
         }
         

@@ -41,7 +41,7 @@ export class Zoo{
     constructor(index){
         this.container = document.createElement("div")
         this.container.classList.add("zoo-container")
-        this.success = index.refresh().then(async () => {
+        this.success = (async () => {
             const run_list_full = index.run_list
             console.log(`Found: ${run_list_full.length} runs`)
             const run_list_zoo = run_list_full.filter((run) => run.config["name"] === "zoo")
@@ -103,7 +103,7 @@ export class Zoo{
                 this.container.appendChild(chart)
             }
             return true
-        })
+        })()
     }
     getContainer(){
         return this.container

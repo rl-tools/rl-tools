@@ -55,7 +55,7 @@
         import { StaticFileSystem } from "./StaticFileSystem.js";
         import { Index, group_by } from "./Index.js";
         import { ShowRun } from "./ShowRun.js";
-        import { Explorer } from "./Explorer.js";
+        import { TableExplorer } from "./TableExplorer.js";
         import { Zoo } from "./Zoo.js";
 
         window.group_by = group_by // make available in the developer console
@@ -73,11 +73,11 @@
         })
 
         idx_promise.then((idx) => {
-            const explorer = new Explorer(experiments_base_path, idx, {"verbose": true})
+            const tableExplorer = new TableExplorer(idx, {"verbose": true})
             const explorerContainer = document.getElementById('explorer-container');
-            explorerContainer.appendChild(explorer.getContainer());
+            explorerContainer.appendChild(tableExplorer.getContainer());
 
-            const zoo = new Zoo(experiments_base_path, idx, {"verbose": true})
+            const zoo = new Zoo(idx, {"verbose": true})
             const zooContainer = document.getElementById('zoo-container');
             zooContainer.appendChild(zoo.getContainer());
             zoo.success.then((success) => {
@@ -188,7 +188,7 @@
             <line x1="13" y1="16" x2="19" y2="16" stroke-width="1.8"></line>
         </svg>
     </a>
-    <h1>Run Explorer</h1>
+    <h1>Run Table</h1>
     <div id="explorer-container"></div>
     <div id="learning-curve-section" style="display: none">
         <h1>Learning Curves</h1>
