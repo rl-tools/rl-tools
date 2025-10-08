@@ -38,7 +38,7 @@ function aggregate(evaluation_data){
 }
 
 export class Zoo{
-    constructor(fs, index){
+    constructor(index){
         this.container = document.createElement("div")
         this.container.classList.add("zoo-container")
         this.success = index.refresh().then(async () => {

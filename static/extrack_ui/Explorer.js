@@ -44,7 +44,7 @@ class Spoiler{
 }
 
 export class ExplorerStep{
-    constructor(parent, experiments_base_path, run, step, options){
+    constructor(parent, run, step, options){
         this.options = options || {};
         this.run = run
         this.step = step
@@ -55,7 +55,7 @@ export class ExplorerStep{
             let trajectories_path = this.step.trajectories_compressed || this.step.trajectories
             if(options["verbose"]){
                 const url = new URL("./play_trajectories.html", window.location.href)
-                url.searchParams.append("experiments", experiments_base_path)
+                url.searchParams.append("experiments", run.fs.base_path)
                 url.searchParams.append("trajectories", trajectories_path)
                 if(!run.ui_jsm){
                     throw `No ui_jsm found in ${this.run.config.path}"`
@@ -91,7 +91,7 @@ export class ExplorerStep{
     }
 }
 export class ExplorerRun{
-    constructor(parent, experiments_base_path, run, options){
+    constructor(parent, run, options){
         this.config = null
         this.container = document.createElement('div');
         this.container.classList.add("run-container");
@@ -100,20 +100,18 @@ export class ExplorerRun{
         this.steps_spoiler = new Spoiler(this.container, "Steps", false, (spoiler) => {
             for(const step of Object.keys(run.steps).sort()) {
                 // const step_spoiler = new Spoiler(this.steps_spoiler, this.steps[step_id], );
-                new ExplorerStep(spoiler, experiments_base_path, run, run.steps[step], options);
+                new ExplorerStep(spoiler, run, run.steps[step], options);
             }
         });
     }
 }
 
 export class Explorer{
-    constructor(experiments_base_path, index, options){
+    constructor(index, options){
         this.container = document.createElement('div');
         this.loading_text = document.createElement('div');
         this.loading_text.style.display = "block";
         this.container.appendChild(this.loading_text);
-        // const experiment_index_path = `${experiments_base_path}/index.txt`
-        // this.loading_text.innerHTML = `Loading Experiment Index: ${experiment_index_path}`
         index.refresh().then(() => {
             this.experiments = index.run_hierarchy;
             this.loading_text.style.display = "none";
@@ -127,8 +125,10 @@ export class Explorer{
                         for (const config of Object.keys(this.experiments[experiment][population]).sort()) {
                             const config_spoiler = new Spoiler(population_spoiler, config, false);
                             for (const seed of Object.keys(this.experiments[experiment][population][config]).sort()) {
-                                const seed_spoiler = new Spoiler(config_spoiler, seed, true);
-                                new ExplorerRun(seed_spoiler, experiments_base_path, this.experiments[experiment][population][config][seed], options);
+                                const run = this.experiments[experiment][population][config][seed];
+                                const seed_label = run.config._source ? `${seed} [${run.config._source}]` : seed;
+                                const seed_spoiler = new Spoiler(config_spoiler, seed_label, true);
+                                new ExplorerRun(seed_spoiler, run, options);
                             }
                         }
                     }
