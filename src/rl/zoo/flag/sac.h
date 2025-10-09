@@ -33,9 +33,9 @@ namespace rl_tools::rl::zoo::flag::sac{
             static constexpr TI N_WARMUP_STEPS_CRITIC = 1000;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 1000;
             static constexpr TI ACTOR_NUM_LAYERS = 4;
-            static constexpr TI ACTOR_HIDDEN_DIM = 32;
+            static constexpr TI ACTOR_HIDDEN_DIM = 48;
             static constexpr TI CRITIC_NUM_LAYERS = 4;
-            static constexpr TI CRITIC_HIDDEN_DIM = 32;
+            static constexpr TI CRITIC_HIDDEN_DIM = 48;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr T ALPHA = 1.0;
