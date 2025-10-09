@@ -61,8 +61,9 @@ export class TableExplorer {
     }
     
     async initialize() {
-        this.runs = await this.loadRunsData(this.initialLoadCount);
-        this.currentLoadedCount = Math.min(this.initialLoadCount, this.runs.length);
+        // First pass: Load basic run info without detailed statistics
+        this.runs = await this.loadRunsBasicInfo();
+        this.currentLoadedCount = 0;
         this.groupedRuns = this.groupRunsByExperiment(this.runs);
         this.filteredRuns = [...this.groupedRuns];
         this.loading_text.style.display = 'none';
@@ -70,6 +71,78 @@ export class TableExplorer {
         if (this.resolveInitialized) {
             this.resolveInitialized();
         }
+        
+        // Second pass: Load detailed statistics in background
+        this.loadDetailedDataInBackground(this.initialLoadCount);
+    }
+    
+    loadRunsBasicInfo() {
+        // Load all runs without detailed statistics (fast)
+        const runs = [];
+        const runList = window.idx.run_list;
+        
+        for (let i = 0; i < runList.length; i++) {
+            const run = runList[i];
+            const runData = {
+                source: run.config._source || 'unknown',
+                experiment: run.config.experiment,
+                commit: run.config.commit,
+                algorithm: run.config.population.algorithm || 'N/A',
+                environment: run.config.population.environment || 'N/A',
+                seed: run.config.seed,
+                hasUi: !!run.ui_jsm,
+                hasSteps: Object.keys(run.steps || {}).length > 0,
+                stepsCount: Object.keys(run.steps || {}).length,
+                run: run,
+                returnStats: null,
+                detailedDataLoaded: false
+            };
+            runs.push(runData);
+        }
+        
+        // Sort by experiment (timestamp) descending to get most recent runs first
+        runs.sort((a, b) => {
+            const valA = a.experiment.toLowerCase();
+            const valB = b.experiment.toLowerCase();
+            return valB.localeCompare(valA); // Descending order
+        });
+        
+        return runs;
+    }
+    
+    async loadDetailedDataInBackground(count) {
+        // Load detailed statistics in the background without blocking
+        const endIndex = Math.min(count, this.runs.length);
+        
+        for (let i = 0; i < endIndex; i++) {
+            const runData = this.runs[i];
+            if (!runData.detailedDataLoaded && runData.run.return) {
+                try {
+                    const returnData = await (await fetch(runData.run.return)).json();
+                    if (returnData && returnData.length > 0) {
+                        const final = returnData[returnData.length - 1];
+                        runData.returnStats = {
+                            final_step: final.step,
+                            final_return_mean: final.returns_mean,
+                            final_return_std: final.returns_std,
+                            episode_length_mean: final.episode_length_mean
+                        };
+                        runData.detailedDataLoaded = true;
+                    }
+                } catch (e) {
+                    console.warn(`Failed to load return data for run:`, e);
+                }
+            }
+        }
+        
+        this.currentLoadedCount = endIndex;
+        if (this.currentLoadedCount >= this.runs.length) {
+            this.allDataLoaded = true;
+        }
+        
+        // Update the table with loaded statistics
+        this.groupedRuns = this.groupRunsByExperiment(this.runs);
+        this.applyFilters();
     }
     
     groupRunsByExperiment(runs) {
@@ -168,66 +241,6 @@ export class TableExplorer {
         return ranges.join(', ');
     }
     
-    async loadRunsData(limit = null) {
-        const runs = [];
-        const runList = window.idx.run_list;
-        
-        // First pass: Create runData objects for all runs
-        for (let i = 0; i < runList.length; i++) {
-            const run = runList[i];
-            const runData = {
-                source: run.config._source || 'unknown',
-                experiment: run.config.experiment,
-                commit: run.config.commit,
-                algorithm: run.config.population.algorithm || 'N/A',
-                environment: run.config.population.environment || 'N/A',
-                seed: run.config.seed,
-                hasUi: !!run.ui_jsm,
-                hasSteps: Object.keys(run.steps || {}).length > 0,
-                stepsCount: Object.keys(run.steps || {}).length,
-                run: run,
-                returnStats: null,
-                detailedDataLoaded: false
-            };
-            runs.push(runData);
-        }
-        
-        // Sort by experiment (timestamp) descending to get most recent runs first
-        runs.sort((a, b) => {
-            const valA = a.experiment.toLowerCase();
-            const valB = b.experiment.toLowerCase();
-            return valB.localeCompare(valA); // Descending order
-        });
-        
-        // Second pass: Load detailed data for the first N most recent runs
-        const loadLimit = limit || runs.length;
-        for (let i = 0; i < Math.min(loadLimit, runs.length); i++) {
-            const runData = runs[i];
-            if (runData.run.return) {
-                try {
-                    const returnData = await (await fetch(runData.run.return)).json();
-                    if (returnData && returnData.length > 0) {
-                        const final = returnData[returnData.length - 1];
-                        runData.returnStats = {
-                            final_step: final.step,
-                            final_return_mean: final.returns_mean,
-                            final_return_std: final.returns_std,
-                            episode_length_mean: final.episode_length_mean
-                        };
-                        runData.detailedDataLoaded = true;
-                    }
-                } catch (e) {
-                    console.warn(`Failed to load return data for run:`, e);
-                }
-            }
-        }
-        
-        if (!limit || limit >= runs.length) {
-            this.allDataLoaded = true;
-        }
-        
-        return runs;
-    }
     
     async loadNextBatch() {
         const endIndex = Math.min(this.currentLoadedCount + this.loadBatchSize, this.runs.length);
