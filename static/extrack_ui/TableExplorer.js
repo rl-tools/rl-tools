@@ -14,6 +14,8 @@ export class TableExplorer {
         this.allDataLoaded = false;
         this.initialLoadCount = 100;
         this.commitMessages = {};
+        this.selectedRuns = new Set(); // Track selected runs by their experiment ID
+        this.onSelectionChange = options.onSelectionChange || null; // Callback when selection changes
         
         // Filters
         this.filters = {
@@ -28,9 +30,16 @@ export class TableExplorer {
         this.loading_text.innerHTML = 'Loading runs...';
         this.container.appendChild(this.loading_text);
         
+        // Create initialization promise
+        this.initialized = new Promise((resolve) => {
+            this.resolveInitialized = resolve;
+        });
+        
         // Load commit messages and initialize
         this.loadCommitMessages()
-            .catch(() => { this.commitMessages = {}; })
+            .catch(() => { 
+                this.commitMessages = {}; 
+            })
             .finally(() => {
                 this.initialize();
             });
@@ -54,6 +63,9 @@ export class TableExplorer {
         this.filteredRuns = [...this.runs];
         this.loading_text.style.display = 'none';
         this.render();
+        if (this.resolveInitialized) {
+            this.resolveInitialized();
+        }
     }
     
     async loadRunsData(limit = null) {
@@ -310,6 +322,7 @@ export class TableExplorer {
         headerRow.style.color = 'white';
         
         const columns = [
+            { key: 'select', label: '✓', width: '40px' },
             { key: 'source', label: 'Source', width: '80px' },
             { key: 'experiment', label: 'Experiment', width: '150px' },
             { key: 'commit', label: 'Commit', width: '300px' },
@@ -328,11 +341,11 @@ export class TableExplorer {
             th.textContent = col.label;
             th.style.padding = '10px';
             th.style.textAlign = 'left';
-            th.style.cursor = col.key !== 'actions' ? 'pointer' : 'default';
+            th.style.cursor = (col.key !== 'actions' && col.key !== 'select') ? 'pointer' : 'default';
             th.style.borderBottom = '2px solid #ddd';
             if (col.width) th.style.minWidth = col.width;
             
-            if (col.key !== 'actions') {
+            if (col.key !== 'actions' && col.key !== 'select') {
                 th.addEventListener('click', () => this.sortBy(col.key));
                 
                 if (this.sortColumn === col.key) {
@@ -355,6 +368,29 @@ export class TableExplorer {
             row.style.borderBottom = '1px solid #eee';
             row.addEventListener('mouseenter', () => row.style.backgroundColor = '#f9f9f9');
             row.addEventListener('mouseleave', () => row.style.backgroundColor = '');
+            
+            // Create a unique ID for this run
+            const runId = `${runData.experiment}_${runData.seed}`;
+            
+            // Checkbox
+            const tdCheckbox = document.createElement('td');
+            tdCheckbox.style.padding = '8px 10px';
+            tdCheckbox.style.textAlign = 'center';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = this.selectedRuns.has(runId);
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    this.selectedRuns.add(runId);
+                } else {
+                    this.selectedRuns.delete(runId);
+                }
+                if (this.onSelectionChange) {
+                    this.onSelectionChange(this.getSelectedRuns());
+                }
+            });
+            tdCheckbox.appendChild(checkbox);
+            row.appendChild(tdCheckbox);
             
             // Source
             const tdSource = document.createElement('td');
@@ -653,6 +689,35 @@ export class TableExplorer {
     
     getContainer() {
         return this.container;
+    }
+    
+    getSelectedRuns() {
+        // Return the actual run objects for the selected run IDs
+        if (!this.runs || !Array.isArray(this.runs)) {
+            return [];
+        }
+        return this.runs.filter(runData => {
+            const runId = `${runData.experiment}_${runData.seed}`;
+            return this.selectedRuns.has(runId);
+        });
+    }
+    
+    setSelectedRuns(runDataArray) {
+        // Clear and set new selections
+        this.selectedRuns.clear();
+        
+        if (!runDataArray || !Array.isArray(runDataArray)) {
+            return;
+        }
+        
+        for (const runData of runDataArray) {
+            const runId = `${runData.experiment}_${runData.seed}`;
+            this.selectedRuns.add(runId);
+        }
+        this.render();
+        if (this.onSelectionChange) {
+            this.onSelectionChange(this.getSelectedRuns());
+        }
     }
 }
 
