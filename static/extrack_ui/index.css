@@ -60,6 +60,8 @@
     flex-direction: column;
     align-items: center;
     width: 100%;
+    min-height: 600px;
+    transition: min-height 0.3s ease;
 }
 .zoo-container-container-element{
     max-width: 900px;
