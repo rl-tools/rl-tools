@@ -84,13 +84,13 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_sac -n $NUM_SEEDS
 
-      - name: Run Zoo (TD3 Pendulum-v1)
-        working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_td3 -n $NUM_SEEDS
-
-      - name: Run Zoo (PPO Pendulum-v1)
-        working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_ppo -n $NUM_SEEDS
+#      - name: Run Zoo (TD3 Pendulum-v1)
+#        working-directory: ${{ github.workspace }}
+#        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_td3 -n $NUM_SEEDS
+#
+#      - name: Run Zoo (PPO Pendulum-v1)
+#        working-directory: ${{ github.workspace }}
+#        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_ppo -n $NUM_SEEDS
 
       - name: Run Zoo (SAC AcrobotSwingup-v0)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.acrobot == 'true'
@@ -122,7 +122,7 @@ jobs:
           app-id: ${{ vars.ZOO_BLOB_APP_ID }}
           private-key: ${{ secrets.ZOO_BLOB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: "rl-tools,zoo-blob,zoo.rl.tools"
+          repositories: "rl-tools,zoo-runs-ci,zoo-runs-curated,zoo.rl.tools"
       - name: Use the token
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
