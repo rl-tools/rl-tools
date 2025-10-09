@@ -38,11 +38,15 @@ export class TableExplorer {
         });
         
         // Load commit messages and initialize
+        // Ensure initialization always proceeds even if commit messages fail
         this.loadCommitMessages()
-            .catch(() => { 
+            .catch((error) => {
+                // Silently fail - commit messages are optional
+                console.info('Commit messages not available (this is optional)');
                 this.commitMessages = {}; 
             })
             .finally(() => {
+                // Always initialize, regardless of commit message loading
                 this.initialize();
             });
     }
@@ -51,12 +55,16 @@ export class TableExplorer {
         try {
             const response = await fetch('./commit_messages.json');
             if (response.ok) {
-                this.commitMessages = await response.json();
+                const data = await response.json();
+                this.commitMessages = data || {};
             } else {
+                // 404 or other HTTP error - this is expected if file doesn't exist
                 this.commitMessages = {};
             }
         } catch (e) {
+            // Network error, parse error, or other issue
             this.commitMessages = {};
+            throw e; // Re-throw so the outer catch can log it
         }
     }
     
