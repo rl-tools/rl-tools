@@ -60,12 +60,109 @@ export class TableExplorer {
     
     async initialize() {
         this.runs = await this.loadRunsData(this.initialLoadCount);
-        this.filteredRuns = [...this.runs];
+        this.groupedRuns = this.groupRunsByExperiment(this.runs);
+        this.filteredRuns = [...this.groupedRuns];
         this.loading_text.style.display = 'none';
         this.render();
         if (this.resolveInitialized) {
             this.resolveInitialized();
         }
+    }
+    
+    groupRunsByExperiment(runs) {
+        // Group runs by experiment + algorithm + environment + commit
+        const groups = {};
+        
+        for (const run of runs) {
+            const key = `${run.experiment}_${run.algorithm}_${run.environment}_${run.commit}`;
+            
+            if (!groups[key]) {
+                groups[key] = {
+                    groupKey: key,
+                    source: run.source,
+                    experiment: run.experiment,
+                    commit: run.commit,
+                    algorithm: run.algorithm,
+                    environment: run.environment,
+                    seeds: [],
+                    runs: [],
+                    hasUi: run.hasUi,
+                    hasSteps: run.hasSteps,
+                    stepsCount: run.stepsCount,
+                    isGroup: true
+                };
+            }
+            
+            groups[key].seeds.push(run.seed);
+            groups[key].runs.push(run);
+        }
+        
+        // Calculate aggregate statistics for each group
+        const groupedArray = Object.values(groups).map(group => {
+            const runsWithStats = group.runs.filter(r => r.returnStats);
+            
+            if (runsWithStats.length > 0) {
+                const returns = runsWithStats.map(r => r.returnStats.final_return_mean);
+                const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+                const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+                const std = Math.sqrt(variance);
+                
+                const steps = runsWithStats.map(r => r.returnStats.final_step);
+                const meanSteps = steps.reduce((a, b) => a + b, 0) / steps.length;
+                
+                group.returnStats = {
+                    final_return_mean: mean,
+                    final_return_std: std,
+                    final_step: Math.round(meanSteps),
+                    count: runsWithStats.length
+                };
+            }
+            
+            return group;
+        });
+        
+        return groupedArray;
+    }
+    
+    formatSeedRanges(seeds) {
+        // Convert array of seeds to compact range notation
+        // E.g., ["00", "01", "02", "03", "05", "06", "10"] -> "0...3, 5, 6, 10"
+        // Parse seeds as integers and sort
+        const sorted = [...seeds].map(s => parseInt(s, 10)).sort((a, b) => a - b);
+        const ranges = [];
+        let start = sorted[0];
+        let end = sorted[0];
+        
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i] === end + 1) {
+                // Continue the current range
+                end = sorted[i];
+            } else {
+                // End current range and start a new one
+                if (end - start >= 2) {
+                    // Use range notation for 3+ consecutive numbers
+                    ranges.push(`${start}...${end}`);
+                } else if (end === start) {
+                    ranges.push(`${start}`);
+                } else {
+                    // For just 2 numbers, list them separately
+                    ranges.push(`${start}, ${end}`);
+                }
+                start = sorted[i];
+                end = sorted[i];
+            }
+        }
+        
+        // Add the last range
+        if (end - start >= 2) {
+            ranges.push(`${start}...${end}`);
+        } else if (end === start) {
+            ranges.push(`${start}`);
+        } else {
+            ranges.push(`${start}, ${end}`);
+        }
+        
+        return ranges.join(', ');
     }
     
     async loadRunsData(limit = null) {
@@ -328,9 +425,9 @@ export class TableExplorer {
             { key: 'commit', label: 'Commit', width: '300px' },
             { key: 'algorithm', label: 'Algorithm', width: '100px' },
             { key: 'environment', label: 'Environment', width: '120px' },
-            { key: 'seed', label: 'Seed', width: '60px' },
-            { key: 'final_return_mean', label: 'Final Return', width: '100px' },
-            { key: 'final_return_std', label: 'Return Std', width: '100px' },
+            { key: 'seeds', label: 'Seeds', width: '100px' },
+            { key: 'final_return_mean', label: 'Return (Mean)', width: '120px' },
+            { key: 'final_return_std', label: 'Return (Std)', width: '100px' },
             { key: 'final_step', label: 'Steps', width: '100px' },
             { key: 'stepsCount', label: 'Checkpoints', width: '100px' },
             { key: 'actions', label: 'Actions', width: '150px' }
@@ -363,27 +460,31 @@ export class TableExplorer {
         // Create body
         const tbody = document.createElement('tbody');
         
-        for (const runData of this.filteredRuns) {
+        for (const groupData of this.filteredRuns) {
             const row = document.createElement('tr');
             row.style.borderBottom = '1px solid #eee';
             row.addEventListener('mouseenter', () => row.style.backgroundColor = '#f9f9f9');
             row.addEventListener('mouseleave', () => row.style.backgroundColor = '');
             
-            // Create a unique ID for this run
-            const runId = `${runData.experiment}_${runData.seed}`;
-            
-            // Checkbox
+            // Checkbox - check if all runs in this group are selected
             const tdCheckbox = document.createElement('td');
             tdCheckbox.style.padding = '8px 10px';
             tdCheckbox.style.textAlign = 'center';
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.checked = this.selectedRuns.has(runId);
+            
+            // Check if this group is selected (all runs from this group are selected)
+            const groupRunIds = groupData.runs.map(r => `${r.experiment}_${r.seed}`);
+            const allSelected = groupRunIds.every(id => this.selectedRuns.has(id));
+            checkbox.checked = allSelected;
+            
             checkbox.addEventListener('change', () => {
                 if (checkbox.checked) {
-                    this.selectedRuns.add(runId);
+                    // Add all runs in this group
+                    groupRunIds.forEach(id => this.selectedRuns.add(id));
                 } else {
-                    this.selectedRuns.delete(runId);
+                    // Remove all runs in this group
+                    groupRunIds.forEach(id => this.selectedRuns.delete(id));
                 }
                 if (this.onSelectionChange) {
                     this.onSelectionChange(this.getSelectedRuns());
@@ -394,22 +495,20 @@ export class TableExplorer {
             
             // Source
             const tdSource = document.createElement('td');
-            tdSource.textContent = runData.source;
             tdSource.style.padding = '8px 10px';
             const sourceBadge = document.createElement('span');
-            sourceBadge.textContent = runData.source;
+            sourceBadge.textContent = groupData.source;
             sourceBadge.style.padding = '2px 8px';
             sourceBadge.style.borderRadius = '3px';
             sourceBadge.style.fontSize = '12px';
-            sourceBadge.style.backgroundColor = runData.source === 'curated' ? '#4CAF50' : '#2196F3';
+            sourceBadge.style.backgroundColor = groupData.source === 'curated' ? '#4CAF50' : '#2196F3';
             sourceBadge.style.color = 'white';
-            tdSource.innerHTML = '';
             tdSource.appendChild(sourceBadge);
             row.appendChild(tdSource);
             
             // Experiment
             const tdExp = document.createElement('td');
-            tdExp.textContent = runData.experiment;
+            tdExp.textContent = groupData.experiment;
             tdExp.style.padding = '8px 10px';
             tdExp.style.fontSize = '12px';
             row.appendChild(tdExp);
@@ -420,14 +519,14 @@ export class TableExplorer {
             tdCommit.style.fontSize = '12px';
             
             const commitHash = document.createElement('span');
-            commitHash.textContent = runData.commit.substring(0, 7);
+            commitHash.textContent = groupData.commit.substring(0, 7);
             commitHash.style.fontFamily = 'monospace';
             commitHash.style.fontWeight = 'bold';
             commitHash.style.marginRight = '8px';
             tdCommit.appendChild(commitHash);
             
             // Add commit message if available
-            const shortHash = runData.commit.substring(0, 7);
+            const shortHash = groupData.commit.substring(0, 7);
             if (this.commitMessages[shortHash]) {
                 const commitMsg = document.createElement('span');
                 commitMsg.textContent = this.commitMessages[shortHash];
@@ -441,52 +540,59 @@ export class TableExplorer {
             
             // Algorithm
             const tdAlgo = document.createElement('td');
-            tdAlgo.textContent = runData.algorithm;
+            tdAlgo.textContent = groupData.algorithm;
             tdAlgo.style.padding = '8px 10px';
             tdAlgo.style.fontWeight = 'bold';
             row.appendChild(tdAlgo);
             
             // Environment
             const tdEnv = document.createElement('td');
-            tdEnv.textContent = runData.environment;
+            tdEnv.textContent = groupData.environment;
             tdEnv.style.padding = '8px 10px';
             row.appendChild(tdEnv);
             
-            // Seed
-            const tdSeed = document.createElement('td');
-            tdSeed.textContent = runData.seed;
-            tdSeed.style.padding = '8px 10px';
-            tdSeed.style.textAlign = 'center';
-            row.appendChild(tdSeed);
+            // Seeds
+            const tdSeeds = document.createElement('td');
+            const seedRanges = this.formatSeedRanges(groupData.seeds);
+            tdSeeds.textContent = `${groupData.seeds.length} (${seedRanges})`;
+            tdSeeds.style.padding = '8px 10px';
+            tdSeeds.style.textAlign = 'center';
+            tdSeeds.style.fontSize = '12px';
+            // Sort seeds as integers for tooltip
+            const sortedSeeds = [...groupData.seeds].map(s => parseInt(s, 10)).sort((a,b) => a-b);
+            tdSeeds.title = `Seeds: ${sortedSeeds.join(', ')}`;
+            row.appendChild(tdSeeds);
             
-            // Final Return Mean
+            // Final Return Mean (across seeds)
             const tdReturn = document.createElement('td');
-            if (runData.returnStats) {
-                tdReturn.textContent = runData.returnStats.final_return_mean.toFixed(2);
+            if (groupData.returnStats) {
+                tdReturn.textContent = `${groupData.returnStats.final_return_mean.toFixed(2)} (n=${groupData.returnStats.count})`;
             } else {
                 tdReturn.textContent = 'N/A';
                 tdReturn.style.color = '#999';
             }
             tdReturn.style.padding = '8px 10px';
             tdReturn.style.textAlign = 'right';
+            tdReturn.style.fontSize = '12px';
             row.appendChild(tdReturn);
             
-            // Final Return Std
+            // Final Return Std (across seeds)
             const tdStd = document.createElement('td');
-            if (runData.returnStats) {
-                tdStd.textContent = runData.returnStats.final_return_std.toFixed(2);
+            if (groupData.returnStats) {
+                tdStd.textContent = `±${groupData.returnStats.final_return_std.toFixed(2)}`;
             } else {
                 tdStd.textContent = 'N/A';
                 tdStd.style.color = '#999';
             }
             tdStd.style.padding = '8px 10px';
             tdStd.style.textAlign = 'right';
+            tdStd.style.fontSize = '12px';
             row.appendChild(tdStd);
             
             // Steps
             const tdSteps = document.createElement('td');
-            if (runData.returnStats) {
-                tdSteps.textContent = runData.returnStats.final_step.toLocaleString();
+            if (groupData.returnStats) {
+                tdSteps.textContent = groupData.returnStats.final_step.toLocaleString();
             } else {
                 tdSteps.textContent = 'N/A';
                 tdSteps.style.color = '#999';
@@ -497,7 +603,7 @@ export class TableExplorer {
             
             // Checkpoints
             const tdCheckpoints = document.createElement('td');
-            tdCheckpoints.textContent = runData.stepsCount;
+            tdCheckpoints.textContent = groupData.stepsCount;
             tdCheckpoints.style.padding = '8px 10px';
             tdCheckpoints.style.textAlign = 'center';
             row.appendChild(tdCheckpoints);
@@ -506,13 +612,13 @@ export class TableExplorer {
             const tdActions = document.createElement('td');
             tdActions.style.padding = '8px 10px';
             
-            if (runData.hasUi && runData.hasSteps) {
+            if (groupData.hasUi && groupData.hasSteps) {
                 const playButton = document.createElement('button');
                 playButton.textContent = '▶ Play';
                 playButton.style.marginRight = '5px';
                 playButton.style.padding = '4px 8px';
                 playButton.style.fontSize = '12px';
-                playButton.addEventListener('click', () => this.playTrajectory(runData));
+                playButton.addEventListener('click', () => this.playTrajectory(groupData.runs[0]));
                 tdActions.appendChild(playButton);
             }
             
@@ -520,7 +626,7 @@ export class TableExplorer {
             detailsButton.textContent = 'Details';
             detailsButton.style.padding = '4px 8px';
             detailsButton.style.fontSize = '12px';
-            detailsButton.addEventListener('click', () => this.showDetails(runData));
+            detailsButton.addEventListener('click', () => this.showDetails(groupData));
             tdActions.appendChild(detailsButton);
             
             row.appendChild(tdActions);
@@ -534,9 +640,9 @@ export class TableExplorer {
     }
     
     applyFilters() {
-        this.filteredRuns = this.runs.filter(run => {
+        this.filteredRuns = this.groupedRuns.filter(group => {
             for (const [key, value] of Object.entries(this.filters)) {
-                if (value && !run[key].includes(value)) {
+                if (value && !group[key].includes(value)) {
                     return false;
                 }
             }
@@ -632,9 +738,7 @@ export class TableExplorer {
         trajectoryPlayer.playTrajectories(trajectoryPath);
     }
     
-    showDetails(runData) {
-        const run = runData.run;
-        
+    showDetails(groupData) {
         // Create modal for details
         const modal = document.createElement('div');
         modal.style.position = 'fixed';
@@ -662,7 +766,7 @@ export class TableExplorer {
         modalContent.appendChild(closeButton);
         
         const title = document.createElement('h2');
-        title.textContent = 'Run Details';
+        title.textContent = 'Run Group Details';
         modalContent.appendChild(title);
         
         const details = document.createElement('pre');
@@ -671,15 +775,16 @@ export class TableExplorer {
         details.style.borderRadius = '3px';
         details.style.overflow = 'auto';
         details.textContent = JSON.stringify({
-            source: runData.source,
-            experiment: runData.experiment,
-            commit: runData.commit,
-            algorithm: runData.algorithm,
-            environment: runData.environment,
-            seed: runData.seed,
-            population: run.config.population,
-            steps: Object.keys(run.steps || {}),
-            returnStats: runData.returnStats
+            source: groupData.source,
+            experiment: groupData.experiment,
+            commit: groupData.commit,
+            algorithm: groupData.algorithm,
+            environment: groupData.environment,
+            seeds: groupData.seeds,
+            num_runs: groupData.runs.length,
+            population: groupData.runs[0].run.config.population,
+            steps: Object.keys(groupData.runs[0].run.steps || {}),
+            aggregateStats: groupData.returnStats
         }, null, 2);
         modalContent.appendChild(details);
         
