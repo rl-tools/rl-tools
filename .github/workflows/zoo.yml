@@ -41,7 +41,7 @@ jobs:
 
       - name: Setup Git
         run: |
-          git clone https://github.com/rl-tools/zoo-blob.git experiments
+          git clone https://github.com/rl-tools/zoo-runs-ci.git runs/ci
 
       - name: Intel Apt repository
         timeout-minutes: 1
@@ -102,13 +102,19 @@ jobs:
         run: ./build/src/rl/zoo/rl_zoo_ant_v4_ppo -n $NUM_SEEDS
 
       - name: Pull Zoo Blob Again
-        working-directory: ${{ github.workspace }}/experiments
+        working-directory: ${{ github.workspace }}/runs/ci
         run: |
           git pull
+      - name: Strip Experiments
+        working-directory: ${{ github.workspace }}
+        run: python3 runs/ci/strip.py experiments
+      - name: Copy Experiments
+        working-directory: ${{ github.workspace }}
+        run: cp -r experiments/* runs/ci/experiments
       - name: Generate Index
         working-directory: ${{ github.workspace }}/tools
         run: | 
-          ./index_experiments.sh ../experiments
+          ./index_experiments.sh ../runs/ci/experiments
       - name: Generate a token
         id: generate-token
         uses: actions/create-github-app-token@v1
@@ -124,13 +130,13 @@ jobs:
           gh api octocat
           gh repo view rl-tools/zoo-blob --json name
       - name: Set up git with token
-        working-directory: ${{ github.workspace }}/experiments
+        working-directory: ${{ github.workspace }}/runs/ci
         run: |
           git config --global user.name 'RLtools Bot'
           git config --global user.email 'jonas.eschmann@gmail.com'
           git remote set-url origin https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git
       - name: Commit Results
-        working-directory: ${{ github.workspace }}/experiments
+        working-directory: ${{ github.workspace }}/runs/ci
         run: |
           git add .
           git status
