@@ -13,6 +13,8 @@ export class TableExplorer {
         this.sortDirection = 'desc';
         this.allDataLoaded = false;
         this.initialLoadCount = 100;
+        this.loadBatchSize = 100;
+        this.currentLoadedCount = 0;
         this.commitMessages = {};
         this.selectedRuns = new Set(); // Track selected runs by their experiment ID
         this.onSelectionChange = options.onSelectionChange || null; // Callback when selection changes
@@ -60,6 +62,7 @@ export class TableExplorer {
     
     async initialize() {
         this.runs = await this.loadRunsData(this.initialLoadCount);
+        this.currentLoadedCount = Math.min(this.initialLoadCount, this.runs.length);
         this.groupedRuns = this.groupRunsByExperiment(this.runs);
         this.filteredRuns = [...this.groupedRuns];
         this.loading_text.style.display = 'none';
@@ -226,16 +229,58 @@ export class TableExplorer {
         return runs;
     }
     
+    async loadNextBatch() {
+        const endIndex = Math.min(this.currentLoadedCount + this.loadBatchSize, this.runs.length);
+        
+        const loadingMessage = document.createElement('div');
+        loadingMessage.style.padding = '10px';
+        loadingMessage.style.textAlign = 'center';
+        loadingMessage.style.backgroundColor = '#ffffcc';
+        loadingMessage.innerHTML = `<strong>Loading next batch of runs...</strong>`;
+        this.container.insertBefore(loadingMessage, this.container.firstChild);
+        
+        // Load next batch
+        for (let i = this.currentLoadedCount; i < endIndex; i++) {
+            const runData = this.runs[i];
+            if (!runData.detailedDataLoaded && runData.run.return) {
+                try {
+                    const returnData = await (await fetch(runData.run.return)).json();
+                    if (returnData && returnData.length > 0) {
+                        const final = returnData[returnData.length - 1];
+                        runData.returnStats = {
+                            final_step: final.step,
+                            final_return_mean: final.returns_mean,
+                            final_return_std: final.returns_std,
+                            episode_length_mean: final.episode_length_mean
+                        };
+                        runData.detailedDataLoaded = true;
+                    }
+                } catch (e) {
+                    console.warn(`Failed to load return data for run:`, e);
+                }
+            }
+        }
+        
+        this.currentLoadedCount = endIndex;
+        if (this.currentLoadedCount >= this.runs.length) {
+            this.allDataLoaded = true;
+        }
+        
+        this.container.removeChild(loadingMessage);
+        this.groupedRuns = this.groupRunsByExperiment(this.runs);
+        this.applyFilters();
+    }
+    
     async loadRemainingData() {
         const loadingMessage = document.createElement('div');
         loadingMessage.style.padding = '10px';
         loadingMessage.style.textAlign = 'center';
         loadingMessage.style.backgroundColor = '#ffffcc';
-        loadingMessage.innerHTML = `<strong>Loading detailed data for ${this.runs.length - this.initialLoadCount} remaining runs...</strong>`;
+        loadingMessage.innerHTML = `<strong>Loading detailed data for ${this.runs.length - this.currentLoadedCount} remaining runs...</strong>`;
         this.container.insertBefore(loadingMessage, this.container.firstChild);
         
         // Load remaining runs
-        for (let i = this.initialLoadCount; i < this.runs.length; i++) {
+        for (let i = this.currentLoadedCount; i < this.runs.length; i++) {
             const runData = this.runs[i];
             if (!runData.detailedDataLoaded && runData.run.return) {
                 try {
@@ -257,8 +302,43 @@ export class TableExplorer {
         }
         
         this.allDataLoaded = true;
+        this.currentLoadedCount = this.runs.length;
         this.container.removeChild(loadingMessage);
-        this.render();
+        this.groupedRuns = this.groupRunsByExperiment(this.runs);
+        this.applyFilters();
+    }
+    
+    async loadGroupData(groupData) {
+        // Load detailed data for all runs in this group
+        let loadedCount = 0;
+        for (const runData of groupData.runs) {
+            if (!runData.detailedDataLoaded && runData.run.return) {
+                try {
+                    const returnData = await (await fetch(runData.run.return)).json();
+                    if (returnData && returnData.length > 0) {
+                        const final = returnData[returnData.length - 1];
+                        runData.returnStats = {
+                            final_step: final.step,
+                            final_return_mean: final.returns_mean,
+                            final_return_std: final.returns_std,
+                            episode_length_mean: final.episode_length_mean
+                        };
+                        runData.detailedDataLoaded = true;
+                        loadedCount++;
+                    }
+                } catch (e) {
+                    console.warn(`Failed to load return data for run:`, e);
+                }
+            }
+        }
+        
+        // Recalculate group statistics
+        if (loadedCount > 0) {
+            this.groupedRuns = this.groupRunsByExperiment(this.runs);
+            this.applyFilters();
+        }
+        
+        return loadedCount;
     }
     
     render() {
@@ -367,21 +447,48 @@ export class TableExplorer {
         summary.style.marginBottom = '10px';
         summary.style.fontSize = '14px';
         summary.style.color = '#666';
+        summary.style.display = 'flex';
+        summary.style.alignItems = 'center';
+        summary.style.gap = '10px';
+        summary.style.flexWrap = 'wrap';
         
         const detailedCount = this.runs.filter(r => r.detailedDataLoaded).length;
+        
+        const textSpan = document.createElement('span');
         let summaryText = `Showing <strong>${this.filteredRuns.length}</strong> of <strong>${this.runs.length}</strong> runs`;
         
         if (!this.allDataLoaded) {
             summaryText += ` (detailed data loaded for <strong>${detailedCount}</strong>)`;
         }
+        textSpan.innerHTML = summaryText;
+        summary.appendChild(textSpan);
         
-        summary.innerHTML = summaryText;
-        
-        // Add "Load All" button if not all data is loaded
-        if (!this.allDataLoaded) {
+        // Add "Load Next Batch" button if not all data is loaded
+        if (!this.allDataLoaded && this.currentLoadedCount < this.runs.length) {
+            const remaining = this.runs.length - this.currentLoadedCount;
+            const nextBatchSize = Math.min(this.loadBatchSize, remaining);
+            
+            const loadNextButton = document.createElement('button');
+            loadNextButton.textContent = `Load Next ${nextBatchSize} Runs`;
+            loadNextButton.style.padding = '8px 16px';
+            loadNextButton.style.backgroundColor = '#2196F3';
+            loadNextButton.style.color = 'white';
+            loadNextButton.style.border = 'none';
+            loadNextButton.style.borderRadius = '4px';
+            loadNextButton.style.cursor = 'pointer';
+            loadNextButton.style.fontSize = '14px';
+            loadNextButton.addEventListener('click', () => this.loadNextBatch());
+            loadNextButton.addEventListener('mouseenter', () => {
+                loadNextButton.style.backgroundColor = '#0b7dda';
+            });
+            loadNextButton.addEventListener('mouseleave', () => {
+                loadNextButton.style.backgroundColor = '#2196F3';
+            });
+            summary.appendChild(loadNextButton);
+            
+            // Add "Load All" button
             const loadAllButton = document.createElement('button');
-            loadAllButton.textContent = `Load Detailed Data for Remaining ${this.runs.length - detailedCount} Runs`;
-            loadAllButton.style.marginLeft = '15px';
+            loadAllButton.textContent = `Load All Remaining (${remaining})`;
             loadAllButton.style.padding = '8px 16px';
             loadAllButton.style.backgroundColor = '#4CAF50';
             loadAllButton.style.color = 'white';
@@ -430,7 +537,7 @@ export class TableExplorer {
             { key: 'final_return_std', label: 'Return (Std)', width: '100px' },
             { key: 'final_step', label: 'Steps', width: '100px' },
             { key: 'stepsCount', label: 'Checkpoints', width: '100px' },
-            { key: 'actions', label: 'Actions', width: '150px' }
+            { key: 'actions', label: 'Actions', width: '220px' }
         ];
         
         for (const col of columns) {
@@ -611,11 +718,37 @@ export class TableExplorer {
             // Actions
             const tdActions = document.createElement('td');
             tdActions.style.padding = '8px 10px';
+            tdActions.style.display = 'flex';
+            tdActions.style.gap = '5px';
+            tdActions.style.flexWrap = 'nowrap';
+            tdActions.style.whiteSpace = 'nowrap';
+            
+            // Check if this group needs data loading
+            const needsLoading = groupData.runs.some(r => !r.detailedDataLoaded && r.run.return);
+            
+            if (needsLoading) {
+                const loadButton = document.createElement('button');
+                loadButton.textContent = '↓ Load';
+                loadButton.style.padding = '4px 8px';
+                loadButton.style.fontSize = '12px';
+                loadButton.style.backgroundColor = '#ff9800';
+                loadButton.style.color = 'white';
+                loadButton.style.border = 'none';
+                loadButton.style.borderRadius = '3px';
+                loadButton.style.cursor = 'pointer';
+                loadButton.addEventListener('click', async () => {
+                    loadButton.disabled = true;
+                    loadButton.textContent = 'Loading...';
+                    await this.loadGroupData(groupData);
+                    loadButton.textContent = 'Loaded ✓';
+                    loadButton.style.backgroundColor = '#4CAF50';
+                });
+                tdActions.appendChild(loadButton);
+            }
             
             if (groupData.hasUi && groupData.hasSteps) {
                 const playButton = document.createElement('button');
                 playButton.textContent = '▶ Play';
-                playButton.style.marginRight = '5px';
                 playButton.style.padding = '4px 8px';
                 playButton.style.fontSize = '12px';
                 playButton.addEventListener('click', () => this.playTrajectory(groupData.runs[0]));
