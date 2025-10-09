@@ -40,22 +40,23 @@ export function make_chart(data) {
         });
     }
 
-    // let color_palette = [
-    //     "#d53e4f",
-    //     "#fc8d59",
-    //     "#fee08b",
-    //     "#ffffbf",
-    //     "#e6f598",
-    // ]
     let color_palette = [
-        "#e41a1c",
-        "#377eb8",
-        "#4daf4a"
-    ]
+        "#e41a1c", // red
+        "#377eb8", // blue
+        "#4daf4a", // green
+        "#984ea3", // purple
+        "#ff7f00", // orange
+        "#ffff33", // yellow
+        "#a65628", // brown
+        "#f781bf", // pink
+        "#999999"  // gray
+    ];
+    let index = 0;
 
     let datasets = [];
     for (const d of data) {
-        const color_hex = color_palette.shift()
+        const color_hex = color_palette[index]
+        index = (index + 1) % color_palette.length;
         const color = hexToRgba(color_hex);
         const color_ribbon = hexToRgba(color_hex, 0.2);
         datasets.push({
