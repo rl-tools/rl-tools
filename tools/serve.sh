@@ -10,5 +10,16 @@ PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 bash $PARENT_DIR/static/extrack_ui/download_dependencies.sh
 bash -c "while true; do $SCRIPT_DIR/index_experiments.sh $PARENT_DIR/experiments; sleep 10; done" &
 LOOP_PID=$!
-trap "echo 'Shutting down...'; kill $LOOP_PID 2>/dev/null; exit 0" SIGINT
+
+# Cleanup function to kill the background process
+cleanup() {
+    echo 'Shutting down...'
+    kill $LOOP_PID 2>/dev/null || true
+    exit "${1:-0}"
+}
+
+# Set up traps for both interrupts and any exit (including errors)
+trap "cleanup 0" SIGINT
+trap "cleanup 1" ERR EXIT
+
 python3 -m http.server -d "$PARENT_DIR"
