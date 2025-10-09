@@ -476,6 +476,7 @@ export class TableExplorer {
         textSpan.innerHTML = summaryText;
         summary.appendChild(textSpan);
         
+        
         // Add "Load Next Batch" button if not all data is loaded
         if (!this.allDataLoaded && this.currentLoadedCount < this.runs.length) {
             const remaining = this.runs.length - this.currentLoadedCount;
@@ -555,19 +556,59 @@ export class TableExplorer {
         
         for (const col of columns) {
             const th = document.createElement('th');
-            th.textContent = col.label;
             th.style.padding = '10px';
             th.style.textAlign = 'left';
-            th.style.cursor = (col.key !== 'actions' && col.key !== 'select') ? 'pointer' : 'default';
             th.style.borderBottom = '2px solid #ddd';
             if (col.width) th.style.minWidth = col.width;
             
-            if (col.key !== 'actions' && col.key !== 'select') {
-                th.addEventListener('click', () => this.sortBy(col.key));
+            if (col.key === 'select') {
+                // Add header checkbox for deselect all only (selecting all would overload the network)
+                th.style.textAlign = 'center';
+                th.style.cursor = 'pointer';
                 
-                if (this.sortColumn === col.key) {
-                    const arrow = this.sortDirection === 'asc' ? ' ↑' : ' ↓';
-                    th.textContent += arrow;
+                const headerCheckbox = document.createElement('input');
+                headerCheckbox.type = 'checkbox';
+                headerCheckbox.style.cursor = 'pointer';
+                
+                // Determine checkbox state based on selections
+                const allGroupIds = this.filteredRuns.flatMap(g => 
+                    g.runs.map(r => `${r.experiment}_${r.seed}`)
+                );
+                const allSelected = allGroupIds.length > 0 && allGroupIds.every(id => this.selectedRuns.has(id));
+                const someSelected = allGroupIds.some(id => this.selectedRuns.has(id));
+                
+                headerCheckbox.checked = allSelected;
+                headerCheckbox.indeterminate = someSelected && !allSelected;
+                
+                headerCheckbox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // Only allow deselecting, not selecting all (to prevent network overload)
+                    if (allSelected || someSelected) {
+                        // Deselect all
+                        allGroupIds.forEach(id => this.selectedRuns.delete(id));
+                        this.render();
+                        if (this.onSelectionChange) {
+                            this.onSelectionChange(this.getSelectedRuns());
+                        }
+                    } else {
+                        // Prevent selecting all - show a warning
+                        e.preventDefault();
+                        alert('Selecting all runs would load too much data. Please select individual runs or groups instead.');
+                    }
+                });
+                
+                th.appendChild(headerCheckbox);
+            } else {
+                th.textContent = col.label;
+                th.style.cursor = (col.key !== 'actions') ? 'pointer' : 'default';
+                
+                if (col.key !== 'actions') {
+                    th.addEventListener('click', () => this.sortBy(col.key));
+                    
+                    if (this.sortColumn === col.key) {
+                        const arrow = this.sortDirection === 'asc' ? ' ↑' : ' ↓';
+                        th.textContent += arrow;
+                    }
                 }
             }
             
