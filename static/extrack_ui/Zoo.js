@@ -59,14 +59,34 @@ export class Zoo{
             this.container.innerHTML = '<p style="padding: 20px;">No runs with return data available.</p>';
             return false
         }
-        const run_list_grouped = group_by(run_list, ["population_values"])
-        const run_list_grouped_truncated = Object.fromEntries(Object.entries(run_list_grouped).map(([population_values, population_runs]) => {
-            const population_experiments = group_by(population_runs.items, ["experiment", "commit"])
-            const experiment_keys = Object.keys(population_experiments).sort().reverse()
-            return [population_values, Object.fromEntries(experiment_keys.map(key => [key, population_experiments[key]]))];
-        }))
-        const all_data = Object.fromEntries(await Promise.all(Object.keys(run_list_grouped_truncated).map(async population => {
-            const population_data = Object.fromEntries(await Promise.all(Object.entries(run_list_grouped_truncated[population]).map(async ([experiment, experiment_runs]) => {
+        
+        // Group by algorithm and environment (not population_values which can vary)
+        const run_list_grouped_by_algo_env = {};
+        for (const run of run_list) {
+            const algo = run.config.population.algorithm || 'unknown';
+            const env = run.config.population.environment || 'unknown';
+            const key = `${algo}_${env}`;
+            
+            if (!run_list_grouped_by_algo_env[key]) {
+                run_list_grouped_by_algo_env[key] = {
+                    items: [],
+                    algorithm: algo,
+                    environment: env
+                };
+            }
+            run_list_grouped_by_algo_env[key].items.push(run);
+        }
+        
+        const run_list_grouped_truncated = Object.fromEntries(
+            Object.entries(run_list_grouped_by_algo_env).map(([key, group]) => {
+                const population_experiments = group_by(group.items, ["experiment", "commit"])
+                const experiment_keys = Object.keys(population_experiments).sort().reverse()
+                return [key, Object.fromEntries(experiment_keys.map(expKey => [expKey, population_experiments[expKey]]))];
+            })
+        )
+        const all_data = Object.fromEntries(await Promise.all(Object.keys(run_list_grouped_truncated).map(async populationKey => {
+            const group = run_list_grouped_by_algo_env[populationKey];
+            const population_data = Object.fromEntries(await Promise.all(Object.entries(run_list_grouped_truncated[populationKey]).map(async ([experiment, experiment_runs]) => {
                 return [experiment, await Promise.all(experiment_runs.items.map(async (run) => {
                     let return_data = null
                     try{
@@ -91,22 +111,28 @@ export class Zoo{
                     }
                 }))]
             })))
-            return [population, population_data]
+            return [populationKey, {
+                algorithm: group.algorithm,
+                environment: group.environment,
+                data: population_data
+            }]
         })))
 
 
-        for(const population in all_data){
-            let population_actual;
-            const aggregated_data = Object.entries(all_data[population]).map(([experiment, experiment_data]) => {
-                population_actual = experiment_data[0].config["population"]
+        for(const populationKey in all_data){
+            const populationInfo = all_data[populationKey];
+            const algorithm = populationInfo.algorithm;
+            const environment = populationInfo.environment;
+            
+            const aggregated_data = Object.entries(populationInfo.data).map(([experiment, experiment_data]) => {
                 return {
                     label: experiment,
-                    data: aggregate(all_data[population][experiment])
+                    data: aggregate(experiment_data)
                 }
             })
             const header = document.createElement("div")
             header.style.fontSize = "1.5em"
-            header.innerHTML = `Algorithm: <b>${population_actual.algorithm}</b>, Environment: <b>${population_actual.environment}</b>`
+            header.innerHTML = `Algorithm: <b>${algorithm}</b>, Environment: <b>${environment}</b>`
             this.container.appendChild(header)
             const chart = make_chart(aggregated_data)
             this.container.appendChild(chart)
