@@ -73,19 +73,56 @@
         })
 
         idx_promise.then((idx) => {
-            const tableExplorer = new TableExplorer(idx, {"verbose": true})
-            const explorerContainer = document.getElementById('explorer-container');
-            explorerContainer.appendChild(tableExplorer.getContainer());
-
-            const zoo = new Zoo(idx, {"verbose": true})
+            // Create Zoo first with empty selection
+            const zoo = new Zoo([]);
             const zooContainer = document.getElementById('zoo-container');
             zooContainer.appendChild(zoo.getContainer());
-            zoo.success.then((success) => {
-                if(success){
-                    const learning_curve_section = document.getElementById('learning-curve-section')
-                    learning_curve_section.style.display = "block"
+            
+            // Create TableExplorer with callback to update Zoo
+            const tableExplorer = new TableExplorer(idx, {
+                onSelectionChange: (selectedRuns) => {
+                    zoo.updateRuns(selectedRuns);
                 }
-            })
+            });
+            const explorerContainer = document.getElementById('explorer-container');
+            explorerContainer.appendChild(tableExplorer.getContainer());
+            
+            // Wait for table to initialize and set default selections
+            tableExplorer.initialized.then(() => {
+                // For each algorithm-environment pair, select the most recent 3 runs
+                const allGroups = tableExplorer.groupedRuns;
+                
+                // Group by algorithm-environment pair
+                const algoEnvPairs = {};
+                for (const group of allGroups) {
+                    const key = `${group.algorithm}_${group.environment}`;
+                    if (!algoEnvPairs[key]) {
+                        algoEnvPairs[key] = [];
+                    }
+                    algoEnvPairs[key].push(group);
+                }
+                
+                // For each pair, select the most recent 3 runs (already sorted by experiment timestamp descending)
+                const selectedGroups = [];
+                for (const [key, groups] of Object.entries(algoEnvPairs)) {
+                    // Skip N/A pairs
+                    if (key === 'N/A_N/A') {
+                        continue;
+                    }
+                    // Add up to 3 most recent runs for this algo-env pair
+                    selectedGroups.push(...groups.slice(0, 3));
+                }
+                
+                // Extract all individual runs from selected groups
+                const defaultSelections = selectedGroups.flatMap(g => g.runs);
+                
+                if (defaultSelections.length > 0) {
+                    tableExplorer.setSelectedRuns(defaultSelections);
+                    // Show learning curves section when runs are selected
+                    const learning_curve_section = document.getElementById('learning-curve-section');
+                    learning_curve_section.style.display = "block";
+                }
+            });
         })
 
 
@@ -188,14 +225,14 @@
             <line x1="13" y1="16" x2="19" y2="16" stroke-width="1.8"></line>
         </svg>
     </a>
-    <h1>Run Table</h1>
-    <div id="explorer-container"></div>
     <div id="learning-curve-section" style="display: none">
         <h1>Learning Curves</h1>
         <div class="zoo-container-container">
             <div id="zoo-container" class="zoo-container-container-element"></div>
         </div>
     </div>
+    <h1>Run Table</h1>
+    <div id="explorer-container"></div>
 
     <div>
         <h3>Usage</h3>

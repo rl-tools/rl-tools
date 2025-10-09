@@ -55,6 +55,7 @@ export class Zoo{
         
         // Extract actual run objects and filter for those with return data
         const run_list = selectedRunsData.map(rd => rd.run).filter((run) => run.return)
+        
         if(run_list.length === 0){
             this.container.innerHTML = '<p style="padding: 20px;">No runs with return data available.</p>';
             return false
@@ -130,6 +131,7 @@ export class Zoo{
                     data: aggregate(experiment_data)
                 }
             })
+            
             const header = document.createElement("div")
             header.style.fontSize = "1.5em"
             header.innerHTML = `Algorithm: <b>${algorithm}</b>, Environment: <b>${environment}</b>`
