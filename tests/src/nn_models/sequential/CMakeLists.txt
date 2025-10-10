@@ -14,8 +14,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code.h)
         add_executable(test_nn_models_sequential_persist_code_compile persist_code_compile.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile PRIVATE RLtools::Core GTest::gtest_main)
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2.h)
@@ -26,8 +24,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2.h
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile_model_2 is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2_forward.h)
@@ -38,8 +34,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2_f
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2_forward)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile_model_2_forward is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2_forward.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2_backward.h)
@@ -50,8 +44,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2_b
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2_backward)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile_model_2_backward is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2_backward.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_mlp.h)
@@ -62,8 +54,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_mlp
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_mlp)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile_model_mlp is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_mlp.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_mlp_forward.h)
@@ -74,8 +64,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_mlp
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_mlp_forward)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile_model_mlp_forward is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_mlp_forward.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sample_and_squash_forward.h)
@@ -86,8 +74,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sam
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sas_forward)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile_model_sas_forward is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sas_forward.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sample_and_squash_backward.h)
@@ -98,8 +84,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sam
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sas_backward)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile_model_sas_backward is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sas_backward.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sample_and_squash_gradient.h)
@@ -110,8 +94,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sam
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sas_gradient)
-else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile_model_sas_gradient is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_sas_gradient.h")
 endif()
 
 add_executable(test_nn_models_sequential_d_input_benchmark d_input_benchmark.cpp)
