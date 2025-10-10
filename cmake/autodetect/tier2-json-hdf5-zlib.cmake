@@ -9,7 +9,7 @@ if(NOT RL_TOOLS_DISABLE_JSON)
     else()
         find_package(Git QUIET)
         if(GIT_FOUND)
-            message(STATUS "nlohmann_json is required but not found. Using FetchContent.")
+            message(STATUS "nlohmann_json not found. Using FetchContent.")
             FetchContent_Declare(nlohmann_json
                     GIT_REPOSITORY https://github.com/nlohmann/json.git
                     GIT_TAG        a0c1318830519eac027a31edec1a99ce1ae5670e
