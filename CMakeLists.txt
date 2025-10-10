@@ -14,6 +14,10 @@ option(RL_TOOLS_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
 option(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type")
+endif()
+
 add_library(rl_tools_core INTERFACE)
 add_library(RLtools::Core ALIAS rl_tools_core)
 target_compile_features(rl_tools_core INTERFACE cxx_std_17)
