@@ -1,6 +1,7 @@
 if(NOT RL_TOOLS_DISABLE_TENSORBOARD)
     find_package(Protobuf QUIET)
-    if(Protobuf_FOUND AND Protobuf_PROTOC_EXECUTABLE)
+    find_package(Git QUIET)
+    if(Protobuf_FOUND AND Protobuf_PROTOC_EXECUTABLE AND GIT_FOUND)
         FetchContent_Declare(tensorboard
                 GIT_REPOSITORY https://github.com/rl-tools/tensorboard_logger.git
                 GIT_TAG   d57f9887d2df19db6923b76f73fa6c06f2ecb3b3
