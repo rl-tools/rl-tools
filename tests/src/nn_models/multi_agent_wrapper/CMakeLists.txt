@@ -14,8 +14,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code.
             GTest::gtest_main
     )
     gtest_discover_tests(test_nn_models_multi_agent_wrapper_persist_code_compile)
-else()
-    message(WARNING "test_nn_models_multi_agent_wrapper_persist_code_compile is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code_backward.h)
@@ -26,8 +24,6 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code_
             GTest::gtest_main
     )
     gtest_discover_tests(test_nn_models_multi_agent_wrapper_persist_code_compile_backward)
-else()
-    message(WARNING "test_nn_models_multi_agent_wrapper_persist_code_compile_backward is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code_backward.h")
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code_forward.h)
@@ -38,6 +34,4 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code_
             GTest::gtest_main
     )
     gtest_discover_tests(test_nn_models_multi_agent_wrapper_persist_code_compile_forward)
-else()
-    message(WARNING "test_nn_models_multi_agent_wrapper_persist_code_compile_forward is disabled because the file ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code_forward.h")
 endif()
