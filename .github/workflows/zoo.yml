@@ -84,13 +84,13 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_sac -n $NUM_SEEDS
 
-#      - name: Run Zoo (TD3 Pendulum-v1)
-#        working-directory: ${{ github.workspace }}
-#        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_td3 -n $NUM_SEEDS
-#
-#      - name: Run Zoo (PPO Pendulum-v1)
-#        working-directory: ${{ github.workspace }}
-#        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_ppo -n $NUM_SEEDS
+      - name: Run Zoo (TD3 Pendulum-v1)
+        working-directory: ${{ github.workspace }}
+        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_td3 -n $NUM_SEEDS
+
+      - name: Run Zoo (PPO Pendulum-v1)
+        working-directory: ${{ github.workspace }}
+        run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_ppo -n $NUM_SEEDS
 
       - name: Run Zoo (SAC AcrobotSwingup-v0)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.acrobot == 'true'
