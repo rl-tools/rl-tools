@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # This script does three things:
 # 1. Downloads the JavaScript dependencies for the ExTrack UI
-# 2. Runs a simple that creates an index (simple list of files) of the experiments
+# 2. Runs a simple script that creates an index (simple list of files) of the experiments
 # 3. Starts a HTTP server to serve the main folder (where there is front-end code that uses the index of files to detect experiments and display them)
 
 set -e
