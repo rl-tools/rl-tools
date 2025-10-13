@@ -58,6 +58,8 @@ using TI = typename DEVICE::index_t;
 
 #include "parameters.h"
 
+#include <numeric>
+
 
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
