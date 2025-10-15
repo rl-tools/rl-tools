@@ -1,0 +1,33 @@
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_PERSIST_BACKENDS_HDF5_OPERATIONS_GENERIC)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_PERSIST_BACKENDS_HDF5_OPERATIONS_GENERIC
+
+#include "hdf5.h"
+#include <highfive/H5File.hpp>
+#include "../../../containers/matrix/persist_hdf5.h"
+#include "../../../containers/tensor/persist_hdf5.h"
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools{
+    template<typename DEVICE, typename SPEC>
+    void load(DEVICE& device, Matrix<SPEC>& matrix, const persist::backends::hdf5::Group& group, std::string dataset_name) {
+        load(device, matrix, group.group, dataset_name);
+    }
+    template<typename DEVICE, typename SPEC>
+    void load(DEVICE& device, Tensor<SPEC>& tensor, const persist::backends::hdf5::Group& group, std::string dataset_name) {
+        load(device, tensor, group.group, dataset_name);
+    }
+
+    template<typename DEVICE, typename SPEC>
+    void save(DEVICE& device, Matrix<SPEC>& m, persist::backends::hdf5::Group& group, std::string dataset_name) {
+        save(device, m, group.group, dataset_name);
+    }
+    template<typename DEVICE, typename SPEC>
+    void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group& group, std::string dataset_name) {
+        save(device, tensor, group.group, dataset_name);
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif
