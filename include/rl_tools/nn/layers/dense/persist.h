@@ -2,47 +2,50 @@
 #pragma once
 #define RL_TOOLS_NN_LAYERS_DENSE_PERSIST_H
 #include "../../../version.h"
-#include "../../../containers/matrix/persist.h"
 #include "layer.h"
 #include "../../../utils/persist.h"
 #include <iostream>
 #include "persist_common.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename GROUP, typename SPEC>
+    void save(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, GROUP& group) {
         // todo: forward implementation to Parameter struct
-        save(device, layer.weights, group.createGroup("weights"));
-        save(device, layer.biases, group.createGroup("biases"));
-        group.createAttribute<std::string>("activation_function", nn::layers::dense::persist::get_activation_function_string_short<SPEC::CONFIG::ACTIVATION_FUNCTION>());
-        group.createAttribute<std::string>("type", "dense");
+        auto weights_group = create_group(device, group, "weights");
+        auto biases_group = create_group(device, group, "biases");
+        save(device, layer.weights, weights_group);
+        save(device, layer.biases, biases_group);
+        set_attribute(device, group, "activation_function", nn::layers::dense::persist::get_activation_function_string_short<SPEC::CONFIG::ACTIVATION_FUNCTION>());
+        set_attribute(device, group, "type", "dense");
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename GROUP, typename SPEC>
+    void save(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, GROUP& group) {
         save(device, (nn::layers::dense::LayerForward<SPEC>&)layer, group);
         save(device, layer.pre_activations, group, "pre_activations");
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename GROUP, typename SPEC>
+    void save(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, GROUP& group) {
         save(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
         save(device, layer.output, group, "output");
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, HighFive::Group group) {
-        load(device, layer.weights, group.getGroup("weights"));
-        load(device, layer.biases, group.getGroup("biases"));
+    template<typename DEVICE, typename GROUP, typename SPEC>
+    void load(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, GROUP& group) {
+        auto weights_group = get_group(device, group, "weights");
+        auto biases_group = get_group(device, group, "biases");
+        load(device, layer.weights, weights_group);
+        load(device, layer.biases, biases_group);
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename GROUP, typename SPEC>
+    void load(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, GROUP& group) {
         load(device, (nn::layers::dense::LayerForward<SPEC>&)layer, group);
-        if(group.exist("pre_activations")){
+        if(group_exists(device, group, "pre_activations")){
             load(device, layer.pre_activations, group, "pre_activations");
         }
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename GROUP, typename SPEC>
+    void load(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, GROUP& group) {
         load(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
-        if(group.exist("output")){
+        if(group_exists(device, group, "output")){
             load(device, layer.output, group, "output");
         }
     }

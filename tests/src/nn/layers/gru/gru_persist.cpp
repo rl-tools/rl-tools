@@ -7,7 +7,7 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
-#include <rl_tools/containers/tensor/persist.h>
+#include <rl_tools/containers/tensor/persist_hdf5.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/embedding/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
