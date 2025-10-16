@@ -5,8 +5,7 @@
 
 #include "replay_buffer.h"
 
-#include "../../../containers/matrix/persist.h"
-#include "../../../containers/tensor/persist.h"
+
 #include <highfive/H5Group.hpp>
 #include <vector>
 

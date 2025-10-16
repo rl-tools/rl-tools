@@ -11,8 +11,8 @@
 #include <rl_tools/rl/loop/steps/save_trajectories/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 
-#include <rl_tools/containers/matrix/persist.h>
-#include <rl_tools/containers/tensor/persist.h>
+
+
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>

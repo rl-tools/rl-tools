@@ -3,7 +3,7 @@
 
 #include <rl_tools/containers/tensor/operations_generic.h>
 #include <rl_tools/containers/tensor/operations_cpu.h>
-#include <rl_tools/containers/tensor/persist.h>
+
 
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 

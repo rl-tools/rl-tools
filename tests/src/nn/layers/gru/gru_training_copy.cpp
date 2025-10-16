@@ -22,7 +22,7 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #ifdef RL_TOOLS_ENABLE_HDF5
-#include <rl_tools/containers/tensor/persist.h>
+
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/embedding/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
