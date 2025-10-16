@@ -28,13 +28,6 @@ namespace rl_tools::persist::backends::tar {
         char padding[12];
     };
     static_assert(sizeof(header) == 512);
-
-    struct Writer{
-        std::vector<char> buffer;
-    };
-    struct Reader{
-
-    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
