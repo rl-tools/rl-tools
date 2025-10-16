@@ -6,6 +6,10 @@
     #define RL_TOOLS_OPERATIONS_CPU_MKL_GROUP_3
     #include "../../containers/matrix/operations_cpu_mkl.h"
     #include "../../containers/tensor/operations_cpu_mkl.h"
+    #ifdef RL_TOOLS_ENABLE_HDF5
+        #include "../../containers/matrix/persist_hdf5.h"
+        #include "../../containers/tensor/persist_hdf5.h"
+    #endif
 #else
     #error "Group 3 already imported"
 #endif

@@ -25,8 +25,8 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #ifdef RL_TOOLS_ENABLE_HDF5
-#include <rl_tools/containers/matrix/persist.h>
-#include <rl_tools/containers/tensor/persist.h>
+
+
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>

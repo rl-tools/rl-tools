@@ -2,7 +2,7 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/containers/tensor/operations_generic.h>
 #include <rl_tools/containers/tensor/operations_cpu.h>
-#include <rl_tools/containers/tensor/persist.h>
+
 
 namespace rlt = rl_tools;
 

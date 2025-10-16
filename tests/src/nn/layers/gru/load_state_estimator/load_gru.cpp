@@ -4,8 +4,8 @@
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
-#include <rl_tools/containers/matrix/persist.h>
-#include <rl_tools/containers/tensor/persist.h>
+
+
 #include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
