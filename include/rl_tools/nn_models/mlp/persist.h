@@ -5,35 +5,36 @@
 #include "../../nn/parameters/persist.h"
 #include "../../nn/persist.h"
 #include "network.h"
-
-#include <highfive/H5Group.hpp>
+#include "../../persist/backends/hdf5/operations_cpu.h"
+#include <highfive/H5File.hpp>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, GROUP& group) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
-        group.createAttribute<std::string>("type", "mlp");
-        group.createAttribute<std::string>("num_layers", std::to_string(SPEC::NUM_LAYERS));
-        save(device, network.input_layer, group.createGroup("input_layer"));
+        set_attribute<std::string>(device, group, "type", "mlp");
+        set_attribute<std::string>(device, group, "num_layers", std::to_string(SPEC::NUM_LAYERS));
+        auto input_layer_group = create_group(device, group, "input_layer");
+        save(device, network.input_layer, input_layer_group);
         for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
-            save(device, network.hidden_layers[layer_i], group.createGroup("hidden_layer_" + std::to_string(layer_i)));
+            auto hidden_layer_group = create_group(device, group, "hidden_layer_" + std::to_string(layer_i));
+            save(device, network.hidden_layers[layer_i], hidden_layer_group);
         }
-        save(device, network.output_layer, group.createGroup("output_layer"));
+        auto output_layer_group = create_group(device, group, "output_layer");
+        save(device, network.output_layer, output_layer_group);
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, HighFive::Group group){
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, GROUP& group){
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
-        load(device, network.input_layer, group.getGroup("input_layer"));
+        auto input_layer_group = get_group(device, group, "input_layer");
+        load(device, network.input_layer, input_layer_group);
         for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
-            load(device, network.hidden_layers[layer_i], group.getGroup("hidden_layer_" + std::to_string(layer_i)));
+            auto hidden_layer_group = get_group(device, group, "hidden_layer_" + std::to_string(layer_i));
+            load(device, network.hidden_layers[layer_i], hidden_layer_group);
         }
-        load(device, network.output_layer, group.getGroup("output_layer"));
-    }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, std::string file_path){
-        auto file = HighFive::File(file_path, HighFive::File::ReadOnly);
-        load(device, network, file.getGroup("mlp"));
+        auto output_layer_group = get_group(device, group, "output_layer");
+        load(device, network.output_layer, output_layer_group);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

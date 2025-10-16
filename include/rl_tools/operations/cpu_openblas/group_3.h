@@ -9,6 +9,7 @@
     #ifdef RL_TOOLS_ENABLE_HDF5
         #include "../../containers/matrix/persist_hdf5.h"
         #include "../../containers/tensor/persist_hdf5.h"
+        #include "../../persist/backends/hdf5/operations_cpu.h"
     #endif
 #else
     #error "Group 3 already imported"

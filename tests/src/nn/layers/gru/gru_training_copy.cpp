@@ -130,13 +130,15 @@ int main(){
                     auto file = HighFive::File(FILE_PATH.string(), HighFive::File::Overwrite);
                     rlt::zero_gradient(device, model);
                     rlt::reset_forward_state(device, model);
-                    rlt::save(device, model, file.createGroup("checkpoint"));
+                    auto checkpoint_group = rlt::create_group(device, file, "checkpoint");
+                    rlt::save(device, model, checkpoint_group);
                 }
                 if(sample_i == 0 || sample_i == PARAMS::BATCH_SIZE){ // reload check
                     auto file = HighFive::File(FILE_PATH.string(), HighFive::File::ReadOnly);
                     CONFIG::MODEL model_copy;
                     rlt::malloc(device, model_copy);
-                    rlt::load(device, model_copy, file.getGroup("checkpoint"));
+                    auto checkpoint_group = rlt::get_group(device, file, "checkpoint");
+                    rlt::load(device, model_copy, checkpoint_group);
                     T abs_diff = rlt::abs_diff(device, model, model_copy);
                     rlt::utils::assert_exit(device, abs_diff < 1e-6, "Checkpoint failed");
                     rlt::free(device, model_copy);

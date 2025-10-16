@@ -9,6 +9,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <rl_tools/rl/environments/operations_cpu.h>
 #include <rl_tools/rl/algorithms/td3/operations_cpu.h>
 
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/nn_models/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
@@ -112,7 +113,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     TI step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
     // assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
-    rlt::load(device, actor_critic.actor.content, step_group.getGroup("actor"));
+    rlt::persist::backends::hdf5::Group<> actor_group = {step_group.getGroup("actor")};
+    rlt::load(device, actor_critic.actor.content, actor_group);
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 100, 200>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
     rlt::evaluate(device, env, ui, actor_critic.actor, result, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
@@ -216,12 +218,18 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
-    rlt::load(device, actor_critic.actor.content, data_file.getGroup("actor"));
-    rlt::load(device, actor_critic.actor_target.content, data_file.getGroup("actor_target"));
-    rlt::load(device, actor_critic.critics[0].content, data_file.getGroup("critic_1"));
-    rlt::load(device, actor_critic.critics_target[0].content, data_file.getGroup("critic_target_1"));
-    rlt::load(device, actor_critic.critics[1].content, data_file.getGroup("critic_2"));
-    rlt::load(device, actor_critic.critics_target[1].content, data_file.getGroup("critic_target_2"));
+    rlt::persist::backends::hdf5::Group<> actor_group = {data_file.getGroup("actor")};
+    rlt::load(device, actor_critic.actor.content, actor_group);
+    rlt::persist::backends::hdf5::Group<> actor_target_group = {data_file.getGroup("actor_target")};
+    rlt::load(device, actor_critic.actor_target.content, actor_target_group);
+    rlt::persist::backends::hdf5::Group<> critic_1_group = {data_file.getGroup("critic_1")};
+    rlt::load(device, actor_critic.critics[0].content, critic_1_group);
+    rlt::persist::backends::hdf5::Group<> critic_target_1_group = {data_file.getGroup("critic_target_1")};
+    rlt::load(device, actor_critic.critics_target[0].content, critic_target_1_group);
+    rlt::persist::backends::hdf5::Group<> critic_2_group = {data_file.getGroup("critic_2")};
+    rlt::load(device, actor_critic.critics[1].content, critic_2_group);
+    rlt::persist::backends::hdf5::Group<> critic_target_2_group = {data_file.getGroup("critic_target_2")};
+    rlt::load(device, actor_critic.critics_target[1].content, critic_target_2_group);
 
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     rlt::malloc(device, off_policy_runner);
@@ -273,10 +281,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
         if(verbose){
             std::cout << "step_i: " << step_i << std::endl;
         }
-        auto step_group = steps_group.getGroup(std::to_string(step_i));
-        if(step_group.exist("critics_batch")){
+        auto _step_group = steps_group.getGroup(std::to_string(step_i));
+        rlt::persist::backends::hdf5::Group<> step_group = {_step_group};
+        if(_step_group.exist("critics_batch")){
             std::vector<std::vector<T>> batch;
-            step_group.getDataSet("critics_batch").read(batch);
+            _step_group.getDataSet("critics_batch").read(batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 //            step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
@@ -301,8 +310,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> post_critic_1, post_critic_2;// = actor_critic.critics[0];
             rlt::malloc(device, post_critic_1);
             rlt::malloc(device, post_critic_2);
-            rlt::load(device, post_critic_1.content, step_group.getGroup("critic1"));
-            rlt::load(device, post_critic_2.content, step_group.getGroup("critic2"));
+            auto critic1_group = rlt::get_group(device, step_group, "critic1");
+            auto critic2_group = rlt::get_group(device, step_group, "critic2");
+            rlt::load(device, post_critic_1.content, critic1_group);
+            rlt::load(device, post_critic_2.content, critic2_group);
 
 
             rlt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
@@ -393,20 +404,22 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::free(device, post_critic_1);
         }
 
-        if(step_group.exist("actor_batch")){
+        if(_step_group.exist("actor_batch")){
             std::vector<std::vector<T>> batch;
-            step_group.getDataSet("actor_batch").read(batch);
+            _step_group.getDataSet("actor_batch").read(batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
             auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
             load(device, replay_buffer, batch);
 
             decltype(actor_critic.actor) post_actor;
             rlt::malloc(device, post_actor);
-            rlt::load(device, post_actor.content, step_group.getGroup("actor"));
+            auto actor_group = rlt::get_group(device, step_group, "actor");
+            rlt::load(device, post_actor.content, actor_group);
 
             decltype(actor_critic.actor) pre_actor_loaded;
             rlt::malloc(device, pre_actor_loaded);
-            rlt::load(device, pre_actor_loaded.content, step_group.getGroup("pre_actor"));
+            auto pre_actor_group = rlt::get_group(device, step_group, "pre_actor");
+            rlt::load(device, pre_actor_loaded.content, pre_actor_group);
             rlt::reset_forward_state(device, pre_actor_loaded);
             rlt::reset_forward_state(device, actor_critic.actor);
             T pre_current_diff = abs_diff(device, pre_actor_loaded.content, actor_critic.actor.content);
@@ -499,14 +512,15 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::free(device, post_actor);
             rlt::free(device, pre_actor_loaded);
         }
-        if(step_group.exist("critic1_target")){
+        if(_step_group.exist("critic1_target")){
             if(verbose){
                 std:: cout << "    target update" << std::endl;
             }
             if (step_i == 0){
                 rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])> pre_critic_1_target_step;
                 rlt::malloc(device, pre_critic_1_target_step);
-                rlt::load(device, pre_critic_1_target_step.content, step_group.getGroup("pre_critic1_target"));
+                auto critic1_target_group = rlt::get_group(device, step_group, "critic1_target");
+                rlt::load(device, pre_critic_1_target_step.content, critic1_target_group);
                 T pre_current_diff = abs_diff(device, pre_critic_1_target_step.content, actor_critic.critics_target[0].content);
                 ASSERT_EQ(pre_current_diff, 0);
                 rlt::free(device, pre_critic_1_target_step);
@@ -516,7 +530,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
                     rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics_target[0])> post_critic_1_target;
                     rlt::malloc(device, post_critic_1_target);
-                    rlt::load(device, post_critic_1_target.content, step_group.getGroup("critic1_target"));
+                    auto critic1_target_group = rlt::get_group(device, step_group, "critic1_target");
+                    rlt::load(device, post_critic_1_target.content, critic1_target_group);
 
                     rlt::update_critic_targets(device, actor_critic);
                     rlt::update_actor_target(device, actor_critic);

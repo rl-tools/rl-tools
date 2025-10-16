@@ -31,10 +31,39 @@ namespace rl_tools{
     persist::backends::hdf5::Group<SPEC> create_group(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
         return {group.group.createGroup(name)};
     }
-    template<typename DEVICE, typename SPEC>
-    void set_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, std::string value) {
-        group.group.template createAttribute<std::string>(name, value);
+    template<typename DEVICE>
+    persist::backends::hdf5::Group<persist::backends::hdf5::GroupSpecification<>> create_group(DEVICE& device, HighFive::File& file, std::string name) {
+        return {file.createGroup(name)};
     }
+    template<typename TYPE, typename DEVICE, typename SPEC>
+    void set_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, TYPE value) {
+        group.group.template createAttribute<TYPE>(name, value);
+    }
+    template<typename DEVICE, typename SPEC>
+    persist::backends::hdf5::Group<SPEC> get_group(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
+        return {group.group.getGroup(name)};
+    }
+    template<typename DEVICE>
+    persist::backends::hdf5::Group<persist::backends::hdf5::GroupSpecification<>> get_group(DEVICE& device, HighFive::File& file, std::string name) {
+        return {file.getGroup(name)};
+    }
+    template<typename DEVICE, typename SPEC>
+    bool group_exists(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
+        return group.group.exist(name);
+    }
+    template<typename DEVICE, typename SPEC, typename T>
+    void create_dataset(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, const std::vector<T>& data) {
+        group.group.createDataSet(name, data);
+    }
+    template<typename DEVICE, typename SPEC, typename T>
+    void read_dataset(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, std::vector<T>& data) {
+        group.group.getDataSet(name).read(data);
+    }
+    template<typename TYPE, typename DEVICE, typename SPEC>
+    TYPE get_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
+        return group.group.getAttribute(name).template read<TYPE>();
+    }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

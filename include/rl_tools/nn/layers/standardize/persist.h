@@ -4,39 +4,42 @@
 #define RL_TOOLS_NN_LAYERS_STANDARDIZE_PERSIST_H
 
 #include "layer.h"
-#include "../../../utils/persist.h"
 #include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, GROUP& group) {
         // todo: forward implementation to Parameter struct
-        save(device, layer.mean, group.createGroup("mean"));
-        save(device, layer.precision, group.createGroup("precision"));
-        group.createAttribute<std::string>("type", "standardize");
+        auto mean_group = create_group(device, group, "mean");
+        save(device, layer.mean, mean_group);
+        auto precision_group = create_group(device, group, "precision");
+        save(device, layer.precision, precision_group);
+        set_attribute<std::string>(device, group, "type", "standardize");
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, GROUP& group) {
         save(device, (nn::layers::standardize::LayerForward<SPEC>&)layer, group);
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, GROUP& group) {
         save(device, (nn::layers::standardize::LayerBackward<SPEC>&)layer, group);
         save(device, layer.output, group, "output");
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, HighFive::Group group) {
-        load(device, layer.mean, group.getGroup("mean"));
-        load(device, layer.precision, group.getGroup("precision"));
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, GROUP& group) {
+        auto mean_group = get_group(device, group, "mean");
+        load(device, layer.mean, mean_group);
+        auto precision_group = get_group(device, group, "precision");
+        load(device, layer.precision, precision_group);
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, GROUP& group) {
         load(device, (nn::layers::standardize::LayerForward<SPEC>&)layer, group);
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, GROUP& group) {
         load(device, (nn::layers::standardize::LayerBackward<SPEC>&)layer, group);
-        if(group.exist("output")){
+        if(group_exists(device, group, "output")){
             load(device, layer.output, group, "output");
         }
     }

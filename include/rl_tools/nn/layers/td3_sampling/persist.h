@@ -4,14 +4,13 @@
 #define RL_TOOLS_NN_LAYERS_TD3_SAMPLING_PERSIST_H
 
 #include "layer.h"
-#include "../../../utils/persist.h"
 #include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC>& layer, HighFive::Group group) { }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC>& layer, GROUP& group) { }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC>& layer, GROUP& group) {
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -4,37 +4,38 @@
 #define RL_TOOLS_NN_LAYERS_EMBEDDING_PERSIST_H
 
 #include "layer.h"
-#include "../../../utils/persist.h"
 #include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, GROUP& group) {
         // todo: forward implementation to Parameter struct
-        save(device, layer.weights, group.createGroup("weights"));
-        group.createAttribute<std::string>("type", "embedding");
+        auto weights_group = create_group(device, group, "weights");
+        save(device, layer.weights, weights_group);
+        set_attribute<std::string>(device, group, "type", "embedding");
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, GROUP& group) {
         save(device, (nn::layers::embedding::LayerForward<SPEC>&)layer, group);
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, GROUP& group) {
         save(device, (nn::layers::embedding::LayerBackward<SPEC>&)layer, group);
         save(device, layer.output, group, "output");
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, HighFive::Group group) {
-        load(device, layer.weights, group.getGroup("weights"));
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, GROUP& group) {
+        auto weights_group = get_group(device, group, "weights");
+        load(device, layer.weights, weights_group);
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, GROUP& group) {
         load(device, (nn::layers::embedding::LayerForward<SPEC>&)layer, group);
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, GROUP& group) {
         load(device, (nn::layers::embedding::LayerBackward<SPEC>&)layer, group);
-        if(group.exist("output")){
+        if(group_exists(device, group, "output")){
             load(device, layer.output, group, "output");
         }
     }

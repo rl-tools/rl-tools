@@ -134,19 +134,19 @@ int main(){
     TI epoch_i = 0;
     TI sample_i = 0;
     bool resuming_from_checkpoint = false;
-    decltype(rng.state) shuffle_rng_state_checkpoint;
+    decltype(rng.state) shuffle_rng_state_checkpoint = 0;
     if (!resume_checkpoint.empty()){
         auto file = HighFive::File(resume_checkpoint.string(), HighFive::File::ReadOnly);
-        auto checkpoint_group = file.getGroup("checkpoint");
+        auto checkpoint_group = rlt::get_group(device, file, "checkpoint");
         rlt::load(device, model, checkpoint_group);
-        epoch_i = checkpoint_group.getAttribute("epoch").read<TI>();
-        sample_i = checkpoint_group.getAttribute("sample_i").read<TI>();
+        epoch_i = rlt::get_attribute<TI>(device, checkpoint_group, "epoch");
+        sample_i = rlt::get_attribute<TI>(device, checkpoint_group, "sample_i");
         resuming_from_checkpoint = true;
-        auto rng_state_string = checkpoint_group.getAttribute("rng_state").read<std::string>();
+        auto rng_state_string = rlt::get_attribute<std::string>(device, checkpoint_group, "rng_state");
         rng.state = std::stoull(rng_state_string);
-        auto shuffle_rng_state_string = checkpoint_group.getAttribute("shuffle_rng_state").read<std::string>();
+        auto shuffle_rng_state_string = rlt::get_attribute<std::string>(device, checkpoint_group, "shuffle_rng_state");
         shuffle_rng_state_checkpoint = std::stoull(shuffle_rng_state_string);
-        rlt::set(device, optimizer.age, checkpoint_group.getAttribute("optimizer_state").read<TI>(), 0);
+        rlt::set(device, optimizer.age, rlt::get_attribute<TI>(device, checkpoint_group, "optimizer_state"), 0);
     }
     for(; epoch_i < 1000; epoch_i++){
         auto start_time = std::chrono::high_resolution_clock::now();
@@ -179,19 +179,19 @@ int main(){
                     auto file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
                     rlt::zero_gradient(device, model);
                     rlt::reset_forward_state(device, model);
-                    auto checkpoint_group = file.createGroup("checkpoint");
-                    checkpoint_group.createAttribute("epoch", epoch_i);
-                    checkpoint_group.createAttribute("sample_i", sample_i);
-                    checkpoint_group.createAttribute("rng_state", std::to_string(rng.state));
-                    checkpoint_group.createAttribute("shuffle_rng_state", std::to_string(shuffle_rng_state));
-                    checkpoint_group.createAttribute("optimizer_state", rlt::get(device, optimizer.age, 0));
+                    auto checkpoint_group = rlt::create_group(device, file, "checkpoint");
+                    rlt::set_attribute<TI>(device, checkpoint_group, "epoch", epoch_i);
+                    rlt::set_attribute<TI>(device, checkpoint_group, "sample_i", sample_i);
+                    rlt::set_attribute<std::string>(device, checkpoint_group, "rng_state", std::to_string(rng.state));
+                    rlt::set_attribute<std::string>(device, checkpoint_group, "shuffle_rng_state", std::to_string(shuffle_rng_state));
+                    rlt::set_attribute<TI>(device, checkpoint_group, "optimizer_state", rlt::get(device, optimizer.age, 0));
                     rlt::save(device, model, checkpoint_group);
                 }
                 if(sample_i == 0 || sample_i == CONFIG::PARAMS::BATCH_SIZE){ // reload check
                     auto file = HighFive::File(checkpoint_path.string(), HighFive::File::ReadOnly);
                     CONFIG::MODEL model_copy;
                     rlt::malloc(device, model_copy);
-                    auto checkpoint_group = file.getGroup("checkpoint");
+                    auto checkpoint_group = rlt::get_group(device, file, "checkpoint");
                     rlt::load(device, model_copy, checkpoint_group);
                     T abs_diff = rlt::abs_diff(device, model, model_copy);
                     rlt::utils::assert_exit(device, abs_diff < 1e-6, "Checkpoint failed");

@@ -4,41 +4,42 @@
 #define RL_TOOLS_NN_LAYERS_SAMPLE_AND_SQUASH_PERSIST_H
 
 #include "layer.h"
-#include "../../../utils/persist.h"
 #include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, HighFive::Group group){
-        group.createAttribute<std::string>("type", "sample_and_squash");
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, GROUP& group){
+        set_attribute<std::string>(device, group, "type", "sample_and_squash");
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, GROUP& group) {
         save(device, (nn::layers::sample_and_squash::LayerForward<SPEC>&)layer, group);
         save(device, layer.pre_squashing, group, "pre_squashing");
         save(device, layer.noise, group, "noise");
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, GROUP& group) {
         save(device, (nn::layers::sample_and_squash::LayerBackward<SPEC>&)layer, group);
         save(device, layer.log_probabilities, group, "log_probabilities");
-        save(device, layer.log_alpha, group.createGroup("log_alpha"));
+        auto log_alpha_group = create_group(device, group, "log_alpha");
+        save(device, layer.log_alpha, log_alpha_group);
         save(device, layer.output, group, "output");
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, GROUP& group) {
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, GROUP& group) {
         load(device, (nn::layers::sample_and_squash::LayerForward<SPEC>&)layer, group);
         load(device, layer.pre_squashing, group, "pre_squashing");
         load(device, layer.noise, group, "noise");
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, GROUP& group) {
         load(device, (nn::layers::sample_and_squash::LayerBackward<SPEC>&)layer, group);
         load(device, layer.log_probabilities, group, "log_probabilities");
-        load(device, layer.log_alpha, group.getGroup("output"));
+        auto log_alpha_group = get_group(device, group, "log_alpha");
+        load(device, layer.log_alpha, log_alpha_group);
         load(device, layer.output, group, "output");
     }
 }

@@ -5,7 +5,6 @@
 
 #include "../../nn/parameters/parameters.h"
 
-#include <highfive/H5Group.hpp>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename CONTAINER, typename GROUP>

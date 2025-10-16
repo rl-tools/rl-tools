@@ -131,12 +131,12 @@ namespace rl_tools{
             std::cerr << "Checkpointing to: " << checkpoint_path << std::endl;
             try{
                 auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
-                auto actor_group = actor_file.createGroup("actor");
-                actor_group.createAttribute("checkpoint_name", step_folder);
+                auto actor_group = create_group(device, actor_file, "actor");
+                set_attribute<std::string>(device, actor_group, "checkpoint_name", step_folder);
                 ENVIRONMENT environment;
                 auto env_description = json(device, environment);
                 std::string meta = "{\"environment\": " + env_description + "}";
-                actor_group.createAttribute("meta", meta);
+                set_attribute<std::string>(device, actor_group, "meta", meta);
                 rl_tools::save(device, evaluation_actor, actor_group);
                 {
                     using T = typename EVALUATION_ACTOR_TYPE::T;
