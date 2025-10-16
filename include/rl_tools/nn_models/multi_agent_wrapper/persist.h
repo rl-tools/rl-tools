@@ -6,20 +6,21 @@
 #include "../../nn/persist.h"
 #include "model.h"
 
-#include <highfive/H5Group.hpp>
 #include <string>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& model, HighFive::Group group) {
-        group = group.createGroup("multi_agent_wrapper");
-        save(device, model.content, group.createGroup("content"));
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& model, GROUP& group) {
+        auto wrapper_group = create_group(device, group, "multi_agent_wrapper");
+        auto content_group = create_group(device, wrapper_group, "content");
+        save(device, model.content, content_group);
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& model, HighFive::Group group, typename DEVICE::index_t layer_i = 0) {
-        group = group.getGroup("multi_agent_wrapper");
-        load(device, model.content, group.getGroup("content"));
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& model, GROUP& group, typename DEVICE::index_t layer_i = 0) {
+        auto wrapper_group = get_group(device, group, "multi_agent_wrapper");
+        auto content_group = get_group(device, wrapper_group, "content");
+        load(device, model.content, content_group);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

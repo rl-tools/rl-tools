@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/rl/components/replay_buffer/operations_cpu.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
 
@@ -32,12 +33,14 @@ TEST(RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
         rlt::test::rl::components::replay_buffer::sample(device, replay_buffer_1, rng);
         set(replay_buffer_1.next_observations, 7, 0, 1337);
         auto data_file = HighFive::File(replay_buffer_path, HighFive::File::Overwrite);
-        rlt::save(device, replay_buffer_1, data_file.createGroup("replay_buffer"));
+        rlt::persist::backends::hdf5::Group<> replay_buffer_group = {data_file.createGroup("replay_buffer")};
+        rlt::save(device, replay_buffer_1, replay_buffer_group);
     }
     {
         rlt::malloc(device, replay_buffer_2);
         auto data_file = HighFive::File(replay_buffer_path, HighFive::File::ReadOnly);
-        rlt::load(device, replay_buffer_2, data_file.getGroup("replay_buffer"));
+        rlt::persist::backends::hdf5::Group<> replay_buffer_group = {data_file.getGroup("replay_buffer")};
+        rlt::load(device, replay_buffer_2, replay_buffer_group);
     }
     {
         auto abs_diff = rlt::abs_diff(device, replay_buffer_1, replay_buffer_2);

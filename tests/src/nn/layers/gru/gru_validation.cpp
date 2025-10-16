@@ -59,7 +59,8 @@ int main() {
 
     {
         auto file = HighFive::File(FILE_PATH.string(), HighFive::File::ReadOnly);
-        rlt::load(device, original_model, file.getGroup("checkpoint"));
+        auto checkpoint_group = rlt::get_group(device, file, "checkpoint");
+        rlt::load(device, original_model, checkpoint_group);
     }
     rlt::copy(device, device, original_model, model);
 

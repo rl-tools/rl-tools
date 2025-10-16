@@ -4,6 +4,8 @@
 #include <rl_tools/operations/cpu.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include "rl_tools/nn_models/persist.h"
 #include "rl_tools/nn_models/mlp/operations_generic.h"
@@ -13,8 +15,6 @@
 
 #include "default_network_mlp.h"
 #include "../utils/nn_comparison_mlp.h"
-
-#include <rl_tools/utils/persist.h>
 
 #include <random>
 TEST(RL_TOOLS_NN_PERSIST, Saving) {
@@ -39,7 +39,8 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     rlt::increment(network_1.input_layer.weights.gradient_first_order_moment, 2, 3, 10);
     {
         auto output_file = HighFive::File(std::string("test.hdf5"), HighFive::File::Overwrite);
-        rlt::save(device, network_1, output_file.createGroup("three_layer_fc"));
+        rlt::persist::backends::hdf5::Group<> group = {output_file.createGroup("three_layer_fc")};
+        rlt::save(device, network_1, group);
     }
 
     DTYPE diff_pre_load = abs_diff(device, network_1, network_2);
@@ -47,7 +48,8 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     std::cout << "diff_pre_load: " << diff_pre_load << std::endl;
     {
         auto input_file = HighFive::File(std::string("test.hdf5"), HighFive::File::ReadOnly);
-        rlt::load(device, network_2, input_file.getGroup("three_layer_fc"));
+        auto three_layer_fc_group = rlt::get_group(device, input_file, "three_layer_fc");
+        rlt::load(device, network_2, three_layer_fc_group);
     }
     rlt::reset_forward_state(device, network_1);
     rlt::reset_forward_state(device, network_2);

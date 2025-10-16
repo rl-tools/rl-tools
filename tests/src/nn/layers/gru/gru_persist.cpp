@@ -7,7 +7,7 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
-#include <rl_tools/containers/tensor/persist_hdf5.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/embedding/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
@@ -65,13 +65,15 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST){
         auto file = HighFive::File(FILE_PATH.string(), HighFive::File::Overwrite);
         rlt::zero_gradient(device, gru);
         rlt::reset_forward_state(device, gru);
-        rlt::save(device, gru, file.createGroup("test_gru"));
+        auto test_gru_group = rlt::create_group(device, file, "test_gru");
+        rlt::save(device, gru, test_gru_group);
     }
     {
         auto file = HighFive::File(FILE_PATH.string(), HighFive::File::ReadOnly);
         GRU gru_copy;
         rlt::malloc(device, gru_copy);
-        rlt::load(device, gru_copy, file.getGroup("test_gru"));
+        auto group = rlt::get_group(device, file, "test_gru");
+        rlt::load(device, gru_copy, group);
         T abs_diff = rlt::abs_diff(device, gru, gru_copy);
         std::cout << "GRU abs_diff: " << abs_diff << std::endl;
         rlt::utils::assert_exit(device, abs_diff < 1e-15, "Checkpoint failed");

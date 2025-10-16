@@ -4,15 +4,12 @@
 #define RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_PERSIST_H
 
 #include "replay_buffer.h"
-
-
-#include <highfive/H5Group.hpp>
 #include <vector>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename SPEC>
-    void save(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, HighFive::Group group) {
+    template <typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, GROUP& group) {
         static_assert(decltype(rb.rewards)::COLS == 1);
         static_assert(decltype(rb.terminated)::COLS == 1);
         static_assert(decltype(rb.truncated)::COLS == 1);
@@ -27,14 +24,14 @@ namespace rl_tools{
 
         std::vector<decltype(rb.position)> position;
         position.push_back(rb.position);
-        group.createDataSet("position", position);
+        create_dataset(device, group, "position", position);
 
         std::vector<decltype(rb.position)> full;
         full.push_back(rb.full);
-        group.createDataSet("full", full);
+        create_dataset(device, group, "full", full);
     }
-    template <typename DEVICE, typename SPEC>
-    void load(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, HighFive::Group group) {
+    template <typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, GROUP& group) {
         static_assert(decltype(rb.rewards)::COLS == 1);
         static_assert(decltype(rb.terminated)::COLS == 1);
         static_assert(decltype(rb.truncated)::COLS == 1);
@@ -48,11 +45,11 @@ namespace rl_tools{
         load(device, rb.episode_start, group, "episode_start");
 
         std::vector<decltype(rb.position)> position;
-        group.getDataSet("position").read(position);
+        read_dataset(device, group, "position", position);
         rb.position = position[0];
 
         std::vector<decltype(rb.position)> full;
-        group.getDataSet("full").read(full);
+        read_dataset(device, group, "full", full);
         rb.full = full[0];
     }
 }

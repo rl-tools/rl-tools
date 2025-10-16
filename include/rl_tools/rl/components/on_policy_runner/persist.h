@@ -3,13 +3,11 @@
 #pragma once
 #define RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_PERSIST_H
 
-#include <highfive/H5Group.hpp>
-
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename SPEC>
-    void save(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, HighFive::Group group){
+    template <typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, GROUP& group){
         save(device, dataset.data, group, "data");
         save(device, dataset.all_observations_privileged, group, "all_observations");
         save(device, dataset.observations, group, "observations");
@@ -23,8 +21,8 @@ namespace rl_tools{
         save(device, dataset.advantages, group, "advantages");
         save(device, dataset.target_values, group, "target_values");
     }
-    template <typename DEVICE, typename SPEC>
-    void load(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, HighFive::Group group){
+    template <typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, GROUP& group){
         load(device, dataset.data, group, "data");
         load(device, dataset.all_observations_privileged, group, "all_observations");
         load(device, dataset.observations, group, "observations");

@@ -4,10 +4,11 @@
 #define RL_TOOLS_RL_COMPONENTS_RUNNING_NORMALIZER_PERSIST_H
 
 #include "running_normalizer.h"
+#include "../../../utils/persist.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, rl::components::RunningNormalizer<SPEC> normalizer, HighFive::Group group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, rl::components::RunningNormalizer<SPEC> normalizer, GROUP& group) {
         save(device, normalizer.mean, group, "mean");
         save(device, normalizer.std, group, "std");
     }

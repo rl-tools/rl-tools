@@ -5,11 +5,10 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/rl/components/on_policy_runner/persist.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-
-
 #include <gtest/gtest.h>
 
 using DEVICE = rlt::devices::DefaultCPU;
@@ -106,14 +105,16 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     std::string FILE_PATH = "test_rl_components_on_policy_runner_dataset.h5";
     {
         auto file = HighFive::File(FILE_PATH, HighFive::File::Overwrite);
-        rlt::save(device, dataset, file.createGroup("dataset"));
+        rlt::persist::backends::hdf5::Group<> dataset_group = {file.createGroup("dataset")};
+        rlt::save(device, dataset, dataset_group);
     }
 
     {
         auto file = HighFive::File(FILE_PATH, HighFive::File::ReadOnly);
         DATASET loaded;
         rlt::malloc(device, loaded);
-        rlt::load(device, loaded, file.getGroup("dataset"));
+        rlt::persist::backends::hdf5::Group<> dataset_group = {file.getGroup("dataset")};
+        rlt::load(device, loaded, dataset_group);
         auto abs_diff = rlt::abs_diff(device, loaded.data, dataset.data);
         ASSERT_FLOAT_EQ(0, abs_diff);
     }

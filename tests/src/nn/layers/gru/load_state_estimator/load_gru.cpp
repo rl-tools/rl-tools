@@ -65,7 +65,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_STATE_ESTIMATOR){
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
     auto file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadOnly);
-    auto model_group = file.getGroup("model");
+    auto model_group = rlt::get_group(device, file, "model");
     rlt::load(device, model, model_group);
     rlt::load(device, input, file.getGroup("test"), "input");
     rlt::load(device, output_target, file.getGroup("test"), "output");

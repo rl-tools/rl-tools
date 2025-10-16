@@ -3,7 +3,6 @@
 #define RL_TOOLS_NN_LAYERS_DENSE_PERSIST_H
 #include "../../../version.h"
 #include "layer.h"
-#include "../../../utils/persist.h"
 #include <iostream>
 #include "persist_common.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -15,8 +14,8 @@ namespace rl_tools {
         auto biases_group = create_group(device, group, "biases");
         save(device, layer.weights, weights_group);
         save(device, layer.biases, biases_group);
-        set_attribute(device, group, "activation_function", nn::layers::dense::persist::get_activation_function_string_short<SPEC::CONFIG::ACTIVATION_FUNCTION>());
-        set_attribute(device, group, "type", "dense");
+        set_attribute<std::string>(device, group, "activation_function", nn::layers::dense::persist::get_activation_function_string_short<SPEC::CONFIG::ACTIVATION_FUNCTION>());
+        set_attribute<std::string>(device, group, "type", "dense");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, GROUP& group) {
