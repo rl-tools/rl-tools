@@ -76,8 +76,10 @@ TEST(TEST_PERSIST_BACKENDS_HDF5_HDF5, test) {
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 3>>> A, A_read_back;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 4>>> A_read_back_fail;
     rlt::malloc(device, A);
     rlt::malloc(device, A_read_back);
+    rlt::malloc(device, A_read_back_fail);
     rlt::randn(device, A, rng);
     rlt::print(device, A);
     std::string data_file_name = "test_persist_backends_tar.tar";
@@ -98,7 +100,10 @@ TEST(TEST_PERSIST_BACKENDS_HDF5_HDF5, test) {
     reader_group.size = tar_data.size();
     rlt::load(device, A_read_back, reader_group, "A");
 
+    rlt::print(device, A_read_back);
 
+    T abs_diff = rlt::abs_diff(device, A, A_read_back);
+    ASSERT_NEAR(abs_diff, 0, 1e-6);
 
     // using CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     // using CAPABILITY = rlt::nn::capability::Forward<>;
