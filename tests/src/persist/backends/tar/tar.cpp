@@ -75,7 +75,7 @@ TEST(TEST_PERSIST_BACKENDS_HDF5_HDF5, test) {
     rlt::init(device);
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 4, 3>>> A, A_read_back;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 3>>> A, A_read_back;
     rlt::malloc(device, A);
     rlt::malloc(device, A_read_back);
     rlt::randn(device, A, rng);
