@@ -19,7 +19,7 @@ namespace rl_tools::persist::backends::tar {
         using TI = typename SPEC::TI;
         using WRITER = typename SPEC::WRITER;
         char path[SPEC::MAX_PATH_LENGTH] = "";
-        WRITER writer;
+        WRITER& writer;
     };
     template <typename T_TI>
     struct ReaderGroupSpecification{
