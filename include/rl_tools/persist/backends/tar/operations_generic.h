@@ -5,6 +5,17 @@
 
 #include "tar.h"
 
+
+/*
+import tarfile;
+import numpy as np;
+f = tarfile.open("test_persist_backends_tar.tar", "r");
+meta = dict([l.split(": ") for l in f.extractfile("meta").read().decode("utf-8").split("\n")][:-1]);
+data = np.frombuffer(f.extractfile("data").read(), dtype=np.float32 if meta["dtype"] == "float32" else np.float64);
+data = data.reshape([int(meta[f"dim_{i}"]) for i in range(int(meta["num_dims"]))])
+print(data)
+ */
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace persist::backends::tar{
@@ -114,6 +125,96 @@ namespace rl_tools{
             
             return result;
         }
+        template <typename T, typename TI>
+        TI int_to_string(char* dest, TI dest_size, T value) {
+            // Convert integer to decimal string
+            // Returns the number of characters written (excluding null terminator)
+            if (dest_size == 0) {
+                return 0;
+            }
+            
+            TI pos = 0;
+            bool is_negative = false;
+            
+            // Handle negative numbers
+            if (value < 0) {
+                is_negative = true;
+                value = -value;
+            }
+            
+            // Handle zero specially
+            if (value == 0) {
+                if (dest_size > 1) {
+                    dest[0] = '0';
+                    dest[1] = '\0';
+                    return 1;
+                } else {
+                    dest[0] = '\0';
+                    return 0;
+                }
+            }
+            
+            // Convert digits in reverse order
+            char temp[32]; // Enough for any 64-bit integer
+            TI temp_pos = 0;
+            
+            while (value > 0 && temp_pos < 32) {
+                temp[temp_pos++] = '0' + (value % 10);
+                value /= 10;
+            }
+            
+            // Add negative sign if needed
+            if (is_negative && pos < dest_size - 1) {
+                dest[pos++] = '-';
+            }
+            
+            // Copy digits in correct order
+            for (TI i = temp_pos; i > 0 && pos < dest_size - 1; i--) {
+                dest[pos++] = temp[i - 1];
+            }
+            
+            dest[pos] = '\0';
+            return pos;
+        }
+        template <typename TI>
+        TI string_to_int(const char* str, TI max_len) {
+            // Parse decimal string to integer
+            // Skips leading spaces, handles negative numbers
+            TI result = 0;
+            TI i = 0;
+            bool is_negative = false;
+            
+            // Skip leading spaces
+            while (i < max_len && str[i] == ' ') {
+                i++;
+            }
+            
+            // Check for negative sign
+            if (i < max_len && str[i] == '-') {
+                is_negative = true;
+                i++;
+            } else if (i < max_len && str[i] == '+') {
+                i++;
+            }
+            
+            // Parse decimal digits (0-9)
+            while (i < max_len && str[i] != '\0') {
+                char c = str[i];
+                if (c >= '0' && c <= '9') {
+                    result = result * 10 + (c - '0');
+                } else {
+                    // Stop at first non-decimal character
+                    break;
+                }
+                i++;
+            }
+            
+            return is_negative ? -result : result;
+        }
+        template <typename T>
+        T min(T a, T b) {
+            return a < b ? a : b;
+        }
         template <typename TI>
         bool seek_in_metadata(const char* metadata, TI metadata_size, const char* key, TI& position, TI& value_len) {
             TI key_len = strlen<TI, 100>(key);
@@ -211,9 +312,16 @@ namespace rl_tools{
         template <typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
         void dim_helper(char* metadata, TI& metadata_position){
             if constexpr(DIM < SPEC::SHAPE::LENGTH){
-                std::string dim_key = "dim_" + std::to_string(DIM) + ": ";
-                metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, dim_key.c_str(), METADATA_SIZE - metadata_position);
-                metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, std::to_string(SPEC::SHAPE::template GET<DIM>).c_str(), METADATA_SIZE - metadata_position);
+                char dim_key[64];
+                char dim_num[16];
+                char dim_value[16];
+                TI pos = 0;
+                pos += persist::backends::tar::strncpy(dim_key, "dim_", 64);
+                pos += persist::backends::tar::int_to_string<TI, TI>(dim_key + pos, 64 - pos, DIM);
+                pos += persist::backends::tar::strncpy(dim_key + pos, ": ", 64 - pos);
+                metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, dim_key, METADATA_SIZE - metadata_position);
+                persist::backends::tar::int_to_string<TI, TI>(dim_value, 16, SPEC::SHAPE::template GET<DIM>);
+                metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, dim_value, METADATA_SIZE - metadata_position);
                 metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
                 dim_helper<SPEC, TI, METADATA_SIZE, DIM + 1>(metadata, metadata_position);
             }
@@ -245,7 +353,7 @@ namespace rl_tools{
         TI type_value_length = 0;
         utils::assert_exit(device, rl_tools::persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
         char value[20];
-        persist::backends::tar::strncpy<TI>(value, metadata + type_position, std::min<TI>(type_value_length + 1, 20));
+        persist::backends::tar::strncpy<TI>(value, metadata + type_position, persist::backends::tar::min<TI>(type_value_length + 1, 20));
         std::cout << "type: " << value << std::endl;
     }
 
@@ -268,8 +376,17 @@ namespace rl_tools{
         char metadata[METADATA_SIZE];
         TI metadata_position = 0;
         metadata_position += persist::backends::tar::strncpy<TI>(metadata, "type: tensor\n", METADATA_SIZE - metadata_position);
+        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>, "Only float32 and float64 are supported for now");
+        if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
+            metadata_position += persist::backends::tar::strncpy<TI>(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position);
+        }
+        else if constexpr(utils::typing::is_same_v<typename SPEC::T, double>){
+            metadata_position += persist::backends::tar::strncpy<TI>(metadata+metadata_position, "dtype: float64\n", METADATA_SIZE - metadata_position);
+        }
         metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "num_dims: ", METADATA_SIZE - metadata_position);
-        metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, std::to_string(SPEC::SHAPE::LENGTH).c_str(), METADATA_SIZE - metadata_position);
+        char num_dims_str[16];
+        persist::backends::tar::int_to_string<TI, TI>(num_dims_str, 16, SPEC::SHAPE::LENGTH);
+        metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, num_dims_str, METADATA_SIZE - metadata_position);
         metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
         containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
         std::cout << "metadata: \n" << metadata << std::endl;
