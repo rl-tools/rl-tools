@@ -399,10 +399,20 @@ namespace rl_tools{
         }
         persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
         std::cout << "Reading tensor from tar entry: " << group_path << std::endl;
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
+        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
+        TI meta_current_position = current_path_length;
+        if (current_path_length > 0){
+            current_path[current_path_length] = '/';
+            meta_current_position += 1;
+        }
+        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
         constexpr TI METADATA_SIZE = 100;
         char metadata[METADATA_SIZE];
         TI read_size = 0;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, "meta", metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
         metadata[read_size] = '\0';
         TI type_position = 0;
         TI type_value_length = 0;
@@ -414,10 +424,13 @@ namespace rl_tools{
         // persist::backends::tar::strncpy<TI>(value, metadata + type_position, type_value_length + 1 < MAX_VALUE_LENGTH ? type_value_length + 1 : MAX_VALUE_LENGTH);
         // std::cout << "type: " << value << std::endl;
         persist::backends::tar::containers::tensor::dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
+
+        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
         using DENSE_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>;
         Tensor<DENSE_SPEC> tensor_dense;
         TI data_size;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, "data", (char*&)tensor_dense._data, data_size), "persist::backends::tar: 'data' not found in metadata");
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, (char*&)tensor_dense._data, data_size), "persist::backends::tar: 'data' not found in metadata");
         utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
         copy(device, device, tensor_dense, tensor);
     }
@@ -437,6 +450,14 @@ namespace rl_tools{
         }
         persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
         std::cout << "Saving tensor to tar entry: " << group_path << std::endl;
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
+        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
+        TI meta_current_position = current_path_length;
+        if (current_path_length > 0){
+            current_path[current_path_length] = '/';
+            meta_current_position += 1;
+        }
         constexpr TI METADATA_SIZE = 100;
         char metadata[METADATA_SIZE];
         TI metadata_position = 0;
@@ -455,11 +476,15 @@ namespace rl_tools{
         metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
         persist::backends::tar::containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
         std::cout << "metadata: \n" << metadata << std::endl;
-        write_entry(device, group.writer, "meta", metadata, metadata_position);
+        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        write_entry(device, group.writer, current_path, metadata, metadata_position);
         Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>> tensor_dense;
         malloc(device, tensor_dense);
         copy(device, device, tensor, tensor_dense);
-        write_entry(device, group.writer, "data", reinterpret_cast<const char*>(data(tensor_dense)), SPEC::SIZE_BYTES);
+        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        write_entry(device, group.writer, current_path, reinterpret_cast<const char*>(data(tensor_dense)), SPEC::SIZE_BYTES);
         free(device, tensor_dense);
     }
 
@@ -478,10 +503,21 @@ namespace rl_tools{
         }
         persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
         std::cout << "Reading matrix from tar entry: " << group_path << std::endl;
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
+        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
+        TI meta_current_position = current_path_length;
+        if (current_path_length > 0){
+            current_path[current_path_length] = '/';
+            meta_current_position += 1;
+        }
+        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        std::cout << "meta path: " << current_path << std::endl;
         constexpr TI METADATA_SIZE = 100;
         char metadata[METADATA_SIZE];
         TI read_size = 0;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, "meta", metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
         metadata[read_size] = '\0';
         TI type_position = 0;
         TI type_value_length = 0;
@@ -489,10 +525,13 @@ namespace rl_tools{
         utils::assert_exit(device, persist::backends::tar::strcmp<TI>(metadata + type_position, "matrix", sizeof("matrix")-1), "persist::backends::tar: 'type' is not 'matrix' in metadata");
 
         persist::backends::tar::containers::matrix::read_metadata<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
+
+        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
         using DENSE_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>;
         Matrix<DENSE_SPEC> matrix_dense;
         TI data_size;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, "data", (char*&)matrix_dense._data, data_size), "persist::backends::tar: 'data' not found in metadata");
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, (char*&)matrix_dense._data, data_size), "persist::backends::tar: 'data' not found in metadata");
         utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
         copy(device, device, matrix_dense, matrix);
     }
@@ -547,21 +586,40 @@ namespace rl_tools{
         write_entry(device, group.writer, current_path, reinterpret_cast<const char*>(matrix_dense._data), SPEC::SIZE_BYTES);
         free(device, matrix_dense);
     }
-    template<typename DEVICE, typename GROUP_SPEC>
-    persist::backends::tar::WriterGroup<GROUP_SPEC> create_group(DEVICE& device, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
-        using TI = typename DEVICE::index_t;
-        persist::backends::tar::WriterGroup<GROUP_SPEC> new_group{"", group.writer};
-        persist::backends::tar::strncpy<TI>(new_group.path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI group_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(new_group.path);
-        TI name_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(name);
-        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
-        TI current_position = group_path_length;
-        if (group_path_length > 0){
-            new_group.path[group_path_length] = '/';
-            current_position += 1;
+    namespace persist::backends::tar{
+        template<typename DEVICE, typename GROUP>
+        GROUP create_group(DEVICE& device, GROUP& group, const char* name) {
+            using TI = typename DEVICE::index_t;
+            using GROUP_SPEC = typename GROUP::SPEC;
+            GROUP new_group = group;
+            persist::backends::tar::strncpy<TI>(new_group.path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
+            TI group_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(new_group.path);
+            TI name_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(name);
+            utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
+            TI current_position = group_path_length;
+            if (group_path_length > 0){
+                new_group.path[group_path_length] = '/';
+                current_position += 1;
+            }
+            persist::backends::tar::strncpy<TI>(new_group.path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+            return new_group;
         }
-        persist::backends::tar::strncpy<TI>(new_group.path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        return new_group;
+    }
+    template<typename DEVICE, typename GROUP_SPEC>
+    persist::backends::tar::WriterGroup<GROUP_SPEC> create_group(DEVICE& device, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name){
+        return persist::backends::tar::create_group(device, group, name);
+    }
+    template<typename DEVICE, typename GROUP_SPEC>
+    persist::backends::tar::WriterGroup<GROUP_SPEC> get_group(DEVICE& device, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name){
+        return persist::backends::tar::create_group(device, group, name);
+    }
+    template<typename DEVICE, typename GROUP_SPEC>
+    persist::backends::tar::ReaderGroup<GROUP_SPEC> create_group(DEVICE& device, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name){
+        return persist::backends::tar::create_group(device, group, name);
+    }
+    template<typename DEVICE, typename GROUP_SPEC>
+    persist::backends::tar::ReaderGroup<GROUP_SPEC> get_group(DEVICE& device, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name){
+        return persist::backends::tar::create_group(device, group, name);
     }
     template<typename TYPE, typename DEVICE, typename SPEC>
     void set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, std::string name, TYPE value) {
