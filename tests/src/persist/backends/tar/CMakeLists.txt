@@ -1,0 +1,3 @@
+add_executable(test_persist_backends_tar tar.cpp)
+target_link_libraries(test_persist_backends_tar RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_persist_backends_tar)

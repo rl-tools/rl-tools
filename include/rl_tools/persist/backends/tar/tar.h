@@ -6,7 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::persist::backends::tar {
     template <typename TI>
-    static constexpr TI TAR_BLOCK_SIZE = 512;
+    static constexpr TI BLOCK_SIZE = 512;
     // UStar tar header structure
     struct header {
         char name[100];
@@ -27,9 +27,10 @@ namespace rl_tools::persist::backends::tar {
         char prefix[155];
         char padding[12];
     };
+    static_assert(sizeof(header) == 512);
 
     struct Writer{
-
+        std::vector<char> buffer;
     };
     struct Reader{
 
