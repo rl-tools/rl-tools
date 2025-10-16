@@ -10,22 +10,30 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, Matrix<SPEC>& matrix, const persist::backends::hdf5::Group& group, std::string dataset_name) {
+    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
+    void load(DEVICE& device, Matrix<SPEC>& matrix, const persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name) {
         load(device, matrix, group.group, dataset_name);
     }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, Tensor<SPEC>& tensor, const persist::backends::hdf5::Group& group, std::string dataset_name) {
+    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
+    void load(DEVICE& device, Tensor<SPEC>& tensor, const persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name) {
         load(device, tensor, group.group, dataset_name);
     }
 
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, Matrix<SPEC>& m, persist::backends::hdf5::Group& group, std::string dataset_name) {
+    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
+    void save(DEVICE& device, Matrix<SPEC>& m, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name) {
         save(device, m, group.group, dataset_name);
     }
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group& group, std::string dataset_name) {
+    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
+    void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name) {
         save(device, tensor, group.group, dataset_name);
+    }
+    template<typename DEVICE, typename SPEC>
+    persist::backends::hdf5::Group<SPEC> create_group(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
+        return {group.group.createGroup(name)};
+    }
+    template<typename DEVICE, typename SPEC>
+    void set_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, std::string value) {
+        group.group.template createAttribute<std::string>(name, value);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -7,6 +7,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::persist::backends::hdf5{
+    template <typename T=void>
+    struct GroupSpecification{
+    };
+    template <typename SPEC = GroupSpecification<>>
     struct Group{
         HighFive::Group group;
     };

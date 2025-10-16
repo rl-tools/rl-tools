@@ -4,6 +4,7 @@
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
+#include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 
 namespace rlt = rl_tools;
@@ -31,7 +32,7 @@ TEST(TEST_PERSIST_BACKENDS_HDF5_HDF5, test) {
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/" + data_file_name;
     auto output_file = HighFive::File(data_file_path, HighFive::File::Overwrite);
-    rlt::persist::backends::hdf5::Group group{output_file.createGroup("test")};
+    rlt::persist::backends::hdf5::Group<rlt::persist::backends::hdf5::GroupSpecification<>> group{output_file.createGroup("test")};
     rlt::save(device, A, group, "A");
 
 
@@ -42,5 +43,6 @@ TEST(TEST_PERSIST_BACKENDS_HDF5_HDF5, test) {
     rlt::malloc(device, layer);
     rlt::init_weights(device, layer, rng);
     rlt::print(device, layer.weights.parameters);
-    // rlt::save(device, layer, group);
+    auto layer_group = rlt::create_group(device, group, "layer");
+    rlt::save(device, layer, layer_group);
 }
