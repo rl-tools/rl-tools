@@ -14,6 +14,7 @@ namespace rl_tools{
             writer.buffer.push_back(data[i]);
         }
     }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
