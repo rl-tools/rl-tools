@@ -277,7 +277,7 @@ namespace rl_tools{
         }
 
         template <typename DEVICE>
-        bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size) {
+        bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char*& output_data, typename DEVICE::index_t& read_size) {
             using TI = typename DEVICE::index_t;
             char* ptr = const_cast<char*>(tar_data);
             while (ptr <= tar_data + length - BLOCK_SIZE<TI>) {
@@ -293,8 +293,7 @@ namespace rl_tools{
 
                 read_size = parse_octal<TI>(h->size, 12);
                 if (strcmp(h->name, entry_name, 100)){
-                    utils::assert_exit(device, read_size <= output_size, "persist::backends::tar: Output buffer is too small for the requested entry");
-                    memcpy<TI>(output_data, ptr, read_size);
+                    output_data = ptr;
                     return true;
                 }
                 ptr += read_size;
@@ -306,28 +305,53 @@ namespace rl_tools{
             }
             return false;
         }
-    }
-
-    namespace containers::tensor{
-        template <typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
-        void dim_helper(char* metadata, TI& metadata_position){
-            if constexpr(DIM < SPEC::SHAPE::LENGTH){
-                char dim_key[64];
-                char dim_num[16];
-                char dim_value[16];
-                TI pos = 0;
-                pos += persist::backends::tar::strncpy(dim_key, "dim_", 64);
-                pos += persist::backends::tar::int_to_string<TI, TI>(dim_key + pos, 64 - pos, DIM);
-                pos += persist::backends::tar::strncpy(dim_key + pos, ": ", 64 - pos);
-                metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, dim_key, METADATA_SIZE - metadata_position);
-                persist::backends::tar::int_to_string<TI, TI>(dim_value, 16, SPEC::SHAPE::template GET<DIM>);
-                metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, dim_value, METADATA_SIZE - metadata_position);
-                metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
-                dim_helper<SPEC, TI, METADATA_SIZE, DIM + 1>(metadata, metadata_position);
+        template <typename DEVICE>
+        bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
+            using TI = typename DEVICE::index_t;
+            char* ptr;
+            if(!get(device, tar_data, length, entry_name, ptr, read_size)){
+                return false;
             }
+            utils::assert_exit(device, read_size <= output_size, "persist::backends::tar: Output buffer is too small for the requested entry");
+            memcpy<TI>(output_data, ptr, read_size);
+            return true;
         }
+        namespace containers::tensor{
+            template <typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
+            void dim_helper(char* metadata, TI& metadata_position){
+                if constexpr(DIM < SPEC::SHAPE::LENGTH){
+                    char dim_key[64];
+                    char dim_num[16];
+                    char dim_value[16];
+                    TI pos = 0;
+                    pos += persist::backends::tar::strncpy(dim_key, "dim_", 64);
+                    pos += persist::backends::tar::int_to_string<TI, TI>(dim_key + pos, 64 - pos, DIM);
+                    pos += persist::backends::tar::strncpy(dim_key + pos, ": ", 64 - pos);
+                    metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, dim_key, METADATA_SIZE - metadata_position);
+                    persist::backends::tar::int_to_string<TI, TI>(dim_value, 16, SPEC::SHAPE::template GET<DIM>);
+                    metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, dim_value, METADATA_SIZE - metadata_position);
+                    metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
+                    dim_helper<SPEC, TI, METADATA_SIZE, DIM + 1>(metadata, metadata_position);
+                }
+            }
+            template <typename DEVICE, typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
+            void dim_helper_read(DEVICE& device, char* metadata){
+                static_assert(SPEC::SHAPE::LENGTH <= 9, "Only tensors with up to 9 dimensions are supported for now");
+                char key[] = "dim_0";
+                key[4] = '0' + DIM;
+                if constexpr(DIM < SPEC::SHAPE::LENGTH){
+                    TI type_position;
+                    TI type_value_length;
+                    utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, key, type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
+                    TI value = persist::backends::tar::string_to_int<TI>(metadata + type_position, type_value_length);
+                    utils::assert_exit(device, value == SPEC::SHAPE::template GET<DIM>, "persist::backends::tar: Dimension mismatch in metadata");
+                    dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE, DIM + 1>(device, metadata);
+                }
+            }
 
+        }
     }
+
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     void load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
@@ -351,10 +375,20 @@ namespace rl_tools{
         metadata[read_size] = '\0';
         TI type_position = 0;
         TI type_value_length = 0;
-        utils::assert_exit(device, rl_tools::persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
-        char value[20];
-        persist::backends::tar::strncpy<TI>(value, metadata + type_position, persist::backends::tar::min<TI>(type_value_length + 1, 20));
-        std::cout << "type: " << value << std::endl;
+        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
+        utils::assert_exit(device, persist::backends::tar::strcmp<TI>(metadata + type_position, "tensor", sizeof("tensor")-1), "persist::backends::tar: 'type' is not 'tensor' in metadata");
+
+        // constexpr TI MAX_VALUE_LENGTH = 20;
+        // char value[MAX_VALUE_LENGTH];
+        // persist::backends::tar::strncpy<TI>(value, metadata + type_position, type_value_length + 1 < MAX_VALUE_LENGTH ? type_value_length + 1 : MAX_VALUE_LENGTH);
+        // std::cout << "type: " << value << std::endl;
+        persist::backends::tar::containers::tensor::dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
+        using DENSE_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>;
+        Tensor<DENSE_SPEC> tensor_dense;
+        TI data_size;
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, "data", (char*&)tensor_dense._data, data_size), "persist::backends::tar: 'data' not found in metadata");
+        utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
+        copy(device, device, tensor_dense, tensor);
     }
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
@@ -388,7 +422,7 @@ namespace rl_tools{
         persist::backends::tar::int_to_string<TI, TI>(num_dims_str, 16, SPEC::SHAPE::LENGTH);
         metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, num_dims_str, METADATA_SIZE - metadata_position);
         metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
-        containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
+        persist::backends::tar::containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
         std::cout << "metadata: \n" << metadata << std::endl;
         write_entry(device, group.writer, "meta", metadata, metadata_position);
         Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>> tensor_dense;
