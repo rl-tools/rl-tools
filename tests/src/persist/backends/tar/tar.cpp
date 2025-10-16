@@ -68,50 +68,106 @@ using T = float;
 //     ASSERT_TRUE(rlt::persist::backends::tar::strcmp(buffer, content2.c_str(), content2.size()));
 // }
 
-TEST(TEST_PERSIST_BACKENDS_HDF5_HDF5, test) {
+// TEST(TEST_PERSIST_BACKENDS_TAR_TAR, tensor) {
+//     DEVICE device;
+//     RNG rng;
+//     constexpr TI seed = 0;
+//     rlt::init(device);
+//     rlt::malloc(device, rng);
+//     rlt::init(device, rng, seed);
+//     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 3, 2, 10>>> A, A_read_back;
+//     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 4, 2, 10>>> A_read_back_fail;
+//     rlt::malloc(device, A);
+//     rlt::malloc(device, A_read_back);
+//     rlt::malloc(device, A_read_back_fail);
+//     rlt::randn(device, A, rng);
+//     rlt::print(device, A);
+//     std::string data_file_name = "test_persist_backends_tar_tensor.tar";
+//     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
+//     std::string data_file_path = std::string(data_path_stub) + "/" + data_file_name;
+//     rlt::persist::backends::tar::Writer writer;
+//     rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> writer_group{"", writer};
+//     rlt::save(device, A, writer_group, "A");
+//     rlt::persist::backends::tar::finalize(device, writer_group.writer);
+//     std::ofstream archive(data_file_path, std::ios::binary);
+//     std::cout << "Creating archive: " << data_file_path << std::endl;
+//     archive.write(writer_group.writer.buffer.data(), writer_group.writer.buffer.size());
+//     archive.close();
+//     std::ifstream archive_file(data_file_path, std::ios::binary);
+//     std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_file)), std::istreambuf_iterator<char>());
+//     archive_file.close();
+//     rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group;
+//     reader_group.data = tar_data.data();
+//     reader_group.size = tar_data.size();
+//     rlt::load(device, A_read_back, reader_group, "A");
+//
+//     rlt::print(device, A_read_back);
+//
+//     T abs_diff = rlt::abs_diff(device, A, A_read_back);
+//     ASSERT_NEAR(abs_diff, 0, 1e-6);
+// }
+
+// TEST(TEST_PERSIST_BACKENDS_TAR_TAR, matrix) {
+//     DEVICE device;
+//     RNG rng;
+//     constexpr TI seed = 0;
+//     rlt::init(device);
+//     rlt::malloc(device, rng);
+//     rlt::init(device, rng, seed);
+//     rlt::Matrix<rlt::matrix::Specification<T, TI, 5, 3>> A, A_read_back;
+//     rlt::malloc(device, A);
+//     rlt::malloc(device, A_read_back);
+//     rlt::randn(device, A, rng);
+//     rlt::print(device, A);
+//     std::string data_file_name = "test_persist_backends_tar_matrix.tar";
+//     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
+//     std::string data_file_path = std::string(data_path_stub) + "/" + data_file_name;
+//     rlt::persist::backends::tar::Writer writer;
+//     rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> writer_group{"", writer};
+//     rlt::save(device, A, writer_group, "A");
+//     rlt::persist::backends::tar::finalize(device, writer_group.writer);
+//     std::ofstream archive(data_file_path, std::ios::binary);
+//     std::cout << "Creating archive: " << data_file_path << std::endl;
+//     archive.write(writer_group.writer.buffer.data(), writer_group.writer.buffer.size());
+//     archive.close();
+//     std::ifstream archive_file(data_file_path, std::ios::binary);
+//     std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_file)), std::istreambuf_iterator<char>());
+//     archive_file.close();
+//     rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group;
+//     reader_group.data = tar_data.data();
+//     reader_group.size = tar_data.size();
+//     rlt::load(device, A_read_back, reader_group, "A");
+//
+//     rlt::print(device, A_read_back);
+//
+//     T abs_diff = rlt::abs_diff(device, A, A_read_back);
+//     ASSERT_NEAR(abs_diff, 0, 1e-6);
+// }
+
+TEST(TEST_PERSIST_BACKENDS_TAR_TAR, dense_layer) {
     DEVICE device;
     RNG rng;
     constexpr TI seed = 0;
     rlt::init(device);
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 3>>> A, A_read_back;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 4>>> A_read_back_fail;
-    rlt::malloc(device, A);
-    rlt::malloc(device, A_read_back);
-    rlt::malloc(device, A_read_back_fail);
-    rlt::randn(device, A, rng);
-    rlt::print(device, A);
-    std::string data_file_name = "test_persist_backends_tar.tar";
+
+    using CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using CAPABILITY = rlt::nn::capability::Forward<>;
+    using SPEC = rlt::nn::layers::dense::Specification<CONFIG, CAPABILITY, rlt::tensor::Shape<TI, 1, 10, 15>>;
+    rlt::nn::layers::dense::LayerForward<SPEC> layer;
+    rlt::malloc(device, layer);
+    rlt::init_weights(device, layer, rng);
+
+    std::string data_file_name = "test_persist_backends_tar_dense_layer.tar";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/" + data_file_name;
-    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, rlt::persist::backends::tar::Writer>> writer_group;
-    rlt::save(device, A, writer_group, "A");
+    rlt::persist::backends::tar::Writer writer;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> writer_group{"", writer};
+    rlt::save(device, layer, writer_group);
     rlt::persist::backends::tar::finalize(device, writer_group.writer);
     std::ofstream archive(data_file_path, std::ios::binary);
     std::cout << "Creating archive: " << data_file_path << std::endl;
     archive.write(writer_group.writer.buffer.data(), writer_group.writer.buffer.size());
     archive.close();
-    std::ifstream archive_file(data_file_path, std::ios::binary);
-    std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_file)), std::istreambuf_iterator<char>());
-    archive_file.close();
-    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group;
-    reader_group.data = tar_data.data();
-    reader_group.size = tar_data.size();
-    rlt::load(device, A_read_back, reader_group, "A");
-
-    rlt::print(device, A_read_back);
-
-    T abs_diff = rlt::abs_diff(device, A, A_read_back);
-    ASSERT_NEAR(abs_diff, 0, 1e-6);
-
-    // using CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    // using CAPABILITY = rlt::nn::capability::Forward<>;
-    // using SPEC = rlt::nn::layers::dense::Specification<CONFIG, CAPABILITY, rlt::tensor::Shape<TI, 1, 10, 15>>;
-    // rlt::nn::layers::dense::LayerForward<SPEC> layer;
-    // rlt::malloc(device, layer);
-    // rlt::init_weights(device, layer, rng);
-    // rlt::print(device, layer.weights.parameters);
-    // auto layer_group = rlt::create_group(device, group, "layer");
-    // rlt::save(device, layer, layer_group);
 }
