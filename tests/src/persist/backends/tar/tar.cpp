@@ -110,6 +110,52 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, tensor) {
     ASSERT_NEAR(abs_diff, 0, 1e-6);
 }
 
+TEST(TEST_PERSIST_BACKENDS_TAR_TAR, tensor_attribute) {
+    DEVICE device;
+    RNG rng;
+    constexpr TI seed = 0;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, seed);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 3, 2, 10>>> A, A_read_back;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 5, 4, 2, 10>>> A_read_back_fail;
+    rlt::malloc(device, A);
+    rlt::malloc(device, A_read_back);
+    rlt::malloc(device, A_read_back_fail);
+    rlt::randn(device, A, rng);
+    rlt::print(device, A);
+    std::string data_file_name = "test_persist_backends_tar_tensor_attribute.tar";
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
+    std::string data_file_path = std::string(data_path_stub) + "/" + data_file_name;
+    rlt::persist::backends::tar::Writer writer;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> writer_group{"", writer};
+    auto container_group = rlt::create_group(device, writer_group, "container");
+    rlt::save(device, A, container_group, "A");
+    rlt::set_attribute(device, writer_group, "id", 1337);
+    rlt::write_attributes(device, writer_group);
+    rlt::persist::backends::tar::finalize(device, writer_group.writer);
+    std::ofstream archive(data_file_path, std::ios::binary);
+    std::cout << "Creating archive: " << data_file_path << std::endl;
+    archive.write(writer_group.writer.buffer.data(), writer_group.writer.buffer.size());
+    archive.close();
+    std::ifstream archive_file(data_file_path, std::ios::binary);
+    std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_file)), std::istreambuf_iterator<char>());
+    archive_file.close();
+    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group;
+    reader_group.data = tar_data.data();
+    reader_group.size = tar_data.size();
+    auto reader_container_group = rlt::create_group(device, reader_group, "container");
+    rlt::load(device, A_read_back, reader_container_group, "A");
+
+    TI id = rlt::get_attribute_int<TI>(device, reader_group, "id");
+    ASSERT_EQ(id, 1337);
+
+    rlt::print(device, A_read_back);
+
+    T abs_diff = rlt::abs_diff(device, A, A_read_back);
+    ASSERT_NEAR(abs_diff, 0, 1e-6);
+}
+
 TEST(TEST_PERSIST_BACKENDS_TAR_TAR, matrix) {
     DEVICE device;
     RNG rng;

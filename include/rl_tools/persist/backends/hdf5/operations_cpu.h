@@ -35,10 +35,10 @@ namespace rl_tools{
     persist::backends::hdf5::Group<persist::backends::hdf5::GroupSpecification<>> create_group(DEVICE& device, HighFive::File& file, std::string name) {
         return {file.createGroup(name)};
     }
-    template<typename TYPE, typename DEVICE, typename SPEC>
-    void set_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, TYPE value) {
-        group.group.template createAttribute<TYPE>(name, value);
-    }
+    // template<typename TYPE, typename DEVICE, typename SPEC>
+    // void set_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, TYPE value) {
+    //     group.group.template createAttribute<TYPE>(name, value);
+    // }
     template<typename DEVICE, typename SPEC>
     persist::backends::hdf5::Group<SPEC> get_group(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
         return {group.group.getGroup(name)};
@@ -51,10 +51,10 @@ namespace rl_tools{
     bool group_exists(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
         return group.group.exist(name);
     }
-    template<typename TYPE, typename DEVICE, typename SPEC>
-    TYPE get_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
-        return group.group.getAttribute(name).template read<TYPE>();
-    }
+    // template<typename TYPE, typename DEVICE, typename SPEC>
+    // TYPE get_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
+    //     return group.group.getAttribute(name).template read<TYPE>();
+    // }
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
