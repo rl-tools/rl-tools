@@ -2,9 +2,16 @@
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
 #include <rl_tools/persist/backends/tar/operations_generic.h>
 
+#include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
+
 #include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
+#include <rl_tools/nn/layers/gru/persist.h>
+#include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 
 #define RL_TOOLS_STRINGIZE(x) #x
 #define RL_TOOLS_MACRO_TO_STR(macro) RL_TOOLS_STRINGIZE(macro)
@@ -193,7 +200,7 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, matrix) {
     ASSERT_NEAR(abs_diff, 0, 1e-6);
 }
 
-TEST(TEST_PERSIST_BACKENDS_TAR_TAR, dense_layer) {
+TEST(TEST_PERSIST_BACKENDS_TAR_TAR, dense_layer){
     DEVICE device;
     RNG rng;
     constexpr TI seed = 0;
@@ -232,5 +239,56 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, dense_layer) {
     T abs_diff = rlt::abs_diff(device, layer, layer_read_back);
     std::cout << "Layer abs diff: " << abs_diff << std::endl;
     ASSERT_NEAR(abs_diff, 0, 1e-6);
+}
 
+template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+
+TEST(TEST_PERSIST_BACKENDS_TAR_TAR, sequential_model){
+    DEVICE device;
+    RNG rng;
+    constexpr TI seed = 0;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, seed);
+
+    using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using INPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
+    using GRU_LAYER_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, 20>;
+    using GRU_LAYER = rlt::nn::layers::gru::BindConfiguration<GRU_LAYER_CONFIG>;
+    using MLP_LAYER_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 15, 3, 7, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using MLP_LAYER = rlt::nn_models::mlp::BindConfiguration<MLP_LAYER_CONFIG>;
+    using CAPABILITY = rlt::nn::capability::Forward<>;
+    using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU_LAYER, Module<MLP_LAYER>>>;
+
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 5, 3, 10>;
+    using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+    MODEL model, model_read_back;
+    rlt::malloc(device, model);
+    rlt::malloc(device, model_read_back);
+    rlt::init_weights(device, model, rng);
+
+    std::string data_file_name = "test_persist_backends_tar_sequential_model.tar";
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
+    std::string data_file_path = std::string(data_path_stub) + "/" + data_file_name;
+    rlt::persist::backends::tar::Writer writer;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> writer_group{"", &writer};
+    auto layer_group = rlt::create_group(device, writer_group, "layer");
+    rlt::save(device, model, layer_group);
+    rlt::persist::backends::tar::finalize(device, writer);
+    std::ofstream archive(data_file_path, std::ios::binary);
+    std::cout << "Creating archive: " << data_file_path << std::endl;
+    archive.write(writer.buffer.data(), writer.buffer.size());
+    archive.close();
+
+    std::ifstream archive_data(data_file_path, std::ios::binary);
+    std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_data)), std::istreambuf_iterator<char>());
+    archive_data.close();
+    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group{"", tar_data.data(), tar_data.size()};
+    auto layer_group_readback = rlt::get_group(device, reader_group, "layer");
+    rlt::load(device, model_read_back, layer_group_readback);
+
+    T abs_diff = rlt::abs_diff(device, model, model_read_back);
+    std::cout << "Layer abs diff: " << abs_diff << std::endl;
+    ASSERT_NEAR(abs_diff, 0, 1e-6);
 }
