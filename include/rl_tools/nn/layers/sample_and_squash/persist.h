@@ -4,12 +4,11 @@
 #define RL_TOOLS_NN_LAYERS_SAMPLE_AND_SQUASH_PERSIST_H
 
 #include "layer.h"
-#include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, GROUP& group){
-        set_attribute<std::string>(device, group, "type", "sample_and_squash");
+        set_attribute(device, group, "type", "sample_and_squash");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, GROUP& group) {

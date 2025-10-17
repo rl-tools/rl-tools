@@ -5,16 +5,14 @@
 #include "../../nn/parameters/persist.h"
 #include "../../nn/persist.h"
 #include "network.h"
-#include "../../persist/backends/hdf5/operations_cpu.h"
-#include <highfive/H5File.hpp>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, GROUP& group) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
-        set_attribute<std::string>(device, group, "type", "mlp");
-        set_attribute<std::string>(device, group, "num_layers", std::to_string(SPEC::NUM_LAYERS));
+        set_attribute(device, group, "type", "mlp");
+        set_attribute(device, group, "num_layers", std::to_string(SPEC::NUM_LAYERS).c_str());
         auto input_layer_group = create_group(device, group, "input_layer");
         save(device, network.input_layer, input_layer_group);
         for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {

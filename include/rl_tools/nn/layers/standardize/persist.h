@@ -4,7 +4,6 @@
 #define RL_TOOLS_NN_LAYERS_STANDARDIZE_PERSIST_H
 
 #include "layer.h"
-#include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
@@ -14,7 +13,7 @@ namespace rl_tools {
         save(device, layer.mean, mean_group);
         auto precision_group = create_group(device, group, "precision");
         save(device, layer.precision, precision_group);
-        set_attribute<std::string>(device, group, "type", "standardize");
+        set_attribute(device, group, "type", "standardize");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, GROUP& group) {

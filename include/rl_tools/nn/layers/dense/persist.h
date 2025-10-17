@@ -3,7 +3,6 @@
 #define RL_TOOLS_NN_LAYERS_DENSE_PERSIST_H
 #include "../../../version.h"
 #include "layer.h"
-#include <iostream>
 #include "persist_common.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
