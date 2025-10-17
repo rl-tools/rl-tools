@@ -40,6 +40,9 @@ namespace rl_tools{
         group.group.template createAttribute<std::string>(name, value);
     }
     template<typename DEVICE, typename SPEC>
+    void write_attributes(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group){
+    }
+    template<typename DEVICE, typename SPEC>
     persist::backends::hdf5::Group<SPEC> get_group(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
         return {group.group.getGroup(name)};
     }
