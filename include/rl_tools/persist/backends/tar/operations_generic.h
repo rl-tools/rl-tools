@@ -46,6 +46,9 @@ namespace rl_tools{
         }
         template <typename TI>
         TI strncpy(char* dest, const char* src, TI n) {
+            if (n == 0) {
+                return 0;
+            }
             for (TI i = 0; i < n; i++){
                 dest[i] = src[i];
                 if (src[i] == '\0'){
@@ -71,6 +74,13 @@ namespace rl_tools{
         void format_octal(char* dest, TI dest_size, T value) {
             // Convert value to octal and write to dest with zero-padding
             // dest_size includes the null terminator
+            if (dest_size < 2) {
+                if (dest_size == 1) {
+                    dest[0] = '\0';
+                }
+                return;
+            }
+            
             TI pos = dest_size - 2; // Start from the last position before null terminator
             dest[dest_size - 1] = '\0';
             
@@ -136,12 +146,6 @@ namespace rl_tools{
             TI pos = 0;
             bool is_negative = false;
             
-            // Handle negative numbers
-            if (value < 0) {
-                is_negative = true;
-                value = -value;
-            }
-            
             // Handle zero specially
             if (value == 0) {
                 if (dest_size > 1) {
@@ -154,13 +158,25 @@ namespace rl_tools{
                 }
             }
             
+            // Handle negative numbers
+            if (value < 0) {
+                is_negative = true;
+                // Handle most negative value specially to avoid overflow
+                // For two's complement: -MIN = MIN (overflow), so we handle it by processing digits directly
+            }
+            
             // Convert digits in reverse order
             char temp[32]; // Enough for any 64-bit integer
             TI temp_pos = 0;
             
-            while (value > 0 && temp_pos < 32) {
-                temp[temp_pos++] = '0' + (value % 10);
-                value /= 10;
+            // Process digits (works for both positive and negative in two's complement)
+            T working_value = is_negative ? value : value;
+            while (working_value != 0 && temp_pos < 32) {
+                // For negative numbers, modulo gives negative result, so take absolute of digit
+                T digit = working_value % 10;
+                if (digit < 0) digit = -digit;
+                temp[temp_pos++] = '0' + digit;
+                working_value /= 10;
             }
             
             // Add negative sign if needed
@@ -230,7 +246,7 @@ namespace rl_tools{
                 }
                 previous_was_newline = (metadata[position] == '\n');
             }
-            return -1; // Key not found
+            return false; // Key not found
         }
         template <typename DEVICE, typename WRITER, typename TI>
         void write_entry(DEVICE& device, WRITER& writer, const char* entry_name, const char* data, TI data_size) {
@@ -398,7 +414,6 @@ namespace rl_tools{
             current_position += 1;
         }
         persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        std::cout << "Reading tensor from tar entry: " << group_path << std::endl;
         char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
         persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
         TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
@@ -452,7 +467,6 @@ namespace rl_tools{
             current_position += 1;
         }
         persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        std::cout << "Saving tensor to tar entry: " << group_path << std::endl;
         char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
         persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
         TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
@@ -478,7 +492,6 @@ namespace rl_tools{
         metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, num_dims_str, METADATA_SIZE - metadata_position);
         metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
         persist::backends::tar::containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
-        std::cout << "metadata: \n" << metadata << std::endl;
         utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
         persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
         write_entry(device, group.writer, current_path, metadata, metadata_position);
@@ -505,7 +518,6 @@ namespace rl_tools{
             current_position += 1;
         }
         persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        std::cout << "Reading matrix from tar entry: " << group_path << std::endl;
         char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
         persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
         TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
@@ -517,7 +529,6 @@ namespace rl_tools{
         }
         utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
         persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        std::cout << "meta path: " << current_path << std::endl;
         constexpr TI METADATA_SIZE = 100;
         char metadata[METADATA_SIZE];
         TI read_size = 0;
@@ -556,7 +567,6 @@ namespace rl_tools{
             current_position += 1;
         }
         persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        std::cout << "Saving matrix to tar entry: " << group_path << std::endl;
         constexpr TI METADATA_SIZE = 100;
         char metadata[METADATA_SIZE];
         TI metadata_position = 0;
@@ -569,7 +579,6 @@ namespace rl_tools{
             metadata_position += persist::backends::tar::strncpy<TI>(metadata+metadata_position, "dtype: float64\n", METADATA_SIZE - metadata_position);
         }
         persist::backends::tar::containers::matrix::write_metadata<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
-        std::cout << "metadata: \n" << metadata << std::endl;
 
         char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
         persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
@@ -582,14 +591,12 @@ namespace rl_tools{
         }
         utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
         persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        std::cout << "meta path: " << current_path << std::endl;
         write_entry(device, group.writer, current_path, metadata, metadata_position);
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>> matrix_dense;
         malloc(device, matrix_dense);
         copy(device, device, matrix, matrix_dense);
         utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Data path and name exceed maximum length");
         persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        std::cout << "data path: " << current_path << std::endl;
         write_entry(device, group.writer, current_path, reinterpret_cast<const char*>(matrix_dense._data), SPEC::SIZE_BYTES);
         free(device, matrix_dense);
     }
