@@ -26,7 +26,7 @@ namespace rl_tools{
         if(layer_i == 0){
             group = get_group(device, group, "layers");
         }
-        auto layer_group = get_group(device, group, std::to_string(layer_i));
+        auto layer_group = get_group(device, group, std::to_string(layer_i).c_str());
         load(device, model.content, layer_group);
         if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             load(device, model.next_module, group, layer_i + 1);

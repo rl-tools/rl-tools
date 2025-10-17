@@ -419,7 +419,7 @@ namespace rl_tools{
         TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
         TI meta_current_position = current_path_length;
         utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
-        if (current_path_length > 0){
+        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
             current_path[current_path_length] = '/';
             meta_current_position += 1;
         }
@@ -523,7 +523,7 @@ namespace rl_tools{
         TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
         TI meta_current_position = current_path_length;
         utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
-        if (current_path_length > 0){
+        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
             current_path[current_path_length] = '/';
             meta_current_position += 1;
         }
@@ -697,9 +697,9 @@ namespace rl_tools{
         char group_path[SPEC::MAX_PATH_LENGTH];
         persist::backends::tar::strncpy<TI>(group_path, group.path, SPEC::MAX_PATH_LENGTH);
         TI group_path_length = persist::backends::tar::strlen<TI, SPEC::MAX_PATH_LENGTH+1>(group_path);
-        utils::assert_exit(device, group_path_length + sizeof("meta") < SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
+        utils::assert_exit(device, group_path_length + sizeof("meta") + 2 < SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
         TI current_position = group_path_length;
-        if (group_path_length > 0){
+        if (group_path_length > 0 && group_path_length + sizeof("meta") + 2 < SPEC::MAX_PATH_LENGTH){
             group_path[group_path_length] = '/';
             current_position += 1;
         }
@@ -709,7 +709,7 @@ namespace rl_tools{
         utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, group_path, metadata, metadata_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
         using TI = typename DEVICE::index_t;
         TI position;
-        TI value_length;
+        TI value_length = 0;
         utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, metadata_size, name, position, value_length), "persist::backends::tar: key not found in metadata");
         persist::backends::tar::memcpy(output, metadata + position, value_length < output_size ? value_length : output_size);
         output[output_size-1] = '\0';
