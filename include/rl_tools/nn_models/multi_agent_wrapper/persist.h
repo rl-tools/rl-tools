@@ -6,8 +6,6 @@
 #include "../../nn/persist.h"
 #include "model.h"
 
-#include <string>
-
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename GROUP>

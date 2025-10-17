@@ -6,14 +6,12 @@
 #include "../../nn/persist.h"
 #include "model.h"
 
-#include <string>
-
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, GROUP& group, typename DEVICE::index_t layer_i = 0) {
         if(layer_i == 0){
-            set_attribute<std::string>(device, group, "type", "sequential");
+            set_attribute(device, group, "type", "sequential");
             group = create_group(device, group, "layers");
         }
         auto layer_group = create_group(device, group, std::to_string(layer_i));

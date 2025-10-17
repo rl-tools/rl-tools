@@ -4,7 +4,6 @@
 #define RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_PERSIST_H
 
 #include "replay_buffer.h"
-#include <vector>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

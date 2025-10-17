@@ -139,14 +139,14 @@ int main(){
         auto file = HighFive::File(resume_checkpoint.string(), HighFive::File::ReadOnly);
         auto checkpoint_group = rlt::get_group(device, file, "checkpoint");
         rlt::load(device, model, checkpoint_group);
-        epoch_i = rlt::get_attribute<TI>(device, checkpoint_group, "epoch");
-        sample_i = rlt::get_attribute<TI>(device, checkpoint_group, "sample_i");
+        epoch_i = rlt::get_attribute_int<TI>(device, checkpoint_group, "epoch");
+        sample_i = rlt::get_attribute_int<TI>(device, checkpoint_group, "sample_i");
         resuming_from_checkpoint = true;
-        auto rng_state_string = rlt::get_attribute<std::string>(device, checkpoint_group, "rng_state");
+        auto rng_state_string = rlt::get_attribute(device, checkpoint_group, "rng_state");
         rng.state = std::stoull(rng_state_string);
-        auto shuffle_rng_state_string = rlt::get_attribute<std::string>(device, checkpoint_group, "shuffle_rng_state");
+        auto shuffle_rng_state_string = rlt::get_attribute(device, checkpoint_group, "shuffle_rng_state");
         shuffle_rng_state_checkpoint = std::stoull(shuffle_rng_state_string);
-        rlt::set(device, optimizer.age, rlt::get_attribute<TI>(device, checkpoint_group, "optimizer_state"), 0);
+        rlt::set(device, optimizer.age, rlt::get_attribute_int<TI>(device, checkpoint_group, "optimizer_state"), 0);
     }
     for(; epoch_i < 1000; epoch_i++){
         auto start_time = std::chrono::high_resolution_clock::now();
@@ -180,11 +180,11 @@ int main(){
                     rlt::zero_gradient(device, model);
                     rlt::reset_forward_state(device, model);
                     auto checkpoint_group = rlt::create_group(device, file, "checkpoint");
-                    rlt::set_attribute<TI>(device, checkpoint_group, "epoch", epoch_i);
-                    rlt::set_attribute<TI>(device, checkpoint_group, "sample_i", sample_i);
-                    rlt::set_attribute<std::string>(device, checkpoint_group, "rng_state", std::to_string(rng.state));
-                    rlt::set_attribute<std::string>(device, checkpoint_group, "shuffle_rng_state", std::to_string(shuffle_rng_state));
-                    rlt::set_attribute<TI>(device, checkpoint_group, "optimizer_state", rlt::get(device, optimizer.age, 0));
+                    rlt::set_attribute(device, checkpoint_group, "epoch", std::to_string(epoch_i).c_str());
+                    rlt::set_attribute(device, checkpoint_group, "sample_i", std::to_string(sample_i).c_str());
+                    rlt::set_attribute(device, checkpoint_group, "rng_state", std::to_string(rng.state).c_str());
+                    rlt::set_attribute(device, checkpoint_group, "shuffle_rng_state", std::to_string(shuffle_rng_state).c_str());
+                    rlt::set_attribute(device, checkpoint_group, "optimizer_state", std::to_string(rlt::get(device, optimizer.age, 0)).c_str());
                     rlt::save(device, model, checkpoint_group);
                 }
                 if(sample_i == 0 || sample_i == CONFIG::PARAMS::BATCH_SIZE){ // reload check

@@ -4,7 +4,6 @@
 #define RL_TOOLS_NN_LAYERS_GRU_PERSIST_H
 
 #include "layer.h"
-#include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
@@ -20,7 +19,7 @@ namespace rl_tools {
         save(device, layer.biases_hidden, biases_hidden_group);
         auto initial_hidden_state_group = create_group(device, group, "initial_hidden_state");
         save(device, layer.initial_hidden_state, initial_hidden_state_group);
-        set_attribute<std::string>(device, group, "type", "gru");
+        set_attribute(device, group, "type", "gru");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer, GROUP& group) {

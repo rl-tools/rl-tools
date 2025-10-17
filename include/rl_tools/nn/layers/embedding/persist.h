@@ -12,7 +12,7 @@ namespace rl_tools {
         // todo: forward implementation to Parameter struct
         auto weights_group = create_group(device, group, "weights");
         save(device, layer.weights, weights_group);
-        set_attribute<std::string>(device, group, "type", "embedding");
+        set_attribute(device, group, "type", "embedding");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, GROUP& group) {

@@ -4,7 +4,6 @@
 #define RL_TOOLS_NN_LAYERS_TD3_SAMPLING_PERSIST_H
 
 #include "layer.h"
-#include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
