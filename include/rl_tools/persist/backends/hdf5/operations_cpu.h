@@ -51,14 +51,6 @@ namespace rl_tools{
     bool group_exists(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
         return group.group.exist(name);
     }
-    template<typename DEVICE, typename SPEC, typename T>
-    void create_dataset(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, const std::vector<T>& data) {
-        group.group.createDataSet(name, data);
-    }
-    template<typename DEVICE, typename SPEC, typename T>
-    void read_dataset(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name, std::vector<T>& data) {
-        group.group.getDataSet(name).read(data);
-    }
     template<typename TYPE, typename DEVICE, typename SPEC>
     TYPE get_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
         return group.group.getAttribute(name).template read<TYPE>();
