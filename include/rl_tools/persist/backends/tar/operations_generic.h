@@ -614,22 +614,109 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename GROUP_SPEC>
     persist::backends::tar::WriterGroup<GROUP_SPEC> create_group(DEVICE& device, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name){
-        return persist::backends::tar::create_group(device, group, name);
-    }
-    template<typename DEVICE, typename GROUP_SPEC>
-    persist::backends::tar::WriterGroup<GROUP_SPEC> get_group(DEVICE& device, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name){
-        return persist::backends::tar::create_group(device, group, name);
+        auto new_group = persist::backends::tar::create_group(device, group, name);
+        new_group.meta[0] = '\0';
+        new_group.meta_position = 0;
+        return new_group;
     }
     template<typename DEVICE, typename GROUP_SPEC>
     persist::backends::tar::ReaderGroup<GROUP_SPEC> create_group(DEVICE& device, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name){
+        return persist::backends::tar::create_group(device, group, name);
+    }
+
+    template<typename DEVICE, typename GROUP_SPEC>
+    persist::backends::tar::WriterGroup<GROUP_SPEC> get_group(DEVICE& device, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name){
         return persist::backends::tar::create_group(device, group, name);
     }
     template<typename DEVICE, typename GROUP_SPEC>
     persist::backends::tar::ReaderGroup<GROUP_SPEC> get_group(DEVICE& device, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name){
         return persist::backends::tar::create_group(device, group, name);
     }
+    namespace persist::backends::tar{
+        template<typename DEVICE, typename SPEC>
+        void finish_set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, const char* value){
+            using TI = typename DEVICE::index_t;
+            utils::assert_exit(device, group.meta_position + persist::backends::tar::strlen<TI, SPEC::META_SIZE+1>(value) + 1 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
+            group.meta_position += persist::backends::tar::strncpy<TI>(group.meta + group.meta_position, value, SPEC::META_SIZE - group.meta_position);
+            group.meta_position += persist::backends::tar::strncpy(group.meta + group.meta_position, "\n", SPEC::META_SIZE - group.meta_position);
+        }
+        template<typename DEVICE, typename SPEC>
+        void finish_set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, long int value){
+            using TI = typename DEVICE::index_t;
+            constexpr TI BUFFER_SIZE = 32;
+            char value_str[BUFFER_SIZE];
+            persist::backends::tar::int_to_string<long int, TI>(value_str, BUFFER_SIZE, value);
+            utils::assert_exit(device, group.meta_position + persist::backends::tar::strlen<TI, SPEC::META_SIZE+1>(value_str) + 1 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
+            group.meta_position += persist::backends::tar::strncpy<TI>(group.meta + group.meta_position, value_str, SPEC::META_SIZE - group.meta_position);
+            group.meta_position += persist::backends::tar::strncpy(group.meta + group.meta_position, "\n", SPEC::META_SIZE - group.meta_position);
+        }
+    }
+
     template<typename TYPE, typename DEVICE, typename SPEC>
-    void set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, std::string name, TYPE value) {
+    void set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, TYPE value) {
+        using TI = typename DEVICE::index_t;
+        utils::assert_exit(device, group.meta_position + persist::backends::tar::strlen<TI, SPEC::META_SIZE+1>(name) + 2 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
+        group.meta_position += persist::backends::tar::strncpy(group.meta + group.meta_position, name, SPEC::META_SIZE - group.meta_position);
+        group.meta_position += persist::backends::tar::strncpy(group.meta + group.meta_position, ": ", SPEC::META_SIZE - group.meta_position);
+
+        persist::backends::tar::finish_set_attribute(device, group, name, value);
+
+    }
+    template<typename DEVICE, typename SPEC>
+    void write_attributes(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group){
+        using TI = typename DEVICE::index_t;
+        char group_path[SPEC::MAX_PATH_LENGTH];
+        persist::backends::tar::strncpy<TI>(group_path, group.path, SPEC::MAX_PATH_LENGTH);
+        TI group_path_length = persist::backends::tar::strlen<TI, SPEC::MAX_PATH_LENGTH+1>(group_path);
+        utils::assert_exit(device, group_path_length + sizeof("meta") < SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
+        TI current_position = group_path_length;
+        if (group_path_length > 0){
+            group_path[group_path_length] = '/';
+            current_position += 1;
+        }
+        persist::backends::tar::strncpy<TI>(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        write_entry(device, group.writer, group_path, group.meta, group.meta_position);
+    }
+    template<typename TYPE, typename DEVICE, typename SPEC>
+    void set_attribute(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name, TYPE value) {
+    }
+    template<typename DEVICE, typename SPEC>
+    bool group_exists(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name) {
+        using TI = typename DEVICE::index_t;
+        char* output_data;
+        TI read_size;
+        return get(device, group.data, group.size, name, output_data, read_size);
+    }
+    template<typename TYPE, typename DEVICE, typename SPEC>
+    void get_attribute(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name, char* output, typename DEVICE::index_t output_size){
+        using TI = typename DEVICE::index_t;
+        char group_path[SPEC::MAX_PATH_LENGTH];
+        persist::backends::tar::strncpy<TI>(group_path, group.path, SPEC::MAX_PATH_LENGTH);
+        TI group_path_length = persist::backends::tar::strlen<TI, SPEC::MAX_PATH_LENGTH+1>(group_path);
+        utils::assert_exit(device, group_path_length + sizeof("meta") < SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
+        TI current_position = group_path_length;
+        if (group_path_length > 0){
+            group_path[group_path_length] = '/';
+            current_position += 1;
+        }
+        persist::backends::tar::strncpy<TI>(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        char* metadata;
+        TI metadata_size;
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, group_path, metadata, metadata_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
+        using TI = typename DEVICE::index_t;
+        TI position;
+        TI value_length;
+        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, metadata_size, name, position, value_length), "persist::backends::tar: key not found in metadata");
+        persist::backends::tar::memcpy(output, metadata + position, value_length < output_size ? value_length : output_size);
+        output[output_size-1] = '\0';
+    }
+    template<typename TYPE, typename DEVICE, typename SPEC>
+    TYPE get_attribute_int(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name){
+        constexpr typename DEVICE::index_t BUFFER_SIZE = 32;
+        char string_value[BUFFER_SIZE];
+        get_attribute<char*>(device, group, name, string_value, BUFFER_SIZE);
+        TYPE cols_value = persist::backends::tar::string_to_int<TYPE>(string_value, BUFFER_SIZE);
+        return TYPE(cols_value);
     }
     // template<typename DEVICE, typename SPEC>
     // persist::backends::tar::WriterGroup<SPEC> get_group(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, std::string name) {

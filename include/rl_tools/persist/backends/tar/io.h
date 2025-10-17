@@ -13,6 +13,7 @@ namespace rl_tools::persist::backends::tar {
         using TI = T_TI;
         using WRITER = T_WRITER;
         static constexpr TI MAX_PATH_LENGTH = 100;
+        static constexpr TI META_SIZE = 2000;
     };
     template <typename T_SPEC>
     struct WriterGroup{
@@ -21,6 +22,8 @@ namespace rl_tools::persist::backends::tar {
         using WRITER = typename SPEC::WRITER;
         char path[SPEC::MAX_PATH_LENGTH] = "";
         WRITER& writer;
+        char meta[SPEC::META_SIZE] = "";
+        TI meta_position = 0;
     };
     template <typename T_TI>
     struct ReaderGroupSpecification{
