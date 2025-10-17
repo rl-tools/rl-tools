@@ -263,10 +263,19 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, sequential_model){
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 5, 3, 10>;
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::INPUT_SHAPE>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::OUTPUT_SHAPE>> output, output_read_back;
     MODEL model, model_read_back;
+    MODEL::Buffer<> buffer;
+    rlt::malloc(device, input);
+    rlt::malloc(device, output);
+    rlt::malloc(device, output_read_back);
     rlt::malloc(device, model);
+    rlt::malloc(device, buffer);
     rlt::malloc(device, model_read_back);
     rlt::init_weights(device, model, rng);
+    rlt::randn(device, input, rng);
+    rlt::evaluate(device, model, input, output, buffer, rng);
 
     std::string data_file_name = "test_persist_backends_tar_sequential_model.tar";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
@@ -287,8 +296,12 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, sequential_model){
     rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group{"", tar_data.data(), tar_data.size()};
     auto layer_group_readback = rlt::get_group(device, reader_group, "layer");
     rlt::load(device, model_read_back, layer_group_readback);
+    rlt::evaluate(device, model_read_back, input, output_read_back, buffer, rng);
 
-    T abs_diff = rlt::abs_diff(device, model, model_read_back);
-    std::cout << "Layer abs diff: " << abs_diff << std::endl;
-    ASSERT_NEAR(abs_diff, 0, 1e-6);
+    T abs_diff_model = rlt::abs_diff(device, model, model_read_back);
+    std::cout << "Layer abs diff: " << abs_diff_model << std::endl;
+    ASSERT_NEAR(abs_diff_model, 0, 1e-6);
+    T abs_diff_output = rlt::abs_diff(device, output, output_read_back);
+    std::cout << "Output abs diff: " << abs_diff_output << std::endl;
+    ASSERT_NEAR(abs_diff_output, 0, 1e-6);
 }
