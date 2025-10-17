@@ -66,14 +66,14 @@ TEST(TESTS_PERSIST_BACKENDS_TAR_TAR, test) {
     char buffer[500];
     TI read_size;
     rlt::persist::backends::tar::get(device, tar_data.data(), tar_data.size(), "buffer1.txt", buffer, sizeof(buffer), read_size);
-    ASSERT_TRUE(rlt::persist::backends::tar::strcmp("abcdefg", "abcdefg", 7));
-    ASSERT_FALSE(rlt::persist::backends::tar::strcmp("abcdefg", "abbdefg", 7));
-    ASSERT_TRUE(rlt::persist::backends::tar::strcmp("abcdefg", "abcdefg ", 7));
-    ASSERT_FALSE(rlt::persist::backends::tar::strcmp("abcdefg", "abcdefg ", 8));
-    ASSERT_FALSE(rlt::persist::backends::tar::strcmp("abcdefg", "", 7));
-    ASSERT_TRUE(rlt::persist::backends::tar::strcmp(buffer, content1.c_str(), content1.size()));
+    ASSERT_TRUE(rlt::utils::string::compare("abcdefg", "abcdefg", 7));
+    ASSERT_FALSE(rlt::utils::string::compare("abcdefg", "abbdefg", 7));
+    ASSERT_TRUE(rlt::utils::string::compare("abcdefg", "abcdefg ", 7));
+    ASSERT_FALSE(rlt::utils::string::compare("abcdefg", "abcdefg ", 8));
+    ASSERT_FALSE(rlt::utils::string::compare("abcdefg", "", 7));
+    ASSERT_TRUE(rlt::utils::string::compare(buffer, content1.c_str(), content1.size()));
     rlt::persist::backends::tar::get(device, tar_data.data(), tar_data.size(), "entry2.log", buffer, sizeof(buffer), read_size);
-    ASSERT_TRUE(rlt::persist::backends::tar::strcmp(buffer, content2.c_str(), content2.size()));
+    ASSERT_TRUE(rlt::utils::string::compare(buffer, content2.c_str(), content2.size()));
 }
 
 TEST(TEST_PERSIST_BACKENDS_TAR_TAR, tensor) {

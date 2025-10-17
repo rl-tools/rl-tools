@@ -4,6 +4,7 @@
 #define RL_TOOLS_PERSIST_BACKENDS_TAR_OPERATIONS_GENERIC
 
 #include "tar.h"
+#include "../../../utils/string/operations_generic.h"
 
 
 /*
@@ -36,207 +37,26 @@ namespace rl_tools{
             }
             return sum;
         }
-        template <typename TI, TI MAX_LEN = 200>
-        TI strlen(const char* str) {
-            TI len = 0;
-            while (str[len] != '\0' && len < MAX_LEN) {
-                len++;
-            }
-            return len;
-        }
-        template <typename TI>
-        TI strncpy(char* dest, const char* src, TI n) {
-            if (n == 0) {
-                return 0;
-            }
-            for (TI i = 0; i < n; i++){
-                dest[i] = src[i];
-                if (src[i] == '\0'){
-                    return i;
-                }
-            }
-            dest[n - 1] = '\0';
-            return n-1;
-        }
-        template <typename TI>
-        bool strcmp(const char* a, const char* b, TI n) {
-            TI i = 0;
-            while (a[i] != '\0' && b[i] != '\0' && i < n) {
-                if (a[i] != b[i]) return false;
-                i++;
-            }
-            if (i < n && (a[i] == '\0' || b[i] == '\0')){
-                return a[i] == b[i];
-            }
-            return true;
-        }
-        template <typename T, typename TI>
-        void format_octal(char* dest, TI dest_size, T value) {
-            // Convert value to octal and write to dest with zero-padding
-            // dest_size includes the null terminator
-            if (dest_size < 2) {
-                if (dest_size == 1) {
-                    dest[0] = '\0';
-                }
-                return;
-            }
-            
-            TI pos = dest_size - 2; // Start from the last position before null terminator
-            dest[dest_size - 1] = '\0';
-            
-            if (value == 0) {
-                for (TI i = 0; i < dest_size - 1; i++) {
-                    dest[i] = '0';
-                }
-                return;
-            }
-            
-            // Fill with zeros first
-            for (TI i = 0; i < dest_size - 1; i++) {
-                dest[i] = '0';
-            }
-            
-            // Convert to octal from right to left
-            while (value > 0 && pos >= 0) {
-                dest[pos] = '0' + (value & 7); // value % 8
-                value >>= 3; // value / 8
-                pos--;
-            }
-        }
-        template <typename TI>
-        void memcpy(char* dest, const char* src, TI n) {
-            for (TI i = 0; i < n; i++) {
-                dest[i] = src[i];
-            }
-        }
-        template <typename TI>
-        TI parse_octal(const char* str, TI max_len) {
-            // Parse octal string to integer
-            // Skips leading spaces, stops at first non-octal digit or null terminator
-            TI result = 0;
-            TI i = 0;
-            
-            // Skip leading spaces
-            while (i < max_len && str[i] == ' ') {
-                i++;
-            }
-            
-            // Parse octal digits (0-7)
-            while (i < max_len && str[i] != '\0') {
-                char c = str[i];
-                if (c >= '0' && c <= '7') {
-                    result = (result << 3) | (c - '0'); // result * 8 + digit
-                } else {
-                    // Stop at first non-octal character
-                    break;
-                }
-                i++;
-            }
-            
-            return result;
-        }
-        template <typename T, typename TI>
-        TI int_to_string(char* dest, TI dest_size, T value) {
-            // Convert integer to decimal string
-            // Returns the number of characters written (excluding null terminator)
-            if (dest_size == 0) {
-                return 0;
-            }
-            
-            TI pos = 0;
-            bool is_negative = false;
-            
-            // Handle zero specially
-            if (value == 0) {
-                if (dest_size > 1) {
-                    dest[0] = '0';
-                    dest[1] = '\0';
-                    return 1;
-                } else {
-                    dest[0] = '\0';
-                    return 0;
-                }
-            }
-            
-            // Handle negative numbers
-            if (value < 0) {
-                is_negative = true;
-                // Handle most negative value specially to avoid overflow
-                // For two's complement: -MIN = MIN (overflow), so we handle it by processing digits directly
-            }
-            
-            // Convert digits in reverse order
-            char temp[32]; // Enough for any 64-bit integer
-            TI temp_pos = 0;
-            
-            // Process digits (works for both positive and negative in two's complement)
-            T working_value = is_negative ? value : value;
-            while (working_value != 0 && temp_pos < 32) {
-                // For negative numbers, modulo gives negative result, so take absolute of digit
-                T digit = working_value % 10;
-                if (digit < 0) digit = -digit;
-                temp[temp_pos++] = '0' + digit;
-                working_value /= 10;
-            }
-            
-            // Add negative sign if needed
-            if (is_negative && pos < dest_size - 1) {
-                dest[pos++] = '-';
-            }
-            
-            // Copy digits in correct order
-            for (TI i = temp_pos; i > 0 && pos < dest_size - 1; i--) {
-                dest[pos++] = temp[i - 1];
-            }
-            
-            dest[pos] = '\0';
-            return pos;
-        }
-        template <typename TI>
-        TI string_to_int(const char* str, TI max_len) {
-            // Parse decimal string to integer
-            // Skips leading spaces, handles negative numbers
-            TI result = 0;
-            TI i = 0;
-            bool is_negative = false;
-            
-            // Skip leading spaces
-            while (i < max_len && str[i] == ' ') {
-                i++;
-            }
-            
-            // Check for negative sign
-            if (i < max_len && str[i] == '-') {
-                is_negative = true;
-                i++;
-            } else if (i < max_len && str[i] == '+') {
-                i++;
-            }
-            
-            // Parse decimal digits (0-9)
-            while (i < max_len && str[i] != '\0') {
-                char c = str[i];
-                if (c >= '0' && c <= '9') {
-                    result = result * 10 + (c - '0');
-                } else {
-                    // Stop at first non-decimal character
-                    break;
-                }
-                i++;
-            }
-            
-            return is_negative ? -result : result;
-        }
         template <typename T>
         T min(T a, T b) {
             return a < b ? a : b;
         }
-        template <typename TI>
-        bool seek_in_metadata(const char* metadata, TI metadata_size, const char* key, TI& position, TI& value_len) {
-            TI key_len = strlen<TI, 100>(key);
+        template <typename DEVICE, typename TI>
+        bool seek_in_metadata(DEVICE& device, const char* metadata, TI metadata_size, const char* key, TI& position, TI& value_len) {
+            // this assumes that key is well formed (is terminated)
+            constexpr TI MAX_KEY_LENGTH = 100;
+            TI key_len = utils::string::length(key, MAX_KEY_LENGTH);
+            utils::assert_exit(device, key_len < MAX_KEY_LENGTH, "persist::backends::tar: Key is too long");
+            if (key_len >= MAX_KEY_LENGTH){
+                return false;
+            }
+            utils::assert_exit(device, key_len + 2 < metadata_size, "persist::backends::tar: Key is longer than metadata size");
+            if (key_len + 2 >= metadata_size){
+                return false;
+            }
             bool previous_was_newline = true;
-            for (position = 0; position < metadata_size; position++){
-                if (previous_was_newline && strcmp<TI>(metadata + position, key, key_len) && metadata[position + key_len] == ':'){
+            for (position = 0; position < metadata_size-key_len-2; position++){
+                if (previous_was_newline && utils::string::compare<TI>(metadata + position, key, key_len) && metadata[position + key_len] == ':'){
                     position += key_len + 2;
                     value_len = 0;
                     while (position + value_len < metadata_size && metadata[position+value_len] != '\n'){
@@ -249,26 +69,30 @@ namespace rl_tools{
             return false; // Key not found
         }
         template <typename DEVICE, typename WRITER, typename TI>
-        void write_entry(DEVICE& device, WRITER& writer, const char* entry_name, const char* data, TI data_size) {
-            constexpr TI MAX_LEN = 100;
-            utils::assert_exit(device, strlen<TI, MAX_LEN+1>(entry_name) < MAX_LEN, "persist::backends::tar: Entry name is too long");
+        bool write_entry(DEVICE& device, WRITER& writer, const char* entry_name, const char* data, TI data_size) {
+            constexpr TI MAX_KEY_LENGTH = 100;
+            TI key_length = utils::string::length<TI>(entry_name, MAX_KEY_LENGTH-1);
+            utils::assert_exit(device, key_length < MAX_KEY_LENGTH, "persist::backends::tar: Entry name is too long");
+            if (key_length >= MAX_KEY_LENGTH){
+                return false;
+            }
 
             header header{};
 
             strncpy(header.name, entry_name, 99);
-            format_octal<unsigned int, TI>(header.mode, sizeof(header.mode), 0644); // Octal permissions
-            format_octal<unsigned int, TI>(header.uid, sizeof(header.uid), 1000);
-            format_octal<unsigned int, TI>(header.gid, sizeof(header.gid), 1000);
-            format_octal<unsigned long long, TI>(header.size, sizeof(header.size), (unsigned long long)data_size);
-            format_octal<unsigned long, TI>(header.mtime, sizeof(header.mtime), 0); // Using 0 for timestamp (epoch)
+            utils::string::format_octal<unsigned int, TI>(header.mode, sizeof(header.mode), 0644); // Octal permissions
+            utils::string::format_octal<unsigned int, TI>(header.uid, sizeof(header.uid), 1000);
+            utils::string::format_octal<unsigned int, TI>(header.gid, sizeof(header.gid), 1000);
+            utils::string::format_octal<unsigned long long, TI>(header.size, sizeof(header.size), (unsigned long long)data_size);
+            utils::string::format_octal<unsigned long, TI>(header.mtime, sizeof(header.mtime), 0); // Using 0 for timestamp (epoch)
             header.typeflag = '0'; // Regular file
-            memcpy<TI>(header.magic, "ustar", 5);
-            memcpy<TI>(header.version, "00", 2);
+            utils::string::memcpy<TI>(header.magic, "ustar", 5);
+            utils::string::memcpy<TI>(header.version, "00", 2);
             strncpy(header.uname, "user", 31);
             strncpy(header.gname, "group", 31);
 
             unsigned int chksum = calculate_checksum<TI>(header);
-            format_octal<unsigned int, TI>(header.chksum, sizeof(header.chksum), chksum);
+            utils::string::format_octal<unsigned int, TI>(header.chksum, sizeof(header.chksum), chksum);
 
             write(device, writer, reinterpret_cast<const char*>(&header), BLOCK_SIZE<TI>);
             write(device, writer, data, data_size);
@@ -280,6 +104,7 @@ namespace rl_tools{
                     write(device, writer, padding, 1);
                 }
             }
+            return true;
         }
 
         template <typename DEVICE, typename WRITER>
@@ -305,10 +130,10 @@ namespace rl_tools{
                     break;
                 }
 
-                utils::assert_exit(device, strcmp(h->magic, "ustar", 5), "Warning: Not a UStar format archive or header is corrupted.");
+                utils::assert_exit(device, utils::string::compare(h->magic, "ustar", 5), "Warning: Not a UStar format archive or header is corrupted.");
 
-                read_size = parse_octal<TI>(h->size, 12);
-                if (strcmp(h->name, entry_name, 100)){
+                read_size = utils::string::parse_octal<TI>(h->size, 12);
+                if (utils::string::compare(h->name, entry_name, 100)){
                     output_data = ptr;
                     return true;
                 }
@@ -329,24 +154,25 @@ namespace rl_tools{
                 return false;
             }
             utils::assert_exit(device, read_size <= output_size, "persist::backends::tar: Output buffer is too small for the requested entry");
-            memcpy<TI>(output_data, ptr, read_size);
+            utils::string::memcpy<TI>(output_data, ptr, read_size);
             return true;
         }
         namespace containers::tensor{
             template <typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
             void dim_helper(char* metadata, TI& metadata_position){
                 if constexpr(DIM < SPEC::SHAPE::LENGTH){
-                    char dim_key[64];
-                    char dim_num[16];
-                    char dim_value[16];
+                    constexpr TI DIM_KEY_LENGTH = 64;
+                    constexpr TI DIM_VALUE_LENGTH = 16;
+                    char dim_key[DIM_KEY_LENGTH];
+                    char dim_value[DIM_VALUE_LENGTH];
                     TI pos = 0;
-                    pos += persist::backends::tar::strncpy(dim_key, "dim_", 64);
-                    pos += persist::backends::tar::int_to_string<TI, TI>(dim_key + pos, 64 - pos, DIM);
-                    pos += persist::backends::tar::strncpy(dim_key + pos, ": ", 64 - pos);
-                    metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, dim_key, METADATA_SIZE - metadata_position);
-                    persist::backends::tar::int_to_string<TI, TI>(dim_value, 16, SPEC::SHAPE::template GET<DIM>);
-                    metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, dim_value, METADATA_SIZE - metadata_position);
-                    metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
+                    pos += utils::string::copy(dim_key, "dim_", DIM_KEY_LENGTH-1);
+                    pos += utils::string::int_to_string<TI, TI>(dim_key + pos, DIM_KEY_LENGTH - pos - 1, DIM);
+                    pos += utils::string::copy(dim_key + pos, ": ", DIM_KEY_LENGTH - pos - 1);
+                    metadata_position += utils::string::copy(metadata + metadata_position, dim_key, METADATA_SIZE - metadata_position - 1);
+                    utils::string::int_to_string<TI, TI>(dim_value, DIM_VALUE_LENGTH-1, SPEC::SHAPE::template GET<DIM>);
+                    metadata_position += utils::string::copy<TI>(metadata + metadata_position, dim_value, METADATA_SIZE - metadata_position - 1);
+                    metadata_position += utils::string::copy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position - 1);
                     dim_helper<SPEC, TI, METADATA_SIZE, DIM + 1>(metadata, metadata_position);
                 }
             }
@@ -358,8 +184,8 @@ namespace rl_tools{
                 if constexpr(DIM < SPEC::SHAPE::LENGTH){
                     TI type_position;
                     TI type_value_length;
-                    utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, key, type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
-                    TI value = persist::backends::tar::string_to_int<TI>(metadata + type_position, type_value_length);
+                    utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, key, type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
+                    TI value = utils::string::string_to_int<TI>(metadata + type_position, type_value_length);
                     utils::assert_exit(device, value == SPEC::SHAPE::template GET<DIM>, "persist::backends::tar: Dimension mismatch in metadata");
                     dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE, DIM + 1>(device, metadata);
                 }
@@ -369,256 +195,56 @@ namespace rl_tools{
         namespace containers::matrix{
             template <typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE>
             void write_metadata(char* metadata, TI& metadata_position){
-                metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "rows: ", METADATA_SIZE - metadata_position);
+                metadata_position += utils::string::copy(metadata + metadata_position, "rows: ", METADATA_SIZE - metadata_position);
                 char rows_str[16];
-                persist::backends::tar::int_to_string<TI, TI>(rows_str, 16, SPEC::ROWS);
-                metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, rows_str, METADATA_SIZE - metadata_position);
-                metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
+                utils::string::int_to_string<TI, TI>(rows_str, 16, SPEC::ROWS);
+                metadata_position += utils::string::copy(metadata + metadata_position, rows_str, METADATA_SIZE - metadata_position);
+                metadata_position += utils::string::copy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
 
-                metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "cols: ", METADATA_SIZE - metadata_position);
+                metadata_position += utils::string::copy(metadata + metadata_position, "cols: ", METADATA_SIZE - metadata_position);
                 char cols_str[16];
-                persist::backends::tar::int_to_string<TI, TI>(cols_str, 16, SPEC::COLS);
-                metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, cols_str, METADATA_SIZE - metadata_position);
-                metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
+                utils::string::int_to_string<TI, TI>(cols_str, 16, SPEC::COLS);
+                metadata_position += utils::string::copy(metadata + metadata_position, cols_str, METADATA_SIZE - metadata_position);
+                metadata_position += utils::string::copy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
             }
             template <typename DEVICE, typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE>
             void read_metadata(DEVICE& device, char* metadata){
                 TI rows_position;
                 TI rows_value_length;
-                utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, "rows", rows_position, rows_value_length), "persist::backends::tar: 'rows' not found in metadata");
-                TI rows_value = persist::backends::tar::string_to_int<TI>(metadata + rows_position, rows_value_length);
+                utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "rows", rows_position, rows_value_length), "persist::backends::tar: 'rows' not found in metadata");
+                TI rows_value = utils::string::string_to_int<TI>(metadata + rows_position, rows_value_length);
                 utils::assert_exit(device, rows_value == SPEC::ROWS, "persist::backends::tar: Rows mismatch in metadata");
 
                 TI cols_position;
                 TI cols_value_length;
-                utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, "cols", cols_position, cols_value_length), "persist::backends::tar: 'cols' not found in metadata");
-                TI cols_value = persist::backends::tar::string_to_int<TI>(metadata + cols_position, cols_value_length);
+                utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "cols", cols_position, cols_value_length), "persist::backends::tar: 'cols' not found in metadata");
+                TI cols_value = utils::string::string_to_int<TI>(metadata + cols_position, cols_value_length);
                 utils::assert_exit(device, cols_value == SPEC::COLS, "persist::backends::tar: Cols mismatch in metadata");
             }
 
         }
     }
 
-
-    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    void load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
-        using TI = typename DEVICE::index_t;
-        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI group_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(group_path);
-        TI name_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(name);
-        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
-        TI current_position = group_path_length;
-        if (group_path_length > 0){
-            group_path[group_path_length] = '/';
-            current_position += 1;
-        }
-        persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
-        TI meta_current_position = current_path_length;
-        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
-        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
-            current_path[current_path_length] = '/';
-            meta_current_position += 1;
-        }
-        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        constexpr TI METADATA_SIZE = 100;
-        char metadata[METADATA_SIZE];
-        TI read_size = 0;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
-        metadata[read_size] = '\0';
-        TI type_position = 0;
-        TI type_value_length = 0;
-        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
-        utils::assert_exit(device, persist::backends::tar::strcmp<TI>(metadata + type_position, "tensor", sizeof("tensor")-1), "persist::backends::tar: 'type' is not 'tensor' in metadata");
-
-        // constexpr TI MAX_VALUE_LENGTH = 20;
-        // char value[MAX_VALUE_LENGTH];
-        // persist::backends::tar::strncpy<TI>(value, metadata + type_position, type_value_length + 1 < MAX_VALUE_LENGTH ? type_value_length + 1 : MAX_VALUE_LENGTH);
-        // std::cout << "type: " << value << std::endl;
-        persist::backends::tar::containers::tensor::dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
-
-        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        using DENSE_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>;
-        Tensor<DENSE_SPEC> tensor_dense;
-        TI data_size;
-        char* data_ptr = nullptr;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_ptr, data_size), "persist::backends::tar: 'data' not found in metadata");
-        utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
-        tensor_dense._data = reinterpret_cast<typename SPEC::T*>(data_ptr);
-        copy(device, device, tensor_dense, tensor);
-    }
-
-    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
-        using TI = typename DEVICE::index_t;
-        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI group_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(group_path);
-        TI name_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(name);
-        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
-        TI current_position = group_path_length;
-        if (group_path_length > 0){
-            group_path[group_path_length] = '/';
-            current_position += 1;
-        }
-        persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
-        TI meta_current_position = current_path_length;
-        if (current_path_length > 0){
-            current_path[current_path_length] = '/';
-            meta_current_position += 1;
-        }
-        constexpr TI METADATA_SIZE = 100;
-        char metadata[METADATA_SIZE];
-        TI metadata_position = 0;
-        metadata_position += persist::backends::tar::strncpy<TI>(metadata, "type: tensor\n", METADATA_SIZE - metadata_position);
-        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>, "Only float32 and float64 are supported for now");
-        if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
-            metadata_position += persist::backends::tar::strncpy<TI>(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position);
-        }
-        else if constexpr(utils::typing::is_same_v<typename SPEC::T, double>){
-            metadata_position += persist::backends::tar::strncpy<TI>(metadata+metadata_position, "dtype: float64\n", METADATA_SIZE - metadata_position);
-        }
-        metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "num_dims: ", METADATA_SIZE - metadata_position);
-        char num_dims_str[16];
-        persist::backends::tar::int_to_string<TI, TI>(num_dims_str, 16, SPEC::SHAPE::LENGTH);
-        metadata_position += persist::backends::tar::strncpy<TI>(metadata + metadata_position, num_dims_str, METADATA_SIZE - metadata_position);
-        metadata_position += persist::backends::tar::strncpy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
-        persist::backends::tar::containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
-        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, *group.writer, current_path, metadata, metadata_position);
-        Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>> tensor_dense;
-        malloc(device, tensor_dense);
-        copy(device, device, tensor, tensor_dense);
-        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, *group.writer, current_path, reinterpret_cast<const char*>(data(tensor_dense)), SPEC::SIZE_BYTES);
-        free(device, tensor_dense);
-    }
-
-    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    void load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
-        using TI = typename DEVICE::index_t;
-        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI group_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(group_path);
-        TI name_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(name);
-        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
-        TI current_position = group_path_length;
-        if (group_path_length > 0){
-            group_path[group_path_length] = '/';
-            current_position += 1;
-        }
-        persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
-        TI meta_current_position = current_path_length;
-        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
-        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
-            current_path[current_path_length] = '/';
-            meta_current_position += 1;
-        }
-        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        constexpr TI METADATA_SIZE = 100;
-        char metadata[METADATA_SIZE];
-        TI read_size = 0;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
-        metadata[read_size] = '\0';
-        TI type_position = 0;
-        TI type_value_length = 0;
-        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
-        utils::assert_exit(device, persist::backends::tar::strcmp<TI>(metadata + type_position, "matrix", sizeof("matrix")-1), "persist::backends::tar: 'type' is not 'matrix' in metadata");
-
-        persist::backends::tar::containers::matrix::read_metadata<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
-
-        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        using DENSE_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>;
-        Matrix<DENSE_SPEC> matrix_dense;
-        TI data_size;
-        char* data_pointer = nullptr;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_pointer, data_size), "persist::backends::tar: 'data' not found in metadata");
-        utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
-        matrix_dense._data = reinterpret_cast<typename SPEC::T*>(data_pointer);
-        copy(device, device, matrix_dense, matrix);
-    }
-
-    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    void save(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
-        using TI = typename DEVICE::index_t;
-        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI group_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(group_path);
-        TI name_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(name);
-        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
-        TI current_position = group_path_length;
-        if (group_path_length > 0){
-            group_path[group_path_length] = '/';
-            current_position += 1;
-        }
-        persist::backends::tar::strncpy<TI>(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        constexpr TI METADATA_SIZE = 100;
-        char metadata[METADATA_SIZE];
-        TI metadata_position = 0;
-        metadata_position += persist::backends::tar::strncpy<TI>(metadata, "type: matrix\n", METADATA_SIZE - metadata_position);
-        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>, "Only float32 and float64 are supported for now");
-        if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
-            metadata_position += persist::backends::tar::strncpy<TI>(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position);
-        }
-        else if constexpr(utils::typing::is_same_v<typename SPEC::T, double>){
-            metadata_position += persist::backends::tar::strncpy<TI>(metadata+metadata_position, "dtype: float64\n", METADATA_SIZE - metadata_position);
-        }
-        persist::backends::tar::containers::matrix::write_metadata<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
-
-        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH>(current_path);
-        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
-        TI meta_current_position = current_path_length;
-        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
-            current_path[current_path_length] = '/';
-            meta_current_position += 1;
-        }
-        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, *group.writer, current_path, metadata, metadata_position);
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>> matrix_dense;
-        malloc(device, matrix_dense);
-        copy(device, device, matrix, matrix_dense);
-        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Data path and name exceed maximum length");
-        persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, *group.writer, current_path, reinterpret_cast<const char*>(matrix_dense._data), SPEC::SIZE_BYTES);
-        free(device, matrix_dense);
-    }
     namespace persist::backends::tar{
         template<typename DEVICE, typename GROUP>
         GROUP create_group(DEVICE& device, GROUP& group, const char* name) {
             using TI = typename DEVICE::index_t;
             using GROUP_SPEC = typename GROUP::SPEC;
             GROUP new_group = group;
-            persist::backends::tar::strncpy<TI>(new_group.path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
-            TI group_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(new_group.path);
-            TI name_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(name);
+            utils::string::copy(new_group.path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
+            TI group_path_length = utils::string::length(new_group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+            TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
             utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
             TI current_position = group_path_length;
             if (group_path_length > 0){
                 new_group.path[group_path_length] = '/';
                 current_position += 1;
             }
-            persist::backends::tar::strncpy<TI>(new_group.path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+            utils::string::copy(new_group.path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
             return new_group;
         }
     }
+
     template<typename DEVICE, typename GROUP_SPEC>
     persist::backends::tar::WriterGroup<GROUP_SPEC> create_group(DEVICE& device, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name){
         auto new_group = persist::backends::tar::create_group(device, group, name);
@@ -643,28 +269,28 @@ namespace rl_tools{
         template<typename DEVICE, typename SPEC>
         void finish_set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, const char* value){
             using TI = typename DEVICE::index_t;
-            utils::assert_exit(device, group.meta_position + persist::backends::tar::strlen<TI, SPEC::META_SIZE+1>(value) + 1 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
-            group.meta_position += persist::backends::tar::strncpy<TI>(group.meta + group.meta_position, value, SPEC::META_SIZE - group.meta_position);
-            group.meta_position += persist::backends::tar::strncpy(group.meta + group.meta_position, "\n", SPEC::META_SIZE - group.meta_position);
+            utils::assert_exit(device, group.meta_position + utils::string::length(value, SPEC::META_SIZE-1) + 1 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
+            group.meta_position += utils::string::copy(group.meta + group.meta_position, value, SPEC::META_SIZE - group.meta_position);
+            group.meta_position += utils::string::copy(group.meta + group.meta_position, "\n", SPEC::META_SIZE - group.meta_position);
         }
         template<typename DEVICE, typename SPEC>
         void finish_set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, long int value){
             using TI = typename DEVICE::index_t;
             constexpr TI BUFFER_SIZE = 32;
             char value_str[BUFFER_SIZE];
-            persist::backends::tar::int_to_string<long int, TI>(value_str, BUFFER_SIZE, value);
-            utils::assert_exit(device, group.meta_position + persist::backends::tar::strlen<TI, SPEC::META_SIZE+1>(value_str) + 1 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
-            group.meta_position += persist::backends::tar::strncpy<TI>(group.meta + group.meta_position, value_str, SPEC::META_SIZE - group.meta_position);
-            group.meta_position += persist::backends::tar::strncpy(group.meta + group.meta_position, "\n", SPEC::META_SIZE - group.meta_position);
+           utils::string::int_to_string<long int, TI>(value_str, BUFFER_SIZE, value);
+            utils::assert_exit(device, group.meta_position + utils::string::length(value_str, SPEC::META_SIZE-1) + 1 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
+            group.meta_position += utils::string::copy(group.meta + group.meta_position, value_str, SPEC::META_SIZE - group.meta_position);
+            group.meta_position += utils::string::copy(group.meta + group.meta_position, "\n", SPEC::META_SIZE - group.meta_position);
         }
     }
 
     template<typename TYPE, typename DEVICE, typename SPEC>
     void set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, TYPE value) {
         using TI = typename DEVICE::index_t;
-        utils::assert_exit(device, group.meta_position + persist::backends::tar::strlen<TI, SPEC::META_SIZE+1>(name) + 2 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
-        group.meta_position += persist::backends::tar::strncpy(group.meta + group.meta_position, name, SPEC::META_SIZE - group.meta_position);
-        group.meta_position += persist::backends::tar::strncpy(group.meta + group.meta_position, ": ", SPEC::META_SIZE - group.meta_position);
+        utils::assert_exit(device, group.meta_position + utils::string::length(name, SPEC::META_SIZE-1) + 2 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
+        group.meta_position += utils::string::copy(group.meta + group.meta_position, name, SPEC::META_SIZE - group.meta_position);
+        group.meta_position += utils::string::copy(group.meta + group.meta_position, ": ", SPEC::META_SIZE - group.meta_position);
 
         persist::backends::tar::finish_set_attribute(device, group, name, value);
 
@@ -673,15 +299,15 @@ namespace rl_tools{
     void write_attributes(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group){
         using TI = typename DEVICE::index_t;
         char group_path[SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(group_path, group.path, SPEC::MAX_PATH_LENGTH);
-        TI group_path_length = persist::backends::tar::strlen<TI, SPEC::MAX_PATH_LENGTH+1>(group_path);
+        utils::string::copy(group_path, group.path, SPEC::MAX_PATH_LENGTH-1);
+        TI group_path_length = utils::string::length(group_path, SPEC::MAX_PATH_LENGTH-1);
         utils::assert_exit(device, group_path_length + sizeof("meta") < SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
         TI current_position = group_path_length;
         if (group_path_length > 0){
             group_path[group_path_length] = '/';
             current_position += 1;
         }
-        persist::backends::tar::strncpy<TI>(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        utils::string::copy(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
         write_entry(device, *group.writer, group_path, group.meta, group.meta_position);
     }
     template<typename DEVICE, typename SPEC>
@@ -695,23 +321,23 @@ namespace rl_tools{
     void get_attribute(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name, char* output, typename DEVICE::index_t output_size){
         using TI = typename DEVICE::index_t;
         char group_path[SPEC::MAX_PATH_LENGTH];
-        persist::backends::tar::strncpy<TI>(group_path, group.path, SPEC::MAX_PATH_LENGTH);
-        TI group_path_length = persist::backends::tar::strlen<TI, SPEC::MAX_PATH_LENGTH+1>(group_path);
+        utils::string::copy(group_path, group.path, SPEC::MAX_PATH_LENGTH);
+        TI group_path_length = utils::string::length(group_path, SPEC::MAX_PATH_LENGTH+1);
         utils::assert_exit(device, group_path_length + sizeof("meta") + 2 < SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
         TI current_position = group_path_length;
         if (group_path_length > 0 && group_path_length + sizeof("meta") + 2 < SPEC::MAX_PATH_LENGTH){
             group_path[group_path_length] = '/';
             current_position += 1;
         }
-        persist::backends::tar::strncpy<TI>(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        utils::string::copy(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
         char* metadata;
         TI metadata_size;
         utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, group_path, metadata, metadata_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
         using TI = typename DEVICE::index_t;
         TI position;
         TI value_length = 0;
-        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(metadata, metadata_size, name, position, value_length), "persist::backends::tar: key not found in metadata");
-        persist::backends::tar::memcpy(output, metadata + position, value_length < output_size ? value_length : output_size);
+        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, metadata_size, name, position, value_length), "persist::backends::tar: key not found in metadata");
+        utils::string::memcpy(output, metadata + position, value_length < output_size ? value_length : output_size);
         output[output_size-1] = '\0';
     }
     template<typename TYPE, typename DEVICE, typename SPEC>
@@ -719,7 +345,7 @@ namespace rl_tools{
         constexpr typename DEVICE::index_t BUFFER_SIZE = 32;
         char string_value[BUFFER_SIZE];
         get_attribute<char*>(device, group, name, string_value, BUFFER_SIZE);
-        TYPE cols_value = persist::backends::tar::string_to_int<TYPE>(string_value, BUFFER_SIZE);
+        TYPE cols_value = utils::string::string_to_int<TYPE>(string_value, BUFFER_SIZE);
         return TYPE(cols_value);
     }
     // template<typename DEVICE, typename SPEC>
@@ -730,6 +356,218 @@ namespace rl_tools{
     // TYPE get_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, std::string name) {
     //     return group.group.getAttribute(name).template read<TYPE>();
     // }
+
+
+    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
+    bool load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
+        using TI = typename DEVICE::index_t;
+        // char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        // TI group_path_length = utils::string::length(group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        // if (group_path_length == GROUP_SPEC::MAX_PATH_LENGTH-1){
+        //     utils::assert_exit(device, false, "persist::backends::tar: Group path length exceeds maximum length");
+        //     return false;
+        // }
+        // utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        // TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        // if (group_path_length + 1 + name_length >= GROUP_SPEC::MAX_PATH_LENGTH-1){
+        //     utils::assert_exit(device, false, "persist::backends::tar: Group path and name exceed maximum length");
+        //     return false;
+        // }
+        // TI current_position = group_path_length;
+        // if (group_path_length > 0){
+        //     group_path[group_path_length] = '/';
+        //     current_position += 1;
+        // }
+        // utils::string::copy(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 2);
+        auto tensor_group = get_group(device, group, name);
+
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy<TI>(current_path, tensor_group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI meta_current_position = current_path_length;
+        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
+        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
+            current_path[current_path_length] = '/';
+            meta_current_position += 1;
+        }
+        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        constexpr TI METADATA_SIZE = 100;
+        char metadata[METADATA_SIZE];
+        TI read_size = 0;
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
+        metadata[read_size] = '\0';
+        TI type_position = 0;
+        TI type_value_length = 0;
+        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
+        utils::assert_exit(device, utils::string::copy(metadata + type_position, "tensor", sizeof("tensor")-1), "persist::backends::tar: 'type' is not 'tensor' in metadata");
+
+        // constexpr TI MAX_VALUE_LENGTH = 20;
+        // char value[MAX_VALUE_LENGTH];
+        // utils::string::copy(value, metadata + type_position, type_value_length + 1 < MAX_VALUE_LENGTH ? type_value_length + 1 : MAX_VALUE_LENGTH);
+        // std::cout << "type: " << value << std::endl;
+        persist::backends::tar::containers::tensor::dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
+
+        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        using DENSE_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>;
+        Tensor<DENSE_SPEC> tensor_dense;
+        TI data_size;
+        char* data_ptr = nullptr;
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_ptr, data_size), "persist::backends::tar: 'data' not found in metadata");
+        utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
+        tensor_dense._data = reinterpret_cast<typename SPEC::T*>(data_ptr);
+        copy(device, device, tensor_dense, tensor);
+        return true;
+    }
+
+    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
+    void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
+        using TI = typename DEVICE::index_t;
+        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI group_path_length = utils::string::length(group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
+        TI current_position = group_path_length;
+        if (group_path_length > 0){
+            group_path[group_path_length] = '/';
+            current_position += 1;
+        }
+        utils::string::copy(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI meta_current_position = current_path_length;
+        if (current_path_length > 0){
+            current_path[current_path_length] = '/';
+            meta_current_position += 1;
+        }
+        constexpr TI METADATA_SIZE = 100;
+        char metadata[METADATA_SIZE];
+        TI metadata_position = 0;
+        metadata_position += utils::string::copy(metadata, "type: tensor\n", METADATA_SIZE - metadata_position-1);
+        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>, "Only float32 and float64 are supported for now");
+        if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position-1);
+        }
+        else if constexpr(utils::typing::is_same_v<typename SPEC::T, double>){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float64\n", METADATA_SIZE - metadata_position-1);
+        }
+        metadata_position += utils::string::copy(metadata + metadata_position, "num_dims: ", METADATA_SIZE - metadata_position-1);
+        char num_dims_str[16];
+       utils::string::int_to_string<TI, TI>(num_dims_str, 16, SPEC::SHAPE::LENGTH);
+        metadata_position += utils::string::copy(metadata + metadata_position, num_dims_str, METADATA_SIZE - metadata_position-1);
+        metadata_position += utils::string::copy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position-1);
+        persist::backends::tar::containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
+        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        write_entry(device, *group.writer, current_path, metadata, metadata_position);
+        Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>> tensor_dense;
+        malloc(device, tensor_dense);
+        copy(device, device, tensor, tensor_dense);
+        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        write_entry(device, *group.writer, current_path, reinterpret_cast<const char*>(data(tensor_dense)), SPEC::SIZE_BYTES);
+        free(device, tensor_dense);
+    }
+
+    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
+    void load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
+        using TI = typename DEVICE::index_t;
+        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI group_path_length = utils::string::length<TI>(group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
+        TI current_position = group_path_length;
+        if (group_path_length > 0){
+            group_path[group_path_length] = '/';
+            current_position += 1;
+        }
+        utils::string::copy(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI meta_current_position = current_path_length;
+        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
+        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
+            current_path[current_path_length] = '/';
+            meta_current_position += 1;
+        }
+        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        constexpr TI METADATA_SIZE = 100;
+        char metadata[METADATA_SIZE];
+        TI read_size = 0;
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
+        metadata[read_size] = '\0';
+        TI type_position = 0;
+        TI type_value_length = 0;
+        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
+        utils::assert_exit(device, utils::string::compare<TI>(metadata + type_position, "matrix", sizeof("matrix")-1), "persist::backends::tar: 'type' is not 'matrix' in metadata");
+
+        persist::backends::tar::containers::matrix::read_metadata<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
+
+        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        using DENSE_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>;
+        Matrix<DENSE_SPEC> matrix_dense;
+        TI data_size;
+        char* data_pointer = nullptr;
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_pointer, data_size), "persist::backends::tar: 'data' not found in metadata");
+        utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
+        matrix_dense._data = reinterpret_cast<typename SPEC::T*>(data_pointer);
+        copy(device, device, matrix_dense, matrix);
+    }
+
+    template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
+    void save(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
+        using TI = typename DEVICE::index_t;
+        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI group_path_length = utils::string::length(group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
+        TI current_position = group_path_length;
+        if (group_path_length > 0){
+            group_path[group_path_length] = '/';
+            current_position += 1;
+        }
+        utils::string::copy(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        constexpr TI METADATA_SIZE = 100;
+        char metadata[METADATA_SIZE];
+        TI metadata_position = 0;
+        metadata_position += utils::string::copy(metadata, "type: matrix\n", METADATA_SIZE - metadata_position - 1);
+        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>, "Only float32 and float64 are supported for now");
+        if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position - 1);
+        }
+        else if constexpr(utils::typing::is_same_v<typename SPEC::T, double>){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float64\n", METADATA_SIZE - metadata_position - 1);
+        }
+        persist::backends::tar::containers::matrix::write_metadata<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
+
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
+        TI meta_current_position = current_path_length;
+        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
+            current_path[current_path_length] = '/';
+            meta_current_position += 1;
+        }
+        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        write_entry(device, *group.writer, current_path, metadata, metadata_position);
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>> matrix_dense;
+        malloc(device, matrix_dense);
+        copy(device, device, matrix, matrix_dense);
+        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Data path and name exceed maximum length");
+        utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        write_entry(device, *group.writer, current_path, reinterpret_cast<const char*>(matrix_dense._data), SPEC::SIZE_BYTES);
+        free(device, matrix_dense);
+    }
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
