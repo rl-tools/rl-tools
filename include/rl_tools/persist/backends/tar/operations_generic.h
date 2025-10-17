@@ -403,6 +403,7 @@ namespace rl_tools{
         persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
         TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
         TI meta_current_position = current_path_length;
+        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
         if (current_path_length > 0){
             current_path[current_path_length] = '/';
             meta_current_position += 1;
@@ -430,8 +431,10 @@ namespace rl_tools{
         using DENSE_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>;
         Tensor<DENSE_SPEC> tensor_dense;
         TI data_size;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, (char*&)tensor_dense._data, data_size), "persist::backends::tar: 'data' not found in metadata");
+        char* data_ptr = nullptr;
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_ptr, data_size), "persist::backends::tar: 'data' not found in metadata");
         utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
+        tensor_dense._data = reinterpret_cast<typename SPEC::T*>(data_ptr);
         copy(device, device, tensor_dense, tensor);
     }
 
@@ -507,6 +510,7 @@ namespace rl_tools{
         persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
         TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
         TI meta_current_position = current_path_length;
+        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
         if (current_path_length > 0){
             current_path[current_path_length] = '/';
             meta_current_position += 1;
@@ -531,8 +535,10 @@ namespace rl_tools{
         using DENSE_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>;
         Matrix<DENSE_SPEC> matrix_dense;
         TI data_size;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, (char*&)matrix_dense._data, data_size), "persist::backends::tar: 'data' not found in metadata");
+        char* data_pointer = nullptr;
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_pointer, data_size), "persist::backends::tar: 'data' not found in metadata");
         utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
+        matrix_dense._data = reinterpret_cast<typename SPEC::T*>(data_pointer);
         copy(device, device, matrix_dense, matrix);
     }
 
@@ -568,6 +574,7 @@ namespace rl_tools{
         char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
         persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
         TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
+        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
         TI meta_current_position = current_path_length;
         if (current_path_length > 0){
             current_path[current_path_length] = '/';

@@ -10,6 +10,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, GROUP& group) {
+        using TI = typename SPEC::TI;
         static_assert(decltype(rb.rewards)::COLS == 1);
         static_assert(decltype(rb.terminated)::COLS == 1);
         static_assert(decltype(rb.truncated)::COLS == 1);
@@ -22,16 +23,16 @@ namespace rl_tools{
 
         save(device, rb.episode_start, group, "episode_start");
 
-        std::vector<decltype(rb.position)> position;
-        position.push_back(rb.position);
-        create_dataset(device, group, "position", position);
+        Tensor<tensor::Specification<decltype(rb.position), TI, tensor::Shape<TI, 1>, false>> position, full;
+        set(device, position, rb.position, 0);
+        save(device, position , group, "position");
 
-        std::vector<decltype(rb.position)> full;
-        full.push_back(rb.full);
-        create_dataset(device, group, "full", full);
+        set(device, full, rb.full, 0);
+        save(device, full, group, "full");
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
     void load(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, GROUP& group) {
+        using TI = typename SPEC::TI;
         static_assert(decltype(rb.rewards)::COLS == 1);
         static_assert(decltype(rb.terminated)::COLS == 1);
         static_assert(decltype(rb.truncated)::COLS == 1);
@@ -44,13 +45,12 @@ namespace rl_tools{
 
         load(device, rb.episode_start, group, "episode_start");
 
-        std::vector<decltype(rb.position)> position;
-        read_dataset(device, group, "position", position);
-        rb.position = position[0];
+        Tensor<tensor::Specification<decltype(rb.position), TI, tensor::Shape<TI, 1>, false>> position, full;
+        load(device, position, group, "position");
+        rb.position = get(device, position, 0);
 
-        std::vector<decltype(rb.position)> full;
-        read_dataset(device, group, "full", full);
-        rb.full = full[0];
+        load(device, full, group, "full");
+        rb.full = get(device, full, 0);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
