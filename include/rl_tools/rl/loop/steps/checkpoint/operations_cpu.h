@@ -5,14 +5,6 @@
 
 #include "config.h"
 
-#ifdef RL_TOOLS_ENABLE_HDF5
-
-// #include <rl_tools/nn/parameters/persist.h>
-// #include <rl_tools/nn/layers/dense/persist.h>
-// #include <rl_tools/nn_models/mlp/persist.h>
-// #include <rl_tools/nn_models/sequential/persist.h>
-#endif
-
 #ifdef RL_TOOLS_ENABLE_ZLIB
 #include <zlib.h>
 #include <cstring>
@@ -27,6 +19,8 @@
 #include "../../../../nn/layers/sample_and_squash/persist_code.h"
 #include "../../../../nn_models/mlp/persist_code.h"
 #include "../../../../nn_models/sequential/persist_code.h"
+
+
 
 #include "../../../../utils/zlib/operations_cpu.h"
 
@@ -119,7 +113,6 @@ namespace rl_tools{
         template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename CHECKPOINT_PARAMETERS, typename DEVICE, typename ACTOR, typename RNG>
         void save(DEVICE& device, const std::string step_folder, ACTOR& actor, RNG& rng){
             using TI = typename DEVICE::index_t;
-            std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.h5";
             static constexpr TI BATCH_SIZE = CHECKPOINT_PARAMETERS::TEST_INPUT_BATCH_SIZE;
             using INPUT_SHAPE = tensor::Replace<typename ACTOR::INPUT_SHAPE, BATCH_SIZE, 1>;
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename ACTOR::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
@@ -128,10 +121,17 @@ namespace rl_tools{
             malloc(device, evaluation_actor);
             copy(device, device, actor, evaluation_actor);
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-            std::cerr << "Checkpointing to: " << checkpoint_path << std::endl;
+            std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.h5";
+            auto root_group = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
+            auto actor_group = create_group(device, root_group, "actor");
+#else
+            std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.tar";
+            persist::backends::tar::Writer writer;
+            persist::backends::tar::WriterGroup<persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
+            auto actor_group = create_group(device, root_group, "actor");
+#endif
             try{
-                auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
-                auto actor_group = create_group(device, actor_file, "actor");
+                std::cerr << "Checkpointing to: " << checkpoint_path << std::endl;
                 set_attribute(device, actor_group, "checkpoint_name", step_folder.c_str());
                 ENVIRONMENT environment;
                 auto env_description = json(device, environment);
@@ -149,18 +149,27 @@ namespace rl_tools{
                     randn(device, input, rng);
                     Mode<mode::Evaluation<>> mode;
                     evaluate(device, actor, input, output, actor_buffer, rng, mode);
-                    auto example_group = actor_file.createGroup("example");
+                    auto example_group = create_group(device, root_group, "example");
                     save(device, input, example_group, "input");
                     save(device, output, example_group, "output");
                     free(device, input);
                     free(device, output);
                     free(device, actor_buffer);
                 }
+#if !(defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5))
+                persist::backends::tar::finalize(device, writer);
+                auto actor_file = std::ofstream(checkpoint_path, std::ios::binary);
+                actor_file.write(writer.buffer.data(), writer.buffer.size());
+                actor_file.close();
+#endif
             }
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
             catch(HighFive::Exception& e){
+#else
+            catch(std::exception& e){
+#endif
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
-#endif
             rl::loop::steps::checkpoint::save_code<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, step_folder, evaluation_actor, rng);
             free(device, evaluation_actor);
 

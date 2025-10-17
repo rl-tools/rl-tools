@@ -15,6 +15,7 @@ namespace rl_tools {
         save(device, layer.biases, biases_group);
         set_attribute(device, group, "activation_function", nn::layers::dense::persist::get_activation_function_string_short<SPEC::CONFIG::ACTIVATION_FUNCTION>());
         set_attribute(device, group, "type", "dense");
+        write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, GROUP& group) {

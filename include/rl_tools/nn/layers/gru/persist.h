@@ -20,6 +20,7 @@ namespace rl_tools {
         auto initial_hidden_state_group = create_group(device, group, "initial_hidden_state");
         save(device, layer.initial_hidden_state, initial_hidden_state_group);
         set_attribute(device, group, "type", "gru");
+        write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer, GROUP& group) {

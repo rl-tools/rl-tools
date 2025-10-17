@@ -494,13 +494,13 @@ namespace rl_tools{
         persist::backends::tar::containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
         utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
         persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, group.writer, current_path, metadata, metadata_position);
+        write_entry(device, *group.writer, current_path, metadata, metadata_position);
         Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>> tensor_dense;
         malloc(device, tensor_dense);
         copy(device, device, tensor, tensor_dense);
         utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
         persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, group.writer, current_path, reinterpret_cast<const char*>(data(tensor_dense)), SPEC::SIZE_BYTES);
+        write_entry(device, *group.writer, current_path, reinterpret_cast<const char*>(data(tensor_dense)), SPEC::SIZE_BYTES);
         free(device, tensor_dense);
     }
 
@@ -582,22 +582,22 @@ namespace rl_tools{
 
         char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
         persist::backends::tar::strncpy<TI>(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH);
-        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH+1>(current_path);
+        TI current_path_length = persist::backends::tar::strlen<TI, GROUP_SPEC::MAX_PATH_LENGTH>(current_path);
         utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
         TI meta_current_position = current_path_length;
-        if (current_path_length > 0){
+        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
             current_path[current_path_length] = '/';
             meta_current_position += 1;
         }
         utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
         persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, group.writer, current_path, metadata, metadata_position);
+        write_entry(device, *group.writer, current_path, metadata, metadata_position);
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>> matrix_dense;
         malloc(device, matrix_dense);
         copy(device, device, matrix, matrix_dense);
         utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Data path and name exceed maximum length");
         persist::backends::tar::strncpy<TI>(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, group.writer, current_path, reinterpret_cast<const char*>(matrix_dense._data), SPEC::SIZE_BYTES);
+        write_entry(device, *group.writer, current_path, reinterpret_cast<const char*>(matrix_dense._data), SPEC::SIZE_BYTES);
         free(device, matrix_dense);
     }
     namespace persist::backends::tar{
@@ -682,10 +682,7 @@ namespace rl_tools{
             current_position += 1;
         }
         persist::backends::tar::strncpy<TI>(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        write_entry(device, group.writer, group_path, group.meta, group.meta_position);
-    }
-    template<typename TYPE, typename DEVICE, typename SPEC>
-    void set_attribute(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name, TYPE value) {
+        write_entry(device, *group.writer, group_path, group.meta, group.meta_position);
     }
     template<typename DEVICE, typename SPEC>
     bool group_exists(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name) {
