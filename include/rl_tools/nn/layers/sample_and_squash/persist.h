@@ -9,6 +9,7 @@ namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, GROUP& group){
         set_attribute(device, group, "type", "sample_and_squash");
+        write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer, GROUP& group) {

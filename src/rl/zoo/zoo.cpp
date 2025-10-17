@@ -22,6 +22,9 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_generic.h>
+
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>

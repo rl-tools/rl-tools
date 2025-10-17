@@ -14,6 +14,7 @@ namespace rl_tools {
         auto precision_group = create_group(device, group, "precision");
         save(device, layer.precision, precision_group);
         set_attribute(device, group, "type", "standardize");
+        write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, GROUP& group) {

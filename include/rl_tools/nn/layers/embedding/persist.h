@@ -13,6 +13,7 @@ namespace rl_tools {
         auto weights_group = create_group(device, group, "weights");
         save(device, layer.weights, weights_group);
         set_attribute(device, group, "type", "embedding");
+        write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, GROUP& group) {

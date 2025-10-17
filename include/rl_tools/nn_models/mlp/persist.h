@@ -13,10 +13,11 @@ namespace rl_tools{
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         set_attribute(device, group, "type", "mlp");
         set_attribute(device, group, "num_layers", std::to_string(SPEC::NUM_LAYERS).c_str());
+        write_attributes(device, group);
         auto input_layer_group = create_group(device, group, "input_layer");
         save(device, network.input_layer, input_layer_group);
         for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
-            auto hidden_layer_group = create_group(device, group, "hidden_layer_" + std::to_string(layer_i));
+            auto hidden_layer_group = create_group(device, group, ("hidden_layer_" + std::to_string(layer_i)).c_str());
             save(device, network.hidden_layers[layer_i], hidden_layer_group);
         }
         auto output_layer_group = create_group(device, group, "output_layer");
@@ -28,7 +29,7 @@ namespace rl_tools{
         auto input_layer_group = get_group(device, group, "input_layer");
         load(device, network.input_layer, input_layer_group);
         for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
-            auto hidden_layer_group = get_group(device, group, "hidden_layer_" + std::to_string(layer_i));
+            auto hidden_layer_group = get_group(device, group, ("hidden_layer_" + std::to_string(layer_i)).c_str());
             load(device, network.hidden_layers[layer_i], hidden_layer_group);
         }
         auto output_layer_group = get_group(device, group, "output_layer");
