@@ -1,3 +1,6 @@
+struct TestTag{};
+
+
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
@@ -20,10 +23,10 @@
 
 namespace rlt = rl_tools;
 
+using TEST_USE_CASE = rlt::numeric_types::UseCase<TestTag, double>;
 
-struct TestTag{};
-using TYPE_POLICY = rlt::numeric_types::Policy<float>;
-static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<TestTag>, float>);
+using TYPE_POLICY = rlt::numeric_types::Policy<float, TEST_USE_CASE>;
+static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<TestTag>, double>);
 
 
 
