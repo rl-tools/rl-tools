@@ -20,7 +20,7 @@ namespace rl_tools::numeric_types{
     struct LookupType<TAG, DEFAULT, FIRST_USE_CASE, REST_USE_CASES...> {
         using T = utils::typing::conditional_t<
             utils::typing::is_same_v<typename FIRST_USE_CASE::TAG, TAG>,
-            typename FIRST_USE_CASE::T,
+            typename FIRST_USE_CASE::TYPE,
             typename LookupType<TAG, DEFAULT, REST_USE_CASES...>::T
         >;
     };

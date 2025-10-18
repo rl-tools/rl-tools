@@ -1,0 +1,3 @@
+add_executable(test_numeric_types_type_policy type_policy.cpp)
+target_link_libraries(test_numeric_types_type_policy PRIVATE RLtools::Core GTest::gtest_main)
+gtest_discover_tests(test_numeric_types_type_policy)
