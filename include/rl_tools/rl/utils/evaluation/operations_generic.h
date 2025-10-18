@@ -90,11 +90,11 @@ namespace rl_tools{
             set(device, data.terminated, terminated, episode_i, step_i);
         }
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, template <typename> typename DATA, typename POLICY_EVALUATION_BUFFERS, typename MODE>
-    void evaluate(DEVICE& device, ENVIRONMENT& env_init, typename ENVIRONMENT::Parameters& input_parameters, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, const Mode<MODE>& mode, bool deterministic = false, bool sample_environment_parameters = true){
-        using T = typename POLICY::TYPE_POLICY::DEFAULT;
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename POLICY_STATE, typename POLICY_EVALUATION_BUFFERS, typename BUFFER_SPEC, typename DATA_SPEC, typename RNG, typename SPEC, template <typename> typename DATA, typename MODE>
+    void evaluate(DEVICE& device, ENVIRONMENT& env_init, UI& ui, const POLICY& policy, POLICY_STATE& policy_state, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, rl::utils::evaluation::Buffer<BUFFER_SPEC>& evaluation_buffers, rl::utils::evaluation::Result<SPEC>& results, DATA<DATA_SPEC>& data, RNG &rng, const Mode<MODE>& mode){
         static_assert(utils::typing::is_same_v<SPEC, typename BUFFER_SPEC::SPEC>);
         static_assert(utils::typing::is_same_v<SPEC, typename DATA_SPEC::SPEC>);
+        using T = typename POLICY::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI INPUT_DIM = get_last(typename POLICY::INPUT_SHAPE{});
         constexpr TI OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
