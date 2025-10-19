@@ -1,5 +1,3 @@
-struct TestTag{};
-
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_generic.h>
@@ -12,11 +10,9 @@ namespace rlt = rl_tools;
 
 
 using DEVICE = rlt::devices::DefaultCPU;
-using TEST_USE_CASE = rlt::numeric_types::UseCase<TestTag, float>;
-
-using TYPE_POLICY = rlt::numeric_types::Policy<float, TEST_USE_CASE>;
-using T = float;
-static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<TestTag>, float>);
+using PARAMETER_SINGLE = rlt::numeric_types::UseCase<rlt::nn::numeric_types::categories::Parameter, float>;
+using TYPE_POLICY = rlt::numeric_types::Policy<double, PARAMETER_SINGLE>;
+using T = double;
 
 using TI = typename DEVICE::index_t;
 constexpr bool DYNAMIC_ALLOCATION = true;
@@ -25,7 +21,7 @@ constexpr TI INPUT_DIM = 1;
 constexpr TI BATCH_SIZE = 32;
 constexpr TI OUTPUT_DIM = 1;
 constexpr TI NUM_LAYERS = 3;
-constexpr TI HIDDEN_DIM = 32;
+constexpr TI HIDDEN_DIM = 128;
 constexpr TI DATASET_SIZE = 1000;
 
 using MLP_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
@@ -33,7 +29,9 @@ using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, DYNA
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
 using MLP = rlt::nn_models::mlp::NeuralNetwork<MLP_CONFIG, CAPABILITY, INPUT_SHAPE>;
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
-
+    static constexpr T ALPHA = 0.001;
+    static constexpr bool ENABLE_WEIGHT_DECAY = true;
+    static constexpr T WEIGHT_DECAY = 0.0001;
 };
 using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI, ADAM_PARAMETERS, DYNAMIC_ALLOCATION>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<ADAM_SPEC>;
@@ -80,7 +78,7 @@ TEST(RL_TOOLS_NUMERIC_TYPES_TYPE_POLICY, MAIN){
     rlt::malloc(device, y_test);
     rlt::malloc(device, d_output);
 
-    rlt::init(device, rng, 1);
+    rlt::init(device, rng, 4);
     rlt::init_weights(device, model, rng);
     rlt::reset_optimizer_state(device, optimizer, model);
 
@@ -90,6 +88,22 @@ TEST(RL_TOOLS_NUMERIC_TYPES_TYPE_POLICY, MAIN){
     fill_targets(device, X_test, y_test);
 
     for (TI epoch_i=0; epoch_i < 100; epoch_i++){
+        T test_loss = 0;
+        for (TI batch_i=0; batch_i < DATASET_SIZE / BATCH_SIZE; batch_i++){
+            auto X_batch = rlt::view_range(device, X_test, batch_i*BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+            auto y_batch = rlt::view_range(device, y_test,  batch_i*BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+            rlt::forward(device, model, X_batch, buffers, rng);
+            auto output = rlt::output(device, model);
+            test_loss += rlt::nn::loss_functions::mse::evaluate(device, output, y_batch);
+            if (epoch_i == 99 && batch_i == DATASET_SIZE / BATCH_SIZE - 1){
+                for (TI batch_sample_i=0; batch_sample_i < 10; batch_sample_i++){
+                    INPUT_TYPE pred = rlt::get(device, output, 0, batch_sample_i, 0);
+                    INPUT_TYPE target = rlt::get(device, y_batch, 0, batch_sample_i, 0);
+                    std::cout << "Pred: " << pred << ", Target: " << target << std::endl;
+                }
+            }
+        }
+        std::cout << "Test Loss: " << test_loss / (DATASET_SIZE / BATCH_SIZE) << std::endl;
         for (TI batch_i=0; batch_i < DATASET_SIZE / BATCH_SIZE; batch_i++){
             auto X_batch = rlt::view_range(device, X_train, batch_i*BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
             auto y_batch = rlt::view_range(device, y_train,  batch_i*BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
@@ -102,14 +116,5 @@ TEST(RL_TOOLS_NUMERIC_TYPES_TYPE_POLICY, MAIN){
             rlt::step(device, optimizer, model);
         }
 
-        T test_loss = 0;
-        for (TI batch_i=0; batch_i < DATASET_SIZE / BATCH_SIZE; batch_i++){
-            auto X_batch = rlt::view_range(device, X_test, batch_i*BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-            auto y_batch = rlt::view_range(device, y_test,  batch_i*BATCH_SIZE, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-            rlt::forward(device, model, X_batch, buffers, rng);
-            auto output = rlt::output(device, model);
-            test_loss += rlt::nn::loss_functions::mse::evaluate(device, output, y_batch);
-        }
-        std::cout << "Test Loss: " << test_loss / (DATASET_SIZE / BATCH_SIZE) << std::endl;
     }
 }
