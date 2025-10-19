@@ -5,14 +5,15 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::flag::sac{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
         static constexpr bool SEQUENCE_MODELS = true;
         static constexpr TI MAX_EPISODE_LENGTH = 200;
         static constexpr bool PRIVILEGED_OBSERVATION = false;
-        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI, MAX_EPISODE_LENGTH, PRIVILEGED_OBSERVATION>::ENVIRONMENT;
-        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+        using T = typename TYPE_POLICY::DEFAULT;
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI, MAX_EPISODE_LENGTH, PRIVILEGED_OBSERVATION>::ENVIRONMENT;
+        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+            struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 32;
                 static constexpr TI CRITIC_BATCH_SIZE = 32;
                 static constexpr T GAMMA = 0.9908096983715691; //math::pow(typename DEVICE::SPEC::MATH{}, 0.95, 36.0 / MAX_EPISODE_LENGTH);
@@ -49,17 +50,17 @@ namespace rl_tools::rl::zoo::flag::sac{
                 static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.1;
             };
 
-            struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr T ALPHA = 1e-4;
             };
-            struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr T ALPHA = 1e-3;
             };
-            struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr T ALPHA = 1e-3;
             };
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

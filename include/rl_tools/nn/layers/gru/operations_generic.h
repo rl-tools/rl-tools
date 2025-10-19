@@ -223,7 +223,6 @@ namespace rl_tools{
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename PREVIOUS_OUTPUT_SCRATCH, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation_full, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation_full, Tensor<OUTPUT_SPEC>& output_full, Tensor<PREVIOUS_OUTPUT_SCRATCH>& previous_output_scratch_full, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename INPUT_SPEC::SHAPE{});
         constexpr TI BATCH_SIZE = get<1>(typename INPUT_SPEC::SHAPE{});
