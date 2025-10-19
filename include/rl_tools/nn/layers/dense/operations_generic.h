@@ -149,7 +149,7 @@ namespace rl_tools{
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         using SPEC = LAYER_SPEC;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {
@@ -172,7 +172,7 @@ namespace rl_tools{
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using GRADIENT_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
+        using GRADIENT_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
@@ -195,7 +195,7 @@ namespace rl_tools{
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using GRADIENT_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
+        using GRADIENT_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){

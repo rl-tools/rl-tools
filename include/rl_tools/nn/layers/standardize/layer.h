@@ -84,7 +84,7 @@ namespace rl_tools::nn::layers::standardize {
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC> {
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
         using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };

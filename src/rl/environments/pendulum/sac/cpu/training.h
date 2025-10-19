@@ -27,10 +27,10 @@ struct TestTag{};
 
 namespace rlt = rl_tools;
 
-using TEST_USE_CASE = rlt::numeric_types::UseCase<rlt::nn::numeric_types::categories::Accumulator, float>;
+using TEST_USE_CASE = rlt::numeric_types::UseCase<rlt::nn::numeric_type_categories::Accumulator, float>;
 
 using TYPE_POLICY = rlt::numeric_types::Policy<float, TEST_USE_CASE>;
-static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<rlt::nn::numeric_types::categories::Accumulator>, float>);
+static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<rlt::nn::numeric_type_categories::Accumulator>, float>);
 
 
 

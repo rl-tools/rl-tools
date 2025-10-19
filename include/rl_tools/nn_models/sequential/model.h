@@ -179,7 +179,7 @@ namespace rl_tools::nn_models::sequential{
         using BUFFER_SPEC = T_BUFFER_SPEC;
         using SPEC = typename BUFFER_SPEC::SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
-        using T_ACCUMULATOR = typename TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>;
+        using T_ACCUMULATOR = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
         using TI = typename SPEC::TI;
 //        static_assert(SPEC::MAX_HIDDEN_DIM > 0);
         using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM>; // TODO: check if this is overkill
