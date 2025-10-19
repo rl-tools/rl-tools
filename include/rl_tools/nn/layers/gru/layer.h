@@ -8,9 +8,9 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru{
-    template<typename T_T, typename T_TI, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, bool T_FAST_TANH = false, bool T_CONST = false>
+    template<typename T_TYPE_POLICY, typename T_TI, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, bool T_FAST_TANH = false, bool T_CONST = false>
     struct Configuration{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
@@ -25,7 +25,7 @@ namespace rl_tools::nn::layers::gru{
         using CONFIG = T_CONFIG;
         using CAPABILITY = T_CAPABILITY;
         using INPUT_SHAPE = T_INPUT_SHAPE;
-        using T = typename CONFIG::T;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename CONFIG::TI;
         static_assert(length(INPUT_SHAPE{}) == 3, "The input shape of the GRU must be 3 dimensional for now (sequence x batch x features)");
         static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
@@ -47,17 +47,18 @@ namespace rl_tools::nn::layers::gru{
         struct Evaluation{
             using BUFFER_SPEC = T_SPEC;
             using GRU_SPEC = typename BUFFER_SPEC::SPEC;
-            using T = typename GRU_SPEC::T;
+            using TYPE_POLICY = typename GRU_SPEC::TYPE_POLICY;
             using TI = typename GRU_SPEC::TI;
             static constexpr TI BATCH_SIZE = GRU_SPEC::INTERNAL_BATCH_SIZE;
-            using POST_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using T_ACC = typename TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>;
+            using POST_ACTIVATION_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, BATCH_SIZE, 3*GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<POST_ACTIVATION_SPEC> post_activation;
-            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<N_PRE_PRE_ACTIVATION_SPEC> n_pre_pre_activation;
-            using STEP_BY_STEP_OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using STEP_BY_STEP_OUTPUT_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, 1, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<STEP_BY_STEP_OUTPUT_SPEC> step_by_step_output;
 
-            using PREVIOUS_OUTPUT_SCRATCH_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using PREVIOUS_OUTPUT_SCRATCH_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<PREVIOUS_OUTPUT_SCRATCH_SPEC> previous_output_scratch;
         };
     }
