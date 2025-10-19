@@ -96,8 +96,8 @@ namespace rl_tools::nn::parameters {
         template <typename T_SPEC>
         struct Instance: Gradient::Instance<T_SPEC>{
             using SPEC = T_SPEC;
-            using T = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::OptimizerState>;
-            using TENSOR_SPEC = tensor::Specification<T, typename SPEC::TI, typename SPEC::SHAPE>;
+            using T_OPTIMIZER_STATE = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::OptimizerState>;
+            using TENSOR_SPEC = tensor::Specification<T_OPTIMIZER_STATE, typename SPEC::TI, typename SPEC::SHAPE>;
             Tensor<TENSOR_SPEC> gradient_first_order_moment;
             Tensor<TENSOR_SPEC> gradient_second_order_moment;
         };

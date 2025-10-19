@@ -1,6 +1,8 @@
-#include <rl_tools/operations/cpu.h>
+// #define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+
+#include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
-#include <rl_tools/nn/layers/dense/operations_generic.h>
+#include <rl_tools/nn/layers/dense/operations_cpu_mkl.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
@@ -9,9 +11,12 @@ namespace rlt = rl_tools;
 #include <gtest/gtest.h>
 
 
-using DEVICE = rlt::devices::DefaultCPU;
-using PARAMETER_SINGLE = rlt::numeric_types::UseCase<rlt::nn::numeric_types::categories::Parameter, float>;
-using TYPE_POLICY = rlt::numeric_types::Policy<double, PARAMETER_SINGLE>;
+static_assert(sizeof(__bf16) == 2);
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using PARAMETER_SINGLE = rlt::numeric_types::UseCase<rlt::nn::numeric_types::categories::Parameter, __bf16>;
+using ACCUMULATOR = rlt::numeric_types::UseCase<rlt::nn::numeric_types::categories::Activation, float>;
+using INPUT = rlt::numeric_types::UseCase<rlt::nn::numeric_types::categories::Input, __bf16>;
+using TYPE_POLICY = rlt::numeric_types::Policy<double, PARAMETER_SINGLE, ACCUMULATOR, INPUT>;
 using T = double;
 
 using TI = typename DEVICE::index_t;
@@ -97,9 +102,9 @@ TEST(RL_TOOLS_NUMERIC_TYPES_TYPE_POLICY, MAIN){
             test_loss += rlt::nn::loss_functions::mse::evaluate(device, output, y_batch);
             if (epoch_i == 99 && batch_i == DATASET_SIZE / BATCH_SIZE - 1){
                 for (TI batch_sample_i=0; batch_sample_i < 10; batch_sample_i++){
-                    INPUT_TYPE pred = rlt::get(device, output, 0, batch_sample_i, 0);
-                    INPUT_TYPE target = rlt::get(device, y_batch, 0, batch_sample_i, 0);
-                    std::cout << "Pred: " << pred << ", Target: " << target << std::endl;
+                    INPUT_TYPE pred = (INPUT_TYPE)rlt::get(device, output, 0, batch_sample_i, 0);
+                    INPUT_TYPE target = (INPUT_TYPE)rlt::get(device, y_batch, 0, batch_sample_i, 0);
+                    std::cout << "Pred: " << (float)pred << ", Target: " << (float)target << std::endl;
                 }
             }
         }

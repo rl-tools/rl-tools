@@ -26,6 +26,7 @@ namespace rl_tools{
     void gradient_descent(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         using TI = typename DEVICE::index_t;
         using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::OptimizerState>;
+        using T_PARAMETER = typename decltype(parameter.parameters)::T;
         auto parameters = matrix_view(device, parameter.parameters);
         auto gradient_first_order_moment = matrix_view(device, parameter.gradient_first_order_moment);
         auto gradient_second_order_moment = matrix_view(device, parameter.gradient_second_order_moment);
@@ -52,7 +53,7 @@ namespace rl_tools{
                 }
                 T_OPTIMIZER value = get(parameters, row_i, col_i);
                 value -= parameter_update;
-                set(parameters, row_i, col_i, value);
+                set(parameters, row_i, col_i, (T_PARAMETER)value);
             }
         }
     }
