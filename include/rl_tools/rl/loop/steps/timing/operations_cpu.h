@@ -24,7 +24,7 @@ namespace rl_tools{
 
     template <typename DEVICE, typename CONFIG>
     bool step(DEVICE& device, rl::loop::steps::timing::State<CONFIG>& ts){
-        using T = typename CONFIG::T;
+        using T = typename CONFIG::TYPE_POLICY::DEFAULT;
         using TI = typename CONFIG::TI;
         using STATE = rl::loop::steps::timing::State<CONFIG>;
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));

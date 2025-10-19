@@ -48,7 +48,7 @@ namespace rl_tools{
     namespace rl::loop::steps::checkpoint{
         template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename DEVICE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
         void save_code(DEVICE& device, const std::string step_folder, ACTOR_TYPE& actor_forward, RNG& rng){
-            using T = typename ACTOR_TYPE::T;
+            using T = typename ACTOR_TYPE::TYPE_POLICY::DEFAULT;
             using TI = typename DEVICE::index_t;
             auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
             std::stringstream output_ss;
@@ -139,7 +139,7 @@ namespace rl_tools{
                 set_attribute(device, actor_group, "meta", meta.c_str());
                 rl_tools::save(device, evaluation_actor, actor_group);
                 {
-                    using T = typename EVALUATION_ACTOR_TYPE::T;
+                    using T = typename EVALUATION_ACTOR_TYPE::TYPE_POLICY::DEFAULT;
                     Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
                     Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::OUTPUT_SHAPE, DYNAMIC_ALLOCATION>> output;
                     typename EVALUATION_ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
@@ -178,7 +178,7 @@ namespace rl_tools{
 
     template <typename DEVICE, typename CONFIG>
     bool step(DEVICE& device, rl::loop::steps::checkpoint::State<CONFIG>& ts){
-        using T = typename CONFIG::T;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename CONFIG::TI;
         using STATE = rl::loop::steps::checkpoint::State<CONFIG>;
         if(ts.step % CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0 || ts.checkpoint_this_step){

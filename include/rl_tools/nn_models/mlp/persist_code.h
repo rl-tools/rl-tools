@@ -13,7 +13,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     persist::Code save_code_split(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
-        using T = typename SPEC::T;
+        // using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -34,7 +34,7 @@ namespace rl_tools{
         }
         auto output_layer = save_code_split(device, network.output_layer, "output_layer", const_declaration, indent+1);
         ss_header << output_layer.header;
-        std::string T_string = containers::persist::get_type_string<T>();
+        std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
         std::string TI_string = containers::persist::get_type_string<TI>();
         ss << output_layer.body;
         ss << ind << "    using CONFIG = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Configuration<";

@@ -45,8 +45,8 @@ namespace rl_tools {
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::groups::Output";
     }
 
-    template<typename DEVICE, typename CONTAINER>
-    persist::Code save_code_split(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    template<typename DEVICE, typename SPEC>
+    persist::Code save_code_split(DEVICE& device, nn::parameters::Plain::Instance<SPEC>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -61,9 +61,9 @@ namespace rl_tools {
         ss << container.body;
         if(!output_memory_only){
             ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::spec<parameters_memory::CONTAINER_TYPE, "
-            << get_type_string_tag(device, typename CONTAINER::GROUP_TAG{})
+            << get_type_string_tag(device, typename SPEC::GROUP_TAG{})
             << ", "
-            << get_type_string_tag(device, typename CONTAINER::CATEGORY_TAG{})
+            << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})
             << ">;\n";
             ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
         }
@@ -71,8 +71,8 @@ namespace rl_tools {
         return {ss_header.str(), ss.str()};
     }
 
-    template<typename DEVICE, typename CONTAINER>
-    persist::Code save_code_split(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    template<typename DEVICE, typename SPEC>
+    persist::Code save_code_split(DEVICE& device, nn::parameters::Gradient::Instance<SPEC>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -81,7 +81,7 @@ namespace rl_tools {
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
         ss_header << "#include <rl_tools/utils/generic/typing.h>\n";
-        auto plain = save_code_split(device, (nn::parameters::Plain::instance<CONTAINER>&) parameter, name, const_declaration, indent, true);
+        auto plain = save_code_split(device, (nn::parameters::Plain::Instance<SPEC>&) parameter, name, const_declaration, indent, true);
         ss_header << plain.header;
         ss << plain.body;
         ss << ind << "namespace " << name << " {\n";
@@ -90,14 +90,14 @@ namespace rl_tools {
         ss << gradient.body;
         if(!output_memory_only){
             ss << ind << "    " << "static_assert(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::typing::is_same_v<parameters_memory::CONTAINER_TYPE, gradient_memory::CONTAINER_TYPE>);\n";
-            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::spec<parameters_memory::CONTAINER_TYPE, " << get_type_string_tag(device, typename CONTAINER::CATEGORY_TAG{}) << ">;\n";
+            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::spec<parameters_memory::CONTAINER_TYPE, " << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{}) << ">;\n";
             ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container, gradient_memory::container};\n";
         }
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }
-    template <typename DEVICE, typename CONTAINER>
-    std::string nn_analytics(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& p, bool downstream=false) {
+    template <typename DEVICE, typename SPEC>
+    std::string nn_analytics(DEVICE& device, nn::parameters::Plain::Instance<SPEC>& p, bool downstream=false) {
         std::string data;
         if (!downstream){
             data += "{";
@@ -108,13 +108,13 @@ namespace rl_tools {
         }
         return data;
     }
-    template <typename DEVICE, typename CONTAINER>
-    std::string nn_analytics(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& p, bool downstream=false) {
+    template <typename DEVICE, typename SPEC>
+    std::string nn_analytics(DEVICE& device, nn::parameters::Gradient::Instance<SPEC>& p, bool downstream=false) {
         std::string data;
         if (!downstream){
             data += "{";
         }
-        data += nn_analytics(device, static_cast<nn::parameters::Plain::instance<CONTAINER>&>(p), true) + ", ";
+        data += nn_analytics(device, static_cast<nn::parameters::Plain::Instance<SPEC>&>(p), true) + ", ";
         data += "\"gradient\": " + json(device, p.gradient);
         if (!downstream){
             data += "}";

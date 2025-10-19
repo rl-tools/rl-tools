@@ -11,19 +11,19 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::nn_analytics{
     struct ParametersTag{};
-    template <typename T, typename TI, typename NEXT>
+    template <typename TYPE_POLICY, typename TI, typename NEXT>
     struct Parameters{
         using TAG = ParametersTag;
         static constexpr TI INTERVAL = 1000;
         static constexpr TI WARMUP_STEPS = 0;
     };
     struct ConfigTag{};
-    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>>
+    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::TYPE_POLICY, typename T_NEXT::TI, T_NEXT>>
     struct Config: T_NEXT {
         using TAG = ConfigTag;
         using NEXT = T_NEXT;
         using NN_ANALYTICS_PARAMETERS = T_PARAMETERS;
-        using T = typename NEXT::T;
+        using TYPE_POLICY = typename NEXT::TYPE_POLICY;
         using TI = typename NEXT::TI;
         template <typename CONFIG>
         using State = State<CONFIG>;

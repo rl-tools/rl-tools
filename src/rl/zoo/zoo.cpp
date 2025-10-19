@@ -25,6 +25,7 @@
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
 #include <rl_tools/persist/backends/tar/operations_generic.h>
 
+#include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
@@ -117,7 +118,7 @@ struct DEV_SPEC: rlt::devices::DEVICE_FACTORY<>::SPEC{
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
-using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 constexpr TI BASE_SEED = 0;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
@@ -147,7 +148,7 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, 
 template <typename BASE>
 using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 #else
@@ -223,25 +224,25 @@ static constexpr TI TIMING_INTERVAL = 10000;
 #endif
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG, rlt::rl::loop::steps::timing::Parameters<TI, TIMING_INTERVAL>>;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>;
-struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
+struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<TYPE_POLICY, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
     static constexpr TI CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL_TEMP == 0 ? 1 : CHECKPOINT_INTERVAL_TEMP;
 };
 using LOOP_CHECKPOINT_CONFIG = rlt::rl::loop::steps::checkpoint::Config<LOOP_EXTRACK_CONFIG, LOOP_CHECKPOINT_PARAMETERS>;
-struct LOOP_EVALUATION_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>>{
+struct LOOP_EVALUATION_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, LOOP_CHECKPOINT_CONFIG>>{
     static constexpr TI EVALUATION_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_EVALUATIONS;
     static constexpr TI EVALUATION_INTERVAL = EVALUATION_INTERVAL_TEMP == 0 ? 1 : EVALUATION_INTERVAL_TEMP;
     static constexpr TI NUM_EVALUATION_EPISODES = 100;
     static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
 using LOOP_EVALUATION_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CHECKPOINT_CONFIG, LOOP_EVALUATION_PARAMETERS>;
-struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl::loop::steps::save_trajectories::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>>{
+struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl::loop::steps::save_trajectories::Parameters<TYPE_POLICY, TI, LOOP_CHECKPOINT_CONFIG>>{
     static constexpr TI INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_SAVE_TRAJECTORIES;
     static constexpr TI INTERVAL = INTERVAL_TEMP == 0 ? 1 : INTERVAL_TEMP;
     static constexpr TI NUM_EPISODES = 100;
 };
 using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVALUATION_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
-struct LOOP_NN_ANALYTICS_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl::loop::steps::nn_analytics::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>>{
+struct LOOP_NN_ANALYTICS_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl::loop::steps::nn_analytics::Parameters<TYPE_POLICY, TI, LOOP_CHECKPOINT_CONFIG>>{
     static constexpr TI INTERVAL_TEMP = LOOP_SAVE_TRAJECTORIES_PARAMETERS::INTERVAL;
     static constexpr TI INTERVAL = INTERVAL_TEMP == 0 ? 1 : INTERVAL_TEMP;
 #if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC) || defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
@@ -334,6 +335,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
         std::cout << "Evaluation Interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
         std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
+        using T = typename TYPE_POLICY::DEFAULT;
         T difficulty = 0; // [0, 1]
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
         const auto initial_parameters = rlt::get(ts.off_policy_runner.envs, 0, 0).parameters;
