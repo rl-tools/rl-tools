@@ -18,8 +18,9 @@ namespace rl_tools{
         // Config State (Init/Step)
 
         struct ParametersTag{};
-        template<typename T, typename TI, typename ENVIRONMENT>
+        template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT>
         struct DefaultParameters{
+            using T = typename TYPE_POLICY::DEFAULT;
             using TAG = ParametersTag;
             static constexpr TI STEP_LIMIT = 100;
 
@@ -40,19 +41,19 @@ namespace rl_tools{
             static constexpr bool NORMALIZE_OBSERVATIONS = false;
             static constexpr bool NORMALIZE_OBSERVATIONS_CONTINUOUSLY = false;
 
-            using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
+            using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>;
 
             using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>;
         };
 
-        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+        template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT, typename PARAMETERS>
         struct ConfigApproximatorsSequential{
             template <typename CAPABILITY>
             struct Actor{
                 using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
-                using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
+                using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
                 template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
@@ -64,9 +65,9 @@ namespace rl_tools{
             template <typename CAPABILITY>
             struct Critic{
                 using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM>;
-                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
-                using CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
+                using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
                 template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
@@ -76,8 +77,8 @@ namespace rl_tools{
                 using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
 
-            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
             using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam>;
@@ -85,7 +86,7 @@ namespace rl_tools{
             using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
         };
 
-        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+        template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT, typename PARAMETERS>
         struct ConfigApproximatorsSequentialMultiAgent{
             template <typename CAPABILITY>
             struct Actor{
@@ -93,26 +94,26 @@ namespace rl_tools{
                 static_assert(ENVIRONMENT::Observation::DIM % N_AGENTS == 0);
                 static_assert(ENVIRONMENT::ACTION_DIM % N_AGENTS == 0);
                 using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
-                using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
+                using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
                 template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
                 using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
                 using INNER_MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
-                using WRAPPER_CONFIG = nn_models::multi_agent_wrapper::Configuration<T, TI, N_AGENTS, INNER_MODULE_CHAIN>;
+                using WRAPPER_CONFIG = nn_models::multi_agent_wrapper::Configuration<TYPE_POLICY, TI, N_AGENTS, INNER_MODULE_CHAIN>;
                 using MODEL = nn_models::multi_agent_wrapper::Build<CAPABILITY, WRAPPER_CONFIG, INPUT_SHAPE>;
             };
             template <typename CAPABILITY>
             struct Critic{
                 using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM>;
-                using CONFIG = nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
+                using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 //                using IF = nn_models::sequential::Interface<CAPABILITY>;
 //                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
-                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Configuration<T, TI>;
+                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_SPEC>;
 //                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
                 template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
@@ -128,8 +129,8 @@ namespace rl_tools{
 //                using MODEL = nn_models::multi_agent_wrapper::Module<WRAPPER_CONFIG, CAPABILITY, INPUT_SHAPE>;
             };
 
-            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
             using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam>;
@@ -138,10 +139,10 @@ namespace rl_tools{
         };
 
         struct ConfigTag{};
-        template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, bool T_DYNAMIC_ALLOCATION=true>
+        template<typename T_TYPE_POLICY, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_TYPE_POLICY, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, bool T_DYNAMIC_ALLOCATION=true>
         struct Config: rl::loop::Config{
             using TAG = ConfigTag;
-            using T = T_T;
+            using TYPE_POLICY = T_TYPE_POLICY;
             using TI = T_TI;
             using RNG = T_RNG;
             using ENVIRONMENT = T_ENVIRONMENT;
@@ -151,16 +152,17 @@ namespace rl_tools{
 
             static constexpr TI ENVIRONMENT_STEPS_PER_LOOP_STEP = CORE_PARAMETERS::N_ENVIRONMENTS * CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV;
 
-            using NN = APPROXIMATOR_CONFIG<T, TI, ENVIRONMENT, CORE_PARAMETERS>;
+            using NN = APPROXIMATOR_CONFIG<TYPE_POLICY, TI, ENVIRONMENT, CORE_PARAMETERS>;
 
 
+            using T = typename TYPE_POLICY::DEFAULT;
             static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS = CORE_PARAMETERS::NORMALIZE_OBSERVATIONS ? 1 : 0;
-            using PPO_SPEC = rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::CRITIC_TYPE, typename CORE_PARAMETERS::PPO_PARAMETERS>;
+            using PPO_SPEC = rl::algorithms::ppo::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::CRITIC_TYPE, typename CORE_PARAMETERS::PPO_PARAMETERS>;
             using PPO_TYPE = rl::algorithms::PPO<PPO_SPEC>;
             using PPO_BUFFERS_TYPE = rl::algorithms::ppo::Buffers<rl::algorithms::ppo::BufferSpecification<PPO_SPEC>>;
             static constexpr TI NUM_NNS = 2;
 
-            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<T, TI, ENVIRONMENT, CORE_PARAMETERS::N_ENVIRONMENTS, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, CORE_PARAMETERS::N_ENVIRONMENTS, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
             using ON_POLICY_RUNNER_TYPE = rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
             using ON_POLICY_RUNNER_DATASET_SPEC = rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV>;
             using ON_POLICY_RUNNER_DATASET_TYPE = rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;

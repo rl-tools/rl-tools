@@ -6,9 +6,9 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace running_normalizer{
-        template <typename T_T, typename T_TI, T_TI T_DIM>
+        template <typename T_TYPE_POLICY, typename T_TI, T_TI T_DIM>
         struct Specification{
-            using T = T_T;
+            using TYPE_POLICY = T_TYPE_POLICY;
             using TI = T_TI;
             static constexpr TI DIM = T_DIM;
         };
@@ -16,10 +16,11 @@ namespace rl_tools::rl::components{
     template <typename T_SPEC>
     struct RunningNormalizer{
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         static constexpr TI DIM = SPEC::DIM;
 
+        using T = typename TYPE_POLICY::DEFAULT;
         Matrix<matrix::Specification<T, TI, 1, DIM>> mean;
         Matrix<matrix::Specification<T, TI, 1, DIM>> std;
         TI age = 0;

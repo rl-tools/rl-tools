@@ -27,7 +27,7 @@ namespace rl_tools{
         // Note: data should have >> 2 rows; subsequent calls should have the same number of rows to not skeew the mean/std
         // todo: take advantage of the data coming in batches
         static_assert(DATA_SPEC::COLS == SPEC::DIM, "Data dimension must match normalizer dimension");
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI DATA_SIZE = DATA_SPEC::ROWS;
         static_assert(DATA_SIZE > 1, "Data size must be greater than 1 and should be much greated than one");

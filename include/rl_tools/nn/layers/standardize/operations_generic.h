@@ -50,29 +50,31 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename MEAN_SPEC, typename STD_SPEC>
     void set_statistics(DEVICE& device, nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<MEAN_SPEC>& mean, const Matrix<STD_SPEC>& std) {
-        using T = typename LAYER_SPEC::T;
+        using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         using LAYER = nn::layers::standardize::LayerForward<LAYER_SPEC>;
-        static_assert(containers::check_structure<MEAN_SPEC, typename LAYER::STATISTICS_CONTAINER_SPEC>);
-        static_assert(containers::check_structure<STD_SPEC, typename LAYER::STATISTICS_CONTAINER_SPEC>);
+        auto layer_mean = matrix_view(device, layer.mean.parameters);
+        using MATRIX = decltype(layer_mean);
+        static_assert(containers::check_structure<MEAN_SPEC, typename MATRIX::SPEC>);
+        static_assert(containers::check_structure<STD_SPEC, typename MATRIX::SPEC>);
         static_assert(MEAN_SPEC::ROWS == 1);
-        copy(device, device, mean, layer.mean.parameters);
+        copy(device, device, mean, layer_mean);
         for(TI i=0; i < LAYER_SPEC::INPUT_DIM; i++){
             T current_std = get(std, 0, i);
             T precision = current_std == 0 ? 0 : 1/current_std;
-            set(layer.precision.parameters, 0, i, precision);
+            set(device, layer.precision.parameters, precision, i);
         }
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(DEVICE& device, const nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::standardize::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        using T = typename LAYER_SPEC::T;
+        using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
-                T mean = get(layer.mean.parameters, 0, output_i);
-                T precision = get(layer.precision.parameters, 0, output_i);
+                T mean = get(device, layer.mean.parameters, output_i);
+                T precision = get(device, layer.precision.parameters, output_i);
                 T input_value = get(input, batch_i, output_i);
                 T output_value = (input_value - mean);
                 if(precision != 0){

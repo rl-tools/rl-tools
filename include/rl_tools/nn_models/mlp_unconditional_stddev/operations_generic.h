@@ -27,7 +27,6 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, template <typename> typename BASE, typename ADAM_PARAMETERS>
     void update(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<SPEC, BASE>& network, nn::optimizers::Adam<ADAM_PARAMETERS>& optimizer) {
-        using T = typename SPEC::T;
         update(device, network.log_std, optimizer);
         update(device, (nn_models::mlp::NeuralNetworkGradient<SPEC>&)network, optimizer);
     }

@@ -8,9 +8,9 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace on_policy_runner{
-        template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, T_TI T_N_AGENTS_PER_ENV = 1, bool T_DYNAMIC_ALLOCATION=true>
+        template <typename T_TYPE_POLICY, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, T_TI T_N_AGENTS_PER_ENV = 1, bool T_DYNAMIC_ALLOCATION=true>
         struct Specification{
-            using T = T_T;
+            using TYPE_POLICY = T_TYPE_POLICY;
             using TI = T_TI;
             using ENVIRONMENT = T_ENVIRONMENT;
             static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
@@ -35,7 +35,8 @@ namespace rl_tools::rl::components{
         struct Dataset{
             using DATASET_SPEC = T_DATASET_SPEC;
             using SPEC = typename DATASET_SPEC::SPEC;
-            using T = typename SPEC::T;
+            using TYPE_POLICY = typename SPEC::TYPE_POLICY;
+            using T = typename TYPE_POLICY::DEFAULT;
             using TI = typename SPEC::TI;
             static constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = DATASET_SPEC::STEPS_TOTAL;
@@ -72,7 +73,7 @@ namespace rl_tools::rl::components{
     template <typename T_SPEC>
     struct OnPolicyRunner{
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
 
         TI step = 0;
@@ -82,7 +83,7 @@ namespace rl_tools::rl::components{
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State     , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> states;
         Matrix<matrix::Specification<bool                                  , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> truncated;
         Matrix<matrix::Specification<TI                                    , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> episode_step;
-        Matrix<matrix::Specification<T                                     , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> episode_return;
+        Matrix<matrix::Specification<typename TYPE_POLICY::DEFAULT         , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> episode_return;
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         bool initialized = false;
 #endif
