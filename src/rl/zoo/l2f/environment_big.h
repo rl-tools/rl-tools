@@ -15,9 +15,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::l2f{
     namespace rlt = rl_tools;
     using namespace rl_tools::rl::environments::l2f;
-    template <typename DEVICE, typename T, typename TI, typename OPTIONS>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, typename OPTIONS>
     struct ENVIRONMENT_BIG_FACTORY{
-
+        using T = typename TYPE_POLICY::DEFAULT;
         using BASE_ENV = rl_tools::rl::environments::Multirotor<Specification<T, TI>>;
 
         static constexpr auto MODEL = parameters::dynamics::REGISTRY::soft_rigid;
