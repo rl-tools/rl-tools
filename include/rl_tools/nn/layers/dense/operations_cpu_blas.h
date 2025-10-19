@@ -12,16 +12,30 @@
 //     void cblas_dgemm(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA, const enum CBLAS_TRANSPOSE TransB, const int M, const int N, const int K, const double alpha, const double *A, const int lda, const double *B, const int ldb, const double beta, double *C, const int ldc);
 // }
 
+
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>, typename = utils::typing::enable_if_t<utils::typing::is_same_v<typename LAYER_SPEC::T, float> || utils::typing::is_same_v<typename LAYER_SPEC::T, double>>>
+    namespace nn::layers::dense{
+        template <typename LAYER_TYPE, typename INPUT_SPEC, typename OUTPUT_SPEC>
+        struct CHECK_FORMATS{
+            using T = typename decltype(LAYER_TYPE::weights)::T;
+            static constexpr bool VALUE = true; //utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>;
+        };
+    }
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>, typename = typename utils::typing::enable_if_t<nn::layers::dense::CHECK_FORMATS<nn::layers::dense::LayerForward<LAYER_SPEC>, INPUT_SPEC, OUTPUT_SPEC>::VALUE>>
     void evaluate(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        using WEIGHT_TYPE = typename decltype(layer.weights)::T;
+        using BIAS_TYPE = typename decltype(layer.biases)::T;
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, BIAS_TYPE>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename OUTPUT_SPEC::T>);
 
         // Warning do not use the same buffer for input and output!
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using DEVICE = devices::CPU_BLAS<DEV_SPEC>;
-        using T = typename LAYER_SPEC::T;
+        using T = typename INPUT_SPEC::T;
         using TI = typename DEVICE::index_t;
 
         constexpr T alpha = 1;
@@ -33,13 +47,13 @@ namespace rl_tools{
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
 
-        set_broadcast(device, layer.biases.parameters, output);
+        set_broadcast(device, matrix_view(device, layer.biases.parameters), output);
 
         if constexpr(utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, output._data, row_pitch(output));
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, output._data, row_pitch(output));
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, output._data, row_pitch(output));
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, output._data, row_pitch(output));
         }
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
@@ -48,12 +62,17 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>, typename = utils::typing::enable_if_t<utils::typing::is_same_v<typename LAYER_SPEC::T, float> || utils::typing::is_same_v<typename LAYER_SPEC::T, double>>>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>, typename = typename utils::typing::enable_if_t<nn::layers::dense::CHECK_FORMATS<nn::layers::dense::LayerForward<LAYER_SPEC>, INPUT_SPEC, OUTPUT_SPEC>::VALUE>>
     void forward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        using WEIGHT_TYPE = typename decltype(layer.weights)::T;
+        using BIAS_TYPE = typename decltype(layer.biases)::T;
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, BIAS_TYPE>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename OUTPUT_SPEC::T>);
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = WEIGHT_TYPE;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
 
         constexpr T alpha = 1;
@@ -66,13 +85,13 @@ namespace rl_tools{
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
 
 
-        set_broadcast(device, layer.biases.parameters, output);
+        set_broadcast(device, matrix_view(device, layer.biases.parameters), output);
 
         if constexpr(utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)output._data, row_pitch(output));
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, (T*)output._data, row_pitch(output));
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)output._data, row_pitch(output));
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, (T*)output._data, row_pitch(output));
         }
         copy(device, device, output, layer.pre_activations);
         for(TI i = 0; i < BATCH_SIZE; i++){
@@ -92,7 +111,7 @@ namespace rl_tools{
         static_assert(LAYER::INTERNAL_BATCH_SIZE == D_OUTPUT_SPEC::ROWS);
         static_assert(LAYER::INTERNAL_BATCH_SIZE == D_PRE_ACTIVATIONS_SPEC::ROWS);
         constexpr auto BATCH_SIZE = D_PRE_ACTIVATIONS_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = typename D_PRE_ACTIVATIONS_SPEC::T;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
@@ -106,15 +125,20 @@ namespace rl_tools{
         nn::layers::dense::Buffer buffer;
         backward_pre_activations(device, layer, d_output, d_pre_activations, buffer);
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>, typename = utils::typing::enable_if_t<utils::typing::is_same_v<typename LAYER_SPEC::T, float> || utils::typing::is_same_v<typename LAYER_SPEC::T, double>>>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>, typename = typename utils::typing::enable_if_t<nn::layers::dense::CHECK_FORMATS<nn::layers::dense::LayerForward<LAYER_SPEC>, INPUT_SPEC, D_OUTPUT_SPEC>::VALUE>>
     void backward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::dense::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         // Warning do not reuse d_output as d_output is used as a temporary buffer
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
+        using WEIGHT_TYPE = typename decltype(layer.weights)::T;
+        using BIAS_TYPE = typename decltype(layer.biases)::T;
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, BIAS_TYPE>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename D_OUTPUT_SPEC::T>);
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = WEIGHT_TYPE;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
 
         {
@@ -133,27 +157,32 @@ namespace rl_tools{
             for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
                 for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
                     T d_pre_activation = d_activation_d_x<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
-                    increment(layer.biases.gradient, 0, output_i, d_pre_activation);
+                    increment(device, layer.biases.gradient, d_pre_activation, output_i);
                     set(d_output, batch_i, output_i, d_pre_activation);
                 }
             }
 
             if constexpr(utils::typing::is_same_v<T, float>){
-                cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output._data, row_pitch(d_output), (T*)input._data, row_pitch(input), beta, (T*)layer.weights.gradient._data, row_pitch(layer.weights.gradient));
+                cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output._data, row_pitch(d_output), (T*)input._data, row_pitch(input), beta, (T*)layer.weights.gradient._data, decltype(layer.weights.gradient)::SPEC::STRIDE::FIRST);
             }
             else{
-                cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output._data, row_pitch(d_output), (T*)input._data, row_pitch(input), beta, (T*)layer.weights.gradient._data, row_pitch(layer.weights.gradient));
+                cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output._data, row_pitch(d_output), (T*)input._data, row_pitch(input), beta, (T*)layer.weights.gradient._data, decltype(layer.weights.gradient)::SPEC::STRIDE::FIRST);
             }
         }
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_PRE_ACTIVATIONS_SPEC, typename D_INPUT_SPEC, typename = utils::typing::enable_if_t<utils::typing::is_same_v<typename LAYER_SPEC::T, float> || utils::typing::is_same_v<typename LAYER_SPEC::T, double>>>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_PRE_ACTIVATIONS_SPEC, typename D_INPUT_SPEC, typename = typename utils::typing::enable_if_t<nn::layers::dense::CHECK_FORMATS<nn::layers::dense::LayerForward<LAYER_SPEC>, D_INPUT_SPEC, D_PRE_ACTIVATIONS_SPEC>::VALUE>>
     void backward_input_additional(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activaitons, Matrix<D_INPUT_SPEC>& d_input) {
         // ATTENTION: this requires d_pre_activation as inputs and not d_output!!
+        using WEIGHT_TYPE = typename decltype(layer.weights)::T;
+        using BIAS_TYPE = typename decltype(layer.biases)::T;
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, BIAS_TYPE>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename D_INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename D_PRE_ACTIVATIONS_SPEC::T>);
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_PRE_ACTIVATIONS_SPEC>);
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_PRE_ACTIVATIONS_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = WEIGHT_TYPE;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
         // d_input
         constexpr T alpha = 1;
@@ -167,10 +196,10 @@ namespace rl_tools{
         constexpr auto n = LAYER_SPEC::INPUT_DIM;
 
         if constexpr(utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_pre_activaitons._data, row_pitch(d_pre_activaitons), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)d_input._data, row_pitch(d_input));
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_pre_activaitons._data, row_pitch(d_pre_activaitons), (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, (T*)d_input._data, row_pitch(d_input));
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_pre_activaitons._data, row_pitch(d_pre_activaitons), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)d_input._data, row_pitch(d_input));
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_pre_activaitons._data, row_pitch(d_pre_activaitons), (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, (T*)d_input._data, row_pitch(d_input));
         }
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
