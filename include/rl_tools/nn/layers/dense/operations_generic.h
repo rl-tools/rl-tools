@@ -72,15 +72,16 @@ namespace rl_tools{
         T std = gain / math::sqrt(device.math, fan);
         T weight_bound = math::sqrt(device.math, (T)3.0) * std;
         T bias_bound = 1/math::sqrt(device.math, (T)SPEC::INPUT_DIM);
+        using PARAMETER_TYPE = typename decltype(layer.weights.parameters)::SPEC::T;
         for(TI i = 0; i < SPEC::OUTPUT_DIM; i++) {
             if constexpr(INITIALIZER_SPEC::INIT_LEGACY) {
-                set(device, layer.biases.parameters, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng), i);
+                set(device, layer.biases.parameters, (PARAMETER_TYPE)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng), i);
             }
             else{
                 set(device, layer.biases.parameters, 0, i);
             }
             for(TI j = 0; j < SPEC::INPUT_DIM; j++) {
-                set(device, layer.weights.parameters, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng), i, j);
+                set(device, layer.weights.parameters, (PARAMETER_TYPE)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng), i, j);
             }
         }
     }
