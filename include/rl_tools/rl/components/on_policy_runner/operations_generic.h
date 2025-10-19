@@ -102,7 +102,7 @@ namespace rl_tools{
         utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
 #endif
         using SPEC = typename DATASET_SPEC::SPEC;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             auto actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
@@ -116,7 +116,8 @@ namespace rl_tools{
             auto actions_mean_tensor = to_tensor(device, actions_mean);
             evaluate_step(device, actor, observations_tensor, actor_state, actions_mean_tensor, policy_eval_buffers, rng, mode);
             auto& last_layer = get_last_layer(actor);
-            rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, last_layer.log_std.parameters, rng, step_i);
+            auto log_std = matrix_view(device, last_layer.log_std.parameters);
+            rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, log_std, rng, step_i);
         }
         // final observation
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){

@@ -21,7 +21,7 @@ namespace rl_tools {
             }
             std::string ind = indent_ss.str();
             using TI = typename DEVICE::index_t;
-            std::string T_string = containers::persist::get_type_string<typename SPEC::T>();
+            std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
             std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             std::stringstream ss, ss_header;
             ss_header << input.header;

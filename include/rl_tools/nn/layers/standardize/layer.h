@@ -17,8 +17,8 @@ namespace rl_tools::nn::layers::standardize {
         static_assert(LAYER_SPEC::INPUT_DIM == LAYER_SPEC::OUTPUT_DIM);
         static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
         //                INPUT_SPEC::ROWS <= OUTPUT_SPEC::ROWS && // todo: could be relaxed to not fill the full output
-        static_assert(utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T>);
-        static_assert(utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
+        // static_assert(utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T>);
+        // static_assert(utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
         return true;
     }
     template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
@@ -60,7 +60,7 @@ namespace rl_tools::nn::layers::standardize {
     template<typename T_SPEC>
     struct LayerForward {
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
@@ -84,7 +84,7 @@ namespace rl_tools::nn::layers::standardize {
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC> {
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
         using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };

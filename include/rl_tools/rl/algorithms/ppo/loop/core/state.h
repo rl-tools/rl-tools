@@ -14,7 +14,7 @@ namespace rl_tools{
         template<typename T_CONFIG>
         struct State{
             using CONFIG = T_CONFIG;
-            using T = typename CONFIG::T;
+            using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
             using TI = typename CONFIG::TI;
             typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
             typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizer;
@@ -27,9 +27,10 @@ namespace rl_tools{
             typename CONFIG::ACTOR_BUFFERS actor_buffers;
             typename CONFIG::CRITIC_BUFFERS critic_buffers;
             typename CONFIG::CRITIC_BUFFERS_GAE critic_buffers_gae;
+            using T = typename TYPE_POLICY::DEFAULT;
             Matrix<matrix::Specification<T, TI, CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::STEPS_TOTAL, CONFIG::ENVIRONMENT::Observation::DIM>> observations_dense;
-            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<T, TI, CONFIG::ENVIRONMENT::Observation::DIM/CONFIG::ENVIRONMENT::N_AGENTS>> observation_normalizer;
-            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<T, TI, CONFIG::ENVIRONMENT::ObservationPrivileged::DIM>> observation_privileged_normalizer;
+            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<TYPE_POLICY, TI, CONFIG::ENVIRONMENT::Observation::DIM/CONFIG::ENVIRONMENT::N_AGENTS>> observation_normalizer;
+            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<TYPE_POLICY, TI, CONFIG::ENVIRONMENT::ObservationPrivileged::DIM>> observation_privileged_normalizer;
             typename CONFIG::ENVIRONMENT envs[CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS];
             typename CONFIG::ENVIRONMENT::Parameters env_parameters[CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS];
 //            MatrixDynamic<matrix::Specification<typename CONFIG::T, TI, 1, CONFIG::ENVIRONMENT::Observation::DIM>> observations_mean, observations_std;
