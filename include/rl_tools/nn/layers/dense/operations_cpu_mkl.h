@@ -3,8 +3,9 @@
 #pragma once
 #define RL_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_MKL_H
 
-#include "operations_cpu_blas.h"
 #include "../../../devices/cpu_mkl.h"
+#include "operations_cpu_blas.h"
+#include <mkl.h>
 
 // Matrix
 RL_TOOLS_NAMESPACE_WRAPPER_START

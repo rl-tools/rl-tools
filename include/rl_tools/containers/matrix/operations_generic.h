@@ -166,7 +166,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
     template<typename SPEC, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT inline void set(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
-        m._data[index(m, row, col)] = value;
+        m._data[index(m, row, col)] = static_cast<typename SPEC::T>(value);
     }
     template<typename SPEC, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT inline void increment(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){

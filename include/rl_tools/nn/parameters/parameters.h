@@ -45,8 +45,8 @@ namespace rl_tools::nn::parameters{
         template <typename T_SPEC>
         struct Instance{
             using SPEC = T_SPEC;
-            using T = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Parameter>;
-            using TENSOR_SPEC = tensor::Specification<T, typename SPEC::TI, typename SPEC::SHAPE>;
+            using T_PARAMETER = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Parameter>;
+            using TENSOR_SPEC = tensor::Specification<T_PARAMETER, typename SPEC::TI, typename SPEC::SHAPE>;
             Tensor<TENSOR_SPEC> parameters;
         };
     };
@@ -63,8 +63,8 @@ namespace rl_tools::nn::parameters{
         template <typename T_SPEC>
         struct Instance: Plain::Instance<T_SPEC>{
             using SPEC = T_SPEC;
-            using T = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
-            using TENSOR_SPEC = tensor::Specification<T, typename SPEC::TI, typename SPEC::SHAPE>;
+            using T_GRADIENT = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
+            using TENSOR_SPEC = tensor::Specification<T_GRADIENT, typename SPEC::TI, typename SPEC::SHAPE>;
             Tensor<TENSOR_SPEC> gradient;
         };
     };

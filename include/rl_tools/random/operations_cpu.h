@@ -37,12 +37,11 @@ namespace rl_tools{
         namespace normal_distribution{
             template<typename T, typename SPEC>
             T sample(const devices::random::CPU& dev, T mean, T std, devices::random::CPU::ENGINE<SPEC>& rng){
-                static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
                 if(std == 0){
                     return mean;
                 }
                 else{
-                    return std::normal_distribution<T>(mean, std)(rng.engine);
+                    return (T)std::normal_distribution<float>(mean, std)(rng.engine);
                 }
             }
         }

@@ -47,11 +47,12 @@ namespace rl_tools::nn::loss_functions::mse{
         using T = typename SPEC_A::T;
         using TI = typename SPEC_A::TI;
         T constant = (T)2/((T)SPEC_A::ROWS * SPEC_A::COLS) * loss_weight;
+        using T_DA = typename SPEC_DA::T;
         for(TI row_i = 0; row_i < SPEC_A::ROWS; row_i++) {
             for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
 //                TI index = row_i * SPEC_A::COLS + col_i;
                 T diff = get(a, row_i, col_i) - get(b, row_i, col_i);
-                set(d_a, row_i, col_i, diff * constant);
+                set(d_a, row_i, col_i, static_cast<T_DA>(diff * constant));
             }
         }
     }
