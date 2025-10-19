@@ -1,3 +1,7 @@
+#ifdef RL_TOOLS_BACKEND_ENABLE_BLAS
+#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+#endif
+
 struct TestTag{};
 
 
@@ -23,10 +27,10 @@ struct TestTag{};
 
 namespace rlt = rl_tools;
 
-using TEST_USE_CASE = rlt::numeric_types::UseCase<TestTag, double>;
+using TEST_USE_CASE = rlt::numeric_types::UseCase<rlt::nn::numeric_types::categories::Accumulator, float>;
 
 using TYPE_POLICY = rlt::numeric_types::Policy<float, TEST_USE_CASE>;
-static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<TestTag>, double>);
+static_assert(rlt::utils::typing::is_same_v<TYPE_POLICY::GET<rlt::nn::numeric_types::categories::Accumulator>, float>);
 
 
 
