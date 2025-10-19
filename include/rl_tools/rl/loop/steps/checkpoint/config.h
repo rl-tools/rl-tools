@@ -7,12 +7,12 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::checkpoint{
-    template <typename T, typename TI>
+    template <typename TYPE_POLICY, typename TI>
     struct Parameters{
         static constexpr TI CHECKPOINT_INTERVAL = 1000;
         static constexpr TI TEST_INPUT_BATCH_SIZE = 13;
     };
-    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI>>
+    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::TYPE_POLICY, typename T_NEXT::TI>>
     struct Config: T_NEXT {
         using NEXT = T_NEXT;
         using CHECKPOINT_PARAMETERS = T_PARAMETERS;

@@ -26,9 +26,10 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::l2f{
     namespace rlt = rl_tools;
     using namespace rl_tools::rl::environments::l2f;
-    template <typename DEVICE, typename T, typename TI>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI>
     struct ENVIRONMENT_TINY_FACTORY{
-        using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, T, TI>;
+        using T = typename TYPE_POLICY::DEFAULT;
+        using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI>;
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_SPEC;
         using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_TYPE;
 

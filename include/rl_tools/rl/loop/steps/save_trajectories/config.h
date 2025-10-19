@@ -11,7 +11,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::save_trajectories{
     struct ParametersTag{};
-    template <typename T, typename TI, typename NEXT>
+    template <typename TYPE_POLICY, typename TI, typename NEXT>
     struct Parameters{
         using TAG = ParametersTag;
         static constexpr bool DETERMINISTIC_EVALUATION = true;
@@ -22,15 +22,15 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         static constexpr bool DETERMINISTIC_INITIAL_STATE = false;
     };
     struct ConfigTag{};
-    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>, typename T_UI = environments::DummyUI>
+    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::TYPE_POLICY, typename T_NEXT::TI, T_NEXT>, typename T_UI = environments::DummyUI>
     struct Config: T_NEXT {
         using TAG = ConfigTag;
         using NEXT = T_NEXT;
         using SAVE_TRAJECTORIES_PARAMETERS = T_PARAMETERS;
         using UI = T_UI;
-        using T = typename NEXT::T;
+        using TYPE_POLICY = typename NEXT::TYPE_POLICY;
         using TI = typename NEXT::TI;
-        using SAVE_TRAJECTORIES_SPEC = rl::utils::evaluation::Specification<T, TI, typename NEXT::ENVIRONMENT_EVALUATION, SAVE_TRAJECTORIES_PARAMETERS::NUM_EPISODES, SAVE_TRAJECTORIES_PARAMETERS::EPISODE_STEP_LIMIT, SAVE_TRAJECTORIES_PARAMETERS::DETERMINISTIC_INITIAL_STATE>;
+        using SAVE_TRAJECTORIES_SPEC = rl::utils::evaluation::Specification<typename TYPE_POLICY::DEFAULT, TI, typename NEXT::ENVIRONMENT_EVALUATION, SAVE_TRAJECTORIES_PARAMETERS::NUM_EPISODES, SAVE_TRAJECTORIES_PARAMETERS::EPISODE_STEP_LIMIT, SAVE_TRAJECTORIES_PARAMETERS::DETERMINISTIC_INITIAL_STATE>;
         template <typename CONFIG>
         using State = State<CONFIG>;
     };

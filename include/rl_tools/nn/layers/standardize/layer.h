@@ -34,9 +34,9 @@ namespace rl_tools::nn::layers::standardize {
 
     template <typename LAYER_SPEC_1, typename LAYER_SPEC_2>
     constexpr bool check_compatibility = check_compatibility_f<LAYER_SPEC_1, LAYER_SPEC_2>();
-    template<typename T_T, typename T_TI>
+    template<typename T_TYPE_POLICY, typename T_TI>
     struct Configuration {
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         // Summary
         static constexpr auto NUM_WEIGHTS = 0; //zero trainable parameters (the point is to not learn the mean and std by gradient descent, otherwise it would just be a normal layer)
@@ -44,7 +44,6 @@ namespace rl_tools::nn::layers::standardize {
     template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
     struct Specification: T_CAPABILITY, T_CONFIG{
         using CONFIG = T_CONFIG;
-        using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
         using CAPABILITY = T_CAPABILITY;
         using INPUT_SHAPE = T_INPUT_SHAPE;
@@ -70,10 +69,9 @@ namespace rl_tools::nn::layers::standardize {
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
         template <typename NEW_INPUT_SHAPE>
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
-        using STATISTICS_CONTAINER_SPEC = matrix::Specification<T, TI, 1, INPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
-        using STATISTICS_CONTAINER_TYPE = Matrix<STATISTICS_CONTAINER_SPEC>;
-        using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::spec<STATISTICS_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant>; // Constant from the view of a forward or backward pass
-        typename nn::parameters::Plain::template instance<STATISTICS_PARAMETER_SPEC> mean, precision; // precision = 1/std
+        using STATISTICS_SHAPE = tensor::Shape<TI, INPUT_DIM>;
+        using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::Specification<typename SPEC::TYPE_POLICY, TI, STATISTICS_SHAPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant, SPEC::DYNAMIC_ALLOCATION>; // Constant from the view of a forward or backward pass
+        typename nn::parameters::Plain::template Instance<STATISTICS_PARAMETER_SPEC> mean, precision; // precision = 1/std
 
         template<bool DYNAMIC_ALLOCATION=true>
         using State = standardize::State;

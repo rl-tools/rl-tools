@@ -12,11 +12,12 @@
 
 namespace rl_tools::rl::zoo::l2f::sac{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
-        using ENVIRONMENT = typename ENVIRONMENT_TINY_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
-        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
+        using ENVIRONMENT = typename ENVIRONMENT_TINY_FACTORY<DEVICE, TYPE_POLICY, TI>::ENVIRONMENT;
+        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+            struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI>{
+                using T = typename TYPE_POLICY::DEFAULT;
                 static constexpr TI ACTOR_BATCH_SIZE = 32;
                 static constexpr TI CRITIC_BATCH_SIZE = 32;
                 static constexpr TI TRAINING_INTERVAL = 2;
@@ -43,23 +44,28 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr bool SHARED_BATCH = true;
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI N_ENVIRONMENTS = 8;
-            struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            using T = typename TYPE_POLICY::DEFAULT;
+            struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
+                using T = typename TYPE_POLICY::DEFAULT;
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
                 static constexpr T GRADIENT_CLIP_VALUE = 1;
                 static constexpr bool ENABLE_WEIGHT_DECAY = false;
                 static constexpr T WEIGHT_DECAY = 0.0001;
             };
             struct ACTOR_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
+                using T = typename TYPE_POLICY::DEFAULT;
                 static constexpr T ALPHA = 1e-3;
             };
             struct CRITIC_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
+                using T = typename TYPE_POLICY::DEFAULT;
                 static constexpr T ALPHA = 2e-3;
             };
             struct ALPHA_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
+                using T = typename TYPE_POLICY::DEFAULT;
                 static constexpr T ALPHA = 1e-3;
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
     };
 }

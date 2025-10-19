@@ -7,22 +7,22 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename CONTAINER, typename GROUP>
-    void save(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, GROUP& group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::parameters::Plain::Instance<SPEC>& parameter, GROUP& group) {
         save(device, parameter.parameters, group, "parameters");
     }
-    template<typename DEVICE, typename CONTAINER, typename GROUP>
-    void save(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& parameter, GROUP& group) {
-        save(device, (nn::parameters::Plain::instance<CONTAINER>&)parameter, group);
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::parameters::Gradient::Instance<SPEC>& parameter, GROUP& group) {
+        save(device, (nn::parameters::Plain::Instance<SPEC>&)parameter, group);
         save(device, parameter.gradient, group, "gradient");
     }
-    template<typename DEVICE, typename CONTAINER, typename GROUP>
-    void load(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, GROUP& group) {
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::parameters::Plain::Instance<SPEC>& parameter, GROUP& group) {
         load(device, parameter.parameters, group, "parameters");
     }
-    template<typename DEVICE, typename CONTAINER, typename GROUP>
-    void load(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& parameter, GROUP& group) {
-        load(device, (nn::parameters::Plain::instance<CONTAINER>&)parameter, group);
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void load(DEVICE& device, nn::parameters::Gradient::Instance<SPEC>& parameter, GROUP& group) {
+        load(device, (nn::parameters::Plain::Instance<SPEC>&)parameter, group);
         load(device, parameter.gradient, group, "gradient");
     }
 }

@@ -10,7 +10,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::evaluation{
     struct ParametersTag{};
-    template <typename T, typename TI, typename NEXT, TI T_NUM_EVALUATION_EPISODES = 10, TI T_EVALUATION_INTERVAL = 1000>
+    template <typename TYPE_POLICY, typename TI, typename NEXT, TI T_NUM_EVALUATION_EPISODES = 10, TI T_EVALUATION_INTERVAL = 1000>
     struct Parameters{
         using TAG = ParametersTag;
         static constexpr bool DETERMINISTIC_EVALUATION = true;
@@ -23,7 +23,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
     };
     struct ConfigTag{};
-    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>, typename T_UI = environments::DummyUI>
+    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::TYPE_POLICY, typename T_NEXT::TI, T_NEXT>, typename T_UI = environments::DummyUI>
     struct Config: T_NEXT {
         using TAG = ConfigTag;
         using NEXT = T_NEXT;
