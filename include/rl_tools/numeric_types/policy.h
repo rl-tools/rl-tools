@@ -3,6 +3,8 @@
 #pragma once
 #define RL_TOOLS_NUMERIC_TYPES_POLICY_H
 
+#include "bf16.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::numeric_types{
     template<typename T_TAG, typename T_TYPE>

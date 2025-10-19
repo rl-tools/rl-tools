@@ -50,7 +50,7 @@ namespace rl_tools::nn::layers::gru{
             using TYPE_POLICY = typename GRU_SPEC::TYPE_POLICY;
             using TI = typename GRU_SPEC::TI;
             static constexpr TI BATCH_SIZE = GRU_SPEC::INTERNAL_BATCH_SIZE;
-            using T_ACC = typename TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>;
+            using T_ACC = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
             using POST_ACTIVATION_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, BATCH_SIZE, 3*GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<POST_ACTIVATION_SPEC> post_activation;
             using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;

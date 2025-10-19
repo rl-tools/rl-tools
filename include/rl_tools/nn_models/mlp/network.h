@@ -83,7 +83,7 @@ namespace rl_tools::nn_models::mlp {
     };
 
     struct BuffersTag {
-        using CATEGORY = nn::numeric_types::categories::Accumulator;
+        using CATEGORY = nn::numeric_type_categories::Accumulator;
     };
 
     template<typename T_BUFFER_SPEC>

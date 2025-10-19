@@ -211,7 +211,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void forward_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         // copy of the evaluate but with the log_probabilities commented in
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
         using PARAMETERS = typename SPEC::PARAMETERS;
         T log_prob = 0;
         for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
@@ -262,7 +262,7 @@ namespace rl_tools{
     void forward(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(INPUT_SPEC::COLS == 2*SPEC::DIM);
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Accumulator>;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
         using PARAMETERS = typename SPEC::PARAMETERS;
         {
             // logging
@@ -287,7 +287,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, typename SPEC::TYPE_POLICY::DEFAULT alpha, typename DEVICE::index_t batch_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
         using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
@@ -356,7 +356,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_types::categories::Gradient>;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
         using TI = typename DEVICE::index_t;
         using LAYER = nn::layers::sample_and_squash::LayerGradient<SPEC>;
         constexpr TI BATCH_SIZE = LAYER::SPEC::INTERNAL_BATCH_SIZE;

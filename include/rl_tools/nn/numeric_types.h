@@ -4,7 +4,7 @@
 #define RL_TOOLS_NN_NUMERIC_TYPES_H
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::nn::numeric_types::categories{
+namespace rl_tools::nn::numeric_type_categories{
     struct Parameter{};
     struct Accumulator{};
     struct Gradient{};
