@@ -35,7 +35,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI EPISODE_STEP_LIMIT = 500;
         //            static constexpr bool SHARED_BATCH = false;
-            struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = true;
                 static constexpr T GRADIENT_CLIP_VALUE = 1;
                 static constexpr bool ENABLE_WEIGHT_DECAY = true;

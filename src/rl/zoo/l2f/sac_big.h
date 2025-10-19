@@ -5,8 +5,9 @@
 #include <rl_tools/utils/generic/typing.h>
 
 namespace rl_tools::rl::zoo::l2f::sac{
-    template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION=true>
     struct FACTORY{
+        using T = typename TYPE_POLICY::DEFAULT;
         struct OPTIONS{
             static constexpr bool SEQUENTIAL_MODEL = false;
             static constexpr bool MOTOR_DELAY = true;
@@ -14,10 +15,10 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr bool RANDOMIZE_THRUST_CURVES = false;
             static constexpr bool OBSERVE_THRASH_MARKOV = false;
         };
-        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, T, TI, OPTIONS>::ENVIRONMENT;
+        using ENVIRONMENT = typename ENVIRONMENT_BIG_FACTORY<DEVICE, TYPE_POLICY, TI, OPTIONS>::ENVIRONMENT;
 
-        struct LOOP_CORE_PARAMETERS: rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI>{
+        struct LOOP_CORE_PARAMETERS: rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+            struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 512;
                 static constexpr TI CRITIC_BATCH_SIZE = 512;
                 static constexpr TI TRAINING_INTERVAL = 16;
@@ -45,7 +46,7 @@ namespace rl_tools::rl::zoo::l2f::sac{
             static constexpr TI N_WARMUP_STEPS = 0; // Exploration executed with a uniform random policy for N_WARMUP_STEPS steps
             static constexpr TI N_WARMUP_STEPS_CRITIC = 10000; // Number of steps before critic training starts
             static constexpr TI N_WARMUP_STEPS_ACTOR = 10000; // Number of steps before actor training starts
-            struct OPTIMIZER_PARAMETERS_COMMON: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct OPTIMIZER_PARAMETERS_COMMON: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr bool ENABLE_GRADIENT_CLIPPING = false;
                 static constexpr T GRADIENT_CLIP_VALUE = 1;
                 static constexpr bool ENABLE_WEIGHT_DECAY = false;
@@ -72,8 +73,8 @@ namespace rl_tools::rl::zoo::l2f::sac{
         // this config is competitive with mlp but 15x slower
 
         using LOOP_CORE_CONFIG = rl_tools::utils::typing::conditional_t<OPTIONS::SEQUENTIAL_MODEL,
-            rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rl::algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>,
-            rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>
+            rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rl::algorithms::sac::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>,
+            rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>
         >;
     };
 }
