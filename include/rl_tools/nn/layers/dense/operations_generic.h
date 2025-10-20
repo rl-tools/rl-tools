@@ -251,42 +251,42 @@ namespace rl_tools{
 
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerForward<SPEC_1>* l1, const rl_tools::nn::layers::dense::LayerForward<SPEC_2>* l2) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerForward<SPEC_1>* l1, const rl_tools::nn::layers::dense::LayerForward<SPEC_2>* l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
-        using T = typename SPEC_1::T;
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
         T acc = 0;
         acc += abs_diff(device, l1->weights, l2->weights);
         acc += abs_diff(device, l1->biases, l2->biases);
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::dense::LayerForward<SPEC_2>& l2) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::dense::LayerForward<SPEC_2>& l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         return abs_diff(device, &l1, &l2);
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC_1>* l1, const rl_tools::nn::layers::dense::LayerBackward<SPEC_2>* l2) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC_1>* l1, const rl_tools::nn::layers::dense::LayerBackward<SPEC_2>* l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
-        using T = typename SPEC_1::T;
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT ;
         T acc = abs_diff(device, (rl_tools::nn::layers::dense::LayerForward<SPEC_1>*) l1, (rl_tools::nn::layers::dense::LayerForward<SPEC_2>*) l2);
         acc += abs_diff(device, l1->pre_activations, l2->pre_activations);
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC_1>& l1, const rl_tools::nn::layers::dense::LayerBackward<SPEC_2>& l2) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC_1>& l1, const rl_tools::nn::layers::dense::LayerBackward<SPEC_2>& l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         return abs_diff(device, &l1, &l2);
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerGradient<SPEC_1>* l1, const rl_tools::nn::layers::dense::LayerGradient<SPEC_2>* l2) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerGradient<SPEC_1>* l1, const rl_tools::nn::layers::dense::LayerGradient<SPEC_2>* l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
-        using T = typename SPEC_1::T;
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
         T acc = abs_diff(device, (rl_tools::nn::layers::dense::LayerBackward<SPEC_1>*) l1, (rl_tools::nn::layers::dense::LayerBackward<SPEC_2>*) l2);
         acc += abs_diff(device, l1->output, l2->output);
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::dense::LayerGradient<SPEC_2>& l2) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::dense::LayerGradient<SPEC_2>& l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         return abs_diff(device, &l1, &l2);
     }

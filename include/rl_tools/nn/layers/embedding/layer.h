@@ -38,9 +38,9 @@ namespace rl_tools::nn::layers::embedding {
         template <T_TI BATCH_SIZE>
         using SHAPE = tensor::Shape<T_TI, BATCH_SIZE>;
     };
-    template<typename T_T, typename T_TI, T_TI T_NUM_CLASSES, T_TI T_EMBEDDING_DIM, template <T_TI> typename T_INPUT_SHAPE = DefaultInputShapeFactory<T_TI>::template SHAPE, typename T_INITIALIZER = DefaultInitializer<T_T, T_TI>, typename T_PARAMETER_GROUP=parameters::groups::Input>
+    template<typename T_TYPE_POLICY, typename T_TI, T_TI T_NUM_CLASSES, T_TI T_EMBEDDING_DIM, template <T_TI> typename T_INPUT_SHAPE = DefaultInputShapeFactory<T_TI>::template SHAPE, typename T_INITIALIZER = DefaultInitializer<T_TYPE_POLICY, T_TI>, typename T_PARAMETER_GROUP=parameters::groups::Input>
     struct Configuration {
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         static constexpr TI NUM_CLASSES = T_NUM_CLASSES;
         static constexpr TI EMBEDDING_DIM = T_EMBEDDING_DIM;
@@ -55,7 +55,7 @@ namespace rl_tools::nn::layers::embedding {
         using CONFIG = T_CONFIG;
         using CAPABILITY = T_CAPABILITY;
         using INPUT_SHAPE = T_INPUT_SHAPE;
-        using T = typename CONFIG::T;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename CONFIG::TI;
         static_assert(length(INPUT_SHAPE{}) == 3, "The input shape of the Embedding layer must be 3 dimensional for now (sequence x batch x 1 (integer ids))");
         static constexpr TI INPUT_DIM = get_last(INPUT_SHAPE{});
@@ -72,7 +72,7 @@ namespace rl_tools::nn::layers::embedding {
     template<typename T_SPEC>
     struct LayerForward {
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         static constexpr TI NUM_CLASSES = SPEC::NUM_CLASSES;
         static constexpr TI OUTPUT_DIM = SPEC::EMBEDDING_DIM;
@@ -82,10 +82,8 @@ namespace rl_tools::nn::layers::embedding {
         template <typename NEW_INPUT_SHAPE>
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
         using WEIGHTS_SHAPE = tensor::Shape<TI, NUM_CLASSES, OUTPUT_DIM>;
-        using WEIGHTS_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
-        using WEIGHTS_CONTAINER_TYPE = Tensor<WEIGHTS_CONTAINER_SPEC>;
-        using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
-        typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_PARAMETER_SPEC> weights;
+        using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, WEIGHTS_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION>;
+        typename SPEC::PARAMETER_TYPE::template Instance<WEIGHTS_PARAMETER_SPEC> weights;
 
         template<bool DYNAMIC_ALLOCATION=true>
         using State = embedding::State;
@@ -98,7 +96,8 @@ namespace rl_tools::nn::layers::embedding {
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC>{
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::OUTPUT_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
+        using T_ACC = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+        using OUTPUT_CONTAINER_SPEC = tensor::Specification<T_ACC, typename SPEC::TI, typename SPEC::OUTPUT_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
         using OUTPUT_CONTAINER_TYPE = Tensor<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };

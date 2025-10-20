@@ -118,8 +118,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& l, RNG& rng){
         // same as in PyTorch
-        using T = typename SPEC::T;
-        using TI = typename DEVICE::index_t;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         T scale_input = 1 / math::sqrt(device.math, (T)SPEC::INPUT_DIM);
         T scale_hidden = 1 / math::sqrt(device.math, (T)SPEC::HIDDEN_DIM);
         rand(device, l.weights_hidden.parameters, rng, -scale_hidden, scale_hidden);
@@ -833,8 +832,8 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::gru::LayerForward<SPEC_2>& l2) {
-        typename SPEC_1::T diff = 0;
+    typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::gru::LayerForward<SPEC_2>& l2) {
+        typename SPEC_1::TYPE_POLICY::DEFAULT diff = 0;
         diff += abs_diff(device, l1.weights_input, l2.weights_input);
         diff += abs_diff(device, l1.biases_input, l2.biases_input);
         diff += abs_diff(device, l1.weights_hidden, l2.weights_hidden);
@@ -843,8 +842,8 @@ namespace rl_tools{
         return diff;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::LayerBackward<SPEC_1>& l1, const rl_tools::nn::layers::gru::LayerBackward<SPEC_2>& l2) {
-        using T = typename SPEC_1::T;
+    typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::LayerBackward<SPEC_1>& l1, const rl_tools::nn::layers::gru::LayerBackward<SPEC_2>& l2) {
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
         T diff = abs_diff(device, static_cast<const rl_tools::nn::layers::gru::LayerForward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::gru::LayerForward<SPEC_2>&>(l2));
         diff += abs_diff(device, l1.post_activation, l2.post_activation);
         diff += abs_diff(device, l1.n_pre_pre_activation, l2.n_pre_pre_activation);
@@ -852,7 +851,7 @@ namespace rl_tools{
         return diff;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::gru::LayerGradient<SPEC_2>& l2) {
+    typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::gru::LayerGradient<SPEC_2>& l2) {
         return abs_diff(device, static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC_2>&>(l2));
     }
 

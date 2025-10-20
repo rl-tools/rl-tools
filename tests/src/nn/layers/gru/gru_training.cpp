@@ -23,14 +23,12 @@
 
 #include <rl_tools/utils/extrack/operations_cpu.h>
 
-#ifdef RL_TOOLS_ENABLE_HDF5
-
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/embedding/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
-#endif
+
 #include "dataset.h"
 
 namespace rlt = rl_tools;
@@ -47,13 +45,14 @@ using MATH_DEVICE = rlt::devices::math::CPU;
 using RANDOM_DEVICE = rlt::devices::random::Generic<rlt::devices::math::CPU>;
 using DEVICE_SPEC = rlt::devices::cpu::Specification<MATH_DEVICE, RANDOM_DEVICE, rlt::LOGGER_FACTORY<>>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEVICE_SPEC>;
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 #else
 using DEVICE = rlt::devices::DefaultCPU;
 #endif
 using TI = typename DEVICE::index_t;
 using T = float;
 
-using CONFIG = Config<T, TI>;
+using CONFIG = Config<TYPE_POLICY, TI>;
 
 template <typename DEVICE, typename RandomIt, typename RNG>
 void shuffle(DEVICE& device, RandomIt first, RandomIt last, RNG& rng) {

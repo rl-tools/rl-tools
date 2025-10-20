@@ -54,7 +54,7 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, const nn::layers::embedding::StandardNormal<INITIALIZER_SPEC>& initializer, RNG& rng) {
-        using T = typename SPEC::T;
+        using T = typename decltype(layer.weights.parameters)::SPEC::T;
         using TI = typename SPEC::TI;
         for(TI class_i = 0; class_i < SPEC::NUM_CLASSES; class_i++){
             for(TI dim_i = 0; dim_i < SPEC::EMBEDDING_DIM; dim_i++){
@@ -110,7 +110,7 @@ namespace rl_tools{
     // backward_input / backward_full are not supported because the inputs are discrete classes
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
     void backward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::embedding::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        using T = typename LAYER_SPEC::T;
+        using T = typename decltype(layer.weights.gradient)::SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI EMBEDDING_DIM = LAYER_SPEC::EMBEDDING_DIM;
 
@@ -156,7 +156,7 @@ namespace rl_tools{
         copy(source_device, target_device, static_cast<const nn::layers::embedding::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::embedding::LayerBackward<TARGET_SPEC>&>(target));
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::embedding::LayerForward<SPEC_2>& l2) {
+    typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::embedding::LayerForward<SPEC_2>& l2) {
         return abs_diff(device, l1.weights, l2.weights);
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
@@ -179,7 +179,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, rl_tools::nn::layers::embedding::LayerGradient<SPEC>& l) {
         reset_forward_state(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l));
-        set_all(device, l.output, (typename SPEC::T)0);
+        set_all(device, l.output, (typename decltype(l.output)::SPEC::T)0);
     }
     template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {

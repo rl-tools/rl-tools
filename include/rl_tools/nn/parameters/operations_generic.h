@@ -42,15 +42,15 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Plain::Instance<SPEC_1>& p1, const nn::parameters::Plain::Instance<SPEC_2>& p2){
-        typename SPEC_1::CONTAINER::T acc = 0;
+    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, const nn::parameters::Plain::Instance<SPEC_1>& p1, const nn::parameters::Plain::Instance<SPEC_2>& p2){
+        typename decltype(p1.parameters)::SPEC::T acc = 0;
         acc += abs_diff(device, p1.parameters, p2.parameters);
         return acc;
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Gradient::Instance<SPEC_1>& p1, const nn::parameters::Gradient::Instance<SPEC_2>& p2){
-        typename SPEC_1::CONTAINER::T acc = 0;
+    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, const nn::parameters::Gradient::Instance<SPEC_1>& p1, const nn::parameters::Gradient::Instance<SPEC_2>& p2){
+        typename decltype(p1.parameters)::SPEC::T acc = 0;
         acc += abs_diff(device, (nn::parameters::Plain::Instance<SPEC_1>&) p1, (nn::parameters::Plain::Instance<SPEC_2>&) p2);
         acc += abs_diff(device, p1.gradient, p2.gradient);
         return acc;
