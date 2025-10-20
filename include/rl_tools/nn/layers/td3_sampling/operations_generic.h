@@ -148,7 +148,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void backward_full_per_sample(DEVICE& device, nn::layers::td3_sampling::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::td3_sampling::Buffer<BUFFER_SPEC>&, typename DEVICE::index_t batch_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -164,7 +164,6 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward_full(DEVICE& device, nn::layers::td3_sampling::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::td3_sampling::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using LAYER = nn::layers::td3_sampling::LayerGradient<SPEC>;
         constexpr TI INTERNAL_BATCH_SIZE = LAYER::INTERNAL_BATCH_SIZE;
