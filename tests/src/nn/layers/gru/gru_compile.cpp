@@ -15,6 +15,7 @@ int main(){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
+    using TYPE_POLICY = rlt::numeric_types::Policy<double>;
     typename DEVICE::SPEC::RANDOM::ENGINE<> rng;
     constexpr T EPSILON = 1e-6;
     constexpr TI SEQUENCE_LENGTH = 50;
@@ -27,7 +28,7 @@ int main(){
     using GRU_OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE, false, rlt::tensor::RowMajorStride<GRU_OUTPUT_SHAPE>>> dloss_dgru_output;
 
-    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     rlt::nn::layers::gru::Layer<GRU_CONFIG, CAPABILITY, INPUT_SHAPE> gru;

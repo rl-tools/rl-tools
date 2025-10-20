@@ -1,6 +1,6 @@
 
 
-template <typename T, typename TI, bool COPY_FLAG=false>
+template <typename TYPE_POLICY, typename TI, bool COPY_FLAG=false>
 struct Config{
     struct BASE{
         static constexpr TI NUM_CLASSES = 2<<7;
@@ -28,15 +28,15 @@ struct Config{
     using PARAMS = rlt::utils::typing::conditional_t<COPY_FLAG, COPY, USEFUL>;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
-    using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Configuration<T, TI, PARAMS::NUM_CLASSES, PARAMS::EMBEDDING_DIM>;
+    using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Configuration<TYPE_POLICY, TI, PARAMS::NUM_CLASSES, PARAMS::EMBEDDING_DIM>;
     using EMBEDDING_LAYER = rlt::nn::layers::embedding::BindSpecification<EMBEDDING_LAYER_SPEC>;
-    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
     using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
 //    using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
 //    using GRU2 = rlt::nn::layers::gru::BindConfiguration<GRU2_CONFIG>;
-    using DOWN_PROJECTION_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::EMBEDDING_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+    using DOWN_PROJECTION_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMS::EMBEDDING_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Normal>;
     using DOWN_PROJECTION_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DOWN_PROJECTION_LAYER_CONFIG>;
-    using DENSE_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+    using DENSE_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Normal>;
     using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
@@ -48,10 +48,11 @@ struct Config{
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
+    using T = typename TYPE_POLICY::DEFAULT;
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
-    struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+    struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
         static constexpr T ALPHA = 0.003;
     };
-    using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMS>;
+    using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI, ADAM_PARAMS>;
     using ADAM = rlt::nn::optimizers::Adam<ADAM_SPEC>;
 };

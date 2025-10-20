@@ -13,13 +13,13 @@ namespace rl_tools{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
-namespace std{
-    std::string to_string(rl_tools::numeric_types::bf16 value){
-        return std::to_string(static_cast<float>(value));
-    }
-    rl_tools::numeric_types::bf16 exp(rl_tools::numeric_types::bf16 value){
-        return static_cast<rl_tools::numeric_types::bf16>(std::exp(static_cast<float>(value)));
-    }
-}
+// namespace std{
+//     std::string to_string(rl_tools::numeric_types::bf16 value){
+//         return std::to_string(static_cast<float>(value));
+//     }
+//     rl_tools::numeric_types::bf16 exp(rl_tools::numeric_types::bf16 value){
+//         return static_cast<rl_tools::numeric_types::bf16>(std::exp(static_cast<float>(value)));
+//     }
+// }
 
 #endif
