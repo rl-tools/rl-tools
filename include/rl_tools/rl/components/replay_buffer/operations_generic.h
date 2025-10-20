@@ -51,7 +51,7 @@ namespace rl_tools {
         rb.current_episode_start = 0;
     }
     template <typename DEVICE, typename SPEC, typename STATE, typename OBSERVATION_SPEC, typename OBSERVATION_PRIVILEGED_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC, typename NEXT_OBSERVATION_PRIVILEGED_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
+    RL_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, typename SPEC::TYPE_POLICY::DEFAULT reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
         // todo: change to memcpy?
         for(typename DEVICE::index_t i = 0; i < SPEC::OBSERVATION_DIM; i++) {
             set(buffer.observations, buffer.position, i, get(observation, 0, i));

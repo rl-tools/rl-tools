@@ -64,7 +64,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         using NN = APPROXIMATOR_CONFIG<TYPE_POLICY, TI, T_ENVIRONMENT, CORE_PARAMETERS, DYNAMIC_ALLOCATION>;
 
-        using EXPLORATION_POLICY_SPEC = nn_models::random_uniform::Specification<typename TYPE_POLICY::DEFAULT, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+        using EXPLORATION_POLICY_SPEC = nn_models::random_uniform::Specification<TYPE_POLICY, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
         using EXPLORATION_POLICY = nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
 
         using ALPHA_PARAMETER_TYPE = nn::parameters::Adam;
@@ -86,7 +86,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         };
         using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY, EVAL_ACTOR_TYPE>;
 
-        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<typename TYPE_POLICY::DEFAULT, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, DYNAMIC_ALLOCATION>;
+        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, DYNAMIC_ALLOCATION>;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static constexpr TI TARGET_SEQUENCE_LENGTH = CORE_PARAMETERS::SAC_PARAMETERS::SEQUENCE_LENGTH + (CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? 1 : 0);
 

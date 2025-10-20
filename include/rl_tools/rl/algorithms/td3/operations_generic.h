@@ -113,11 +113,10 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC, typename RNG>
     void target_action_noise(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC>& target_action_noise, RNG& rng ) {
         static_assert(OUTPUT_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
-        typedef typename SPEC::T T;
         for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < OUTPUT_SPEC::ROWS; batch_sample_i++){
             for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 set(target_action_noise, batch_sample_i, action_i, math::clamp(device.math,
-                        random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, actor_critic.target_next_action_noise_std, rng),
+                        random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), static_cast<decltype(actor_critic.target_next_action_noise_std)>(0), actor_critic.target_next_action_noise_std, rng),
                         -actor_critic.target_next_action_noise_clip,
                         actor_critic.target_next_action_noise_clip
                 ));
@@ -126,7 +125,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     void noisy_next_actions(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
         constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
@@ -143,7 +142,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename TRAINING_BUFFERS_SPEC>
     void target_action_values(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::td3::CriticTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers) {
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
@@ -168,7 +167,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename BATCH_SPEC, typename OPTIMIZER, typename ACTOR_BUFFERS, typename ACTOR_TARGET_BUFFERS, typename CRITIC_BUFFERS, typename CRITIC_TARGET_BUFFERS, typename TRAINING_BUFFERS_SPEC, typename RNG>
     void train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, ACTOR_TARGET_BUFFERS& actor_target_buffers, CRITIC_BUFFERS& critic_buffers, CRITIC_TARGET_BUFFERS& critic_target_buffers, rl::algorithms::td3::CriticTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers, RNG& rng) {
         // requires training_buffers.target_next_action_noise to be populated
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
@@ -233,7 +232,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFER_SPEC, typename RNG>
     void train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, RNG& rng) {
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
@@ -280,14 +279,14 @@ namespace rl_tools{
 
     namespace rl::algorithms::td3{
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn::layers::dense::LayerForward<SOURCE_SPEC>& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
+        void update_target_module(DEVICE& device, const  nn::layers::dense::LayerForward<SOURCE_SPEC>& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
             rl_tools::utils::polyak::update(device, source.weights.parameters, target.weights.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.biases.parameters , target.biases.parameters , polyak);
         }
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn::layers::td3_sampling::LayerForward<SOURCE_SPEC>& source, nn::layers::td3_sampling::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) { }
+        void update_target_module(DEVICE& device, const  nn::layers::td3_sampling::LayerForward<SOURCE_SPEC>& source, nn::layers::td3_sampling::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) { }
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
+        void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
             rl_tools::utils::polyak::update(device, source.weights_input.parameters, target.weights_input.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.biases_input.parameters, target.biases_input.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.weights_hidden.parameters, target.weights_hidden.parameters, polyak);

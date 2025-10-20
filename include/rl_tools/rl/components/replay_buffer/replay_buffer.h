@@ -4,9 +4,9 @@
 #define RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_REPLAY_BUFFER_H
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components::replay_buffer{
-    template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, bool T_DYNAMIC_ALLOCATION=true>
+    template<typename T_TYPE_POLICY, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, bool T_DYNAMIC_ALLOCATION=true>
     struct Specification{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         static constexpr TI OBSERVATION_DIM = T_OBSERVATION_DIM;
         static constexpr bool ASYMMETRIC_OBSERVATIONS = T_ASYMMETRIC_OBSERVATIONS && T_OBSERVATION_DIM_PRIVILEGED > 0;
@@ -32,7 +32,8 @@ namespace rl_tools::rl::components {
     template <typename T_SPEC>
     struct ReplayBuffer {
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
+        using T = typename TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         static constexpr TI CAPACITY = SPEC::CAPACITY;
         static constexpr TI DATA_COLS = SPEC::OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + 1 + 1;
@@ -65,7 +66,8 @@ namespace rl_tools::rl::components {
         // mem
         using SPEC = typename T_SPEC::BASE_SPEC;
         using ENVIRONMENT = typename T_SPEC::ENVIRONMENT;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
+        using T = typename TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         Matrix<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1, SPEC::DYNAMIC_ALLOCATION>> states;
         Matrix<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1, SPEC::DYNAMIC_ALLOCATION>> next_states;

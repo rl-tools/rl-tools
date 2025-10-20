@@ -26,13 +26,13 @@ namespace rl_tools::rl::loop::steps::evaluation{
     template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::TYPE_POLICY, typename T_NEXT::TI, T_NEXT>, typename T_UI = environments::DummyUI>
     struct Config: T_NEXT {
         using TAG = ConfigTag;
+        using TYPE_POLICY = typename T_NEXT::TYPE_POLICY;
         using NEXT = T_NEXT;
         using EVALUATION_PARAMETERS = T_PARAMETERS;
         using UI = T_UI;
-        using T = typename NEXT::TYPE_POLICY::DEFAULT;
         using TI = typename NEXT::TI;
-        using EVALUATION_SPEC = rl::utils::evaluation::Specification<T, TI, typename NEXT::ENVIRONMENT_EVALUATION, EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>;
-        using EVALUATION_RESULT_SPEC = rl::utils::evaluation::Specification<T, TI, typename NEXT::ENVIRONMENT_EVALUATION, EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT, EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE>;
+        using EVALUATION_SPEC = rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename NEXT::ENVIRONMENT_EVALUATION, EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>;
+        using EVALUATION_RESULT_SPEC = rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename NEXT::ENVIRONMENT_EVALUATION, EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT, EVALUATION_PARAMETERS::DETERMINISTIC_INITIAL_STATE>;
         static_assert(EVALUATION_PARAMETERS::N_EVALUATIONS > 0);
         static_assert(EVALUATION_PARAMETERS::N_EVALUATIONS < 1000000);
         template <typename CONFIG>

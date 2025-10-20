@@ -9,9 +9,9 @@ namespace rl_tools::nn_models::random_uniform{
         MINUS_ONE_TO_ONE,
         ZERO_TO_ONE
     };
-    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, Range T_RANGE>
+    template <typename T_TYPE_POLICY, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, Range T_RANGE>
     struct Specification{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         static constexpr T_TI INPUT_DIM = T_INPUT_DIM;
         static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
@@ -26,7 +26,7 @@ namespace rl_tools::nn_models{
     template <typename T_SPEC>
     struct RandomUniform{
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;

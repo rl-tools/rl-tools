@@ -6,8 +6,9 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3 {
-    template<typename T, typename TI>
+    template<typename TYPE_POLICY, typename TI>
     struct DefaultParameters {
+        using T = typename TYPE_POLICY::DEFAULT;
         static constexpr T GAMMA = 0.99;
         static constexpr TI ACTOR_BATCH_SIZE = 100;
         static constexpr TI CRITIC_BATCH_SIZE = 100;
@@ -25,7 +26,7 @@ namespace rl_tools::rl::algorithms::td3 {
     };
 
     template<
-        typename T_T,
+        typename T_TYPE_POLICY,
         typename T_TI,
         typename T_ENVIRONMENT,
         typename T_ACTOR_TYPE,
@@ -37,7 +38,7 @@ namespace rl_tools::rl::algorithms::td3 {
         bool T_INCLUDE_FIRST_STEP_IN_TARGETS = false
     >
     struct Specification {
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         using ENVIRONMENT = T_ENVIRONMENT;
         using ACTOR_TYPE = T_ACTOR_TYPE;
@@ -58,7 +59,7 @@ namespace rl_tools::rl::algorithms::td3 {
     template<typename T_SPEC>
     struct ActorTrainingBuffers{
         using SPEC = typename T_SPEC::SPEC;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
         using TI = typename SPEC::TI;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
         static constexpr TI SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH;
@@ -81,14 +82,14 @@ namespace rl_tools::rl::algorithms::td3 {
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION=true>
     struct CriticTrainingBuffersSpecification{
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
     };
     template<typename T_SPEC>
     struct CriticTrainingBuffers{
         using SPEC = typename T_SPEC::SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
         static constexpr TI SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH;
@@ -97,25 +98,26 @@ namespace rl_tools::rl::algorithms::td3 {
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static constexpr TI CRITIC_OBSERVATION_DIM = get_last(typename SPEC::CRITIC_TYPE::INPUT_SHAPE{}) - SPEC::ENVIRONMENT::ACTION_DIM;
 
+        using T_INPUT = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
 
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, ACTION_DIM>, DYNAMIC_ALLOCATION>> target_next_action_noise;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>, DYNAMIC_ALLOCATION>> next_state_action_value_input;
+        Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, ACTION_DIM>, DYNAMIC_ALLOCATION>> target_next_action_noise;
+        Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>, DYNAMIC_ALLOCATION>> next_state_action_value_input;
         template<typename SPEC::TI DIM>
         using NEXT_STATE_ACTION_VALUE_VIEW = typename decltype(next_state_action_value_input)::template VIEW_RANGE<tensor::ViewSpec<2, DIM>>;
         NEXT_STATE_ACTION_VALUE_VIEW<CRITIC_OBSERVATION_DIM> next_observations;
         NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> action_value;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> target_action_value;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_state_action_value_critic_1;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_state_action_value_critic_2;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>, DYNAMIC_ALLOCATION>> d_input;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> d_output;
+        Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> action_value;
+        Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> target_action_value;
+        Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_state_action_value_critic_1;
+        Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> next_state_action_value_critic_2;
+        Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>, DYNAMIC_ALLOCATION>> d_input;
+        Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>, DYNAMIC_ALLOCATION>> d_output;
     };
 
     template<typename T_SPEC>
     struct ActorCritic {
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
 
         T target_next_action_noise_std = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD;

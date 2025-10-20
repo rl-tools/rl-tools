@@ -11,7 +11,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
     struct State: T_NEXT {
         using CONFIG = T_CONFIG;
         using NEXT = T_NEXT;
-        using T = typename CONFIG::T;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename CONFIG::TI;
         rl::utils::evaluation::Buffer<rl::utils::evaluation::BufferSpecification<typename CONFIG::EVALUATION_SPEC, CONFIG::DYNAMIC_ALLOCATION>> evaluation_buffer;
         using RESULT_TYPE = rl::utils::evaluation::Result<typename CONFIG::EVALUATION_RESULT_SPEC>;

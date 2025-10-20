@@ -60,7 +60,7 @@ namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
-        using T = typename CONFIG::T;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename DEVICE::index_t;
 
         init(device, ts.rng, seed);

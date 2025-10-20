@@ -28,7 +28,7 @@ namespace rl_tools{
     void evaluate(const DEVICE& device, nn_models::RandomUniform<SPEC>, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::random_uniform::Buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(SPEC::OUTPUT_DIM == OUTPUT_SPEC::COLS, "Output dimension mismatch");
         static_assert(SPEC::INPUT_DIM == INPUT_SPEC::COLS, "Input dimension mismatch");
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         for(TI row_i = 0; row_i < OUTPUT_SPEC::ROWS; row_i++){
             for(TI col_i = 0; col_i < OUTPUT_SPEC::COLS; col_i++){

@@ -12,7 +12,7 @@ namespace rl_tools::rl::loop::steps::nn_analytics{
     struct State: T_NEXT {
         using CONFIG = T_CONFIG;
         using NEXT = T_NEXT;
-        using T = typename CONFIG::T;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename CONFIG::TI;
     };
 }

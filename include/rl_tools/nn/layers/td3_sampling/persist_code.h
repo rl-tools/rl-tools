@@ -25,10 +25,10 @@ namespace rl_tools {
             ss_header << input.header;
             ss_header << "#include <rl_tools/nn/layers/td3_sampling/layer.h>\n";
             ss << input.body;
-            std::string T_string = containers::persist::get_type_string<typename SPEC::T>();
+            std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
             std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             ss << ind << "namespace " << name << " {\n";
-            std::string T_parameter_string = containers::persist::get_type_string<typename SPEC::T>();
+            std::string T_parameter_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
             ss << ind << "    using PARAMETERS = " << "struct PARAMETERS{";
             ss << ind << "        static constexpr " << T_parameter_string << " STD = " << SPEC::PARAMETERS::STD << ";\n";
             ss << ind << "    };\n";
