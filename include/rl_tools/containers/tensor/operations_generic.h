@@ -540,7 +540,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename OPERATION, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     RL_TOOLS_FUNCTION_PLACEMENT void binary_operation(DEVICE& device, const OPERATION& operation, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
-        using T = typename SPEC_1::T;
+        using T_RESULT = typename SPEC_OUT::T;
         using TI = typename DEVICE::index_t;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_OUT>());
@@ -554,9 +554,9 @@ namespace rl_tools{
         }
         else{
             for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
-                T t1_value = get(device, t1, i);
-                T t2_value = get(device, t2, i);
-                T result_value = OPERATION::operation(device, operation, t1_value, t2_value);
+                auto t1_value = get(device, t1, i);
+                auto t2_value = get(device, t2, i);
+                T_RESULT result_value = OPERATION::operation(device, operation, t1_value, t2_value);
                 set(device, result, result_value, i);
             }
         }
