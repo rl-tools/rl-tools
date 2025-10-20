@@ -339,7 +339,6 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename STATE_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate_step(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, typename nn::layers::gru::State<STATE_SPEC>& state, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(length(typename INPUT_SPEC::SHAPE{}) == 2, "evaluate_step does not have a squence dimension (only batch_size x input_dim)");
         static_assert(length(typename OUTPUT_SPEC::SHAPE{}) == 2);
@@ -771,7 +770,7 @@ namespace rl_tools{
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::backward_full");
 #endif
-        using T = typename LAYER_SPEC::T;
+        using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         Tensor<tensor::Specification<T, TI, typename D_INPUT_SPEC::SHAPE, true>> input_dummy; // not allocated, pointer should be optimized away because it is not used
         _backward<true, false>(device, layer, input_dummy, d_output, d_input, buffers, mode);
