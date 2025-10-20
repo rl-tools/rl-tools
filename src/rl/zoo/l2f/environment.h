@@ -18,7 +18,6 @@ namespace rl_tools::rl::zoo::l2f{
     template <typename DEVICE, typename TYPE_POLICY, typename TI, typename DOMAIN_RANDOMIZATION_OPTIONS=DefaultParametersDomainRandomizationOptions>
     struct ENVIRONMENT_FACTORY{
         using T = typename TYPE_POLICY::DEFAULT;
-        static_assert(rlt::utils::typing::is_same_v<T, float>);
 
         static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
