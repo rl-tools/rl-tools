@@ -169,6 +169,7 @@ namespace rl_tools::nn_models::sequential{
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION = true>
     struct ModuleBufferSpecification {
         using SPEC = T_SPEC;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         using CONTENT = typename SPEC::CONTENT;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;

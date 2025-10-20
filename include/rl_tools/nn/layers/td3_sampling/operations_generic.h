@@ -75,7 +75,7 @@ namespace rl_tools{
     template <bool SET_PRE_CLIPPING, typename DEVICE, typename SPEC, typename INPUT_SPEC, typename PRE_CLIP_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate_per_sample(DEVICE& device, const nn::layers::td3_sampling::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<PRE_CLIP_SPEC>& pre_clip, Matrix<OUTPUT_SPEC>& output, nn::layers::td3_sampling::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using PARAMETERS = typename SPEC::PARAMETERS;
         for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
             T mean = get(input, row_i, col_i);
@@ -120,8 +120,6 @@ namespace rl_tools{
         static_assert(OUTPUT_SPEC::COLS == SPEC::DIM);
         static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
-        using PARAMETERS = typename SPEC::PARAMETERS;
         for(TI row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
             evaluate_per_sample<false>(device, layer, input, output, output, buffer, rng, row_i, mode); // we can pass output for pre_clipping because we don't set it
         }
@@ -131,8 +129,6 @@ namespace rl_tools{
         static_assert(INPUT_SPEC::COLS == SPEC::DIM);
         static_assert(INPUT_SPEC::ROWS == decltype(layer.output)::SPEC::ROWS);
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
-        using PARAMETERS = typename SPEC::PARAMETERS;
         for(TI row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
             evaluate_per_sample<true>(device, layer, input, layer.pre_clip, layer.output, buffer, rng, row_i, mode);
         }

@@ -12,7 +12,7 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
     struct State: T_NEXT {
         using CONFIG = T_CONFIG;
         using NEXT = T_NEXT;
-        using T = typename CONFIG::T;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename CONFIG::TI;
         rl::utils::evaluation::Buffer<rl::utils::evaluation::BufferSpecification<typename CONFIG::SAVE_TRAJECTORIES_SPEC, CONFIG::DYNAMIC_ALLOCATION>> save_trajectories_buffer;
         rl::utils::evaluation::Result<typename CONFIG::SAVE_TRAJECTORIES_SPEC> save_trajectories_result;

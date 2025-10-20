@@ -5,12 +5,13 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::flag::td3{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
-        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, T, TI>::ENVIRONMENT;
-        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI>::ENVIRONMENT;
+        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+            using T = typename TYPE_POLICY::DEFAULT;
             static constexpr T NOISE_MULTIPLIER = 1;
-            struct TD3_PARAMETERS: rl::algorithms::td3::DefaultParameters<T, TI>{
+            struct TD3_PARAMETERS: rl::algorithms::td3::DefaultParameters<TYPE_POLICY, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 32;
                 static constexpr TI CRITIC_BATCH_SIZE = 32;
                 static constexpr T GAMMA = 0.95;
@@ -44,17 +45,17 @@ namespace rl_tools::rl::zoo::flag::td3{
                 static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
             };
 
-            struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr T ALPHA = 1e-4;
             };
-            struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr T ALPHA = 1e-3;
             };
-            struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct ALPHA_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr T ALPHA = 1e-3;
             };
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

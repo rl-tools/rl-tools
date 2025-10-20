@@ -223,8 +223,6 @@ namespace rl_tools{
 //        static_assert(POLICY::OUTPUT_DIM == (SPEC::ENVIRONMENT::ACTION_DIM * (SPEC::STOCHASTIC_POLICY ? 2 : 1)), "The policy's output dimension must match the environment's action dimension.");
         static_assert(POLICY_OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM || POLICY_OUTPUT_DIM == 2*SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         // todo: increase efficiency by removing the double observation of each state
-        using T = typename SPEC::T;
-        using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         bool policy_switch = runner.previous_policy_set && (POLICY_INDEX != runner.previous_policy);
         if(policy_switch){
             truncate_all(device, runner);
@@ -241,7 +239,6 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void gather_batch_step(DEVICE& device, rl::components::OffPolicyRunner<RUNNER_SPEC>& runner, rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng){
         // note: make sure that the replay_buffer has at least one transition in it;
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::T;
         constexpr TI PADDED_SEQUENCE_LENGTH = BATCH_SPEC::PADDED_SEQUENCE_LENGTH;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
         static_assert(PADDED_SEQUENCE_LENGTH >= 2, "PADDED_SEQUENCE_LENGTHSEQUENCE_LENGTH must be at least 2, such that the observation and next observation can be accommodated");
@@ -422,9 +419,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
     void gather_batch(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, RNG& rng){
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
-        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using RUNNER = rl::components::OffPolicyRunner<SPEC>;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         for(TI batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             TI env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (TI) 0, (TI)(SPEC::PARAMETERS::N_ENVIRONMENTS - 1), rng);

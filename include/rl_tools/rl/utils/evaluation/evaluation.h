@@ -16,9 +16,10 @@ namespace rl_tools::rl::utils::evaluation{
 
         ENV_STATE state;
     };
-    template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_EPISODES, T_TI T_STEP_LIMIT, bool T_DETERMINISTIC_INITIAL_STATE=false>
+    template <typename T_TYPE_POLICY, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_EPISODES, T_TI T_STEP_LIMIT, bool T_DETERMINISTIC_INITIAL_STATE=false>
     struct Specification{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
+        using T = typename TYPE_POLICY::DEFAULT;
         using TI = T_TI;
         using ENVIRONMENT = T_ENVIRONMENT;
         constexpr static TI N_EPISODES = T_N_EPISODES;
@@ -33,7 +34,7 @@ namespace rl_tools::rl::utils::evaluation{
     template <typename T_SPEC>
     struct Data{
         using SPEC = typename T_SPEC::SPEC;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
@@ -49,7 +50,7 @@ namespace rl_tools::rl::utils::evaluation{
     template <typename T_SPEC>
     struct Result{
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         constexpr static auto N_EPISODES = SPEC::N_EPISODES;
@@ -71,7 +72,7 @@ namespace rl_tools::rl::utils::evaluation{
     template <typename T_SPEC>
     struct Buffer{
         using SPEC = typename T_SPEC::SPEC;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;

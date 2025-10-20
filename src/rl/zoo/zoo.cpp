@@ -145,7 +145,7 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::sac::FACTORY<DEVICE, TYPE_POLICY, T
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
@@ -157,7 +157,7 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 #endif
 #elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::td3::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::td3::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
@@ -169,7 +169,7 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_multitask_v1::td3::FACTORY<DEVIC
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::td3::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::td3::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
@@ -414,7 +414,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #else
         {
             constexpr TI NUM_EPISODES = 100;
-            rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, LOOP_CONFIG::ENVIRONMENT, NUM_EPISODES, LOOP_CONFIG::CORE_PARAMETERS::EPISODE_STEP_LIMIT>> result;
+            rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, LOOP_CONFIG::ENVIRONMENT, NUM_EPISODES, LOOP_CONFIG::CORE_PARAMETERS::EPISODE_STEP_LIMIT>> result;
             using EVALUATION_ACTOR_TYPE_BATCH_SIZE = typename LOOP_CONFIG::NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES>;
             using EVALUATION_ACTOR_TYPE = typename EVALUATION_ACTOR_TYPE_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<LOOP_CONFIG::DYNAMIC_ALLOCATION>>;
             rlt::rl::environments::DummyUI ui;

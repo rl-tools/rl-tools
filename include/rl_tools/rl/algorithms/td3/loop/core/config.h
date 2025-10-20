@@ -17,9 +17,10 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3::loop::core{
     // Config State (Init/Step)
 
-    template<typename T, typename TI, typename ENVIRONMENT>
+    template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT>
     struct DefaultParameters{
-        using TD3_PARAMETERS = rl::algorithms::td3::DefaultParameters<T, TI>;
+        using T = typename TYPE_POLICY::DEFAULT;
+        using TD3_PARAMETERS = rl::algorithms::td3::DefaultParameters<TYPE_POLICY, TI>;
         static constexpr TI N_ENVIRONMENTS = 1;
         static constexpr TI N_WARMUP_STEPS = 100; // Exploration executed with a uniform random policy for N_WARMUP_STEPS steps
         static constexpr TI N_WARMUP_STEPS_CRITIC = 100; // Number of steps before critic training starts
@@ -41,22 +42,23 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         static constexpr T EXPLORATION_NOISE = 0.1;
         static constexpr bool SHARED_BATCH = true;
 
-        using BATCH_SAMPLING_PARAMETERS = rl::components::off_policy_runner::SequentialBatchParameters<T, TI, TD3_PARAMETERS::SEQUENCE_LENGTH, rl::components::off_policy_runner::SequentialBatchParametersDefault>;
+        using BATCH_SAMPLING_PARAMETERS = rl::components::off_policy_runner::SequentialBatchParameters<TYPE_POLICY, TI, TD3_PARAMETERS::SEQUENCE_LENGTH, rl::components::off_policy_runner::SequentialBatchParametersDefault>;
 
-        using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
+        using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>;
     };
 
 
-    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename, bool> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP, bool T_DYNAMIC_ALLOCATION=true>
+    template<typename T_TYPE_POLICY, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_TYPE_POLICY, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename, bool> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP, bool T_DYNAMIC_ALLOCATION=true>
     struct Config{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
+        using T_CONFIG = typename TYPE_POLICY::DEFAULT;
         using TI = T_TI;
         using RNG = T_RNG;
         using ENVIRONMENT = T_ENVIRONMENT;
         using ENVIRONMENT_EVALUATION = T_ENVIRONMENT;
         static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
 
-        using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, T_PARAMETERS, DYNAMIC_ALLOCATION>;
+        using NN = APPROXIMATOR_CONFIG<TYPE_POLICY, TI, T_ENVIRONMENT, T_PARAMETERS, DYNAMIC_ALLOCATION>;
 //        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
 
@@ -64,10 +66,11 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         static constexpr TI ENVIRONMENT_STEPS_PER_LOOP_STEP = CORE_PARAMETERS::N_ENVIRONMENTS;
 
-        using EXPLORATION_POLICY_SPEC = nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+
+        using EXPLORATION_POLICY_SPEC = nn_models::random_uniform::Specification<TYPE_POLICY, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
         using EXPLORATION_POLICY = nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
 
-        using ACTOR_CRITIC_SPEC = rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::ACTOR_TARGET_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, typename NN::OPTIMIZER, typename CORE_PARAMETERS::TD3_PARAMETERS, CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS>;
+        using ACTOR_CRITIC_SPEC = rl::algorithms::td3::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::ACTOR_TARGET_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, typename NN::OPTIMIZER, typename CORE_PARAMETERS::TD3_PARAMETERS, CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS>;
         using ACTOR_CRITIC_TYPE = rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
         static constexpr TI NUM_NNS = 3;
         using EVAL_ACTOR_TYPE = typename NN::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, CORE_PARAMETERS::N_ENVIRONMENTS>;
@@ -79,16 +82,16 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             static constexpr TI EPISODE_STEP_LIMIT = CORE_PARAMETERS::EPISODE_STEP_LIMIT;
             static constexpr bool COLLECT_EPISODE_STATS = CORE_PARAMETERS::COLLECT_EPISODE_STATS;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = CORE_PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
-            static constexpr T EXPLORATION_NOISE = CORE_PARAMETERS::EXPLORATION_NOISE;
+            static constexpr T_CONFIG EXPLORATION_NOISE = CORE_PARAMETERS::EXPLORATION_NOISE;
             static constexpr bool SAMPLE_PARAMETERS = true;
         };
         using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY, EVAL_ACTOR_TYPE>;
 
-        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, T_DYNAMIC_ALLOCATION>;
+        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, T_DYNAMIC_ALLOCATION>;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static constexpr TI TARGET_SEQUENCE_LENGTH = CORE_PARAMETERS::TD3_PARAMETERS::SEQUENCE_LENGTH + (CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS::INCLUDE_FIRST_STEP_IN_TARGETS ? 1 : 0);
 
-        static constexpr TI DEFAULT_SEQUENCE_LENGTH = DefaultParameters<T, TI, ENVIRONMENT>::TD3_PARAMETERS::SEQUENCE_LENGTH;
+        static constexpr TI DEFAULT_SEQUENCE_LENGTH = DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>::TD3_PARAMETERS::SEQUENCE_LENGTH;
         static constexpr bool USING_DEFAULT_BATCH_SAMPLING_PARAMETERS = rl_tools::utils::typing::is_base_of_v<components::off_policy_runner::SequentialBatchParametersDefault, typename CORE_PARAMETERS::BATCH_SAMPLING_PARAMETERS>;
         static_assert(CORE_PARAMETERS::TD3_PARAMETERS::SEQUENCE_LENGTH == DEFAULT_SEQUENCE_LENGTH || !USING_DEFAULT_BATCH_SAMPLING_PARAMETERS, "When setting a custom sequence length, please study and set custom batch sampling parameters.");
 

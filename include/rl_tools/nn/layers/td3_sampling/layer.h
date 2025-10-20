@@ -20,9 +20,9 @@ namespace rl_tools{
                 // this mode uses the noise from the Buffer for debugging / no-side-effect inference
             };
         }
-        template <typename T>
+        template <typename TYPE_POLICY>
         struct DefaultParameters{
-            static constexpr T STD = 0.1;
+            static constexpr typename TYPE_POLICY::DEFAULT STD = 0.1;
         };
 
         struct State{};
@@ -37,13 +37,14 @@ namespace rl_tools{
         template <typename BUFFER_SPEC>
         struct Buffer{
             using LAYER_SPEC = typename BUFFER_SPEC::SPEC;
-            using NOISE_CONTAINER_SPEC = matrix::Specification<typename LAYER_SPEC::T, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+            using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
+            using NOISE_CONTAINER_SPEC = matrix::Specification<T, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using NOISE_CONTAINER_TYPE = Matrix<NOISE_CONTAINER_SPEC>;
             NOISE_CONTAINER_TYPE noise;
         };
-        template<typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
+        template<typename T_TYPE_POLICY, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_TYPE_POLICY>>
         struct Configuration {
-            using T = T_T;
+            using TYPE_POLICY = T_TYPE_POLICY;
             using TI = T_TI;
             using PARAMETERS = T_PARAMETERS;
         };
@@ -52,7 +53,7 @@ namespace rl_tools{
             using CONFIG = T_CONFIG;
             using CAPABILITY = T_CAPABILITY;
             using INPUT_SHAPE = T_INPUT_SHAPE;
-            using T = typename CONFIG::T;
+            using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
             using TI = typename CONFIG::TI;
             static constexpr TI DIM = get_last(INPUT_SHAPE{});
             static constexpr TI INPUT_DIM = DIM;
@@ -66,7 +67,7 @@ namespace rl_tools{
         template <typename T_SPEC>
         struct LayerForward{
             using SPEC = T_SPEC;
-            using T = typename SPEC::T;
+            using TYPE_POLICY = typename SPEC::TYPE_POLICY;
             using TI = typename SPEC::TI;
             static constexpr TI DIM = SPEC::DIM;
             static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
@@ -77,6 +78,8 @@ namespace rl_tools{
             template <typename NEW_INPUT_SHAPE>
             using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
 
+            using T = typename TYPE_POLICY::DEFAULT;
+
             T std = SPEC::PARAMETERS::STD;
 
             template<bool DYNAMIC_ALLOCATION=true>
@@ -86,13 +89,15 @@ namespace rl_tools{
         };
         template<typename SPEC>
         struct LayerBackward: public LayerForward<SPEC> {
-            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
+            using ACTIVATION_T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
+            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<ACTIVATION_T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
             using PRE_ACTIVATIONS_CONTAINER_TYPE = Matrix<PRE_ACTIVATIONS_CONTAINER_SPEC>;
             PRE_ACTIVATIONS_CONTAINER_TYPE pre_clip;
         };
         template<typename SPEC>
         struct LayerGradient: public LayerBackward<SPEC> {
-            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
+            using T = typename SPEC::TYPE_POLICY::DEFAULT;
+            using OUTPUT_CONTAINER_SPEC = matrix::Specification<T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
             using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
             OUTPUT_CONTAINER_TYPE output;
         };
