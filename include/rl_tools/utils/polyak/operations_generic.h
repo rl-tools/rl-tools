@@ -70,8 +70,7 @@ namespace rl_tools::utils::polyak {
     }
     template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, typename T_POLYAK>
     void update(DEVICE& device, const  Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, const T_POLYAK polyak, const bool clip = false, typename SOURCE_SPEC::T clip_value = 1) {
-        using T = typename SOURCE_SPEC::T;
-        binary_kernels::PolyakUpdate<T> params{};
+        binary_kernels::PolyakUpdate<T_POLYAK> params{};
         params.parameters.polyak = polyak;
         params.parameters.clip = clip;
         params.parameters.clip_value = clip_value;
