@@ -777,7 +777,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        using T = typename LAYER_SPEC::T;
+        using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE, true>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
         _backward<false, true>(device, layer, input, d_output, d_input_dummy, buffers, mode);
