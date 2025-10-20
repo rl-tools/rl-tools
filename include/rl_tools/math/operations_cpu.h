@@ -27,6 +27,10 @@ namespace rl_tools::math {
         return std::isnan(x);
     }
 #else
+    template <typename T>
+    bool is_nan(const devices::math::CPU, T){
+        return false;
+    }
     bool is_nan(const devices::math::CPU, const float x){
         is_nan_struct_float u;
         u.f = x;

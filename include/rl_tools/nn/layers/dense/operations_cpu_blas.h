@@ -34,8 +34,8 @@ namespace rl_tools{
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>, typename = typename utils::typing::enable_if_t<nn::layers::dense::CHECK_FORMATS<nn::layers::dense::LayerForward<LAYER_SPEC>, INPUT_SPEC, OUTPUT_SPEC>::VALUE>>
     void evaluate(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        using WEIGHT_TYPE = typename decltype(layer.weights)::T;
-        using BIAS_TYPE = typename decltype(layer.biases)::T;
+        using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        using BIAS_TYPE = typename decltype(layer.biases.parameters)::T;
         static_assert(utils::typing::is_same_v<WEIGHT_TYPE, BIAS_TYPE>);
         static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename INPUT_SPEC::T>);
         static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename OUTPUT_SPEC::T>);
@@ -187,8 +187,8 @@ namespace rl_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename D_PRE_ACTIVATIONS_SPEC, typename D_INPUT_SPEC, typename = typename utils::typing::enable_if_t<nn::layers::dense::CHECK_FORMATS<nn::layers::dense::LayerForward<LAYER_SPEC>, D_INPUT_SPEC, D_PRE_ACTIVATIONS_SPEC>::VALUE>>
     void backward_input_additional(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activaitons, Matrix<D_INPUT_SPEC>& d_input) {
         // ATTENTION: this requires d_pre_activation as inputs and not d_output!!
-        using WEIGHT_TYPE = typename decltype(layer.weights)::T;
-        using BIAS_TYPE = typename decltype(layer.biases)::T;
+        using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        using BIAS_TYPE = typename decltype(layer.biases.parameters)::T;
         static_assert(utils::typing::is_same_v<WEIGHT_TYPE, BIAS_TYPE>);
         static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename D_INPUT_SPEC::T>);
         static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename D_PRE_ACTIVATIONS_SPEC::T>);
