@@ -8,8 +8,9 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::bottleneck_v0{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI>
     struct ENVIRONMENT_FACTORY{
+        using T = typename TYPE_POLICY::DEFAULT;
         struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::DefaultParameters<T, TI>{
             static constexpr TI N_AGENTS = 5;
             static constexpr TI LIDAR_RESOLUTION = 5;
@@ -23,7 +24,7 @@ namespace rl_tools::rl::zoo::bottleneck_v0{
             static constexpr T AGENT_MAX_ANGULAR_ACCELERATION = 20;
             static constexpr T DT = 0.05;
         };
-        using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
+        using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<TYPE_POLICY, TI, ENVIRONMENT_PARAMETERS>;
         using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
     };
 }

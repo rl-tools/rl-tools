@@ -13,9 +13,9 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::multi_agent_wrapper {
-    template <typename T_T, typename T_TI, T_TI T_N_AGENTS, typename T_MODULE>
+    template <typename T_TYPE_POLICY, typename T_TI, T_TI T_N_AGENTS, typename T_MODULE>
     struct Configuration{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         static constexpr TI N_AGENTS = T_N_AGENTS;
         using MODULE = T_MODULE;
@@ -26,7 +26,7 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
 
     template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
     struct Specification: T_CAPABILITY, T_CONFIG{
-        using T = typename T_CONFIG::T;
+        using TYPE_POLICY = typename T_CONFIG::TYPE_POLICY;
         using TI = typename T_CONFIG::TI;
         using CONFIG = T_CONFIG;
         using CAPABILITY = T_CAPABILITY;
@@ -76,14 +76,17 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
     struct ModuleBuffer{
         using BUFFER_SPEC = T_BUFFER_SPEC;
         using SPEC = typename BUFFER_SPEC::SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         static constexpr TI INNER_BATCH_SIZE = BATCH_SIZE * SPEC::N_AGENTS;
 
-        using INPUT_BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::INPUT_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+        using T_INPUT = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
+        using T_OUTPUT = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+
+        using INPUT_BUFFER_SPEC = tensor::Specification<T_INPUT, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::INPUT_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
         using INPUT_BUFFER_TYPE = Tensor<INPUT_BUFFER_SPEC>;
-        using OUTPUT_BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::OUTPUT_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_BUFFER_SPEC = tensor::Specification<T_OUTPUT, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::OUTPUT_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
         using OUTPUT_BUFFER_TYPE = Tensor<OUTPUT_BUFFER_SPEC>;
         INPUT_BUFFER_TYPE input, d_input;
         OUTPUT_BUFFER_TYPE output;
@@ -94,7 +97,7 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
     template<typename T_SPEC>
     struct ModuleForward{
         using SPEC = T_SPEC;
-        using T = typename SPEC::T;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         using MODEL = typename SPEC::MODEL;
         static constexpr TI N_AGENTS = SPEC::N_AGENTS;

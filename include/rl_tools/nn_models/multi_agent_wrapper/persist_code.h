@@ -13,7 +13,6 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     persist::Code save_code_split(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& module, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
-        using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -27,7 +26,7 @@ namespace rl_tools{
         auto content = save_code_split(device, module.content, "content", const_declaration, indent+1);
         ss_header << content.header;
         ss << content.body;
-        std::string T_string = containers::persist::get_type_string<T>();
+        std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
         std::string TI_string = containers::persist::get_type_string<TI>();
         ss << "\n";
         ss << ind << "    using CONFIG = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::multi_agent_wrapper::Configuration<";

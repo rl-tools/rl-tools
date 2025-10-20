@@ -46,9 +46,9 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         static constexpr TI PER_AGENT_DIM = 7 + PARAMETERS::LIDAR_RESOLUTION;
         static constexpr TI DIM = PARAMETERS::N_AGENTS * PER_AGENT_DIM;
     };
-    template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T, T_TI>, typename T_OBSERVATION = Observation<T_PARAMETERS>, typename T_OBSERVATION_PRIVILEGED = ObservationPrivileged<T_PARAMETERS>>
+    template <typename T_TYPE_POLICY, typename T_TI, typename T_PARAMETERS = DefaultParameters<typename T_TYPE_POLICY::DEFAULT, T_TI>, typename T_OBSERVATION = Observation<T_PARAMETERS>, typename T_OBSERVATION_PRIVILEGED = ObservationPrivileged<T_PARAMETERS>>
     struct Specification{
-        using T = T_T;
+        using T = typename T_TYPE_POLICY::DEFAULT;
         using TI = T_TI;
         using OBSERVATION = T_OBSERVATION;
         using OBSERVATION_PRIVILEGED = T_OBSERVATION_PRIVILEGED;
