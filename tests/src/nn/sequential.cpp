@@ -33,6 +33,7 @@ using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MOD
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     using TI = typename DEVICE::index_t;
 
 
@@ -40,7 +41,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     {
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 20>;
 
-        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
         
 
@@ -54,9 +55,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     {
 
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 20>;
-        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-        using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
         
         using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2>>;
@@ -68,9 +69,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     }
     {
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 20>;
-        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-        using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 100, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 100, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
 
         using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2>>;
@@ -82,13 +83,13 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     }
     {
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 20>;
-        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-        using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 11, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 11, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
-        using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 11, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 11, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
-        using LAYER_4_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 20, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using LAYER_4_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 20, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_4 = rlt::nn::layers::dense::BindConfiguration<LAYER_4_CONFIG>;
 
         using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<LAYER_4>>>>;
@@ -100,15 +101,15 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     }
     {
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 20>;
-        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-        using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 11, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 11, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
-        using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 11, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 11, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
-        using LAYER_4_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 100, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using LAYER_4_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 100, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_4 = rlt::nn::layers::dense::BindConfiguration<LAYER_4_CONFIG>;
-        using LAYER_5_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 20, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using LAYER_5_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 20, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_5 = rlt::nn::layers::dense::BindConfiguration<LAYER_5_CONFIG>;
         
         using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<LAYER_4, Module<LAYER_5>>>>>;
@@ -124,22 +125,23 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     using TI = typename DEVICE::index_t;
 
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
-    using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 2, 3, 10, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using MLP_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 2, 3, 10, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     using MLP = rlt::nn_models::mlp::NeuralNetwork<MLP_CONFIG, CAPABILITY_ADAM, INPUT_SHAPE>;
 
     using LAYER_1_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
-    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
     using LAYER_2_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
-    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
     using LAYER_3_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
-    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -239,14 +241,15 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     using TI = typename DEVICE::index_t;
     constexpr TI BATCH_SIZE = 10;
 
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 3>;
-    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
 
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2>>;
@@ -265,17 +268,18 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     using TI = typename DEVICE::index_t;
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
     using LAYER_1_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
-    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
     using LAYER_2_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
-    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
     using LAYER_3_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
-    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
@@ -337,23 +341,24 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     using TI = typename DEVICE::index_t;
     constexpr TI BATCH_SIZE = 1;
     constexpr T THRESHOLD = 1e-8;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 2, 3, 10, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using MLP_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 2, 3, 10, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using MLP = rlt::nn_models::mlp::NeuralNetwork<MLP_CONFIG, CAPABILITY_ADAM, INPUT_SHAPE>;
 
     using LAYER_1_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
-    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
     using LAYER_2_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
-    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
     using LAYER_3_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
-    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -462,9 +467,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     rlt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock, layer_buffer, rng);
     rlt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential, layer_buffer, rng);
 
-    rlt::set(sequential.content.weights.gradient, 0, 0, 10);
-    rlt::set(sequential.next_module.content.weights.gradient, 0, 0, 10);
-    rlt::set(sequential.next_module.next_module.content.weights.gradient, 0, 0, 10);
+    rlt::set(device, sequential.content.weights.gradient, 10, 0, 0);
+    rlt::set(device, sequential.next_module.content.weights.gradient, 10, 0, 0);
+    rlt::set(device, sequential.next_module.next_module.content.weights.gradient, 10, 0, 0);
     auto output_sequential_tensor_ravel = rlt::to_tensor(device, output_sequential);
     auto output_sequential_tensor = rlt::view_memory<SEQUENTIAL::OUTPUT_SHAPE>(device, output_sequential_tensor_ravel);
     rlt::forward(device, sequential, input, output_sequential_tensor, buffer_sequential, rng);
@@ -501,6 +506,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD_2){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     using TI = typename DEVICE::index_t;
     constexpr TI BATCH_SIZE = 1;
     constexpr T THRESHOLD = 1e-8;
@@ -508,13 +514,13 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD_2){
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     using LAYER_1_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
-    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
     using LAYER_2_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
-    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 6, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 6, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
     using LAYER_3_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 6>;
-    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;

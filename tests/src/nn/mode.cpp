@@ -9,13 +9,14 @@ namespace rlt = rl_tools;
 
 TEST(RL_TOOLS_NN_MODE, LAYER) {
     using DEVICE = rlt::devices::DefaultCPU;
+    using TYPE_POLICY = rlt::numeric_types::Policy<double>;
     using T = double;
     using TI = DEVICE::index_t;
     constexpr TI INPUT_DIM = 10;
     constexpr TI OUTPUT_DIM = 5;
     constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::RELU;
     using PARAMETER_TYPE = rlt::nn::parameters::Plain;
-    using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
+    using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, INPUT_DIM>;
     rlt::nn::layers::dense::Layer<LAYER_CONFIG, rlt::nn::capability::Forward<>, INPUT_SHAPE> layer;
     decltype(layer)::template Buffer<1> buffer;
