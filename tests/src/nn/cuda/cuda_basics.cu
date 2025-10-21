@@ -821,144 +821,145 @@ TEST(RL_TOOLS_NN_CUDA, BACKWARD) {
     BACKWARD<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 100>();
 }
 
-// template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
-// void ADAM_UPDATE() {
-//     using DEVICE_CPU = rlt::devices::DefaultCPU;
-//     using DEVICE_CUDA = rlt::devices::DefaultCUDA;
-//
-//     constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
-//     using CONFIG = rlt::nn_models::mlp::Configuration<T, TI, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::RELU, ACTIVATION_FUNCTION>;
-//
-//     using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
-//     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-//
-//     std::cout << "BACKWARD<" << (rlt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
-//     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
-//     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-//     using NetworkTypeCPU = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
-//     using NetworkTypeCUDA = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
-//     DEVICE_CPU device_cpu;
-//     DEVICE_CUDA device_cuda;
-//     rlt::init(device_cuda);
-//     NetworkTypeCPU network_cpu;
-//     NetworkTypeCPU network_cpu_pre;
-//     NetworkTypeCPU network_cuda_cpu;
-//     typename NetworkTypeCPU::template Buffer<> network_cpu_buffers;
-//     NetworkTypeCUDA network_cuda;
-//     typename NetworkTypeCPU::template Buffer<> network_cuda_buffers;
-//     OPTIMIZER optimizer_cpu, optimizer_cuda;
-//     rlt::malloc(device_cpu, network_cpu);
-//     rlt::malloc(device_cpu, network_cpu_pre);
-//     rlt::malloc(device_cpu, network_cuda_cpu);
-//     rlt::malloc(device_cpu, network_cpu_buffers);
-//     rlt::malloc(device_cuda, network_cuda);
-//     rlt::malloc(device_cuda, network_cuda_buffers);
-//     rlt::malloc(device_cpu, optimizer_cpu);
-//     rlt::malloc(device_cuda, optimizer_cuda);
-//
-//     DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng;
-//     rlt::init(device_cpu, rng);
-//     DEVICE_CUDA::SPEC::RANDOM::ENGINE<> rng_cuda;
-//     rlt::malloc(device_cuda, rng_cuda);
-//     rlt::init(device_cuda, rng_cuda);
-//
-//     rlt::init_weights(device_cpu, network_cpu, rng);
-//     rlt::zero_gradient(device_cpu, network_cpu);
-//     rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
-//     rlt::copy(device_cpu, device_cpu, network_cpu, network_cpu_pre);
-//
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, INPUT_DIM>> input_cpu;
-//     rlt::malloc(device_cpu, input_cpu);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> output_cpu;
-//     rlt::malloc(device_cpu, output_cpu);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> output_target_cpu;
-//     rlt::malloc(device_cpu, output_target_cpu);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> output_cuda_cpu;
-//     rlt::malloc(device_cpu, output_cuda_cpu);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> d_output_cpu;
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> d_output_cuda;
-//     rlt::malloc(device_cuda, d_output_cuda);
-//     rlt::malloc(device_cpu, d_output_cpu);
-//
-//     rlt::randn(device_cpu, input_cpu, rng);
-//     rlt::randn(device_cpu, output_target_cpu, rng);
-//     {
-//         rlt::forward(device_cpu, network_cpu, input_cpu, network_cpu_buffers, rng);
-//         rlt::nn::loss_functions::mse::gradient(device_cpu, rlt::output(network_cpu), output_target_cpu, d_output_cpu);
-//         rlt::backward(device_cpu, network_cpu, input_cpu, d_output_cpu, network_cpu_buffers);
-//     }
-//     rlt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
-//
-//
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, INPUT_DIM>> input_cuda;
-//     rlt::malloc(device_cuda, input_cuda);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, OUTPUT_DIM>> output_cuda;
-//     rlt::malloc(device_cuda, output_cuda);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> output_target_cuda;
-//     rlt::malloc(device_cuda, output_target_cuda);
-//
-//     rlt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
-//     rlt::copy(device_cpu, device_cuda, output_target_cpu, output_target_cuda);
-//
-//     rlt::zero_gradient(device_cpu, network_cpu);
-//     rlt::zero_gradient(device_cuda, network_cuda);
-//     rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
-//     rlt::reset_optimizer_state(device_cuda, optimizer_cuda, network_cuda);
-// //    rlt::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
-//     {
-//         rlt::forward(device_cpu, network_cpu, input_cpu, network_cpu_buffers, rng);
-//         rlt::nn::loss_functions::mse::gradient(device_cpu, rlt::output(network_cpu), output_target_cpu, d_output_cpu);
-//         rlt::backward(device_cpu, network_cpu, input_cpu, d_output_cpu, network_cpu_buffers);
-//     }
-//     rlt::step(device_cpu, optimizer_cpu, network_cpu);
-// //    rlt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
-//     {
-//         rlt::forward(device_cuda, network_cuda, input_cuda, network_cuda_buffers, rng_cuda);
-//         rlt::nn::loss_functions::mse::gradient(device_cuda, rlt::output(network_cuda), output_target_cuda, d_output_cuda);
-//         rlt::backward(device_cuda, network_cuda, input_cuda, d_output_cuda, network_cuda_buffers);
-//     }
-//     rlt::step(device_cuda, optimizer_cuda, network_cuda);
-//     cudaDeviceSynchronize();
-//
-//     rlt::copy(device_cuda, device_cpu, network_cuda, network_cuda_cpu);
-//     auto evaluation_diff_pre = rlt::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * OUTPUT_DIM);
-//     auto evaluation_diff = rlt::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * OUTPUT_DIM);
-//
-//     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
-//     auto threshold = (rlt::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-14);
-//     if(std::isnan(evaluation_diff) || evaluation_diff > threshold){
-//         ASSERT_LT(evaluation_diff, threshold);
-//     }
-//
-//     {
-//         cudaDeviceSynchronize();
-//         auto start = std::chrono::high_resolution_clock::now();
-//         for(int i = 0; i < ITERATIONS; ++i)
-//         {
-// //            rlt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
-//             {
-//                 rlt::forward(device_cuda, network_cuda, input_cuda, network_cuda_buffers, rng_cuda);
-//                 rlt::nn::loss_functions::mse::gradient(device_cuda, rlt::output(network_cuda), output_target_cuda, d_output_cuda);
-//                 rlt::backward(device_cuda, network_cuda, input_cuda, d_output_cuda, network_cuda_buffers);
-//             }
-//             rlt::step(device_cuda, optimizer_cuda, network_cuda);
-//             cudaDeviceSynchronize();
-//         }
-//         auto end = std::chrono::high_resolution_clock::now();
-//         std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
-//     }
-// }
-//
-// TEST(RL_TOOLS_NN_CUDA, ADAM_UPDATE) {
-//     using DEFAULT_DTYPE = rlt::numeric_types::Policy<float>;
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    1, 256,  10, 100, 1>();
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    2, 256,  10, 100, 1>();
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,   32, 256,  10, 100, 1>();
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int, 1024, 256,  10, 100, 1>();
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,   10, 256, 200, 100, 1>();
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    9, 256,  60, 100, 1>();
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,  200, 256,  11, 100, 1>();
-//     ADAM_UPDATE<rlt::numeric_types::Policy<double>, unsigned int,  200, 256,  12, 101, 1>();
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,   64, 256,  50, 101, 100>();
-//     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 100>();
-// }
+template <typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
+void ADAM_UPDATE() {
+    using T = typename TYPE_POLICY::DEFAULT;
+    using DEVICE_CPU = rlt::devices::DefaultCPU;
+    using DEVICE_CUDA = rlt::devices::DefaultCUDA;
+
+    constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
+    using CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::RELU, ACTIVATION_FUNCTION>;
+
+    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
+
+    std::cout << "BACKWARD<" << (rlt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+    using NetworkTypeCPU = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
+    using NetworkTypeCUDA = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
+    DEVICE_CPU device_cpu;
+    DEVICE_CUDA device_cuda;
+    rlt::init(device_cuda);
+    NetworkTypeCPU network_cpu;
+    NetworkTypeCPU network_cpu_pre;
+    NetworkTypeCPU network_cuda_cpu;
+    typename NetworkTypeCPU::template Buffer<> network_cpu_buffers;
+    NetworkTypeCUDA network_cuda;
+    typename NetworkTypeCPU::template Buffer<> network_cuda_buffers;
+    OPTIMIZER optimizer_cpu, optimizer_cuda;
+    rlt::malloc(device_cpu, network_cpu);
+    rlt::malloc(device_cpu, network_cpu_pre);
+    rlt::malloc(device_cpu, network_cuda_cpu);
+    rlt::malloc(device_cpu, network_cpu_buffers);
+    rlt::malloc(device_cuda, network_cuda);
+    rlt::malloc(device_cuda, network_cuda_buffers);
+    rlt::malloc(device_cpu, optimizer_cpu);
+    rlt::malloc(device_cuda, optimizer_cuda);
+
+    DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng;
+    rlt::init(device_cpu, rng);
+    DEVICE_CUDA::SPEC::RANDOM::ENGINE<> rng_cuda;
+    rlt::malloc(device_cuda, rng_cuda);
+    rlt::init(device_cuda, rng_cuda);
+
+    rlt::init_weights(device_cpu, network_cpu, rng);
+    rlt::zero_gradient(device_cpu, network_cpu);
+    rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
+    rlt::copy(device_cpu, device_cpu, network_cpu, network_cpu_pre);
+
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, INPUT_DIM>> input_cpu;
+    rlt::malloc(device_cpu, input_cpu);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> output_cpu;
+    rlt::malloc(device_cpu, output_cpu);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> output_target_cpu;
+    rlt::malloc(device_cpu, output_target_cpu);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> output_cuda_cpu;
+    rlt::malloc(device_cpu, output_cuda_cpu);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> d_output_cpu;
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> d_output_cuda;
+    rlt::malloc(device_cuda, d_output_cuda);
+    rlt::malloc(device_cpu, d_output_cpu);
+
+    rlt::randn(device_cpu, input_cpu, rng);
+    rlt::randn(device_cpu, output_target_cpu, rng);
+    {
+        rlt::forward(device_cpu, network_cpu, input_cpu, network_cpu_buffers, rng);
+        rlt::nn::loss_functions::mse::gradient(device_cpu, rlt::output(network_cpu), output_target_cpu, d_output_cpu);
+        rlt::backward(device_cpu, network_cpu, input_cpu, d_output_cpu, network_cpu_buffers);
+    }
+    rlt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
+
+
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, INPUT_DIM>> input_cuda;
+    rlt::malloc(device_cuda, input_cuda);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, OUTPUT_DIM>> output_cuda;
+    rlt::malloc(device_cuda, output_cuda);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> output_target_cuda;
+    rlt::malloc(device_cuda, output_target_cuda);
+
+    rlt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
+    rlt::copy(device_cpu, device_cuda, output_target_cpu, output_target_cuda);
+
+    rlt::zero_gradient(device_cpu, network_cpu);
+    rlt::zero_gradient(device_cuda, network_cuda);
+    rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
+    rlt::reset_optimizer_state(device_cuda, optimizer_cuda, network_cuda);
+//    rlt::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
+    {
+        rlt::forward(device_cpu, network_cpu, input_cpu, network_cpu_buffers, rng);
+        rlt::nn::loss_functions::mse::gradient(device_cpu, rlt::output(network_cpu), output_target_cpu, d_output_cpu);
+        rlt::backward(device_cpu, network_cpu, input_cpu, d_output_cpu, network_cpu_buffers);
+    }
+    rlt::step(device_cpu, optimizer_cpu, network_cpu);
+//    rlt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
+    {
+        rlt::forward(device_cuda, network_cuda, input_cuda, network_cuda_buffers, rng_cuda);
+        rlt::nn::loss_functions::mse::gradient(device_cuda, rlt::output(network_cuda), output_target_cuda, d_output_cuda);
+        rlt::backward(device_cuda, network_cuda, input_cuda, d_output_cuda, network_cuda_buffers);
+    }
+    rlt::step(device_cuda, optimizer_cuda, network_cuda);
+    cudaDeviceSynchronize();
+
+    rlt::copy(device_cuda, device_cpu, network_cuda, network_cuda_cpu);
+    auto evaluation_diff_pre = rlt::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * OUTPUT_DIM);
+    auto evaluation_diff = rlt::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * OUTPUT_DIM);
+
+    std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
+    auto threshold = (rlt::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-14);
+    if(std::isnan(evaluation_diff) || evaluation_diff > threshold){
+        ASSERT_LT(evaluation_diff, threshold);
+    }
+
+    {
+        cudaDeviceSynchronize();
+        auto start = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < ITERATIONS; ++i)
+        {
+//            rlt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
+            {
+                rlt::forward(device_cuda, network_cuda, input_cuda, network_cuda_buffers, rng_cuda);
+                rlt::nn::loss_functions::mse::gradient(device_cuda, rlt::output(network_cuda), output_target_cuda, d_output_cuda);
+                rlt::backward(device_cuda, network_cuda, input_cuda, d_output_cuda, network_cuda_buffers);
+            }
+            rlt::step(device_cuda, optimizer_cuda, network_cuda);
+            cudaDeviceSynchronize();
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
+    }
+}
+
+TEST(RL_TOOLS_NN_CUDA, ADAM_UPDATE) {
+    using DEFAULT_DTYPE = rlt::numeric_types::Policy<float>;
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    1, 256,  10, 100, 1>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    2, 256,  10, 100, 1>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,   32, 256,  10, 100, 1>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int, 1024, 256,  10, 100, 1>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,   10, 256, 200, 100, 1>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    9, 256,  60, 100, 1>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,  200, 256,  11, 100, 1>();
+    ADAM_UPDATE<rlt::numeric_types::Policy<double>, unsigned int,  200, 256,  12, 101, 1>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,   64, 256,  50, 101, 100>();
+    ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 100>();
+}

@@ -195,7 +195,7 @@ namespace rl_tools{
         void update_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::dense::LayerGradient<SPEC> layer, nn::optimizers::Adam<PARAMETERS> optimizer) {
             // fully fused adam update
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename SPEC::T;
+            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
             using TI = typename DEVICE::index_t;
             constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
@@ -205,27 +205,27 @@ namespace rl_tools{
             if(input_i < INPUT_DIM && output_i < OUTPUT_DIM){
                 if(input_i == 0){
                     // bias
-                    T d_bias = get(layer.biases.gradient, 0, output_i);
-                    T d_bias_first_order_moment = optimizer.parameters.beta_1 * get(layer.biases.gradient_first_order_moment, 0, output_i) + (1 - optimizer.parameters.beta_1) * d_bias;
-                    set(layer.biases.gradient_first_order_moment, 0, output_i, d_bias_first_order_moment);
-                    T d_bias_second_order_moment = optimizer.parameters.beta_2 * get(layer.biases.gradient_second_order_moment, 0, output_i) + (1 - optimizer.parameters.beta_2) * d_bias * d_bias;
-                    set(layer.biases.gradient_second_order_moment, 0, output_i, d_bias_second_order_moment);
+                    T d_bias = get(device, layer.biases.gradient, output_i);
+                    T d_bias_first_order_moment = optimizer.parameters.beta_1 * get(device, layer.biases.gradient_first_order_moment, output_i) + (1 - optimizer.parameters.beta_1) * d_bias;
+                    set(device, layer.biases.gradient_first_order_moment, d_bias_first_order_moment, output_i);
+                    T d_bias_second_order_moment = optimizer.parameters.beta_2 * get(device, layer.biases.gradient_second_order_moment, output_i) + (1 - optimizer.parameters.beta_2) * d_bias * d_bias;
+                    set(device, layer.biases.gradient_second_order_moment, d_bias_second_order_moment, output_i);
                     T pre_sqrt_term = d_bias_second_order_moment * get(device, optimizer.second_order_moment_bias_correction, 0);
                     pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T)optimizer.parameters.epsilon_sqrt);
                     T bias_update = optimizer.parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer.parameters.epsilon);
-                    increment(layer.biases.parameters, 0, output_i, -bias_update);
+                    increment(device, layer.biases.parameters, -bias_update, output_i);
                 }
                 {
                     // weight
-                    T d_weight = get(layer.weights.gradient, output_i, input_i);
-                    T d_weight_first_order_moment = optimizer.parameters.beta_1 * get(layer.weights.gradient_first_order_moment, output_i, input_i) + (1 - optimizer.parameters.beta_1) * d_weight;
-                    set(layer.weights.gradient_first_order_moment, output_i, input_i, d_weight_first_order_moment);
-                    T d_weight_second_order_moment = optimizer.parameters.beta_2 * get(layer.weights.gradient_second_order_moment, output_i, input_i) + (1 - optimizer.parameters.beta_2) * d_weight * d_weight;
-                    set(layer.weights.gradient_second_order_moment, output_i, input_i, d_weight_second_order_moment);
+                    T d_weight = get(device, layer.weights.gradient, output_i, input_i);
+                    T d_weight_first_order_moment = optimizer.parameters.beta_1 * get(device, layer.weights.gradient_first_order_moment, output_i, input_i) + (1 - optimizer.parameters.beta_1) * d_weight;
+                    set(device, layer.weights.gradient_first_order_moment, d_weight_first_order_moment, output_i, input_i);
+                    T d_weight_second_order_moment = optimizer.parameters.beta_2 * get(device, layer.weights.gradient_second_order_moment, output_i, input_i) + (1 - optimizer.parameters.beta_2) * d_weight * d_weight;
+                    set(device, layer.weights.gradient_second_order_moment, d_weight_second_order_moment, output_i, input_i);
                     T pre_sqrt_term = d_weight_second_order_moment * get(device, optimizer.second_order_moment_bias_correction, 0);
                     pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T)optimizer.parameters.epsilon_sqrt);
                     T weight_update = optimizer.parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer.parameters.epsilon);
-                    increment(layer.weights.parameters, output_i, input_i, -weight_update);
+                    increment(device, layer.weights.parameters, -weight_update, output_i, input_i);
                 }
             }
         }
