@@ -2,11 +2,8 @@
 //#include <rl_tools/operations/dummy.h>
 
 
-#include <rl_tools/nn_models/models.h>
-
-
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
-#include <rl_tools/nn/operations_cpu.h>
+#include <rl_tools/nn/layers/dense/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
@@ -26,6 +23,7 @@ typedef double T;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 //template <typename T_T>
 //struct StructureSpecification{
 //    typedef T_T T;
@@ -40,10 +38,10 @@ using TI = typename DEVICE::index_t;
 constexpr TI BATCH_SIZE = 32;
 constexpr TI INTERNAL_BATCH_SIZE = 1;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, 17>; // actual batch size is 1
-using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
+using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
 
-using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
+using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
 using NetworkType = rlt::nn_models::mlp::NeuralNetwork<NETWORK_CONFIG, CAPABILITY_ADAM, INPUT_SHAPE>;

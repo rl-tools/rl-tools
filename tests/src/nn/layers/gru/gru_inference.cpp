@@ -26,9 +26,10 @@ namespace rlt = rl_tools;
 #include <thread>
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using TI = typename DEVICE::index_t;
 using T = float;
-using CONFIG = Config<T, TI>;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
+using TI = typename DEVICE::index_t;
+using CONFIG = Config<TYPE_POLICY, TI>;
 
 
 
