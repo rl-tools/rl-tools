@@ -259,10 +259,10 @@ namespace rl_tools{
             constexpr auto n = BATCH_SIZE;
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::template GET<0>, (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+                stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
             }
             else{
-                stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::template GET<0>, (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+                stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
             }
             if(stat != CUBLAS_STATUS_SUCCESS){
                 std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
@@ -277,9 +277,13 @@ namespace rl_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(INPUT_SPEC::COL_PITCH == 1);
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.weights.parameters)::COL_PITCH == 1);
+        static_assert(decltype(layer.weights.parameters)::SPEC::STRIDE::template GET<1> == 1);
+        using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename decltype(layer.biases.parameters)::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename OUTPUT_SPEC::T>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = WEIGHT_TYPE;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
 
         constexpr T alpha = 1;
@@ -295,10 +299,10 @@ namespace rl_tools{
 
         cublasStatus_t stat;
         if constexpr(utils::typing::is_same_v<T, float>){
-            stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+            stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
         }
         else{
-            stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+            stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
         }
         if(stat != CUBLAS_STATUS_SUCCESS){
             std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
