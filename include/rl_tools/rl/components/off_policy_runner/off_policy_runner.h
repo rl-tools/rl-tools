@@ -86,7 +86,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr T NOMINAL_SEQUENCE_LENGTH_PROBABILITY = 0.5;
     };
 
-    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, typename T_PARAMETERS = SequentialBatchParameters<typename T_SPEC::T, typename T_SPEC::TI, T_SEQUENCE_LENGTH>, bool T_DYNAMIC_ALLOCATION=true>
+    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, typename T_PARAMETERS = SequentialBatchParameters<typename T_SPEC::TYPE_POLICY, typename T_SPEC::TI, T_SEQUENCE_LENGTH>, bool T_DYNAMIC_ALLOCATION=true>
     struct SequentialBatchSpecification{
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;

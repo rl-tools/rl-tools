@@ -39,6 +39,7 @@ std::string get_data_file_path(){
 }
 using T = double;
 using DEVICE = rlt::devices::DefaultCPU;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 typedef rlt::rl::environments::pendulum::Specification<T, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
@@ -50,7 +51,7 @@ ENVIRONMENT::Parameters env_parameters;
 
 using AC_DEVICE = rlt::devices::DefaultCPU;
 
-struct TD3ParametersCopyTraining: public rlt::rl::algorithms::td3::DefaultParameters<T, AC_DEVICE::index_t>{
+struct TD3ParametersCopyTraining: public rlt::rl::algorithms::td3::DefaultParameters<TYPE_POLICY, AC_DEVICE::index_t>{
     constexpr static typename AC_DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
@@ -59,14 +60,14 @@ using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MOD
 
 
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3ParametersCopyTraining::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
 using ACTOR = rlt::nn_models::mlp::BindConfiguration<ACTOR_NETWORK_SPEC>;
 using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3ParametersCopyTraining::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
-using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 using CRITIC = rlt::nn_models::mlp::BindConfiguration<CRITIC_NETWORK_SPEC>;
 
 using NN_DEVICE = rlt::devices::DefaultCPU;
-using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>>;
+using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
@@ -86,7 +87,7 @@ using CRITIC_TYPE = rlt::nn_models::sequential::Build<CRITIC_CAPABILITY, CRITIC_
 //using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::capability::Forward<>, CRITIC_INPUT_SHAPE>;
 using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
-using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3ParametersCopyTraining>;
+using TD3_SPEC = rlt::rl::algorithms::td3::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3ParametersCopyTraining>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -115,7 +116,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     rlt::persist::backends::hdf5::Group<> actor_group = {step_group.getGroup("actor")};
     rlt::load(device, actor_critic.actor.content, actor_group);
-    using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 100, 200>;
+    using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, decltype(env), 100, 200>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
     rlt::evaluate(device, env, ui, actor_critic.actor, result, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
     std::cout << "mean return: " << result.returns_mean << std::endl;
@@ -133,7 +134,7 @@ struct OFF_POLICY_RUNNER_PARAMETERS{
     static constexpr T EXPLORATION_NOISE = 0.1;
 };
 using POLICIES = rlt::utils::Tuple<TI, ACTOR_TYPE>;
-using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, AC_DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
+using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
 using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
 using DEVICE = rlt::devices::DefaultCPU;
 typedef OFF_POLICY_RUNNER_TYPE::REPLAY_BUFFER_TYPE ReplayBufferTypeCopyTraining;
@@ -584,7 +585,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             if(!verbose){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 100, 200>;
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, decltype(env), 100, 200>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
             rlt::evaluate(device, env, ui, actor_critic.actor, result, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
 #ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS

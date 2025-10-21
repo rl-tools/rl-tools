@@ -26,10 +26,11 @@ std::string get_data_file_path(){
     std::cout << "Using data file: " << DATA_FILE_PATH << std::endl;
     return DATA_FILE_PATH;
 }
-#define DTYPE double
+using T = double;
 using DEVICE = rlt::devices::DefaultCPU;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
-typedef rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef rlt::rl::environments::pendulum::Specification<T, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
@@ -44,11 +45,11 @@ struct Dataset{
         g.getDataSet("rewards").read(rewards);
         g.getDataSet("terminated").read(terminated);
     };
-    std::vector<std::vector<DTYPE>> states;
-    std::vector<std::vector<DTYPE>> actions;
-    std::vector<std::vector<DTYPE>> next_states;
-    std::vector<std::vector<DTYPE>> rewards;
-    std::vector<std::vector<DTYPE>> terminated;
+    std::vector<std::vector<T>> states;
+    std::vector<std::vector<T>> actions;
+    std::vector<std::vector<T>> next_states;
+    std::vector<std::vector<T>> rewards;
+    std::vector<std::vector<T>> terminated;
 };
 
 template <typename DEVICE, typename RB>
@@ -102,26 +103,26 @@ void assign_network(NT& network, const HighFive::Group g){
 }
 
 using AC_DEVICE = rlt::devices::DefaultCPU;
-template <typename T>
-struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, AC_DEVICE::index_t>{
+template <typename TYPE_POLICY>
+struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<TYPE_POLICY, AC_DEVICE::index_t>{
     constexpr static typename AC_DEVICE::index_t CRITIC_BATCH_SIZE = 32;
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 32;
 };
 
 namespace first_stage_first_stage{
-    using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
+    using TD3_PARAMETERS = TD3PendulumParameters<TYPE_POLICY>;
 
     constexpr TI ACTOR_BATCH_SIZE = 1;
     constexpr TI CRITIC_BATCH_SIZE = 1;
     using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<DEVICE::index_t, 1, ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-    using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+    using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
     using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<DEVICE::index_t, 1, ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
-    using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
     using NN_DEVICE = rlt::devices::DefaultCPU;
     using ACTOR_CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, ACTOR_BATCH_SIZE>;
     using CRITIC_CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, CRITIC_BATCH_SIZE>;
-    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<DTYPE>>;
+    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPA, ACTOR_INPUT_SHAPE>;
 
@@ -132,7 +133,7 @@ namespace first_stage_first_stage{
     using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::capability::Forward<>, CRITIC_INPUT_SHAPE>;
 
 
-    using TD3_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+    using TD3_SPEC = rlt::rl::algorithms::td3::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
 
@@ -165,14 +166,14 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     auto critic_target_group1 = rlt::get_group(device, data_file, "critic_target_1");
     rlt::load(device, actor_critic.critics_target[0], critic_target_group1);
 
-    Dataset<DTYPE> batch(data_file.getGroup("batch"));
+    Dataset<T> batch(data_file.getGroup("batch"));
 
-    std::vector<std::vector<DTYPE>> outputs;
+    std::vector<std::vector<T>> outputs;
     data_file.getDataSet("batch_output").read(outputs);
 
     for(TI batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
-        rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, rlt::get_last(first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_SHAPE{})>> input;
-        rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
+        rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, rlt::get_last(first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_SHAPE{})>> input;
+        rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> output;
         rlt::malloc(device, input);
         rlt::malloc(device, output);
         for (TI i = 0; i < batch.states[batch_sample_i].size(); i++) {
@@ -212,9 +213,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 //    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
     typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::Buffer<> critic_buffers;
     typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_TYPE::Buffer<> actor_buffers;
-    rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, 1>> d_output_critic;
-    rlt::Matrix<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, rlt::get_last(first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_SHAPE{})>> d_input_critic;
-    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
+    rlt::Matrix<rlt::matrix::Specification<T, typename DEVICE::index_t, 1, 1>> d_output_critic;
+    rlt::Matrix<rlt::matrix::Specification<T, typename DEVICE::index_t, 1, rlt::get_last(first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_SHAPE{})>> d_input_critic;
+    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     OPTIMIZER optimizer;
 //    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
@@ -238,17 +239,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     auto critic_target_group1 = rlt::get_group(device, data_file, "critic_target_1");
     rlt::load(device, actor_critic.critics_target[0], critic_target_group1);
 
-    Dataset<DTYPE> batch(data_file.getGroup("batch"));
+    Dataset<T> batch(data_file.getGroup("batch"));
     assert(batch.states.size() == 32);
 
-    DTYPE loss = 0;
+    T loss = 0;
     rlt::reset_optimizer_state(device, optimizer, actor_critic.critics[0]);
     rlt::zero_gradient(device, actor_critic.critics[0]);
     for(TI batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
 //        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM];
-        rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, rlt::get_last(first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_SHAPE{})>> input;
-        rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
-        rlt::Matrix<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> target;
+        rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, rlt::get_last(first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_SHAPE{})>> input;
+        rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> output;
+        rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> target;
         rlt::malloc(device, input);
         rlt::malloc(device, output);
         rlt::malloc(device, target);
@@ -267,7 +268,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 //        rlt::forward_backward_mse(device, actor_critic.critics[0], input, target, critic_buffers, DTYPE(1)/32);
         {
             rlt::forward(device, actor_critic.critics[0], input, critic_buffer, rng);
-            rlt::nn::loss_functions::mse::gradient(device, actor_critic.critics[0].output_layer.output, target, d_output_critic, DTYPE(1)/32);
+            rlt::nn::loss_functions::mse::gradient(device, actor_critic.critics[0].output_layer.output, target, d_output_critic, T(1)/32);
             rlt::backward_full(device, actor_critic.critics[0], input, d_output_critic, d_input_critic, critic_buffers);
         }
         std::cout << "output: " << rlt::get(actor_critic.critics[0].output_layer.output, 0, 0) << std::endl;
@@ -283,23 +284,23 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     rlt::load(device, critic_1_after_backward, critic_1_backward_group);
     rlt::reset_forward_state(device, actor_critic.critics[0]);
     rlt::reset_forward_state(device, critic_1_after_backward);
-    DTYPE diff_grad_per_weight = abs_diff_grad(device, actor_critic.critics[0], critic_1_after_backward)/first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+    T diff_grad_per_weight = abs_diff_grad(device, actor_critic.critics[0], critic_1_after_backward)/first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
     ASSERT_LT(diff_grad_per_weight, 1e-17);
 
     std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
 }
 namespace first_stage_second_stage{
-    using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
+    using TD3_PARAMETERS = TD3PendulumParameters<TYPE_POLICY>;
 
     using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<DEVICE::index_t, 1, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-    using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+    using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
     using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<DEVICE::index_t, 1, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
-    using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
     using NN_DEVICE = rlt::devices::DefaultCPU;
     using ACTOR_CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using CRITIC_CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<DTYPE>>;
+    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPA, ACTOR_INPUT_SHAPE>;
 
@@ -328,11 +329,11 @@ namespace first_stage_second_stage{
 //    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<CRITIC_TARGET_NETWORK_SPEC>;
 
 
-    using TD3_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+    using TD3_SPEC = rlt::rl::algorithms::td3::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
-template <typename T, typename TI>
-struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<T, TI>{
+template <typename TYPE_POLICY, typename TI>
+struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<TYPE_POLICY, TI>{
     static constexpr TI REPLAY_BUFFER_CAPACITY = 32;
     static constexpr TI EPISODE_STEP_LIMIT = 100;
     static constexpr bool STOCHASTIC_POLICY = true;
@@ -373,9 +374,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 
     using DEVICE = rlt::devices::DefaultCPU;
     using TI = DEVICE::index_t;
-    using T = DTYPE;
     using POLICIES = rlt::utils::Tuple<TI, first_stage_first_stage::ACTOR_TYPE>;
-    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS<T, TI>>;
+    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS<TYPE_POLICY, TI>>;
     using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
     using DEVICE = rlt::devices::DefaultCPU;
     using ReplayBufferType = OFF_POLICY_RUNNER_TYPE::REPLAY_BUFFER_TYPE;
@@ -414,9 +414,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     rlt::malloc(device, pre_critic_1);
     rlt::reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critics[0]);
     rlt::copy(device, device, actor_critic.critics[0], pre_critic_1);
-    DTYPE mean_ratio = 0;
-    DTYPE mean_ratio_grad = 0;
-    DTYPE mean_ratio_adam = 0;
+    T mean_ratio = 0;
+    T mean_ratio_grad = 0;
+    T mean_ratio_adam = 0;
     auto critic_training_group = rlt::get_group(device, data_file, "critic_training");
     TI num_updates = critic_training_group.group.getNumberObjects();
     for(TI training_step_i = 0; training_step_i < num_updates; training_step_i++){
@@ -438,7 +438,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         auto critic_group = rlt::get_group(device, step_group, "critic");
         rlt::load(device, post_critic_1, critic_group);
 
-        std::vector<std::vector<DTYPE>> target_next_action_noise_vector;
+        std::vector<std::vector<T>> target_next_action_noise_vector;
         step_group.group.getDataSet("target_next_action_noise").read(target_next_action_noise_vector);
 
 
@@ -490,17 +490,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 
 
 
-        DTYPE pre_post_diff_per_weight = abs_diff(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_per_weight = abs_diff(device, post_critic_1, compare_critic)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
-        DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
+        T pre_post_diff_per_weight = abs_diff(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        T diff_target_per_weight = abs_diff(device, post_critic_1, compare_critic)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        T diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1, actor_critic.critics[0])/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
-        DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
+        T pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        T diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1, actor_critic.critics[0])/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        T diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
-        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1, compare_critic)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
-        DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
+        T pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        T diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1, compare_critic)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        T diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
 
         rlt::free(device, compare_critic);
 
@@ -576,7 +576,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 //    using ReplayBufferSpec = rlt::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 32>;
 //    using ReplayBufferType = rlt::rl::components::ReplayBuffer<ReplayBufferSpec>;
     using POLICIES = rlt::utils::Tuple<TI, first_stage_first_stage::ACTOR_TYPE>;
-    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS<DTYPE, DEVICE::index_t>>;
+    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS<TYPE_POLICY, DEVICE::index_t>>;
     using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     rlt::malloc(device, off_policy_runner);
@@ -605,9 +605,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     rlt::malloc(device, pre_actor);
     rlt::copy(device, device, actor_critic.actor, pre_actor);
     rlt::reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
-    DTYPE mean_ratio = 0;
-    DTYPE mean_ratio_grad = 0;
-    DTYPE mean_ratio_adam = 0;
+    T mean_ratio = 0;
+    T mean_ratio_grad = 0;
+    T mean_ratio_adam = 0;
     TI num_updates = data_file.getGroup("actor_training").getNumberObjects();
     for(TI training_step_i = 0; training_step_i < num_updates; training_step_i++){
         decltype(actor_critic.actor) post_actor;
@@ -637,17 +637,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
             rlt::free(device, reset_optimizer);
         }
 
-        DTYPE pre_post_diff_per_weight = abs_diff(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_per_weight = abs_diff(device, post_actor, compare_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
-        DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
+        T pre_post_diff_per_weight = abs_diff(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        T diff_target_per_weight = abs_diff(device, post_actor, compare_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        T diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_actor, actor_critic.actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
-        DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
+        T pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        T diff_target_grad_per_weight = abs_diff_grad(device, post_actor, actor_critic.actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        T diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
-        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_actor, compare_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
-        DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
+        T pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        T diff_target_adam_per_weight = abs_diff_adam(device, post_actor, compare_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        T diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
 
         rlt::free(device, compare_actor);
 
