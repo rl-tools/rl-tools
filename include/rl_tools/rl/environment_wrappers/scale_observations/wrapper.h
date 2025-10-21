@@ -7,11 +7,11 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environment_wrappers::scale_observations {
-    template <typename T_T, typename T_TI>
+    template <typename T_TYPE_POLICY, typename T_TI>
     struct Specification{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
-        static constexpr T SCALE = 1;
+        static constexpr typename TYPE_POLICY::DEFAULT SCALE = 1;
     };
 }
 namespace rl_tools::rl::environment_wrappers{

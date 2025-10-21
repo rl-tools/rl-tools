@@ -11,7 +11,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename ENVIRONMENT, typename OBS_TYPE, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environment_wrappers::ScaleObservations<SPEC, ENVIRONMENT>& env, const typename rl::environment_wrappers::ScaleObservations<SPEC, ENVIRONMENT>::Parameters& parameters, const typename rl::environment_wrappers::ScaleObservations<SPEC, ENVIRONMENT>::State& state, const OBS_TYPE& obs_type, Matrix<OBS_SPEC>& observation, RNG& rng){
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         static_assert(OBS_SPEC::ROWS == 1);
         observe(device, env.env, parameters, state, obs_type, observation, rng);
