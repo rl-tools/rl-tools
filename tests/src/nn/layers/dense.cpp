@@ -6,6 +6,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 DEVICE device;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 TI seed = 1;
 DEVICE::SPEC::RANDOM::ENGINE<> rng;
 
@@ -15,7 +16,7 @@ constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::RELU;
 using PARAMETER_TYPE = rlt::nn::parameters::Plain;
 
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, INPUT_DIM>;
-using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
+using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
 
 #include <chrono>
 
@@ -43,7 +44,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     rlt::print(device, input);
     rlt::evaluate(device, layer, input, output, buffer, rng);
     using PARAMETER_TYPE_2 = rlt::nn::parameters::Gradient;
-    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
+    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, ACTIVATION_FUNCTION>;
     rlt::nn::layers::dense::Layer<LAYER_2_CONFIG, rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>, INPUT_SHAPE> layer_2;
     rlt::malloc(device, layer_2);
     rlt::copy(device, device, layer, layer_2);

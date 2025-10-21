@@ -16,6 +16,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rl_tools::devices::DefaultCPU;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
 
@@ -24,9 +25,9 @@ constexpr TI BATCH_SIZE = 20;
 constexpr TI HIDDEN_DIM = 32;
 constexpr TI INPUT_DIM = 1;
 constexpr TI OUTPUT_DIM = 2;
-using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
+using GRU_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM>;
 using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
-using DENSE_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, rlt::nn::activation_functions::IDENTITY>;
+using DENSE_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::IDENTITY>;
 using DENSE = rlt::nn::layers::dense::BindConfiguration<DENSE_CONFIG>;
 
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>

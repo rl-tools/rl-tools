@@ -83,6 +83,7 @@ template <bool USE_RESET_MODE>
 void test_loading(std::string DATA_FILE_NAME){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     using TI = DEVICE::index_t;
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
@@ -111,7 +112,7 @@ void test_loading(std::string DATA_FILE_NAME){
     using GRU_HIDDEN_BIAS_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_HIDDEN_BIAS_SHAPE>> grad_b_hr, grad_b_hz, grad_b_hn;
 
-    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM, rlt::nn::parameters::Gradient>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, rlt::nn::parameters::Gradient>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     rlt::nn::layers::gru::Layer<GRU_CONFIG, CAPABILITY, INPUT_SHAPE> gru;

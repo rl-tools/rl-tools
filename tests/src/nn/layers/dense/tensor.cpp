@@ -77,11 +77,12 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     constexpr TI INPUT_DIM = 10;
     constexpr TI OUTPUT_DIM = 20;
     constexpr TI BATCH_SIZE = 5;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
-    using LAYER_SPEC = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER = rlt::nn::layers::dense::BindConfiguration<LAYER_SPEC>;
     using CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 

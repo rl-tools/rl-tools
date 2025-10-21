@@ -18,6 +18,7 @@ namespace rlt = rl_tools;
 
 
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using DEVICE_CPU = rlt::devices::DefaultCPU;
 using DEVICE_GPU = rlt::devices::DefaultCUDA;
 using TI = typename DEVICE_GPU::index_t;
@@ -28,7 +29,7 @@ constexpr TI BATCH_SIZE = 3;
 constexpr TI INPUT_DIM = 4;
 constexpr TI HIDDEN_DIM = 5;
 
-using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
+using GRU_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
 using GRU_TEMPLATE = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
 using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;

@@ -12,6 +12,7 @@ namespace rlt = rl_tools;
 using DEVICE_GENERIC = rlt::devices::DefaultCPU;
 using TI = DEVICE_GENERIC::index_t;
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using DEVICE_BLAS = rlt::devices::DEVICE_FACTORY<>;
 constexpr TI SEQUENCE_LENGTH = 128;
 constexpr TI INPUT_DIM = 10;
@@ -21,7 +22,7 @@ constexpr TI BATCH_SIZE = 15;
 TEST(RL_TOOLS_NN_LAYERS_GRU, BLAS){
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-    using CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
+    using CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using GRU = rlt::nn::layers::gru::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
     GRU gru_generic, gru_blas;

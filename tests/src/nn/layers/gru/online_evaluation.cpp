@@ -16,6 +16,7 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE = rlt::devices::DefaultCPU;
 #endif
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 constexpr TI SEQUENCE_LENGTH = 16;
 constexpr TI BATCH_SIZE = 32;
@@ -35,7 +36,7 @@ int main(){
     using CAPABILITY = rlt::nn::capability::Forward<>;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, HIDDEN_DIM>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM>;
     using GRU = rlt::nn::layers::gru::Layer<GRU_CONFIG, CAPABILITY, INPUT_SHAPE>;
     GRU::State<true> gru_state;
 
