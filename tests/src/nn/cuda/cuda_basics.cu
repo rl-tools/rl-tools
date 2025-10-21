@@ -458,172 +458,172 @@ TEST(RL_TOOLS_NN_CUDA, GEMM) {
     GEMM<DEFAULT_DTYPE, unsigned int, 64, 1000>();
     GEMM<DEFAULT_DTYPE, unsigned int, 256, 1000>();
 }
+
+template <typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI ITERATIONS>
+void FORWARD() {
+    using T = typename TYPE_POLICY::DEFAULT;
+    using DEVICE_CPU = rlt::devices::DefaultCPU;
+    using DEVICE_CUDA = rlt::devices::DefaultCUDA;
+
+    constexpr DEVICE_CPU::index_t HIDDEN_DIM = BATCH_SIZE;
+
+    constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
+    using CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::RELU>;
+
+    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE_CUDA::index_t>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
+
+    std::cout << "FORWARD<" << (rlt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, HIDDEN_DIM>;
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+    using NetworkTypeCPU = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
+    using NetworkTypeCUDA = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
+    DEVICE_CPU device_cpu;
+    DEVICE_CUDA device_cuda;
+    rlt::init(device_cuda);
+    NetworkTypeCPU network_cpu;
+    typename NetworkTypeCPU::template Buffer<> network_cpu_buffers;
+    NetworkTypeCUDA network_cuda;
+    typename NetworkTypeCPU::template Buffer<> network_cuda_buffers;
+    rlt::malloc(device_cpu, network_cpu);
+    rlt::malloc(device_cpu, network_cpu_buffers);
+    rlt::malloc(device_cuda, network_cuda);
+    rlt::malloc(device_cuda, network_cuda_buffers);
+
+    DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng;
+    rlt::init(device_cpu, rng);
+    DEVICE_CUDA::SPEC::RANDOM::ENGINE<> rng_cuda;
+    rlt::malloc(device_cuda, rng_cuda);
+    rlt::init(device_cuda, rng_cuda);
+
+
+    rlt::init_weights(device_cpu, network_cpu, rng);
+    rlt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
+
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, rlt::get_last(INPUT_SHAPE{})>> input_cpu;
+    rlt::malloc(device_cpu, input_cpu);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, rlt::get_last(typename NetworkTypeCPU::OUTPUT_SHAPE{})>> output_cpu;
+    rlt::malloc(device_cpu, output_cpu);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, rlt::get_last(typename NetworkTypeCPU::OUTPUT_SHAPE{})>> output_cuda_cpu;
+    rlt::malloc(device_cpu, output_cuda_cpu);
+
+    rlt::randn(device_cpu, input_cpu, rng);
+//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
+//        std::cout << "Input:" << std::endl;
+//        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
+//        {
+//            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::INPUT_DIM; ++j)
+//            {
+//                std::cout << input_cpu.data[i * NetworkTypeCPU::INPUT_DIM + j] << " ";
+//            }
+//            std::cout << std::endl;
+//        }
+//    }
+//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
+//        std::cout << "Weights:" << std::endl;
+//        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::OUTPUT_DIM; ++i)
+//        {
+//            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::INPUT_DIM; ++j)
+//            {
+//                std::cout << network_cpu.input_layer.weights.data[i * NetworkTypeCPU::INPUT_DIM + j] << " ";
+//            }
+//            std::cout << std::endl;
+//        }
+//    }
+//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
+//        std::cout << "Biases:" << std::endl;
+//        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::OUTPUT_DIM; ++i)
+//        {
+//            std::cout << network_cpu.input_layer.biases.data[i] << " ";
+//        }
+//        std::cout << std::endl;
+//    }
+
+
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, rlt::get_last(INPUT_SHAPE{})>> input_cuda;
+    rlt::malloc(device_cuda, input_cuda);
+    rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, rlt::get_last(typename NetworkTypeCPU::OUTPUT_SHAPE{})>> output_cuda;
+    rlt::malloc(device_cuda, output_cuda);
+
+    rlt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
+
+    rlt::forward(device_cpu, network_cpu, input_cpu, network_cpu_buffers, rng);
+    rlt::forward(device_cuda, network_cuda, input_cuda, network_cuda_buffers, rng_cuda);
+    cudaDeviceSynchronize();
+
+    rlt::copy(device_cuda, device_cpu, network_cuda.output_layer.output, output_cuda_cpu);
+    auto evaluation_diff = rlt::abs_diff(device_cpu, output_cuda_cpu, network_cpu.output_layer.output)/(BATCH_SIZE * rlt::get_last(typename NetworkTypeCPU::OUTPUT_SHAPE{}));
+
+//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
+//        std::cout << "cpu output:" << std::endl;
+//        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
+//        {
+//            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j)
+//            {
+//                std::cout << output_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] << " ";
+//            }
+//            std::cout << std::endl;
+//        }
+//    }
 //
-// template <typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI ITERATIONS>
-// void FORWARD() {
-//     using T = typename TYPE_POLICY::DEFAULT;
-//     using DEVICE_CPU = rlt::devices::DefaultCPU;
-//     using DEVICE_CUDA = rlt::devices::DefaultCUDA;
+//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
+//        std::cout << "cuda output:" << std::endl;
+//        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i){
+//            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j){
+//                std::cout << output_cuda_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] << " ";
+//            }
+//            std::cout << std::endl;
+//        }
+//    }
 //
-//     constexpr DEVICE_CPU::index_t HIDDEN_DIM = BATCH_SIZE;
-//
-//     constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
-//     using CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::RELU>;
-//
-//     using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE_CUDA::index_t>;
-//     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-//
-//     std::cout << "FORWARD<" << (rlt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
-//     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, HIDDEN_DIM>;
-//     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-//     using NetworkTypeCPU = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
-//     using NetworkTypeCUDA = rlt::nn_models::mlp::NeuralNetwork<CONFIG, CAPABILITY, INPUT_SHAPE>;
-//     DEVICE_CPU device_cpu;
-//     DEVICE_CUDA device_cuda;
-//     rlt::init(device_cuda);
-//     NetworkTypeCPU network_cpu;
-//     typename NetworkTypeCPU::template Buffer<> network_cpu_buffers;
-//     NetworkTypeCUDA network_cuda;
-//     typename NetworkTypeCPU::template Buffer<> network_cuda_buffers;
-//     rlt::malloc(device_cpu, network_cpu);
-//     rlt::malloc(device_cpu, network_cpu_buffers);
-//     rlt::malloc(device_cuda, network_cuda);
-//     rlt::malloc(device_cuda, network_cuda_buffers);
-//
-//     DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng;
-//     rlt::init(device_cpu, rng);
-//     DEVICE_CUDA::SPEC::RANDOM::ENGINE<> rng_cuda;
-//     rlt::malloc(device_cuda, rng_cuda);
-//     rlt::init(device_cuda, rng_cuda);
-//
-//
-//     rlt::init_weights(device_cpu, network_cpu, rng);
-//     rlt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
-//
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, rlt::get_last(INPUT_SHAPE{})>> input_cpu;
-//     rlt::malloc(device_cpu, input_cpu);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, rlt::get_last(typename NetworkTypeCPU::OUTPUT_SHAPE{})>> output_cpu;
-//     rlt::malloc(device_cpu, output_cpu);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, rlt::get_last(typename NetworkTypeCPU::OUTPUT_SHAPE{})>> output_cuda_cpu;
-//     rlt::malloc(device_cpu, output_cuda_cpu);
-//
-//     rlt::randn(device_cpu, input_cpu, rng);
-// //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
-// //        std::cout << "Input:" << std::endl;
-// //        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
-// //        {
-// //            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::INPUT_DIM; ++j)
-// //            {
-// //                std::cout << input_cpu.data[i * NetworkTypeCPU::INPUT_DIM + j] << " ";
-// //            }
-// //            std::cout << std::endl;
-// //        }
-// //    }
-// //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
-// //        std::cout << "Weights:" << std::endl;
-// //        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::OUTPUT_DIM; ++i)
-// //        {
-// //            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::INPUT_DIM; ++j)
-// //            {
-// //                std::cout << network_cpu.input_layer.weights.data[i * NetworkTypeCPU::INPUT_DIM + j] << " ";
-// //            }
-// //            std::cout << std::endl;
-// //        }
-// //    }
-// //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
-// //        std::cout << "Biases:" << std::endl;
-// //        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::OUTPUT_DIM; ++i)
-// //        {
-// //            std::cout << network_cpu.input_layer.biases.data[i] << " ";
-// //        }
-// //        std::cout << std::endl;
-// //    }
-//
-//
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, rlt::get_last(INPUT_SHAPE{})>> input_cuda;
-//     rlt::malloc(device_cuda, input_cuda);
-//     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, rlt::get_last(typename NetworkTypeCPU::OUTPUT_SHAPE{})>> output_cuda;
-//     rlt::malloc(device_cuda, output_cuda);
-//
-//     rlt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
-//
-//     rlt::forward(device_cpu, network_cpu, input_cpu, network_cpu_buffers, rng);
-//     rlt::forward(device_cuda, network_cuda, input_cuda, network_cuda_buffers, rng_cuda);
-//     cudaDeviceSynchronize();
-//
-//     rlt::copy(device_cuda, device_cpu, network_cuda.output_layer.output, output_cuda_cpu);
-//     auto evaluation_diff = rlt::abs_diff(device_cpu, output_cuda_cpu, network_cpu.output_layer.output)/(BATCH_SIZE * rlt::get_last(typename NetworkTypeCPU::OUTPUT_SHAPE{}));
-//
-// //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
-// //        std::cout << "cpu output:" << std::endl;
-// //        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
-// //        {
-// //            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j)
-// //            {
-// //                std::cout << output_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] << " ";
-// //            }
-// //            std::cout << std::endl;
-// //        }
-// //    }
-// //
-// //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
-// //        std::cout << "cuda output:" << std::endl;
-// //        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i){
-// //            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j){
-// //                std::cout << output_cuda_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] << " ";
-// //            }
-// //            std::cout << std::endl;
-// //        }
-// //    }
-// //
-// //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
-// //        std::cout << "cuda diff:" << std::endl;
-// //        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
-// //        {
-// //            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j)
-// //            {
-// //                T diff = output_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] - output_cuda_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j];
-// //                diff = std::abs(diff) > 1e-7 ? diff : 0;
-// //                std::cout << diff << " ";
-// //            }
-// //            std::cout << std::endl;
-// //        }
-// //    }
-//
-//     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
-//     auto threshold = (rlt::utils::typing::is_same_v<T, float> ? 1e-7 : 1e-15);
-//     if(std::isnan(evaluation_diff) || evaluation_diff > threshold){
-//         ASSERT_LT(evaluation_diff, threshold);
-//     }
-//
-//     {
-//         cudaDeviceSynchronize();
-//         auto start = std::chrono::high_resolution_clock::now();
-//         for(int i = 0; i < ITERATIONS; ++i)
-//         {
-//             rlt::evaluate(device_cuda, network_cuda, input_cuda, output_cuda, network_cuda_buffers, rng_cuda);
-//             cudaDeviceSynchronize();
-//         }
-//         auto end = std::chrono::high_resolution_clock::now();
-//         std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
-//     }
-// }
-//
-// TEST(RL_TOOLS_NN_CUDA, FORWARD) {
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 1, 1>();
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 2, 1>();
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 32, 1>();
-// #ifndef RL_TOOLS_DEBUG
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 1024, 1>();
-// #endif
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 10, 1>();
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 9, 1>();
-//     FORWARD<rlt::numeric_types::Policy<double>, unsigned int, 200, 1>();
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 200, 1>();
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 64, 1000>();
-//     FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 256, 100>();
-// }
-//
+//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
+//        std::cout << "cuda diff:" << std::endl;
+//        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
+//        {
+//            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j)
+//            {
+//                T diff = output_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] - output_cuda_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j];
+//                diff = std::abs(diff) > 1e-7 ? diff : 0;
+//                std::cout << diff << " ";
+//            }
+//            std::cout << std::endl;
+//        }
+//    }
+
+    std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
+    auto threshold = (rlt::utils::typing::is_same_v<T, float> ? 1e-7 : 1e-15);
+    if(std::isnan(evaluation_diff) || evaluation_diff > threshold){
+        ASSERT_LT(evaluation_diff, threshold);
+    }
+
+    {
+        cudaDeviceSynchronize();
+        auto start = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < ITERATIONS; ++i)
+        {
+            rlt::evaluate(device_cuda, network_cuda, input_cuda, output_cuda, network_cuda_buffers, rng_cuda);
+            cudaDeviceSynchronize();
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
+    }
+}
+
+TEST(RL_TOOLS_NN_CUDA, FORWARD) {
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 1, 1>();
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 2, 1>();
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 32, 1>();
+#ifndef RL_TOOLS_DEBUG
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 1024, 1>();
+#endif
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 10, 1>();
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 9, 1>();
+    FORWARD<rlt::numeric_types::Policy<double>, unsigned int, 200, 1>();
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 200, 1>();
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 64, 1000>();
+    FORWARD<rlt::numeric_types::Policy<float>, unsigned int, 256, 100>();
+}
+
 // template <typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
 // void BACKWARD() {
 //     using T = typename TYPE_POLICY::DEFAULT;
