@@ -12,7 +12,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, template <typename> typename BASE>
     persist::Code save_code_split(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC, BASE>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
-        using T = typename SPEC::T;
+        // using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -37,15 +37,16 @@ namespace rl_tools{
         auto log_std = save_code_split(device, network.log_std, "log_std", const_declaration, indent+1);
         ss_header << log_std.header;
         ss << log_std.body;
-        std::string T_string = containers::persist::get_type_string<T>();
+        // std::string T_string = containers::persist::get_type_string<T>();
         std::string TI_string = containers::persist::get_type_string<TI>();
+        ss << ind << "    using TYPE_POLICY = " + to_string(typename SPEC::TYPE_POLICY{}) + ";" << "\n";
         ss << ind << "    using CONFIG = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Configuration<";
-        ss << T_string << ", ";
+        ss << "TYPE_POLICY, ";
         ss << TI_string << ", ";
         ss << SPEC::OUTPUT_DIM << ", " << SPEC::NUM_LAYERS << ", " << SPEC::HIDDEN_DIM << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
-        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">";
+        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << "TYPE_POLICY, " << TI_string << ">";
         ss << ">; \n";
         ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;" << "\n";
         ss << ind << "    " << "using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << get<0>(typename SPEC::INPUT_SHAPE{}) << ", " << get<1>(typename SPEC::INPUT_SHAPE{}) << ", " << get<2>(typename SPEC::INPUT_SHAPE{}) << ">;\n";

@@ -26,25 +26,34 @@ namespace rl_tools::nn{
      This Capability system allows the switching of models for e.g. checkpointing: We are training a full model with gradients, and optimizers state then convert it to a forward only model (just the parameters) and save it as a checkpoint.
     */
     namespace capability{
-        template <bool T_DYNAMIC_ALLOCATION=true>
+        template <bool T_DYNAMIC_ALLOCATION=true, bool T_CONST=false>
         struct Forward{
             static constexpr LayerCapability TAG = LayerCapability::Forward;
             using PARAMETER_TYPE = nn::parameters::Plain;
             static constexpr auto BATCH_SIZE = 1;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+            static constexpr bool CONST = T_CONST;
+            template <bool TT_DYNAMIC_ALLOCATION=true, bool TT_CONST=false>
+            using CHANGE_PARAMETERS = Forward<TT_DYNAMIC_ALLOCATION, TT_CONST>;
         };
-        template <bool T_DYNAMIC_ALLOCATION=true>
+        template <bool T_DYNAMIC_ALLOCATION=true, bool T_CONST=false>
         struct Backward{
             static constexpr LayerCapability TAG = LayerCapability::Backward;
             using PARAMETER_TYPE = nn::parameters::Plain;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+            static constexpr bool CONST = T_CONST;
+            template <bool TT_DYNAMIC_ALLOCATION=true, bool TT_CONST=false>
+            using CHANGE_PARAMETERS = Backward<TT_DYNAMIC_ALLOCATION, TT_CONST>;
         };
-        template <typename T_PARAMETER_TYPE, bool T_DYNAMIC_ALLOCATION=true>
+        template <typename T_PARAMETER_TYPE, bool T_DYNAMIC_ALLOCATION=true, bool T_CONST=false>
         struct Gradient{
             static constexpr LayerCapability TAG = LayerCapability::Gradient;
             using PARAMETER_TYPE = T_PARAMETER_TYPE;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static_assert(!utils::typing::is_same_v<T_PARAMETER_TYPE, nn::parameters::Plain>);
+            static constexpr bool CONST = T_CONST;
+            template <bool TT_DYNAMIC_ALLOCATION=true, bool TT_CONST=false>
+            using CHANGE_PARAMETERS = Gradient<PARAMETER_TYPE, TT_DYNAMIC_ALLOCATION, TT_CONST>;
         };
     }
 }
