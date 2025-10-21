@@ -5,6 +5,7 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DTYPE = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<DTYPE>;
 
 
 
@@ -12,9 +13,9 @@ using NN_DEVICE = rlt::devices::DefaultCPU;
 using TI = typename NN_DEVICE::index_t;
 constexpr TI BATCH_SIZE = 1;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 1, 17>;
-using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, NN_DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+using NETWORK_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, NN_DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
-using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, typename NN_DEVICE::index_t>;
+using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename NN_DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 constexpr bool DYNAMIC_ALLOCATION = true;
 using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, DYNAMIC_ALLOCATION>;
@@ -57,6 +58,6 @@ protected:
     std::vector<DTYPE> Y_std;
 };
 
-using Specification_3 = rlt::nn_models::mlp::Configuration<DTYPE, NN_DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
+using Specification_3 = rlt::nn_models::mlp::Configuration<TYPE_POLICY, NN_DEVICE::index_t, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
 using NetworkType_3 = rlt::nn_models::mlp::NeuralNetwork<Specification_3, CAPABILITY_ADAM, INPUT_SHAPE>;

@@ -32,12 +32,12 @@ constexpr TI N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LA
 
 using NetworkType_1 = NetworkType;
 
-template <typename T, typename NT>
-T abs_diff_network(const NT network, const HighFive::Group g){
+template <typename DEVICE, typename T, typename NT>
+T abs_diff_network(DEVICE& device, const NT network, const HighFive::Group g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
     g.getDataSet("input_layer/weight").read(weights);
-    acc += abs_diff_matrix(network.input_layer.weights.parameters, weights);
+    acc += abs_diff_matrix(matrix_view(device, network.input_layer.weights.parameters), weights);
     return acc;
 }
 
@@ -99,12 +99,17 @@ protected:
         data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        rlt::load(device, network.input_layer.weights.parameters, input_layer_weights);
-        rlt::assign(device, input_layer_biases.data(), network.input_layer.biases.parameters);
-        rlt::load(device, network.hidden_layers[0].weights.parameters, hidden_layer_0_weights);
-        rlt::assign(device, hidden_layer_0_biases.data(), network.hidden_layers[0].biases.parameters);
-        rlt::load(device, network.output_layer.weights.parameters, output_layer_weights);
-        rlt::assign(device, output_layer_biases.data(), network.output_layer.biases.parameters);
+        auto model_group = rlt::get_group(device, data_file, model_name);
+        auto init_group = rlt::get_group(device, model_group, "init");
+        auto input_layer_group = rlt::get_group(device, init_group, "input_layer");
+        auto hidden_layer_group = rlt::get_group(device, init_group, "hidden_layer_0");
+        auto output_layer_group = rlt::get_group(device, init_group, "output_layer");
+        rlt::load(device, network.input_layer.weights.parameters, input_layer_group, "weight");
+        rlt::load(device, network.input_layer.biases.parameters, input_layer_group, "bias");
+        rlt::load(device, network.hidden_layers[0].weights.parameters, hidden_layer_group, "weight");
+        rlt::load(device, network.hidden_layers[0].biases.parameters, hidden_layer_group, "bias");
+        rlt::load(device, network.output_layer.weights.parameters, output_layer_group, "weight");
+        rlt::load(device, network.output_layer.biases.parameters, output_layer_group, "bias");
     }
 
     NN_DEVICE device;
@@ -129,10 +134,7 @@ constexpr DTYPE BACKWARD_PASS_GRADIENT_TOLERANCE (1e-8);
 using RL_TOOLS_NN_MLP_BACKWARD_PASS = NeuralNetworkTestLoadWeights<NetworkType_1>;
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, input_layer_weights) {
-    DTYPE out = abs_diff_matrix(
-            network.input_layer.weights.gradient,
-            batch_0_input_layer_weights_grad
-    );
+    DTYPE out = abs_diff_matrix(matrix_view(device, network.input_layer.weights.gradient), batch_0_input_layer_weights_grad);
     std::cout << "input_layer_weights diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * LAYER_1_DIM * INPUT_DIM);
 }
@@ -140,10 +142,7 @@ TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, input_layer_weights) {
 
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, input_layer_biases) {
-    DTYPE out = abs_diff_matrix(
-            network.input_layer.biases.gradient,
-            batch_0_input_layer_biases_grad.data()
-    );
+    DTYPE out = abs_diff_matrix(matrix_view(device, network.input_layer.biases.gradient), batch_0_input_layer_biases_grad.data());
     std::cout << "input_layer_biases diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * LAYER_1_DIM);
 }
@@ -151,10 +150,7 @@ TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, input_layer_biases) {
 
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
-    DTYPE out = abs_diff_matrix(
-            network.hidden_layers[0].weights.gradient,
-            batch_0_hidden_layer_0_weights_grad
-    );
+    DTYPE out = abs_diff_matrix(matrix_view(device, network.hidden_layers[0].weights.gradient), batch_0_hidden_layer_0_weights_grad);
     std::cout << "hidden_layer_0_weights diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * LAYER_2_DIM * LAYER_1_DIM);
 }
@@ -162,10 +158,7 @@ TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
 
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
-    DTYPE out = abs_diff_matrix(
-            network.hidden_layers[0].biases.gradient,
-            batch_0_hidden_layer_0_biases_grad.data()
-    );
+    DTYPE out = abs_diff_matrix(matrix_view(device, network.hidden_layers[0].biases.gradient), batch_0_hidden_layer_0_biases_grad.data());
     std::cout << "hidden_layer_0_biases diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * LAYER_2_DIM);
 }
@@ -173,10 +166,7 @@ TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
 
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, output_layer_weights) {
-    DTYPE out = abs_diff_matrix(
-            network.output_layer.weights.gradient,
-            batch_0_output_layer_weights_grad
-    );
+    DTYPE out = abs_diff_matrix(matrix_view(device, network.output_layer.weights.gradient), batch_0_output_layer_weights_grad);
     std::cout << "output_layer_weights diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * OUTPUT_DIM * LAYER_2_DIM);
 }
@@ -184,10 +174,7 @@ TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, output_layer_weights) {
 
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_BACKWARD_PASS, output_layer_biases) {
-    DTYPE out = abs_diff_matrix(
-            network.output_layer.biases.gradient,
-            batch_0_output_layer_biases_grad.data()
-    );
+    DTYPE out = abs_diff_matrix(matrix_view(device, network.output_layer.biases.gradient), batch_0_output_layer_biases_grad.data());
     std::cout << "output_layer_biases diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * OUTPUT_DIM);
 }
@@ -200,7 +187,7 @@ typedef RL_TOOLS_NN_MLP_BACKWARD_PASS RL_TOOLS_NN_MLP_ADAM_UPDATE;
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
     optimizer.parameters.epsilon_sqrt = 0;
 //    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
@@ -241,10 +228,7 @@ TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     rlt::reset_optimizer_state(device, optimizer, network);
     rlt::step(device, optimizer, network);
 
-    DTYPE out = abs_diff_matrix(
-            network.input_layer.weights.parameters,
-            batch_0_input_layer_weights
-    );
+    DTYPE out = abs_diff_matrix(matrix_view(device, network.input_layer.weights.parameters), batch_0_input_layer_weights);
     ASSERT_LT(out, 1.5e-7);
 }
 #endif
@@ -296,7 +280,7 @@ protected:
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
     optimizer.parameters.epsilon_sqrt = 0;
 
@@ -310,7 +294,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     DTYPE loss = 0;
     rlt::reset_optimizer_state(device, optimizer, network);
     {
-        DTYPE diff = abs_diff_network<DTYPE>(network, data_file.getGroup(model_name+"/init"));
+        DTYPE diff = abs_diff_network<DEVICE, DTYPE>(device, network, data_file.getGroup(model_name+"/init"));
         std::cout << "initial diff: " << diff << std::endl;
         ASSERT_EQ(diff, 0);
     }
@@ -349,7 +333,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 //        if(batch_i == comp_batch){
         std::stringstream ss;
         ss << "model_2/overfit_small_batch/" << batch_i;
-        DTYPE diff = abs_diff_network<DTYPE>(network, data_file.getGroup(ss.str()));
+        DTYPE diff = abs_diff_network<DEVICE, DTYPE>(device, network, data_file.getGroup(ss.str()));
         std::cout << "batch_i: " << batch_i << " diff: " << diff << std::endl;
 #ifdef RL_TOOLS_TESTS_CODE_COVERAGE
         if (batch_i >= 10){
@@ -374,7 +358,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
     constexpr TI n_batches = 10;
     for(TI batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
@@ -484,7 +468,7 @@ protected:
 #ifndef SKIP_TRAINING_TESTS
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
@@ -592,7 +576,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
 
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
     NN_DEVICE device;
     NetworkType network;
