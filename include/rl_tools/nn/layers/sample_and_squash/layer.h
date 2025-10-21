@@ -114,7 +114,7 @@ namespace rl_tools{
 //            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
             // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
             using ACTIVATION_TYPE = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
-            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
+            using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION, matrix::layouts::DEFAULT<typename SPEC::TI>, SPEC::CONST>;
             using PRE_ACTIVATIONS_CONTAINER_TYPE = Matrix<PRE_ACTIVATIONS_CONTAINER_SPEC>;
             PRE_ACTIVATIONS_CONTAINER_TYPE pre_squashing, noise;
         };
@@ -123,14 +123,14 @@ namespace rl_tools{
             using TI = typename SPEC::TI;
 //            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
             using ACTIVATION_TYPE = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
-            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, 1, SPEC::INTERNAL_BATCH_SIZE, SPEC::DYNAMIC_ALLOCATION>;
+            using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, 1, SPEC::INTERNAL_BATCH_SIZE, SPEC::DYNAMIC_ALLOCATION, matrix::layouts::DEFAULT<typename SPEC::TI>, SPEC::CONST>;
             using LOG_PROBABILITIES_CONTAINER_TYPE = Matrix<LOG_PROBABILITIES_CONTAINER_SPEC>;
             LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
-            using OUTPUT_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
+            using OUTPUT_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION, matrix::layouts::DEFAULT<typename SPEC::TI>, SPEC::CONST>;
             using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
             OUTPUT_CONTAINER_TYPE output;
             using ALPHA_SHAPE = tensor::Shape<TI, 1>;
-            using ALPHA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<typename SPEC::TYPE_POLICY, TI, ALPHA_SHAPE, nn::parameters::categories::Biases, nn::parameters::groups::Normal, SPEC::DYNAMIC_ALLOCATION>;
+            using ALPHA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<typename SPEC::TYPE_POLICY, TI, ALPHA_SHAPE, nn::parameters::categories::Biases, nn::parameters::groups::Normal, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
             typename SPEC::PARAMETER_TYPE::template Instance<ALPHA_PARAMETER_SPEC> log_alpha;
         };
         template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
