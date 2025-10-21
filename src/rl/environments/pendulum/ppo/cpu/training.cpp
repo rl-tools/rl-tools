@@ -1,12 +1,12 @@
 //#define RL_TOOLS_BACKEND_DISABLE_BLAS
 
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/nn/operations_cpu_mux.h>
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/rl/environment_wrappers/scale_observations/operations_generic.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
@@ -31,14 +31,15 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using TI = typename DEVICE::index_t;
 
-using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<TYPE_POLICY::DEFAULT, TI, rlt::rl::environments::pendulum::DefaultParameters<TYPE_POLICY::DEFAULT>>;
 using PRE_ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
-using SCALE_OBSERVATIONS_WRAPPER_SPEC = rlt::rl::environment_wrappers::scale_observations::Specification<T, TI>;
+using SCALE_OBSERVATIONS_WRAPPER_SPEC = rlt::rl::environment_wrappers::scale_observations::Specification<TYPE_POLICY, TI>;
 using ENVIRONMENT = rlt::rl::environment_wrappers::ScaleObservations<SCALE_OBSERVATIONS_WRAPPER_SPEC, PRE_ENVIRONMENT>;
 
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
     static constexpr TI BATCH_SIZE = 256;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
@@ -47,8 +48,8 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI TOTAL_STEP_LIMIT = 300000;
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
     static constexpr TI EPISODE_STEP_LIMIT = 200;
-    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>;
-    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
+    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>;
+    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
         static constexpr TI N_EPOCHS = 2;
         static constexpr T GAMMA = 0.9;
@@ -56,9 +57,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
         static constexpr bool NORMALIZE_OBSERVATIONS = true;
     };
 };
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
 template <typename NEXT>
-struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 10;
     static constexpr TI NUM_EVALUATION_EPISODES = 100;
     static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
@@ -83,7 +84,7 @@ auto run(TI seed, bool verbose){
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
     }
-    using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+    using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
     auto actor = rlt::get_actor(ts);
     using EVALUATION_ACTOR_BATCH_SIZE = decltype(actor)::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_FINAL_EVAL>;
