@@ -7,6 +7,7 @@
 #include <rl_tools/nn_models/mlp_unconditional_stddev//operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
+#include <rl_tools/numeric_types/persist_code.h>
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/parameters/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
@@ -39,15 +40,15 @@ std::optional<std::string> get_env_var(const std::string& var) {
 }
 
 namespace MODEL_BENCHMARK{
-    using T_BENCHMARK = float;
-    using LAYER_PARAMETERS = rlt::nn::layers::dense::DefaultInitializer<T_BENCHMARK, TI>;
+    using TYPE_POLICY = rlt::numeric_types::Policy<float>;
+    using LAYER_PARAMETERS = rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>;
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
-    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T_BENCHMARK, TI, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Input>;
+    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Input>;
     using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T_BENCHMARK, TI, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Normal>;
+    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Normal>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
-    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T_BENCHMARK, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
+    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
@@ -57,15 +58,15 @@ namespace MODEL_BENCHMARK{
 }
 
 namespace MODEL_1{
-    using T = double;
-    using LAYER_PARAMETERS = rlt::nn::layers::dense::DefaultInitializer<T, TI>;
+    using TYPE_POLICY = rlt::numeric_types::Policy<double>;
+    using LAYER_PARAMETERS = rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>;
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
-    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Input>;
+    using LAYER_1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Input>;
     using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
-    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Normal>;
+    using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Normal>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
-    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
+    using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
@@ -74,14 +75,14 @@ namespace MODEL_1{
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 namespace MODEL_2{
-    using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<double>;
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
-    using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_CONFIG>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
-    using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
+    using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
@@ -91,10 +92,10 @@ namespace MODEL_2{
 }
 
 namespace MODEL_MLP{
-    using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<double>;
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
-    using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp::BindConfiguration<ACTOR_CONFIG>;
 
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
@@ -106,13 +107,13 @@ namespace MODEL_MLP{
 }
 
 namespace MODEL_SAMPLE_AND_SQUASH{
-    using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<double>;
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
-    using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 8, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 8, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_CONFIG>;
 
-    using SAMPLE_AND_SQUASH_LAYER_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<T, TI>;
+    using SAMPLE_AND_SQUASH_LAYER_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<TYPE_POLICY, TI>;
     using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_CONFIG>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
@@ -124,7 +125,7 @@ namespace MODEL_SAMPLE_AND_SQUASH{
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
     using MODEL = MODEL_1::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     MODEL model;
@@ -173,7 +174,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_model_benchmark) {
     using MODEL = MODEL_BENCHMARK::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     MODEL model;
@@ -224,7 +225,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_model_benchmark) {
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
     using MODEL = MODEL_2::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     MODEL model;
@@ -247,8 +248,8 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
     {
         auto& first_layer = model.content;
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
-            rlt::set(first_layer.mean.parameters, 0, input_i, input_i);
-            rlt::set(first_layer.precision.parameters, 0, input_i, input_i*2);
+            rlt::set(device, first_layer.mean.parameters, input_i, input_i);
+            rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
             rlt::set(first_layer.output, 0, input_i, input_i*3);
         }
     }
@@ -256,10 +257,10 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
     {
         auto& last_layer = rlt::get_last_layer(model);
         for(TI output_i=0; output_i < rlt::get_last(typename MODEL::OUTPUT_SHAPE{}); output_i++){
-            rlt::set(last_layer.log_std.parameters, 0, output_i, output_i);
-            rlt::set(last_layer.log_std.gradient, 0, output_i, output_i*2);
-            rlt::set(last_layer.log_std.gradient_first_order_moment, 0, output_i, output_i*3);
-            rlt::set(last_layer.log_std.gradient_second_order_moment, 0, output_i, output_i*4);
+            rlt::set(device, last_layer.log_std.parameters, output_i, output_i);
+            rlt::set(device, last_layer.log_std.gradient, output_i*2, output_i);
+            rlt::set(device, last_layer.log_std.gradient_first_order_moment, output_i*3, output_i);
+            rlt::set(device, last_layer.log_std.gradient_second_order_moment, output_i*4, output_i);
         }
     }
 
@@ -293,7 +294,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
     using MODEL = MODEL_2::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     using CAPABILITY_FORWARD = rlt::nn::capability::Forward<>;
@@ -317,15 +318,15 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
     {
         auto& first_layer = model.content;
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
-            rlt::set(first_layer.mean.parameters, 0, input_i, input_i);
-            rlt::set(first_layer.precision.parameters, 0, input_i, input_i*2);
+            rlt::set(device, first_layer.mean.parameters, input_i, input_i);
+            rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
         }
     }
 
     {
         auto& last_layer = rlt::get_last_layer(model);
         for(TI output_i=0; output_i < rlt::get_last(typename MODEL::OUTPUT_SHAPE{}); output_i++){
-            rlt::set(last_layer.log_std.parameters, 0, output_i, output_i);
+            rlt::set(device, last_layer.log_std.parameters, output_i, output_i);
         }
     }
 
@@ -357,7 +358,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
 }
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
     using MODEL = MODEL_2::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     using CAPABILITY_BACKWARD = rlt::nn::capability::Backward<1>;
@@ -381,15 +382,15 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
     {
         auto& first_layer = model.content;
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
-            rlt::set(first_layer.mean.parameters, 0, input_i, input_i);
-            rlt::set(first_layer.precision.parameters, 0, input_i, input_i*2);
+            rlt::set(device, first_layer.mean.parameters, input_i, input_i);
+            rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
         }
     }
 
     {
         auto& last_layer = rlt::get_last_layer(model);
         for(TI output_i=0; output_i < rlt::get_last(typename MODEL::OUTPUT_SHAPE{}); output_i++){
-            rlt::set(last_layer.log_std.parameters, 0, output_i, output_i);
+            rlt::set(device, last_layer.log_std.parameters, output_i, output_i);
         }
     }
 
@@ -422,7 +423,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp){
     using MODEL = MODEL_MLP::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
 //    using CAPABILITY_BACKWARD = rlt::nn::capability::Backward<1>;
@@ -475,7 +476,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp){
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp_forward){
     using MODEL = MODEL_MLP::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     using CAPABILITY_FORWARD = rlt::nn::capability::Forward<>;
@@ -527,7 +528,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp_forward){
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward){
     using MODEL = MODEL_SAMPLE_AND_SQUASH::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     using CAPABILITY_FORWARD = rlt::nn::capability::Forward<>;
@@ -582,7 +583,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backward){
     using MODEL = MODEL_SAMPLE_AND_SQUASH::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     using CAPABILITY = rlt::nn::capability::Backward<>;
@@ -636,7 +637,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_gradient){
     using MODEL = MODEL_SAMPLE_AND_SQUASH::MODEL;
-    using T = typename MODEL::T;
+    using T = typename MODEL::TYPE_POLICY::DEFAULT;
 
     DEVICE device;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;

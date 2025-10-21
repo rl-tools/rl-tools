@@ -93,12 +93,12 @@ namespace rl_tools::nn::layers::dense {
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>::SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
         using WEIGHTS_SHAPE = tensor::Shape<TI, OUTPUT_DIM, INPUT_DIM>;
-        using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, WEIGHTS_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION>;
+        using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, WEIGHTS_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<WEIGHTS_PARAMETER_SPEC> weights;
 
 
         using BIASES_SHAPE = tensor::Shape<TI, OUTPUT_DIM>;
-        using BIASES_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, BIASES_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION>;
+        using BIASES_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, BIASES_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<BIASES_PARAMETER_SPEC> biases;
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = dense::Buffer;

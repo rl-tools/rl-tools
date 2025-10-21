@@ -60,12 +60,13 @@ namespace rl_tools {
         ss_header << "#include <rl_tools/nn/parameters/parameters.h>\n";
         ss << container.body;
         if(!output_memory_only){
-            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::spec<parameters_memory::CONTAINER_TYPE, "
+            ss << ind << "    " << "using TYPE_POLICY = " << to_string(typename SPEC::TYPE_POLICY{}) << ";\n";
+            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::Specification<TYPE_POLICY, typename parameters_memory::SPEC::TI, typename parameters_memory::SPEC::SHAPE, "
             << get_type_string_tag(device, typename SPEC::GROUP_TAG{})
             << ", "
             << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})
-            << ">;\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
+            << ", true, true>;\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::Instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
         }
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

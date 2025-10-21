@@ -84,7 +84,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters {
     struct Adam{
-        template <typename T_TYPE_POLICY, typename T_TI, typename T_SHAPE, typename T_GROUP_TAG, typename T_CATEGORY_TAG, bool T_DYNAMIC_ALLOCATION>
+        template <typename T_TYPE_POLICY, typename T_TI, typename T_SHAPE, typename T_GROUP_TAG, typename T_CATEGORY_TAG, bool T_DYNAMIC_ALLOCATION, bool T_CONST=false>
         struct Specification{
             using TYPE_POLICY = T_TYPE_POLICY;
             using TI = T_TI;
@@ -92,6 +92,7 @@ namespace rl_tools::nn::parameters {
             using GROUP_TAG = T_GROUP_TAG;
             using CATEGORY_TAG = T_CATEGORY_TAG;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+            static constexpr bool CONST = T_CONST;
         };
         template <typename T_SPEC>
         struct Instance: Gradient::Instance<T_SPEC>{

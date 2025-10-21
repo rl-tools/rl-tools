@@ -27,21 +27,24 @@ namespace rl_tools {
             std::stringstream ss, ss_header;
             ss_header << input.header;
             ss_header << "#include <rl_tools/nn/layers/dense/layer.h>\n";
+            ss_header << "#include <rl_tools/numeric_types/policy.h>\n";
             ss << input.body;
             std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
             std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             ss << ind << "namespace " << name << " {\n";
+            ss << ind << "    using TYPE_POLICY = " << to_string(typename SPEC::TYPE_POLICY{}) << ";\n";
             ss << ind << "    using CONFIG = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Configuration<"
-                << T_string << ", "
+                << "TYPE_POLICY, "
                 << TI_string << ", "
                 << SPEC::OUTPUT_DIM << ", "
                 << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
-                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">, "
+                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << "TYPE_POLICY, " << TI_string << ">, "
                 << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{})
                 << ">; \n";
             ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::BindConfiguration<CONFIG>;" << "\n";
             ss << ind << "    " << "using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << get<0>(typename SPEC::INPUT_SHAPE{}) << ", " << get<1>(typename SPEC::INPUT_SHAPE{}) << ", " << get<2>(typename SPEC::INPUT_SHAPE{}) << ">;\n";
-            ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
+            using CONST_CAPABILITY = typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>;
+            ss << ind << "    " << "using CAPABILITY = " << to_string(CONST_CAPABILITY{}) << ";" << "\n";
             ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;" << "\n";
             std::string initializer_list;
             if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
