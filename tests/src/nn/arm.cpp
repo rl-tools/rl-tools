@@ -24,6 +24,7 @@ constexpr bool const_declaration = false;
 template <typename DTYPE, auto INPUT_DIM, auto OUTPUT_DIM, auto N_LAYERS, auto HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION, rlt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, auto BATCH_SIZE>
 void test_mlp_evaluate() {
     using DEVICE = rlt::devices::DefaultCPU;
+    using TYPE_POLICY = rlt::numeric_types::Policy<DTYPE>;
     using DEVICE_ARM = rlt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
     DEVICE device;
@@ -32,7 +33,7 @@ void test_mlp_evaluate() {
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     using INPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, INPUT_DIM>;
-    using CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;
+    using CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, typename DEVICE::index_t, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>>;
     using MLP = rlt::nn_models::mlp::NeuralNetwork<CONFIG, rlt::nn::capability::Forward<>, INPUT_SHAPE>;
     MLP mlp;
     typename MLP::template Buffer<BATCH_SIZE> buffers;
@@ -72,6 +73,7 @@ void test_mlp_evaluate() {
 template <typename DTYPE, auto INPUT_DIM, auto OUTPUT_DIM, auto N_LAYERS, auto HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION, rlt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, auto BATCH_SIZE>
 void test_mlp_forward() {
     using DEVICE = rlt::devices::DefaultCPU;
+    using TYPE_POLICY = rlt::numeric_types::Policy<DTYPE>;
     using DEVICE_ARM = rlt::devices::DefaultARM;
     DEVICE device;
     DEVICE_ARM device_arm;
@@ -80,7 +82,7 @@ void test_mlp_forward() {
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     using INPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, INPUT_DIM>;
-    using CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;
+    using CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, typename DEVICE::index_t, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>>;
     using TYPE = rlt::nn_models::mlp::NeuralNetwork<CONFIG, rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, INPUT_SHAPE>;
     using FORWARD_BACKWARD_BUFFERS = typename TYPE::template Buffer<BATCH_SIZE>;
     TYPE mlp_cpu, mlp_arm;

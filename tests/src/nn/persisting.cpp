@@ -36,7 +36,7 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     rlt::reset_forward_state(device, network_2);
     rlt::reset_optimizer_state(device, optimizer, network_2);
     rlt::zero_gradient(device, network_2);
-    rlt::increment(network_1.input_layer.weights.gradient_first_order_moment, 2, 3, 10);
+    rlt::increment(device, network_1.input_layer.weights.gradient_first_order_moment, 10, 2, 3);
     {
         auto output_file = HighFive::File(std::string("test.hdf5"), HighFive::File::Overwrite);
         rlt::persist::backends::hdf5::Group<> group = {output_file.createGroup("three_layer_fc")};
