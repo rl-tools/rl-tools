@@ -15,15 +15,19 @@ namespace rl_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(INPUT_SPEC::COL_PITCH == 1);
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.weights.parameters)::COL_PITCH == 1);
-        static_assert(decltype(layer.biases.parameters)::COL_PITCH == 1);
+        static_assert(decltype(layer.weights.parameters)::SPEC::STRIDE::template GET<1> == 1);
+        static_assert(decltype(layer.biases.parameters)::SPEC::STRIDE::template GET<0> == 1);
+        using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename decltype(layer.biases.parameters)::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename OUTPUT_SPEC::T>);
 //        static_assert(utils::typing::is_same_v<typename LAYER_SPEC::T, float>);
 
         // Warning do not use the same buffer for input and output!
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         // static_assert(BATCH_SIZE == 1);
         using DEVICE = devices::ARM<DEV_SPEC>;
-        using T = typename LAYER_SPEC::T;
+        using T = WEIGHT_TYPE;
         using TI = typename LAYER_SPEC::TI;
         {
 
@@ -73,7 +77,7 @@ namespace rl_tools{
 
                         weights_row_i--;
 
-                        weights_row += decltype(layer.weights.parameters)::ROW_PITCH;
+                        weights_row += decltype(layer.weights.parameters)::SPEC::STRIDE::template GET<0>;
 
                     }while (weights_row_i > 0U);
 

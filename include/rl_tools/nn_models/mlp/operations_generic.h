@@ -251,9 +251,10 @@ namespace rl_tools {
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC_1>& n1, const nn_models::mlp::NeuralNetworkForward<SPEC_2>& n2){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC_1>& n1, const nn_models::mlp::NeuralNetworkForward<SPEC_2>& n2){
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
         static_assert(rl_tools::nn_models::mlp::check_spec_memory<SPEC_1, SPEC_2>, "The source and target network must have the same structure");
-        typename SPEC_1::T acc = 0;
+        T acc = 0;
 
         acc += abs_diff(device, n1.output_layer, n2.output_layer);
         for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC_1::NUM_HIDDEN_LAYERS; layer_i++){
