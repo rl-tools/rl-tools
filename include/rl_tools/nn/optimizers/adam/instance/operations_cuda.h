@@ -10,7 +10,7 @@ namespace rl_tools {
     namespace nn::optimizers::adam::cuda {
         template<typename DEV_SPEC, typename PARAMETER_SPEC, typename SPEC>
         __global__
-        void update_kernel(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::instance<PARAMETER_SPEC> parameter, nn::optimizers::Adam<SPEC> optimizer) {
+        void update_kernel(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::Instance<PARAMETER_SPEC> parameter, nn::optimizers::Adam<SPEC> optimizer) {
             // fully fused adam update
             // note some of this is fused into the Layer update: include/rl_tools/nn/layers/dense/operations_cuda.h
             using DEVICE = devices::CUDA<DEV_SPEC>;
@@ -47,7 +47,7 @@ namespace rl_tools {
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
-    void update(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::instance<SPEC>& p, nn::optimizers::Adam<PARAMETERS>& optimizer) {
+    void update(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::Instance<SPEC>& p, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_INPUT = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::CONTAINER::ROWS, BLOCKSIZE_ACTIVATION_OUTPUT);
