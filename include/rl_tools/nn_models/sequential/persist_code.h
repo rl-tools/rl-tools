@@ -37,7 +37,7 @@ namespace rl_tools{
             ss << ind << "    " << "namespace model_definition {\n";
 //            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
 //            std::string capability = "Forward";
-            ss << ind << "    " << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
+            ss << ind << "    " << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << "; \n";
             ss << ind << "    " << "    " << "template <typename T_CONTENT, typename T_NEXT_MODULE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::OutputModule>\n";
             ss << ind << "    " << "    " << "using Module = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;\n";
             ss << ind << "    " << "    " << "using MODULE_CHAIN = Module<";

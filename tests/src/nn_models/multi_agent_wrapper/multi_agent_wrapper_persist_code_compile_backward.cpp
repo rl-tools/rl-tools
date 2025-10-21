@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 
-#include "../../../../../external/rl-tools-test-data/nn_models_multi_agent_wrapper_persist_code_backward.h"
+#include "../../../../tests/data/nn_models_multi_agent_wrapper_persist_code_backward.h"
 
 #include <rl_tools/nn/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>

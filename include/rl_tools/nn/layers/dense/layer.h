@@ -110,7 +110,7 @@ namespace rl_tools::nn::layers::dense {
         // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
 
         using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
-        using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION, matrix::layouts::DEFAULT<typename SPEC::TI>, SPEC::CONST>;
         using PRE_ACTIVATIONS_CONTAINER_TYPE = Matrix<PRE_ACTIVATIONS_CONTAINER_SPEC>;
         PRE_ACTIVATIONS_CONTAINER_TYPE pre_activations;
     };
@@ -118,7 +118,7 @@ namespace rl_tools::nn::layers::dense {
     struct LayerGradient: public LayerBackward<SPEC>{
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
         using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
-        using OUTPUT_CONTAINER_SPEC = matrix::Specification<T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_CONTAINER_SPEC = matrix::Specification<T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION, matrix::layouts::DEFAULT<typename SPEC::TI>, SPEC::CONST>;
         using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
