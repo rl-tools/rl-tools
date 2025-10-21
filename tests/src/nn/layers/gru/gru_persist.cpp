@@ -27,9 +27,10 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
 TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST){
-    using CONFIG = Config<T, TI>;
+    using CONFIG = Config<TYPE_POLICY, TI>;
     using GRU = typename CONFIG::GRU::Layer<typename CONFIG::CAPABILITY, typename CONFIG::INPUT_SHAPE>;
     GRU gru;
     typename GRU::Buffer<true> buffer;
