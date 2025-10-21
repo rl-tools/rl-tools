@@ -14,6 +14,7 @@
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING_BLAS){
     std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
     static constexpr TI NUM_EVALUATION_EPISODES = 10;
+    using T = float;
 #ifdef RL_TOOLS_TESTS_CODE_COVERAGE
     static constexpr TI NUM_ITERATIONS = 2;
 #else

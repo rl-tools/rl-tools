@@ -8,6 +8,8 @@
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/models.h>
+#include <rl_tools/nn/layers/standardize/operations_generic.h>
+#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
@@ -30,8 +32,9 @@ using NN_DEVICE = rlt::devices::DefaultDummy;
 using AC_DEVICE = rlt::devices::DefaultDummy;
 #endif
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using TI = typename DEVICE::index_t;
-typedef rlt::rl::environments::pendulum::Specification<T, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
+typedef rlt::rl::environments::pendulum::Specification<TYPE_POLICY::DEFAULT, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<TYPE_POLICY::DEFAULT>> PENDULUM_SPEC;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT envs[1];
 ENVIRONMENT::Parameters env_parameters[1];
@@ -43,17 +46,17 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, AC_
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
 
-using TD3_PARAMETERS = TD3PendulumParameters<T>;
+using TD3_PARAMETERS = TD3PendulumParameters<TYPE_POLICY>;
 
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<DEVICE::index_t, 1, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
 using ACTOR = rlt::nn_models::mlp::BindConfiguration<ACTOR_NETWORK_SPEC>;
 using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<DEVICE::index_t, 1, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
-using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
 
 using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, TI>;
+using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
@@ -70,7 +73,7 @@ using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SP
 
 using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::capability::Forward<>, CRITIC_INPUT_SHAPE>;
 
-using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+using TD3_SPEC = rlt::rl::algorithms::td3::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -79,7 +82,7 @@ constexpr typename DEVICE::index_t EPISODE_STEP_LIMIT = 200;
 
 using POLICIES = rl_tools::utils::Tuple<TI, ACTOR_NETWORK_TYPE>;
 
-using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, AC_DEVICE::index_t, ENVIRONMENT, POLICIES, rlt::rl::components::off_policy_runner::ParametersDefault<T, AC_DEVICE::index_t>>;
+using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, POLICIES, rlt::rl::components::off_policy_runner::ParametersDefault<TYPE_POLICY, AC_DEVICE::index_t>>;
 rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 ActorCriticType actor_critic;
 const T STATE_TOLERANCE = 0.00001;
@@ -148,7 +151,7 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, EPISODE_STEP_LIMIT>;
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, ENVIRONMENT, 10, EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
             rlt::evaluate(device, env, ui, actor_critic.actor, result, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
             rlt::log(device, device.logger, "Mean return: ", result.returns_mean);

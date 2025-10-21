@@ -12,6 +12,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING){
     LOOP_STATE ts;
     rlt::malloc(device, ts);
     rlt::init(device, ts, 0);
+    using T = float;
     std::vector<T> evaluation_returns;
     std::chrono::time_point<std::chrono::high_resolution_clock> start_time = std::chrono::high_resolution_clock::now();
     while(!rlt::step(device, ts)){
