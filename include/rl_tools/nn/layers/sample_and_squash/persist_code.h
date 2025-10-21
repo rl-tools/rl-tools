@@ -25,7 +25,6 @@ namespace rl_tools {
             ss_header << input.header;
             ss_header << "#include <rl_tools/nn/layers/sample_and_squash/layer.h>\n";
             ss << input.body;
-            std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
             std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             ss << ind << "namespace " << name << " {\n";
             std::string T_parameter_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
@@ -38,14 +37,15 @@ namespace rl_tools {
             ss << ind << "        static constexpr " << T_parameter_string << " ALPHA = " << SPEC::PARAMETERS::ALPHA << ";\n";
             ss << ind << "        static constexpr " << T_parameter_string << " TARGET_ENTROPY = " << SPEC::PARAMETERS::TARGET_ENTROPY << ";\n";
             ss << ind << "    };\n";
+            ss << ind << "    using TYPE_POLICY = " + to_string(typename SPEC::TYPE_POLICY{}) + ";\n";
             ss << ind << "    using CONFIG = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Configuration<";
-            ss << T_string << ", ";
+            ss << "TYPE_POLICY, ";
             ss << TI_string << ", ";
             ss << "PARAMETERS";
             ss << ">; \n";;
             ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::BindConfiguration<CONFIG>;" << "\n";
             ss << ind << "    " << "using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << get<0>(typename SPEC::INPUT_SHAPE{}) << ", " << get<1>(typename SPEC::INPUT_SHAPE{}) << ", " << get<2>(typename SPEC::INPUT_SHAPE{}) << ">;\n";
-            ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
+            ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << ";" << "\n";
             ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;" << "\n";
             std::string initializer_list;
             if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
