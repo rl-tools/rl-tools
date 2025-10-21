@@ -15,7 +15,7 @@
 #include <rl_tools/inference/applications/l2f/l2f.h>
 #include <rl_tools/inference/applications/l2f/operations_generic.h>
 
-#include "../../../../../external/rl-tools-test-data/test_inference_executor_policy.h"
+#include "../../../../tests/data/test_inference_executor_policy.h"
 
 namespace rlt = rl_tools;
 

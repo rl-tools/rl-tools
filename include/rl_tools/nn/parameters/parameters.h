@@ -47,7 +47,7 @@ namespace rl_tools::nn::parameters{
         struct Instance{
             using SPEC = T_SPEC;
             using T_PARAMETER = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Parameter>;
-            using TENSOR_SPEC = tensor::Specification<T_PARAMETER, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, typename tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
+            using TENSOR_SPEC = tensor::Specification<T_PARAMETER, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
             Tensor<TENSOR_SPEC> parameters;
         };
     };
@@ -66,7 +66,7 @@ namespace rl_tools::nn::parameters{
         struct Instance: Plain::Instance<T_SPEC>{
             using SPEC = T_SPEC;
             using T_GRADIENT = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
-            using TENSOR_SPEC = tensor::Specification<T_GRADIENT, typename SPEC::TI, typename SPEC::SHAPE>;
+            using TENSOR_SPEC = tensor::Specification<T_GRADIENT, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
             Tensor<TENSOR_SPEC> gradient;
         };
     };

@@ -16,7 +16,7 @@ namespace rl_tools::nn_models::mlp_unconditional_stddev {
         // using LOG_STD_CONTAINER_SPEC = matrix::Specification<typename TYPE_POLICY::DEFAULT, TI, 1, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
         // using LOG_STD_CONTAINER_TYPE = Matrix<LOG_STD_CONTAINER_SPEC>;
         using LOG_STD_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_DIM>;
-        using LOG_STD_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, LOG_STD_CONTAINER_SHAPE, nn::parameters::groups::Output, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION>;
+        using LOG_STD_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, LOG_STD_CONTAINER_SHAPE, nn::parameters::groups::Output, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<LOG_STD_PARAMETER_SPEC> log_std;
         template <typename TT_SPEC>
         using BASE = T_BASE<TT_SPEC>;

@@ -1,10 +1,13 @@
 #include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/numeric_types/persist_code.h>
 #include <rl_tools/containers/matrix/persist_code.h>
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/parameters/persist_code.h>
+#include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
@@ -42,7 +45,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE, STORE) {
     constexpr TI OUTPUT_DIM = 20;
     constexpr TI BATCH_SIZE = 5;
     using LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    using CAPA = rlt::nn::capability::Forward<>;
+    using CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
     using LAYER = rlt::nn::layers::dense::Layer<LAYER_CONFIG, CAPA, INPUT_SHAPE>;
 

@@ -17,7 +17,7 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/inference/executor/executor.h>
 
-#include "../../../../../external/rl-tools-test-data/test_inference_executor_policy.h"
+#include "../../../../tests/data/test_inference_executor_policy.h"
 
 #ifdef RL_TOOLS_ENABLE_INFORMATIVE_STATUS_MESSAGES
 #include <cstdio>

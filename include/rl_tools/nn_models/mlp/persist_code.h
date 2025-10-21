@@ -21,11 +21,11 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss_header;
-        ss_header << "#include <rl_tools/nn_models/mlp/network.h>\n";
         std::stringstream ss;
         ss << ind << "namespace " << name << " {\n";
         auto input_layer = save_code_split(device, network.input_layer, "input_layer", const_declaration, indent+1);
         ss_header << input_layer.header;
+        ss_header << "#include <rl_tools/nn_models/mlp/network.h>\n";
         ss << input_layer.body;
         for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
             auto hidden_layer = save_code_split(device, network.hidden_layers[hidden_layer_i], "hidden_layer_" + std::to_string(hidden_layer_i), const_declaration, indent+1);

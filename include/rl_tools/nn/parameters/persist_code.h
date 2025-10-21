@@ -90,9 +90,13 @@ namespace rl_tools {
         ss_header << gradient.header;
         ss << gradient.body;
         if(!output_memory_only){
-            ss << ind << "    " << "static_assert(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::typing::is_same_v<parameters_memory::CONTAINER_TYPE, gradient_memory::CONTAINER_TYPE>);\n";
-            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::spec<parameters_memory::CONTAINER_TYPE, " << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{}) << ">;\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container, gradient_memory::container};\n";
+            ss << ind << "    " << "using TYPE_POLICY = " << to_string(typename SPEC::TYPE_POLICY{}) << ";\n";
+            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::Specification<TYPE_POLICY, typename parameters_memory::SPEC::TI, typename parameters_memory::SPEC::SHAPE, "
+            << get_type_string_tag(device, typename SPEC::GROUP_TAG{})
+            << ", "
+            << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})
+            << ", true, true>;\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::Instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
         }
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 
-#include "../../../../../external/rl-tools-test-data/nn_models_sequential_persist_code_model_sample_and_squash_backward.h"
+#include "../../../../tests/data/nn_models_sequential_persist_code_model_sample_and_squash_backward.h"
 
 #include <rl_tools/nn/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>

@@ -151,6 +151,16 @@ namespace rl_tools {
         auto code = save_code_split(device, layer, name, const_declaration, indent);
         return code.header + code.body;
     }
+    template<typename DEVICE, typename SPEC>
+    std::string save_code(DEVICE& device, nn::layers::dense::LayerBackward<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+        auto code = save_code_split(device, layer, name, const_declaration, indent);
+        return code.header + code.body;
+    }
+    template<typename DEVICE, typename SPEC>
+    std::string save_code(DEVICE& device, nn::layers::dense::LayerGradient<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+        auto code = save_code_split(device, layer, name, const_declaration, indent);
+        return code.header + code.body;
+    }
     template <typename DEVICE, typename SPEC>
     std::string nn_analytics(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
         std::string data;

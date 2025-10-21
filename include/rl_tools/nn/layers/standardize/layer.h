@@ -44,6 +44,7 @@ namespace rl_tools::nn::layers::standardize {
     template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
     struct Specification: T_CAPABILITY, T_CONFIG{
         using CONFIG = T_CONFIG;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename CONFIG::TI;
         using CAPABILITY = T_CAPABILITY;
         using INPUT_SHAPE = T_INPUT_SHAPE;
@@ -70,7 +71,7 @@ namespace rl_tools::nn::layers::standardize {
         template <typename NEW_INPUT_SHAPE>
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
         using STATISTICS_SHAPE = tensor::Shape<TI, INPUT_DIM>;
-        using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::Specification<typename SPEC::TYPE_POLICY, TI, STATISTICS_SHAPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant, SPEC::DYNAMIC_ALLOCATION>; // Constant from the view of a forward or backward pass
+        using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::Specification<typename SPEC::TYPE_POLICY, TI, STATISTICS_SHAPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>; // Constant from the view of a forward or backward pass
         typename nn::parameters::Plain::template Instance<STATISTICS_PARAMETER_SPEC> mean, precision; // precision = 1/std
 
         template<bool DYNAMIC_ALLOCATION=true>
@@ -84,7 +85,7 @@ namespace rl_tools::nn::layers::standardize {
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC> {
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>;
+        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION, matrix::layouts::DEFAULT<typename SPEC::TI>, SPEC::CONST>;
         using OUTPUT_CONTAINER_TYPE = Matrix<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
