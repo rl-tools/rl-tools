@@ -129,7 +129,7 @@ namespace rl_tools{
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
         __global__ void
         d_activation_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<PRE_ACTIVATIONS_SPEC> pre_activations, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_PRE_ACTIVATIONS_SPEC> d_pre_activations) {
-            using T = typename SPEC::T;
+            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
             static_assert(containers::check_structure<PRE_ACTIVATIONS_SPEC, D_OUTPUT_SPEC>);
@@ -159,14 +159,14 @@ namespace rl_tools{
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
         __global__ void
-        d_activation_accumulate_bias_gradient_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<PRE_ACTIVATIONS_SPEC> pre_activations, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_BIASES_SPEC> d_biases, Matrix<D_PRE_ACTIVATIONS_SPEC> d_pre_activations) {
-            using T = typename SPEC::T;
+        d_activation_accumulate_bias_gradient_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<PRE_ACTIVATIONS_SPEC> pre_activations, Matrix<D_OUTPUT_SPEC> d_output, Tensor<D_BIASES_SPEC> d_biases, Matrix<D_PRE_ACTIVATIONS_SPEC> d_pre_activations) {
+            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
             static_assert(containers::check_structure<PRE_ACTIVATIONS_SPEC, D_OUTPUT_SPEC>);
             static_assert(containers::check_structure<D_OUTPUT_SPEC, D_PRE_ACTIVATIONS_SPEC>);
             constexpr TI BATCH_SIZE = PRE_ACTIVATIONS_SPEC::ROWS;
-            static_assert(PRE_ACTIVATIONS_SPEC::COLS == D_BIASES_SPEC::COLS);
+            static_assert(PRE_ACTIVATIONS_SPEC::COLS == D_BIASES_SPEC::SHAPE::FIRST);
 
             TI output_i = blockIdx.x * blockDim.x + threadIdx.x;
             if(output_i < OUTPUT_DIM){
@@ -176,11 +176,11 @@ namespace rl_tools{
                     set(d_pre_activations, batch_i, output_i, d_pre_activation_temp);
                     acc += d_pre_activation_temp;
                 }
-                increment(d_biases, 0, output_i, acc);
+                increment(device, d_biases, acc, output_i);
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
-        void d_activation_accumulate_bias_gradient(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<SPEC>& layer, Matrix<PRE_ACTIVATIONS_SPEC>& pre_activations, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_BIASES_SPEC>& d_biases, Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activations) {
+        void d_activation_accumulate_bias_gradient(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<SPEC>& layer, Matrix<PRE_ACTIVATIONS_SPEC>& pre_activations, Matrix<D_OUTPUT_SPEC>& d_output, Tensor<D_BIASES_SPEC>& d_biases, Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activations) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
             constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::OUTPUT_DIM, BLOCKSIZE_ACTIVATION_OUTPUT);
@@ -318,12 +318,16 @@ namespace rl_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(D_OUTPUT_SPEC::COL_PITCH == 1);
         static_assert(D_INPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.weights.gradient)::COL_PITCH == 1);
+        static_assert(decltype(layer.weights.gradient)::SPEC::STRIDE::template GET<1> == 1);
+        using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename decltype(layer.biases.parameters)::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename D_INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename D_OUTPUT_SPEC::T>);
 
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = WEIGHT_TYPE;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
         {
             // d_input
@@ -339,10 +343,10 @@ namespace rl_tools{
 
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
+                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
             }
             else{
-                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
+                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
             }
             if(stat != CUBLAS_STATUS_SUCCESS){
                 std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
@@ -357,12 +361,16 @@ namespace rl_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(INPUT_SPEC::COL_PITCH == 1);
         static_assert(D_OUTPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.weights.gradient)::COL_PITCH == 1);
+        static_assert(decltype(layer.weights.gradient)::SPEC::STRIDE::template GET<1> == 1);
+        using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename decltype(layer.biases.parameters)::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename INPUT_SPEC::T>);
+        static_assert(utils::typing::is_same_v<WEIGHT_TYPE, typename D_OUTPUT_SPEC::T>);
 
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = WEIGHT_TYPE;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
 
         {
@@ -381,10 +389,10 @@ namespace rl_tools{
 
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.weights.gradient._data, row_pitch(layer.weights.gradient));
+                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.weights.gradient._data, decltype(layer.weights.gradient)::SPEC::STRIDE::FIRST);
             }
             else{
-                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.weights.gradient._data, row_pitch(layer.weights.gradient));
+                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.weights.gradient._data, decltype(layer.weights.gradient)::SPEC::STRIDE::FIRST);
             }
             if(stat != CUBLAS_STATUS_SUCCESS){
                 std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
