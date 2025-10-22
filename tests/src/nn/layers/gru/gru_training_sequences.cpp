@@ -47,9 +47,11 @@ using DEVICE = rlt::devices::DefaultCPU;
 #endif
 using TI = typename DEVICE::index_t;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
-template <typename T, typename TI>
+template <typename TYPE_POLICY, typename TI>
 struct Config{
+    using T = typename TYPE_POLICY::DEFAULT;
     struct BASE{
         static constexpr TI BATCH_SIZE = 16;
         static constexpr TI INPUT_DIM = 1;
@@ -68,11 +70,11 @@ struct Config{
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using RESET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using RESET_TYPE = rlt::tensor::Specification<bool, TI, RESET_SHAPE>;
-    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, true>;
+    using GRU_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, true>;
     using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
-    using DENSE_LAYER1_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+    using DENSE_LAYER1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMS::HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Normal>;
     using DENSE_LAYER1 = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER1_CONFIG>;
-    using DENSE_LAYER2_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal>;
+    using DENSE_LAYER2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Normal>;
     using DENSE_LAYER2 = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER2_CONFIG>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
@@ -82,14 +84,14 @@ struct Config{
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
-    struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+    struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
         static constexpr T ALPHA = 2e-2;
     };
-    using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMS>;
+    using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI, ADAM_PARAMS>;
     using ADAM = rlt::nn::optimizers::Adam<ADAM_SPEC>;
 };
 
-using CONFIG = Config<T, TI>;
+using CONFIG = Config<TYPE_POLICY, TI>;
 
 template <bool RESET, typename DEVICE, typename INPUT, typename OUTPUT, typename RESET_CONTAINER, typename RNG>
 void synthetic_sample(DEVICE& device, INPUT& input, OUTPUT& output_target, RESET_CONTAINER& reset, RNG& rng){
@@ -143,6 +145,7 @@ int main(){
     rlt::malloc(device, d_output);
     rlt::malloc(device, output_target);
     rlt::init_weights(device, model, rng);
+    rlt::malloc(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, model);
     for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
         auto start_time = std::chrono::high_resolution_clock::now();

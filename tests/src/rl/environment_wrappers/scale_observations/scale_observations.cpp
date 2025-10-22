@@ -7,12 +7,13 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 TEST(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS, IDENTITY_SCALING){
-    using SCALE_OBSERVATIONS_WRAPPER_SPEC = rlt::rl::environment_wrappers::scale_observations::Specification<T, TI>;
+    using SCALE_OBSERVATIONS_WRAPPER_SPEC = rlt::rl::environment_wrappers::scale_observations::Specification<TYPE_POLICY, TI>;
     using WRAPPED_ENVIRONMENT = rlt::rl::environment_wrappers::ScaleObservations<SCALE_OBSERVATIONS_WRAPPER_SPEC, ENVIRONMENT>;
     DEVICE device;
     ENVIRONMENT env;
@@ -37,7 +38,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS, IDENTITY_SCALING){
     ASSERT_LT(diff, 1e-10);
 }
 
-struct SCALE_BY_10_OBSERVATIONS_WRAPPER_SPEC: rlt::rl::environment_wrappers::scale_observations::Specification<T, TI>{
+struct SCALE_BY_10_OBSERVATIONS_WRAPPER_SPEC: rlt::rl::environment_wrappers::scale_observations::Specification<TYPE_POLICY, TI>{
     static constexpr T SCALE = 10;
 };
 

@@ -7,11 +7,12 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
     constexpr TI DIM = 10;
-    using CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
+    using CONFIG = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using CAPABILITY = rlt::nn::capability::Forward<>;
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, DIM>;
@@ -38,7 +39,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
 TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     constexpr TI DIM = 10;
     constexpr TI BATCH_SIZE = 1000000;
-    using CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
+    using CONFIG = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, DIM>;
     using CAPABILITY = rlt::nn::capability::Forward<>;
     rlt::nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE> layer;
@@ -85,8 +86,8 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     for(TI dim_i=0; dim_i < DIM; dim_i++){
         T bias_value = rlt::get(bias, 0, dim_i);
         T variance_value = rlt::get(variance, 0, dim_i);
-        T layer_mean = rlt::get(layer.mean.parameters, 0, dim_i);
-        T layer_std = 1/rlt::get(layer.precision.parameters, 0, dim_i);
+        T layer_mean = rlt::get(device, layer.mean.parameters, dim_i);
+        T layer_std = 1/rlt::get(device, layer.precision.parameters, dim_i);
         std::cout << "mean: " << layer_mean << "/" << bias_value << " std:: " << layer_std << "/" << variance_value << std::endl;
         ASSERT_LT(rlt::math::abs(device.math, bias_value - layer_mean), 0.1);
         ASSERT_LT(rlt::math::abs(device.math, variance_value - layer_std), 0.1);

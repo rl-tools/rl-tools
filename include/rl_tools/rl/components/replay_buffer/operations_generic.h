@@ -92,8 +92,8 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, rl::components::ReplayBuffer<SPEC_1>& b1, rl::components::ReplayBuffer<SPEC_2>& b2) {
-        typename SPEC_1::T acc = 0;
+    typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::ReplayBuffer<SPEC_1>& b1, rl::components::ReplayBuffer<SPEC_2>& b2) {
+        typename SPEC_1::TYPE_POLICY::DEFAULT acc = 0;
         acc += abs_diff(device, b1.observations, b2.observations);
         acc += abs_diff(device, b1.observations_privileged, b2.observations_privileged);
         acc += abs_diff(device, b1.actions, b2.actions);

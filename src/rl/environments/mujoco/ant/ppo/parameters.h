@@ -12,17 +12,18 @@ namespace parameters_0{
         using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
     };
     using namespace rlt;
-    template <typename T, typename TI, typename ENVIRONMENT>
+    template <typename TYPE_POLICY, typename TI, typename ENVIRONMENT>
     struct rl{
+        using T = typename TYPE_POLICY::DEFAULT;
         static constexpr TI BATCH_SIZE = 2048;
 //        using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE>;
 
         template <typename CAPABILITY>
         struct Actor{
             using INPUT_SHAPE = tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-            using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+            using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
             using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
-            using CONFIG = nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
+            using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
             using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
@@ -34,9 +35,9 @@ namespace parameters_0{
         template <typename CAPABILITY>
         struct Critic{
             using INPUT_SHAPE = tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-            using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<T, TI>;
+            using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
             using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
-            using CONFIG = nn_models::mlp::Configuration<T, TI, 1, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
+            using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
             using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
             template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
@@ -46,8 +47,8 @@ namespace parameters_0{
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 
-        using ACTOR_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
-        using CRITIC_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
+        using ACTOR_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
+        using CRITIC_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
         using ACTOR_OPTIMIZER = rlt::nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
         using CRITIC_OPTIMIZER = rlt::nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
         using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
@@ -58,7 +59,7 @@ namespace parameters_0{
 //        using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_SPEC>;
         using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
 
-        struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
+        struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
             static constexpr TI N_EPOCHS = 4;
             static constexpr bool LEARN_ACTION_STD = true;
             static constexpr T INITIAL_ACTION_STD = 0.5;
@@ -71,13 +72,13 @@ namespace parameters_0{
             static constexpr bool NORMALIZE_OBSERVATIONS = true;
         };
         static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS = PPO_PARAMETERS::NORMALIZE_OBSERVATIONS ? 1 : 0;
-        using PPO_SPEC = rlt::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
+        using PPO_SPEC = rlt::rl::algorithms::ppo::Specification<TYPE_POLICY, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
         using PPO_TYPE = rlt::rl::algorithms::PPO<PPO_SPEC>;
         using PPO_BUFFERS_TYPE = rlt::rl::algorithms::ppo::Buffers<rlt::rl::algorithms::ppo::BufferSpecification<PPO_SPEC>>;
 
         static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 1000;
         static constexpr TI N_ENVIRONMENTS = 64;
-        using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ON_POLICY_RUNNER_STEP_LIMIT>;
+        using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, N_ENVIRONMENTS, ON_POLICY_RUNNER_STEP_LIMIT>;
         using ON_POLICY_RUNNER_TYPE = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
         static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
         using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;

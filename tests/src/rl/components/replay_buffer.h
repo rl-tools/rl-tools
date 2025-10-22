@@ -7,7 +7,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::test::rl::components::replay_buffer{
     template <typename DEVICE, typename SPEC, typename RNG>
     void sample(DEVICE& device, rl_tools::rl::components::ReplayBuffer<SPEC>& rb, RNG& rng){
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         randn(device, rb.observations, rng);
         randn(device, rb.actions, rng);
         randn(device, rb.next_observations, rng);

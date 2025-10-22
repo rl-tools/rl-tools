@@ -17,10 +17,11 @@ TEST(RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
     std::string replay_buffer_path = "test_cuda_replay_buffer.h5";
     using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<DTYPE>;
     constexpr DEVICE::index_t OBSERVATION_DIM = 2;
     constexpr DEVICE::index_t ACTION_DIM = 3;
     constexpr DEVICE::index_t CAPACITY = 20;
-    using REPLAY_BUFFER_SPEC = rlt::rl::components::replay_buffer::Specification<DTYPE, DEVICE::index_t, OBSERVATION_DIM, OBSERVATION_DIM, false, ACTION_DIM, CAPACITY>;
+    using REPLAY_BUFFER_SPEC = rlt::rl::components::replay_buffer::Specification<TYPE_POLICY, DEVICE::index_t, OBSERVATION_DIM, OBSERVATION_DIM, false, ACTION_DIM, CAPACITY>;
     using REPLAY_BUFFER = rlt::rl::components::ReplayBuffer<REPLAY_BUFFER_SPEC>;
     DEVICE device;
     REPLAY_BUFFER replay_buffer_1;

@@ -6,6 +6,7 @@
 #include "../../nn/nn.h"
 #include "../../nn/numeric_types.h"
 #include "../../nn/parameters/parameters.h"
+#include "../../nn/layers/dense/layer.h"
 #include "../../nn/optimizers/sgd/sgd.h"
 #include "../../nn/optimizers/adam/adam.h"
 #include "../../utils/generic/typing.h"
