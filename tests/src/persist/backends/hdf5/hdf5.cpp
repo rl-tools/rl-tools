@@ -12,6 +12,7 @@ namespace rlt = rl_tools;
 using DEVICE = rl_tools::devices::DefaultCPU;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 #define RL_TOOLS_STRINGIZE(x) #x
@@ -36,7 +37,7 @@ TEST(TEST_PERSIST_BACKENDS_HDF5_HDF5, test) {
     rlt::save(device, A, group, "A");
 
 
-    using CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using CAPABILITY = rlt::nn::capability::Forward<>;
     using SPEC = rlt::nn::layers::dense::Specification<CONFIG, CAPABILITY, rlt::tensor::Shape<TI, 1, 10, 15>>;
     rlt::nn::layers::dense::LayerForward<SPEC> layer;

@@ -10,6 +10,7 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DefaultCPU;
 
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 constexpr TI INPUT_DIM = 10;
@@ -19,11 +20,11 @@ constexpr TI HIDDEN_DIM = 16;
 constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::TANH;
 constexpr TI BATCH_SIZE = 16;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM>;
-using MLP_SPEC = rlt::nn_models::mlp::Configuration<T, TI, 2*OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>>;
+using MLP_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 2*OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>>;
 using MLP_TYPE = rlt::nn_models::mlp::BindConfiguration<MLP_SPEC>;
 
-using SAMPLE_AND_SQUASH_PARAMETERS = rlt::nn::layers::sample_and_squash::DefaultParameters<T>;
-using SAMPLE_AND_SQUASH_SPEC = rlt::nn::layers::sample_and_squash::Configuration<T, TI, SAMPLE_AND_SQUASH_PARAMETERS>;
+using SAMPLE_AND_SQUASH_PARAMETERS = rlt::nn::layers::sample_and_squash::DefaultParameters<TYPE_POLICY>;
+using SAMPLE_AND_SQUASH_SPEC = rlt::nn::layers::sample_and_squash::Configuration<TYPE_POLICY, TI, SAMPLE_AND_SQUASH_PARAMETERS>;
 using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_SPEC>;
 
 //using SAMPLE_AND_SQUASH_MODULE_SPEC = rlt::nn_models::sequential::Specification<SAMPLE_AND_SQUASH>;

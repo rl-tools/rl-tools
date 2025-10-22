@@ -29,6 +29,7 @@ using DEVICE = rl_tools::devices::DefaultCPU;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using TI = typename DEVICE::index_t;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
 #include <gtest/gtest.h>
 
@@ -208,7 +209,7 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, dense_layer){
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
 
-    using CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using CAPABILITY = rlt::nn::capability::Forward<>;
     using SPEC = rlt::nn::layers::dense::Specification<CONFIG, CAPABILITY, rlt::tensor::Shape<TI, 1, 10, 15>>;
     rlt::nn::layers::dense::LayerForward<SPEC> layer, layer_read_back;
@@ -252,11 +253,11 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, sequential_model){
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
 
-    using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<T, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using INPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
-    using GRU_LAYER_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, 20>;
+    using GRU_LAYER_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, 20>;
     using GRU_LAYER = rlt::nn::layers::gru::BindConfiguration<GRU_LAYER_CONFIG>;
-    using MLP_LAYER_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 15, 3, 7, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using MLP_LAYER_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 15, 3, 7, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using MLP_LAYER = rlt::nn_models::mlp::BindConfiguration<MLP_LAYER_CONFIG>;
     using CAPABILITY = rlt::nn::capability::Forward<>;
     using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU_LAYER, Module<MLP_LAYER>>>;
