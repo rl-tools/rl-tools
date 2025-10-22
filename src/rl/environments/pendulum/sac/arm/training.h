@@ -45,6 +45,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
@@ -55,8 +56,8 @@ constexpr bool DYNAMIC_ALLOCATION_LOOP_STATE = false;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM>{
         static constexpr TI ACTOR_BATCH_SIZE = 100;
         static constexpr TI CRITIC_BATCH_SIZE = 100;
     };
@@ -106,7 +107,7 @@ struct APPROXIMATOR_CONFIG{
 };
 
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, APPROXIMATOR_CONFIG, DYNAMIC_ALLOCATION_LOOP_STATE>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, APPROXIMATOR_CONFIG, DYNAMIC_ALLOCATION_LOOP_STATE>;
 #ifdef BENCHMARK
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
@@ -116,7 +117,7 @@ using LOOP_CONFIG = LOOP_CORE_CONFIG;
 #endif
 #else
 template <typename NEXT>
-struct EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
+struct EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 1000;
     static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };

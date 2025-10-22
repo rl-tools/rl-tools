@@ -26,6 +26,7 @@ using TI = typename DEVICE::index_t;
 #endif
 
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 //using CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
 //using CONTAINER_TYPE_TAG_CRITIC = rlt::MatrixStaticTag;
 //using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = rlt::MatrixStaticTag;
@@ -35,7 +36,7 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 
-struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
+struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<TYPE_POLICY, DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
@@ -46,12 +47,12 @@ template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequentia
 using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<T, TI>>;
+using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>>;
 using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
-using CRITIC_SPEC = rlt::nn_models::mlp::Configuration<T, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY,  rlt::nn::layers::dense::DefaultInitializer<T, TI>>;
+using CRITIC_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY,  rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>>;
 
 
-using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
+using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using ACTOR = rlt::nn_models::mlp::BindConfiguration<ACTOR_SPEC>;
@@ -67,7 +68,7 @@ using CRITIC_NETWORK_TYPE = rlt::nn_models::sequential::Build<CRITIC_CAPABILITY,
 using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
-using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+using TD3_SPEC = rlt::rl::algorithms::td3::Specification<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -79,7 +80,7 @@ constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
 T evaluation_returns[N_EVALUATIONS];
 #endif
 
-struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<T, DEVICE::index_t>{
+struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<TYPE_POLICY, DEVICE::index_t>{
     static constexpr TI REPLAY_BUFFER_CAPACITY = 10000;
     static constexpr TI EPISODE_STEP_LIMIT = 200;
     static constexpr bool STOCHASTIC_POLICY = false;
@@ -88,7 +89,7 @@ struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::Par
     static constexpr T EXPLORATION_NOISE = 0.1;
 };
 using POLICIES = rl_tools::utils::Tuple<TI, ACTOR_NETWORK_TYPE>;
-using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification< T, DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, DYNAMIC_ALLOCATION>;
+using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS, DYNAMIC_ALLOCATION>;
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
 EXTMEM rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 #else
@@ -206,7 +207,7 @@ void train(){
         }
 #ifndef RL_TOOLS_DISABLE_EVALUATION
         if(step_i % EVALUATION_INTERVAL == 0){
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, ENVIRONMENT, 10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
             rlt::sample_initial_parameters(device, envs[0], env_parameters[0], rng);
             rlt::evaluate(device, envs[0], ui, actor_critic.actor, result, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
