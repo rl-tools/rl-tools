@@ -41,7 +41,7 @@ namespace rl_tools
     namespace tensor::kernels{
         template<typename DEVICE, typename FROM_SPEC, typename TO_SPEC>
         __global__
-        void copy(DEVICE device, Tensor<FROM_SPEC> from, Tensor<TO_SPEC> to){
+        void copy(DEVICE device, const Tensor<FROM_SPEC> from, Tensor<TO_SPEC> to){
             static_assert(length(typename FROM_SPEC::SHAPE{}) == 1);
             using TI = typename DEVICE::index_t;
             constexpr TI SIZE = get<0>(typename FROM_SPEC::SHAPE{});
@@ -52,7 +52,7 @@ namespace rl_tools
         }
         template<typename DEVICE, typename FROM_SPEC, typename TO_SPEC>
         __global__
-        void copy2d(DEVICE device, Tensor<FROM_SPEC> from, Tensor<TO_SPEC> to){
+        void copy2d(DEVICE device, const Tensor<FROM_SPEC> from, Tensor<TO_SPEC> to){
             static_assert(tensor::same_dimensions<FROM_SPEC, TO_SPEC>());
             static_assert(FROM_SPEC::SHAPE::LENGTH == 2);
             using TI = typename DEVICE::index_t;
@@ -93,7 +93,7 @@ namespace rl_tools
     // Copy function when on Host
     template<typename FROM_DEV_SPEC, typename TO_DEV_SPEC, typename FROM_SPEC, typename TO_SPEC,
         typename std::enable_if<!devices::CUDA<FROM_DEV_SPEC>::TAG, int>::type = 0>
-    void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+    void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
         using FROM_DEVICE = devices::CUDA<FROM_DEV_SPEC>;
         using TI = typename FROM_DEVICE::index_t;
         static_assert(tensor::same_dimensions<FROM_SPEC, TO_SPEC>());
@@ -111,7 +111,6 @@ namespace rl_tools
             else{
                 if constexpr(length(typename FROM_SPEC::SHAPE{}) == 2){
                     using DEVICE = devices::CUDA<FROM_DEV_SPEC>;
-                    using T = typename FROM_SPEC::T;
                     using TI = typename FROM_SPEC::TI;
                     constexpr TI BLOCKSIZE_COLS = 8;
                     constexpr TI ROW_SIZE = FROM_SPEC::SHAPE::template GET<0>;
@@ -126,7 +125,6 @@ namespace rl_tools
                 }
                 else{
                     using DEVICE = devices::CUDA<FROM_DEV_SPEC>;
-                    using T = typename FROM_SPEC::T;
                     using TI = typename FROM_SPEC::TI;
                     constexpr TI BLOCKSIZE_COLS = 32;
                     constexpr TI SIZE = get<0>(typename FROM_SPEC::SHAPE{});

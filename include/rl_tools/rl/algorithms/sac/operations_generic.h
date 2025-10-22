@@ -482,8 +482,13 @@ namespace rl_tools{
     namespace rl::algorithms::sac{
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         void update_target_module(DEVICE& device, const  nn::layers::dense::LayerForward<SOURCE_SPEC>& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
-            rl_tools::utils::polyak::update(device, source.weights.parameters, target.weights.parameters, polyak);
-            rl_tools::utils::polyak::update(device, source.biases.parameters , target.biases.parameters , polyak);
+            using T = typename decltype(source.weights.parameters)::SPEC::T;
+            auto sp = matrix_view(device, source.weights.parameters);
+            auto tp = matrix_view(device, target.weights.parameters);
+            auto sb = matrix_view(device, source.biases.parameters);
+            auto tb = matrix_view(device, target.biases.parameters);
+            rl_tools::utils::polyak::update(device, sp, tp, static_cast<T>(polyak));
+            rl_tools::utils::polyak::update(device, sb, tb, static_cast<T>(polyak));
         }
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {

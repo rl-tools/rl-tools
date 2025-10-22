@@ -105,8 +105,6 @@ namespace rl_tools{
     void copy(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
             cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, source_device.stream);
             check_status(source_device);
@@ -119,7 +117,6 @@ namespace rl_tools{
     void copy_layout_mismatch(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
-//        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -152,8 +149,6 @@ namespace rl_tools{
     void copy(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
             cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, target_device.stream);
             cudaStreamSynchronize(target_device.stream);
@@ -188,8 +183,6 @@ namespace rl_tools{
     void copy(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
             cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, source_device.stream);
             cudaStreamSynchronize(source_device.stream);
