@@ -36,14 +36,15 @@ using DEVICE_INIT = rlt::devices::DefaultCPU; // for some reason MKL makes probl
 #endif
 DEVICE dummy_device; // this is needed because default_engine can not take a const device
 using TI = typename DEVICE::index_t;
-using T = float;
+// using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<rlt::devices::random::CUDA::Specification<TI, 1024>>;
 
 
-using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<float, TI, rlt::rl::environments::pendulum::DefaultParameters<float>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM>{
         static constexpr TI ACTOR_BATCH_SIZE = 100;
         static constexpr TI CRITIC_BATCH_SIZE = 100;
     };
@@ -57,9 +58,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
 };
 template <typename RNG>
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
 
-struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG<RNG>>{
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, LOOP_CORE_CONFIG<RNG>>{
     static constexpr TI NUM_EVALUATION_EPISODES = 100;
 };
 template <typename RNG>
@@ -164,7 +165,7 @@ int main() {
             if(step % 1000 == 0){
                 rlt::copy(device, device_evaluation, rlt::get_actor(ts), actor_evaluation);
                 cudaStreamSynchronize(device.stream);
-                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
                 rlt::evaluate(device_evaluation, env_evaluation, ui, actor_evaluation, result, rng_evaluation, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::log(device_evaluation, device_evaluation.logger, "Step: ", step, " Mean return: ", result.returns_mean);
@@ -193,7 +194,7 @@ int main() {
             if(step % 1000 == 0){
                 rlt::copy(device, device_evaluation, rlt::get_actor(ts), actor_evaluation);
                 cudaStreamSynchronize(device.stream);
-                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
                 rlt::evaluate(device_evaluation, env_evaluation, ui, actor_evaluation, result, rng_evaluation, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::log(device_evaluation, device_evaluation.logger, "Step: ", step, " Mean return: ", result.returns_mean);

@@ -18,7 +18,7 @@ namespace rl_tools{
         __global__
         void init_weights_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::dense::LayerForward<SPEC> layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC> initializer, RNG rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename SPEC::T;
+            using T = typename SPEC::TYPE_POLICY::DEFAULT;
             using TI = typename SPEC::TI;
             T gain;
             if constexpr(INITIALIZER_SPEC::INIT_LEGACY){
@@ -37,14 +37,14 @@ namespace rl_tools{
             if(output_pos < SPEC::OUTPUT_DIM){
                 auto& current_rng = get(rng.states, 0, output_pos);
                 if constexpr(INITIALIZER_SPEC::INIT_LEGACY) {
-                    set(layer.biases.parameters, 0, output_pos, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, current_rng));
+                    set(device, layer.biases.parameters, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, current_rng), output_pos);
                 }
                 else{
-                    set(layer.biases.parameters, 0, output_pos, 0);
+                    set(device, layer.biases.parameters, 0, output_pos);
                 }
                 for(TI j = 0; j < SPEC::INPUT_DIM; j++) {
                     T value = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, current_rng);
-                    set(layer.weights.parameters, output_pos, j, value);
+                    set(device, layer.weights.parameters, value, output_pos, j);
                 }
             }
         }

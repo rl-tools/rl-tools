@@ -14,7 +14,6 @@ namespace rl_tools{
         void init_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC> runner){
             static_assert(decltype(runner.replay_buffers)::T::SPEC::DYNAMIC_ALLOCATION == false, "The replay buffers should be statically allocated when using the OffPolicyRunner using CUDA");
             static_assert(decltype(runner.episode_stats)::T::SPEC::DYNAMIC_ALLOCATION == false, "The episode stats should be statically allocated when using the OffPolicyRunner using CUDA");
-            using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
             TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -39,7 +38,6 @@ namespace rl_tools{
             int dummy;
             void* stack_ptr = &dummy;
             // printf("Stack pointer in thread (%d, %d): %p\n", blockIdx.x, threadIdx.x, stack_ptr);
-            using T = typename RUNNER_SPEC::T;
             using TI = typename RUNNER_SPEC::TI;
             using RUNNER = rl::components::OffPolicyRunner<RUNNER_SPEC>;
             // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
@@ -60,7 +58,6 @@ namespace rl_tools{
         template<typename DEVICE, typename SPEC, typename RNG>
         __global__
         void prologue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC> runner, RNG rng) {
-            using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
             TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -73,7 +70,6 @@ namespace rl_tools{
         template<typename DEV_SPEC, typename SPEC, typename RNG>
         void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             constexpr TI BLOCKSIZE_COLS = 32;
             constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::PARAMETERS::N_ENVIRONMENTS, BLOCKSIZE_COLS);
@@ -92,7 +88,6 @@ namespace rl_tools{
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
         __global__
         void epilogue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC> runner, POLICY policy, RNG rng) {
-            using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using OFF_POLICY_RUNNER = rl::components::OffPolicyRunner<SPEC>;
             static_assert(RNG::NUM_RNGS >= SPEC::PARAMETERS::N_ENVIRONMENTS, "Please increase the number of CUDA RNGs");
@@ -107,7 +102,6 @@ namespace rl_tools{
         template<typename DEV_SPEC, typename SPEC, typename POLICY, typename RNG>
         void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, const POLICY& policy, RNG& rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             constexpr TI BLOCKSIZE_COLS = 32;
             constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::PARAMETERS::N_ENVIRONMENTS, BLOCKSIZE_COLS);
@@ -176,7 +170,6 @@ namespace rl_tools{
     void gather_batch(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, RNG& rng) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
-        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         constexpr TI BLOCKSIZE_COLS = 32;
@@ -196,9 +189,6 @@ namespace rl_tools{
         // static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::Observation::DIM, "The policy's input dimension must match the environment's observation dimension.");
         // static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         // todo: increase efficiency by removing the double observation of each state
-        using T = typename SPEC::T;
-        using TI = typename DEVICE::index_t;
-        using ENVIRONMENT = typename SPEC::ENVIRONMENT;
 
         bool policy_switch = runner.previous_policy_set && (POLICY_INDEX != runner.previous_policy);
         if(policy_switch){

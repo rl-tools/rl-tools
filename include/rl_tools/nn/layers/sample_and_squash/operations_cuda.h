@@ -16,7 +16,6 @@ namespace rl_tools{
     __global__
     void evaluate_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::sample_and_squash::LayerForward<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<OUTPUT_SPEC> output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, RNG rng, const Mode<MODE> mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -29,7 +28,6 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         constexpr TI BLOCKSIZE_COLS = 32;
@@ -44,7 +42,6 @@ namespace rl_tools{
     __global__
     void forward_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, RNG rng, const Mode<MODE> mode = Mode<mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
 //        using BUFFERS = nn::layers::sample_and_squash::LayerGradient<BUFFER_SPEC>;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
@@ -60,7 +57,6 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         constexpr TI BLOCKSIZE_COLS = 32;
@@ -75,13 +71,13 @@ namespace rl_tools{
     __global__
     void backward_full_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_INPUT_SPEC> d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, const Mode<MODE> mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         static_assert(BATCH_SIZE == SPEC::INTERNAL_BATCH_SIZE);
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(batch_step_i < BATCH_SIZE){
-            T log_alpha = get(layer.log_alpha.parameters, 0, 0);
+            T log_alpha = get(device, layer.log_alpha.parameters, 0);
             T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
             backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_step_i, mode);
         }
@@ -90,7 +86,7 @@ namespace rl_tools{
     __global__
     void backward_full_kernel_reduce(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_INPUT_SPEC> d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, const Mode<MODE> mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::T;
+        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         static_assert(BATCH_SIZE == SPEC::INTERNAL_BATCH_SIZE);
@@ -100,13 +96,12 @@ namespace rl_tools{
             for(TI batch_step_j = 0; batch_step_j < BATCH_SIZE; batch_step_j++){
                 d_log_alpha += get(buffer.d_log_alpha, 0, batch_step_j);
             }
-            increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
+            increment(device, layer.log_alpha.gradient, d_log_alpha/BATCH_SIZE, 0);
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         constexpr TI BLOCKSIZE_COLS = 32;

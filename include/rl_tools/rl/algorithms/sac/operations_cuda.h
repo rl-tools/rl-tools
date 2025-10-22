@@ -9,10 +9,10 @@ namespace rl_tools{
         // template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC,typename ALPHA_PARAMETER>
         template <typename DEV_SPEC, typename BATCH_SPEC, typename TRAINING_BUFFER_SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename LOG_ALPHA_SPEC>
         __global__
-        void target_action_values(devices::CUDA<DEV_SPEC> device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC> batch, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC> training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC> next_action_log_probs, Matrix<LOG_ALPHA_SPEC> log_alpha){
+        void target_action_values(devices::CUDA<DEV_SPEC> device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC> batch, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC> training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC> next_action_log_probs, Tensor<LOG_ALPHA_SPEC> log_alpha){
         // void target_action_values_kernel(devices::CUDA<DEV_SPEC> device, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC> next_action_log_probs, ALPHA_PARAMETER log_alpha) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename BATCH_SPEC::SPEC::T;
+            using T = typename BATCH_SPEC::TYPE_POLICY::DEFAULT;
             using TI = typename DEVICE::index_t;
             using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>;
             using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
@@ -20,7 +20,7 @@ namespace rl_tools{
             constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
             constexpr TI N_VALUES = BATCH_SIZE * SEQUENCE_LENGTH;
             static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
-            T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(log_alpha, 0, 0));
+            T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(device, log_alpha, 0));
             TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(batch_step_i < N_VALUES){
                 target_action_values_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
@@ -30,7 +30,6 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename BATCH_SPEC, typename TRAINING_BUFFER_SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename LOG_ALPHA_PARAMETER>
     void target_action_values(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, LOG_ALPHA_PARAMETER& log_alpha){
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename BATCH_SPEC::SPEC::T;
         using TI = typename BATCH_SPEC::SPEC::TI;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTHH;
@@ -51,7 +50,6 @@ namespace rl_tools{
         __global__
         void min_value_d_output_kernel(devices::CUDA<DEV_SPEC> device, rl::algorithms::sac::ActorCritic<SPEC> actor_critic, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC> training_buffers){
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>;
             constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
@@ -64,7 +62,6 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename TRAINING_BUFFERS_SPEC>
     void min_value_d_output(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         constexpr TI BATCH_SIZE = rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>::BATCH_SIZE;
         constexpr TI BLOCKSIZE_COLS = 32;
