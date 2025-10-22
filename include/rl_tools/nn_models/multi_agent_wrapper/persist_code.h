@@ -12,7 +12,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& module, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
+    persist::Code save_code_split(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& module, std::string name, bool const_declaration=true, typename DEVICE::index_t indent = 0){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -50,14 +50,6 @@ namespace rl_tools{
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }
-//    template<typename DEVICE, typename SPEC>
-//    persist::Code save_code_split(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
-//        return save_code_split(device, static_cast<nn_models::mlp::NeuralNetworkForward<SPEC>&>(network), name, const_declaration, indent);
-//    }
-//    template<typename DEVICE, typename SPEC>
-//    persist::Code save_code_split(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
-//        return save_code_split(device, static_cast<nn_models::mlp::NeuralNetworkBackward<SPEC>&>(network), name, const_declaration, indent);
-//    }
     template<typename DEVICE, typename SPEC>
     std::string save_code(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& module, std::string name, bool const_declaration = true, typename DEVICE::index_t indent = 0) {
         auto code = save_code_split(device, module, name, const_declaration, indent);

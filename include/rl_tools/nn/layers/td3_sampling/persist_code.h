@@ -13,7 +13,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace nn::layers::td3_sampling::persist_code{
         template<typename DEVICE, typename SPEC>
-            rl_tools::persist::Code finish(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC> &layer, std::string name, rl_tools::persist::Code input, bool const_declaration=false, typename DEVICE::index_t indent=0){
+            rl_tools::persist::Code finish(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC> &layer, std::string name, rl_tools::persist::Code input, bool const_declaration=true, typename DEVICE::index_t indent=0){
             using TI = typename DEVICE::index_t;
             std::stringstream indent_ss;
             for(TI i=0; i < indent; i++){
@@ -70,7 +70,7 @@ namespace rl_tools {
         }
     }
     template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool finish=true){
+    persist::Code save_code_split(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC> &layer, std::string name, bool const_declaration=true, typename DEVICE::index_t indent=0, bool finish=true){
         if(finish){
             return nn::layers::td3_sampling::persist_code::finish(device, layer, name, {"", ""}, const_declaration, indent);
         }
@@ -79,7 +79,7 @@ namespace rl_tools {
         }
     }
     template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn::layers::td3_sampling::LayerBackward<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool finish=true){
+    persist::Code save_code_split(DEVICE& device, nn::layers::td3_sampling::LayerBackward<SPEC> &layer, std::string name, bool const_declaration=true, typename DEVICE::index_t indent=0, bool finish=true){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -112,7 +112,7 @@ namespace rl_tools {
     }
 
     template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn::layers::td3_sampling::LayerGradient<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    persist::Code save_code_split(DEVICE& device, nn::layers::td3_sampling::LayerGradient<SPEC> &layer, std::string name, bool const_declaration=true, typename DEVICE::index_t indent=0){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -145,7 +145,7 @@ namespace rl_tools {
     }
 
     template<typename DEVICE, typename SPEC>
-    std::string save_code(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    std::string save_code(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC> &layer, std::string name, bool const_declaration=true, typename DEVICE::index_t indent=0){
         auto code = save_code_split(device, layer, name, const_declaration, indent);
         return code.header + code.body;
     }
