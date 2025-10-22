@@ -1,4 +1,5 @@
 #include <rl_tools/operations/cpu.h>
+#include <rl_tools/nn/numeric_types.h>
 #include "dummy_environment.h"
 #include <rl_tools/nn_models/random_uniform/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
@@ -8,11 +9,12 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = DEVICE::index_t;
 
 using ENVIRONMENT_SPEC = rlt::rl::environments::dummy::Specification<T, TI>;
 using ENVIRONMENT = rlt::rl::environments::Dummy<ENVIRONMENT_SPEC>;
-using EXPLORATION_POLICY_SPEC = rlt::nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, rlt::nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+using EXPLORATION_POLICY_SPEC = rlt::nn_models::random_uniform::Specification<TYPE_POLICY, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, rlt::nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
 using EXPLORATION_POLICY = rlt::nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
 using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY>;
 struct OFF_POLICY_RUNNER_PARAMETERS{
@@ -24,7 +26,7 @@ struct OFF_POLICY_RUNNER_PARAMETERS{
     static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
     static constexpr bool SAMPLE_PARAMETERS = true;
 };
-using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
+using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, POLICIES, OFF_POLICY_RUNNER_PARAMETERS>;
 using OFF_POLICY_RUNNER = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
 
 constexpr TI SEQUENCE_LENGTH = 10;

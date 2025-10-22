@@ -12,6 +12,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = DEVICE::index_t;
 constexpr TI INPUT_DIM = 10;
 constexpr TI OUTPUT_DIM = 5;
@@ -23,9 +24,9 @@ constexpr TI BATCH_SIZE_OTHER = 30;
 template <typename CAPABILITY>
 struct Actor{
     using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE_DEFINITION, INPUT_DIM>;
-    using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<T, TI, OUTPUT_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_SPEC>;
-    using STANDARDIZATION_LAYER_SPEC = rlt::nn::layers::standardize::Configuration<T, TI>;
+    using STANDARDIZATION_LAYER_SPEC = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_SPEC>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>

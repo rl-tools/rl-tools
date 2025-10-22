@@ -7,6 +7,7 @@
 #include <rl_tools/math/operations_dummy.h>
 #include <rl_tools/random/operations_dummy.h>
 #include <rl_tools/logging/operations_dummy.h>
+#include <rl_tools/numeric_types/policy.h>
 
 // Group 2: depends on logging
 #include <rl_tools/utils/assert/operations_cpu.h>
@@ -23,6 +24,7 @@
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using DTYPE = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<DTYPE>;
 using index_t = unsigned;
 constexpr index_t OUTER_INPUT_DIM = 10;
 constexpr index_t OUTER_OUTPUT_DIM = 10;
@@ -30,10 +32,10 @@ constexpr unsigned OUTER_INPUT_DIM_2 = 10;
 constexpr unsigned OUTER_OUTPUT_DIM_2 = 10;
 constexpr index_t BATCH_SIZE = 1;
 using INPUT_SHAPE = rlt::tensor::Shape<index_t, 1, BATCH_SIZE, OUTER_INPUT_DIM>;
-using LayerConfig1 = rlt::nn::layers::dense::Configuration<DTYPE, index_t, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-using LayerConfig2 = rlt::nn::layers::dense::Configuration<DTYPE, index_t, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-using LayerConfig3 = rlt::nn::layers::dense::Configuration<DTYPE, index_t, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
-using LayerConfig4 = rlt::nn::layers::dense::Configuration<DTYPE, index_t, OUTER_OUTPUT_DIM_2, rlt::nn::activation_functions::ActivationFunction::RELU>;
+using LayerConfig1 = rlt::nn::layers::dense::Configuration<TYPE_POLICY, index_t, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+using LayerConfig2 = rlt::nn::layers::dense::Configuration<TYPE_POLICY, index_t, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+using LayerConfig3 = rlt::nn::layers::dense::Configuration<TYPE_POLICY, index_t, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+using LayerConfig4 = rlt::nn::layers::dense::Configuration<TYPE_POLICY, index_t, OUTER_OUTPUT_DIM_2, rlt::nn::activation_functions::ActivationFunction::RELU>;
 
 
 static_assert(rlt::utils::typing::is_same_v<LayerConfig1, LayerConfig2>);
