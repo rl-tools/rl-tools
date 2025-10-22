@@ -14,7 +14,7 @@ namespace rl_tools{
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Adam";
     }
     template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    persist::Code save_code_split(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& parameter, std::string name, bool const_declaration=true, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){

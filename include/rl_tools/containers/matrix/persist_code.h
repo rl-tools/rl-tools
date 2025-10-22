@@ -54,7 +54,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, Matrix<SPEC>& m, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    persist::Code save_code_split(DEVICE& device, Matrix<SPEC>& m, std::string name, bool const_declaration=true, typename DEVICE::index_t indent=0){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(utils::typing::is_same_v<containers::persist::STORAGE_TYPE, unsigned char>);
