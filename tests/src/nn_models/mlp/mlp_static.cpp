@@ -10,12 +10,13 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
 constexpr TI BATCH_SIZE = 1;
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
-using CONFIG = rlt::nn_models::mlp::Configuration<T, TI, 12, 3, 5, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+using CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 12, 3, 5, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
-using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
+using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using CAPABILITY_ADAM_DYNAMIC = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, true>;
 using CAPABILITY_ADAM_STATIC = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, false>;

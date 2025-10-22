@@ -120,23 +120,23 @@ namespace rl_tools::nn::layers::gru{
         template <typename NEW_INPUT_SHAPE>
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>;
         using WEIGHTS_INPUT_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, INPUT_DIM>;
-        using WEIGHTS_INPUT_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, WEIGHTS_INPUT_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION>;
+        using WEIGHTS_INPUT_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, WEIGHTS_INPUT_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<WEIGHTS_INPUT_PARAMETER_SPEC> weights_input;
 
         using BIASES_INPUT_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM>;
-        using BIASES_INPUT_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, BIASES_INPUT_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION>;
+        using BIASES_INPUT_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, BIASES_INPUT_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<BIASES_INPUT_PARAMETER_SPEC> biases_input;
 
         using WEIGHTS_HIDDEN_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, HIDDEN_DIM>;
-        using WEIGHTS_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, WEIGHTS_HIDDEN_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION>;
+        using WEIGHTS_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, WEIGHTS_HIDDEN_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<WEIGHTS_HIDDEN_PARAMETER_SPEC> weights_hidden;
 
         using BIASES_HIDDEN_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM>;
-        using BIASES_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, BIASES_HIDDEN_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION>;
+        using BIASES_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, BIASES_HIDDEN_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<BIASES_HIDDEN_PARAMETER_SPEC> biases_hidden;
 
         using INITIAL_HIDDEN_STATE_SHAPE = tensor::Shape<TI, HIDDEN_DIM>;
-        using INITIAL_HIDDEN_STATE_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, INITIAL_HIDDEN_STATE_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION>;
+        using INITIAL_HIDDEN_STATE_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, INITIAL_HIDDEN_STATE_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
 
         template<bool DYNAMIC_ALLOCATION=true>

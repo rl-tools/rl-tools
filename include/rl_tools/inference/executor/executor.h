@@ -7,8 +7,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace inference{
         namespace executor{
-            template <typename T>
+            template <typename TYPE_POLICY>
             struct WarningLevelsDefault{
+                using T = typename TYPE_POLICY::DEFAULT;
                 static constexpr T INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
                 static constexpr T INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
                 static constexpr T INTERMEDIATE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
@@ -18,9 +19,10 @@ namespace rl_tools{
                 static constexpr T NATIVE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
                 static constexpr T NATIVE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
             };
-            template <typename T_T, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, typename T_WARNING_LEVELS=WarningLevelsDefault<T_T>, bool T_DYNAMIC_ALLOCATION=true>
+            template <typename T_TYPE_POLICY, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, typename T_WARNING_LEVELS=WarningLevelsDefault<T_TYPE_POLICY>, bool T_DYNAMIC_ALLOCATION=true>
             struct Specification{
-                using T = T_T;
+                using TYPE_POLICY = T_TYPE_POLICY;
+                using T = typename TYPE_POLICY::DEFAULT;
                 using TI = T_TI;
                 using TIMESTAMP = T_TIMESTAMP;
                 static_assert(sizeof(TIMESTAMP) >= 8, "The TIMESTAMP should be unsigned and at least 8 bytes to prevent overflow (it shall be measured in nanoseconds)");

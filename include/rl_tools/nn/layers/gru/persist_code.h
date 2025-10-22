@@ -25,20 +25,19 @@ namespace rl_tools {
             ss_header << input.header;
             ss_header << "#include <rl_tools/nn/layers/gru/layer.h>\n";
             ss << input.body;
-            std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
             std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             ss << ind << "namespace " << name << " {\n";
+            ss << ind << "    using TYPE_POLICY = " << to_string(typename SPEC::TYPE_POLICY{}) << ";\n";
             ss << ind << "    using CONFIG = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::gru::Configuration<"
-               << T_string << ", "
+               << "TYPE_POLICY, "
                << TI_string << ", "
                << SPEC::HIDDEN_DIM << ", "
                << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{}) << ", "
-               << (SPEC::FAST_TANH ? "true" : "false") << ", "
-               << (const_declaration ? "true" : "false") // const_declaration => const
+               << (SPEC::FAST_TANH ? "true" : "false")
                << ">; \n";
             ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::gru::BindConfiguration<CONFIG>;" << "\n";
             ss << ind << "    " << "using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << get<0>(typename SPEC::INPUT_SHAPE{}) << ", " << get<1>(typename SPEC::INPUT_SHAPE{}) << ", " << get<2>(typename SPEC::INPUT_SHAPE{}) << ">;\n";
-            ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
+            ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << ";" << "\n";
             ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::gru::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;" << "\n";
             std::string initializer_list;
             std::string forward_members = "{weights_input::parameters, biases_input::parameters, weights_hidden::parameters, biases_hidden::parameters, initial_hidden_state::parameters}";
