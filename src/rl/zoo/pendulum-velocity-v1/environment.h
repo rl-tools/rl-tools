@@ -7,8 +7,9 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::pendulum_velocity_v1{
-    template <typename DEVICE, typename T, typename TI>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI>
     struct ENVIRONMENT_FACTORY{
+        using T = typename TYPE_POLICY::DEFAULT;
         struct ENVIRONMENT_PARAMETERS: environments::pendulum::DefaultParameters<T>{
             constexpr static T OBSERVATION_NOISE_VELOCITY = 0.0;
         };

@@ -8,8 +8,9 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::pendulum_multitask_v1{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI>
     struct ENVIRONMENT_FACTORY{
+        using T = typename TYPE_POLICY::DEFAULT;
         using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
         // using ENVIRONMENT = rlt::rl::environments::PendulumMultiTask<ENVIRONMENT_SPEC>;
         using ENVIRONMENT = rlt::rl::environments::PendulumMeta<ENVIRONMENT_SPEC>;
