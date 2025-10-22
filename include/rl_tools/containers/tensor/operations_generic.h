@@ -996,7 +996,7 @@ namespace rl_tools{
         using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
         static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
         using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, 1, get<N_DIM-1>(typename SPEC::STRIDE{})>;
-        const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT>> view{data(t)};
+        const Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, get<N_DIM-1>(typename SPEC::SHAPE{}), true, LAYOUT, true>> view{data(t)};
         return view;
     }
     template<typename DEVICE, typename SPEC>

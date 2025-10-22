@@ -9,6 +9,7 @@
 #include <rl_tools/numeric_types/persist_code.h>
 #include <rl_tools/containers/matrix/persist_code.h>
 #include <rl_tools/containers/tensor/persist_code.h>
+#include <rl_tools/nn/parameters/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn/layers/gru/persist_code.h>
@@ -85,7 +86,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, WRITE_EXAMPLE_POLICY){
     rlt::evaluate(device, model, input_example, output_example, buffer, rng);
 
     std::string code = "namespace rl_tools::checkpoint{\n";
-    code += rlt::save_code(device, model, "actor");
+    code += rlt::save_code(device, model, "actor", true);
     code += "\n}";
 
     code += "namespace rl_tools::checkpoint::example{\n";
