@@ -51,8 +51,9 @@ using DEVICE = rlt::devices::DefaultCPU;
 #endif
 using TI = typename DEVICE::index_t;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
-using CONFIG = Config<T, TI, true>;
+using CONFIG = Config<TYPE_POLICY, TI, true>;
 using PARAMS = typename CONFIG::PARAMS;
 
 constexpr TI N_EPOCH = 1;

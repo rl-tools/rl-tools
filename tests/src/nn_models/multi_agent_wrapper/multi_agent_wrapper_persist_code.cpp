@@ -11,6 +11,7 @@
 #include <rl_tools/rl/environments/multi_agent/bottleneck/operations_cpu.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 
+#include <rl_tools/numeric_types/persist_code.h>
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/parameters/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
@@ -35,6 +36,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
 std::optional<std::string> get_env_var(const std::string& var) {
     const char* value = std::getenv(var.c_str());
@@ -46,7 +48,7 @@ std::optional<std::string> get_env_var(const std::string& var) {
 }
 
 template<typename ENVIRONMENT>
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
     static constexpr TI ACTOR_HIDDEN_DIM = 7;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
@@ -57,9 +59,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
 };
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, GRADIENT) {
 
-    using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
+    using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<TYPE_POLICY, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
-    using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
+    using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<TYPE_POLICY, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 
@@ -112,9 +114,9 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, GRADIENT) {
 
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, BACKWARD) {
 
-    using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
+    using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<TYPE_POLICY, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
-    using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
+    using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<TYPE_POLICY, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
     using CAPABILITY = rlt::nn::capability::Backward<>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 
@@ -167,9 +169,9 @@ TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, BACKWARD) {
 
 TEST(RL_TOOLS_NN_MODELS_MULTI_AGENT_WRAPPER_PERSIST_CODE, FORWARD) {
 
-    using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI>;
+    using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<TYPE_POLICY, TI>;
     using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
-    using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
+    using APPROXIMATORS = rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequentialMultiAgent<TYPE_POLICY, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS<ENVIRONMENT>>;
     using CAPABILITY = rlt::nn::capability::Forward<>;
     using MODEL = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
 

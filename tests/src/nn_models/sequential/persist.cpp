@@ -10,17 +10,18 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 constexpr TI BATCH_SIZE = 1;
 
 namespace MODEL_FORWARD{
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 10>;
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Configuration<T, TI, 15, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 15, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Configuration<T, TI, 20, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 20, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<T, TI, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>

@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
@@ -62,6 +63,7 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 
@@ -103,7 +105,7 @@ std::string sanitize_file_name(const std::string &input) {
 void run(){
     for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;
-        using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
+        using prl = parameters::rl<TYPE_POLICY, TI, penv::ENVIRONMENT>;
         TI seed = BASE_SEED + run_i;
         std::stringstream run_name_ss;
         run_name_ss << "ppo_ant_" + std::to_string(seed);
@@ -148,7 +150,7 @@ void run(){
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
-        rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::Observation::DIM>> observation_normalizer;
+        rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<TYPE_POLICY, TI, penv::ENVIRONMENT::Observation::DIM>> observation_normalizer;
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
@@ -218,8 +220,10 @@ void run(){
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 try{
                     auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
-                    rlt::save(device, ppo.actor, actor_file.createGroup("actor"));
-                    rlt::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
+                    auto actor_group = rlt::create_group(device, actor_file, "actor");
+                    auto observation_normalizer_group = rlt::create_group(device, actor_file, "observation_normalizer");
+                    rlt::save(device, ppo.actor, actor_group);
+                    rlt::save(device, observation_normalizer, observation_normalizer_group);
                 }
                 catch(HighFive::Exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
@@ -228,7 +232,7 @@ void run(){
                 next_checkpoint_id++;
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(evaluation_env), NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
+                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, decltype(evaluation_env), NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
                 rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
@@ -254,7 +258,7 @@ void run(){
             }
             for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
                 auto& last_layer = rlt::get_last_layer(ppo.actor);
-                T action_log_std = rlt::get(last_layer.log_std.parameters, 0, action_i);
+                T action_log_std = rlt::get(device, last_layer.log_std.parameters, action_i);
                 std::stringstream topic;
                 topic << "actor/action_std/" << action_i;
                 rlt::add_scalar(device, device.logger, topic.str(), rlt::math::exp(DEVICE::SPEC::MATH(), action_log_std));

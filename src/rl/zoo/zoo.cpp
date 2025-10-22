@@ -140,7 +140,7 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to ha
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_MULTITASK_V1)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_multitask_v1::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
-struct LOOP_EVALUATION_PARAMETER_OVERWRITES: rlt::rl::zoo::pendulum_multitask_v1::sac::FACTORY<DEVICE, T, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: rlt::rl::zoo::pendulum_multitask_v1::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
@@ -403,7 +403,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::ofstream return_file(ts.extrack_paths.seed / "return.json");
         return_file << "[";
         for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
-            auto& result = get(ts.evaluation_results, 0, evaluation_i);
+            auto& result = rlt::get(ts.evaluation_results, 0, evaluation_i);
             return_file << rlt::json(device, result, LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i);
             if(evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1){
                 return_file << ", ";

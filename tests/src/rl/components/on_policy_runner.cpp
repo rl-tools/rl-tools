@@ -13,6 +13,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
@@ -21,7 +22,7 @@ constexpr TI BATCH_SIZE = 1;
 template <typename CAPABILITY>
 struct Actor{
     using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-    using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_SPEC>;
     template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
     using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
@@ -33,7 +34,7 @@ struct Actor{
 TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
 
     constexpr TI N_ENVIRONMENTS = 3;
-    using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS>;
+    using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, N_ENVIRONMENTS>;
     using ON_POLICY_RUNNER = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
 
 

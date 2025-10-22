@@ -29,13 +29,14 @@ namespace rl_tools{
         std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
         std::string TI_string = containers::persist::get_type_string<TI>();
         ss << "\n";
+        ss << ind << "    using TYPE_POLICY = " << to_string(typename SPEC::TYPE_POLICY{}) << ";\n";
         ss << ind << "    using CONFIG = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::multi_agent_wrapper::Configuration<";
-        ss << T_string << ", ";
+        ss << "TYPE_POLICY, ";
         ss << TI_string << ", ";
         ss << std::to_string(SPEC::N_AGENTS) << ", ";
         ss << "content::model_definition::MODULE_CHAIN";
         ss << ">; \n";
-        ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
+        ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << "; \n";
         ss << ind << "    using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << SPEC::INPUT_SHAPE::template GET<0> << ", " << SPEC::INPUT_SHAPE::template GET<1> << ", " << SPEC::INPUT_SHAPE::template GET<2> << ">;\n";
         ss << ind << "    using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::multi_agent_wrapper::Module<CONFIG, CAPABILITY, INPUT_SHAPE>; \n";
         std::stringstream ss_initializer_list, ss_initializer_list_function;

@@ -12,30 +12,32 @@
 #include <gtest/gtest.h>
 
 
-#define DTYPE float
-const DTYPE STATE_TOLERANCE = 0.00001;
+using DTYPE =  float;
+constexpr DTYPE STATE_TOLERANCE = 0.00001;
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using T = DTYPE;
 using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
-using EXPLORATION_POLICY_SPEC = rlt::nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, rlt::nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+using EXPLORATION_POLICY_SPEC = rlt::nn_models::random_uniform::Specification<TYPE_POLICY, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, rlt::nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
 using EXPLORATION_POLICY = rlt::nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
 constexpr TI BATCH_SIZE = 1;
 
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
-using MLP_CONFIG = rlt::nn_models::mlp::Configuration<DTYPE, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
+using MLP_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 using MLP = rlt::nn_models::mlp::NeuralNetwork<MLP_CONFIG, rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, INPUT_SHAPE>;
 
 using POLICIES = rl_tools::utils::Tuple<TI, EXPLORATION_POLICY, MLP>;
-typedef rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, POLICIES, rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, DEVICE::index_t>> OffPolicyRunnerSpec;
+typedef rlt::rl::components::off_policy_runner::Specification<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT, POLICIES, rlt::rl::components::off_policy_runner::ParametersDefault<TYPE_POLICY, DEVICE::index_t>> OffPolicyRunnerSpec;
 typedef rlt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
 
 TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
-    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, TI>;
+    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     DEVICE device;
     OPTIMIZER optimizer;

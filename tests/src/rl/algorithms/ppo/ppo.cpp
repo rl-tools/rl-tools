@@ -17,6 +17,7 @@ using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 
@@ -24,7 +25,7 @@ using TI = typename DEVICE::index_t;
 
 TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     using penv = parameters::environment<T, TI>;
-    using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
+    using prl = parameters::rl<TYPE_POLICY, TI, penv::ENVIRONMENT>;
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
@@ -72,7 +73,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
         }
         for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
             auto& last_layer = rlt::get_last_layer(ppo.actor);
-            T action_log_std = rlt::get(last_layer.log_std.parameters, 0, action_i);
+            T action_log_std = rlt::get(device, last_layer.log_std.parameters, action_i);
             std::stringstream topic;
             topic << "actor/action_std/" << action_i;
             rlt::add_scalar(device, device.logger, topic.str(), rlt::math::exp(DEVICE::SPEC::MATH(), action_log_std));
