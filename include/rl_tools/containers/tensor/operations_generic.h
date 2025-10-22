@@ -434,20 +434,20 @@ namespace rl_tools{
         }
         namespace operations::binary{
             struct Add: Operation{
-                template <typename DEVICE, typename T>
-                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Add& parameter, T a, T b){
+                template <typename DEVICE, typename T1, typename T2>
+                RL_TOOLS_FUNCTION_PLACEMENT static auto operation(DEVICE& device, const Add& parameter, T1 a, T2 b){
                     return a + b;
                 }
             };
             struct Subtract: Operation{
-                template <typename DEVICE, typename T>
-                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Subtract& parameter, T a, T b){
+                template <typename DEVICE, typename T1, typename T2>
+                RL_TOOLS_FUNCTION_PLACEMENT static auto operation(DEVICE& device, const Subtract& parameter, T1 a, T2 b){
                     return a - b;
                 }
             };
             struct Multiply: Operation{
-                template <typename DEVICE, typename T>
-                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Multiply& parameter, T a, T b){
+                template <typename DEVICE, typename T1, typename T2>
+                RL_TOOLS_FUNCTION_PLACEMENT static auto operation(DEVICE& device, const Multiply& parameter, T1 a, T2 b){
                     return a * b;
                 }
             };

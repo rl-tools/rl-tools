@@ -145,7 +145,7 @@ with h5py.File('replay_buffer_gru.h5', 'w') as f:
 
     d = l.create_group('1')
     d.create_group('weights').create_dataset('parameters', data=model.fc.weight.cpu().detach().numpy())
-    d.create_group('biases').create_dataset('parameters', data=model.fc.bias.cpu().detach().numpy().reshape(1, -1))
+    d.create_group('biases').create_dataset('parameters', data=model.fc.bias.cpu().detach().numpy())
 
     t = f.create_group('test')
     t.create_dataset('input', data=test_input.permute(1, 0, 2).cpu().detach().numpy())
