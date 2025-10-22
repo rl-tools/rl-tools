@@ -8,14 +8,13 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru{
-    template<typename T_TYPE_POLICY, typename T_TI, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, bool T_FAST_TANH = false, bool T_CONST = false>
+    template<typename T_TYPE_POLICY, typename T_TI, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, bool T_FAST_TANH = false>
     struct Configuration{
         using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
         static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
         static constexpr bool FAST_TANH = T_FAST_TANH;
-        static constexpr bool CONST = T_CONST;
         static constexpr bool LEARN_INITIAL_HIDDEN_STATE = false;
         // Summary
 //        static constexpr auto NUM_WEIGHTS = HIDDEN_DIM * INPUT_DIM + HIDDEN_DIM; // todo

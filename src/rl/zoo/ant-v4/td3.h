@@ -9,12 +9,13 @@
 
 namespace rl_tools::rl::zoo::ant_v4::td3{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
-        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<T, T, TI>::ENVIRONMENT;
+        using T = typename TYPE_POLICY::DEFAULT;
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI>::ENVIRONMENT;
 
-        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
+        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+            struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<TYPE_POLICY, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
                 static constexpr TI CRITIC_BATCH_SIZE = 256;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
@@ -38,6 +39,6 @@ namespace rl_tools::rl::zoo::ant_v4::td3{
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
 //            static constexpr bool SHARED_BATCH = false;
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
     };
 }

@@ -27,6 +27,7 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 //using DEVICE = rlt::devices::DefaultCPU;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = double;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 constexpr TI SEQUENCE_LENGTH = 16;
@@ -34,8 +35,8 @@ constexpr TI BATCH_SIZE = 32;
 
 using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, rlt::rl::environments::memory::DefaultParameters<T, TI>>;
 using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM>{
         static constexpr TI ACTOR_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI CRITIC_BATCH_SIZE = BATCH_SIZE;
     };
@@ -44,7 +45,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
-    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+    struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
         static constexpr T ALPHA = 0.01;
     };
 };
@@ -56,7 +57,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
-    using APPROXIMATORS = rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU<T, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+    using APPROXIMATORS = rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU<TYPE_POLICY, TI, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using ACTOR = APPROXIMATORS::Actor<CAPABILITY>::MODEL;
     using CRITIC = APPROXIMATORS::Critic<CAPABILITY>::MODEL;
