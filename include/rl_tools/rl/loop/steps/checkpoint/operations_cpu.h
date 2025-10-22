@@ -10,6 +10,7 @@
 #include <cstring>
 #endif
 
+#include "../../../../numeric_types/persist_code.h"
 #include "../../../../containers/matrix/persist_code.h"
 #include "../../../../containers/tensor/persist_code.h"
 #include "../../../../nn/optimizers/adam/instance/persist_code.h"
