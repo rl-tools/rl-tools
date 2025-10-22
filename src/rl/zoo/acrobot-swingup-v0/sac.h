@@ -7,11 +7,12 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::acrobot_swingup_v0::sac{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
-        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<T, T, TI>::ENVIRONMENT;
-        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+        using T = typename TYPE_POLICY::DEFAULT;
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, typename TYPE_POLICY::DEFAULT, TI>::ENVIRONMENT;
+        struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+            struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
                 static constexpr TI CRITIC_BATCH_SIZE = 256;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
@@ -31,12 +32,12 @@ namespace rl_tools::rl::zoo::acrobot_swingup_v0::sac{
             static constexpr T TARGET_ENTROPY = -2;
             static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT::Parameters::DT;
             static constexpr TI N_WARMUP_STEPS = 50000;
-            struct INITIALIZER_SPEC: nn::layers::dense::KaimingUniformSpecification<T, TI>{
+            struct INITIALIZER_SPEC: nn::layers::dense::KaimingUniformSpecification<TYPE_POLICY, TI>{
                 static constexpr bool INIT_LEGACY = false;
                 static constexpr T SCALE = 1;
             };
             using INITIALIZER = nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>;
-            struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr T ALPHA = 1e-3;
                 static constexpr bool ENABLE_BIAS_LR_FACTOR = true;
                 static constexpr T BIAS_LR_FACTOR = 10;
@@ -50,7 +51,7 @@ namespace rl_tools::rl::zoo::acrobot_swingup_v0::sac{
         struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{
 //            static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT_PARAMETERS::DT;
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP, DYNAMIC_ALLOCATION>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

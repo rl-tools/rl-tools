@@ -8,7 +8,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::ant_v4{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename T, typename TI>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI>
     struct ENVIRONMENT_FACTORY{
         using T_ENVIRONMENT = double;
         using ENVIRONMENT_PARAMETERS = rlt::rl::environments::mujoco::ant::DefaultParameters<T_ENVIRONMENT, TI>;

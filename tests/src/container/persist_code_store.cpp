@@ -1,5 +1,7 @@
 #include <rl_tools/operations/cpu.h>
+#include <rl_tools/numeric_types/persist_code.h>
 #include <rl_tools/containers/matrix/persist_code.h>
+#include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/parameters/persist_code.h>
@@ -48,7 +50,8 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     using DEVICE = rlt::devices::DefaultCPU;
     using TI = DEVICE::index_t;
     using DTYPE = float;
-    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, TI>;
+    using TYPE_POLICY = rlt::numeric_types::Policy<DTYPE>;
+    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     OPTIMIZER optimizer;
     DEVICE device;
@@ -57,7 +60,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     rlt::init(device, rng, 0);
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 3>;
-    using LAYER_SPEC = rlt::nn::layers::dense::Configuration<DTYPE, typename DEVICE::index_t, 3, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, typename DEVICE::index_t, 3, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     rlt::nn::layers::dense::Layer<LAYER_SPEC, CAPABILITY_ADAM, INPUT_SHAPE> layer;
     rlt::malloc(device, optimizer);
@@ -87,13 +90,14 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     using DEVICE = rlt::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
     using DTYPE = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<DTYPE>;
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     constexpr TI BATCH_SIZE = 1;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 13>;
-    using SPEC = rlt::nn_models::mlp::Configuration<DTYPE, typename DEVICE::index_t, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>>;
+    using SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, typename DEVICE::index_t, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>>;
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn_models::mlp::NeuralNetwork<SPEC, CAPABILITY_ADAM, INPUT_SHAPE> mlp;
     rlt::malloc(device, mlp);
