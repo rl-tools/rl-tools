@@ -2,12 +2,12 @@
 #define RL_TOOLS_BACKEND_ENABLE_BLAS
 //#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #include <rl_tools/operations/cpu.h>
-#include <rl_tools/nn/operations_cpu.h>
 //#define RL_TOOLS_BACKEND_DISABLE_BLAS
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/nn/operations_cpu_mux.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
@@ -19,9 +19,10 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace config{
-    template <typename T_T, typename T_TI>
+    template <typename T_TYPE_POLICY, typename T_TI>
     struct CONFIG{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
+        using T = typename TYPE_POLICY::DEFAULT;
         using TI = T_TI;
         static constexpr TI SEQUENCE_LENGTH = 3;
         static constexpr TI INPUT_DIM = 4;
@@ -31,19 +32,19 @@ namespace config{
         static constexpr T THRESHOLD = 1e-5;
 
         using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-        using SPEC = rlt::nn_models::mlp::Configuration<T, TI, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
         using MODEL = rlt::nn_models::mlp::NeuralNetwork<SPEC, CAPABILITY_ADAM, INPUT_SHAPE>;
 
-        using LAYER_1_SPEC = rlt::nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_1_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_SPEC>;
-        using LAYER_2_SPEC = rlt::nn::layers::dense::Configuration<T, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using LAYER_2_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_SPEC>;
-        using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<T, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+        using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-        using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI>>;
-        using SEQUENTIAL_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI>>;
+        using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>>;
+        using SEQUENTIAL_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>>;
 
         template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
         using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
@@ -216,30 +217,30 @@ void test_correctness(){
 
 }
 TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_BLAS){
-    using T = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 //using DEVICE = rlt::devices::DefaultCPU;
     using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using TI = typename DEVICE::index_t;
 
-    test_correctness<DEVICE, DEVICE, config::CONFIG<T, TI>>();
+    test_correctness<DEVICE, DEVICE, config::CONFIG<TYPE_POLICY, TI>>();
 }
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_BLAS_CPU){
-    using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<double>;
 //using DEVICE = rlt::devices::DefaultCPU;
     using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using SEQUENTIAL_DEVICE = rlt::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
 
-    test_correctness<DEVICE, SEQUENTIAL_DEVICE, config::CONFIG<T, TI>>();
+    test_correctness<DEVICE, SEQUENTIAL_DEVICE, config::CONFIG<TYPE_POLICY, TI>>();
 }
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
-    using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<double>;
 //using DEVICE = rlt::devices::DefaultCPU;
     using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using SEQUENTIAL_DEVICE = rlt::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
 
-    test_correctness<SEQUENTIAL_DEVICE, DEVICE, config::CONFIG<T, TI>>();
+    test_correctness<SEQUENTIAL_DEVICE, DEVICE, config::CONFIG<TYPE_POLICY, TI>>();
 }
