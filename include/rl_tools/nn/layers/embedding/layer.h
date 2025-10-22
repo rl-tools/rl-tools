@@ -108,7 +108,7 @@ namespace rl_tools::nn::layers::embedding {
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, LayerGradient<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
 
     template <typename CONFIG>
-    struct BindSpecification{
+    struct BindConfiguration{
         template <typename CAPABILITY, typename INPUT_SHAPE>
         using Layer = nn::layers::embedding::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
     };

@@ -44,7 +44,7 @@ struct RL_TOOLS_INFERENCE_APPLICATIONS_L2F_CONFIG{
     using ACTOR_TYPE_ORIGINAL = rlt::checkpoint::actor::TYPE;
     using POLICY_TEST = rlt::checkpoint::actor::TYPE::template CHANGE_BATCH_SIZE<TI, 1>::template CHANGE_SEQUENCE_LENGTH<TI, 1>;
     using POLICY = ACTOR_TYPE_ORIGINAL::template CHANGE_BATCH_SIZE<TI, 1>::template CHANGE_SEQUENCE_LENGTH<TI, 1>;
-    using T = typename POLICY::SPEC::T;
+    using TYPE_POLICY = typename POLICY::SPEC::TYPE_POLICY;
     static auto& policy() {
 #ifdef _MSC_VER
         static auto _policy = rl_tools::checkpoint::actor::factory_function();
@@ -60,7 +60,7 @@ struct RL_TOOLS_INFERENCE_APPLICATIONS_L2F_CONFIG{
     static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
     static constexpr bool DYNAMIC_ALLOCATION = false;
-    using WARNING_LEVELS = rlt::inference::executor::WarningLevelsDefault<T>;
+    using WARNING_LEVELS = rlt::inference::executor::WarningLevelsDefault<TYPE_POLICY>;
 };
 
 #include <rl_tools/inference/applications/l2f/c_backend.h>

@@ -5,7 +5,7 @@
 
 namespace rl_tools::inference::applications::l2f{
     using CONFIG = RL_TOOLS_INFERENCE_APPLICATIONS_L2F_CONFIG;
-    using T = typename CONFIG::T;
+    using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
     using TI = typename CONFIG::TI;
 
     static constexpr TI TEST_SEQUENCE_LENGTH = rlt::checkpoint::example::input::SHAPE::template GET<0>;
@@ -20,7 +20,7 @@ namespace rl_tools::inference::applications::l2f{
 
 
     // state
-    using SPEC = rl_tools::inference::applications::l2f::Specification<T, TI, RLtoolsInferenceTimestamp, CONFIG::ACTION_HISTORY_LENGTH, OUTPUT_DIM, typename CONFIG::POLICY, CONFIG::CONTROL_INTERVAL_INTERMEDIATE_NS, CONFIG::CONTROL_INTERVAL_NATIVE_NS, CONFIG::FORCE_SYNC_INTERMEDIATE, CONFIG::FORCE_SYNC_NATIVE, CONFIG::WARNING_LEVELS, CONFIG::DYNAMIC_ALLOCATION>;
+    using SPEC = rl_tools::inference::applications::l2f::Specification<TYPE_POLICY, TI, RLtoolsInferenceTimestamp, CONFIG::ACTION_HISTORY_LENGTH, OUTPUT_DIM, typename CONFIG::POLICY, CONFIG::CONTROL_INTERVAL_INTERMEDIATE_NS, CONFIG::CONTROL_INTERVAL_NATIVE_NS, CONFIG::FORCE_SYNC_INTERMEDIATE, CONFIG::FORCE_SYNC_NATIVE, CONFIG::WARNING_LEVELS, CONFIG::DYNAMIC_ALLOCATION>;
     typename CONFIG::DEVICE device;
     typename CONFIG::RNG rng;
     static rl_tools::inference::applications::L2F<SPEC> executor;
@@ -28,7 +28,7 @@ namespace rl_tools::inference::applications::l2f{
     #ifndef RL_TOOLS_DISABLE_TEST
     static CONFIG::POLICY_TEST::template Buffer<false> buffers_test;
     static CONFIG::POLICY_TEST::State<false> policy_state_test;
-    static rl_tools::Tensor<rl_tools::tensor::Specification<T, TI, rl_tools::tensor::Shape<TI, 1, OUTPUT_DIM>, false>> output;
+    static rl_tools::Tensor<rl_tools::tensor::Specification<TYPE_POLICY::DEFAULT, TI, rl_tools::tensor::Shape<TI, 1, OUTPUT_DIM>, false>> output;
     #endif
 }
 

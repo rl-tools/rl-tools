@@ -29,7 +29,7 @@ struct Config{
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Configuration<TYPE_POLICY, TI, PARAMS::NUM_CLASSES, PARAMS::EMBEDDING_DIM>;
-    using EMBEDDING_LAYER = rlt::nn::layers::embedding::BindSpecification<EMBEDDING_LAYER_SPEC>;
+    using EMBEDDING_LAYER = rlt::nn::layers::embedding::BindConfiguration<EMBEDDING_LAYER_SPEC>;
     using GRU_CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
     using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
 //    using GRU2_CONFIG = rlt::nn::layers::gru::Configuration<T, TI, PARAMS::HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
