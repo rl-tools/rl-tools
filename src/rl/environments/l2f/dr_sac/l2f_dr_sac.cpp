@@ -19,6 +19,7 @@
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
 #include <rl_tools/persist/backends/tar/operations_generic.h>
 
+#include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
@@ -28,6 +29,7 @@
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 
+#include <rl_tools/numeric_types/persist_code.h>
 #include <rl_tools/containers/matrix/persist_code.h>
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
@@ -63,6 +65,7 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using TI = typename DEVICE::index_t;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 constexpr TI BASE_SEED = 0;
 
 
@@ -192,8 +195,8 @@ namespace static_builder{
 using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, static_builder::ENVIRONMENT_STATIC_PARAMETERS>;
 using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
 
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI>{
         static constexpr TI ACTOR_BATCH_SIZE = 64;
         static constexpr TI CRITIC_BATCH_SIZE = 64;
         static constexpr TI TRAINING_INTERVAL = 5;
@@ -217,7 +220,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
 //            static constexpr bool SHARED_BATCH = false;
-    struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+    struct OPTIMIZER_PARAMETERS_COMMON: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
         static constexpr bool ENABLE_GRADIENT_CLIPPING = true;
         static constexpr T GRADIENT_CLIP_VALUE = 1;
         static constexpr bool ENABLE_WEIGHT_DECAY = true;
@@ -235,7 +238,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = SAMPLE_ENV_PARAMETERS;
 };
 
-using LOOP_CORE_CONFIG_MLP = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG_MLP = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
 // using LOOP_CORE_CONFIG_GRU = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsGRU>;
 // using LOOP_CORE_CONFIG = rlt::utils::typing::conditional_t<SEQUENTIAL, LOOP_CORE_CONFIG_GRU, LOOP_CORE_CONFIG_MLP>;
 using LOOP_CORE_CONFIG = LOOP_CORE_CONFIG_MLP;
@@ -245,12 +248,12 @@ constexpr TI NUM_EVALUATIONS = 20;
 constexpr TI NUM_SAVE_TRAJECTORIES = 20;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG, rlt::rl::loop::steps::timing::Parameters<TI, 10000>>;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_TIMING_CONFIG>;
-struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
+struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<TYPE_POLICY, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
     static constexpr TI CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL_TEMP == 0 ? 1 : CHECKPOINT_INTERVAL_TEMP;
 };
 using LOOP_CHECKPOINT_CONFIG = rlt::rl::loop::steps::checkpoint::Config<LOOP_EXTRACK_CONFIG, LOOP_CHECKPOINT_PARAMETERS>;
-struct LOOP_EVALUATION_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
+struct LOOP_EVALUATION_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, LOOP_CHECKPOINT_CONFIG>{
     static constexpr TI EVALUATION_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_EVALUATIONS;
     static constexpr TI EVALUATION_INTERVAL = EVALUATION_INTERVAL_TEMP == 0 ? 1 : EVALUATION_INTERVAL_TEMP;
     static constexpr TI NUM_EVALUATION_EPISODES = 100;
@@ -258,7 +261,7 @@ struct LOOP_EVALUATION_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<
     static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = SAMPLE_ENV_PARAMETERS;
 };
 using LOOP_EVALUATION_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CHECKPOINT_CONFIG, LOOP_EVALUATION_PARAMETERS>;
-struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectories::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
+struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectories::Parameters<TYPE_POLICY, TI, LOOP_CHECKPOINT_CONFIG>{
     static constexpr TI INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_SAVE_TRAJECTORIES;
     static constexpr TI INTERVAL = INTERVAL_TEMP == 0 ? 1 : INTERVAL_TEMP;
     static constexpr TI NUM_EPISODES = 100;
