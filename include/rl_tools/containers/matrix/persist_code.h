@@ -15,13 +15,19 @@ namespace rl_tools{
         constexpr auto INDEX_TYPE = "unsigned int";
         template <typename T>
         auto get_type_string(){
-            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, numeric_types::bf16> || utils::typing::is_same_v<T, int> || utils::typing::is_same_v<T, unsigned int> || utils::typing::is_same_v<T, long> || utils::typing::is_same_v<T, unsigned long> || utils::typing::is_same_v<T, long long> || utils::typing::is_same_v<T, unsigned long long> || utils::typing::is_same_v<T, char> || utils::typing::is_same_v<T, unsigned char> || utils::typing::is_same_v<T, short> || utils::typing::is_same_v<T, unsigned short>);
+            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>
+#ifndef _MSC_VER
+                || utils::typing::is_same_v<T, numeric_types::bf16>
+#endif
+                || utils::typing::is_same_v<T, int> || utils::typing::is_same_v<T, unsigned int> || utils::typing::is_same_v<T, long> || utils::typing::is_same_v<T, unsigned long> || utils::typing::is_same_v<T, long long> || utils::typing::is_same_v<T, unsigned long long> || utils::typing::is_same_v<T, char> || utils::typing::is_same_v<T, unsigned char> || utils::typing::is_same_v<T, short> || utils::typing::is_same_v<T, unsigned short>);
             if constexpr(std::is_same_v<T, float>){
                 return "float";
             } else if constexpr(std::is_same_v<T, double>){
                 return "double";
+#ifndef _MSC_VER
             } else if constexpr(std::is_same_v<T, numeric_types::bf16>){
                 return "numeric_types::bf16";
+#endif
             } else if constexpr(std::is_same_v<T, int>){
                 return "int";
             } else if constexpr(std::is_same_v<T, unsigned int>){
