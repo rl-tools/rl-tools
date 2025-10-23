@@ -24,8 +24,8 @@ namespace rl_tools{
             using OUTPUT_TYPE = typename OUTPUT_SPEC::T;
             static constexpr bool UNIFORM_TYPES = utils::typing::is_same_v<PARAMETER_TYPE, INPUT_TYPE> && utils::typing::is_same_v<PARAMETER_TYPE, OUTPUT_TYPE>;
             static constexpr bool UNIFORM_FLOAT_OR_DOUBLE = UNIFORM_TYPES && (utils::typing::is_same_v<PARAMETER_TYPE, float> || utils::typing::is_same_v<PARAMETER_TYPE, double>);
+#if defined(RL_TOOLS_NUMERIC_TYPES_ENABLE_BF16) and defined(RL_TOOLS_BACKEND_ENABLE_MKL)
             static constexpr bool MIXED = utils::typing::is_same_v<PARAMETER_TYPE, numeric_types::bf16> && utils::typing::is_same_v<INPUT_TYPE, numeric_types::bf16> && utils::typing::is_same_v<OUTPUT_TYPE, float>;
-#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
             static constexpr bool VALUE = UNIFORM_FLOAT_OR_DOUBLE || MIXED;
 #else
             static constexpr bool VALUE = UNIFORM_FLOAT_OR_DOUBLE;

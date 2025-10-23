@@ -16,7 +16,7 @@ namespace rl_tools{
         template <typename T>
         auto get_type_string(){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>
-#ifndef _MSC_VER
+#if defined(RL_TOOLS_NUMERIC_TYPES_ENABLE_BF16)
                 || utils::typing::is_same_v<T, numeric_types::bf16>
 #endif
                 || utils::typing::is_same_v<T, int> || utils::typing::is_same_v<T, unsigned int> || utils::typing::is_same_v<T, long> || utils::typing::is_same_v<T, unsigned long> || utils::typing::is_same_v<T, long long> || utils::typing::is_same_v<T, unsigned long long> || utils::typing::is_same_v<T, char> || utils::typing::is_same_v<T, unsigned char> || utils::typing::is_same_v<T, short> || utils::typing::is_same_v<T, unsigned short>);
@@ -24,7 +24,7 @@ namespace rl_tools{
                 return "float";
             } else if constexpr(std::is_same_v<T, double>){
                 return "double";
-#ifndef _MSC_VER
+#if defined(RL_TOOLS_NUMERIC_TYPES_ENABLE_BF16)
             } else if constexpr(std::is_same_v<T, numeric_types::bf16>){
                 return "numeric_types::bf16";
 #endif

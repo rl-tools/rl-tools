@@ -43,7 +43,7 @@ namespace rl_tools{
 
             using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>;
 
-            using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>;
+            using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>;
         };
 
         template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT, typename PARAMETERS>

@@ -7,7 +7,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace numeric_types {
-#ifndef _MSC_VER
+
+#ifdef RL_TOOLS_NUMERIC_TYPES_ENABLE_BF16
         using bf16 = __bf16;
         static_assert(sizeof(bf16) == 2);
 #endif
