@@ -1,23 +1,15 @@
-add_executable(
-        rl_environments_pendulum_ppo_training
-        training.cpp
-)
-target_link_libraries(
-        rl_environments_pendulum_ppo_training
-        PRIVATE
-        RLtools::RLtools
-)
+
+add_executable(rl_environments_pendulum_ppo_training_static_mem training.cpp)
+target_link_libraries(rl_environments_pendulum_ppo_training_static_mem PRIVATE RLtools::Core)
+target_compile_definitions(rl_environments_pendulum_ppo_training_static_mem PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+target_compile_definitions(rl_environments_pendulum_ppo_training_static_mem PRIVATE RL_TOOLS_STATIC_MEM)
+
+add_executable(rl_environments_pendulum_ppo_training training.cpp)
+target_link_libraries(rl_environments_pendulum_ppo_training PRIVATE RLtools::RLtools)
 target_compile_definitions(rl_environments_pendulum_ppo_training PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 
-add_executable(
-        rl_environments_pendulum_ppo_benchmark
-        training.cpp
-)
-target_link_libraries(
-        rl_environments_pendulum_ppo_benchmark
-        PRIVATE
-        RLtools::RLtools
-)
+add_executable(rl_environments_pendulum_ppo_benchmark training.cpp)
+target_link_libraries(rl_environments_pendulum_ppo_benchmark PRIVATE RLtools::RLtools)
 target_compile_definitions(rl_environments_pendulum_ppo_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 target_compile_definitions(rl_environments_pendulum_ppo_benchmark PRIVATE BENCHMARK)
 target_compile_options(rl_environments_pendulum_ppo_benchmark PRIVATE -Ofast -march=native)

@@ -1,5 +1,7 @@
 //#define RL_TOOLS_BACKEND_DISABLE_BLAS
+#ifdef RL_TOOLS_STATIC_MEM
 #define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#endif
 
 #include <rl_tools/operations/cpu_mux.h>
 
@@ -34,7 +36,11 @@ using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using TI = typename DEVICE::index_t;
+#ifdef RL_TOOLS_STATIC_MEM
 static constexpr bool DYNAMIC_ALLOCATION = false;
+#else
+static constexpr bool DYNAMIC_ALLOCATION = true;
+#endif
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<TYPE_POLICY::DEFAULT, TI, rlt::rl::environments::pendulum::DefaultParameters<TYPE_POLICY::DEFAULT>>;
 using PRE_ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
