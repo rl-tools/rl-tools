@@ -17,6 +17,7 @@
 /lightning_logs
 /deepsweep_runs
 .dependencies
+*.dot
 
 
 /.idea

@@ -26,6 +26,8 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+#include "cuda_graph_export.h"
+
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY_CUDA<>;
@@ -160,6 +162,9 @@ int main() {
             cudaGraphInstantiate(&actor_training_graph_exec, actor_training_graph, nullptr, nullptr, 0);
             rlt::print_graph(actor_training_graph);
         }
+        dumpCudaGraphDOT(step_graph,            "cuda_graph_step.dot");
+        dumpCudaGraphDOT(critic_training_graph, "cuda_graph_critic_training.dot");
+        dumpCudaGraphDOT(actor_training_graph,  "cuda_traph_actor_training.dot");
         while(!finished){
             // Evaluation
             if(step % 1000 == 0){
