@@ -79,7 +79,7 @@ namespace rl_tools{
 
             header header{};
 
-            strncpy(header.name, entry_name, 99);
+            utils::string::copy(header.name, entry_name, 99);
             utils::string::format_octal<unsigned int, TI>(header.mode, sizeof(header.mode), 0644); // Octal permissions
             utils::string::format_octal<unsigned int, TI>(header.uid, sizeof(header.uid), 1000);
             utils::string::format_octal<unsigned int, TI>(header.gid, sizeof(header.gid), 1000);
@@ -88,8 +88,8 @@ namespace rl_tools{
             header.typeflag = '0'; // Regular file
             utils::string::memcpy<TI>(header.magic, "ustar", 5);
             utils::string::memcpy<TI>(header.version, "00", 2);
-            strncpy(header.uname, "user", 31);
-            strncpy(header.gname, "group", 31);
+            utils::string::copy(header.uname, "user", 31);
+            utils::string::copy(header.gname, "group", 31);
 
             unsigned int chksum = calculate_checksum<TI>(header);
             utils::string::format_octal<unsigned int, TI>(header.chksum, sizeof(header.chksum), chksum);
@@ -97,7 +97,7 @@ namespace rl_tools{
             write(device, writer, reinterpret_cast<const char*>(&header), BLOCK_SIZE<TI>);
             write(device, writer, data, data_size);
 
-            size_t padding_size = (BLOCK_SIZE<TI> - (data_size % BLOCK_SIZE<TI>)) % BLOCK_SIZE<TI>;
+            TI padding_size = (BLOCK_SIZE<TI> - (data_size % BLOCK_SIZE<TI>)) % BLOCK_SIZE<TI>;
             if (padding_size > 0) {
                 const char padding[1] = {0};
                 for (TI i = 0; i < padding_size; i++){
