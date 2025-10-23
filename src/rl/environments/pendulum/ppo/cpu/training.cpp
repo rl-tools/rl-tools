@@ -38,6 +38,9 @@ auto run(TI seed, bool verbose){
 
 
 int main(int argc, char** argv) {
+#ifdef RL_TOOLS_STATIC_MEM
+    std::cout << "Training state size: " << sizeof(CONFIG::LOOP_STATE) << std::endl;
+#endif
     bool verbose = true;
     std::vector<decltype(run(0, verbose))> returns;
     for (TI seed=0; seed < 1; seed++){

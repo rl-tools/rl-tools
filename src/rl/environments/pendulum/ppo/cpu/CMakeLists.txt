@@ -1,8 +1,9 @@
-
-add_executable(rl_environments_pendulum_ppo_training_static_mem training.cpp)
-target_link_libraries(rl_environments_pendulum_ppo_training_static_mem PRIVATE RLtools::Core)
-target_compile_definitions(rl_environments_pendulum_ppo_training_static_mem PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
-target_compile_definitions(rl_environments_pendulum_ppo_training_static_mem PRIVATE RL_TOOLS_STATIC_MEM)
+if(NOT WIN32)
+    add_executable(rl_environments_pendulum_ppo_training_static_mem training.cpp)
+    target_link_libraries(rl_environments_pendulum_ppo_training_static_mem PRIVATE RLtools::Core)
+    target_compile_definitions(rl_environments_pendulum_ppo_training_static_mem PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+    target_compile_definitions(rl_environments_pendulum_ppo_training_static_mem PRIVATE RL_TOOLS_STATIC_MEM)
+endif()
 
 add_executable(rl_environments_pendulum_ppo_training training.cpp)
 target_link_libraries(rl_environments_pendulum_ppo_training PRIVATE RLtools::RLtools)
