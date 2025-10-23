@@ -3,7 +3,7 @@
 #include <rl_tools/containers/tensor/operations_generic.h>
 #include <rl_tools/containers/tensor/operations_cpu.h>
 #include <rl_tools/containers/tensor/persist_code.h>
-#include "../../../../external/rl-tools-test-data/test_containers_tensor_persist_code.h"
+#include "../../../tests/data/test_containers_tensor_persist_code.h"
 
 namespace rlt = rl_tools;
 
