@@ -6,8 +6,8 @@
   <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://rl.tools">Live demo (browser)</a> | <a href="https://docs.rl.tools">Documentation</a> | <a href="https://zoo.rl.tools">Zoo</a> | <a href="https://studio.rl.tools">Studio</a>
   </br>
 </br>
-  <a href="https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml">
-  <img src="https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml/badge.svg" alt="Documentation">
+  <a href="https://github.com/rl-tools/rl-tools/actions/workflows/tests-tier3.yml">
+  <img src="https://github.com/rl-tools/rl-tools/actions/workflows/tests-tier3.yml/badge.svg" alt="Unit Tests">
   </a>
   <a href="https://codecov.io/gh/rl-tools/rl-tools" >
   <img src="https://codecov.io/gh/rl-tools/rl-tools/graph/badge.svg?token=3TJZ635O8V"/>
