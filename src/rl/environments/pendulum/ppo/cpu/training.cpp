@@ -1,17 +1,31 @@
 #include "config.h"
 
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<float>;
+using TI = typename DEVICE::index_t;
+#ifdef RL_TOOLS_STATIC_MEM
+static constexpr bool DYNAMIC_ALLOCATION = false;
+#else
+static constexpr bool DYNAMIC_ALLOCATION = true;
+#endif
+
+using CONFIG = CONFIG_FACTORY<DEVICE, TYPE_POLICY, DYNAMIC_ALLOCATION>;
+
+CONFIG::EVAL_BUFFER eval_buffer;
+
 auto run(TI seed, bool verbose){
     DEVICE device;
     if(verbose){
-        rlt::log(device, LOOP_TIMING_CONFIG{});
+        rlt::log(device, CONFIG::LOOP_TIMING_CONFIG{});
     }
-    LOOP_STATE ts;
+    CONFIG::LOOP_STATE ts;
     rlt::malloc(device, ts);
     rlt::malloc(device, eval_buffer);
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
     }
-    rlt::rl::utils::evaluation::Result<EVAL_SPEC> result;
+    rlt::rl::utils::evaluation::Result<CONFIG::EVAL_SPEC> result;
     auto actor = rlt::get_actor(ts);
     evaluate(device, ts.envs[0], ts.ui, actor, eval_buffer, result, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{});
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);
