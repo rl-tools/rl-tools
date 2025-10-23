@@ -1,4 +1,5 @@
 //#define RL_TOOLS_BACKEND_DISABLE_BLAS
+#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
 
 #include <rl_tools/operations/cpu_mux.h>
 
@@ -33,6 +34,7 @@ using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using TI = typename DEVICE::index_t;
+static constexpr bool DYNAMIC_ALLOCATION = false;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<TYPE_POLICY::DEFAULT, TI, rlt::rl::environments::pendulum::DefaultParameters<TYPE_POLICY::DEFAULT>>;
 using PRE_ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
@@ -57,7 +59,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
         static constexpr bool NORMALIZE_OBSERVATIONS = true;
     };
 };
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential, DYNAMIC_ALLOCATION>;
 template <typename NEXT>
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 10;
@@ -65,51 +67,51 @@ struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_P
     static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
 
-template <TI NUM_EPISODES_FINAL_EVAL>
+#ifndef BENCHMARK
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS<LOOP_CORE_CONFIG>>;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
+#else
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
+#endif
+
+using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;
+
+static constexpr TI NUM_EPISODES_FINAL_EVAL = 1000;
+using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+
+using POLICY = rlt::utils::typing::remove_reference_t<decltype(rlt::get_actor(LOOP_STATE{}))>;
+using EVAL_BUFFER = rlt::rl::utils::evaluation::PolicyBuffer<rlt::rl::utils::evaluation::PolicyBufferSpecification<EVAL_SPEC, POLICY, DYNAMIC_ALLOCATION>>;
+EVAL_BUFFER eval_buffer;
+
 auto run(TI seed, bool verbose){
     DEVICE device;
-#ifndef BENCHMARK
-    using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS<LOOP_CORE_CONFIG>>;
-    using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
-#else
-    using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
-#endif
     if(verbose){
         rlt::log(device, LOOP_TIMING_CONFIG{});
     }
-    using LOOP_CONFIG = LOOP_TIMING_CONFIG;
-    using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;
     LOOP_STATE ts;
     rlt::malloc(device, ts);
+    rlt::malloc(device, eval_buffer);
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
     }
-    using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
-    rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+    rlt::rl::utils::evaluation::Result<EVAL_SPEC> result;
     auto actor = rlt::get_actor(ts);
-    using EVALUATION_ACTOR_BATCH_SIZE = decltype(actor)::template CHANGE_BATCH_SIZE<TI, NUM_EPISODES_FINAL_EVAL>;
-    using EVALUATION_ACTOR = typename EVALUATION_ACTOR_BATCH_SIZE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
-    EVALUATION_ACTOR evaluation_actor;
-    typename EVALUATION_ACTOR::template Buffer<> evaluation_buffer;
-    rlt::malloc(device, evaluation_actor);
-    rlt::malloc(device, evaluation_buffer);
-    rlt::copy(device, device, actor, evaluation_actor);
-    evaluate(device, ts.envs[0], ts.ui, evaluation_actor, result, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{});
-    rlt::free(device, evaluation_actor);
-    rlt::free(device, evaluation_buffer);
+    evaluate(device, ts.envs[0], ts.ui, actor, eval_buffer, result, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{});
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);
     rlt::log(device, device.logger, "              mean: ", result.returns_mean);
     rlt::log(device, device.logger, "              std : ", result.returns_std);
+    rlt::free(device, ts);
+    rlt::free(device, eval_buffer);
     return result;
 }
 
-static constexpr TI NUM_EPISODES_FINAL_EVAL = 1000;
 
 int main(int argc, char** argv) {
     bool verbose = true;
-    std::vector<decltype(run<NUM_EPISODES_FINAL_EVAL>(0, verbose))> returns;
+    std::vector<decltype(run(0, verbose))> returns;
     for (TI seed=0; seed < 1; seed++){
-        auto return_stats = run<NUM_EPISODES_FINAL_EVAL>(seed, verbose);
+        auto return_stats = run(seed, verbose);
         returns.push_back(return_stats);
     }
     T sum = 0;

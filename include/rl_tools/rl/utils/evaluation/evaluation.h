@@ -79,6 +79,25 @@ namespace rl_tools::rl::utils::evaluation{
         Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM, DYNAMIC_ALLOCATION>> actions;
         Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM, DYNAMIC_ALLOCATION>> observations;
     };
+    template <typename T_SPEC, typename T_POLICY, bool T_DYNAMIC_ALLOCATION=true>
+    struct PolicyBufferSpecification{
+        using SPEC = T_SPEC;
+        using POLICY = T_POLICY;
+        static constexpr bool DYNAMIC_ALLOCATION=T_DYNAMIC_ALLOCATION;
+    };
+    template <typename T_SPEC>
+    struct PolicyBuffer{
+        using SPEC = typename T_SPEC::SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
+        using POLICY_ORIG = typename T_SPEC::POLICY;
+        using POLICY_BATCH_SIZE = typename POLICY_ORIG::template CHANGE_BATCH_SIZE<typename SPEC::TI, SPEC::N_EPISODES>;
+        using POLICY = typename POLICY_BATCH_SIZE::template CHANGE_CAPABILITY<nn::capability::Forward<DYNAMIC_ALLOCATION>>;
+        POLICY policy;
+        typename POLICY::template State<DYNAMIC_ALLOCATION> policy_state;
+        typename POLICY::template Buffer<DYNAMIC_ALLOCATION> policy_evaluation_buffers;
+        Buffer<BufferSpecification<SPEC, DYNAMIC_ALLOCATION>> buffer;
+    };
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

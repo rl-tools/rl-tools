@@ -28,9 +28,9 @@ namespace rl_tools{
             typename CONFIG::CRITIC_BUFFERS critic_buffers;
             typename CONFIG::CRITIC_BUFFERS_GAE critic_buffers_gae;
             using T = typename TYPE_POLICY::DEFAULT;
-            Matrix<matrix::Specification<T, TI, CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::STEPS_TOTAL, CONFIG::ENVIRONMENT::Observation::DIM>> observations_dense;
-            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<TYPE_POLICY, TI, CONFIG::ENVIRONMENT::Observation::DIM/CONFIG::ENVIRONMENT::N_AGENTS>> observation_normalizer;
-            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<TYPE_POLICY, TI, CONFIG::ENVIRONMENT::ObservationPrivileged::DIM>> observation_privileged_normalizer;
+            Matrix<matrix::Specification<T, TI, CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::STEPS_TOTAL, CONFIG::ENVIRONMENT::Observation::DIM, CONFIG::DYNAMIC_ALLOCATION>> observations_dense;
+            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<TYPE_POLICY, TI, CONFIG::ENVIRONMENT::Observation::DIM/CONFIG::ENVIRONMENT::N_AGENTS, CONFIG::DYNAMIC_ALLOCATION>> observation_normalizer;
+            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<TYPE_POLICY, TI, CONFIG::ENVIRONMENT::ObservationPrivileged::DIM, CONFIG::DYNAMIC_ALLOCATION>> observation_privileged_normalizer;
             typename CONFIG::ENVIRONMENT envs[CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS];
             typename CONFIG::ENVIRONMENT::Parameters env_parameters[CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS];
 //            MatrixDynamic<matrix::Specification<typename CONFIG::T, TI, 1, CONFIG::ENVIRONMENT::Observation::DIM>> observations_mean, observations_std;
