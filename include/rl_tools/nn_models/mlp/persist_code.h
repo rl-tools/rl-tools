@@ -101,11 +101,11 @@ namespace rl_tools{
 //            }
 //        }
         std::string initializer_list = ss_initializer_list_create.str();
-        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << ss_initializer_list.str() << ";\n";
+        ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = " << ss_initializer_list.str() << ";\n";
         ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = " << initializer_list << ";" << "\n";
+        ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = " << initializer_list << ";" << "\n";
         ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory_function(){return T_TYPE" << ss_initializer_list_create_function.str() << ";" << "}\n";
+        ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){return T_TYPE" << ss_initializer_list_create_function.str() << ";" << "}\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }

@@ -26,25 +26,31 @@ namespace rl_tools{
         ss_header << "#include <rl_tools/containers/tensor/tensor.h>\n";
         std::stringstream ss;
         ss << ind << "namespace " << name << " {\n";
-        ss << ind << "    static_assert(sizeof(" << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << ") == 1);\n";
-        ss << ind << "    alignas(" << containers::persist::get_type_string<T>() << ") " << (const_declaration ? "const " : "") << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << " memory[] = {";
+        ss << ind << "    " << (const_declaration ? "constexpr " : "") << containers::persist::get_type_string<T>() << " memory[] = {";
 
         auto m = matrix_view(device, tensor);
         using MATRIX_SPEC = typename decltype(m)::SPEC;
         bool first = true;
+        std::stringstream data_ss;
+        data_ss << std::uppercase << std::hexfloat << std::setprecision(6);
         for(TI i=0; i < MATRIX_SPEC::ROWS; i++){
             for(TI j=0; j < MATRIX_SPEC::COLS; j++){
+                if(!first){
+                    data_ss << ", ";
+                }
                 auto value = get(m, i, j);
-                auto* ptr = reinterpret_cast<containers::persist::STORAGE_TYPE*>(&value);
-                for(TI k=0; k < sizeof(T); k++){
-                    if(!first){
-                        ss << ", ";
+                first = false;
+                if (!std::isfinite(value)) {
+                    if (value < 0){
+                        data_ss << '-';
                     }
-                    ss << (int)ptr[k];
-                    first = false;
+                    data_ss << "0x0p+0f/* nan/inf */";
+                } else {
+                    data_ss << value << (utils::typing::is_same_v<T, float> ? "f" : "");
                 }
             }
         }
+        ss << data_ss.str();
         ss << "};\n";
         ss << ind << "    using SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << containers::persist::get_type_string<TI>() << ", ";
         for(TI dim_i=0; dim_i < length(typename SPEC::SHAPE{}); dim_i++){
@@ -65,7 +71,7 @@ namespace rl_tools{
         ss << (CONST ? "true" : "false");
         ss << ">;\n";
         ss << ind << "    using CONTAINER_TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::Tensor<SPEC>;\n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "CONTAINER_TYPE container = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
+        ss << ind << "    " << (const_declaration ? "constexpr " : "") << "CONTAINER_TYPE container = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }

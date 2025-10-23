@@ -42,11 +42,11 @@ namespace rl_tools{
         std::stringstream ss_initializer_list, ss_initializer_list_function;
         ss_initializer_list << "{content::factory<TYPE::MODEL>}";
         ss_initializer_list_function << "{content::factory_function<TYPE::MODEL>()}";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << ss_initializer_list.str() << ";\n";
+        ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = " << ss_initializer_list.str() << ";\n";
         ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = " << ss_initializer_list.str() << ";" << "\n";
+        ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = " << ss_initializer_list.str() << ";" << "\n";
         ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory_function(){return " << ss_initializer_list_function.str() << ";}\n";
+        ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){return " << ss_initializer_list_function.str() << ";}\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }

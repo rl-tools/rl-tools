@@ -54,7 +54,7 @@ namespace rl_tools{
             ss << ind << "    " << "    " << "using MODEL = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, layer_0::INPUT_SHAPE>;\n";
             ss << ind << "    " << "}\n";
             ss << ind << "    " << "using TYPE = model_definition::MODEL;\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = {";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = {";
             std::string model_stub = "TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
             std::stringstream ss_initializer_list;
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
@@ -89,9 +89,9 @@ namespace rl_tools{
             }
             std::string initializer_list = ss_initializer_list_create.str();
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = {" << initializer_list << ";" << "\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = {" << initializer_list << ";" << "\n";
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory_function(){return T_TYPE{" << ss_initializer_list_create_function.str() << ";" << "}\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){return T_TYPE{" << ss_initializer_list_create_function.str() << ";" << "}\n";
             ss << ind << "}";
 
 
