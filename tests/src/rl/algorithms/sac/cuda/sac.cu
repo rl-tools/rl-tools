@@ -40,12 +40,13 @@ using TI = typename DEVICE::index_t;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using RNG_INIT = DEVICE_INIT::SPEC::RANDOM::ENGINE<>;
 
-template <typename T, typename TI, TI T_STEP_LIMIT>
+template <typename TYPE_POLICY, typename TI, TI T_STEP_LIMIT>
 struct ConfigFactory{
+    using T = typename TYPE_POLICY::DEFAULT;
     using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
     using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
-    struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-        struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+    struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+        struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM>{
             static constexpr TI ACTOR_BATCH_SIZE = 100;
             static constexpr TI CRITIC_BATCH_SIZE = 100;
         };
@@ -58,9 +59,9 @@ struct ConfigFactory{
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
     };
     template <typename RNG>
-    using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+    using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
 
-    struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG<RNG>>{
+    struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, LOOP_CORE_CONFIG<RNG>>{
         static constexpr TI NUM_EVALUATION_EPISODES = 100;
     };
     template <typename RNG>
@@ -73,13 +74,14 @@ struct ConfigFactory{
 };
 
 
-template <typename T, auto STEP_LIMIT, bool GPU_INIT, bool GPU_ROLLOUT, bool GPU_ACTOR_ROLLOUT, bool GPU_TRAINING, bool GPU_NOISE, bool GPU_EVALUATION, bool CPU_TRAINING>
-void test(T& return_value, T epsilon){
+template <typename TYPE_POLICY, auto STEP_LIMIT, bool GPU_INIT, bool GPU_ROLLOUT, bool GPU_ACTOR_ROLLOUT, bool GPU_TRAINING, bool GPU_NOISE, bool GPU_EVALUATION, bool CPU_TRAINING>
+void test(typename TYPE_POLICY::DEFAULT& return_value, typename TYPE_POLICY::DEFAULT epsilon){
+    using T = typename TYPE_POLICY::DEFAULT;
     DEVICE device;
     DEVICE_INIT device_init;
     using TI = typename DEVICE::index_t;
     TI seed = 0;
-    using CONFIG_FACTORY = ConfigFactory<T, TI, STEP_LIMIT>;
+    using CONFIG_FACTORY = ConfigFactory<TYPE_POLICY, TI, STEP_LIMIT>;
     typename CONFIG_FACTORY::LOOP_STATE ts;
     typename CONFIG_FACTORY::LOOP_STATE_INIT ts_init, ts_comparison;
     using CONFIG = typename decltype(ts)::CONFIG;
@@ -121,7 +123,7 @@ void test(T& return_value, T epsilon){
             rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
 //            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
 #else
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename decltype(ts)::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
             rlt::evaluate(device_init, ts_init.env_eval, ts_init.ui, ts_init.actor_critic.actor, result, ts_init.rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
 #endif
@@ -241,9 +243,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, CPU_TRAINING) {
     constexpr bool GPU_EVALUATION = false;
     constexpr bool CPU_TRAINING = true;
     using T = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     constexpr T epsilon = 1e-8;
     T return_value;
-    test<T, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    test<TYPE_POLICY, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
     ASSERT_GE(return_value, -200);
 }
 
@@ -256,9 +259,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_ROLLOUT) {
     constexpr bool GPU_EVALUATION = false;
     constexpr bool CPU_TRAINING = true;
     using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     constexpr T epsilon = 1e-10;
     T return_value;
-    test<T, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    test<TYPE_POLICY, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
     ASSERT_GE(return_value, -200);
 }
 
@@ -271,9 +275,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, GPU_INIT_GPU_ACTOR_ROLLOUT_GPU_EVALUATION)
     constexpr bool GPU_EVALUATION = true;
     constexpr bool CPU_TRAINING = true;
     using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     constexpr T epsilon = 1e-8;
     T return_value;
-    test<T, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    test<TYPE_POLICY, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
     ASSERT_GE(return_value, -200);
 }
 
@@ -286,9 +291,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, FULL_GPU_TRAINING) {
     constexpr bool GPU_EVALUATION = true;
     constexpr bool CPU_TRAINING = false;
     using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     constexpr T epsilon = 1e10;
     T return_value;
-    test<T, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
+    test<TYPE_POLICY, 15000, GPU_INIT, GPU_ROLLOUT, GPU_ACTOR_ROLLOUT, GPU_TRAINING, GPU_NOISE, GPU_EVALUATION, CPU_TRAINING>(return_value, epsilon);
     ASSERT_GE(return_value, -200);
 }
 

@@ -121,20 +121,20 @@ namespace rl_tools{
         copy(source_device, target_device, source.log_alpha, target.log_alpha);
     }
     template<typename DEVICE,typename SOURCE_SPEC, typename TARGET_SPEC>
-    typename SOURCE_SPEC::T abs_diff(DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SOURCE_SPEC>& source, const nn::layers::sample_and_squash::LayerForward<TARGET_SPEC>& target) {
+    typename SOURCE_SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SOURCE_SPEC>& source, const nn::layers::sample_and_squash::LayerForward<TARGET_SPEC>& target) {
         return 0;
     }
     template<typename DEVICE,typename SOURCE_SPEC, typename TARGET_SPEC>
-    typename SOURCE_SPEC::T abs_diff(DEVICE& device, const nn::layers::sample_and_squash::LayerBackward<SOURCE_SPEC>& source, const nn::layers::sample_and_squash::LayerBackward<TARGET_SPEC>& target) {
-        typename SOURCE_SPEC::T acc = 0;
+    typename SOURCE_SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const nn::layers::sample_and_squash::LayerBackward<SOURCE_SPEC>& source, const nn::layers::sample_and_squash::LayerBackward<TARGET_SPEC>& target) {
+        typename SOURCE_SPEC::TYPE_POLICY::DEFAULT acc = 0;
         acc += abs_diff(device, static_cast<const nn::layers::sample_and_squash::LayerForward<SOURCE_SPEC>&>(source), static_cast<const nn::layers::sample_and_squash::LayerForward<TARGET_SPEC>&>(target));
         acc += abs_diff(device, source.pre_squashing, target.pre_squashing);
         acc += abs_diff(device, source.noise, target.noise);
         return acc;
     }
     template<typename DEVICE,typename SOURCE_SPEC, typename TARGET_SPEC>
-    typename SOURCE_SPEC::T abs_diff(DEVICE& device, const nn::layers::sample_and_squash::LayerGradient<SOURCE_SPEC>& source, const nn::layers::sample_and_squash::LayerGradient<TARGET_SPEC>& target) {
-        typename SOURCE_SPEC::T acc = 0;
+    typename SOURCE_SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const nn::layers::sample_and_squash::LayerGradient<SOURCE_SPEC>& source, const nn::layers::sample_and_squash::LayerGradient<TARGET_SPEC>& target) {
+        typename SOURCE_SPEC::TYPE_POLICY::DEFAULT acc = 0;
         acc += abs_diff(device, static_cast<const nn::layers::sample_and_squash::LayerBackward<SOURCE_SPEC>&>(source), static_cast<const nn::layers::sample_and_squash::LayerBackward<TARGET_SPEC>&>(target));
         acc += abs_diff(device, source.log_probabilities, target.log_probabilities);
         acc += abs_diff(device, source.output, target.output);
