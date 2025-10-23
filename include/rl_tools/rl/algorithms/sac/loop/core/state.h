@@ -14,7 +14,7 @@ namespace rl_tools{
         struct State{
             using CONFIG = T_CONFIG;
             using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
-            using T_INPUT = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
+            using T_INPUT = typename TYPE_POLICY::template GET<numeric_types::categories::Input>;
             using TI = typename CONFIG::TI;
             // typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
             // typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizers[2];

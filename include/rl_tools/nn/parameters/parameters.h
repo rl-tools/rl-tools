@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_NN_PARAMETERS_PARAMETERS_H
 
-#include "../../nn/numeric_types.h"
+#include "../../numeric_types/categories.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters{
@@ -46,7 +46,7 @@ namespace rl_tools::nn::parameters{
         template <typename T_SPEC>
         struct Instance{
             using SPEC = T_SPEC;
-            using T_PARAMETER = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Parameter>;
+            using T_PARAMETER = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Parameter>;
             using TENSOR_SPEC = tensor::Specification<T_PARAMETER, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
             Tensor<TENSOR_SPEC> parameters;
         };
@@ -65,7 +65,7 @@ namespace rl_tools::nn::parameters{
         template <typename T_SPEC>
         struct Instance: Plain::Instance<T_SPEC>{
             using SPEC = T_SPEC;
-            using T_GRADIENT = typename T_SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
+            using T_GRADIENT = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
             using TENSOR_SPEC = tensor::Specification<T_GRADIENT, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
             Tensor<TENSOR_SPEC> gradient;
         };

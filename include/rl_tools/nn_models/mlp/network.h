@@ -4,7 +4,7 @@
 #define RL_TOOLS_NN_MODELS_MLP_NETWORK_H
 
 #include "../../nn/nn.h"
-#include "../../nn/numeric_types.h"
+#include "../../numeric_types/categories.h"
 #include "../../nn/parameters/parameters.h"
 #include "../../nn/layers/dense/layer.h"
 #include "../../nn/optimizers/sgd/sgd.h"
@@ -84,7 +84,7 @@ namespace rl_tools::nn_models::mlp {
     };
 
     struct BuffersTag {
-        using CATEGORY = nn::numeric_type_categories::Accumulator;
+        using CATEGORY = numeric_types::categories::Accumulator;
     };
 
     template<typename T_BUFFER_SPEC>

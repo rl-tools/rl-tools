@@ -13,9 +13,9 @@ namespace rlt = rl_tools;
 
 static_assert(sizeof(__bf16) == 2);
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using PARAMETER_SINGLE = rlt::numeric_types::UseCase<rlt::nn::numeric_type_categories::Parameter, __bf16>;
-using ACCUMULATOR = rlt::numeric_types::UseCase<rlt::nn::numeric_type_categories::Activation, float>;
-using INPUT = rlt::numeric_types::UseCase<rlt::nn::numeric_type_categories::Input, __bf16>;
+using PARAMETER_SINGLE = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, __bf16>;
+using ACCUMULATOR = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, float>;
+using INPUT = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Input, __bf16>;
 using TYPE_POLICY = rlt::numeric_types::Policy<double, PARAMETER_SINGLE, ACCUMULATOR, INPUT>;
 using T = double;
 
@@ -43,7 +43,7 @@ using OPTIMIZER = rlt::nn::optimizers::Adam<ADAM_SPEC>;
 
 
 using DATASET_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, DATASET_SIZE, INPUT_DIM>;
-using INPUT_TYPE = typename TYPE_POLICY::template GET<rlt::nn::numeric_type_categories::Input>;
+using INPUT_TYPE = typename TYPE_POLICY::template GET<rlt::numeric_types::categories::Input>;
 using DATASET_INPUT_SPEC = rlt::tensor::Specification<INPUT_TYPE, TI, DATASET_INPUT_SHAPE, DYNAMIC_ALLOCATION>;
 using DATASET_OUTPUT_SHAPE = rlt::tensor::Shape<TI, 1, DATASET_SIZE, OUTPUT_DIM>;
 using DATASET_OUTPUT_SPEC = rlt::tensor::Specification<INPUT_TYPE, TI, DATASET_OUTPUT_SHAPE, DYNAMIC_ALLOCATION>;

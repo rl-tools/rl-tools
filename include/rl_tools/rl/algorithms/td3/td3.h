@@ -59,7 +59,7 @@ namespace rl_tools::rl::algorithms::td3 {
     template<typename T_SPEC>
     struct ActorTrainingBuffers{
         using SPEC = typename T_SPEC::SPEC;
-        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
+        using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Input>;
         using TI = typename SPEC::TI;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
         static constexpr TI SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH;
@@ -98,7 +98,7 @@ namespace rl_tools::rl::algorithms::td3 {
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static constexpr TI CRITIC_OBSERVATION_DIM = get_last(typename SPEC::CRITIC_TYPE::INPUT_SHAPE{}) - SPEC::ENVIRONMENT::ACTION_DIM;
 
-        using T_INPUT = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
+        using T_INPUT = typename TYPE_POLICY::template GET<numeric_types::categories::Input>;
 
         Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, ACTION_DIM>, DYNAMIC_ALLOCATION>> target_next_action_noise;
         Tensor<tensor::Specification<T_INPUT, TI, tensor::Shape<TI, NEXT_SEQUENCE_LENGTH, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>, DYNAMIC_ALLOCATION>> next_state_action_value_input;

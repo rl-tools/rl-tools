@@ -89,7 +89,7 @@ namespace rl_tools{
         };
         template<typename SPEC>
         struct LayerBackward: public LayerForward<SPEC> {
-            using ACTIVATION_T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
+            using ACTIVATION_T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
             using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<ACTIVATION_T, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION>;
             using PRE_ACTIVATIONS_CONTAINER_TYPE = Matrix<PRE_ACTIVATIONS_CONTAINER_SPEC>;
             PRE_ACTIVATIONS_CONTAINER_TYPE pre_clip;

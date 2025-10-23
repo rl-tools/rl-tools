@@ -49,7 +49,7 @@ namespace rl_tools::nn::layers::gru{
             using TYPE_POLICY = typename GRU_SPEC::TYPE_POLICY;
             using TI = typename GRU_SPEC::TI;
             static constexpr TI BATCH_SIZE = GRU_SPEC::INTERNAL_BATCH_SIZE;
-            using T_ACC = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+            using T_ACC = typename TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
             using POST_ACTIVATION_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, BATCH_SIZE, 3*GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             Tensor<POST_ACTIVATION_SPEC> post_activation;
             using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, BATCH_SIZE, GRU_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
@@ -94,7 +94,7 @@ namespace rl_tools::nn::layers::gru{
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
 
-        using T_ACC = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+        using T_ACC = typename TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
 
         using STATE_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::HIDDEN_DIM>;
         using STATE_CONTAINER_SPEC = tensor::Specification<T_ACC, TI, STATE_SHAPE, STATE_SPEC::DYNAMIC_ALLOCATION>;
@@ -153,7 +153,7 @@ namespace rl_tools::nn::layers::gru{
             using TYPE_POLICY = typename LAYER_SPEC::TYPE_POLICY;
             using TI = typename LAYER_SPEC::TI;
             static constexpr TI INTERNAL_BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
-            using T_ACC = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+            using T_ACC = typename TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
             using TENSOR_SPEC = tensor::Specification<T_ACC, TI, tensor::Shape<TI, INTERNAL_BATCH_SIZE, 3*LAYER_SPEC::HIDDEN_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using BUFFER_TYPE = Tensor<TENSOR_SPEC>;
             BUFFER_TYPE buffer, buffer2;
@@ -167,7 +167,7 @@ namespace rl_tools::nn::layers::gru{
         using SPEC = T_SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
-        using T_ACC = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+        using T_ACC = typename TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using FULL_HIDDEN_SHAPE = tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::INTERNAL_BATCH_SIZE, 3*SPEC::HIDDEN_DIM>;
         using FULL_HIDDEN_SPEC = tensor::Specification<T_ACC, TI, FULL_HIDDEN_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<FULL_HIDDEN_SHAPE>, SPEC::CONST>;
         using FULL_HIDDEN_TYPE = Tensor<FULL_HIDDEN_SPEC>;

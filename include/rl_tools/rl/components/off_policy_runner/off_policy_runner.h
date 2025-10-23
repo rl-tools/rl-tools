@@ -60,7 +60,7 @@ namespace rl_tools::rl::components::off_policy_runner {
     template<typename SPEC, bool DYNAMIC_ALLOCATION = SPEC::DYNAMIC_ALLOCATION>
     struct Buffers{
         // todo: make the buffer exploit the observation = observation_priviliged to save memory in the case of symmetric observations
-        using T_INPUT = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
+        using T_INPUT = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Input>;
         using TI = typename SPEC::TI;
 
         Matrix<matrix::Specification<T_INPUT, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM, DYNAMIC_ALLOCATION>> observations;
@@ -104,7 +104,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         using SPEC = T_SPEC;
         using OPR_SPEC = typename T_SPEC::SPEC;
         using TYPE_POLICY = typename OPR_SPEC::TYPE_POLICY;
-        using T_INPUT = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
+        using T_INPUT = typename TYPE_POLICY::template GET<numeric_types::categories::Input>;
         using T_DEFAULT = typename TYPE_POLICY::DEFAULT;
         using TI = typename OPR_SPEC::TI;
 
