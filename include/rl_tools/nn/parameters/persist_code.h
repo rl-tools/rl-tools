@@ -66,7 +66,7 @@ namespace rl_tools {
             << ", "
             << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})
             << ", true, true>;\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::Instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::Instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
         }
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
@@ -96,7 +96,7 @@ namespace rl_tools {
             << ", "
             << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})
             << ", true, true>;\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::Instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::Instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
         }
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

@@ -58,11 +58,11 @@ namespace rl_tools {
                     }
                 }
             }
-            ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << initializer_list << ";\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = " << initializer_list << ";\n";
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory = " << initializer_list << ";" << "\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = " << initializer_list << ";" << "\n";
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "T_TYPE factory_function(){return " << initializer_list << ";" << "}\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){return " << initializer_list << ";" << "}\n";
             ss << ind << "}\n";
 
 
