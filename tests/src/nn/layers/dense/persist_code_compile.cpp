@@ -6,7 +6,7 @@
 #include <rl_tools/nn/parameters/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
-#include "../../../../../tests/data//test_nn_layers_dense_persist_code.h"
+#include "../../../../../tests/data/test_nn_layers_dense_persist_code.h"
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
