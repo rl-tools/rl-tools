@@ -274,9 +274,11 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
 #else
-    static constexpr TI ACTOR_HIDDEN_DIM = 32;
-    static constexpr TI CRITIC_HIDDEN_DIM = 32;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_HIDDEN_DIM = 64;
 #endif
+    static constexpr T ALPHA = 1.0;
+    static constexpr TI N_ENVIRONMENTS = 1;
 };
 #ifdef BENCHMARK
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
