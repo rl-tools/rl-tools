@@ -257,6 +257,11 @@ namespace rl_tools::math {
             }
         }
     }
+    template<typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT T is_finite(const devices::math::CUDA&, const T a) {
+        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+        return true;
+    }
 
 
 //    // CUDA fast

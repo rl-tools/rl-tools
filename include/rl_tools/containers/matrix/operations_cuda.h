@@ -5,6 +5,7 @@
 
 #include "matrix.h"
 #include "../../devices/cuda.h"
+#include "operations_generic.h"
 
 #include <cuda_runtime.h>
 #include <cuda.h>

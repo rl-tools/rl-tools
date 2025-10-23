@@ -1,37 +1,3 @@
-//#define RL_TOOLS_BACKEND_DISABLE_BLAS
-#ifdef RL_TOOLS_STATIC_MEM
-#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-#endif
-
-#include <rl_tools/operations/cpu_mux.h>
-
-#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
-#include <rl_tools/rl/environment_wrappers/scale_observations/operations_generic.h>
-
-#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
-#include <rl_tools/nn/operations_cpu_mux.h>
-#include <rl_tools/nn/layers/standardize/operations_generic.h>
-#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/nn/optimizers/adam/operations_generic.h>
-
-
-
-#include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
-#include <rl_tools/rl/loop/steps/evaluation/config.h>
-#include <rl_tools/rl/loop/steps/timing/config.h>
-#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
-#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
-#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
-
-#ifdef RL_TOOLS_ENABLE_JSON
-#include <nlohmann/json.hpp>
-#include <fstream>
-#endif
-
-namespace rlt = rl_tools;
-
-
 template <typename DEVICE, typename TYPE_POLICY, bool DYNAMIC_ALLOCATION>
 struct CONFIG_FACTORY{
     using TI = typename DEVICE::index_t;
