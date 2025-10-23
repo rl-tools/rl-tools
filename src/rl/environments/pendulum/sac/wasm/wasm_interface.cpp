@@ -29,7 +29,7 @@ int proxy_get_state_dim(){
 
 EMSCRIPTEN_KEEPALIVE
 double proxy_get_state_value(TRAINING_STATE* ts, int env_index, int state_index){
-    using T = typename TRAINING_STATE::CONFIG::T;
+    using T = typename TRAINING_STATE::CONFIG::TYPE_POLICY::DEFAULT;
     static_assert(TRAINING_STATE::CONFIG::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS == 1);
     if(env_index < TRAINING_STATE::CONFIG::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS && state_index < TRAINING_STATE::CONFIG::ENVIRONMENT::State::DIM){
         auto& rb = rlt::get(ts->off_policy_runner.replay_buffers, 0, env_index);

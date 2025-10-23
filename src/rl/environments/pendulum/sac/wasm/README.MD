@@ -33,3 +33,17 @@ python3 -m http.server --directory static
 ```
 scp -r static/* server3.jonas.es:DockerContainer/rl_tools/static/
 ```
+
+# 2025-10-22
+```
+em++ --version
+emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 4.0.17 (bb11bae9af3a6551132655a0908f86889d2d423b)
+```
+
+```
+./build.sh
+```
+
+```
+cp -r static/build/* ~/git/rl-tools.github.io/build/
+```

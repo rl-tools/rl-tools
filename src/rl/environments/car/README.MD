@@ -85,3 +85,17 @@ RL_TOOLS_INCLUDE_DIR=/rl_tools/include JSON_INCLUDE_DIR=/rl_tools/external/json/
 scp -r $(cd ../../../../; pwd)/static/ui_server/car/* server3.jonas.es:DockerContainer/rl_tools/static/car
 ```
 
+
+# 2025-10-22
+```
+em++ --version
+emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 4.0.17 (bb11bae9af3a6551132655a0908f86889d2d423b)
+```
+
+```
+ JSON_INCLUDE_DIR=/home/jonas/mono/rl-tools/.dependencies/cmake-build-release/nlohmann_json-src/include ./build.sh
+```
+
+```
+cp -r static/build/* ~/git/rl-tools.github.io/car/build/
+```

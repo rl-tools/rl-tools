@@ -1,12 +1,12 @@
 
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/nn/operations_cpu_mux.h>
 
 #include <rl_tools/rl/environments/car/operations_generic.h>
 #include <rl_tools/rl/environments/car/operations_json.h>
 #include <rl_tools/ui_server/client/operations_cpu.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
@@ -25,6 +25,7 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 using ENV_SPEC = rlt::rl::environments::car::SpecificationTrack<T, TI, 100, 100, 20>;
@@ -32,9 +33,9 @@ using ENVIRONMENT = rlt::rl::environments::CarTrack<ENV_SPEC>;
 using ENVIRONMENT_EVALUATION = ENVIRONMENT;
 using UI = rlt::ui_server::client::UIBuffered<ENVIRONMENT>;
 
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    static constexpr TI BATCH_SIZE = 256;
-    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+    static constexpr TI BATCH_SIZE = 512;
+    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.001;
         static constexpr TI N_EPOCHS = 2;
         static constexpr T GAMMA = 0.995;
@@ -51,9 +52,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
     static constexpr TI EPISODE_STEP_LIMIT = 1000;
 };
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
 template <typename NEXT>
-struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<TYPE_POLICY, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 5;
     static constexpr TI NUM_EVALUATION_EPISODES = 1;
     static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
