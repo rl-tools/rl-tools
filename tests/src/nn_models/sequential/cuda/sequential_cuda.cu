@@ -10,6 +10,7 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 
@@ -25,9 +26,9 @@ constexpr auto MLP_OUTPUT_ACTIVATION = rlt::nn::activation_functions::IDENTITY;
 
 
 using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, OUTPUT_DIM, MLP_NUM_LAYERS, MLP_HIDDEN_DIM, MLP_HIDDEN_ACTIVATION, MLP_OUTPUT_ACTIVATION>;
+using MLP_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, MLP_NUM_LAYERS, MLP_HIDDEN_DIM, MLP_HIDDEN_ACTIVATION, MLP_OUTPUT_ACTIVATION>;
 using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
-using SAMPLE_AND_SQUASH_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<T, TI>;
+using SAMPLE_AND_SQUASH_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<TYPE_POLICY, TI>;
 using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_CONFIG>;
 template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
 using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;

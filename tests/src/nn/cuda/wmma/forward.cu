@@ -58,14 +58,15 @@ namespace rl_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // Warning do not use the same buffer for input and output!
         using TI = typename CUDA_FUSED::index_t;
+        using ACCUMULATOR_TYPE = typename OUTPUT_SPEC::T;
         constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
-                set(output, batch_i, output_i, get(layer.biases.parameters, 0, output_i));
+                set(output, batch_i, output_i, get(device, layer.biases.parameters, output_i));
                 for(TI input_i = 0; input_i < LAYER_SPEC::INPUT_DIM; input_i++) {
-                    increment(output, batch_i, output_i, get(layer.weights.parameters, output_i, input_i) * get(input, batch_i, input_i));
+                    increment(output, batch_i, output_i, get(device, layer.weights.parameters, output_i, input_i) * get(input, batch_i, input_i));
                 }
-                set(output, batch_i, output_i, activation<typename CUDA_FUSED::SPEC::MATH, typename LAYER_SPEC::T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, batch_i, output_i)));
+                set(output, batch_i, output_i, activation<typename CUDA_FUSED::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, batch_i, output_i)));
             }
         }
     }
@@ -79,6 +80,7 @@ namespace rl_tools{
 using DEVICE_CPU = rlt::devices::DefaultCPU;
 using DEVICE_BLAS = rlt::devices::DEVICE_FACTORY<>;
 using T = __nv_bfloat16;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = DEVICE_CUDA::index_t;
 constexpr bool DYNAMIC_ALLOCATION = true;
 using RNG_CUDA = DEVICE_CUDA::SPEC::RANDOM::ENGINE<>;
@@ -97,7 +99,7 @@ using CAPABILITY_STATIC = rlt::nn::capability::Forward<false>;
 namespace network_builder{
     using namespace rlt;
     using INPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-    using MLP_CONFIG = nn_models::mlp::Configuration<T, TI, OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, nn::activation_functions::RELU, nn::activation_functions::IDENTITY>;
+    using MLP_CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, nn::activation_functions::RELU, nn::activation_functions::IDENTITY>;
     using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
     template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
     using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
