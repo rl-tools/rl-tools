@@ -25,7 +25,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
     void gradient_descent(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         using TI = typename DEVICE::index_t;
-        using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::OptimizerState>;
+        using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
         using T_PARAMETER = typename decltype(parameter.parameters)::T;
         auto parameters = matrix_view(device, parameter.parameters);
         auto gradient_first_order_moment = matrix_view(device, parameter.gradient_first_order_moment);

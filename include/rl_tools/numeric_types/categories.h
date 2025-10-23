@@ -1,10 +1,10 @@
 #include "../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_NUMERIC_TYPES_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NUMERIC_TYPES_CATEGORIES_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_NUMERIC_TYPES_H
+#define RL_TOOLS_NUMERIC_TYPES_CATEGORIES_H
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::nn::numeric_type_categories{
+namespace rl_tools::numeric_types::categories {
     struct Parameter{};
     struct Accumulator{};
     struct Gradient{};

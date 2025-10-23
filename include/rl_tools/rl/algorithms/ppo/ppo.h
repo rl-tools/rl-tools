@@ -66,7 +66,7 @@ namespace rl_tools::rl::algorithms{
         struct Buffers{
             using BUFFER_SPEC = T_BUFFER_SPEC;
             using SPEC = typename BUFFER_SPEC::SPEC;
-            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+            using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
             using TI = typename SPEC::TI;
             static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::BATCH_SIZE;
             static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;

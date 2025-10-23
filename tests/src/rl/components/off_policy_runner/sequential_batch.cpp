@@ -1,5 +1,5 @@
 #include <rl_tools/operations/cpu.h>
-#include <rl_tools/nn/numeric_types.h>
+#include <rl_tools/numeric_types/categories.h>
 #include "dummy_environment.h"
 #include <rl_tools/nn_models/random_uniform/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>

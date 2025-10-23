@@ -49,7 +49,7 @@ namespace rl_tools{
 
         template <typename BUFFER_SPEC>
         struct Buffer{
-            using T_BUFFER = typename BUFFER_SPEC::SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Buffer>;
+            using T_BUFFER = typename BUFFER_SPEC::SPEC::TYPE_POLICY::template GET<numeric_types::categories::Buffer>;
             using LAYER_SPEC = typename BUFFER_SPEC::SPEC;
             using NOISE_CONTAINER_SPEC = matrix::Specification<T_BUFFER, typename BUFFER_SPEC::TI, LAYER_SPEC::INTERNAL_BATCH_SIZE, LAYER_SPEC::DIM, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
             using NOISE_CONTAINER_TYPE = Matrix<NOISE_CONTAINER_SPEC>;
@@ -113,7 +113,7 @@ namespace rl_tools{
         struct LayerBackward: public LayerForward<SPEC> {
 //            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerForward<SPEC>::ACTUAL_BATCH_SIZE;
             // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
-            using ACTIVATION_TYPE = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
+            using ACTIVATION_TYPE = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
             using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::DIM, SPEC::DYNAMIC_ALLOCATION, matrix::layouts::DEFAULT<typename SPEC::TI>, SPEC::CONST>;
             using PRE_ACTIVATIONS_CONTAINER_TYPE = Matrix<PRE_ACTIVATIONS_CONTAINER_SPEC>;
             PRE_ACTIVATIONS_CONTAINER_TYPE pre_squashing, noise;
@@ -122,7 +122,7 @@ namespace rl_tools{
         struct LayerGradient: public LayerBackward<SPEC> {
             using TI = typename SPEC::TI;
 //            static constexpr typename SPEC::TI ACTUAL_BATCH_SIZE = LayerBackward<SPEC>::ACTUAL_BATCH_SIZE;
-            using ACTIVATION_TYPE = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
+            using ACTIVATION_TYPE = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
             using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<ACTIVATION_TYPE, typename SPEC::TI, 1, SPEC::INTERNAL_BATCH_SIZE, SPEC::DYNAMIC_ALLOCATION, matrix::layouts::DEFAULT<typename SPEC::TI>, SPEC::CONST>;
             using LOG_PROBABILITIES_CONTAINER_TYPE = Matrix<LOG_PROBABILITIES_CONTAINER_SPEC>;
             LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;

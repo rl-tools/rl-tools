@@ -119,7 +119,7 @@ struct DEV_SPEC: rlt::devices::DEVICE_FACTORY<>::SPEC{
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
-using PARAMETER_POLICY = rlt::numeric_types::UseCase<rlt::nn::numeric_type_categories::Parameter, float>;
+using PARAMETER_POLICY = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, float>;
 using TYPE_POLICY = rlt::numeric_types::Policy<float, PARAMETER_POLICY>;
 constexpr TI BASE_SEED = 0;
 constexpr bool DYNAMIC_ALLOCATION = true;

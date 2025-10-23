@@ -71,7 +71,7 @@ namespace rl_tools::rl::algorithms::sac {
     struct ActorTrainingBuffers{
         using SPEC = typename T_SPEC::SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
-        using T = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Buffer>;
+        using T = typename TYPE_POLICY::template GET<numeric_types::categories::Buffer>;
         using TI = typename SPEC::TI;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
         static constexpr TI SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH;
@@ -104,7 +104,7 @@ namespace rl_tools::rl::algorithms::sac {
     struct CriticTrainingBuffers{
         using SPEC = typename T_SPEC::SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
-        using T_BUFFER = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Buffer>;
+        using T_BUFFER = typename TYPE_POLICY::template GET<numeric_types::categories::Buffer>;
         using TI = typename SPEC::TI;
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
         static constexpr TI SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH;

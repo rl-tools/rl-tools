@@ -81,8 +81,8 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         static constexpr TI INNER_BATCH_SIZE = BATCH_SIZE * SPEC::N_AGENTS;
 
-        using T_INPUT = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Input>;
-        using T_OUTPUT = typename TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+        using T_INPUT = typename TYPE_POLICY::template GET<numeric_types::categories::Input>;
+        using T_OUTPUT = typename TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
 
         using INPUT_BUFFER_SPEC = tensor::Specification<T_INPUT, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::INPUT_DIM>, BUFFER_SPEC::DYNAMIC_ALLOCATION>;
         using INPUT_BUFFER_TYPE = Tensor<INPUT_BUFFER_SPEC>;

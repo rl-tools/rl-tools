@@ -16,7 +16,7 @@ namespace rl_tools {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using TI = typename DEVICE::index_t;
 
-            using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::OptimizerState>;
+            using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
             using T_PARAMETER = typename decltype(parameter.parameters)::T;
             auto parameters = matrix_view(device, parameter.parameters);
             auto gradient = matrix_view(device, parameter.gradient);

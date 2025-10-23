@@ -69,7 +69,7 @@ namespace rl_tools{
         template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC>
         __global__ void
         set_biases_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<OUTPUT_SPEC> output) {
-            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
+            using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
@@ -97,7 +97,7 @@ namespace rl_tools{
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC>
         __global__ void
         activation_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC>& layer, Matrix<PRE_ACTIVATIONS_SPEC> pre_activations, Matrix<OUTPUT_SPEC> output) {
-            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Activation>;
+            using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             static_assert(PRE_ACTIVATIONS_SPEC::ROWS == OUTPUT_SPEC::ROWS);
             constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
@@ -129,7 +129,7 @@ namespace rl_tools{
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
         __global__ void
         d_activation_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<PRE_ACTIVATIONS_SPEC> pre_activations, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_PRE_ACTIVATIONS_SPEC> d_pre_activations) {
-            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
+            using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
             static_assert(containers::check_structure<PRE_ACTIVATIONS_SPEC, D_OUTPUT_SPEC>);
@@ -160,7 +160,7 @@ namespace rl_tools{
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
         __global__ void
         d_activation_accumulate_bias_gradient_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<PRE_ACTIVATIONS_SPEC> pre_activations, Matrix<D_OUTPUT_SPEC> d_output, Tensor<D_BIASES_SPEC> d_biases, Matrix<D_PRE_ACTIVATIONS_SPEC> d_pre_activations) {
-            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
+            using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
             static_assert(containers::check_structure<PRE_ACTIVATIONS_SPEC, D_OUTPUT_SPEC>);
@@ -195,7 +195,7 @@ namespace rl_tools{
         void update_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::dense::LayerGradient<SPEC> layer, nn::optimizers::Adam<PARAMETERS> optimizer) {
             // fully fused adam update
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
+            using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
             using TI = typename DEVICE::index_t;
             constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;

@@ -6,31 +6,31 @@
 #include "policy.h"
 #include "../containers/matrix/persist_code.h"
 #include "../persist/code.h"
-#include "../nn/numeric_types.h"
+#include "../numeric_types/categories.h"
 #include <string>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    inline std::string get_type_string(nn::numeric_type_categories::Parameter){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::numeric_type_categories::Parameter";
+    inline std::string get_type_string(numeric_types::categories::Parameter){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Parameter";
     }
-    inline std::string get_type_string(nn::numeric_type_categories::Accumulator){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::numeric_type_categories::Accumulator";
+    inline std::string get_type_string(numeric_types::categories::Accumulator){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Accumulator";
     }
-    inline std::string get_type_string(nn::numeric_type_categories::Gradient){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::numeric_type_categories::Gradient";
+    inline std::string get_type_string(numeric_types::categories::Gradient){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Gradient";
     }
-    inline std::string get_type_string(nn::numeric_type_categories::OptimizerState){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::numeric_type_categories::OptimizerState";
+    inline std::string get_type_string(numeric_types::categories::OptimizerState){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::OptimizerState";
     }
-    inline std::string get_type_string(nn::numeric_type_categories::Activation){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::numeric_type_categories::Activation";
+    inline std::string get_type_string(numeric_types::categories::Activation){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Activation";
     }
-    inline std::string get_type_string(nn::numeric_type_categories::Buffer){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::numeric_type_categories::Buffer";
+    inline std::string get_type_string(numeric_types::categories::Buffer){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Buffer";
     }
-    inline std::string get_type_string(nn::numeric_type_categories::Input){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::numeric_type_categories::Input";
+    inline std::string get_type_string(numeric_types::categories::Input){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Input";
     }
     template<typename DEFAULT, typename... USE_CASES>
     std::string to_string(numeric_types::Policy<DEFAULT, USE_CASES...>){

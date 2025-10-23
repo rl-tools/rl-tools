@@ -97,7 +97,7 @@ namespace rl_tools::nn::layers::embedding {
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC>{
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using T_ACC = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Accumulator>;
+        using T_ACC = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using OUTPUT_CONTAINER_SPEC = tensor::Specification<T_ACC, typename SPEC::TI, typename SPEC::OUTPUT_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
         using OUTPUT_CONTAINER_TYPE = Tensor<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;

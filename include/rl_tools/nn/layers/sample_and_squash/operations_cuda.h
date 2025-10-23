@@ -71,7 +71,7 @@ namespace rl_tools{
     __global__
     void backward_full_kernel(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_INPUT_SPEC> d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, const Mode<MODE> mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
+        using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         static_assert(BATCH_SIZE == SPEC::INTERNAL_BATCH_SIZE);
@@ -86,7 +86,7 @@ namespace rl_tools{
     __global__
     void backward_full_kernel_reduce(devices::CUDA<DEV_SPEC> device, nn::layers::sample_and_squash::LayerGradient<SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_INPUT_SPEC> d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC> buffer, const Mode<MODE> mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC::TYPE_POLICY::template GET<nn::numeric_type_categories::Gradient>;
+        using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         static_assert(BATCH_SIZE == SPEC::INTERNAL_BATCH_SIZE);
