@@ -21,9 +21,10 @@ namespace rl_tools::nn::layers::embedding {
 //    }
 //    template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
 //    constexpr bool check_input_output = check_input_output_f<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>();
-    template <typename T_T, typename T_TI>
+    template <typename T_TYPE_POLICY, typename T_TI>
     struct StandardNormalSpecification{
-        using T = T_T;
+        using TYPE_POLICY = T_TYPE_POLICY;
+        using T = typename TYPE_POLICY::DEFAULT;
         using TI = T_TI;
         static constexpr T SCALE = 1;
     };
