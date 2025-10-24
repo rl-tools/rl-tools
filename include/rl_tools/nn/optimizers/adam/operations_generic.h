@@ -11,19 +11,19 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer){
         malloc(device, optimizer.age);
         malloc(device, optimizer.first_order_moment_bias_correction);
         malloc(device, optimizer.second_order_moment_bias_correction);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer){
         free(device, optimizer.age);
         free(device, optimizer.first_order_moment_bias_correction);
         free(device, optimizer.second_order_moment_bias_correction);
     }
     template<typename DEVICE, typename SPEC, typename MODEL>
-    void reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
+    RL_TOOLS_FUNCTION_PLACEMENT void reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
         set(device, optimizer.age, 1, 0);
         _reset_optimizer_state(device, model, optimizer);
     }
@@ -40,18 +40,18 @@ namespace rl_tools{
         set(device, optimizer.age, age + 1, 0);
     }
     template<typename DEVICE, typename SPEC, typename MODEL>
-    void step(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
+    RL_TOOLS_FUNCTION_PLACEMENT void step(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
         _step(device, optimizer);
         update(device, model, optimizer);
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::optimizers::Adam<SOURCE_SPEC>& source, nn::optimizers::Adam<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::optimizers::Adam<SOURCE_SPEC>& source, nn::optimizers::Adam<TARGET_SPEC>& target){
         target.parameters = source.parameters;
         copy(source_device, target_device, source.age, target.age);
     }
 
     template<typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const nn::parameters::Adam::Instance<SPEC>& p){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::parameters::Adam::Instance<SPEC>& p){
         bool param_nan = is_nan(device, (nn::parameters::Gradient::Instance<SPEC>&) p);
         return param_nan || is_nan(device, p.gradient_first_order_moment) || is_nan(device, p.gradient_second_order_moment);
     }

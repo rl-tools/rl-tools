@@ -42,7 +42,7 @@ namespace rl_tools{
             return a < b ? a : b;
         }
         template <typename DEVICE, typename TI>
-        bool seek_in_metadata(DEVICE& device, const char* metadata, TI metadata_size, const char* key, TI& position, TI& value_len) {
+        RL_TOOLS_FUNCTION_PLACEMENT bool seek_in_metadata(DEVICE& device, const char* metadata, TI metadata_size, const char* key, TI& position, TI& value_len) {
             // this assumes that key is well formed (is terminated)
             constexpr TI MAX_KEY_LENGTH = 100;
             TI key_len = utils::string::length(key, MAX_KEY_LENGTH);
@@ -69,7 +69,7 @@ namespace rl_tools{
             return false; // Key not found
         }
         template <typename DEVICE, typename WRITER, typename TI>
-        bool write_entry(DEVICE& device, WRITER& writer, const char* entry_name, const char* data, TI data_size) {
+        RL_TOOLS_FUNCTION_PLACEMENT bool write_entry(DEVICE& device, WRITER& writer, const char* entry_name, const char* data, TI data_size) {
             constexpr TI MAX_KEY_LENGTH = 100;
             TI key_length = utils::string::length<TI>(entry_name, MAX_KEY_LENGTH-1);
             utils::assert_exit(device, key_length < MAX_KEY_LENGTH, "persist::backends::tar: Entry name is too long");
@@ -108,7 +108,7 @@ namespace rl_tools{
         }
 
         template <typename DEVICE, typename WRITER>
-        void finalize(DEVICE& device, WRITER& writer) {
+        RL_TOOLS_FUNCTION_PLACEMENT void finalize(DEVICE& device, WRITER& writer) {
             // Write two empty blocks to signify the end of the archive
             using TI = typename DEVICE::index_t;
             const char padding[1] = {0};
@@ -118,7 +118,7 @@ namespace rl_tools{
         }
 
         template <typename DEVICE>
-        bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char*& output_data, typename DEVICE::index_t& read_size) {
+        RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char*& output_data, typename DEVICE::index_t& read_size) {
             using TI = typename DEVICE::index_t;
             char* ptr = const_cast<char*>(tar_data);
             while (ptr <= tar_data + length - BLOCK_SIZE<TI>) {
@@ -147,7 +147,7 @@ namespace rl_tools{
             return false;
         }
         template <typename DEVICE>
-        bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
+        RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
             using TI = typename DEVICE::index_t;
             char* ptr;
             if(!get(device, tar_data, length, entry_name, ptr, read_size)){
@@ -159,7 +159,7 @@ namespace rl_tools{
         }
         namespace containers::tensor{
             template <typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
-            void dim_helper(char* metadata, TI& metadata_position){
+            RL_TOOLS_FUNCTION_PLACEMENT void dim_helper(char* metadata, TI& metadata_position){
                 if constexpr(DIM < SPEC::SHAPE::LENGTH){
                     constexpr TI DIM_KEY_LENGTH = 64;
                     constexpr TI DIM_VALUE_LENGTH = 16;
@@ -177,7 +177,7 @@ namespace rl_tools{
                 }
             }
             template <typename DEVICE, typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
-            void dim_helper_read(DEVICE& device, char* metadata){
+            RL_TOOLS_FUNCTION_PLACEMENT void dim_helper_read(DEVICE& device, char* metadata){
                 static_assert(SPEC::SHAPE::LENGTH <= 9, "Only tensors with up to 9 dimensions are supported for now");
                 char key[] = "dim_0";
                 key[4] = '0' + DIM;
@@ -194,7 +194,7 @@ namespace rl_tools{
         }
         namespace containers::matrix{
             template <typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE>
-            void write_metadata(char* metadata, TI& metadata_position){
+            RL_TOOLS_FUNCTION_PLACEMENT void write_metadata(char* metadata, TI& metadata_position){
                 metadata_position += utils::string::copy(metadata + metadata_position, "rows: ", METADATA_SIZE - metadata_position);
                 char rows_str[16];
                 utils::string::int_to_string<TI, TI>(rows_str, 16, SPEC::ROWS);
@@ -208,7 +208,7 @@ namespace rl_tools{
                 metadata_position += utils::string::copy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position);
             }
             template <typename DEVICE, typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE>
-            void read_metadata(DEVICE& device, char* metadata){
+            RL_TOOLS_FUNCTION_PLACEMENT void read_metadata(DEVICE& device, char* metadata){
                 TI rows_position;
                 TI rows_value_length;
                 utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "rows", rows_position, rows_value_length), "persist::backends::tar: 'rows' not found in metadata");
@@ -267,14 +267,14 @@ namespace rl_tools{
     }
     namespace persist::backends::tar{
         template<typename DEVICE, typename SPEC>
-        void finish_set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, const char* value){
+        RL_TOOLS_FUNCTION_PLACEMENT void finish_set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, const char* value){
             using TI = typename DEVICE::index_t;
             utils::assert_exit(device, group.meta_position + utils::string::length(value, SPEC::META_SIZE-1) + 1 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
             group.meta_position += utils::string::copy(group.meta + group.meta_position, value, SPEC::META_SIZE - group.meta_position);
             group.meta_position += utils::string::copy(group.meta + group.meta_position, "\n", SPEC::META_SIZE - group.meta_position);
         }
         template<typename DEVICE, typename SPEC>
-        void finish_set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, long int value){
+        RL_TOOLS_FUNCTION_PLACEMENT void finish_set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, long int value){
             using TI = typename DEVICE::index_t;
             constexpr TI BUFFER_SIZE = 32;
             char value_str[BUFFER_SIZE];
@@ -286,7 +286,7 @@ namespace rl_tools{
     }
 
     template<typename TYPE, typename DEVICE, typename SPEC>
-    void set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, TYPE value) {
+    RL_TOOLS_FUNCTION_PLACEMENT void set_attribute(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group, const char* name, TYPE value) {
         using TI = typename DEVICE::index_t;
         utils::assert_exit(device, group.meta_position + utils::string::length(name, SPEC::META_SIZE-1) + 2 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
         group.meta_position += utils::string::copy(group.meta + group.meta_position, name, SPEC::META_SIZE - group.meta_position);
@@ -296,7 +296,7 @@ namespace rl_tools{
 
     }
     template<typename DEVICE, typename SPEC>
-    void write_attributes(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group){
+    RL_TOOLS_FUNCTION_PLACEMENT void write_attributes(DEVICE& device, persist::backends::tar::WriterGroup<SPEC>& group){
         using TI = typename DEVICE::index_t;
         char group_path[SPEC::MAX_PATH_LENGTH];
         utils::string::copy(group_path, group.path, SPEC::MAX_PATH_LENGTH-1);
@@ -311,14 +311,14 @@ namespace rl_tools{
         write_entry(device, *group.writer, group_path, group.meta, group.meta_position);
     }
     template<typename DEVICE, typename SPEC>
-    bool group_exists(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name) {
+    RL_TOOLS_FUNCTION_PLACEMENT bool group_exists(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name) {
         using TI = typename DEVICE::index_t;
         char* output_data;
         TI read_size;
         return get(device, group.data, group.size, name, output_data, read_size);
     }
     template<typename TYPE, typename DEVICE, typename SPEC>
-    void get_attribute(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name, char* output, typename DEVICE::index_t output_size){
+    RL_TOOLS_FUNCTION_PLACEMENT void get_attribute(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name, char* output, typename DEVICE::index_t output_size){
         using TI = typename DEVICE::index_t;
         char group_path[SPEC::MAX_PATH_LENGTH];
         utils::string::copy(group_path, group.path, SPEC::MAX_PATH_LENGTH);
@@ -359,7 +359,7 @@ namespace rl_tools{
 
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    bool load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
+    RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
         using TI = typename DEVICE::index_t;
         // char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
         // TI group_path_length = utils::string::length(group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
@@ -422,7 +422,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
+    RL_TOOLS_FUNCTION_PLACEMENT void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
         using TI = typename DEVICE::index_t;
         char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
         utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
@@ -473,7 +473,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    void load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
+    RL_TOOLS_FUNCTION_PLACEMENT void load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
         using TI = typename DEVICE::index_t;
         char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
         utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
@@ -522,7 +522,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    void save(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
+    RL_TOOLS_FUNCTION_PLACEMENT void save(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
         using TI = typename DEVICE::index_t;
         char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
         utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);

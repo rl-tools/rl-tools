@@ -14,7 +14,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
         malloc(device, buffers.observations);
         malloc(device, buffers.actions);
         malloc(device, buffers.next_observations);
@@ -34,7 +34,7 @@ namespace rl_tools{
         episode_stats.steps   = view<DEVICE, typename decltype(episode_stats.data)::SPEC, T_SPEC::BUFFER_SIZE, 1>(device, episode_stats.data, 0, 1);
     }
     template <typename DEVICE, typename T_SPEC>
-    void malloc(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<T_SPEC>& episode_stats) {
         malloc(device, episode_stats.data);
         init_views(device, episode_stats);
     }
@@ -44,7 +44,7 @@ namespace rl_tools{
         episode_stats.next_episode_i = 0;
     }
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         malloc(device, runner.buffers);
         malloc(device, runner.envs);
         malloc(device, runner.states);
@@ -68,7 +68,7 @@ namespace rl_tools{
         malloc(device, runner.policy_states);
     }
     template <typename DEVICE, typename SPEC>
-    void update_views(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch) {
+    RL_TOOLS_FUNCTION_PLACEMENT void update_views(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch) {
         using BATCH = rl::components::off_policy_runner::SequentialBatch<SPEC>;
         using TI = typename DEVICE::index_t;
         TI offset = 0;
@@ -92,7 +92,7 @@ namespace rl_tools{
         batch.next_final_step_mask._data = view_range(device, batch.next_final_step_mask_base, NEXT_OFFSET, tensor::ViewSpec<0, NEXT_SIZE>{})._data;
     }
     template <typename DEVICE, typename BATCH_SPEC>
-    void malloc(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         malloc(device, batch.observations_actions_base);
         malloc(device, batch.rewards);
@@ -105,7 +105,7 @@ namespace rl_tools{
         update_views(device, batch);
     }
     template <typename DEVICE, typename BATCH_SPEC>
-    void free(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         free(device, batch.observations_actions_base);
         free(device, batch.rewards);
@@ -118,19 +118,19 @@ namespace rl_tools{
         update_views(device, batch);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
         free(device, buffers.observations);
         free(device, buffers.actions);
         free(device, buffers.next_observations);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<SPEC>& episode_stats) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<SPEC>& episode_stats) {
         free(device, episode_stats.data);
         episode_stats.returns._data = nullptr;
         episode_stats.steps._data = nullptr;
     }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         free(device, runner.buffers);
         free(device, runner.envs);
         free(device, runner.states);
@@ -149,18 +149,18 @@ namespace rl_tools{
         free(device, runner.policy_states);
     }
     template<typename DEVICE, typename SPEC>
-    void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
+    RL_TOOLS_FUNCTION_PLACEMENT void truncate_all(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
         set_all(device, runner.truncated, true);
     }
     template<typename DEVICE, typename SPEC>
-    void set_parameters(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT::Parameters &parameters){
+    RL_TOOLS_FUNCTION_PLACEMENT void set_parameters(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT::Parameters &parameters){
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++) {
             auto& parameters_target = get(runner.env_parameters, 0, env_i);
             parameters_target = parameters;
         }
     }
     template<typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner){
         truncate_all(device, runner);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
             auto& replay_buffer = get(runner.replay_buffers, 0, env_i);
@@ -180,14 +180,14 @@ namespace rl_tools{
     }
     namespace rl::components::off_policy_runner{
         template<typename DEVICE, typename SPEC, typename RNG>
-        void prologue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
+        RL_TOOLS_FUNCTION_PLACEMENT void prologue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
             using TI = typename DEVICE::index_t;
             for (TI env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++) {
                 prologue_per_env(device, runner, rng, env_i);
             }
         }
         template<auto POLICY_INDEX, typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
-        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng){
             using TI = typename DEVICE::index_t;
             constexpr TI BATCH_SIZE = decltype(runner.buffers.actions)::ROWS;
             constexpr TI POLICY_OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
@@ -204,7 +204,7 @@ namespace rl_tools{
         }
 
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-        void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, const POLICY& policy, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, const POLICY& policy, RNG& rng){
             using TI = typename DEVICE::index_t;
             for (TI env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
                 epilogue_per_env(device, runner, policy, rng, env_i);
@@ -212,7 +212,7 @@ namespace rl_tools{
         }
     }
     template<auto POLICY_INDEX, typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng){
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif
@@ -417,7 +417,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
-    void gather_batch(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void gather_batch(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, RNG& rng){
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
         using TI = typename SPEC::TI;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
@@ -434,7 +434,7 @@ namespace rl_tools{
 //        copy(source_device, target_device, source.d_output, target.d_output);
 //    }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::SequentialBatch<SOURCE_SPEC>& source, rl::components::off_policy_runner::SequentialBatch<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::SequentialBatch<SOURCE_SPEC>& source, rl::components::off_policy_runner::SequentialBatch<TARGET_SPEC>& target){
         copy(source_device, target_device, source.observations_actions_base, target.observations_actions_base);
         copy(source_device, target_device, source.rewards, target.rewards);
         copy(source_device, target_device, source.terminated, target.terminated);
@@ -445,7 +445,7 @@ namespace rl_tools{
         copy(source_device, target_device, source.next_final_step_mask_base, target.next_final_step_mask_base);
     }
     template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    typename SOURCE_SPEC::SPEC::T abs_diff(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SOURCE_SPEC>& source, rl::components::off_policy_runner::SequentialBatch<TARGET_SPEC>& target) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SOURCE_SPEC::SPEC::T abs_diff(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SOURCE_SPEC>& source, rl::components::off_policy_runner::SequentialBatch<TARGET_SPEC>& target) {
         using T = typename SOURCE_SPEC::SPEC::T;
         T acc = 0;
         acc += abs_diff(device, source.observations_actions, target.observations_actions);
@@ -457,17 +457,17 @@ namespace rl_tools{
         return acc;
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::Buffers<SOURCE_SPEC>& source, rl::components::off_policy_runner::Buffers<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::Buffers<SOURCE_SPEC>& source, rl::components::off_policy_runner::Buffers<TARGET_SPEC>& target){
         copy(source_device, target_device, source.observations, target.observations);
         copy(source_device, target_device, source.actions, target.actions);
         copy(source_device, target_device, source.next_observations, target.next_observations);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::EpisodeStats<SOURCE_SPEC>& source, rl::components::off_policy_runner::EpisodeStats<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::EpisodeStats<SOURCE_SPEC>& source, rl::components::off_policy_runner::EpisodeStats<TARGET_SPEC>& target){
         copy(source_device, target_device, source.data, target.data);
     }
     template <typename DEVICE, typename SPEC>
-    void update_views(DEVICE& device, Matrix<SPEC>& replay_buffers) {
+    RL_TOOLS_FUNCTION_PLACEMENT void update_views(DEVICE& device, Matrix<SPEC>& replay_buffers) {
         static_assert(SPEC::ROWS == 1);
         using TI = typename DEVICE::index_t;
         for(TI rb_i = 0; rb_i < SPEC::COLS; rb_i++) {
@@ -477,7 +477,7 @@ namespace rl_tools{
     }
 
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::OffPolicyRunner<SOURCE_SPEC>& source, rl::components::OffPolicyRunner<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::OffPolicyRunner<SOURCE_SPEC>& source, rl::components::OffPolicyRunner<TARGET_SPEC>& target){
         copy(source_device, target_device, source.buffers, target.buffers);
         copy(source_device, target_device, source.states, target.states);
         copy(source_device, target_device, source.episode_return, target.episode_return);

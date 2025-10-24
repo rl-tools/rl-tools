@@ -9,21 +9,21 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(const DEVICE& dev, devices::generic::random::ENGINE<SPEC>& rng){}
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(const DEVICE& dev, devices::generic::random::ENGINE<SPEC>& rng){}
     template <typename DEVICE, typename SPEC>
-    void free(const DEVICE& dev, devices::generic::random::ENGINE<SPEC>& rng){}
+    RL_TOOLS_FUNCTION_PLACEMENT void free(const DEVICE& dev, devices::generic::random::ENGINE<SPEC>& rng){}
     template <template <typename DEV_SPEC> typename DEVICE, typename DEV_SPEC, typename SPEC>
-    void init(const DEVICE<DEV_SPEC>& dev, devices::generic::random::ENGINE<SPEC>& rng, typename DEV_SPEC::MATH::index_t seed = 1){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(const DEVICE<DEV_SPEC>& dev, devices::generic::random::ENGINE<SPEC>& rng, typename DEV_SPEC::MATH::index_t seed = 1){
         rng.state = 0b10101010101010101010101010101010 + seed;
     }
     namespace random{
         namespace generic{
             template <typename MATH_DEV>
-            constexpr typename MATH_DEV::index_t next_max(const devices::random::Generic<MATH_DEV>& dev){
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr typename MATH_DEV::index_t next_max(const devices::random::Generic<MATH_DEV>& dev){
                 return MATH_DEV::MAX_INDEX;
             }
             template<typename MATH_DEV, typename RNG>
-            void next(const devices::random::Generic<MATH_DEV>& dev, RNG& rng){
+            RL_TOOLS_FUNCTION_PLACEMENT void next(const devices::random::Generic<MATH_DEV>& dev, RNG& rng){
                 // static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
                 rng.state ^= (rng.state << 13);
                 rng.state ^= (rng.state >> 17);

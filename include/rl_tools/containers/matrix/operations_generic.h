@@ -50,7 +50,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
 }
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE_BYTES, bool T_CONST>
-    void malloc(DEVICE& device, matrix::MatrixDynamic<T, T_TI, SIZE_BYTES, T_CONST>& matrix){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, matrix::MatrixDynamic<T, T_TI, SIZE_BYTES, T_CONST>& matrix){
         using TI = typename DEVICE::index_t;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
@@ -90,7 +90,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
 #endif
     }
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE_BYTES, bool T_CONST>
-    void free(DEVICE& device, matrix::MatrixDynamic<T, T_TI, SIZE_BYTES, T_CONST>& matrix){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixDynamic<T, T_TI, SIZE_BYTES, T_CONST>& matrix){
         using TI = typename DEVICE::index_t;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
@@ -453,7 +453,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         return acc;
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T sum_of_squares(DEVICE& device, const Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T sum_of_squares(DEVICE& device, const Matrix<SPEC>& m){
         using TI = typename SPEC::TI;
         using T = typename SPEC::T;
         T acc = 0;
@@ -466,7 +466,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         return acc;
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T mean_of_squares(DEVICE& device, const Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T mean_of_squares(DEVICE& device, const Matrix<SPEC>& m){
         return sum_of_squares(device, m) / (SPEC::ROWS * SPEC::COLS);
     }
     template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
@@ -480,21 +480,21 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_finite<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, true);
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T max(DEVICE& device, const Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T max(DEVICE& device, const Matrix<SPEC>& m){
         static_assert(SPEC::ROWS > 0 && SPEC::COLS > 0);
         using T = typename SPEC::T;
         T init = get(m, 0, 0);
         return reduce_unary<DEVICE, SPEC, T, containers::vectorization::operators::max<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, init);
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T min(DEVICE& device, const Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T min(DEVICE& device, const Matrix<SPEC>& m){
         static_assert(SPEC::ROWS > 0 && SPEC::COLS > 0);
         using T = typename SPEC::T;
         T init = get(m, 0, 0);
         return reduce_unary<DEVICE, SPEC, T, containers::vectorization::operators::min<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, init);
     }
     template<typename SOURCE_DEVICE, typename SPEC, typename T>
-    void assign(SOURCE_DEVICE& source_device, const T* source, Matrix<SPEC>& target, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
+    RL_TOOLS_FUNCTION_PLACEMENT void assign(SOURCE_DEVICE& source_device, const T* source, Matrix<SPEC>& target, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
         using TI = typename SPEC::TI;
         utils::assert_exit(source_device, row + rows <= SPEC::ROWS, "row + rows <= SPEC::ROWS");
         utils::assert_exit(source_device, col + cols <= SPEC::COLS, "col + cols <= SPEC::COLS");
@@ -506,7 +506,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
 
     template<typename SOURCE_DEVICE, typename SPEC, typename T>
-    void assign(SOURCE_DEVICE& target_device, Matrix<SPEC>& source, T* target, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
+    RL_TOOLS_FUNCTION_PLACEMENT void assign(SOURCE_DEVICE& target_device, Matrix<SPEC>& source, T* target, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
         using TI = typename SPEC::TI;
         utils::assert_exit(target_device, row + rows <= SPEC::ROWS, "row + rows <= SPEC::ROWS");
         utils::assert_exit(target_device, col + cols <= SPEC::COLS, "col + cols <= SPEC::COLS");
@@ -616,7 +616,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
 
     template <typename DEVICE, typename T, typename INPUT_SPEC, typename MEAN_SPEC, typename STD_SPEC, typename OUTPUT_SPEC>
-    void standardise(DEVICE& device, const rl_tools::Matrix<INPUT_SPEC>& input, const rl_tools::Matrix<MEAN_SPEC> mean, const rl_tools::Matrix<STD_SPEC> std, rl_tools::Matrix<OUTPUT_SPEC> output){
+    RL_TOOLS_FUNCTION_PLACEMENT void standardise(DEVICE& device, const rl_tools::Matrix<INPUT_SPEC>& input, const rl_tools::Matrix<MEAN_SPEC> mean, const rl_tools::Matrix<STD_SPEC> std, rl_tools::Matrix<OUTPUT_SPEC> output){
         static_assert(rl_tools::containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(rl_tools::containers::check_structure<MEAN_SPEC, STD_SPEC>);
         static_assert(INPUT_SPEC::COLS == MEAN_SPEC::COLS);
@@ -629,7 +629,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
-    void randn(DEVICE& device, rl_tools::Matrix<SPEC>& m, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void randn(DEVICE& device, rl_tools::Matrix<SPEC>& m, RNG& rng){
         using T = typename SPEC::T;
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
@@ -638,7 +638,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
     }
     template <typename DEVICE, typename SPEC>
-    typename SPEC::T mean(DEVICE& device, rl_tools::Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T mean(DEVICE& device, rl_tools::Matrix<SPEC>& m){
         using T = typename SPEC::T;
         T acc = 0;
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
@@ -649,7 +649,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         return acc/(SPEC::ROWS * SPEC::COLS);
     }
     template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC_1, typename OUTPUT_SPEC_2>
-    void mean_std_colwise(DEVICE& device, rl_tools::Matrix<SPEC>& m, rl_tools::Matrix<OUTPUT_SPEC_1>& mean, rl_tools::Matrix<OUTPUT_SPEC_2>& std){
+    RL_TOOLS_FUNCTION_PLACEMENT void mean_std_colwise(DEVICE& device, rl_tools::Matrix<SPEC>& m, rl_tools::Matrix<OUTPUT_SPEC_1>& mean, rl_tools::Matrix<OUTPUT_SPEC_2>& std){
         static_assert(SPEC::COLS == OUTPUT_SPEC_1::COLS);
         static_assert(SPEC::COLS == OUTPUT_SPEC_2::COLS);
         static_assert(SPEC::ROWS >= 2);
@@ -671,7 +671,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
     }
     template <typename DEVICE, typename SPEC>
-    typename SPEC::T std(DEVICE& device, rl_tools::Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T std(DEVICE& device, rl_tools::Matrix<SPEC>& m){
         static_assert(SPEC::ROWS * SPEC::COLS > 1);
         using T = typename SPEC::T;
         T acc = 0;
@@ -696,7 +696,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
 
     template <typename DEVICE, typename SPEC>
-    void clamp(DEVICE& device, rl_tools::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
+    RL_TOOLS_FUNCTION_PLACEMENT void clamp(DEVICE& device, rl_tools::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
                 set(m, row_i, col_i, math::clamp<typename SPEC::T>(device.math, get(m, row_i, col_i), lower, upper));
@@ -704,7 +704,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
-    void swap(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b){
+    RL_TOOLS_FUNCTION_PLACEMENT void swap(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b){
         using T = typename SPEC_A::T;
         using TI = typename DEVICE::index_t;
         static_assert(containers::check_structure<SPEC_A, SPEC_B>);
@@ -717,7 +717,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
-    void swap(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, typename DEVICE::index_t row_a, typename DEVICE::index_t col_a, typename DEVICE::index_t row_b, typename DEVICE::index_t col_b){
+    RL_TOOLS_FUNCTION_PLACEMENT void swap(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, typename DEVICE::index_t row_a, typename DEVICE::index_t col_a, typename DEVICE::index_t row_b, typename DEVICE::index_t col_b){
         using T = typename SPEC_A::T;
         static_assert(containers::check_structure<SPEC_A, SPEC_B>);
         T tmp = get(a, row_a, col_a);
@@ -725,7 +725,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         set(b, row_b, col_b, tmp);
     }
     template <typename DEVICE, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    void normalize(DEVICE& device, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void normalize(DEVICE& device, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
         static_assert(containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
         using T = typename INPUT_SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -740,12 +740,12 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
     }
     template <typename DEVICE, typename INPUT_SPEC>
-    void normalize(DEVICE& device, Matrix<INPUT_SPEC>& input){
+    RL_TOOLS_FUNCTION_PLACEMENT void normalize(DEVICE& device, Matrix<INPUT_SPEC>& input){
         normalize(device, input, input);
     }
 
     template <typename DEVICE, typename MEAN_SPEC, typename STD_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    void normalize(DEVICE& device, Matrix<MEAN_SPEC>& mean, Matrix<STD_SPEC>& std, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void normalize(DEVICE& device, Matrix<MEAN_SPEC>& mean, Matrix<STD_SPEC>& std, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
         static_assert(containers::check_structure<MEAN_SPEC, STD_SPEC>);
         static_assert(containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(MEAN_SPEC::ROWS == 1);
@@ -766,11 +766,11 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
     }
     template <typename DEVICE, typename MEAN_SPEC, typename STD_SPEC, typename INPUT_SPEC>
-    void normalize(DEVICE& device, Matrix<MEAN_SPEC>& mean, Matrix<STD_SPEC>& std, Matrix<INPUT_SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT void normalize(DEVICE& device, Matrix<MEAN_SPEC>& mean, Matrix<STD_SPEC>& std, Matrix<INPUT_SPEC>& m){
         normalize(device, mean, std, m, m);
     }
     template <typename DEVICE, typename SPEC_INPUT, typename SPEC_OUTPUT>
-    void argmax_row_wise(DEVICE& device, Matrix<SPEC_INPUT>& input, Matrix<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void argmax_row_wise(DEVICE& device, Matrix<SPEC_INPUT>& input, Matrix<SPEC_OUTPUT>& output){
         static_assert(SPEC_INPUT::ROWS == SPEC_OUTPUT::ROWS);
         static_assert(SPEC_OUTPUT::COLS == 1);
         using T = typename SPEC_INPUT::T;
@@ -796,7 +796,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
     }
     template <typename DEVICE, typename SPEC_INPUT>
-    typename DEVICE::index_t argmax_row(DEVICE& device, Matrix<SPEC_INPUT>& input){
+    RL_TOOLS_FUNCTION_PLACEMENT typename DEVICE::index_t argmax_row(DEVICE& device, Matrix<SPEC_INPUT>& input){
         static_assert(SPEC_INPUT::ROWS == 1);
         using T = typename SPEC_INPUT::T;
         using TI = typename DEVICE::index_t;
@@ -807,7 +807,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
 
     template <typename DEVICE, typename SPEC_INPUT, typename SPEC_OUTPUT>
-    void argmax_col_wise(DEVICE& device, Matrix<SPEC_INPUT>& input, Matrix<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void argmax_col_wise(DEVICE& device, Matrix<SPEC_INPUT>& input, Matrix<SPEC_OUTPUT>& output){
         static_assert(SPEC_INPUT::ROWS == SPEC_OUTPUT::ROWS);
         static_assert(SPEC_OUTPUT::COLS == 1);
         using T = typename SPEC_INPUT::T;
@@ -834,7 +834,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     }
 
     template <typename DEVICE, typename SPEC_INPUT>
-    typename DEVICE::index_t argmax_col(DEVICE& device, Matrix<SPEC_INPUT>& input){
+    RL_TOOLS_FUNCTION_PLACEMENT typename DEVICE::index_t argmax_col(DEVICE& device, Matrix<SPEC_INPUT>& input){
         static_assert(SPEC_INPUT::COLS == 1);
         using T = typename SPEC_INPUT::T;
         using TI = typename DEVICE::index_t;
@@ -845,7 +845,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         return result;
     }
     template<bool ACCUMULATE, typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
-    void multiply_generic(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
+    RL_TOOLS_FUNCTION_PLACEMENT void multiply_generic(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
         static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
         static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
         static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
@@ -867,11 +867,11 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         }
     }
     template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
-    void multiply(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void multiply(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
         multiply_generic<false>(device, A, B, output);
     }
     template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
-    void multiply_accumulate(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void multiply_accumulate(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
         multiply_generic<true>(device, A, B, output);
     }
     template<typename DEVICE, typename SPEC>
@@ -885,7 +885,7 @@ void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
         return out;
     }
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T squared_sum(DEVICE& device, const Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T squared_sum(DEVICE& device, const Matrix<SPEC>& m){
         typename SPEC::T acc = 0;
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){

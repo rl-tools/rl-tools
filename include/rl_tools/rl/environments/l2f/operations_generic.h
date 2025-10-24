@@ -36,12 +36,12 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools
 {
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE&, rl::environments::Multirotor<SPEC>& env){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE&, rl::environments::Multirotor<SPEC>& env){
     }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE&, rl::environments::Multirotor<SPEC>&){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE&, rl::environments::Multirotor<SPEC>&){ }
     template<typename DEVICE, typename SPEC>
-    void init(DEVICE&, rl::environments::Multirotor<SPEC>& env){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE&, rl::environments::Multirotor<SPEC>& env){
         env.parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     template<typename DEVICE, typename SPEC, typename T, typename TI, TI N, typename... Args>
@@ -130,11 +130,11 @@ namespace rl_tools
     }
     namespace rl::environments::l2f{
         template<typename STATE>
-        constexpr bool is_pose_error_integral(const STATE&){
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr bool is_pose_error_integral(const STATE&){
             return false;
         }
         template<typename SPEC>
-        constexpr bool is_pose_error_integral(const StatePoseErrorIntegral<SPEC>&){
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr bool is_pose_error_integral(const StatePoseErrorIntegral<SPEC>&){
             return true;
         }
     }

@@ -10,7 +10,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network) {
         malloc(device, network.input_layer);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             malloc(device, network.hidden_layers[layer_i]);
@@ -18,7 +18,7 @@ namespace rl_tools {
         malloc(device, network.output_layer);
     }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network) {
         free(device, network.input_layer);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             free(device, network.hidden_layers[layer_i]);
@@ -26,25 +26,25 @@ namespace rl_tools {
         free(device, network.output_layer);
     }
     template<typename DEVICE>
-    void malloc(DEVICE& device, nn_models::mlp::State& state) { } // no-op
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp::State& state) { } // no-op
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::mlp::State& source, nn_models::mlp::State& target){}
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::mlp::State& source, nn_models::mlp::State& target){}
     template<typename DEVICE, typename SPEC, typename RNG, typename MODE = mode::Default<>>
-    void reset(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<SPEC>& layer, nn_models::mlp::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<SPEC>& layer, nn_models::mlp::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
     template<typename DEVICE>
-    void free(DEVICE& device, nn_models::mlp::State& state) { } // no-op
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::mlp::State& state) { } // no-op
     template<typename DEVICE, typename BUFFER_SPEC>
-    void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers) {
         malloc(device, buffers.tick);
         malloc(device, buffers.tock);
     }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC>& buffers) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC>& buffers) {
         free(device, buffers.tick);
         free(device, buffers.tock);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    void init_weights(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, RNG& rng) {
         init_weights(device, network.input_layer, rng);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             init_weights(device, network.hidden_layers[layer_i], rng);
@@ -53,7 +53,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    constexpr auto output(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& m){
         auto tensor_flat = to_tensor(device, m.output_layer.output);
         auto tensor = view_memory<typename SPEC::OUTPUT_SHAPE>(device, tensor_flat);
         return tensor;
@@ -63,7 +63,7 @@ namespace rl_tools {
 
     namespace nn_models::mlp{
         template <typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-        constexpr bool check_input_output_f(){
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr bool check_input_output_f(){
             static_assert(INPUT_SPEC::COLS == MODEL_SPEC::INPUT_DIM);
             static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
             static_assert(OUTPUT_SPEC::COLS == MODEL_SPEC::OUTPUT_DIM);
@@ -287,7 +287,7 @@ namespace rl_tools {
         return output(device, nn.output_layer);
     }
     template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
-    void sample(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers, RNG& rng){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void sample(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers, RNG& rng){ }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

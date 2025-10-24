@@ -170,7 +170,7 @@ namespace rl_tools::math {
     }
 
     template<typename TX, typename TY>
-    auto pow(const devices::math::Generic&, const TX x, const TY y) {
+    RL_TOOLS_FUNCTION_PLACEMENT auto pow(const devices::math::Generic&, const TX x, const TY y) {
         if (y == 0) return static_cast<TX>(1);
         if (y < 0) return static_cast<TX>(1) / pow(devices::math::Generic(), x, -y);
         TX temp = pow(devices::math::Generic(), x, y / 2);
@@ -199,7 +199,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    bool is_nan(const devices::math::Generic&, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(const devices::math::Generic&, const T x) {
         return x != x;
     }
 

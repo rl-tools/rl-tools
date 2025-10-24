@@ -6,7 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::loss_functions::categorical_cross_entropy{
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
-    typename SPEC_A::T evaluate(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, typename SPEC_A::T loss_weight = 1) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T evaluate(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, typename SPEC_A::T loss_weight = 1) {
         // a is logits, b is indices resembling empirical one-hot distributions
         static_assert(SPEC_A::ROWS == SPEC_B::ROWS);
         static_assert(SPEC_B::COLS == 1);
@@ -27,7 +27,7 @@ namespace rl_tools::nn::loss_functions::categorical_cross_entropy{
         return -acc * loss_weight / SPEC_A::ROWS;
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
-    void gradient(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
+    RL_TOOLS_FUNCTION_PLACEMENT void gradient(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
         static_assert(SPEC_A::ROWS == SPEC_B::ROWS);
         static_assert(SPEC_B::COLS == 1);
         static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
@@ -52,7 +52,7 @@ namespace rl_tools::nn::loss_functions::categorical_cross_entropy{
         }
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
-    void gradient_tiled(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
+    RL_TOOLS_FUNCTION_PLACEMENT void gradient_tiled(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
         static_assert(SPEC_A::ROWS == SPEC_B::ROWS);
         static_assert(SPEC_B::COLS == 1);
         static_assert(containers::check_structure<SPEC_A, SPEC_DA>);

@@ -59,7 +59,7 @@ namespace rl_tools{
     }
     namespace rl::environments::acrobot{
         template <typename T, typename PARAMS>
-        void dsdt(T state[4], T action, T d_state[4], const PARAMS& params){
+        RL_TOOLS_FUNCTION_PLACEMENT void dsdt(T state[4], T action, T d_state[4], const PARAMS& params){
 
             T m1 = params.LINK_MASS_1;
             T m2 = params.LINK_MASS_2;
@@ -99,7 +99,7 @@ namespace rl_tools{
         }
 
         template <typename T, typename PARAMS>
-        void rk4(T state[4], T action, T next_state[4], T dt, const PARAMS& params){
+        RL_TOOLS_FUNCTION_PLACEMENT void rk4(T state[4], T action, T next_state[4], T dt, const PARAMS& params){
 
             T k1[4], k2[4], k3[4], k4[4], y1[4], y2[4], y3[4];
 

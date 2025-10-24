@@ -9,7 +9,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
         malloc(device, dataset.data);
         using DATA_SPEC = typename decltype(dataset.data)::SPEC;
         using TI = typename SPEC::SPEC::TI;
@@ -28,7 +28,7 @@ namespace rl_tools{
         dataset.target_values               = view<DEVICE, DATA_SPEC, decltype(dataset.target_values              )::ROWS, decltype(dataset.target_values              )::COLS>(device, dataset.data, 0, pos);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
         free(device, dataset.data);
         dataset.all_observations_privileged._data = nullptr;
         dataset.observations               ._data = nullptr;
@@ -44,7 +44,7 @@ namespace rl_tools{
         dataset.target_values              ._data = nullptr;
     }
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
         malloc(device, runner.environments);
         malloc(device, runner.env_parameters);
         malloc(device, runner.states);
@@ -53,7 +53,7 @@ namespace rl_tools{
         malloc(device, runner.truncated);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
         free(device, runner.environments);
         free(device, runner.env_parameters);
         free(device, runner.states);
@@ -62,7 +62,7 @@ namespace rl_tools{
         free(device, runner.truncated);
     }
     template <typename DEVICE, typename SPEC, typename RNG>
-    void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, typename SPEC::ENVIRONMENT environments[SPEC::N_ENVIRONMENTS], typename SPEC::ENVIRONMENT::Parameters parameters[SPEC::N_ENVIRONMENTS], RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, typename SPEC::ENVIRONMENT environments[SPEC::N_ENVIRONMENTS], typename SPEC::ENVIRONMENT::Parameters parameters[SPEC::N_ENVIRONMENTS], RNG& rng){
         using TI = typename SPEC::TI;
         set_all(device, runner.episode_step, 0);
         set_all(device, runner.episode_return, 0);
@@ -77,7 +77,7 @@ namespace rl_tools{
     }
     namespace rl::components::on_policy_runner{
         template <typename DEVICE, typename OBSERVATIONS_PRIVILEGED_SPEC, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-        void prologue(DEVICE& device, Matrix<OBSERVATIONS_PRIVILEGED_SPEC>& observations_privileged, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
+        RL_TOOLS_FUNCTION_PLACEMENT void prologue(DEVICE& device, Matrix<OBSERVATIONS_PRIVILEGED_SPEC>& observations_privileged, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
             static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
             static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::Observation::DIM);
             using TI = typename SPEC::TI;
@@ -87,7 +87,7 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-        void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t step_i){
+        RL_TOOLS_FUNCTION_PLACEMENT void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t step_i){
             using SPEC = typename DATASET_SPEC::SPEC;
             using TI = typename SPEC::TI;
             for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
@@ -97,7 +97,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename DATASET_SPEC, typename ACTOR, typename ACTOR_BUFFER, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_BUFFER& policy_eval_buffers, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_BUFFER& policy_eval_buffers, RNG& rng){
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
 #endif

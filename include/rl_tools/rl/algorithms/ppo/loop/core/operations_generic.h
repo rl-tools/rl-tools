@@ -56,7 +56,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
         using TI = typename DEVICE::index_t;
@@ -77,7 +77,7 @@ namespace rl_tools{
 
 
     template <typename DEVICE, typename T_CONFIG>
-    bool step(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT bool step(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         using TI = typename DEVICE::index_t;
         using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
@@ -139,7 +139,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename PARAMETERS, typename utils::typing::enable_if<utils::typing::is_same_v<typename PARAMETERS::TAG, rl::algorithms::ppo::loop::core::ParametersTag>>::type* = nullptr>
-    void log(DEVICE& device, PARAMETERS){
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, PARAMETERS){
         log(device, device.logger, "STEP_LIMIT: ", PARAMETERS::STEP_LIMIT);
         log(device, device.logger, "ACTOR_HIDDEN_DIM: ", PARAMETERS::ACTOR_HIDDEN_DIM);
         log(device, device.logger, "ACTOR_NUM_LAYERS: ", PARAMETERS::ACTOR_NUM_LAYERS);
@@ -153,7 +153,7 @@ namespace rl_tools{
         log(device, device.logger, "BATCH_SIZE: ", PARAMETERS::BATCH_SIZE);
     }
     template <typename DEVICE, typename CONFIG, typename utils::typing::enable_if<utils::typing::is_same_v<typename CONFIG::TAG, rl::algorithms::ppo::loop::core::ConfigTag>>::type* = nullptr>
-    void log(DEVICE& device, CONFIG){
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, CONFIG){
         log(device, typename CONFIG::CORE_PARAMETERS{});
 //        log(device, typename CONFIG::NEXT{});
     }

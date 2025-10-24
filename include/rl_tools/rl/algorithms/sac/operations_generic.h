@@ -16,7 +16,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic){
         malloc(device, actor_critic.actor);
         malloc(device, actor_critic.critics[0]);
         malloc(device, actor_critic.critics[1]);
@@ -28,7 +28,7 @@ namespace rl_tools{
         malloc(device, actor_critic.alpha_optimizer);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic){
         free(device, actor_critic.actor);
         free(device, actor_critic.critics[0]);
         free(device, actor_critic.critics[1]);
@@ -40,7 +40,7 @@ namespace rl_tools{
         free(device, actor_critic.alpha_optimizer);
     }
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& actor_training_buffers){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& actor_training_buffers){
         using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<SPEC>;
         malloc(device, actor_training_buffers.state_action_value_input);
         actor_training_buffers.observations = view_range(device, actor_training_buffers.state_action_value_input, 0, tensor::ViewSpec<2, BUFFERS::CRITIC_OBSERVATION_DIM>{});
@@ -59,7 +59,7 @@ namespace rl_tools{
         malloc(device, actor_training_buffers.loss_weight);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& actor_training_buffers){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& actor_training_buffers){
         free(device, actor_training_buffers.state_action_value_input);
         actor_training_buffers.observations._data = nullptr;
         actor_training_buffers.actions._data      = nullptr;
@@ -78,7 +78,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
         malloc(device, critic_training_buffers.next_state_action_value_input);
         critic_training_buffers.next_observations             = view_range(device, critic_training_buffers.next_state_action_value_input, 0, tensor::ViewSpec<2, BUFFERS::CRITIC_OBSERVATION_DIM>{});
@@ -94,7 +94,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         free(device, critic_training_buffers.next_state_action_value_input);
         critic_training_buffers.next_observations._data = nullptr;
         critic_training_buffers.next_actions._data = nullptr;
@@ -109,7 +109,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
-    void init(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
         init_weights(device, actor_critic.critics[0], rng);
         init_weights(device, actor_critic.critics[1], rng);
@@ -159,7 +159,7 @@ namespace rl_tools{
         set(target_action_value_matrix_view, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
     }
     template <typename DEVICE, typename BATCH_SPEC, typename TRAINING_BUFFER_SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER>
-    void target_action_values(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER& log_alpha) {
+    RL_TOOLS_FUNCTION_PLACEMENT void target_action_values(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER& log_alpha) {
         using SPEC = typename TRAINING_BUFFER_SPEC::SPEC;
         using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
@@ -192,7 +192,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, typename MASK_SPEC>
-    void mask_actions(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
+    RL_TOOLS_FUNCTION_PLACEMENT void mask_actions(DEVICE& device, Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
         using T = typename SOURCE_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
@@ -220,7 +220,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SOURCE_SPEC, typename MASK_SPEC>
-    void mask_gradient(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
+    RL_TOOLS_FUNCTION_PLACEMENT void mask_gradient(DEVICE& device, Tensor<SOURCE_SPEC>& gradient, Tensor<MASK_SPEC>& mask, bool invert_mask=false){
         using T = typename SOURCE_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename SOURCE_SPEC::SHAPE{});
@@ -229,14 +229,14 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename LOSS_WEIGHT_SPEC>
-    void calculate_gradient_weight(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch, Tensor<LOSS_WEIGHT_SPEC>& loss_weight){
+    RL_TOOLS_FUNCTION_PLACEMENT void calculate_gradient_weight(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch, Tensor<LOSS_WEIGHT_SPEC>& loss_weight){
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::LENGTH == 1);
         static_assert(LOSS_WEIGHT_SPEC::SHAPE::template GET<0> == 1);
         using BATCH = rl::components::off_policy_runner::SequentialBatch<SPEC>;
         using T = typename BATCH::T;
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename BATCH_SPEC, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename CRITIC_TARGET_BUFFERS, typename TRAINING_BUFFER_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
-    void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_target_buffers, CRITIC_BUFFERS& critic_buffers, CRITIC_TARGET_BUFFERS& critic_target_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_target_buffers, CRITIC_BUFFERS& critic_buffers, CRITIC_TARGET_BUFFERS& critic_target_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFER_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("sac::train_critic");
 #endif
@@ -332,7 +332,7 @@ namespace rl_tools{
         step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename BATCH_SPEC, typename ACTOR_BUFFERS_SPEC, typename CRITIC_BUFFERS_SPEC, typename TRAINING_BUFFERS_SPEC, typename RNG>
-    typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<ACTOR_BUFFERS_SPEC>& actor_target_buffers, typename CRITIC_TYPE::template Buffers<CRITIC_BUFFERS_SPEC>& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<ACTOR_BUFFERS_SPEC>& actor_target_buffers, typename CRITIC_TYPE::template Buffers<CRITIC_BUFFERS_SPEC>& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers, RNG& rng) {
         // todo: needs to be updated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -378,7 +378,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename TRAINING_BUFFERS_SPEC>
-    void min_value_d_output(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers) {
+    RL_TOOLS_FUNCTION_PLACEMENT void min_value_d_output(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers) {
         using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
@@ -388,7 +388,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename TRAINING_BUFFERS_SPEC, typename ACTION_NOISE_SPEC, typename RNG>
-    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<TRAINING_BUFFERS_SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng) {
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("sac::train_actor");
 #endif
@@ -464,7 +464,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, typename BATCH_SPEC, typename ACTOR_BUFFERS_TYPE, typename CRITIC_BUFFERS_TYPE, typename RNG>
-    typename SPEC::T actor_value(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, ACTOR_BUFFERS_TYPE& actor_buffers, CRITIC_BUFFERS_TYPE& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T actor_value(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, ACTOR_BUFFERS_TYPE& actor_buffers, CRITIC_BUFFERS_TYPE& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         // todo: needs to be updated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -481,7 +481,7 @@ namespace rl_tools{
 
     namespace rl::algorithms::sac{
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn::layers::dense::LayerForward<SOURCE_SPEC>& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
+        RL_TOOLS_FUNCTION_PLACEMENT void update_target_module(DEVICE& device, const  nn::layers::dense::LayerForward<SOURCE_SPEC>& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
             using T = typename decltype(source.weights.parameters)::SPEC::T;
             auto sp = matrix_view(device, source.weights.parameters);
             auto tp = matrix_view(device, target.weights.parameters);
@@ -491,7 +491,7 @@ namespace rl_tools{
             rl_tools::utils::polyak::update(device, sb, tb, static_cast<T>(polyak));
         }
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
+        RL_TOOLS_FUNCTION_PLACEMENT void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::TYPE_POLICY::DEFAULT polyak) {
             rl_tools::utils::polyak::update(device, source.weights_input.parameters, target.weights_input.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.biases_input.parameters, target.biases_input.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.weights_hidden.parameters, target.weights_hidden.parameters, polyak);
@@ -499,7 +499,7 @@ namespace rl_tools{
             rl_tools::utils::polyak::update(device, source.initial_hidden_state.parameters, target.initial_hidden_state.parameters, polyak);
         }
         template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn_models::mlp::NeuralNetworkForward<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>& target, T polyak) {
+        RL_TOOLS_FUNCTION_PLACEMENT void update_target_module(DEVICE& device, const  nn_models::mlp::NeuralNetworkForward<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>& target, T polyak) {
             using TargetNetworkType = nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>;
             update_target_module(device, source.input_layer, target.input_layer, polyak);
             for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
@@ -508,7 +508,7 @@ namespace rl_tools{
             update_target_module(device, source.output_layer, target.output_layer, polyak);
         }
         template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-        void update_target_module(DEVICE& device, const  nn_models::sequential::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target, T polyak) {
+        RL_TOOLS_FUNCTION_PLACEMENT void update_target_module(DEVICE& device, const  nn_models::sequential::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target, T polyak) {
             update_target_module(device, source.content, target.content, polyak);
             if constexpr(!rl_tools::utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
                 update_target_module(device, source.next_module, target.next_module, polyak);
@@ -517,13 +517,13 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_critic_targets(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic) {
+    RL_TOOLS_FUNCTION_PLACEMENT void update_critic_targets(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic) {
         rl::algorithms::sac::update_target_module(device, actor_critic.critics[0], actor_critic.critics_target[0], SPEC::PARAMETERS::CRITIC_POLYAK);
         rl::algorithms::sac::update_target_module(device, actor_critic.critics[1], actor_critic.critics_target[1], SPEC::PARAMETERS::CRITIC_POLYAK);
     }
 
     template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& ac) {
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& ac) {
         bool found_nan = false;
         found_nan = found_nan || is_nan(device, ac.actor);
         found_nan = found_nan || is_nan(device, ac.critic_1);
@@ -533,7 +533,7 @@ namespace rl_tools{
         return found_nan;
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::ActorCritic<SOURCE_SPEC>& source, rl::algorithms::sac::ActorCritic<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::ActorCritic<SOURCE_SPEC>& source, rl::algorithms::sac::ActorCritic<TARGET_SPEC>& target){
         copy(source_device, target_device, source.actor   , target.actor);
         copy(source_device, target_device, source.critics[0], target.critics[0]);
         copy(source_device, target_device, source.critics[1], target.critics[1]);
@@ -547,7 +547,7 @@ namespace rl_tools{
         copy(source_device, target_device, source.alpha_optimizer, target.alpha_optimizer);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::ActorTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::ActorTrainingBuffers<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::ActorTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::ActorTrainingBuffers<TARGET_SPEC>& target){
         copy(source_device, target_device, source.state_action_value_input, target.state_action_value_input);
         copy(source_device, target_device, source.d_output, target.d_output);
         copy(source_device, target_device, source.d_critic_1_input, target.d_critic_1_input);
@@ -560,7 +560,7 @@ namespace rl_tools{
         copy(source_device, target_device, source.d_actor_output_squashing, target.d_actor_output_squashing);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target){
         copy(source_device, target_device, source.next_state_action_value_input, target.next_state_action_value_input);
         copy(source_device, target_device, source.action_value, target.action_value);
         copy(source_device, target_device, source.target_action_value, target.target_action_value);

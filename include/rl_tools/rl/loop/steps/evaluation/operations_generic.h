@@ -16,7 +16,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void malloc(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         malloc(device, ts.rng_eval);
         malloc(device, ts.rng_eval_on_demand);
@@ -28,7 +28,7 @@ namespace rl_tools{
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         free(device, ts.rng_eval);
         free(device, ts.rng_eval_on_demand);
@@ -39,7 +39,7 @@ namespace rl_tools{
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
         init(device, ts.env_eval);
@@ -53,7 +53,7 @@ namespace rl_tools{
 
 
     template <typename DEVICE, typename CONFIG>
-    bool step(DEVICE& device, rl::loop::steps::evaluation::State<CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT bool step(DEVICE& device, rl::loop::steps::evaluation::State<CONFIG>& ts){
         using TS = rl::loop::steps::evaluation::State<CONFIG>;
         using TI = typename CONFIG::TI;
         using PARAMETERS = typename CONFIG::EVALUATION_PARAMETERS;
@@ -94,9 +94,9 @@ namespace rl_tools{
         return finished;
     }
     template <typename DEVICE, typename PARAMETERS, typename utils::typing::enable_if<utils::typing::is_same_v<typename PARAMETERS::TAG, rl::loop::steps::evaluation::ParametersTag>>::type* = nullptr>
-    void log(DEVICE& device, PARAMETERS){}
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, PARAMETERS){}
     template <typename DEVICE, typename CONFIG, typename utils::typing::enable_if<utils::typing::is_same_v<typename CONFIG::TAG, rl::loop::steps::evaluation::ConfigTag>>::type* = nullptr>
-    void log(DEVICE& device, CONFIG){
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, CONFIG){
         log(device, typename CONFIG::NEXT{});
     }
 }

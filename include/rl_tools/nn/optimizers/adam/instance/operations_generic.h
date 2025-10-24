@@ -11,19 +11,19 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& p){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& p){
         malloc(device, (nn::parameters::Gradient::Instance<SPEC>&) p);
         malloc(device, p.gradient_first_order_moment);
         malloc(device, p.gradient_second_order_moment);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& p){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& p){
         free(device, (nn::parameters::Gradient::Instance<SPEC>&) p);
         free(device, p.gradient_first_order_moment);
         free(device, p.gradient_second_order_moment);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
-    void gradient_descent(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
+    RL_TOOLS_FUNCTION_PLACEMENT void gradient_descent(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         using TI = typename DEVICE::index_t;
         using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
         using T_PARAMETER = typename decltype(parameter.parameters)::T;
@@ -58,7 +58,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename ADAM_SPEC>
-    void update(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& parameter, nn::optimizers::Adam<ADAM_SPEC>& optimizer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& parameter, nn::optimizers::Adam<ADAM_SPEC>& optimizer) {
         using PARAMETERS = typename ADAM_SPEC::DEFAULT_PARAMETERS;
         utils::polyak::update(device, parameter.gradient, parameter.gradient_first_order_moment, optimizer.parameters.beta_1, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
         utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, optimizer.parameters.beta_2, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
@@ -67,19 +67,19 @@ namespace rl_tools{
 
 
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
-    void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
+    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         set_all(device, parameter.gradient_first_order_moment, 0);
         set_all(device, parameter.gradient_second_order_moment, 0);
     }
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::parameters::Adam::Instance<SOURCE_SPEC>& source, nn::parameters::Adam::Instance<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::parameters::Adam::Instance<SOURCE_SPEC>& source, nn::parameters::Adam::Instance<TARGET_SPEC>& target){
         copy(source_device, target_device, (nn::parameters::Gradient::Instance<SOURCE_SPEC>&) source, (nn::parameters::Gradient::Instance<TARGET_SPEC>&) target);
         copy(source_device, target_device, source.gradient_first_order_moment , target.gradient_first_order_moment);
         copy(source_device, target_device, source.gradient_second_order_moment, target.gradient_second_order_moment);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Adam::Instance<SPEC_1>& p1, const nn::parameters::Adam::Instance<SPEC_2>& p2){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Adam::Instance<SPEC_1>& p1, const nn::parameters::Adam::Instance<SPEC_2>& p2){
         typename SPEC_1::CONTAINER::T acc = 0;
         acc += abs_diff(device, static_cast<const nn::parameters::Gradient::Instance<SPEC_1>&>(p1), static_cast<const nn::parameters::Gradient::Instance<SPEC_2>&>(p2));
         acc += abs_diff(device, p1.gradient_first_order_moment, p2.gradient_first_order_moment);
@@ -87,7 +87,7 @@ namespace rl_tools{
         return acc;
     }
     template<typename DEVICE, typename SPEC, typename MODE = Mode<mode::Default<>>>
-    bool is_nan(DEVICE& device, const nn::parameters::Adam::Instance<SPEC>& p, const Mode<MODE>& mode = {}){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::parameters::Adam::Instance<SPEC>& p, const Mode<MODE>& mode = {}){
         bool upstream_nan = is_nan(device, static_cast<const nn::parameters::Gradient::Instance<SPEC>&>(p), mode);
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return upstream_nan;

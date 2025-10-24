@@ -8,20 +8,20 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename CONTAINER>
-    void malloc(DEVICE& device, nn::parameters::Plain::Instance<CONTAINER>& p){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::parameters::Plain::Instance<CONTAINER>& p){
         malloc(device, p.parameters);
     }
     template <typename DEVICE, typename CONTAINER>
-    void free(DEVICE& device, nn::parameters::Plain::Instance<CONTAINER>& p){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::parameters::Plain::Instance<CONTAINER>& p){
         free(device, p.parameters);
     }
     template <typename DEVICE, typename CONTAINER>
-    void malloc(DEVICE& device, nn::parameters::Gradient::Instance<CONTAINER>& p){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::parameters::Gradient::Instance<CONTAINER>& p){
         malloc(device, (nn::parameters::Plain::Instance<CONTAINER>&) p);
         malloc(device, p.gradient);
     }
     template <typename DEVICE, typename CONTAINER>
-    void free(DEVICE& device, nn::parameters::Gradient::Instance<CONTAINER>& p){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::parameters::Gradient::Instance<CONTAINER>& p){
         free(device, (nn::parameters::Plain::Instance<CONTAINER>&) p);
         free(device, p.gradient);
     }

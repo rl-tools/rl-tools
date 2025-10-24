@@ -7,21 +7,21 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, inference::Executor<SPEC>& executor){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, inference::Executor<SPEC>& executor){
         malloc(device, executor.observation);
         malloc(device, executor.policy_state);
         malloc(device, executor.policy_state_temp);
         malloc(device, executor.policy_buffer);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, inference::Executor<SPEC>& executor){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, inference::Executor<SPEC>& executor){
         free(device, executor.observation);
         free(device, executor.policy_state);
         free(device, executor.policy_state_temp);
         free(device, executor.policy_buffer);
     }
     template <typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    void reset(DEVICE& device, inference::Executor<SPEC>& executor, POLICY& policy, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, inference::Executor<SPEC>& executor, POLICY& policy, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         reset(device, policy, executor.policy_state, rng);

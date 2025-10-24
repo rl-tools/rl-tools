@@ -28,7 +28,7 @@ namespace rl_tools::utils::string{
         return n;
     }
     template <typename TI>
-    bool compare(const char* a, const char* b, TI n){
+    RL_TOOLS_FUNCTION_PLACEMENT bool compare(const char* a, const char* b, TI n){
         TI i = 0;
         while (a[i] != '\0' && b[i] != '\0' && i < n) {
             if (a[i] != b[i]) return false;
@@ -40,7 +40,7 @@ namespace rl_tools::utils::string{
         return true;
     }
     template <typename T, typename TI>
-    void format_octal(char* dest, TI dest_size, T value) {
+    RL_TOOLS_FUNCTION_PLACEMENT void format_octal(char* dest, TI dest_size, T value) {
         // Convert value to octal and write to dest with zero-padding
         // dest_size includes the null terminator
         if (dest_size < 2) {
@@ -73,7 +73,7 @@ namespace rl_tools::utils::string{
         }
     }
     template <typename TI>
-    void memcpy(char* dest, const char* src, TI n) {
+    RL_TOOLS_FUNCTION_PLACEMENT void memcpy(char* dest, const char* src, TI n) {
         for (TI i = 0; i < n; i++) {
             dest[i] = src[i];
         }

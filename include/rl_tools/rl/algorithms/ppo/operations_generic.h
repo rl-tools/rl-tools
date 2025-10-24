@@ -302,7 +302,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE_SOURCE, typename DEVICE_TARGET, typename PPO_SPEC>
-    void copy(DEVICE_SOURCE& device_source, DEVICE_TARGET& device_target, const rl::algorithms::PPO<PPO_SPEC>& source, rl::algorithms::PPO<PPO_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(DEVICE_SOURCE& device_source, DEVICE_TARGET& device_target, const rl::algorithms::PPO<PPO_SPEC>& source, rl::algorithms::PPO<PPO_SPEC>& target){
         copy(device_source, device_target, source.actor, target.actor);
         copy(device_source, device_target, source.critic, target.critic);
 #ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT

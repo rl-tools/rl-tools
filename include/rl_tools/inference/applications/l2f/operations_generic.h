@@ -8,19 +8,19 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, inference::applications::L2F<SPEC>& executor){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, inference::applications::L2F<SPEC>& executor){
         malloc(device, executor.input);
         malloc(device, executor.output);
         malloc(device, executor.executor);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, inference::applications::L2F<SPEC>& executor){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, inference::applications::L2F<SPEC>& executor){
         free(device, executor.input);
         free(device, executor.output);
         free(device, executor.executor);
     }
     template <typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    void reset(DEVICE& device, inference::applications::L2F<SPEC>& executor, POLICY& policy, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, inference::applications::L2F<SPEC>& executor, POLICY& policy, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         constexpr T HOVERING_THROTTLE = 0.66;
@@ -34,7 +34,7 @@ namespace rl_tools{
     }
     namespace inference::applications::l2f{
         template <typename DEVICE, typename SPEC, typename OBS_SPEC>
-        void observe(DEVICE& device, L2F<SPEC>& executor, Observation<SPEC>& observation, Tensor<OBS_SPEC>& observation_flat){
+        RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, L2F<SPEC>& executor, Observation<SPEC>& observation, Tensor<OBS_SPEC>& observation_flat){
             using TI = typename DEVICE::index_t;
             static_assert(OBS_SPEC::SHAPE::template GET<0> == 1);
             static_assert(OBS_SPEC::SHAPE::template GET<1> == 18 + SPEC::OUTPUT_DIM * SPEC::ACTION_HISTORY_LENGTH); // position + orientation + linear_velocity + angular_velocity + action_history
@@ -69,7 +69,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    auto control(DEVICE& device, inference::applications::L2F<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, inference::applications::l2f::Observation<SPEC>& observation, inference::applications::l2f::Action<SPEC>& action, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT auto control(DEVICE& device, inference::applications::L2F<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, inference::applications::l2f::Observation<SPEC>& observation, inference::applications::l2f::Action<SPEC>& action, RNG& rng){
         using TI = typename SPEC::TI;
         if(executor.steps_since_original_control_step == 0){
             for(TI action_i = 0; action_i < SPEC::OUTPUT_DIM; action_i++){

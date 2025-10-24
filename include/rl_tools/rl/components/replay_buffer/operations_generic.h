@@ -21,24 +21,24 @@ namespace rl_tools {
         rb.truncated                    = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, 1                               >{}, 0, offset);
     }
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
         malloc(device, rb.data);
         malloc(device, rb.episode_start);
         update_views(device, rb);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
         free(device, rb.data);
         free(device, rb.episode_start);
     }
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& rb) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& rb) {
         malloc(device, (rl::components::ReplayBuffer<typename SPEC::BASE_SPEC>&)rb);
         malloc(device, rb.states);
         malloc(device, rb.next_states);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& rb) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& rb) {
         free(device, (rl::components::ReplayBuffer<typename SPEC::BASE_SPEC>&)rb);
         free(device, rb.states);
         free(device, rb.next_states);
@@ -84,7 +84,7 @@ namespace rl_tools {
         add(device, (rl::components::ReplayBuffer<typename SPEC::BASE_SPEC>&) buffer, state, observation, observation_privileged, action, reward, next_state, next_observation, next_observation_privileged, terminated, truncated);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::ReplayBuffer<SOURCE_SPEC>& source, rl::components::ReplayBuffer<TARGET_SPEC>& target) {
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::ReplayBuffer<SOURCE_SPEC>& source, rl::components::ReplayBuffer<TARGET_SPEC>& target) {
         copy(source_device, target_device, source.data, target.data);
         copy(source_device, target_device, source.episode_start, target.episode_start);
         target.full = source.full;
@@ -92,7 +92,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::ReplayBuffer<SPEC_1>& b1, rl::components::ReplayBuffer<SPEC_2>& b2) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::ReplayBuffer<SPEC_1>& b1, rl::components::ReplayBuffer<SPEC_2>& b2) {
         typename SPEC_1::TYPE_POLICY::DEFAULT acc = 0;
         acc += abs_diff(device, b1.observations, b2.observations);
         acc += abs_diff(device, b1.observations_privileged, b2.observations_privileged);

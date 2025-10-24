@@ -9,25 +9,25 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE>
-    void malloc(DEVICE& device, tensor::TensorStatic<T, T_TI, SIZE>& tensor) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, tensor::TensorStatic<T, T_TI, SIZE>& tensor) {
         // no-op
     }
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE>
-    void free(DEVICE& device, tensor::TensorStatic<T, T_TI, SIZE>& tensor) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, tensor::TensorStatic<T, T_TI, SIZE>& tensor) {
         // no-op
     }
     template<typename DEVICE, typename T>
-    void malloc(DEVICE& device, tensor::TensorStaticEmpty<T>& tensor) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, tensor::TensorStaticEmpty<T>& tensor) {
         // no-op
     }
     template<typename DEVICE, typename T>
-    void free(DEVICE& device, tensor::TensorStaticEmpty<T>& tensor) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, tensor::TensorStaticEmpty<T>& tensor) {
         // no-op
     }
 
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE, bool CONST>
-    void malloc(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
         T* temp = (T*) new T[SIZE];
         *data_pointer(tensor) = temp;
 #if RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
@@ -37,7 +37,7 @@ namespace rl_tools{
 #endif
     }
     template <typename DEVICE, typename T, typename T_TI, T_TI SIZE, bool CONST>
-    void free(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
         delete[] data(tensor);
     }
 #endif
@@ -310,7 +310,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    void randn(DEVICE& device, Tensor<SPEC>& t, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void randn(DEVICE& device, Tensor<SPEC>& t, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         if constexpr(length(typename SPEC::SHAPE{}) > 1){
@@ -327,7 +327,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    void rand(DEVICE& device, Tensor<SPEC>& t, RNG& rng, typename SPEC::T min=0, typename SPEC::T max=1){
+    RL_TOOLS_FUNCTION_PLACEMENT void rand(DEVICE& device, Tensor<SPEC>& t, RNG& rng, typename SPEC::T min=0, typename SPEC::T max=1){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         if constexpr(length(typename SPEC::SHAPE{}) > 1){
@@ -695,7 +695,7 @@ namespace rl_tools{
         unary_operation(device, operation, t, output);
     }
     template<typename DEVICE, typename SPEC>
-    void abs(DEVICE& device, Tensor<SPEC>& t){
+    RL_TOOLS_FUNCTION_PLACEMENT void abs(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
         unary_operation(device, tensor::operations::unary::Abs{}, t);
     }
@@ -715,13 +715,13 @@ namespace rl_tools{
         unary_operation(device, op, t);
     }
     template<typename DEVICE, typename SPEC>
-    void one_minus(DEVICE& device, Tensor<SPEC>& t){
+    RL_TOOLS_FUNCTION_PLACEMENT void one_minus(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
         using PARAMETER = T;
         unary_operation(device, tensor::operations::unary::OneMinus{}, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void one_minus(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void one_minus(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         using T = typename SPEC::T;
         using PARAMETER = T;
         unary_operation(device, tensor::operations::unary::OneMinus{}, t, output);
@@ -903,7 +903,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
-    void matrix_multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void matrix_multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
@@ -916,7 +916,7 @@ namespace rl_tools{
         multiply(device, a, b, c);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
-    void matrix_multiply_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void matrix_multiply_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
@@ -984,7 +984,7 @@ namespace rl_tools{
                 return A > B;
             }
         template <auto A, auto B>
-        constexpr bool equal(){
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr bool equal(){
             return A == B;
         }
     }

@@ -16,7 +16,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void malloc(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
         malloc(device, ts.actor_critic);
         malloc(device, ts.off_policy_runner);
         malloc(device, ts.critic_batch);
@@ -37,7 +37,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
         free(device, ts.actor_critic);
         free(device, ts.off_policy_runner);
         free(device, ts.critic_batch);
@@ -58,7 +58,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
         using TI = typename DEVICE::index_t;
@@ -77,7 +77,7 @@ namespace rl_tools{
 
 
     template <typename DEVICE, typename T_CONFIG>
-    bool step(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT bool step(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;

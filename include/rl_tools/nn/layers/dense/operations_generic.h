@@ -14,47 +14,47 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer) {
         malloc(device, layer.weights);
         malloc(device, layer.biases);
     }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer) {
         free(device, layer.weights);
         free(device, layer.biases);
     }
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer) {
         malloc(device, (nn::layers::dense::LayerForward<SPEC>&) layer);
         malloc(device, layer.pre_activations);
     }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer) {
         free(device, (nn::layers::dense::LayerForward<SPEC>&) layer);
         free(device, layer.pre_activations);
     }
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
         malloc(device, (nn::layers::dense::LayerBackward<SPEC>&) layer);
         malloc(device, layer.output);
     }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
         free(device, (nn::layers::dense::LayerBackward<SPEC>&) layer);
         free(device, layer.output);
     }
     template<typename DEVICE>
-    void malloc(DEVICE& device, nn::layers::dense::State& state) { } // no-op
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::dense::State& state) { } // no-op
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::dense::State& source, nn::layers::dense::State& target){}
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::dense::State& source, nn::layers::dense::State& target){}
     template<typename SPEC, typename DEVICE, typename RNG, typename MODE>
-    void reset(DEVICE& device, const nn::layers::dense::LayerForward<SPEC>& layer, nn::layers::dense::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn::layers::dense::LayerForward<SPEC>& layer, nn::layers::dense::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { } // no-op
     template<typename DEVICE>
-    void free(DEVICE& device, nn::layers::dense::State& state) { } // no-op
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::dense::State& state) { } // no-op
     template<typename DEVICE>
-    void malloc(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
     template<typename DEVICE>
-    void free(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
 
     template<typename DEVICE, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng){
@@ -86,7 +86,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    void init_weights(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
         init_weights(device, layer, typename SPEC::INITIALIZER{}, rng);
     }
 
