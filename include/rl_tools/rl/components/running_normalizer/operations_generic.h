@@ -7,23 +7,23 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
         malloc(device, normalizer.mean);
         malloc(device, normalizer.std);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
         free(device, normalizer.mean);
         free(device, normalizer.std);
     }
     template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
         normalizer.age = 0;
         set_all(device, normalizer.mean, 0);
         set_all(device, normalizer.std, 1);
     }
     template <typename DEVICE, typename SPEC, typename DATA_SPEC>
-    void update(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer, Matrix<DATA_SPEC>& data){
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer, Matrix<DATA_SPEC>& data){
         // Note: data should have >> 2 rows; subsequent calls should have the same number of rows to not skeew the mean/std
         // todo: take advantage of the data coming in batches
         static_assert(DATA_SPEC::COLS == SPEC::DIM, "Data dimension must match normalizer dimension");
@@ -45,18 +45,18 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename DATA_SPEC>
-    void normalize(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer, Matrix<DATA_SPEC>& data){
+    RL_TOOLS_FUNCTION_PLACEMENT void normalize(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer, Matrix<DATA_SPEC>& data){
         static_assert(DATA_SPEC::COLS == SPEC::DIM, "Data dimension must match normalizer dimension");
         normalize(device, normalizer.mean, normalizer.std, data, data);
     }
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    void normalize(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void normalize(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
         static_assert(containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(INPUT_SPEC::COLS == SPEC::DIM, "Data dimension must match normalizer dimension");
         normalize(device, normalizer.mean, normalizer.std, input, output);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::RunningNormalizer<SOURCE_SPEC>& source, rl::components::RunningNormalizer<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::RunningNormalizer<SOURCE_SPEC>& source, rl::components::RunningNormalizer<TARGET_SPEC>& target){
         static_assert(SOURCE_SPEC::DIM == TARGET_SPEC::DIM, "copy: source and target normalizers must have the same dimension");
         copy(source_device, target_device, source.mean, target.mean);
         copy(source_device, target_device, source.std, target.std);

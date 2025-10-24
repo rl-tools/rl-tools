@@ -11,7 +11,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC, template <typename> typename BASE>
-    void malloc(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC, BASE>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC, BASE>& m){
         malloc(device, (nn_models::mlp::NeuralNetworkForward<SPEC>&)m);
         malloc(device, m.log_std);
     }

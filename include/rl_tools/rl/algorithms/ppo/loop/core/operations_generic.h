@@ -17,7 +17,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void malloc(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         malloc(device, ts.ppo);
         malloc(device, ts.ppo_buffers);
         malloc(device, ts.on_policy_runner_dataset);
@@ -37,7 +37,7 @@ namespace rl_tools{
 
     }
     template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         free(device, ts.ppo);
         free(device, ts.ppo_buffers);
         free(device, ts.on_policy_runner_dataset);

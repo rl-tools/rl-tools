@@ -8,7 +8,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename MODULE_SPEC>
-    void malloc(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module){
         using namespace nn_models::sequential;
         malloc(device, module.content);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
@@ -16,7 +16,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename MODULE_SPEC>
-    void free(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module){
         using namespace nn_models::sequential;
         free(device, module.content);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
@@ -24,7 +24,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename STATE_SPEC>
-    void malloc(DEVICE& device, nn_models::sequential::ContentState<STATE_SPEC>& content_state){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ContentState<STATE_SPEC>& content_state){
         using namespace nn_models::sequential;
         malloc(device, content_state.state);
         if constexpr(!utils::typing::is_same_v<typename STATE_SPEC::NEXT_SPEC, OutputModule>){
@@ -32,7 +32,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void reset(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, nn_models::sequential::ContentState<STATE_SPEC>& content_state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, nn_models::sequential::ContentState<STATE_SPEC>& content_state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using namespace nn_models::sequential;
         reset(device, model.content, content_state.state, rng, mode);
         if constexpr(!utils::typing::is_same_v<typename STATE_SPEC::NEXT_SPEC, OutputModule>){
@@ -40,7 +40,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename STATE_SPEC>
-    void free(DEVICE& device, nn_models::sequential::ContentState<STATE_SPEC>& content_state){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ContentState<STATE_SPEC>& content_state){
         using namespace nn_models::sequential;
         free(device, content_state.state);
         if constexpr(!utils::typing::is_same_v<typename STATE_SPEC::NEXT_SPEC, OutputModule>){
@@ -48,7 +48,7 @@ namespace rl_tools{
         }
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_STATE_SPEC, typename TARGET_STATE_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentState<SOURCE_STATE_SPEC>& source, nn_models::sequential::ContentState<TARGET_STATE_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentState<SOURCE_STATE_SPEC>& source, nn_models::sequential::ContentState<TARGET_STATE_SPEC>& target){
         using namespace nn_models::sequential;
         copy(source_device, target_device, source.state, target.state);
         if constexpr(!utils::typing::is_same_v<typename TARGET_STATE_SPEC::NEXT_SPEC, OutputModule>){
@@ -56,23 +56,23 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename STATE_SPEC>
-    void malloc(DEVICE& device, nn_models::sequential::ModuleState<STATE_SPEC>& state){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ModuleState<STATE_SPEC>& state){
         malloc(device, state.content_state);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void reset(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, nn_models::sequential::ModuleState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, nn_models::sequential::ModuleState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         reset(device, model, state.content_state, rng, mode);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ModuleState<SOURCE_SPEC>& source, nn_models::sequential::ModuleState<TARGET_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ModuleState<SOURCE_SPEC>& source, nn_models::sequential::ModuleState<TARGET_SPEC>& target){
         copy(source_device, target_device, source.content_state, target.content_state);
     }
     template <typename DEVICE, typename STATE_SPEC>
-    void free(DEVICE& device, nn_models::sequential::ModuleState<STATE_SPEC>& state){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ModuleState<STATE_SPEC>& state){
         free(device, state.content_state);
     }
     template <typename DEVICE, typename BUFFER_SPEC>
-    void malloc(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
         using namespace nn_models::sequential;
         malloc(device, content_buffer.buffer);
         if constexpr(!utils::typing::is_same_v<typename BUFFER_SPEC::NEXT_SPEC, OutputModule>){
@@ -80,7 +80,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename BUFFER_SPEC>
-    void free(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
         using namespace nn_models::sequential;
         free(device, content_buffer.buffer);
         if constexpr(!utils::typing::is_same_v<typename BUFFER_SPEC::NEXT_SPEC, OutputModule>){
@@ -88,7 +88,7 @@ namespace rl_tools{
         }
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ContentBuffer<TARGET_BUFFER_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ContentBuffer<TARGET_BUFFER_SPEC>& target){
         using namespace nn_models::sequential;
         copy(source_device, target_device, source.buffer, target.buffer);
         if constexpr(!utils::typing::is_same_v<typename TARGET_BUFFER_SPEC::NEXT_SPEC, OutputModule>){
@@ -96,25 +96,25 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename BUFFER_SPEC>
-    void malloc(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
         malloc(device, buffers.tick);
         malloc(device, buffers.tock);
         malloc(device, buffers.content_buffer);
     }
     template <typename DEVICE, typename BUFFER_SPEC>
-    void free(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
         free(device, buffers.tick);
         free(device, buffers.tock);
         free(device, buffers.content_buffer);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ModuleBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ModuleBuffer<TARGET_BUFFER_SPEC>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ModuleBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ModuleBuffer<TARGET_BUFFER_SPEC>& target){
         copy(source_device, target_device, source.tick, target.tick);
         copy(source_device, target_device, source.tock, target.tock);
         copy(source_device, target_device, source.content_buffer, target.content_buffer);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename RNG>
-    void init_weights(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module, RNG& rng){
         using namespace nn_models::sequential;
         init_weights(device, module.content, rng);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
@@ -123,7 +123,7 @@ namespace rl_tools{
     }
     namespace nn_models::sequential{
         template <typename SPEC>
-        constexpr typename SPEC::TI num_layers(){
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI num_layers(){
             if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
                 return num_layers<typename SPEC::NEXT_MODULE::SPEC>() + 1;
             }
@@ -133,20 +133,20 @@ namespace rl_tools{
         }
     }
     template <typename SPEC>
-    constexpr typename SPEC::TI num_layers(const nn_models::sequential::ModuleForward<SPEC>&){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI num_layers(const nn_models::sequential::ModuleForward<SPEC>&){
         return nn_models::sequential::num_layers<SPEC>();
     }
     template <typename SPEC>
-    constexpr typename SPEC::TI num_layers(const nn_models::sequential::ContentBuffer<SPEC>&){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI num_layers(const nn_models::sequential::ContentBuffer<SPEC>&){
         return nn_models::sequential::num_layers<SPEC>();
     }
     template <typename SPEC>
-    constexpr typename SPEC::TI num_layers(const nn_models::sequential::ModuleBuffer<SPEC>& buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI num_layers(const nn_models::sequential::ModuleBuffer<SPEC>& buffer){
         return num_layers(buffer.content_buffer);
     }
 
     template<auto LAYER_I, typename MODULE_SPEC> // non-const
-    constexpr auto& get_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         static_assert(LAYER_I >= 0);
         static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
         if constexpr(LAYER_I == 0){
@@ -157,7 +157,7 @@ namespace rl_tools{
         }
     }
     template<auto LAYER_I, typename MODULE_SPEC> // const
-    constexpr auto& get_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         static_assert(LAYER_I >= 0);
         static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
         if constexpr(LAYER_I == 0){
@@ -168,24 +168,24 @@ namespace rl_tools{
         }
     }
     template <typename MODULE_SPEC> // non-const
-    constexpr auto& get_first_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_first_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         return model.content;
     }
     template <typename MODULE_SPEC> // const
-    constexpr auto& get_first_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_first_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         return model.content;
     }
     template <typename MODULE_SPEC> // non-const
-    constexpr auto& get_last_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_last_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         return get_layer<nn_models::sequential::num_layers<MODULE_SPEC>()-1>(model);
     }
     template <typename MODULE_SPEC> // const
-    constexpr auto& get_last_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_last_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         return get_layer<nn_models::sequential::num_layers<MODULE_SPEC>()-1>(model);
     }
 
     template<auto LAYER_I, typename MODULE_SPEC> // non-const
-    constexpr auto& get_buffer(nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_buffer(nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
         static_assert(LAYER_I >= 0);
         static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
         if constexpr(LAYER_I == 0){
@@ -196,7 +196,7 @@ namespace rl_tools{
         }
     }
     template<auto LAYER_I, typename MODULE_SPEC> // const
-    constexpr auto& get_buffer(const nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_buffer(const nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
         static_assert(LAYER_I >= 0);
         static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
         if constexpr(LAYER_I == 0){
@@ -207,19 +207,19 @@ namespace rl_tools{
         }
     }
     template<auto LAYER_I, typename MODULE_SPEC> // non-const
-    constexpr auto& get_buffer(nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_buffer(nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
         return get_buffer<LAYER_I>(buffer.content_buffer);
     }
     template<auto LAYER_I, typename MODULE_SPEC> // const
-    constexpr auto& get_buffer(const nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_buffer(const nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
         return get_buffer<LAYER_I>(buffer.content_buffer);
     }
     template <typename BUFFER_SPEC> // non-const
-    constexpr auto& get_last_buffer(nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_last_buffer(nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffer){
         return get_buffer<nn_models::sequential::num_layers<typename BUFFER_SPEC::SPEC>()-1>(buffer);
     }
     template <typename BUFFER_SPEC> // const
-    constexpr auto& get_last_buffer(const nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_last_buffer(const nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffer){
         return get_buffer<nn_models::sequential::num_layers<typename BUFFER_SPEC::SPEC>()-1>(buffer);
     }
 

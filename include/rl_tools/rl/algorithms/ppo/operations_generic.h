@@ -10,7 +10,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
         malloc(device, buffers.current_batch_actions);
         malloc(device, buffers.d_critic_output);
         malloc(device, buffers.d_action_log_prob_d_action);
@@ -18,7 +18,7 @@ namespace rl_tools{
         malloc(device, buffers.rollout_log_std);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
         free(device, buffers.current_batch_actions);
         free(device, buffers.d_critic_output);
         free(device, buffers.d_action_log_prob_d_action);
@@ -26,17 +26,17 @@ namespace rl_tools{
         free(device, buffers.rollout_log_std);
     }
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         malloc(device, ppo.actor);
         malloc(device, ppo.critic);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         free(device, ppo.actor);
         free(device, ppo.critic);
     }
     template <typename DEVICE, typename SPEC, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
-    void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, RNG& rng){
 #ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         ppo.initialized = true;
 #endif
@@ -51,7 +51,7 @@ namespace rl_tools{
 //        set_all(device, ppo.actor.output_layer.biases.parameters, 0);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename PPO_PARAMETERS>
-    void estimate_generalized_advantages(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, PPO_PARAMETERS ppo_parameters_tag){
+    RL_TOOLS_FUNCTION_PLACEMENT void estimate_generalized_advantages(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, PPO_PARAMETERS ppo_parameters_tag){
         using OPR_SPEC = typename DATASET_SPEC::SPEC;
         using BUFFER = decltype(dataset);
         using T = typename DATASET_SPEC::SPEC::TYPE_POLICY::DEFAULT;
@@ -88,7 +88,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename PPO_SPEC, typename DATASET_SPEC, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename BUFFERS_SPEC, typename ACTOR_BUFFER, typename CRITIC_BUFFER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<BUFFERS_SPEC>& ppo_buffers, ACTOR_BUFFER& actor_buffers, CRITIC_BUFFER& critic_buffers, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<BUFFERS_SPEC>& ppo_buffers, ACTOR_BUFFER& actor_buffers, CRITIC_BUFFER& critic_buffers, RNG& rng){
 #ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif

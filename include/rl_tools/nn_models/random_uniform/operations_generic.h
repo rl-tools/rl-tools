@@ -7,25 +7,25 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 
     template <typename DEVICE, typename SPEC>
-    void malloc(const DEVICE& device, nn_models::RandomUniform<SPEC>){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(const DEVICE& device, nn_models::RandomUniform<SPEC>){ }
     template <typename DEVICE, typename SPEC>
-    void free(const DEVICE& device, nn_models::RandomUniform<SPEC>){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void free(const DEVICE& device, nn_models::RandomUniform<SPEC>){ }
     template <typename DEVICE>
-    void malloc(const DEVICE& device, nn_models::random_uniform::State){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(const DEVICE& device, nn_models::random_uniform::State){ }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::random_uniform::State& source, nn_models::random_uniform::State& target){}
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::random_uniform::State& source, nn_models::random_uniform::State& target){}
     template <typename DEVICE>
-    void free(const DEVICE& device, nn_models::random_uniform::State){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void free(const DEVICE& device, nn_models::random_uniform::State){ }
     template <typename DEVICE>
-    void malloc(const DEVICE& device, nn_models::random_uniform::Buffer){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(const DEVICE& device, nn_models::random_uniform::Buffer){ }
     template <typename DEVICE>
-    void free(const DEVICE& device, nn_models::random_uniform::Buffer){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void free(const DEVICE& device, nn_models::random_uniform::Buffer){ }
 
     template <typename DEVICE, typename SPEC, typename RNG, typename MODE = mode::Default<>>
-    void reset(DEVICE& device, const nn_models::RandomUniform<SPEC>& model, nn_models::random_uniform::State& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn_models::RandomUniform<SPEC>& model, nn_models::random_uniform::State& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){ }
 
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void evaluate(const DEVICE& device, nn_models::RandomUniform<SPEC>, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::random_uniform::Buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(const DEVICE& device, nn_models::RandomUniform<SPEC>, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::random_uniform::Buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(SPEC::OUTPUT_DIM == OUTPUT_SPEC::COLS, "Output dimension mismatch");
         static_assert(SPEC::INPUT_DIM == INPUT_SPEC::COLS, "Input dimension mismatch");
         using T = typename SPEC::TYPE_POLICY::DEFAULT;
@@ -43,7 +43,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename MODE>
-    bool is_nan(DEVICE& device, nn_models::RandomUniform<MODULE_SPEC>& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::RandomUniform<MODULE_SPEC>& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         return false;
     }
 }
