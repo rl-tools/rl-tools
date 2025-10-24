@@ -91,6 +91,8 @@ protected:
         rlt::malloc(device, network_buffers);
         rlt::malloc(device, d_input);
         rlt::malloc(device, d_output);
+        rlt::malloc(device, optimizer);
+        rlt::init(device, optimizer);
         optimizer.age = 100000;
         rlt::malloc(device, network_mkl);
         rlt::malloc(device, network_mkl_buffers);
@@ -320,6 +322,8 @@ TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     device_mkl.logger = device.logger;
     OPTIMIZER optimizer;
 
+    rlt::malloc(device, optimizer);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device_mkl, optimizer, network_mkl);
     rlt::zero_gradient(device_mkl, network_mkl);
     auto start = std::chrono::high_resolution_clock::now();

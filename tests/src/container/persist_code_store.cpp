@@ -68,6 +68,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     rlt::init_weights(device, layer, rng);
     rlt::zero_gradient(device, layer);
     rlt::reset_forward_state(device, layer);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, layer);
     rlt::randn(device, layer.weights.gradient, rng);
     rlt::randn(device, layer.weights.gradient_first_order_moment, rng);

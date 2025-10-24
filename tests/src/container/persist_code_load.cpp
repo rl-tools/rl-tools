@@ -63,9 +63,11 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     rlt::init(device, rng, 1);
     rlt::nn::layers::dense::LayerGradient<rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam>> layer;
     rlt::malloc(device, layer);
+    rlt::malloc(device, optimizer);
     rlt::init_weights(device, layer, rng);
     rlt::zero_gradient(device, layer);
     rlt::reset_forward_state(device, layer);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, layer);
     rlt::randn(device, layer.weights.gradient, rng);
     rlt::randn(device, layer.weights.gradient_first_order_moment, rng);
@@ -112,9 +114,11 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     using SPEC = rlt::nn_models::mlp::AdamSpecification<rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
     rlt::nn_models::mlp::NeuralNetworkAdam<SPEC> mlp;
     rlt::malloc(device, mlp);
+    rlt::malloc(device, optimizer);
     rlt::init_weights(device, mlp, rng);
     rlt::zero_gradient(device, mlp);
     rlt::reset_forward_state(device, mlp);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, mlp);
     rlt::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
     rlt::copy(device, device, mlp.input_layer, mlp_1::input_layer::layer);

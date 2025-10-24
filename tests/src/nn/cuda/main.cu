@@ -69,6 +69,7 @@ NetworkType_CUDA network_cuda;
 int main(){
 
     rlt::malloc(device_cpu, network_cpu);
+    rlt::init(device_cpu, optimizer);
     rlt::reset_optimizer_state(device_cpu, network_cpu);
     rlt::zero_gradient(device_cpu, network_cpu);
     auto rng = rlt::random::default_engine(device_cpu);

@@ -201,9 +201,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     AC_DEVICE device;
     NN_DEVICE nn_device;
     ActorCriticType actor_critic;
-    actor_critic.actor_optimizer.parameters.epsilon_sqrt = 0;
-    actor_critic.critic_optimizers[0].parameters.epsilon_sqrt = 0;
-    actor_critic.critic_optimizers[1].parameters.epsilon_sqrt = 0;
     ActorCriticType::SPEC::ACTOR_TYPE::Buffer<1> actor_eval_buffers;
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, actor_eval_buffers);
@@ -212,6 +209,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     rlt::init(device, actor_critic,rng);
+
+    rlt::get_ref(device, actor_critic.actor_optimizer.parameters, 0).epsilon_sqrt = 0;
+    rlt::get_ref(device, actor_critic.critic_optimizers[0].parameters, 0).epsilon_sqrt = 0;
+    rlt::get_ref(device, actor_critic.critic_optimizers[1].parameters, 0).epsilon_sqrt = 0;
 
 
     rlt::rl::environments::DummyUI ui;
@@ -331,6 +332,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             {
                 rlt::utils::typing::remove_reference_t<decltype(actor_critic.critic_optimizers[0])> reset_optimizer;
                 rlt::malloc(device, reset_optimizer);
+                rlt::init(device, reset_optimizer);
                 rlt::reset_optimizer_state(device, reset_optimizer, pre_critic_1);
                 rlt::reset_optimizer_state(device, reset_optimizer, post_critic_1);
                 rlt::reset_optimizer_state(device, reset_optimizer, compare_critic);
@@ -460,6 +462,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             {
                 rlt::utils::typing::remove_reference_t<decltype(actor_critic.critic_optimizers[0])> reset_optimizer;
                 rlt::malloc(device, reset_optimizer);
+                rlt::init(device, reset_optimizer);
                 rlt::reset_optimizer_state(device, reset_optimizer, pre_actor);
                 rlt::reset_optimizer_state(device, reset_optimizer, post_actor);
                 rlt::reset_optimizer_state(device, reset_optimizer, compare_actor);

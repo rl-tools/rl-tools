@@ -102,6 +102,9 @@ namespace rl_tools{
         zero_gradient(device, actor_critic.actor);
         zero_gradient(device, actor_critic.critics[0]);
         zero_gradient(device, actor_critic.critics[1]);
+        init(device, actor_critic.actor_optimizer);
+        init(device, actor_critic.critic_optimizers[0]);
+        init(device, actor_critic.critic_optimizers[1]);
         reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
         reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critics[0]);
         reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critics[1]);

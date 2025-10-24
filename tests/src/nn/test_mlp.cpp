@@ -189,7 +189,8 @@ TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
-    optimizer.parameters.epsilon_sqrt = 0;
+    rlt::init(device, optimizer);
+    rlt::get_ref(device, optimizer.parameters, 0).epsilon_sqrt = 0;
 //    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
     using TI = typename DEVICE::index_t;
 
@@ -282,7 +283,8 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
-    optimizer.parameters.epsilon_sqrt = 0;
+    rlt::init(device, optimizer);
+    rlt::get_ref(device, optimizer.parameters, 0).epsilon_sqrt = 0;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");
@@ -360,6 +362,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
+    rlt::init(device, optimizer);
     constexpr TI n_batches = 10;
     for(TI batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
         this->reset();
@@ -470,6 +473,7 @@ protected:
 TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
+    rlt::init(device, optimizer);
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr TI n_epochs = 3;
@@ -578,6 +582,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
 TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t>> optimizer;
     rlt::malloc(device, optimizer);
+    rlt::init(device, optimizer);
     NN_DEVICE device;
     NetworkType network;
     rlt::malloc(device, network);

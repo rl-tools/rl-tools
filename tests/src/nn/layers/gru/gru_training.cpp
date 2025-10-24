@@ -124,6 +124,7 @@ int main(){
     rlt::malloc(device, output_target);
     rlt::malloc(device, optimizer);
     rlt::init_weights(device, model, rng);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, model);
     std::cout << "INPUT SHAPE";
     rlt::print(device, decltype(input)::SPEC::SHAPE{});

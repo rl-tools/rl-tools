@@ -85,6 +85,7 @@ TEST(RL_TOOLS_NUMERIC_TYPES_TYPE_POLICY, SUPERVISED_TRAINING){
 
     rlt::init(device, rng, 4);
     rlt::init_weights(device, model, rng);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, model);
 
     rlt::randn(device, X_train, rng);

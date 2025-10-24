@@ -89,6 +89,7 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     std::vector<T> epoch_durations;
     constexpr TI n_epochs = 3;
     //    this->reset();
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, network);
 //    typename DEVICE::index_t rng = 2;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;

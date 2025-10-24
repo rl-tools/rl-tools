@@ -95,6 +95,7 @@ int main(){
     }
 
 
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, network);
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);

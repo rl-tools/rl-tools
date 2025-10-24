@@ -41,10 +41,12 @@ namespace rl_tools{
         ppo.initialized = true;
 #endif
         init_weights(device, ppo.actor, rng);
+        init(device, actor_optimizer);
         reset_optimizer_state(device, actor_optimizer, ppo.actor);
         auto& last_layer = get_last_layer(ppo.actor);
         set_all(device, last_layer.log_std.parameters, math::log(device.math, SPEC::PARAMETERS::INITIAL_ACTION_STD));
         init_weights(device, ppo.critic, rng);
+        init(device, critic_optimizer);
         reset_optimizer_state(device, critic_optimizer, ppo.critic);
 //        set_all(device, ppo.actor.input_layer.biases.parameters, 0);
 //        set_all(device, ppo.actor.hidden_layers[0].biases.parameters, 0);
@@ -265,11 +267,12 @@ namespace rl_tools{
                 }
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
                     batch_policy_kl_divergence /= BATCH_SIZE;
+                    auto& actor_optimizer_parameters = get_ref(device, actor_optimizer.parameters, 0);
                     if(batch_policy_kl_divergence > 2 * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD){
-                        actor_optimizer.parameters.alpha = math::max(device.math, actor_optimizer.parameters.alpha * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MIN);
+                        actor_optimizer_parameters.alpha = math::max(device.math, actor_optimizer_parameters.alpha * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MIN);
                     }
                     if(batch_policy_kl_divergence < 0.5 * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD){
-                        actor_optimizer.parameters.alpha = math::min(device.math, actor_optimizer.parameters.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
+                        actor_optimizer_parameters.alpha = math::min(device.math, actor_optimizer_parameters.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
                     }
                 }
                 auto d_action_d_log_prob_action_tensor = to_tensor(device, ppo_buffers.d_action_log_prob_d_action);

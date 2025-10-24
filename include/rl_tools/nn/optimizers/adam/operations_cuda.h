@@ -15,9 +15,8 @@ namespace rl_tools{
     namespace nn::optimizers::adam::kernels{
         template<typename DEVICE, typename SPEC>
         __global__
-        void reset_optimizer_state(DEVICE device, nn::optimizers::Adam<SPEC> optimizer) {
-            set(device, optimizer.age, 1, 0);
-            optimizer.parameters = {
+        void init(DEVICE device, nn::optimizers::Adam<SPEC> optimizer) {
+            typename nn::optimizers::Adam<SPEC>::PARAMETERS parameters = {
                 SPEC::DEFAULT_PARAMETERS::ALPHA,
                 SPEC::DEFAULT_PARAMETERS::BETA_1,
                 SPEC::DEFAULT_PARAMETERS::BETA_2,
@@ -28,7 +27,20 @@ namespace rl_tools{
                 SPEC::DEFAULT_PARAMETERS::WEIGHT_DECAY_OUTPUT,
                 SPEC::DEFAULT_PARAMETERS::BIAS_LR_FACTOR
             };
+            set(device, optimizer.parameters, parameters, 0);
         }
+        template<typename DEVICE, typename SPEC>
+        __global__
+        void reset_optimizer_state(DEVICE device, nn::optimizers::Adam<SPEC> optimizer) {
+            set(device, optimizer.age, 1, 0);
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC>
+    void init(devices::CUDA<DEV_SPEC>& device, nn::optimizers::Adam<SPEC>& optimizer) {
+        dim3 activation_grid(1);
+        dim3 activation_block(1);
+        nn::optimizers::adam::kernels::init<<<activation_grid, activation_block, 0, device.stream>>>(device, optimizer);
+        check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename MODEL>
     void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {

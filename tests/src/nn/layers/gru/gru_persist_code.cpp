@@ -76,6 +76,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     rlt::malloc(device, output);
     rlt::malloc(device, d_output);
     rlt::init_weights(device, gru, rng);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, gru);
     rlt::randn(device, input, rng);
     rlt::randn(device, d_output, rng);

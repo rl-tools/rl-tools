@@ -42,6 +42,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP, STATIC){
     rlt::malloc(device, mlp_dynamic_buffer);
     rlt::malloc(device, mlp_static_buffer);
 
+    rlt::init(device, optimizer_dynamic);
+    rlt::init(device, optimizer_static);
+
     rlt::init_weights(device, mlp_dynamic, rng);
 
     rlt::copy(device, device, mlp_dynamic, mlp_static);

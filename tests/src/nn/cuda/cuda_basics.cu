@@ -317,6 +317,7 @@ TEST(RL_TOOLS_NN_CUDA, COPY) {
     rlt::init_weights(device_cpu, network_cpu_2, rng);
     rlt::zero_gradient(device_cpu, network_cpu);
     rlt::zero_gradient(device_cpu, network_cpu_2);
+    rlt::init(device_cpu, optimizer_cpu);
     rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
     rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu_2);
     rlt::reset_forward_state(device_cpu, network_cpu);
@@ -395,6 +396,7 @@ void GEMM() {
     rlt::check_status(device_cuda);
 
     rlt::init_weights(device_cpu, network_cpu, rng);
+    rlt::init(device_cpu, optimizer);
     rlt::reset_optimizer_state(device_cpu, optimizer, network_cpu);
     rlt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
 
@@ -678,6 +680,7 @@ void BACKWARD() {
 
     rlt::init_weights(device_cpu, network_cpu, rng);
     rlt::zero_gradient(device_cpu, network_cpu);
+    rlt::init(device_cpu, optimizer_cpu);
     rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
     rlt::copy(device_cpu, device_cpu, network_cpu, network_cpu_pre);
 
@@ -747,6 +750,8 @@ void BACKWARD() {
     }
     {
 
+        rlt::init(device_cpu, optimizer_cpu);
+        rlt::init(device_cuda, optimizer_cuda);
         rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
         rlt::reset_optimizer_state(device_cuda, optimizer_cuda, network_cuda);
         rlt::zero_gradient(device_cpu, network_cpu);
@@ -862,10 +867,13 @@ void ADAM_UPDATE() {
     DEVICE_CUDA::SPEC::RANDOM::ENGINE<> rng_cuda;
     rlt::malloc(device_cuda, rng_cuda);
     rlt::init(device_cuda, rng_cuda);
+    rlt::init(device_cpu, optimizer_cpu);
+    rlt::init(device_cuda, optimizer_cuda);
 
     rlt::init_weights(device_cpu, network_cpu, rng);
     rlt::zero_gradient(device_cpu, network_cpu);
     rlt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
+    rlt::reset_optimizer_state(device_cuda, optimizer_cuda, network_cuda);
     rlt::copy(device_cpu, device_cpu, network_cpu, network_cpu_pre);
 
     rlt::Matrix<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, INPUT_DIM>> input_cpu;

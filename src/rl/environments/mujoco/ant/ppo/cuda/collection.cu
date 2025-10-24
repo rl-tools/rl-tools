@@ -95,6 +95,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
     rlt::init(device, on_policy_runner_gpu, envs_gpu, rng);
 
     rlt::init_weights(device, ppo.actor, rng);
+    rlt::init(device, actor_optimizer);
     rlt::reset_optimizer_state(device, ppo.actor, actor_optimizer);
     rlt::reset_forward_state(device, ppo.actor);
     rlt::zero_gradient(device, ppo.actor);

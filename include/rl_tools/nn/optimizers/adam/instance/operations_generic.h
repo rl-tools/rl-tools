@@ -27,6 +27,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
         using T_PARAMETER = typename decltype(parameter.parameters)::T;
+        const auto& optimizer_parameters = get(device, optimizer.parameters, 0);
         auto parameters = matrix_view(device, parameter.parameters);
         auto gradient_first_order_moment = matrix_view(device, parameter.gradient_first_order_moment);
         auto gradient_second_order_moment = matrix_view(device, parameter.gradient_second_order_moment);
@@ -35,20 +36,20 @@ namespace rl_tools{
         for(TI row_i = 0; row_i < ROWS; row_i++) {
             for(TI col_i = 0; col_i < COLS; col_i++) {
                 T_OPTIMIZER pre_sqrt_term = get(gradient_second_order_moment, row_i, col_i) * get(device, optimizer.second_order_moment_bias_correction, 0);
-                pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T_OPTIMIZER)optimizer.parameters.epsilon_sqrt);
-                T_OPTIMIZER parameter_update = optimizer.parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * get(gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer.parameters.epsilon);
+                pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T_OPTIMIZER)optimizer_parameters.epsilon_sqrt);
+                T_OPTIMIZER parameter_update = optimizer_parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * get(gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer_parameters.epsilon);
                 if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
-                    parameter_update *= optimizer.parameters.bias_lr_factor;
+                    parameter_update *= optimizer_parameters.bias_lr_factor;
                 }
                 if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Normal> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameters, row_i, col_i) * optimizer.parameters.weight_decay / 2;
+                        parameter_update += get(parameters, row_i, col_i) * optimizer_parameters.weight_decay / 2;
                     }
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Input> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameters, row_i, col_i) * optimizer.parameters.weight_decay_input / 2;
+                        parameter_update += get(parameters, row_i, col_i) * optimizer_parameters.weight_decay_input / 2;
                     }
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Output> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameters, row_i, col_i) * optimizer.parameters.weight_decay_output / 2;
+                        parameter_update += get(parameters, row_i, col_i) * optimizer_parameters.weight_decay_output / 2;
                     }
                 }
                 T_OPTIMIZER value = get(parameters, row_i, col_i);
@@ -60,8 +61,9 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename ADAM_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& parameter, nn::optimizers::Adam<ADAM_SPEC>& optimizer) {
         using PARAMETERS = typename ADAM_SPEC::DEFAULT_PARAMETERS;
-        utils::polyak::update(device, parameter.gradient, parameter.gradient_first_order_moment, optimizer.parameters.beta_1, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
-        utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, optimizer.parameters.beta_2, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
+        const auto& optimizer_parameters = get(device, optimizer.parameters, 0);
+        utils::polyak::update(device, parameter.gradient, parameter.gradient_first_order_moment, optimizer_parameters.beta_1, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
+        utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, optimizer_parameters.beta_2, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
         gradient_descent(device, parameter, optimizer);
     }
 

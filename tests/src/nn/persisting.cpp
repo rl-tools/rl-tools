@@ -31,9 +31,11 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     rlt::init_weights(device, network_1, rng);
     rlt::init_weights(device, network_2, rng);
     rlt::reset_forward_state(device, network_1);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, network_1);
     rlt::zero_gradient(device, network_1);
     rlt::reset_forward_state(device, network_2);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, network_2);
     rlt::zero_gradient(device, network_2);
     rlt::increment(device, network_1.input_layer.weights.gradient_first_order_moment, 10, 2, 3);

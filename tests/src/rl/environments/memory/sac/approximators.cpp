@@ -85,6 +85,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::malloc(device, critic_gru_buffer);
     rlt::init_weights(device, actor, rng);
     rlt::init_weights(device, critic, rng);
+    rlt::init(device, actor_optimizer);
+    rlt::init(device, critic_optimizer);
     rlt::reset_optimizer_state(device, actor_optimizer, actor);
     rlt::reset_optimizer_state(device, critic_optimizer, critic);
 

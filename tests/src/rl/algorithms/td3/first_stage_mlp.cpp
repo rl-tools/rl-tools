@@ -232,6 +232,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     rlt::init(device, actor_critic, rng);
+    rlt::init(device, optimizer);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     auto critic_group1 = rlt::get_group(device, data_file, "critic_1");
@@ -348,15 +349,16 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 //    first_stage_second_stage::OPTIMIZER optimizer;
     first_stage_second_stage::NN_DEVICE nn_device;
     first_stage_second_stage::ActorCriticType actor_critic;
-    actor_critic.actor_optimizer.parameters.epsilon_sqrt = 0;
-    actor_critic.critic_optimizers[0].parameters.epsilon_sqrt = 0;
-    actor_critic.critic_optimizers[1].parameters.epsilon_sqrt = 0;
     rlt::malloc(device, actor_critic);
 
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     rlt::init(device, actor_critic, rng);
+
+    rlt::get_ref(device, actor_critic.actor_optimizer.parameters, 0).epsilon_sqrt = 0;
+    rlt::get_ref(device, actor_critic.critic_optimizers[0].parameters, 0).epsilon_sqrt = 0;
+    rlt::get_ref(device, actor_critic.critic_optimizers[1].parameters, 0).epsilon_sqrt = 0;
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     auto actor_group = rlt::get_group(device, data_file, "actor");
@@ -482,6 +484,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         {
             rlt::utils::typing::remove_reference_t<decltype(actor_critic.critic_optimizers[0])> reset_optimizer;
             rlt::malloc(device, reset_optimizer);
+            rlt::init(device, reset_optimizer);
             rlt::reset_optimizer_state(device, reset_optimizer, pre_critic_1);
             rlt::reset_optimizer_state(device, reset_optimizer, post_critic_1);
             rlt::reset_optimizer_state(device, reset_optimizer, compare_critic);
@@ -548,15 +551,16 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 //    first_stage_second_stage::OPTIMIZER optimizer;
     first_stage_second_stage::NN_DEVICE nn_device;
     first_stage_second_stage::ActorCriticType actor_critic;
-    actor_critic.actor_optimizer.parameters.epsilon_sqrt = 0;
-    actor_critic.critic_optimizers[0].parameters.epsilon_sqrt = 0;
-    actor_critic.critic_optimizers[1].parameters.epsilon_sqrt = 0;
     rlt::malloc(device, actor_critic);
 
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     rlt::init(device, actor_critic, rng);
+
+    rlt::get_ref(device, actor_critic.actor_optimizer.parameters, 0).epsilon_sqrt = 0;
+    rlt::get_ref(device, actor_critic.critic_optimizers[0].parameters, 0).epsilon_sqrt = 0;
+    rlt::get_ref(device, actor_critic.critic_optimizers[1].parameters, 0).epsilon_sqrt = 0;
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     auto actor_group = rlt::get_group(device, data_file, "actor");

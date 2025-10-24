@@ -146,6 +146,7 @@ int main(){
     rlt::malloc(device, output_target);
     rlt::init_weights(device, model, rng);
     rlt::malloc(device, optimizer);
+    rlt::init(device, optimizer);
     rlt::reset_optimizer_state(device, optimizer, model);
     for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
         auto start_time = std::chrono::high_resolution_clock::now();

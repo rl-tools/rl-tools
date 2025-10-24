@@ -96,6 +96,9 @@ void test_correctness(){
     rlt::malloc(sdevice, sequential_model_temp);
     rlt::malloc(sdevice, sequential_buffer);
 
+    rlt::init(device, optimizer);
+    rlt::init(device, sequential_optimizer);
+
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
     rlt::randn(device, d_output, rng);
