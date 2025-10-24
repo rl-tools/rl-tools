@@ -91,6 +91,23 @@ namespace rl_tools::devices{
 #endif
         using TAG = _TAG<DEVICE, KERNEL>;
 
+        struct CUDA_KERNEL_SPEC{
+            struct RANDOM{
+                template <typename T_ENGINE = curandState>
+                using ENGINE = T_ENGINE;
+            };
+            using MATH = devices::math::CUDA;
+            using LOGGING = logging::CUDA;
+        };
+        template <typename T_SPEC>
+        struct CUDA_KERNEL{
+            using SPEC = T_SPEC;
+            using index_t = unsigned int;
+            devices::random::CUDA random;
+            typename SPEC::MATH math;
+            typename SPEC::LOGGING* logger = nullptr;
+        };
+
     }
 
     struct DefaultCUDASpecification{

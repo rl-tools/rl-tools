@@ -62,17 +62,7 @@ namespace rl_tools::nn::optimizers{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using DEFAULT_PARAMETERS = typename SPEC::DEFAULT_PARAMETERS;
-        adam::Parameters<T> parameters = {
-            DEFAULT_PARAMETERS::ALPHA,
-            DEFAULT_PARAMETERS::BETA_1,
-            DEFAULT_PARAMETERS::BETA_2,
-            DEFAULT_PARAMETERS::EPSILON,
-            DEFAULT_PARAMETERS::EPSILON_SQRT,
-            DEFAULT_PARAMETERS::WEIGHT_DECAY,
-            DEFAULT_PARAMETERS::WEIGHT_DECAY_INPUT,
-            DEFAULT_PARAMETERS::WEIGHT_DECAY_OUTPUT,
-            DEFAULT_PARAMETERS::BIAS_LR_FACTOR
-        };
+        adam::Parameters<T> parameters;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1>, SPEC::DYNAMIC_ALLOCATION>> first_order_moment_bias_correction;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1>, SPEC::DYNAMIC_ALLOCATION>> second_order_moment_bias_correction;
         Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, 1>, SPEC::DYNAMIC_ALLOCATION>> age;

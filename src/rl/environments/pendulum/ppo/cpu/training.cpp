@@ -45,20 +45,30 @@ static constexpr bool DYNAMIC_ALLOCATION = true;
 
 using CONFIG = CONFIG_FACTORY<DEVICE, TYPE_POLICY, DYNAMIC_ALLOCATION>;
 
-CONFIG::EVAL_BUFFER eval_buffer;
+using LOOP_CONFIG = CONFIG::LOOP_TIMING_CONFIG;
+using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;
+
+static constexpr TI NUM_EPISODES_FINAL_EVAL = 1000;
+using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, CONFIG::ENVIRONMENT::EPISODE_STEP_LIMIT>;
+
+using POLICY = rlt::utils::typing::remove_reference_t<decltype(rlt::get_actor(LOOP_STATE{}))>;
+using EVAL_BUFFER = rlt::rl::utils::evaluation::PolicyBuffer<rlt::rl::utils::evaluation::PolicyBufferSpecification<EVAL_SPEC, POLICY, DYNAMIC_ALLOCATION>>;
+
+EVAL_BUFFER eval_buffer;
 
 auto run(TI seed, bool verbose){
     DEVICE device;
     if(verbose){
         rlt::log(device, CONFIG::LOOP_TIMING_CONFIG{});
     }
-    CONFIG::LOOP_STATE ts;
+    LOOP_STATE ts;
     rlt::malloc(device, ts);
     rlt::malloc(device, eval_buffer);
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
     }
-    rlt::rl::utils::evaluation::Result<CONFIG::EVAL_SPEC> result;
+    rlt::log(device, device.logger, "PPO steps: ", ts.step);
+    rlt::rl::utils::evaluation::Result<EVAL_SPEC> result;
     auto actor = rlt::get_actor(ts);
     evaluate(device, ts.envs[0], ts.ui, actor, eval_buffer, result, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{});
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);
@@ -72,7 +82,7 @@ auto run(TI seed, bool verbose){
 
 int main(int argc, char** argv) {
 #ifdef RL_TOOLS_STATIC_MEM
-    std::cout << "Training state size: " << sizeof(CONFIG::LOOP_STATE) << std::endl;
+    std::cout << "Training state size: " << sizeof(LOOP_STATE) << std::endl;
 #endif
     bool verbose = true;
     std::vector<decltype(run(0, verbose))> returns;

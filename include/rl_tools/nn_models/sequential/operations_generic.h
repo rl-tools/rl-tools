@@ -247,12 +247,14 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC> // non-const
     RL_TOOLS_FUNCTION_PLACEMENT auto content_output(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& m){
         auto output_matrix = output(device, m.content);
+        static_assert(sizeof(output_matrix) <= sizeof(void*)); // we don't want to return static matrices by value here.
         return _content_output_helper<typename SPEC::CONTENT::OUTPUT_SHAPE>(device, output_matrix);
     }
 
     template <typename DEVICE, typename SPEC> // const
     RL_TOOLS_FUNCTION_PLACEMENT auto content_output(DEVICE& device, const nn_models::sequential::ModuleGradient<SPEC>& m){
         auto output_matrix = output(device, m.content);
+        static_assert(sizeof(output_matrix) <= sizeof(void*)); // we don't want to return static matrices by value here
         return _content_output_helper<typename SPEC::CONTENT::OUTPUT_SHAPE>(device, output_matrix);
     }
 

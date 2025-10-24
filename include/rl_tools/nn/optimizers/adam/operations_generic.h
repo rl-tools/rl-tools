@@ -25,6 +25,17 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename MODEL>
     RL_TOOLS_FUNCTION_PLACEMENT void reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
         set(device, optimizer.age, 1, 0);
+        optimizer.parameters = {
+            SPEC::DEFAULT_PARAMETERS::ALPHA,
+            SPEC::DEFAULT_PARAMETERS::BETA_1,
+            SPEC::DEFAULT_PARAMETERS::BETA_2,
+            SPEC::DEFAULT_PARAMETERS::EPSILON,
+            SPEC::DEFAULT_PARAMETERS::EPSILON_SQRT,
+            SPEC::DEFAULT_PARAMETERS::WEIGHT_DECAY,
+            SPEC::DEFAULT_PARAMETERS::WEIGHT_DECAY_INPUT,
+            SPEC::DEFAULT_PARAMETERS::WEIGHT_DECAY_OUTPUT,
+            SPEC::DEFAULT_PARAMETERS::BIAS_LR_FACTOR
+        };
         _reset_optimizer_state(device, model, optimizer);
     }
 

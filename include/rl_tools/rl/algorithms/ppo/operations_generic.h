@@ -118,7 +118,7 @@ namespace rl_tools{
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // shuffling
             for(TI dataset_i = 0; dataset_i < DATASET::STEPS_TOTAL; dataset_i++){
-                TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), dataset_i, DATASET::STEPS_TOTAL-1, rng);
+                TI sample_index = random::uniform_int_distribution(device.random, dataset_i, DATASET::STEPS_TOTAL-1, rng);
                 {
                     auto target_row = row(device, dataset.observations, dataset_i);
                     auto source_row = row(device, dataset.observations, sample_index);
@@ -143,6 +143,7 @@ namespace rl_tools{
                 swap(device, dataset.action_log_probs, dataset.action_log_probs, dataset_i, 0, sample_index, 0);
                 swap(device, dataset.target_values   , dataset.target_values   , dataset_i, 0, sample_index, 0);
             }
+            static_assert(N_BATCHES > 0);
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
                 T batch_policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
                 zero_gradient(device, ppo.critic);
@@ -281,6 +282,7 @@ namespace rl_tools{
                 {
                     forward(device, ppo.critic, batch_observations_privileged_tensor_unsqueezed, critic_buffers, rng);
                     auto output_tensor = output(device, ppo.critic);
+                    static_assert(sizeof(output_tensor) <= sizeof(void*));
                     auto output_matrix_view = matrix_view(device, output_tensor);
                     nn::loss_functions::mse::gradient(device, output_matrix_view, batch_target_values, ppo_buffers.d_critic_output, 0.5);
                     auto d_critic_output_tensor = to_tensor(device, ppo_buffers.d_critic_output);

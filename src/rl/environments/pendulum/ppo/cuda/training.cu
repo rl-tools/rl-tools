@@ -1,3 +1,4 @@
+#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
 #include <rl_tools/operations/cuda.h>
 
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
@@ -29,29 +30,81 @@ namespace rlt = rl_tools;
 #include "../cpu/config.h"
 
 using DEVICE = rlt::devices::DefaultCUDA;
-using KERNEL_DEVICE = rlt::devices::cuda::TAG<DEVICE, true>;
+using KERNEL_DEVICE = rlt::devices::cuda::CUDA_KERNEL<rlt::devices::cuda::CUDA_KERNEL_SPEC>;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using TI = typename DEVICE::index_t;
 static constexpr bool DYNAMIC_ALLOCATION = false;
 
-using CONFIG = CONFIG_FACTORY<DEVICE, TYPE_POLICY, DYNAMIC_ALLOCATION>;
+using CONFIG = CONFIG_FACTORY<KERNEL_DEVICE, TYPE_POLICY, DYNAMIC_ALLOCATION>;
 
-CONFIG::EVAL_BUFFER eval_buffer;
+using LOOP_CONFIG = CONFIG::LOOP_CORE_CONFIG;
+using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;
 
 
 template <typename DEVICE>
-__global__ void test(DEVICE& device, CONFIG::LOOP_STATE* ts){
-    printf("%d\n", ts->step);
+__global__ void init(DEVICE& device, LOOP_STATE* ts){
+    if (threadIdx.x == 0){
+        printf("init using thread %d\n", threadIdx.x);
+        rlt::malloc(device, *ts);
+        constexpr TI SEED = 1;
+        rlt::init(device, *ts, SEED);
+    }
+}
+
+template <typename DEVICE>
+__global__ void step(DEVICE& device, LOOP_STATE* ts){
+    if (threadIdx.x == 0){
+        rlt::step(device, *ts);
+    }
 }
 
 
 int main(int argc, char** argv) {
-    DEVICE device;
-    CONFIG::LOOP_STATE* ts = nullptr;
-    cudaMalloc(&ts, sizeof(CONFIG::LOOP_STATE));
-    test<<<1, 1>>>(device, ts);
-    cudaDeviceSynchronize();
+    KERNEL_DEVICE device;
+    LOOP_STATE* ts_cpu = (LOOP_STATE*)malloc(sizeof(LOOP_STATE));
+    LOOP_STATE* ts = nullptr;
+    std::cout << "Allocating " << sizeof(LOOP_STATE) << " bytes" << std::endl;
+    auto error = cudaMalloc(&ts, sizeof(LOOP_STATE));
+    if (error != cudaSuccess){
+        std::cerr << "cudaMalloc failed: " << cudaGetErrorString(error) << std::endl;
+        return 1;
+    }
+    std::cout << "Launching kernel..." << std::endl;
+    init<<<1, 1>>>(device, ts);
+    error = cudaGetLastError();
+    if (error != cudaSuccess){
+        std::cerr << "Kernel launch failed: " << cudaGetErrorString(error) << std::endl;
+        cudaFree(ts);
+        return 1;
+    }
+    std::cout << "Synchronizing..." << std::endl;
+    error = cudaDeviceSynchronize();
+    if (error != cudaSuccess){
+        std::cerr << "Kernel execution failed: " << cudaGetErrorString(error) << std::endl;
+        cudaFree(ts);
+        return 1;
+    }
+    std::cout << "Kernel completed successfully" << std::endl;
+    cudaMemcpy(ts_cpu, ts, sizeof(LOOP_STATE), cudaMemcpyDeviceToHost);
+    for (TI step_i=0; step_i < 700; step_i++){
+        step<<<1, 1>>>(device, ts);
+        error = cudaGetLastError();
+        if (error != cudaSuccess){
+            std::cerr << "Kernel launch failed: " << cudaGetErrorString(error) << std::endl;
+            cudaFree(ts);
+            return 1;
+        }
+        error = cudaDeviceSynchronize();
+        if (error != cudaSuccess){
+            std::cerr << "Kernel execution failed: " << cudaGetErrorString(error) << std::endl;
+            cudaFree(ts);
+            return 1;
+        }
+    }
+    cudaMemcpy(ts_cpu, ts, sizeof(LOOP_STATE), cudaMemcpyDeviceToHost);
+
+    cudaFree(ts);
     return 0;
 }
 

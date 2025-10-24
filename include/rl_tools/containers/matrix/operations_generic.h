@@ -41,11 +41,11 @@ namespace rl_tools{
 //    }
 //
 template<typename DEVICE, typename T, typename TI, TI SIZE>
-void malloc(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
+RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     // no-op
 }
 template<typename DEVICE, typename T, typename TI, TI SIZE>
-void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
+RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI, SIZE>& matrix) {
     // no-op
 }
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)

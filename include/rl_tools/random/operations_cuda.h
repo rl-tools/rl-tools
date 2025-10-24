@@ -74,6 +74,12 @@ namespace rl_tools {
     void free(DEVICE& device, devices::random::CUDA::ENGINE<SPEC>& rng){
         free(device, rng.states);
     }
+    template <typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, curandState& rng, typename DEVICE::index_t seed = 1){
+        using TI = typename DEVICE::index_t;
+        TI id = threadIdx.x + blockIdx.x * blockDim.x;
+        curand_init(seed, id, 0, &rng);
+    };
     template <typename DEV_SPEC, typename SPEC>
     void init(devices::CUDA<DEV_SPEC>& device, devices::random::CUDA::ENGINE<SPEC>& rng, typename SPEC::TI seed = 1){
         using DEVICE = devices::CUDA<DEV_SPEC>;

@@ -41,12 +41,4 @@ struct CONFIG_FACTORY{
     using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
     #endif
 
-    using LOOP_CONFIG = LOOP_TIMING_CONFIG;
-    using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;
-
-    static constexpr TI NUM_EPISODES_FINAL_EVAL = 1000;
-    using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
-
-    using POLICY = rlt::utils::typing::remove_reference_t<decltype(rlt::get_actor(LOOP_STATE{}))>;
-    using EVAL_BUFFER = rlt::rl::utils::evaluation::PolicyBuffer<rlt::rl::utils::evaluation::PolicyBufferSpecification<EVAL_SPEC, POLICY, DYNAMIC_ALLOCATION>>;
 };

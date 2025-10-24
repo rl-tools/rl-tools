@@ -93,10 +93,6 @@ namespace rl_tools{
                 update(device, ts.observation_normalizer, per_agent_observations);
                 update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
             }
-            std::cout << "Observation means: " << std::endl;
-            print(device, ts.observation_normalizer.mean);
-            std::cout << "Observation std: " << std::endl;
-            print(device, ts.observation_normalizer.std);
             init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
             set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
