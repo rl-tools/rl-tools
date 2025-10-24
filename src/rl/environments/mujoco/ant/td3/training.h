@@ -159,9 +159,6 @@ void run(){
         parameters_rl::OPTIMIZER actor_optimizer;
         parameters_rl::OPTIMIZER critic_optimizers[2];
         typename parameters_rl::OPTIMIZER::SPEC::T alpha = 1e-3;
-        actor_optimizer.parameters.alpha = alpha;
-        critic_optimizers[0].parameters.alpha = alpha;
-        critic_optimizers[1].parameters.alpha = alpha;
 
         // environment
         T ui_speed_factor = 1;
@@ -174,6 +171,15 @@ void run(){
         rlt::malloc(device, evaluation_rng);
         rlt::init(device, rng, run_i + 1);
         rlt::init(device, evaluation_rng, run_i + 1000);
+        rlt::malloc(device, actor_optimizer);
+        rlt::malloc(device, critic_optimizers[0]);
+        rlt::malloc(device, critic_optimizers[1]);
+        rlt::init(device, actor_optimizer);
+        rlt::init(device, critic_optimizers[0]);
+        rlt::init(device, critic_optimizers[1]);
+        rlt::get_ref(device, actor_optimizer.parameters, 0).alpha = alpha;
+        rlt::get_ref(device, critic_optimizers[0].parameters, 0).alpha = alpha;
+        rlt::get_ref(device, critic_optimizers[1].parameters, 0).alpha = alpha;
         rlt::malloc(device, actor_critic);
         rlt::init(device, actor_critic, rng);
 

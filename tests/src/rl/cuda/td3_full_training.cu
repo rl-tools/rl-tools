@@ -50,7 +50,6 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     DEVICE device;
     DEVICE_INIT device_init;
     rlp::OPTIMIZER optimizer;
-    optimizer.parameters.epsilon_sqrt = 0;
 
     rlp::ACTOR_CRITIC_TYPE actor_critic_init;
     rlp::ACTOR_CRITIC_TYPE actor_critic;
@@ -79,6 +78,9 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     p::env::ENVIRONMENT::Parameters env_parameters[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
     rlt::rl::environments::DummyUI ui;
     
+    rlt::malloc(device, optimizer);
+    rlt::init(device, optimizer);
+    rlt::get_ref(device, optimizer.parameters, 0).epsilon_sqrt = 0;
     
     rlt::malloc(device_init, actor_critic_init);
     rlt::malloc(device, actor_critic);

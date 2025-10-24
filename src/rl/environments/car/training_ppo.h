@@ -98,8 +98,8 @@ State* create(int seed){
     rlt::malloc(state->device, state->ts);
     rlt::init(state->device, state->ts, seed);
     rlt::set_all(state->device, state->interactive_action, 0);
-    state->ts.actor_optimizer.parameters.alpha = 1e-3;
-    state->ts.critic_optimizer.parameters.alpha = 1e-3;
+    rlt::get_ref(state->device, state->ts.actor_optimizer.parameters, 0).alpha = 1e-3;
+    rlt::get_ref(state->device, state->ts.critic_optimizer.parameters, 0).alpha = 1e-3;
     return state;
 }
 

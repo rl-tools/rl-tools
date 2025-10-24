@@ -179,16 +179,14 @@ void run(){
 //        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
 //        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
-        rlt::init(device, actor_optimizer);
-        rlt::init(device, critic_optimizer);
-        rlt::get_ref(device, actor_optimizer.parameters, 0).alpha = 3e-4;
-        rlt::get_ref(device, critic_optimizer.parameters, 0).alpha = 3e-4 * 2;
         rlt::init(device);
         rlt::init(device, rng, seed);
         rlt::init(device, evaluation_rng, seed);
         rlt::init(device, on_policy_runner, envs, env_parameters, rng);
         rlt::init(device, observation_normalizer);
         rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
+        rlt::get_ref(device, actor_optimizer.parameters, 0).alpha = 3e-4;
+        rlt::get_ref(device, critic_optimizer.parameters, 0).alpha = 3e-4 * 2;
         rlt::init(device, device.logger);
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
