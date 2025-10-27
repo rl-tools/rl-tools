@@ -8,7 +8,7 @@ project(rl_tools_core)
 set(CMAKE_CXX_STANDARD 17)
 
 option(RL_TOOLS_ENABLE_TARGETS "Enable building the main targets" ON)
-option(RL_TOOLS_ENABLE_TESTS "Enable building the tests" ON)
+option(RL_TOOLS_ENABLE_TESTS "Enable building the tests" OFF)
 option(RL_TOOLS_OFFLINE_BUILD "Use the dependencies in .dependencies without checking for updates (useful after nuking the build directory when offline)" OFF)
 option(RL_TOOLS_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
