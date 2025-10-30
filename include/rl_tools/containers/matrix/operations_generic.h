@@ -844,6 +844,24 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         free(device, output);
         return result;
     }
+    namespace containers::matrix{
+        template <typename T, unsigned M, unsigned N, unsigned K, unsigned LDA, unsigned LDB, unsigned LDC>
+        void generic_gemm_kernel(const T* __restrict__ A, const T* __restrict__ B, T* __restrict__ C){
+            for(unsigned i = 0; i < M; ++i){
+                for(unsigned j = 0; j < N; ++j){
+                    C[i * LDC + j] = 0;
+                }
+            }
+            for(unsigned i = 0; i < M; ++i){
+                for(unsigned j = 0; j < N; ++j){
+                    for(unsigned k = 0; k < K; ++k){
+                        C[i * LDC + j] += A[i * LDA + k] * B[k * LDB + j];
+                    }
+                }
+            }
+        }
+
+    }
     template<bool ACCUMULATE, typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void multiply_generic(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
         static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
@@ -853,18 +871,24 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         using T = typename OUTPUT_SPEC::T;
         using TI = typename DEVICE::index_t;
 
-        for(TI row_i = 0; row_i < OUTPUT_SPEC::ROWS; row_i++){
-            for(TI col_i = 0; col_i < OUTPUT_SPEC::COLS; col_i++){
-                T acc = 0;
-                if constexpr(ACCUMULATE){
-                    acc = get(output, row_i, col_i);
+        if constexpr(utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename INPUT_SPEC_B::T> && utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename OUTPUT_SPEC::T>){
+            containers::matrix::generic_gemm_kernel<typename INPUT_SPEC_A::T, INPUT_SPEC_A::ROWS, INPUT_SPEC_A::COLS, INPUT_SPEC_B::COLS, INPUT_SPEC_A::ROW_PITCH, INPUT_SPEC_B::ROW_PITCH, OUTPUT_SPEC::ROW_PITCH>(A._data, B._data, output._data);
+        }
+        else {
+            for(TI row_i = 0; row_i < OUTPUT_SPEC::ROWS; row_i++){
+                for(TI col_i = 0; col_i < OUTPUT_SPEC::COLS; col_i++){
+                    T acc = 0;
+                    if constexpr(ACCUMULATE){
+                        acc = get(output, row_i, col_i);
+                    }
+                    for(TI k = 0; k < INPUT_SPEC_A::COLS; k++){
+                        acc += get(A, row_i, k) * get(B, k, col_i);
+                    }
+                    set(output, row_i, col_i, acc);
                 }
-                for(TI k = 0; k < INPUT_SPEC_A::COLS; k++){
-                    acc += get(A, row_i, k) * get(B, k, col_i);
-                }
-                set(output, row_i, col_i, acc);
             }
         }
+
     }
     template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void multiply(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
