@@ -845,11 +845,13 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         return result;
     }
     namespace containers::matrix{
-        template <typename T, unsigned M, unsigned N, unsigned K, unsigned LDA, unsigned LDB, unsigned LDC>
+        template <typename T, unsigned M, unsigned N, unsigned K, unsigned LDA, unsigned LDB, unsigned LDC, bool ACCUMULATE>
         void generic_gemm_kernel(const T* __restrict__ A, const T* __restrict__ B, T* __restrict__ C){
-            for(unsigned i = 0; i < M; ++i){
-                for(unsigned j = 0; j < N; ++j){
-                    C[i * LDC + j] = 0;
+            if constexpr(!ACCUMULATE){
+                for(unsigned i = 0; i < M; ++i){
+                    for(unsigned j = 0; j < N; ++j){
+                        C[i * LDC + j] = 0;
+                    }
                 }
             }
             for(unsigned i = 0; i < M; ++i){
@@ -871,8 +873,14 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         using T = typename OUTPUT_SPEC::T;
         using TI = typename DEVICE::index_t;
 
-        if constexpr(utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename INPUT_SPEC_B::T> && utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename OUTPUT_SPEC::T>){
-            containers::matrix::generic_gemm_kernel<typename INPUT_SPEC_A::T, INPUT_SPEC_A::ROWS, INPUT_SPEC_A::COLS, INPUT_SPEC_B::COLS, INPUT_SPEC_A::ROW_PITCH, INPUT_SPEC_B::ROW_PITCH, OUTPUT_SPEC::ROW_PITCH>(A._data, B._data, output._data);
+        if constexpr(utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename INPUT_SPEC_B::T> && utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename OUTPUT_SPEC::T> && INPUT_SPEC_A::COL_PITCH == 1 && INPUT_SPEC_B::COL_PITCH == 1 && OUTPUT_SPEC::COL_PITCH == 1){
+            constexpr TI M = INPUT_SPEC_A::ROWS;
+            constexpr TI N = INPUT_SPEC_B::COLS;
+            constexpr TI K = INPUT_SPEC_A::COLS;
+            constexpr TI LDA = INPUT_SPEC_A::ROW_PITCH;
+            constexpr TI LDB = INPUT_SPEC_B::ROW_PITCH;
+            constexpr TI LDC = OUTPUT_SPEC::ROW_PITCH;
+            containers::matrix::generic_gemm_kernel<typename INPUT_SPEC_A::T, M, N, K, LDA, LDB, LDC, ACCUMULATE>(A._data, B._data, output._data);
         }
         else {
             for(TI row_i = 0; row_i < OUTPUT_SPEC::ROWS; row_i++){
