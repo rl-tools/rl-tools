@@ -119,6 +119,7 @@ namespace rl_tools{
 
         template <typename DEVICE>
         RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char*& output_data, typename DEVICE::index_t& read_size) {
+            // assumptions: entry_name is null-terminated or at least 100 characters long
             using TI = typename DEVICE::index_t;
             char* ptr = const_cast<char*>(tar_data);
             while (ptr <= tar_data + length - BLOCK_SIZE<TI>) {
@@ -130,7 +131,7 @@ namespace rl_tools{
                     break;
                 }
 
-                utils::assert_exit(device, utils::string::compare(h->magic, "ustar", 5), "Warning: Not a UStar format archive or header is corrupted.");
+                if (!utils::assert_exit(device, utils::string::compare(h->magic, "ustar", 5), "Warning: Not a UStar format archive or header is corrupted.")){return false;};
 
                 read_size = utils::string::parse_octal<TI>(h->size, 12);
                 if (utils::string::compare(h->name, entry_name, 100)){
@@ -148,12 +149,14 @@ namespace rl_tools{
         }
         template <typename DEVICE>
         RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
+            // assumptions: entry_name is null-terminated or at least 100 characters long
             using TI = typename DEVICE::index_t;
             char* ptr;
             if(!get(device, tar_data, length, entry_name, ptr, read_size)){
                 return false;
             }
-            utils::assert_exit(device, read_size <= output_size, "persist::backends::tar: Output buffer is too small for the requested entry");
+            if (!utils::assert_exit(device, ptr + read_size <= tar_data + length, "persist::backends::tar: entry size goes beyond tar data size")){return false;};
+            if (!utils::assert_exit(device, read_size <= output_size, "persist::backends::tar: Output buffer is too small for the requested entry")){return false;};
             utils::string::memcpy<TI>(output_data, ptr, read_size);
             return true;
         }
@@ -473,100 +476,15 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
-        using TI = typename DEVICE::index_t;
-        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        TI group_path_length = utils::string::length<TI>(group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
-        TI current_position = group_path_length;
-        if (group_path_length > 0){
-            group_path[group_path_length] = '/';
-            current_position += 1;
-        }
-        utils::string::copy(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        utils::string::copy(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        TI meta_current_position = current_path_length;
-        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
-        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
-            current_path[current_path_length] = '/';
-            meta_current_position += 1;
-        }
-        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        constexpr TI METADATA_SIZE = 100;
-        char metadata[METADATA_SIZE];
-        TI read_size = 0;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
-        metadata[read_size] = '\0';
-        TI type_position = 0;
-        TI type_value_length = 0;
-        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
-        utils::assert_exit(device, utils::string::compare<TI>(metadata + type_position, "matrix", sizeof("matrix")-1), "persist::backends::tar: 'type' is not 'matrix' in metadata");
-
-        persist::backends::tar::containers::matrix::read_metadata<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
-
-        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        using DENSE_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>;
-        Matrix<DENSE_SPEC> matrix_dense;
-        TI data_size;
-        char* data_pointer = nullptr;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_pointer, data_size), "persist::backends::tar: 'data' not found in metadata");
-        utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
-        matrix_dense._data = reinterpret_cast<typename SPEC::T*>(data_pointer);
-        copy(device, device, matrix_dense, matrix);
+    RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
+        auto tensor = to_tensor(device, matrix);
+        return load(device, tensor, group, name);
     }
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void save(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name) {
-        using TI = typename DEVICE::index_t;
-        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        TI group_path_length = utils::string::length(group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
-        TI current_position = group_path_length;
-        if (group_path_length > 0){
-            group_path[group_path_length] = '/';
-            current_position += 1;
-        }
-        utils::string::copy(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        constexpr TI METADATA_SIZE = 100;
-        char metadata[METADATA_SIZE];
-        TI metadata_position = 0;
-        metadata_position += utils::string::copy(metadata, "type: matrix\n", METADATA_SIZE - metadata_position - 1);
-        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>, "Only float32 and float64 are supported for now");
-        if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
-            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position - 1);
-        }
-        else if constexpr(utils::typing::is_same_v<typename SPEC::T, double>){
-            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float64\n", METADATA_SIZE - metadata_position - 1);
-        }
-        persist::backends::tar::containers::matrix::write_metadata<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
-
-        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        utils::string::copy(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
-        TI meta_current_position = current_path_length;
-        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
-            current_path[current_path_length] = '/';
-            meta_current_position += 1;
-        }
-        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
-        utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, *group.writer, current_path, metadata, metadata_position);
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, SPEC::COLS>> matrix_dense;
-        malloc(device, matrix_dense);
-        copy(device, device, matrix, matrix_dense);
-        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Data path and name exceed maximum length");
-        utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        write_entry(device, *group.writer, current_path, reinterpret_cast<const char*>(matrix_dense._data), SPEC::SIZE_BYTES);
-        free(device, matrix_dense);
+        auto tensor = to_tensor(device, matrix);
+        save(device, tensor, group, name);
     }
 
 }

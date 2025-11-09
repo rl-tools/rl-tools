@@ -6,7 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
-    void assert_exit(devices::CPU<DEV_SPEC>& device, bool condition, T message);
+    bool assert_exit(devices::CPU<DEV_SPEC>& device, bool condition, T message);
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

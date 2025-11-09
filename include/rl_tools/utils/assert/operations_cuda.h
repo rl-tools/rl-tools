@@ -6,16 +6,18 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T, typename utils::typing::enable_if<!DEV_SPEC::KERNEL>::type* = nullptr>
-    void assert_exit(devices::CUDA<DEV_SPEC>& dev, bool condition, T message){
+    bool assert_exit(devices::CUDA<DEV_SPEC>& dev, bool condition, T message){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         if(!condition){
             log(dev, dev.logger, message);
             assert(condition);
         }
+        return condition;
     }
     template <typename DEV_SPEC, typename T, typename utils::typing::enable_if<DEV_SPEC::KERNEL>::type* = nullptr>
-    void assert_exit(devices::CUDA<DEV_SPEC>& dev, bool condition, T message){
+    bool assert_exit(devices::CUDA<DEV_SPEC>& dev, bool condition, T message){
         //noop
+        return condition;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
