@@ -46,15 +46,16 @@ namespace rl_tools{
             // this assumes that key is well formed (is terminated)
             constexpr TI MAX_KEY_LENGTH = 100;
             TI key_len = utils::string::length(key, MAX_KEY_LENGTH);
-            utils::assert_exit(device, key_len < MAX_KEY_LENGTH, "persist::backends::tar: Key is too long");
+            if (!utils::assert_exit(device, key_len < MAX_KEY_LENGTH, "persist::backends::tar: Key is too long")){return false;};
             if (key_len >= MAX_KEY_LENGTH){
                 return false;
             }
-            utils::assert_exit(device, key_len + 2 < metadata_size, "persist::backends::tar: Key is longer than metadata size");
+            if (!utils::assert_exit(device, key_len + 2 < metadata_size, "persist::backends::tar: Key is longer than metadata size")){return false;};
             if (key_len + 2 >= metadata_size){
                 return false;
             }
             bool previous_was_newline = true;
+            if (!utils::assert_exit(device, metadata_size >= 2, "persist::backends::tar::seek_in_metadata: metadata_size too small")){return false;};
             for (position = 0; position < metadata_size-key_len-2; position++){
                 if (previous_was_newline && utils::string::compare<TI>(metadata + position, key, key_len) && metadata[position + key_len] == ':'){
                     position += key_len + 2;
@@ -120,6 +121,7 @@ namespace rl_tools{
         template <typename DEVICE>
         RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char*& output_data, typename DEVICE::index_t& read_size) {
             // assumptions: entry_name is null-terminated or at least 100 characters long
+            // assumption: length of tar_data is correct
             using TI = typename DEVICE::index_t;
             char* ptr = const_cast<char*>(tar_data);
             while (ptr <= tar_data + length - BLOCK_SIZE<TI>) {
@@ -169,7 +171,7 @@ namespace rl_tools{
                     char dim_key[DIM_KEY_LENGTH];
                     char dim_value[DIM_VALUE_LENGTH];
                     TI pos = 0;
-                    pos += utils::string::copy(dim_key, "dim_", DIM_KEY_LENGTH-1);
+                    pos += utils::string::copy(dim_key, "dim_", DIM_KEY_LENGTH);
                     pos += utils::string::int_to_string<TI, TI>(dim_key + pos, DIM_KEY_LENGTH - pos - 1, DIM);
                     pos += utils::string::copy(dim_key + pos, ": ", DIM_KEY_LENGTH - pos - 1);
                     metadata_position += utils::string::copy(metadata + metadata_position, dim_key, METADATA_SIZE - metadata_position - 1);
@@ -180,7 +182,7 @@ namespace rl_tools{
                 }
             }
             template <typename DEVICE, typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
-            RL_TOOLS_FUNCTION_PLACEMENT void dim_helper_read(DEVICE& device, char* metadata){
+            RL_TOOLS_FUNCTION_PLACEMENT bool dim_helper_read(DEVICE& device, char* metadata){
                 static_assert(SPEC::SHAPE::LENGTH <= 9, "Only tensors with up to 9 dimensions are supported for now");
                 char key[] = "dim_0";
                 key[4] = '0' + DIM;
@@ -189,8 +191,11 @@ namespace rl_tools{
                     TI type_value_length;
                     utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, key, type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
                     TI value = utils::string::string_to_int<TI>(metadata + type_position, type_value_length);
-                    utils::assert_exit(device, value == SPEC::SHAPE::template GET<DIM>, "persist::backends::tar: Dimension mismatch in metadata");
-                    dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE, DIM + 1>(device, metadata);
+                    if (!utils::assert_exit(device, value == SPEC::SHAPE::template GET<DIM>, "persist::backends::tar: Dimension mismatch in metadata")){return false;};
+                    return dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE, DIM + 1>(device, metadata);
+                }
+                else{
+                    return true;
                 }
             }
 
@@ -229,15 +234,22 @@ namespace rl_tools{
     }
 
     namespace persist::backends::tar{
+        template <typename T>
+        struct Optional{
+            T value;
+            bool set;
+        };
         template<typename DEVICE, typename GROUP>
         GROUP create_group(DEVICE& device, GROUP& group, const char* name) {
+            // assumes name to be 100 characters or null terminated
             using TI = typename DEVICE::index_t;
             using GROUP_SPEC = typename GROUP::SPEC;
             GROUP new_group = group;
+            new_group.success = true;
             utils::string::copy(new_group.path, group.path, GROUP_SPEC::MAX_PATH_LENGTH);
-            TI group_path_length = utils::string::length(new_group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-            TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
-            utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length");
+            TI group_path_length = utils::string::length(new_group.path, GROUP_SPEC::MAX_PATH_LENGTH);
+            TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH);
+            if (!(new_group.success = utils::assert_exit(device, group_path_length + 1 + name_length <= GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Group path and name exceed maximum length"))){return new_group;};
             TI current_position = group_path_length;
             if (group_path_length > 0){
                 new_group.path[group_path_length] = '/';
@@ -363,62 +375,48 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name) {
+        // assumes name to be GROUP_SPEC::MAX_PATH_LENGTH = 100 characters or null terminated
         using TI = typename DEVICE::index_t;
-        // char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        // TI group_path_length = utils::string::length(group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        // if (group_path_length == GROUP_SPEC::MAX_PATH_LENGTH-1){
-        //     utils::assert_exit(device, false, "persist::backends::tar: Group path length exceeds maximum length");
-        //     return false;
-        // }
-        // utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        // TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        // if (group_path_length + 1 + name_length >= GROUP_SPEC::MAX_PATH_LENGTH-1){
-        //     utils::assert_exit(device, false, "persist::backends::tar: Group path and name exceed maximum length");
-        //     return false;
-        // }
-        // TI current_position = group_path_length;
-        // if (group_path_length > 0){
-        //     group_path[group_path_length] = '/';
-        //     current_position += 1;
-        // }
-        // utils::string::copy(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 2);
         auto tensor_group = get_group(device, group, name);
-
+        if (!utils::assert_exit(device, tensor_group.success, "persist::backends::tar: Failed to get tensor group")){return false;};
         char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
-        utils::string::copy<TI>(current_path, tensor_group.path, GROUP_SPEC::MAX_PATH_LENGTH-1);
-        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH-1);
+        utils::string::copy<TI>(current_path, tensor_group.path, GROUP_SPEC::MAX_PATH_LENGTH);
+        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH);
         TI meta_current_position = current_path_length;
-        utils::assert_exit(device, current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length");
-        if (current_path_length > 0 && current_path_length + 2 < GROUP_SPEC::MAX_PATH_LENGTH){
+        if (!utils::assert_exit(device, current_path_length + 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Current path length exceeds maximum length")){return false;};
+        if (current_path_length > 0 && current_path_length + 1 < GROUP_SPEC::MAX_PATH_LENGTH){
             current_path[current_path_length] = '/';
+            if (current_path_length < GROUP_SPEC::MAX_PATH_LENGTH-1){
+                current_path[current_path_length + 1] = '\0';
+            }
             meta_current_position += 1;
         }
-        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        if (!utils::assert_exit(device, current_path_length + 1 + (sizeof("meta")-1) <= GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length")){return false;};
         utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
         constexpr TI METADATA_SIZE = 100;
         char metadata[METADATA_SIZE];
         TI read_size = 0;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
+        if (!utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive")){return false;};
         metadata[read_size] = '\0';
         TI type_position = 0;
         TI type_value_length = 0;
-        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata");
-        utils::assert_exit(device, utils::string::copy(metadata + type_position, "tensor", sizeof("tensor")-1), "persist::backends::tar: 'type' is not 'tensor' in metadata");
+        if (!utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata")){return false;};
+        if (!utils::assert_exit(device, utils::string::compare(metadata + type_position, "tensor", sizeof("tensor")-1), "persist::backends::tar: 'type' is not 'tensor' in metadata")){return false;};
 
         // constexpr TI MAX_VALUE_LENGTH = 20;
         // char value[MAX_VALUE_LENGTH];
         // utils::string::copy(value, metadata + type_position, type_value_length + 1 < MAX_VALUE_LENGTH ? type_value_length + 1 : MAX_VALUE_LENGTH);
         // std::cout << "type: " << value << std::endl;
-        persist::backends::tar::containers::tensor::dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata);
+        if (!utils::assert_exit(device, persist::backends::tar::containers::tensor::dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata), "persist::backends::tar::load(Tensor) dimension mismatch")){return false;};
 
-        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
+        if (!utils::assert_exit(device, current_path_length + 1 + (sizeof("data")-1) < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length")){return false;};
         utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
         using DENSE_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE>;
         Tensor<DENSE_SPEC> tensor_dense;
         TI data_size;
         char* data_ptr = nullptr;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_ptr, data_size), "persist::backends::tar: 'data' not found in metadata");
-        utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch");
+        if (!utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_ptr, data_size), "persist::backends::tar: 'data' not found in metadata")){return false;};
+        if (!utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch")){return false;};
         tensor_dense._data = reinterpret_cast<typename SPEC::T*>(data_ptr);
         copy(device, device, tensor_dense, tensor);
         return true;

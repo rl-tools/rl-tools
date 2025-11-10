@@ -44,6 +44,7 @@ namespace rl_tools::persist::backends::tar {
         WRITER* writer = nullptr;
         char meta[SPEC::META_SIZE] = "";
         TI meta_position = 0;
+        bool success = true;
     };
     template <typename T_TI>
     struct ReaderGroupSpecification{
@@ -57,6 +58,7 @@ namespace rl_tools::persist::backends::tar {
         char path[SPEC::MAX_PATH_LENGTH] = "";
         const char* data = nullptr;
         TI size = 0;
+        bool success = true;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

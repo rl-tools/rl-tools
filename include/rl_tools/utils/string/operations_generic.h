@@ -24,7 +24,6 @@ namespace rl_tools::utils::string{
                 return i;
             }
         }
-        dest[n] = '\0';
         return n;
     }
     template <typename TI>
