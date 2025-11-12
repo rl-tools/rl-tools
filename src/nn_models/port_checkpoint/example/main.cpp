@@ -8,14 +8,14 @@ constexpr unsigned SEED = 0;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
 #define RL_TOOLS_NAMESPACE_WRAPPER base
-#include "rl_tools/base/include/rl_tools/operations/cpu.h"
-#include "rl_tools/base/include/rl_tools/nn/layers/gru/operations_generic.h"
-#include "rl_tools/base/include/rl_tools/nn/layers/dense/operations_generic.h"
-#include "rl_tools/base/include/rl_tools/nn_models/sequential/operations_generic.h"
+#include "base/include/rl_tools/operations/cpu.h"
+#include "base/include/rl_tools/nn/layers/gru/operations_generic.h"
+#include "base/include/rl_tools/nn/layers/dense/operations_generic.h"
+#include "base/include/rl_tools/nn_models/sequential/operations_generic.h"
 
-#include "rl_tools/base/include/rl_tools/nn/layers/gru/persist.h"
-#include "rl_tools/base/include/rl_tools/nn/layers/dense/persist.h"
-#include "rl_tools/base/include/rl_tools/nn_models/sequential/persist.h"
+#include "base/include/rl_tools/nn/layers/gru/persist.h"
+#include "base/include/rl_tools/nn/layers/dense/persist.h"
+#include "base/include/rl_tools/nn_models/sequential/persist.h"
 
 namespace base{
     namespace rlt = rl_tools;
