@@ -56,6 +56,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 #endif
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 #include "parameters.h"

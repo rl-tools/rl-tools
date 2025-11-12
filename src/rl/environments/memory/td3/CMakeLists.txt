@@ -1,6 +1,6 @@
 if(RL_TOOLS_ENABLE_ZLIB AND RL_TOOLS_EXPERIMENTAL)
 add_executable(rl_environments_memory_td3 memory.cpp)
-target_link_libraries(rl_environments_memory_td3 PRIVATE rl_tools)
+target_link_libraries(rl_environments_memory_td3 PRIVATE RLtools::RLtools)
 target_compile_options(rl_environments_memory_td3 PRIVATE -ftemplate-backtrace-limit=0)
 #if(RL_TOOLS_ENABLE_TRACY)
 #    target_link_libraries(rl_environments_memory_td3 PRIVATE Tracy::TracyClient)

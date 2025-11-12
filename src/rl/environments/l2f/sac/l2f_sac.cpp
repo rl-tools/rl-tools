@@ -64,6 +64,7 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 #include "parameters.h"

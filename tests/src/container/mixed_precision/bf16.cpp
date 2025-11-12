@@ -1,4 +1,5 @@
 // #define RL_TOOLS_NAMESPACE_WRAPPER test
+#define RL_TOOLS_NUMERIC_TYPES_ENABLE_BF16
 #include <rl_tools/numeric_types/bf16.h>
 #include <rl_tools/operations/cpu.h>
 namespace rlt = rl_tools;
@@ -8,7 +9,7 @@ namespace rlt = rl_tools;
 #include <bitset>
 
 using _T = __bf16;
-using T = rlt::numeric_types::bfloat16;
+using T = rlt::numeric_types::bf16;
 #include <cstdint>
 #include <cstring>  // for std::memcpy
 #include <cmath>
@@ -79,20 +80,20 @@ void scatter(const std::map<std::string, std::pair<std::vector<double>, std::vec
 static_assert(sizeof(_T) == 2);
 static_assert(sizeof(T) == 2);
 
-bool sign(rlt::numeric_types::bfloat16 x) {
+bool sign(rlt::numeric_types::bf16 x) {
     uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
     bool sign = (x_ptr[0] >> 15) & 1;
     return sign;
 }
 
-uint16_t exponent(rlt::numeric_types::bfloat16 x) {
+uint16_t exponent(rlt::numeric_types::bf16 x) {
     uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
     uint16_t exponent_pre = (x_ptr[0] & 0b0111111110000000) >> 7;
     std::cout << "exponent pre: " << std::bitset<8>(exponent_pre) << " value: " << exponent_pre << std::endl;
     int16_t exponent = static_cast<int32_t>(exponent_pre) - 127;
     return exponent;
 }
-uint16_t mantissa(rlt::numeric_types::bfloat16 x) {
+uint16_t mantissa(rlt::numeric_types::bf16 x) {
     uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
     uint16_t mantissa_pre = x_ptr[0] & 0b0000000001111111;
     std::cout << "mantissa pre: " << std::bitset<7>(mantissa_pre) << " value: " << mantissa_pre + 128 << std::endl;
@@ -100,16 +101,16 @@ uint16_t mantissa(rlt::numeric_types::bfloat16 x) {
     return mantissa;
 }
 
-bool compare(rlt::numeric_types::bfloat16 x, __bf16 y) {
+bool compare(rlt::numeric_types::bf16 x, __bf16 y) {
     uint16_t* x_ptr = reinterpret_cast<uint16_t*>(&x);
     uint16_t* y_ptr = reinterpret_cast<uint16_t*>(&y);
     return std::bitset<16>(*x_ptr) == std::bitset<16>(*y_ptr);
 }
 
 TEST(TEST_CONTAINER_MIXED_PRECISION_BF16, MAIN) {
-    T a = 1000.0, b = 0.1;
+    T a = (T)1000.0, b = (T)0.1;
     _T _a = __bf16(1000.0), _b = __bf16(0.1);
-    a += rlt::numeric_types::bfloat16(1);
+    a += rlt::numeric_types::bf16(1);
     ASSERT_EQ(static_cast<float>(a), 1000);
     _a += __bf16(1);
     ASSERT_EQ(static_cast<float>(a), (float)_a);
@@ -132,7 +133,7 @@ std::tuple<double, double, double> test(DEVICE& device){
     constexpr TI UNIDIM = 128;
     using T_FP32 = float;
     using T_FP64 = double;
-    using T_BF16 = rlt::numeric_types::bfloat16;
+    using T_BF16 = rlt::numeric_types::bf16;
     typename DEVICE::SPEC::RANDOM::template ENGINE<> rng;
     rlt::Matrix<rlt::matrix::Specification<T_BF16, TI, M, K>> A_BF16;
     rlt::Matrix<rlt::matrix::Specification<T_BF16, TI, K, N>> B_BF16;

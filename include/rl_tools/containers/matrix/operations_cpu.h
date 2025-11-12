@@ -103,7 +103,7 @@ namespace rl_tools{
         TC * RL_TOOLS_RESTRICT C_data = C._data;
 
         for (TI i = 0; i < M * N; ++i) {
-            C_data[i] = 0.0f;
+            C_data[i] = (TC)0.0f;
         }
 
         for (TI i = 0; i < M; ++i) {
@@ -138,7 +138,7 @@ namespace rl_tools{
 
         // Initialize C to zero
         for (TI i = 0; i < M * N; ++i) {
-            C_data[i] = 0.0f;
+            C_data[i] = (TC) 0.0f;
         }
 
         for (TI ii = 0; ii < M; ii += blockSize){
