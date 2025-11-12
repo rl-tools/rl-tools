@@ -10,7 +10,7 @@
   <img src="https://github.com/rl-tools/rl-tools/actions/workflows/tests-tier3.yml/badge.svg" alt="Unit Tests">
   </a>
   <a href="https://codecov.io/gh/rl-tools/rl-tools" >
-  <img src="https://codecov.io/gh/rl-tools/rl-tools/graph/badge.svg?token=3TJZ635O8V"/>
+  <img src="https://codecov.io/gh/rl-tools/rl-tools/branch/main/graph/badge.svg?token=3TJZ635O8V"/>
   </a>
   <a href="https://docs.rl.tools">
   <img src="https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue.svg" alt="Documentation">
