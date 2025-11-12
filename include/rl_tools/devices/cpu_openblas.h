@@ -28,6 +28,7 @@ namespace rl_tools::devices{
     };
     using DefaultCPU_OPENBLAS = CPU_OPENBLAS<DefaultCPUSpecification>;
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC>

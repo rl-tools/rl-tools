@@ -212,5 +212,5 @@ namespace rl_tools::nn::layers::gru{
         using Layer = nn::layers::gru::Layer<T_CONFIG, CAPABILITY, INPUT_SHAPE>;
     };
 }
-
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

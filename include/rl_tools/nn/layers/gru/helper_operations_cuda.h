@@ -236,4 +236,5 @@ namespace rl_tools::nn::layers::gru::helper{
         check_status(device);
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

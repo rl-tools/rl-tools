@@ -86,5 +86,6 @@ namespace rl_tools{
         }
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

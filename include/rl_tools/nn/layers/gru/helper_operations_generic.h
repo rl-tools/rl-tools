@@ -154,4 +154,5 @@ namespace rl_tools::nn::layers::gru::helper{
     }
 
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
