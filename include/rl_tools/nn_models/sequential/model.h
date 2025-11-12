@@ -215,9 +215,12 @@ namespace rl_tools::nn_models::sequential{
     };
 
     template <typename T_SPEC>
-    struct ModuleBackward: public ModuleForward<T_SPEC>{};
+    struct ModuleBackward: public ModuleForward<T_SPEC>{
+        using PARENT = ModuleForward<T_SPEC>;
+    };
     template <typename T_SPEC>
     struct ModuleGradient: public ModuleBackward<T_SPEC>{
+        using PARENT = ModuleBackward<T_SPEC>;
         using TI = typename T_SPEC::TI;
     };
 

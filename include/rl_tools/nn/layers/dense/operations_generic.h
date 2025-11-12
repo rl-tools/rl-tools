@@ -240,13 +240,32 @@ namespace rl_tools{
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source, nn::layers::dense::LayerBackward<TARGET_SPEC>& target){
         static_assert(nn::layers::dense::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
-        copy(source_device, target_device, (nn::layers::dense::LayerForward<SOURCE_SPEC>&) source, (nn::layers::dense::LayerForward<TARGET_SPEC>&) target);
+        copy(source_device, target_device, static_cast<const nn::layers::dense::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::dense::LayerForward<TARGET_SPEC>&>(target));
         copy(source_device, target_device, source.pre_activations, target.pre_activations);
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::dense::LayerGradient<SOURCE_SPEC>& source, nn::layers::dense::LayerGradient<TARGET_SPEC>& target){
         static_assert(nn::layers::dense::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
-        copy(source_device, target_device, (nn::layers::dense::LayerBackward<SOURCE_SPEC>&)source, (nn::layers::dense::LayerBackward<TARGET_SPEC>&)target);
+        copy(source_device, target_device, static_cast<const nn::layers::dense::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::dense::LayerBackward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, source.output, target.output);
+
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target){
+        static_assert(nn::layers::dense::check_spec_memory<typename SOURCE::SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, source.weights, target.weights);
+        copy(source_device, target_device, source.biases, target.biases);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::dense::LayerBackward<TARGET_SPEC>& target){
+        static_assert(nn::layers::dense::check_spec_memory<typename SOURCE::SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, static_cast<const typename SOURCE::PARENT&>(source), static_cast<nn::layers::dense::LayerForward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, source.pre_activations, target.pre_activations);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::dense::LayerGradient<TARGET_SPEC>& target){
+        static_assert(nn::layers::dense::check_spec_memory<typename SOURCE::SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, static_cast<const typename SOURCE::PARENT&>(source), static_cast<nn::layers::dense::LayerBackward<TARGET_SPEC>&>(target));
         copy(source_device, target_device, source.output, target.output);
 
     }
