@@ -315,7 +315,7 @@ namespace rl_tools{
         static_assert(tensor::same_dimensions<typename FROM::SPEC, TO_SPEC>());
         static_assert(tensor::same_dimensions_shape<typename FROM::SPEC::STRIDE, typename TO_SPEC::STRIDE>());
 #endif
-        Tensor<tensor::Specification<typename FROM::SPEC::T, typename TO_DEVICE::index_t, typename TO_SPEC::SHAPE, true, typename TO_SPEC::STRIDE>> temp_from;
+        Tensor<tensor::Specification<typename FROM::SPEC::T, typename TO_DEVICE::index_t, typename TO_SPEC::SHAPE, true, typename TO_SPEC::STRIDE, true>> temp_from;
         temp_from._data = from._data;
         copy(from_device, to_device, temp_from, to);
     }
