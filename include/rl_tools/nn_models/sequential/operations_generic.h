@@ -440,6 +440,13 @@ namespace rl_tools{
             copy(source_device, target_device, source.next_module, target.next_module);
         }
     }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target){
+        copy_from_generic(source_device, target_device, source.content, target.content);
+        if constexpr(!utils::typing::is_same_v<typename TARGET_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            copy_from_generic(source_device, target_device, source.next_module, target.next_module);
+        }
+    }
 
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::sequential::ModuleForward<SPEC_A>& a, const nn_models::sequential::ModuleForward<SPEC_B>& b){

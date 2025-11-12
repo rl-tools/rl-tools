@@ -236,6 +236,15 @@ namespace rl_tools {
         }
         copy(source_device, target_device, source.output_layer, target.output_layer);
     }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>& target){
+        static_assert(rl_tools::nn_models::mlp::check_spec_memory<SOURCE, TARGET_SPEC>, "The source and target network must have the same structure");
+        copy(source_device, target_device, source.input_layer, target.input_layer);
+        for(typename SOURCE::TI layer_i = 0; layer_i <  SOURCE::NUM_HIDDEN_LAYERS; layer_i++){
+            copy(source_device, target_device, source.hidden_layers[layer_i], target.hidden_layers[layer_i]);
+        }
+        copy(source_device, target_device, source.output_layer, target.output_layer);
+    }
 
 //    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
 //    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target){
