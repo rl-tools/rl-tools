@@ -846,7 +846,7 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
     }
     namespace containers::matrix{
         template <typename T, unsigned M, unsigned N, unsigned K, unsigned LDA, unsigned LDB, unsigned LDC, bool ACCUMULATE>
-        void generic_gemm_kernel(const T* __restrict__ A, const T* __restrict__ B, T* __restrict__ C){
+        void generic_gemm_kernel(const T* __restrict A, const T* __restrict B, T* __restrict C){
             if constexpr(!ACCUMULATE){
                 for(unsigned i = 0; i < M; ++i){
                     for(unsigned j = 0; j < N; ++j){
