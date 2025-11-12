@@ -54,7 +54,7 @@ using LOGGER = rlt::devices::logging::CPU;
 using DEV_SPEC_SUPER = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
 using TI = typename rlt::devices::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
+    struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
