@@ -42,6 +42,7 @@ namespace base{
 #define RL_TOOLS_NAMESPACE_WRAPPER_START namespace RL_TOOLS_NAMESPACE_WRAPPER {
 #define RL_TOOLS_NAMESPACE_WRAPPER_END }
 #define RL_TOOLS_DISABLE_INCLUDE_GUARDS
+#define RL_TOOLS_CONTAINERS_TENSOR_COPY_FROM_GENERIC_DISABLE_SHAPE_CHECK
 
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
@@ -89,7 +90,7 @@ int main(){
     base::rlt::malloc(base_device, base_input);
     base::rlt::malloc(base_device, base_output);
     base::rlt::init(base_device);
-    base::rlt::init(base_device, base_rng, SEED);
+    base::rlt::init(base_device, base_rng, SEED + 1);
     base::rlt::init_weights(base_device, base_policy, base_rng);
     base::rlt::randn(base_device, base_input, base_rng);
     base::rlt::evaluate(base_device, base_policy, base_input, base_output, base_policy_buffer, base_rng);
@@ -101,18 +102,42 @@ int main(){
     target::POLICY::Buffer<DYNAMIC_ALLOCATION> target_policy_buffer;
     target::rlt::Tensor<target::rlt::tensor::Specification<T, target::TI, typename target::POLICY::INPUT_SHAPE>> target_input;
     target::rlt::Tensor<target::rlt::tensor::Specification<T, target::TI, typename target::POLICY::OUTPUT_SHAPE>> target_output;
+    target::rlt::Tensor<target::rlt::tensor::Specification<T, target::TI, typename target::POLICY::OUTPUT_SHAPE>> target_base_output;
     target::rlt::malloc(target_device);
     target::rlt::malloc(target_device, target_rng);
     target::rlt::malloc(target_device, target_policy);
     target::rlt::malloc(target_device, target_policy_buffer);
     target::rlt::malloc(target_device, target_input);
     target::rlt::malloc(target_device, target_output);
+    target::rlt::malloc(target_device, target_base_output);
     target::rlt::init(target_device);
     target::rlt::init(target_device, target_rng, SEED);
     target::rlt::init_weights(target_device, target_policy, target_rng);
     target::rlt::randn(target_device, target_input, target_rng);
-    target::rlt::evaluate(target_device, target_policy, target_input, target_output, target_policy_buffer, target_rng);
-    target::rlt::print(target_device, target_output);
+
+    {
+        target::rlt::evaluate(target_device, target_policy, target_input, target_output, target_policy_buffer, target_rng);
+        // target::rlt::print(target_device, target_output);
+        target::rlt::copy_from_generic(target_device, base_device, base_output, target_base_output);
+
+        T abs_diff = target::rlt::abs_diff(target_device, target_base_output, target_output);
+
+        std::cout << "Difference pre copy: " << abs_diff << std::endl;
+    }
+
+    target::rlt::copy_from_generic(base_device, target_device, base_input, target_input);
+    target::rlt::copy_from_generic(base_device, target_device, base_policy, target_policy);
+
+    {
+        target::rlt::evaluate(target_device, target_policy, target_input, target_output, target_policy_buffer, target_rng);
+        // target::rlt::print(target_device, target_output);
+        target::rlt::copy_from_generic(target_device, base_device, base_output, target_base_output);
+
+        T abs_diff = target::rlt::abs_diff(target_device, target_base_output, target_output);
+
+        std::cout << "Difference post copy: " << abs_diff << std::endl;
+    }
+
 
 
     return 0;

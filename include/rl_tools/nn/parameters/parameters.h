@@ -64,6 +64,7 @@ namespace rl_tools::nn::parameters{
         };
         template <typename T_SPEC>
         struct Instance: Plain::Instance<T_SPEC>{
+            using PARENT = Plain::Instance<T_SPEC>;
             using SPEC = T_SPEC;
             using T_GRADIENT = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
             using TENSOR_SPEC = tensor::Specification<T_GRADIENT, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;

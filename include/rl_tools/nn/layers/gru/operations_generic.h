@@ -805,6 +805,28 @@ namespace rl_tools{
         copy(source_device, target_device, static_cast<const nn::layers::gru::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::gru::LayerBackward<TARGET_SPEC>&>(target));
     }
 
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target){
+        copy_from_generic(source_device, target_device, source.weights_input, target.weights_input);
+        copy_from_generic(source_device, target_device, source.biases_input, target.biases_input);
+        copy_from_generic(source_device, target_device, source.weights_hidden, target.weights_hidden);
+        copy_from_generic(source_device, target_device, source.biases_hidden, target.biases_hidden);
+        copy_from_generic(source_device, target_device, source.initial_hidden_state, target.initial_hidden_state);
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::gru::LayerBackward<TARGET_SPEC>& target){
+        copy_from_generic(source_device, target_device, static_cast<const typename SOURCE::PARENT&>(source), static_cast<nn::layers::gru::LayerForward<TARGET_SPEC>&>(target));
+        if constexpr(tensor::same_dimensions_shape<typename SOURCE::SPEC::INPUT_SHAPE, typename TARGET_SPEC::INPUT_SHAPE>()){
+            copy_from_generic(source_device, target_device, source.post_activation, target.post_activation);
+            copy_from_generic(source_device, target_device, source.n_pre_pre_activation, target.n_pre_pre_activation);
+            copy_from_generic(source_device, target_device, source.output, target.output);
+        }
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::gru::LayerGradient<TARGET_SPEC>& target){
+        copy_from_generic(source_device, target_device, static_cast<const typename SOURCE::SPEC&>(source), static_cast<nn::layers::gru::LayerBackward<TARGET_SPEC>&>(target));
+    }
+
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::gru::buffers::Evaluation<SOURCE_SPEC>& source, nn::layers::gru::buffers::Evaluation<TARGET_SPEC>& target){
         copy(source_device, target_device, source.post_activation, target.post_activation);

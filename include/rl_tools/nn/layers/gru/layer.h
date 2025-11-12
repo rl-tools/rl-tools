@@ -164,6 +164,7 @@ namespace rl_tools::nn::layers::gru{
 
     template<typename T_SPEC>
     struct LayerBackward: LayerForward<T_SPEC>{
+        using PARENT = LayerForward<T_SPEC>;
         using SPEC = T_SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
@@ -182,6 +183,7 @@ namespace rl_tools::nn::layers::gru{
     };
     template<typename T_SPEC>
     struct LayerGradient: LayerBackward<T_SPEC>{
+        using PARENT = LayerBackward<T_SPEC>;
         using TI = typename T_SPEC::TI;
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = buffers::Backward<buffers::Specification<T_SPEC, DYNAMIC_ALLOCATION>>;

@@ -309,6 +309,16 @@ namespace rl_tools{
             }
         }
     }
+    template<typename FROM_DEVICE, typename TO_DEVICE, typename FROM, typename TO_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(FROM_DEVICE& from_device, TO_DEVICE& to_device, const FROM& from, Tensor<TO_SPEC>& to){
+#ifndef RL_TOOLS_CONTAINERS_TENSOR_COPY_FROM_GENERIC_DISABLE_SHAPE_CHECK
+        static_assert(tensor::same_dimensions<typename FROM::SPEC, TO_SPEC>());
+        static_assert(tensor::same_dimensions_shape<typename FROM::SPEC::STRIDE, typename TO_SPEC::STRIDE>());
+#endif
+        Tensor<tensor::Specification<typename FROM::SPEC::T, typename TO_DEVICE::index_t, typename TO_SPEC::SHAPE, true, typename TO_SPEC::STRIDE>> temp_from;
+        temp_from._data = from._data;
+        copy(from_device, to_device, temp_from, to);
+    }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void randn(DEVICE& device, Tensor<SPEC>& t, RNG& rng){
         using T = typename SPEC::T;

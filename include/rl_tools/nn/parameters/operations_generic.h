@@ -41,6 +41,17 @@ namespace rl_tools{
         copy(source_device, target_device, source.gradient, target.gradient);
     }
 
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::parameters::Plain::Instance<TARGET_SPEC>& target){
+        copy_from_generic(source_device, target_device, source.parameters, target.parameters);
+    }
+
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::parameters::Gradient::Instance<TARGET_SPEC>& target){
+        copy_from_generic(source_device, target_device, static_cast<typename SOURCE::PARENT&>(source), static_cast<nn::parameters::Plain::Instance<TARGET_SPEC>&>(target));
+        copy_from_generic(source_device, target_device, source.gradient, target.gradient);
+    }
+
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, const nn::parameters::Plain::Instance<SPEC_1>& p1, const nn::parameters::Plain::Instance<SPEC_2>& p2){
         typename decltype(p1.parameters)::SPEC::T acc = 0;

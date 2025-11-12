@@ -253,20 +253,20 @@ namespace rl_tools{
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::dense::LayerForward<TARGET_SPEC>& target){
         static_assert(nn::layers::dense::check_spec_memory<typename SOURCE::SPEC, TARGET_SPEC>);
-        copy(source_device, target_device, source.weights, target.weights);
-        copy(source_device, target_device, source.biases, target.biases);
+        copy_from_generic(source_device, target_device, source.weights, target.weights);
+        copy_from_generic(source_device, target_device, source.biases, target.biases);
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::dense::LayerBackward<TARGET_SPEC>& target){
         static_assert(nn::layers::dense::check_spec_memory<typename SOURCE::SPEC, TARGET_SPEC>);
-        copy(source_device, target_device, static_cast<const typename SOURCE::PARENT&>(source), static_cast<nn::layers::dense::LayerForward<TARGET_SPEC>&>(target));
-        copy(source_device, target_device, source.pre_activations, target.pre_activations);
+        copy_from_generic(source_device, target_device, static_cast<const typename SOURCE::PARENT&>(source), static_cast<nn::layers::dense::LayerForward<TARGET_SPEC>&>(target));
+        copy_from_generic(source_device, target_device, source.pre_activations, target.pre_activations);
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, nn::layers::dense::LayerGradient<TARGET_SPEC>& target){
         static_assert(nn::layers::dense::check_spec_memory<typename SOURCE::SPEC, TARGET_SPEC>);
-        copy(source_device, target_device, static_cast<const typename SOURCE::PARENT&>(source), static_cast<nn::layers::dense::LayerBackward<TARGET_SPEC>&>(target));
-        copy(source_device, target_device, source.output, target.output);
+        copy_from_generic(source_device, target_device, static_cast<const typename SOURCE::PARENT&>(source), static_cast<nn::layers::dense::LayerBackward<TARGET_SPEC>&>(target));
+        copy_from_generic(source_device, target_device, source.output, target.output);
 
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
