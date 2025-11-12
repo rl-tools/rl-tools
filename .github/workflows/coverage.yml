@@ -70,6 +70,7 @@ jobs:
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DRL_TOOLS_ENABLE_TESTS=ON
+          -DRL_TOOLS_TESTS_CODE_COVERAGE=ON
           -S ${{ github.workspace }}
           ${{ matrix.rl_tools_backend }}
           
