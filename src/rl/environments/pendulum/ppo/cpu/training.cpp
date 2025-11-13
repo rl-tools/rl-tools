@@ -24,6 +24,9 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+
+#include <utility> // for std::declval (which is needed to prevent MSVC from erroring out on too deeply nested struct init)
+
 #ifdef RL_TOOLS_ENABLE_JSON
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -51,7 +54,7 @@ using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;
 static constexpr TI NUM_EPISODES_FINAL_EVAL = 1000;
 using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, CONFIG::ENVIRONMENT::EPISODE_STEP_LIMIT>;
 
-using POLICY = rlt::utils::typing::remove_reference_t<decltype(rlt::get_actor(LOOP_STATE{}))>;
+using POLICY = rlt::utils::typing::remove_reference_t<decltype(rlt::get_actor(std::declval<LOOP_STATE>()))>;
 using EVAL_BUFFER = rlt::rl::utils::evaluation::PolicyBuffer<rlt::rl::utils::evaluation::PolicyBufferSpecification<EVAL_SPEC, POLICY, DYNAMIC_ALLOCATION>>;
 
 EVAL_BUFFER eval_buffer;

@@ -5,10 +5,6 @@
 #include "base/include/rl_tools/nn/layers/dense/operations_generic.h"
 #include "base/include/rl_tools/nn_models/sequential/operations_generic.h"
 
-#include "base/include/rl_tools/nn/layers/gru/persist.h"
-#include "base/include/rl_tools/nn/layers/dense/persist.h"
-#include "base/include/rl_tools/nn_models/sequential/persist.h"
-
 #include "raptor_policy/policy.h"
 
 using T = float;
@@ -39,9 +35,18 @@ namespace base{
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/nn/layers/gru/persist.h>
-#include <rl_tools/nn/layers/dense/persist.h>
-#include <rl_tools/nn_models/sequential/persist.h>
+
+#include <rl_tools/numeric_types/persist_code.h>
+#include <rl_tools/containers/matrix/persist_code.h>
+#include <rl_tools/containers/tensor/persist_code.h>
+#include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
+#include <rl_tools/nn/layers/gru/persist_code.h>
+#include <rl_tools/nn/layers/dense/persist_code.h>
+#include <rl_tools/nn_models/sequential/persist_code.h>
+
+
+#include <fstream>
+#include <filesystem>
 
 namespace target{
     namespace rlt = rl_tools;
@@ -123,8 +128,34 @@ int main(){
         }
     }
 
+    const std::filesystem::path this_file = __FILE__;
+    const std::filesystem::path this_dir  = this_file.parent_path();
+    const std::filesystem::path converted_checkpoint_path = this_dir / "policy.h";
+    std::string code = target::rlt::save_code(target_device, target_policy, "rl_tools::checkpoint::actor");
 
+    std::ofstream ofs(converted_checkpoint_path);
+    ofs << code;
+    {
+        target::rlt::Tensor<target::rlt::tensor::Specification<T, target::TI, target::POLICY::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
+        target::rlt::Tensor<target::rlt::tensor::Specification<T, target::TI, target::POLICY::OUTPUT_SHAPE, DYNAMIC_ALLOCATION>> output;
+        target::POLICY::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
+        target::rlt::malloc(target_device, input);
+        target::rlt::malloc(target_device, output);
+        target::rlt::malloc(target_device, actor_buffer);
+        target::rlt::randn(target_device, input, target_rng);
+        target::rlt::Mode<target::rlt::mode::Evaluation<>> mode;
+        target::rlt::evaluate(target_device, target_policy, input, output, actor_buffer, target_rng, mode);
+        ofs << "\n" << target::rlt::save_code(target_device, target_input, std::string("rl_tools::checkpoint::example::input"), true);
+        ofs << "\n" << target::rlt::save_code(target_device, target_original_output, std::string("rl_tools::checkpoint::example::output"), true);
+        target::rlt::free(target_device, input);
+        target::rlt::free(target_device, output);
+        target::rlt::free(target_device, actor_buffer);
+    }
+    ofs << "\n" << "namespace rl_tools::checkpoint::meta{";
+    ofs << "\n" << "   " << "char name[] = \"" << rl_tools::checkpoint::meta::name << "\";";
+    ofs << "\n" << "   " << "char commit_hash[] = \"" << rl_tools::checkpoint::meta::commit_hash << "\";";
+    ofs << "\n" << "}";
+    ofs.close();
 
     return 0;
-
 }
