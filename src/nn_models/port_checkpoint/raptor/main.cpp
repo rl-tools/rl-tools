@@ -44,6 +44,15 @@ namespace base{
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn_models/sequential/persist_code.h>
 
+#ifdef RL_TOOLS_ENABLE_HDF5
+#include <rl_tools/containers/matrix/persist_hdf5.h>
+#include <rl_tools/containers/tensor/persist_hdf5.h>
+#include <rl_tools/nn/optimizers/adam/instance/persist.h>
+#include <rl_tools/nn/layers/gru/persist.h>
+#include <rl_tools/nn/layers/dense/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
+#endif
+
 
 #include <fstream>
 #include <filesystem>
@@ -128,34 +137,32 @@ int main(){
         }
     }
 
+#ifdef RL_TOOLS_ENABLE_HDF5
     const std::filesystem::path this_file = __FILE__;
     const std::filesystem::path this_dir  = this_file.parent_path();
     const std::filesystem::path converted_checkpoint_path = this_dir / "policy.h";
+    const std::filesystem::path converted_checkpoint_path_h5 = this_dir / "policy.h5";
     std::string code = target::rlt::save_code(target_device, target_policy, "rl_tools::checkpoint::actor");
 
     std::ofstream ofs(converted_checkpoint_path);
     ofs << code;
-    {
-        target::rlt::Tensor<target::rlt::tensor::Specification<T, target::TI, target::POLICY::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
-        target::rlt::Tensor<target::rlt::tensor::Specification<T, target::TI, target::POLICY::OUTPUT_SHAPE, DYNAMIC_ALLOCATION>> output;
-        target::POLICY::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
-        target::rlt::malloc(target_device, input);
-        target::rlt::malloc(target_device, output);
-        target::rlt::malloc(target_device, actor_buffer);
-        target::rlt::randn(target_device, input, target_rng);
-        target::rlt::Mode<target::rlt::mode::Evaluation<>> mode;
-        target::rlt::evaluate(target_device, target_policy, input, output, actor_buffer, target_rng, mode);
-        ofs << "\n" << target::rlt::save_code(target_device, target_input, std::string("rl_tools::checkpoint::example::input"), true);
-        ofs << "\n" << target::rlt::save_code(target_device, target_original_output, std::string("rl_tools::checkpoint::example::output"), true);
-        target::rlt::free(target_device, input);
-        target::rlt::free(target_device, output);
-        target::rlt::free(target_device, actor_buffer);
-    }
+    ofs << "\n" << target::rlt::save_code(target_device, target_input, std::string("rl_tools::checkpoint::example::input"), true);
+    ofs << "\n" << target::rlt::save_code(target_device, target_original_output, std::string("rl_tools::checkpoint::example::output"), true);
     ofs << "\n" << "namespace rl_tools::checkpoint::meta{";
     ofs << "\n" << "   " << "char name[] = \"" << rl_tools::checkpoint::meta::name << "\";";
     ofs << "\n" << "   " << "char commit_hash[] = \"" << rl_tools::checkpoint::meta::commit_hash << "\";";
     ofs << "\n" << "}";
     ofs.close();
+
+    auto actor_file = HighFive::File(converted_checkpoint_path_h5, HighFive::File::Overwrite);
+    auto actor_group = target::rlt::create_group(target_device, actor_file, "actor");
+    actor_group.group.createAttribute("meta", std::string("{\"environment\": {\"name\": \"l2f\",\"observation\": \"Position.OrientationRotationMatrix.LinearVelocity.AngularVelocityDelayed(0).ActionHistory(1)\"}}"));
+    actor_group.group.createAttribute("checkpoint_name", std::string(rl_tools::checkpoint::meta::name));
+    target::rlt::save(target_device, target_policy, actor_group);
+    auto example_group = target::rlt::create_group(target_device, actor_file, "example");
+    target::rlt::save(target_device, target_input, example_group, "input");
+    target::rlt::save(target_device, target_original_output, example_group, "output");
+#endif
 
     return 0;
 }

@@ -1,6 +1,6 @@
-if(RL_TOOLS_EXPERIMENTAL)
+if(RL_TOOLS_EXPERIMENTAL AND RL_TOOLS_ENABLE_HDF5)
     add_executable(nn_models_port_checkpoint_raptor main.cpp)
-    target_link_libraries(nn_models_port_checkpoint_raptor PRIVATE RLtools::Core)
+    target_link_libraries(nn_models_port_checkpoint_raptor PRIVATE RLtools::RLtools)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/policy.h")
         add_executable(nn_models_port_checkpoint_raptor_check_policy check_policy.cpp)
         target_link_libraries(nn_models_port_checkpoint_raptor_check_policy PRIVATE RLtools::Core)
