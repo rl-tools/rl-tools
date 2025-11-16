@@ -85,6 +85,7 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
 void rl_tools_inference_applications_l2f_set_force_sync_native(uint32_t force_sync_native){
     using namespace rl_tools::inference::applications::l2f;
     executor.executor.force_sync_native = force_sync_native;
+    executor.executor.force_sync_native_initialized = true;
 }
 
 

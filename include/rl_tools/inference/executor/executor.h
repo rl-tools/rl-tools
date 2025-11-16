@@ -110,6 +110,7 @@ namespace rl_tools{
             TIMESTAMP control_original_dt_index = 0;
 
             TI intermediate_step = 0;
+            bool force_sync_native_initialized = false;
             TI force_sync_native = SPEC::FORCE_SYNC_NATIVE; // runtime variante of FORCE_SYNC_NATIVE, allows to react to different inference/control frequencies without recompiling when setting
 
             Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1, SPEC::INPUT_DIM>, DYNAMIC_ALLOCATION>> observation;
