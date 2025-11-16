@@ -24,6 +24,7 @@ extern "C" {
     void rl_tools_inference_applications_l2f_reset();
     float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAction* action);
     // note: DON'T pass an uint32 timestamp here, which might wrap around after ~1h
+    void rl_tools_inference_applications_l2f_set_force_sync_native(uint32_t force_sync_native);
     RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(uint64_t nanoseconds, RLtoolsInferenceApplicationsL2FObservation* observation, RLtoolsInferenceApplicationsL2FAction* action);
     const char* rl_tools_inference_applications_l2f_checkpoint_name();
 #ifdef __cplusplus

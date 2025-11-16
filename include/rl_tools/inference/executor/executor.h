@@ -19,7 +19,7 @@ namespace rl_tools{
                 static constexpr T NATIVE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
                 static constexpr T NATIVE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
             };
-            template <typename T_TYPE_POLICY, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, typename T_WARNING_LEVELS=WarningLevelsDefault<T_TYPE_POLICY>, bool T_DYNAMIC_ALLOCATION=true>
+            template <typename T_TYPE_POLICY, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, bool T_FORCE_SYNC_NATIVE_RUNTIME=false,typename T_WARNING_LEVELS=WarningLevelsDefault<T_TYPE_POLICY>, bool T_DYNAMIC_ALLOCATION=true>
             struct Specification{
                 using TYPE_POLICY = T_TYPE_POLICY;
                 using T = typename TYPE_POLICY::DEFAULT;
@@ -32,6 +32,7 @@ namespace rl_tools{
                 static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = T_CONTROL_INTERVAL_INTERMEDIATE_NS;
                 static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = T_CONTROL_INTERVAL_NATIVE_NS; // the control interval native to the policy (that it was trained at)
                 static constexpr bool FORCE_SYNC_INTERMEDIATE = T_FORCE_SYNC_INTERMEDIATE; // forcing the sync of intermediate steps with the observations: for each observation => run intermediate control
+                static constexpr bool FORCE_SYNC_NATIVE_RUNTIME = T_FORCE_SYNC_NATIVE_RUNTIME; // runtime variante of FORCE_SYNC_NATIVE, allows to react to different inference/control frequencies without recompiling when setting
                 static constexpr TI FORCE_SYNC_NATIVE = T_FORCE_SYNC_NATIVE; // 0 means not forcing, != 0 means forcing every FORCE_SYNC_TRAINING inference control steps
                 static constexpr TI INPUT_DIM = POLICY::INPUT_SHAPE::LAST;
                 static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
@@ -109,6 +110,7 @@ namespace rl_tools{
             TIMESTAMP control_original_dt_index = 0;
 
             TI intermediate_step = 0;
+            TI force_sync_native = SPEC::FORCE_SYNC_NATIVE; // runtime variante of FORCE_SYNC_NATIVE, allows to react to different inference/control frequencies without recompiling when setting
 
             Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1, SPEC::INPUT_DIM>, DYNAMIC_ALLOCATION>> observation;
             typename POLICY::template State<DYNAMIC_ALLOCATION> policy_state, policy_state_temp;
