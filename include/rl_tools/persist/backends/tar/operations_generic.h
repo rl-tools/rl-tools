@@ -293,7 +293,7 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
             constexpr TI BUFFER_SIZE = 32;
             char value_str[BUFFER_SIZE];
-           utils::string::int_to_string<long int, TI>(value_str, BUFFER_SIZE, value);
+            utils::string::int_to_string<long int, TI>(value_str, BUFFER_SIZE, value);
             utils::assert_exit(device, group.meta_position + utils::string::length(value_str, SPEC::META_SIZE-1) + 1 < SPEC::META_SIZE, "persist::backends::tar: Metadata size exceeded");
             group.meta_position += utils::string::copy(group.meta + group.meta_position, value_str, SPEC::META_SIZE - group.meta_position);
             group.meta_position += utils::string::copy(group.meta + group.meta_position, "\n", SPEC::META_SIZE - group.meta_position);
