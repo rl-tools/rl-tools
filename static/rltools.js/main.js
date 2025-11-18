@@ -21,8 +21,9 @@ class Tensor{
 class StandardizeLayer{
     constructor(group){
         this.mean = group.get("mean").attrs.type === "matrix" ? new Matrix(group.get("mean").get("parameters")) : new Tensor(group.get("mean").get("parameters"))
-        this.input_shape = [null, null, this.mean.shape[1]]
-        this.output_shape = [null, null, this.mean.shape[1]]
+        this.dim = this.mean.shape.length == 2 ? this.mean.shape[1] : this.mean.shape[0]
+        this.input_shape = [null, null, this.dim]
+        this.output_shape = [null, null, this.dim]
         this.precision = group.get("precision").attrs.type === "matrix" ? new Matrix(group.get("precision").get("parameters")) : new Tensor(group.get("precision").get("parameters"))
     }
     description(){
@@ -32,7 +33,7 @@ class StandardizeLayer{
         const leading_dimension = input.size().slice(0, -1).reduce((a, b) => a * b, 1)
         const input_reshaped = math.reshape(input, [leading_dimension, input.size()[input.size().length - 1]])
         let [output, state] = this.evaluate_step(input_reshaped)
-        const output_shape = input.size().slice(0, -1).concat(this.mean.shape[1])
+        const output_shape = input.size().slice(0, -1).concat(this.dim)
         output = math.reshape(output, output_shape)
         return output
     }
@@ -48,6 +49,7 @@ class DenseLayer{
         this.input_shape = [null, null, this.weights.shape[1]]
         this.output_shape = [null, null, this.weights.shape[0]]
         this.biases = group.get("biases").attrs.type === "matrix" ? new Matrix(group.get("biases").get("parameters")) : new Tensor(group.get("biases").get("parameters"))
+        this.dim = this.biases.shape.length == 2 ? this.biases.shape[1] : this.biases.shape[0]
         this.activation_function_name = group.attrs.activation_function
     }
     description(){
@@ -85,7 +87,7 @@ class DenseLayer{
         const leading_dimension = input.size().slice(0, -1).reduce((a, b) => a * b, 1)
         const input_reshaped = math.reshape(input, [leading_dimension, input.size()[input.size().length - 1]])
         let [output, state] = this.evaluate_step(input_reshaped)
-        const output_shape = input.size().slice(0, -1).concat(this.biases.shape[1])
+        const output_shape = input.size().slice(0, -1).concat(this.dim)
         output = math.reshape(output, output_shape)
         return output
     }
