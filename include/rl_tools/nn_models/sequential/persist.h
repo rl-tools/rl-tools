@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H
 #include "../../nn/parameters/persist.h"
 #include "../../nn/persist.h"
+#include "../../utils/string/operations_generic.h"
 #include "model.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

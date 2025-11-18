@@ -41,6 +41,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = 2500 * 1000;
     static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
     static constexpr bool FORCE_SYNC_INTERMEDIATE = false;
+    static constexpr bool FORCE_SYNC_NATIVE_RUNTIME = false;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
 #if _MSC_VER
     static constexpr bool DYNAMIC_ALLOCATION = true; // MSVC doesn't like these large stack objects
@@ -49,7 +50,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
     static constexpr bool DYNAMIC_ALLOCATION = false;
     auto& policy = rl_tools::checkpoint::actor::module;
 #endif
-    using SPEC = rlt::inference::applications::l2f::Specification<TYPE_POLICY, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<TYPE_POLICY>, DYNAMIC_ALLOCATION>;
+    using SPEC = rlt::inference::applications::l2f::Specification<TYPE_POLICY, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, FORCE_SYNC_NATIVE_RUNTIME, rlt::inference::executor::WarningLevelsDefault<TYPE_POLICY>, DYNAMIC_ALLOCATION>;
 
     DEVICE device;
     RNG rng;
@@ -141,6 +142,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE){
     static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = 2500 * 1000;
     static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
     static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
+    static constexpr bool FORCE_SYNC_NATIVE_RUNTIME = false;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
 #if _MSC_VER
     static constexpr bool DYNAMIC_ALLOCATION = true; // MSVC doesn't like these large stack objects
@@ -149,7 +151,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE){
     static constexpr bool DYNAMIC_ALLOCATION = false;
     auto& policy = rl_tools::checkpoint::actor::module;
 #endif
-    using SPEC = rlt::inference::applications::l2f::Specification<TYPE_POLICY, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<TYPE_POLICY>, DYNAMIC_ALLOCATION>;
+    using SPEC = rlt::inference::applications::l2f::Specification<TYPE_POLICY, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, FORCE_SYNC_NATIVE_RUNTIME, rlt::inference::executor::WarningLevelsDefault<TYPE_POLICY>, DYNAMIC_ALLOCATION>;
     DEVICE device;
     RNG rng;
     rlt::init(device);
@@ -212,6 +214,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE_JITTER){
     static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = 2500 * 1000;
     static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = 10000 * 1000;
     static constexpr bool FORCE_SYNC_INTERMEDIATE = true;
+    static constexpr bool FORCE_SYNC_NATIVE_RUNTIME = false;
     static constexpr TI FORCE_SYNC_NATIVE = 0;
 #if _MSC_VER
     static constexpr bool DYNAMIC_ALLOCATION = true; // MSVC doesn't like these large stack objects
@@ -220,7 +223,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE_JITTER){
     static constexpr bool DYNAMIC_ALLOCATION = false;
     auto& policy = rl_tools::checkpoint::actor::module;
 #endif
-    using SPEC = rlt::inference::applications::l2f::Specification<TYPE_POLICY, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, rlt::inference::executor::WarningLevelsDefault<TYPE_POLICY>, DYNAMIC_ALLOCATION>;
+    using SPEC = rlt::inference::applications::l2f::Specification<TYPE_POLICY, TI, TIMESTAMP, ACTION_HISTORY_LENGTH, OUTPUT_DIM, POLICY, CONTROL_INTERVAL_INTERMEDIATE_NS, CONTROL_INTERVAL_NATIVE_NS, FORCE_SYNC_INTERMEDIATE, FORCE_SYNC_NATIVE, FORCE_SYNC_NATIVE_RUNTIME, rlt::inference::executor::WarningLevelsDefault<TYPE_POLICY>, DYNAMIC_ALLOCATION>;
     DEVICE device;
     RNG rng;
     rlt::init(device);
