@@ -46,14 +46,16 @@ namespace base{
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn_models/sequential/persist_code.h>
 
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
 #ifdef RL_TOOLS_ENABLE_HDF5
 #include <rl_tools/containers/matrix/persist_hdf5.h>
 #include <rl_tools/containers/tensor/persist_hdf5.h>
+#endif
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
-#endif
+
 
 
 #include <fstream>
@@ -154,7 +156,7 @@ int main(){
     ofs.close();
 
 
-    auto write_checkpoint = [&target_device, &target_policy, &target_input, &target_original_output](auto& actor_file, bool tar){
+    auto write_checkpoint = [&target_device, &target_policy, &target_input, &target_original_output](auto& actor_file){
         auto actor_group = target::rlt::create_group(target_device, actor_file, "actor");
         target::rlt::set_attribute(target_device, actor_group, "meta", std::string("{\"environment\": {\"name\": \"l2f\",\"observation\": \"Position.OrientationRotationMatrix.LinearVelocity.AngularVelocityDelayed(0).ActionHistory(1)\"}}").c_str());
         target::rlt::set_attribute(target_device, actor_group, "checkpoint_name", std::string(rl_tools::checkpoint::meta::name).c_str());
@@ -164,9 +166,18 @@ int main(){
         target::rlt::save(target_device, target_original_output, example_group, "output");
     };
 
+    target::rlt::persist::backends::tar::Writer tar_writer;
+    target::rlt::persist::backends::tar::WriterGroup<target::rlt::persist::backends::tar::WriterGroupSpecification<target::TI, decltype(tar_writer)>> tar_group;
+    tar_group.writer = &tar_writer;
+    write_checkpoint(tar_group);
+
+    std::ofstream tar_ofs(this_dir / "policy.tar", std::ios::binary);
+    tar_ofs.write(tar_writer.buffer.data(), tar_writer.buffer.size());
+    tar_ofs.close();
+
 #ifdef RL_TOOLS_ENABLE_HDF5
     auto actor_file = HighFive::File(this_dir / "policy.h5", HighFive::File::Overwrite);
-    write_checkpoint(actor_file, true);
+    write_checkpoint(actor_file);
 #endif
 
     return 0;
