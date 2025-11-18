@@ -31,6 +31,10 @@ namespace rl_tools{
         executor.control_dt_index = 0;
         executor.control_original_dt_index = 0;
         executor.intermediate_step = 0;
+        if(!executor.force_sync_native_initialized){
+            executor.force_sync_native = SPEC::FORCE_SYNC_NATIVE;
+        }
+        executor.force_sync_native_initialized = true;
     }
 
     namespace inference::executor{
@@ -173,11 +177,12 @@ namespace rl_tools{
 
 
             status.control_reasons_native.time_diff = time_diff_control_original >= SPEC::CONTROL_INTERVAL_NATIVE_NS;
-            status.control_reasons_native.force_sync = (SPEC::FORCE_SYNC_NATIVE != 0) && (executor.intermediate_step % SPEC::FORCE_SYNC_NATIVE == 0);
+            auto force_sync_native = SPEC::FORCE_SYNC_NATIVE_RUNTIME ? executor.force_sync_native : SPEC::FORCE_SYNC_NATIVE;
+            status.control_reasons_native.force_sync = (force_sync_native != 0) && (executor.intermediate_step % force_sync_native == 0);
             status.control_reasons_native.reset = reset;
             // Mode<mode::Evaluation<>> mode;
             Mode<nn::layers::gru::NoAutoResetMode<mode::Evaluation<>>> mode;
-            if(status.control_reasons_native.time_diff || status.control_reasons_native.force_sync || status.control_reasons_native.reset){
+            if((force_sync_native != 0 && status.control_reasons_native.force_sync) || (force_sync_native == 0 && status.control_reasons_native.time_diff) || status.control_reasons_native.reset){
                 evaluate_step(device, policy, observation, executor.policy_state, action, executor.policy_buffer, rng, mode);
                 executor.last_control_timestamp_original = nanoseconds;
                 if(!reset){

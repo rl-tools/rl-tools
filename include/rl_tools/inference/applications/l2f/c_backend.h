@@ -20,7 +20,7 @@ namespace rl_tools::inference::applications::l2f{
 
 
     // state
-    using SPEC = rl_tools::inference::applications::l2f::Specification<TYPE_POLICY, TI, RLtoolsInferenceTimestamp, CONFIG::ACTION_HISTORY_LENGTH, OUTPUT_DIM, typename CONFIG::POLICY, CONFIG::CONTROL_INTERVAL_INTERMEDIATE_NS, CONFIG::CONTROL_INTERVAL_NATIVE_NS, CONFIG::FORCE_SYNC_INTERMEDIATE, CONFIG::FORCE_SYNC_NATIVE, CONFIG::WARNING_LEVELS, CONFIG::DYNAMIC_ALLOCATION>;
+    using SPEC = rl_tools::inference::applications::l2f::Specification<TYPE_POLICY, TI, RLtoolsInferenceTimestamp, CONFIG::ACTION_HISTORY_LENGTH, OUTPUT_DIM, typename CONFIG::POLICY, CONFIG::CONTROL_INTERVAL_INTERMEDIATE_NS, CONFIG::CONTROL_INTERVAL_NATIVE_NS, CONFIG::FORCE_SYNC_INTERMEDIATE, CONFIG::FORCE_SYNC_NATIVE, CONFIG::FORCE_SYNC_NATIVE_RUNTIME, CONFIG::WARNING_LEVELS, CONFIG::DYNAMIC_ALLOCATION>;
     typename CONFIG::DEVICE device;
     typename CONFIG::RNG rng;
     static rl_tools::inference::applications::L2F<SPEC> executor;
@@ -46,7 +46,6 @@ void rl_tools_inference_applications_l2f_init(){
     rl_tools::init(device, rng, seed);
     rl_tools_inference_applications_l2f_reset();
 }
-
 
 const char* rl_tools_inference_applications_l2f_checkpoint_name(){
     return rl_tools::checkpoint::meta::name;
@@ -82,6 +81,13 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
     return 0;
 #endif
 }
+
+void rl_tools_inference_applications_l2f_set_force_sync_native(uint32_t force_sync_native){
+    using namespace rl_tools::inference::applications::l2f;
+    executor.executor.force_sync_native = force_sync_native;
+    executor.executor.force_sync_native_initialized = true;
+}
+
 
 RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationsL2FObservation* c_observation, RLtoolsInferenceApplicationsL2FAction* c_action){
     using namespace rl_tools::inference::applications::l2f;
