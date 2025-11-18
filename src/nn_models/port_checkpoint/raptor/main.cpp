@@ -48,8 +48,7 @@ namespace base{
 
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
 #ifdef RL_TOOLS_ENABLE_HDF5
-#include <rl_tools/containers/matrix/persist_hdf5.h>
-#include <rl_tools/containers/tensor/persist_hdf5.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #endif
 #include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>

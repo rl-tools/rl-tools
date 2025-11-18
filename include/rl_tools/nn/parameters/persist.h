@@ -17,13 +17,14 @@ namespace rl_tools{
         save(device, parameter.gradient, group, "gradient");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::parameters::Plain::Instance<SPEC>& parameter, GROUP& group) {
-        load(device, parameter.parameters, group, "parameters");
+    bool load(DEVICE& device, nn::parameters::Plain::Instance<SPEC>& parameter, GROUP& group) {
+        return load(device, parameter.parameters, group, "parameters");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::parameters::Gradient::Instance<SPEC>& parameter, GROUP& group) {
-        load(device, (nn::parameters::Plain::Instance<SPEC>&)parameter, group);
-        load(device, parameter.gradient, group, "gradient");
+    bool load(DEVICE& device, nn::parameters::Gradient::Instance<SPEC>& parameter, GROUP& group) {
+        bool success = load(device, (nn::parameters::Plain::Instance<SPEC>&)parameter, group);
+        success &= load(device, parameter.gradient, group, "gradient");
+        return success;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

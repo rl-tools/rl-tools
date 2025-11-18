@@ -22,19 +22,20 @@ namespace rl_tools{
         save(device, dataset.target_values, group, "target_values");
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, GROUP& group){
-        load(device, dataset.data, group, "data");
-        load(device, dataset.all_observations_privileged, group, "all_observations");
-        load(device, dataset.observations, group, "observations");
-        load(device, dataset.actions, group, "actions");
-        load(device, dataset.action_log_probs, group, "action_log_probs");
-        load(device, dataset.rewards, group, "rewards");
-        load(device, dataset.terminated, group, "terminated");
-        load(device, dataset.truncated, group, "truncated");
-        load(device, dataset.all_values, group, "all_values");
-        load(device, dataset.values, group, "values");
-        load(device, dataset.advantages, group, "advantages");
-        load(device, dataset.target_values, group, "target_values");
+    bool load(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, GROUP& group){
+        bool success = load(device, dataset.data, group, "data");
+        success &= load(device, dataset.all_observations_privileged, group, "all_observations");
+        success &= load(device, dataset.observations, group, "observations");
+        success &= load(device, dataset.actions, group, "actions");
+        success &= load(device, dataset.action_log_probs, group, "action_log_probs");
+        success &= load(device, dataset.rewards, group, "rewards");
+        success &= load(device, dataset.terminated, group, "terminated");
+        success &= load(device, dataset.truncated, group, "truncated");
+        success &= load(device, dataset.all_values, group, "all_values");
+        success &= load(device, dataset.values, group, "values");
+        success &= load(device, dataset.advantages, group, "advantages");
+        success &= load(device, dataset.target_values, group, "target_values");
+        return success;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -88,10 +88,12 @@ int main(){
 
     {
         auto data_file = HighFive::File(dataset_path, HighFive::File::ReadOnly);
-        rlt::load(device, x_train, data_file.getGroup("train"), "inputs");
-        rlt::load(device, y_train, data_file.getGroup("train"), "labels");
-        rlt::load(device, x_val, data_file.getGroup("test"), "inputs");
-        rlt::load(device, y_val, data_file.getGroup("test"), "labels");
+        auto train_group = rlt::get_group(device, data_file, "train");
+        auto test_group = rlt::get_group(device, data_file, "test");
+        rlt::load(device, x_train, train_group, "inputs");
+        rlt::load(device, y_train, train_group, "labels");
+        rlt::load(device, x_val, test_group, "inputs");
+        rlt::load(device, y_val, test_group, "labels");
     }
 
 

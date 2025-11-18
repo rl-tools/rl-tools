@@ -20,17 +20,11 @@ namespace rl_tools{
         save(device, network.log_std, log_std_group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC>& network, GROUP& group){
-        load(device, static_cast<nn_models::mlp::NeuralNetworkForward<SPEC>&>(network), group);
+    bool load(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC>& network, GROUP& group){
+        bool success = load(device, static_cast<nn_models::mlp::NeuralNetworkForward<SPEC>&>(network), group);
         auto log_std_group = get_group(device, group, "log_std");
-        load(device, network.log_std, log_std_group);
-    }
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC>& network, std::string file_path){
-        auto file = HighFive::File(file_path, HighFive::File::ReadOnly);
-        auto mlp_group = file.getGroup("mlp");
-        persist::backends::hdf5::Group<> group{mlp_group};
-        load(device, network, group);
+        success &= load(device, network.log_std, log_std_group);
+        return success;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

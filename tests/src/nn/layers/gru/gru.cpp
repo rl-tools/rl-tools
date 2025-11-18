@@ -150,15 +150,15 @@ void test_loading(std::string DATA_FILE_NAME){
     for(auto epoch_group_name : output_file.listObjectNames()){
         auto epoch_group = output_file.getGroup(epoch_group_name);
         for(auto batch_group_name: epoch_group.listObjectNames()){
-            auto batch_group = epoch_group.getGroup(batch_group_name);
+            auto batch_group = rlt::get_group(device, epoch_group, batch_group_name);
             rlt::load(device, input, batch_group, "input");
             bool d_input_set = false;
-            if(batch_group.exist("d_input")){
+            if(batch_group.group.exist("d_input")){
                 rlt::load(device, dinput_real, batch_group, "d_input");
                 d_input_set = true;
             }
             rlt::load(device, gru_output, batch_group, "gru_output");
-            auto weight_group = batch_group.getGroup("weights");
+            auto weight_group = rlt::get_group(device, batch_group, "weights");
             using VIEW_SPEC = rlt::tensor::ViewSpec<0, GRU_CONFIG::HIDDEN_DIM>;
             auto W_ir = view_range(device, gru.weights_input.parameters, 0*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
             auto W_iz = view_range(device, gru.weights_input.parameters, 1*GRU_CONFIG::HIDDEN_DIM, VIEW_SPEC{});
@@ -201,8 +201,8 @@ void test_loading(std::string DATA_FILE_NAME){
 //            rlt::print(device, dloss_dgru_output_view);
             rlt::zero_gradient(device, gru);
             for(TI step=SEQUENCE_LENGTH-1; true; step--){
-                auto backward_group = batch_group.getGroup("backward");
-                auto gradient_group_step = backward_group.getGroup(std::to_string(step));
+                auto backward_group = rlt::get_group(device, batch_group, "backward");
+                auto gradient_group_step = rlt::get_group(device, backward_group, std::to_string(step));
                 rlt::load(device, grad_W_ir, gradient_group_step, "W_ir");
                 rlt::load(device, grad_W_iz, gradient_group_step, "W_iz");
                 rlt::load(device, grad_W_in, gradient_group_step, "W_in");

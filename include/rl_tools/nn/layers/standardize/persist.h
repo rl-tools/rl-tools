@@ -26,22 +26,24 @@ namespace rl_tools {
         save(device, layer.output, group, "output");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, GROUP& group) {
+    bool load(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, GROUP& group) {
         auto mean_group = get_group(device, group, "mean");
-        load(device, layer.mean, mean_group);
+        bool success = load(device, layer.mean, mean_group);
         auto precision_group = get_group(device, group, "precision");
-        load(device, layer.precision, precision_group);
+        success &= load(device, layer.precision, precision_group);
+        return success;
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, GROUP& group) {
-        load(device, (nn::layers::standardize::LayerForward<SPEC>&)layer, group);
+    bool load(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& layer, GROUP& group) {
+        return load(device, (nn::layers::standardize::LayerForward<SPEC>&)layer, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, GROUP& group) {
-        load(device, (nn::layers::standardize::LayerBackward<SPEC>&)layer, group);
+    bool load(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, GROUP& group) {
+        bool success = load(device, (nn::layers::standardize::LayerBackward<SPEC>&)layer, group);
         if(group_exists(device, group, "output")){
-            load(device, layer.output, group, "output");
+            success &=  load(device, layer.output, group, "output");
         }
+        return success;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

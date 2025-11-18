@@ -52,22 +52,22 @@ struct Dataset{
     std::vector<std::vector<T>> terminated;
 };
 
-template <typename DEVICE, typename RB>
-void load_dataset(DEVICE& device, HighFive::Group g, RB& rb){
+template <typename DEVICE, typename GROUP, typename RB>
+void load_dataset(DEVICE& device, GROUP& g, RB& rb){
     rlt::load(device, rb.observations, g, "states");
     rlt::load(device, rb.actions, g, "actions");
     rlt::load(device, rb.next_observations, g, "next_states");
     auto rT = rlt::view_transpose(device, rb.rewards);
     rlt::load(device, rT, g, "rewards");
     std::vector<std::vector<typename RB::T>> terminated_matrix;
-    g.getDataSet("terminated").read(terminated_matrix);
+    g.group.getDataSet("terminated").read(terminated_matrix);
     assert(terminated_matrix.size() == 1);
     auto terminated = terminated_matrix[0];
     for(TI i = 0; i < terminated.size(); i++){
         rlt::set(rb.terminated, i, 0, terminated[i] == 1);
     }
     std::vector<std::vector<typename RB::T>> truncated_matrix;
-    g.getDataSet("truncated").read(truncated_matrix);
+    g.group.getDataSet("truncated").read(truncated_matrix);
     assert(truncated_matrix.size() == 1);
     auto truncated = truncated_matrix[0];
     for(TI i = 0; i < truncated.size(); i++){
@@ -388,7 +388,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     rlt::malloc(device, off_policy_runner);
     auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
     auto batch_group = rlt::get_group(device, data_file, "batch");
-    load_dataset(device, batch_group.group, replay_buffer);
+    load_dataset(device, batch_group, replay_buffer);
     if(rlt::is_nan(device, replay_buffer.observations) ||rlt::is_nan(device, replay_buffer.actions) ||rlt::is_nan(device, replay_buffer.next_observations) ||rlt::is_nan(device, replay_buffer.rewards)){
         assert(false);
     }
@@ -585,7 +585,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     rlt::malloc(device, off_policy_runner);
     auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
-    load_dataset(device, data_file.getGroup("batch"), replay_buffer);
+    auto batch_group = rlt::get_group(device, data_file, "batch");
+    load_dataset(device, batch_group, replay_buffer);
     static_assert(first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE == first_stage_second_stage::TD3_PARAMETERS::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE;
 

@@ -25,20 +25,21 @@ namespace rl_tools {
         save(device, layer.output, group, "output");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, GROUP& group) {
+    bool load(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, GROUP& group) {
         auto weights_group = get_group(device, group, "weights");
-        load(device, layer.weights, weights_group);
+        return load(device, layer.weights, weights_group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, GROUP& group) {
-        load(device, (nn::layers::embedding::LayerForward<SPEC>&)layer, group);
+    bool load(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer, GROUP& group) {
+        return load(device, (nn::layers::embedding::LayerForward<SPEC>&)layer, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, GROUP& group) {
-        load(device, (nn::layers::embedding::LayerBackward<SPEC>&)layer, group);
+    bool load(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, GROUP& group) {
+        bool success = load(device, (nn::layers::embedding::LayerBackward<SPEC>&)layer, group);
         if(group_exists(device, group, "output")){
-            load(device, layer.output, group, "output");
+            success &= load(device, layer.output, group, "output");
         }
+        return success;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

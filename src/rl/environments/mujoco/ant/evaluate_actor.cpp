@@ -124,8 +124,9 @@ int main(int argc, char** argv) {
                 auto group = rlt::get_group(dev, data_file, "actor");
                 rlt::load(dev, actor, group);
 #ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
-                rlt::load(dev, observation_normalizer.mean, data_file.getGroup("observation_normalizer"), "mean");
-                rlt::load(dev, observation_normalizer.std, data_file.getGroup("observation_normalizer"), "std");
+                auto obsnorm_group = rlt::get_group(dev, data_file, "observation_normalizer");
+                rlt::load(dev, observation_normalizer.mean, obsnorm_group, "mean");
+                rlt::load(dev, observation_normalizer.std, obsnorm_group, "std");
 #endif
             }
             catch(HighFive::FileException& e){

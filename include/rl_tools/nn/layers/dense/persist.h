@@ -28,25 +28,28 @@ namespace rl_tools {
         save(device, layer.output, group, "output");
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, GROUP& group) {
+    bool load(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, GROUP& group) {
         auto weights_group = get_group(device, group, "weights");
         auto biases_group = get_group(device, group, "biases");
-        load(device, layer.weights, weights_group);
-        load(device, layer.biases, biases_group);
+        bool success = load(device, layer.weights, weights_group);
+        success &= load(device, layer.biases, biases_group);
+        return success;
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, GROUP& group) {
-        load(device, (nn::layers::dense::LayerForward<SPEC>&)layer, group);
+    bool load(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, GROUP& group) {
+        bool success = load(device, (nn::layers::dense::LayerForward<SPEC>&)layer, group);
         if(group_exists(device, group, "pre_activations")){
-            load(device, layer.pre_activations, group, "pre_activations");
+            success &= load(device, layer.pre_activations, group, "pre_activations");
         }
+        return success;
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, GROUP& group) {
-        load(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
+    bool load(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, GROUP& group) {
+        bool success = load(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
         if(group_exists(device, group, "output")){
-            load(device, layer.output, group, "output");
+            success &= load(device, layer.output, group, "output");
         }
+        return success;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

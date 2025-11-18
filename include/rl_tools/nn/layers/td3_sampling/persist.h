@@ -9,7 +9,8 @@ namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC>& layer, GROUP& group) { }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC>& layer, GROUP& group) {
+    bool load(DEVICE& device, nn::layers::td3_sampling::LayerForward<SPEC>& layer, GROUP& group) {
+        return true;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

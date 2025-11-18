@@ -34,28 +34,30 @@ namespace rl_tools {
         save(device, (nn::layers::gru::LayerBackward<SPEC>&)layer, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& layer, GROUP& group) {
+    bool load(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& layer, GROUP& group) {
         auto weights_input_group = get_group(device, group, "weights_input");
-        load(device, layer.weights_input, weights_input_group);
+        bool success = load(device, layer.weights_input, weights_input_group);
         auto biases_input_group = get_group(device, group, "biases_input");
-        load(device, layer.biases_input, biases_input_group);
+        success &= load(device, layer.biases_input, biases_input_group);
         auto weights_hidden_group = get_group(device, group, "weights_hidden");
-        load(device, layer.weights_hidden, weights_hidden_group);
+        success &= load(device, layer.weights_hidden, weights_hidden_group);
         auto biases_hidden_group = get_group(device, group, "biases_hidden");
-        load(device, layer.biases_hidden, biases_hidden_group);
+        success &= load(device, layer.biases_hidden, biases_hidden_group);
         auto initial_hidden_state_group = get_group(device, group, "initial_hidden_state");
-        load(device, layer.initial_hidden_state, initial_hidden_state_group);
+        success &= load(device, layer.initial_hidden_state, initial_hidden_state_group);
+        return success;
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer, GROUP& group) {
-        load(device, (nn::layers::gru::LayerForward<SPEC>&)layer, group);
-        load(device, layer.post_activation, group, "post_activation");
-        load(device, layer.n_pre_pre_activation, group, "n_pre_pre_activation");
-        load(device, layer.output, group, "output");
+    bool load(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer, GROUP& group) {
+        bool success = load(device, (nn::layers::gru::LayerForward<SPEC>&)layer, group);
+        success &= load(device, layer.post_activation, group, "post_activation");
+        success &= load(device, layer.n_pre_pre_activation, group, "n_pre_pre_activation");
+        success &= load(device, layer.output, group, "output");
+        return success;
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer, GROUP& group) {
-        load(device, (nn::layers::gru::LayerBackward<SPEC>&)layer, group);
+    bool load(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer, GROUP& group) {
+        return load(device, (nn::layers::gru::LayerBackward<SPEC>&)layer, group);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

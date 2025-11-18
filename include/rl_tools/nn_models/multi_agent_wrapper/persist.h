@@ -15,10 +15,10 @@ namespace rl_tools{
         save(device, model.content, content_group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& model, GROUP& group, typename DEVICE::index_t layer_i = 0) {
+    bool load(DEVICE& device, nn_models::multi_agent_wrapper::ModuleForward<SPEC>& model, GROUP& group, typename DEVICE::index_t layer_i = 0) {
         auto wrapper_group = get_group(device, group, "multi_agent_wrapper");
         auto content_group = get_group(device, wrapper_group, "content");
-        load(device, model.content, content_group);
+        return load(device, model.content, content_group);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

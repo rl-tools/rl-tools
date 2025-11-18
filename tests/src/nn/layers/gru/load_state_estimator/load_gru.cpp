@@ -68,8 +68,9 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_STATE_ESTIMATOR){
     auto file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadOnly);
     auto model_group = rlt::get_group(device, file, "model");
     rlt::load(device, model, model_group);
-    rlt::load(device, input, file.getGroup("test"), "input");
-    rlt::load(device, output_target, file.getGroup("test"), "output");
+    auto test_group = rlt::get_group(device, file, "test");
+    rlt::load(device, input, test_group, "input");
+    rlt::load(device, output_target, test_group, "output");
     rlt::evaluate(device, model, input, output, buffer, rng);
 
 

@@ -61,8 +61,8 @@ protected:
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("model_1/gradients/0/input_layer/weight").read(batch_0_input_layer_weights_grad);
         data_file.getDataSet("model_1/gradients/0/input_layer/bias").read(batch_0_input_layer_biases_grad);
-        data_file.getDataSet("model_1/gradients/0/hidden_layer_0/weight").read(batch_0_hidden_layer_0_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/hidden_layer_0/bias").read(batch_0_hidden_layer_0_biases_grad);
+        data_file.getDataSet("model_1/gradients/0/hidden_layers/0/weight").read(batch_0_hidden_layer_0_weights_grad);
+        data_file.getDataSet("model_1/gradients/0/hidden_layers/0/bias").read(batch_0_hidden_layer_0_biases_grad);
         data_file.getDataSet("model_1/gradients/0/output_layer/weight").read(batch_0_output_layer_weights_grad);
         data_file.getDataSet("model_1/gradients/0/output_layer/bias").read(batch_0_output_layer_biases_grad);
         this->reset();
@@ -95,19 +95,20 @@ protected:
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet(model_name + "/init/input_layer/weight").read(input_layer_weights);
         data_file.getDataSet(model_name + "/init/input_layer/bias").read(input_layer_biases);
-        data_file.getDataSet(model_name + "/init/hidden_layer_0/weight").read(hidden_layer_0_weights);
-        data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
+        data_file.getDataSet(model_name + "/init/hidden_layers/0/weight").read(hidden_layer_0_weights);
+        data_file.getDataSet(model_name + "/init/hidden_layers/0/bias").read(hidden_layer_0_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
         auto model_group = rlt::get_group(device, data_file, model_name);
         auto init_group = rlt::get_group(device, model_group, "init");
         auto input_layer_group = rlt::get_group(device, init_group, "input_layer");
-        auto hidden_layer_group = rlt::get_group(device, init_group, "hidden_layer_0");
+        auto hidden_layer_group = rlt::get_group(device, init_group, "hidden_layerst s");
+        auto hidden_layer_0_group = rlt::get_group(device, hidden_layer_group, "0");
         auto output_layer_group = rlt::get_group(device, init_group, "output_layer");
         rlt::load(device, network.input_layer.weights.parameters, input_layer_group, "weight");
         rlt::load(device, network.input_layer.biases.parameters, input_layer_group, "bias");
-        rlt::load(device, network.hidden_layers[0].weights.parameters, hidden_layer_group, "weight");
-        rlt::load(device, network.hidden_layers[0].biases.parameters, hidden_layer_group, "bias");
+        rlt::load(device, network.hidden_layers[0].weights.parameters, hidden_layer_0_group, "weight");
+        rlt::load(device, network.hidden_layers[0].biases.parameters, hidden_layer_0_group, "bias");
         rlt::load(device, network.output_layer.weights.parameters, output_layer_group, "weight");
         rlt::load(device, network.output_layer.biases.parameters, output_layer_group, "bias");
     }
@@ -203,8 +204,8 @@ TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     std::vector<DTYPE> batch_0_output_layer_biases;
     data_file.getDataSet("model_1/weights/0/input_layer/weight").read(batch_0_input_layer_weights);
     data_file.getDataSet("model_1/weights/0/input_layer/bias").read(batch_0_input_layer_biases);
-    data_file.getDataSet("model_1/weights/0/hidden_layer_0/weight").read(batch_0_hidden_layer_0_weights);
-    data_file.getDataSet("model_1/weights/0/hidden_layer_0/bias").read(batch_0_hidden_layer_0_biases);
+    data_file.getDataSet("model_1/weights/0/hidden_layers/0/weight").read(batch_0_hidden_layer_0_weights);
+    data_file.getDataSet("model_1/weights/0/hidden_layers/0/bias").read(batch_0_hidden_layer_0_biases);
     data_file.getDataSet("model_1/weights/0/output_layer/weight").read(batch_0_output_layer_weights);
     data_file.getDataSet("model_1/weights/0/output_layer/bias").read(batch_0_output_layer_biases);
     DTYPE input[INPUT_DIM];

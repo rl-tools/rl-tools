@@ -30,26 +30,26 @@ namespace rl_tools{
         save(device, full, group, "full");
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
-    void load(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, GROUP& group) {
+    bool load(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, GROUP& group) {
         using TI = typename SPEC::TI;
         static_assert(decltype(rb.rewards)::COLS == 1);
         static_assert(decltype(rb.terminated)::COLS == 1);
         static_assert(decltype(rb.truncated)::COLS == 1);
-        load(device, rb.observations, group, "observations");
-        load(device, rb.actions, group, "actions");
-        load(device, rb.rewards, group, "rewards");
-        load(device, rb.next_observations, group, "next_observations");
-        load(device, rb.terminated, group, "terminated");
-        load(device, rb.truncated, group, "truncated");
-
-        load(device, rb.episode_start, group, "episode_start");
+        bool success = load(device, rb.observations, group, "observations");
+        success &= load(device, rb.actions, group, "actions");
+        success &= load(device, rb.rewards, group, "rewards");
+        success &= load(device, rb.next_observations, group, "next_observations");
+        success &= load(device, rb.terminated, group, "terminated");
+        success &= load(device, rb.truncated, group, "truncated");
+        success &= load(device, rb.episode_start, group, "episode_start");
 
         Tensor<tensor::Specification<decltype(rb.position), TI, tensor::Shape<TI, 1>, false>> position, full;
-        load(device, position, group, "position");
+        success &= load(device, position, group, "position");
         rb.position = get(device, position, 0);
 
-        load(device, full, group, "full");
+        success &= load(device, full, group, "full");
         rb.full = get(device, full, 0);
+        return success;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
