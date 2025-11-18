@@ -102,7 +102,7 @@ protected:
         auto model_group = rlt::get_group(device, data_file, model_name);
         auto init_group = rlt::get_group(device, model_group, "init");
         auto input_layer_group = rlt::get_group(device, init_group, "input_layer");
-        auto hidden_layer_group = rlt::get_group(device, init_group, "hidden_layerst s");
+        auto hidden_layer_group = rlt::get_group(device, init_group, "hidden_layers");
         auto hidden_layer_0_group = rlt::get_group(device, hidden_layer_group, "0");
         auto output_layer_group = rlt::get_group(device, init_group, "output_layer");
         rlt::load(device, network.input_layer.weights.parameters, input_layer_group, "weight");
