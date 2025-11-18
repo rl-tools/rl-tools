@@ -1,5 +1,7 @@
 
 #define RL_TOOLS_NAMESPACE_WRAPPER base
+#include <unistd.h>
+
 #include "base/include/rl_tools/operations/cpu.h"
 #include "base/include/rl_tools/nn/layers/gru/operations_generic.h"
 #include "base/include/rl_tools/nn/layers/dense/operations_generic.h"
@@ -136,12 +138,9 @@ int main(){
             std::cout << "Difference target <-> orig: " << abs_diff << std::endl;
         }
     }
-
-#ifdef RL_TOOLS_ENABLE_HDF5
     const std::filesystem::path this_file = __FILE__;
     const std::filesystem::path this_dir  = this_file.parent_path();
     const std::filesystem::path converted_checkpoint_path = this_dir / "policy.h";
-    const std::filesystem::path converted_checkpoint_path_h5 = this_dir / "policy.h5";
     std::string code = target::rlt::save_code(target_device, target_policy, "rl_tools::checkpoint::actor");
 
     std::ofstream ofs(converted_checkpoint_path);
@@ -154,14 +153,20 @@ int main(){
     ofs << "\n" << "}";
     ofs.close();
 
-    auto actor_file = HighFive::File(converted_checkpoint_path_h5, HighFive::File::Overwrite);
-    auto actor_group = target::rlt::create_group(target_device, actor_file, "actor");
-    actor_group.group.createAttribute("meta", std::string("{\"environment\": {\"name\": \"l2f\",\"observation\": \"Position.OrientationRotationMatrix.LinearVelocity.AngularVelocityDelayed(0).ActionHistory(1)\"}}"));
-    actor_group.group.createAttribute("checkpoint_name", std::string(rl_tools::checkpoint::meta::name));
-    target::rlt::save(target_device, target_policy, actor_group);
-    auto example_group = target::rlt::create_group(target_device, actor_file, "example");
-    target::rlt::save(target_device, target_input, example_group, "input");
-    target::rlt::save(target_device, target_original_output, example_group, "output");
+
+    auto write_checkpoint = [&target_device, &target_policy, &target_input, &target_original_output](auto& actor_file, bool tar){
+        auto actor_group = target::rlt::create_group(target_device, actor_file, "actor");
+        target::rlt::set_attribute(target_device, actor_group, "meta", std::string("{\"environment\": {\"name\": \"l2f\",\"observation\": \"Position.OrientationRotationMatrix.LinearVelocity.AngularVelocityDelayed(0).ActionHistory(1)\"}}").c_str());
+        target::rlt::set_attribute(target_device, actor_group, "checkpoint_name", std::string(rl_tools::checkpoint::meta::name).c_str());
+        target::rlt::save(target_device, target_policy, actor_group);
+        auto example_group = target::rlt::create_group(target_device, actor_file, "example");
+        target::rlt::save(target_device, target_input, example_group, "input");
+        target::rlt::save(target_device, target_original_output, example_group, "output");
+    };
+
+#ifdef RL_TOOLS_ENABLE_HDF5
+    auto actor_file = HighFive::File(this_dir / "policy.h5", HighFive::File::Overwrite);
+    write_checkpoint(actor_file, true);
 #endif
 
     return 0;
