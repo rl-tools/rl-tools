@@ -17,6 +17,7 @@ namespace rl_tools{
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
-
+#ifndef RL_TOOLS_PERSIST_BACKENDS_TAR_OPERATIONS_CPU_NOT_INCLUDE_GENERIC
 #include "operations_generic.h"
+#endif
 #endif
