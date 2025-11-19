@@ -155,24 +155,28 @@ int main(){
     ofs.close();
 
 
-    auto write_checkpoint = [&target_device, &target_policy, &target_input, &target_original_output](auto& actor_file){
+    auto write_checkpoint = [&target_device, &target_policy, &target_input, &target_original_output](auto& actor_file, bool bare = false){
         auto actor_group = target::rlt::create_group(target_device, actor_file, "actor");
-        target::rlt::set_attribute(target_device, actor_group, "meta", std::string("{\"environment\": {\"name\": \"l2f\",\"observation\": \"Position.OrientationRotationMatrix.LinearVelocity.AngularVelocityDelayed(0).ActionHistory(1)\"}}").c_str());
         target::rlt::set_attribute(target_device, actor_group, "checkpoint_name", std::string(rl_tools::checkpoint::meta::name).c_str());
         target::rlt::save(target_device, target_policy, actor_group);
-        auto example_group = target::rlt::create_group(target_device, actor_file, "example");
-        target::rlt::save(target_device, target_input, example_group, "input");
-        target::rlt::save(target_device, target_original_output, example_group, "output");
+        if (!bare){
+            target::rlt::set_attribute(target_device, actor_group, "meta", std::string("{\"environment\": {\"name\": \"l2f\",\"observation\": \"Position.OrientationRotationMatrix.LinearVelocity.AngularVelocityDelayed(0).ActionHistory(1)\"}}").c_str());
+            auto example_group = target::rlt::create_group(target_device, actor_file, "example");
+            target::rlt::save(target_device, target_input, example_group, "input");
+            target::rlt::save(target_device, target_original_output, example_group, "output");
+        }
     };
 
-    target::rlt::persist::backends::tar::Writer tar_writer;
-    target::rlt::persist::backends::tar::WriterGroup<target::rlt::persist::backends::tar::WriterGroupSpecification<target::TI, decltype(tar_writer)>> tar_group;
-    tar_group.writer = &tar_writer;
-    write_checkpoint(tar_group);
+    for (bool bare : {true, false}){
+        target::rlt::persist::backends::tar::Writer tar_writer;
+        target::rlt::persist::backends::tar::WriterGroup<target::rlt::persist::backends::tar::WriterGroupSpecification<target::TI, decltype(tar_writer)>> tar_group;
+        tar_group.writer = &tar_writer;
+        write_checkpoint(tar_group, bare);
 
-    std::ofstream tar_ofs(this_dir / "policy.tar", std::ios::binary);
-    tar_ofs.write(tar_writer.buffer.data(), tar_writer.buffer.size());
-    tar_ofs.close();
+        std::ofstream tar_ofs(this_dir / (bare ? "policy_bare.tar" : "policy.tar"), std::ios::binary);
+        tar_ofs.write(tar_writer.buffer.data(), tar_writer.buffer.size());
+        tar_ofs.close();
+    }
 
 #ifdef RL_TOOLS_ENABLE_HDF5
     auto actor_file = HighFive::File(this_dir / "policy.h5", HighFive::File::Overwrite);
