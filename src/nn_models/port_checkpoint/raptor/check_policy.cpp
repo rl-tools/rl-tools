@@ -47,8 +47,8 @@ int main(){
     std::ifstream checkpoint_file(converted_checkpoint_path, std::ios::binary);
     std::vector<char> file_buffer((std::istreambuf_iterator<char>(checkpoint_file)), std::istreambuf_iterator<char>());
     checkpoint_file.close();
-    tar_reader_group.data = file_buffer.data();
-    tar_reader_group.size = file_buffer.size();
+    tar_reader_group.data.data = file_buffer.data();
+    tar_reader_group.data.size = file_buffer.size();
 
     rlt::checkpoint::actor::TYPE::CHANGE_CAPABILITY <rlt::nn::capability::Forward<true, false>> tar_policy;
     decltype(tar_policy)::Buffer<true> tar_policy_buffer;
