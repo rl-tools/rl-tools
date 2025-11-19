@@ -46,9 +46,15 @@ namespace rl_tools::persist::backends::tar {
         TI meta_position = 0;
         bool success = true;
     };
-    template <typename T_TI>
+    template <typename TI>
+    struct BufferData{
+        const char* data = nullptr;
+        TI size = 0;
+    };
+    template <typename T_TI, typename T_DATA_BACKEND=BufferData<T_TI>>
     struct ReaderGroupSpecification{
         using TI = T_TI;
+        using DATA_BACKEND = T_DATA_BACKEND;
         static constexpr TI MAX_PATH_LENGTH = 100;
     };
     template <typename T_SPEC>
@@ -56,8 +62,7 @@ namespace rl_tools::persist::backends::tar {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
         char path[SPEC::MAX_PATH_LENGTH] = "";
-        const char* data = nullptr;
-        TI size = 0;
+        typename SPEC::DATA_BACKEND data;
         bool success = true;
     };
 }

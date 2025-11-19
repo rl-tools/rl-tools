@@ -118,13 +118,13 @@ namespace rl_tools{
             }
         }
 
-        template <typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char*& output_data, typename DEVICE::index_t& read_size) {
+        template <typename DEVICE, typename BD_TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, BufferData<BD_TI>& data_backend, const char* entry_name, char*& output_data, typename DEVICE::index_t& read_size) {
             // assumptions: entry_name is null-terminated or at least 100 characters long
             // assumption: length of tar_data is correct
             using TI = typename DEVICE::index_t;
-            char* ptr = const_cast<char*>(tar_data);
-            while (ptr <= tar_data + length - BLOCK_SIZE<TI>) {
+            char* ptr = const_cast<char*>(data_backend.data);
+            while (ptr <= data_backend.data + data_backend.size - BLOCK_SIZE<TI>) {
                 header* h = reinterpret_cast<header*>(ptr);
                 ptr += BLOCK_SIZE<TI>;
 
@@ -149,15 +149,15 @@ namespace rl_tools{
             }
             return false;
         }
-        template <typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, const char* tar_data, typename DEVICE::index_t length, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
+        template <typename DEVICE, typename BD_TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, BufferData<BD_TI>& data_backend, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
             // assumptions: entry_name is null-terminated or at least 100 characters long
             using TI = typename DEVICE::index_t;
             char* ptr;
-            if(!get(device, tar_data, length, entry_name, ptr, read_size)){
+            if(!get(device, data_backend, entry_name, ptr, read_size)){
                 return false;
             }
-            if (!utils::assert_exit(device, ptr + read_size <= tar_data + length, "persist::backends::tar: entry size goes beyond tar data size")){return false;};
+            if (!utils::assert_exit(device, ptr + read_size <= data_backend.data + data_backend.size, "persist::backends::tar: entry size goes beyond tar data size")){return false;};
             if (!utils::assert_exit(device, read_size <= output_size, "persist::backends::tar: Output buffer is too small for the requested entry")){return false;};
             utils::string::memcpy<TI>(output_data, ptr, read_size);
             return true;
@@ -347,7 +347,7 @@ namespace rl_tools{
         utils::string::copy(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
         char* metadata;
         TI metadata_size;
-        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, group_path, metadata, metadata_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
+        utils::assert_exit(device, persist::backends::tar::get(device, group.data, group_path, metadata, metadata_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
         using TI = typename DEVICE::index_t;
         TI position;
         TI value_length = 0;
@@ -396,7 +396,7 @@ namespace rl_tools{
         constexpr TI METADATA_SIZE = 100;
         char metadata[METADATA_SIZE];
         TI read_size = 0;
-        if (!utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive")){return false;};
+        if (!utils::assert_exit(device, persist::backends::tar::get(device, group.data, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive")){return false;};
         metadata[read_size] = '\0';
         TI type_position = 0;
         TI type_value_length = 0;
@@ -415,7 +415,7 @@ namespace rl_tools{
         Tensor<DENSE_SPEC> tensor_dense;
         TI data_size;
         char* data_ptr = nullptr;
-        if (!utils::assert_exit(device, persist::backends::tar::get(device, group.data, group.size, current_path, data_ptr, data_size), "persist::backends::tar: 'data' not found in metadata")){return false;};
+        if (!utils::assert_exit(device, persist::backends::tar::get(device, group.data, current_path, data_ptr, data_size), "persist::backends::tar: 'data' not found in metadata")){return false;};
         if (!utils::assert_exit(device, data_size == DENSE_SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch")){return false;};
         tensor_dense._data = reinterpret_cast<typename SPEC::T*>(data_ptr);
         copy(device, device, tensor_dense, tensor);

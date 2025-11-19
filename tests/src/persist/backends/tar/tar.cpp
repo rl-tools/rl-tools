@@ -63,17 +63,20 @@ TEST(TESTS_PERSIST_BACKENDS_TAR_TAR, test) {
     std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_file)), std::istreambuf_iterator<char>());
     archive_file.close();
 
+    rlt::persist::backends::tar::BufferData<TI> tar_data_backend;
+    tar_data_backend.data = tar_data.data();
+    tar_data_backend.size = tar_data.size();
 
     char buffer[500];
     TI read_size;
-    rlt::persist::backends::tar::get(device, tar_data.data(), tar_data.size(), "buffer1.txt", buffer, sizeof(buffer), read_size);
+    rlt::persist::backends::tar::get(device, tar_data_backend, "buffer1.txt", buffer, sizeof(buffer), read_size);
     ASSERT_TRUE(rlt::utils::string::compare("abcdefg", "abcdefg", 7));
     ASSERT_FALSE(rlt::utils::string::compare("abcdefg", "abbdefg", 7));
     ASSERT_TRUE(rlt::utils::string::compare("abcdefg", "abcdefg ", 7));
     ASSERT_FALSE(rlt::utils::string::compare("abcdefg", "abcdefg ", 8));
     ASSERT_FALSE(rlt::utils::string::compare("abcdefg", "", 7));
     ASSERT_TRUE(rlt::utils::string::compare(buffer, content1.c_str(), content1.size()));
-    rlt::persist::backends::tar::get(device, tar_data.data(), tar_data.size(), "entry2.log", buffer, sizeof(buffer), read_size);
+    rlt::persist::backends::tar::get(device, tar_data_backend, "entry2.log", buffer, sizeof(buffer), read_size);
     ASSERT_TRUE(rlt::utils::string::compare(buffer, content2.c_str(), content2.size()));
 }
 
@@ -107,8 +110,8 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, tensor) {
     std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_file)), std::istreambuf_iterator<char>());
     archive_file.close();
     rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group;
-    reader_group.data = tar_data.data();
-    reader_group.size = tar_data.size();
+    reader_group.data.data = tar_data.data();
+    reader_group.data.size = tar_data.size();
     auto reader_container_group = rlt::create_group(device, reader_group, "container");
     rlt::load(device, A_read_back, reader_container_group, "A");
 
@@ -150,8 +153,8 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, tensor_attribute) {
     std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_file)), std::istreambuf_iterator<char>());
     archive_file.close();
     rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group;
-    reader_group.data = tar_data.data();
-    reader_group.size = tar_data.size();
+    reader_group.data.data = tar_data.data();
+    reader_group.data.size = tar_data.size();
     auto reader_container_group = rlt::create_group(device, reader_group, "container");
     rlt::load(device, A_read_back, reader_container_group, "A");
 
@@ -191,8 +194,8 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, matrix) {
     std::vector<char> tar_data((std::istreambuf_iterator<char>(archive_file)), std::istreambuf_iterator<char>());
     archive_file.close();
     rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> reader_group;
-    reader_group.data = tar_data.data();
-    reader_group.size = tar_data.size();
+    reader_group.data.data = tar_data.data();
+    reader_group.data.size = tar_data.size();
     rlt::load(device, A_read_back, reader_group, "A");
 
     rlt::print(device, A_read_back);
