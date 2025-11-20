@@ -21,9 +21,7 @@ namespace rl_tools{
         template <typename DEVICE, typename BD_TI>
         RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, PosixFileData<BD_TI>& data_backend, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
             using TI = typename DEVICE::index_t;
-            if(fseek(data_backend.f, 0, SEEK_SET) != 0){
-                return false;
-            }
+            if(!utils::assert_exit(device, fseek(data_backend.f, 0, SEEK_SET) == 0, "persist::backends::tar: Failed to seek to start of file")){return false;}
             header h;
             while(fread(&h, sizeof(header), 1, data_backend.f) == 1){
                 if(h.name[0] == '\0'){
