@@ -799,13 +799,13 @@ namespace rl_tools{
         unary_associative_reduce(device, op, t, result);
     }
     template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T is_nan(DEVICE& device, const Tensor<SPEC>& t, const Mode<MODE>& mode = {}){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const Tensor<SPEC>& t, const Mode<MODE>& mode = {}){
         tensor::unary_reduce_operations::IsNan<decltype(device.math), typename SPEC::T> op;
         op.initial_value = false;
         return unary_associative_reduce(device, op, t);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T is_finite(DEVICE& device, const Tensor<SPEC>& t){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_finite(DEVICE& device, const Tensor<SPEC>& t){
         tensor::unary_reduce_operations::IsFinite<decltype(device.math), typename SPEC::T> op;
         op.initial_value = false;
         return unary_associative_reduce(device, op, t);
