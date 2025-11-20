@@ -118,15 +118,17 @@ namespace rl_tools{
             }
         }
 
-        template <typename DEVICE, typename BD_TI>
-        RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, BufferData<BD_TI>& data_backend, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
+        template <typename DEVICE, typename BD_TI, typename READ_OFFSET_TI, typename READ_SIZE_TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool seek(DEVICE& device, BufferData<BD_TI>& data_backend, const char* entry_name, READ_OFFSET_TI& entry_offset, READ_SIZE_TI& entry_size){
             // assumptions: entry_name is null-terminated or at least 100 characters long
             // assumption: length of tar_data is correct
             using TI = typename DEVICE::index_t;
             char* ptr = const_cast<char*>(data_backend.data);
+            entry_offset = 0;
             while (ptr <= data_backend.data + data_backend.size - BLOCK_SIZE<TI>) {
                 header* h = reinterpret_cast<header*>(ptr);
                 ptr += BLOCK_SIZE<TI>;
+                entry_offset += BLOCK_SIZE<TI>;
 
                 // An all-zero block marks the end of the archive
                 if (h->name[0] == '\0') {
@@ -135,19 +137,34 @@ namespace rl_tools{
 
                 if (!utils::assert_exit(device, utils::string::compare(h->magic, "ustar", 5), "Warning: Not a UStar format archive or header is corrupted.")){return false;};
 
-                read_size = utils::string::parse_octal<TI>(h->size, 12);
+                entry_size = utils::string::parse_octal<TI>(h->size, 12);
                 if (utils::string::compare(h->name, entry_name, 100)){
-                    if (!utils::assert_exit(device, ptr + read_size <= data_backend.data + data_backend.size, "persist::backends::tar: entry size goes beyond tar data size")){return false;};
-                    if (!utils::assert_exit(device, read_size <= output_size, "persist::backends::tar: Output buffer is too small for the requested entry")){return false;};
-                    utils::string::memcpy<TI>(output_data, ptr, read_size);
+                    if (!utils::assert_exit(device, ptr + entry_size <= data_backend.data + data_backend.size, "persist::backends::tar: entry size goes beyond tar data size")){return false;};
                     return true;
                 }
-                ptr += read_size;
+                ptr += entry_size;
+                entry_offset += entry_size;
 
-                size_t padding_size = (BLOCK_SIZE<TI> - (read_size % BLOCK_SIZE<TI>)) % BLOCK_SIZE<TI>;
+                size_t padding_size = (BLOCK_SIZE<TI> - (entry_size % BLOCK_SIZE<TI>)) % BLOCK_SIZE<TI>;
                 if (padding_size > 0) {
                     ptr += padding_size;
+                    entry_offset += padding_size;
                 }
+            }
+            return false;
+        }
+
+        template <typename DEVICE, typename BD_TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool get(DEVICE& device, BufferData<BD_TI>& data_backend, const char* entry_name, char* output_data, typename DEVICE::index_t output_size, typename DEVICE::index_t& read_size){
+            // assumptions: entry_name is null-terminated or at least 100 characters long
+            // assumption: length of tar_data is correct
+            using TI = typename DEVICE::index_t;
+            TI entry_offset;
+            if (seek(device, data_backend, entry_name, entry_offset, read_size)){
+                if (!utils::assert_exit(device, read_size <= output_size, "persist::backends::tar: Output buffer is too small for the requested entry")){return false;};
+                char* ptr = const_cast<char*>(data_backend.data) + entry_offset;
+                utils::string::memcpy<TI>(output_data, ptr, read_size);
+                return true;
             }
             return false;
         }
