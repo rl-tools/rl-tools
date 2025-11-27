@@ -60,7 +60,7 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         static constexpr TI BYTE_ALIGNMENT = 64;
         static constexpr TI ALIGNED_SIZE = SIZE_BYTES + BYTE_ALIGNMENT + POINTER_SIZE;
 #else
-        static constexpr TI ALIGNED_SIZE = SPEC::SIZE_BYTES;
+        static constexpr TI ALIGNED_SIZE = SIZE_BYTES;
 #endif
 #ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
         void* original_pointer = ::malloc(ALIGNED_SIZE);
@@ -75,7 +75,7 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         *((decltype(original_pointer)*)original_pointer_storage) = original_pointer;
         matrix._data = reinterpret_cast<T*>(aligned_byte_pointer);
 #else
-        matrix._data = reinterpret_cast<typename SPEC::T*>(original_pointer);
+        matrix._data = reinterpret_cast<T*>(original_pointer);
 #endif
 
 
@@ -873,7 +873,9 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         using T = typename OUTPUT_SPEC::T;
         using TI = typename DEVICE::index_t;
 
-        if constexpr(utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename INPUT_SPEC_B::T> && utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename OUTPUT_SPEC::T> && INPUT_SPEC_A::COL_PITCH == 1 && INPUT_SPEC_B::COL_PITCH == 1 && OUTPUT_SPEC::COL_PITCH == 1){
+        constexpr bool UNIFORM_TYPE = utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename INPUT_SPEC_B::T> && utils::typing::is_same_v<typename INPUT_SPEC_A::T, typename OUTPUT_SPEC::T>;
+        constexpr bool ROW_MAJOR = INPUT_SPEC_A::ROW_MAJOR && INPUT_SPEC_B::ROW_MAJOR && OUTPUT_SPEC::ROW_MAJOR;
+        if constexpr(UNIFORM_TYPE && ROW_MAJOR){
             constexpr TI M = INPUT_SPEC_A::ROWS;
             constexpr TI N = INPUT_SPEC_B::COLS;
             constexpr TI K = INPUT_SPEC_A::COLS;
