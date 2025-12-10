@@ -49,8 +49,9 @@ namespace rl_tools{
                 return result;
             }
             for(TI i = 0; i < SPEC::TIMING_STATS_NUM_STEPS; i++){
+                auto intermediate_interval = SPEC::FORCE_SYNC_NATIVE_RUNTIME && executor.force_sync_native != 0 ? SPEC::CONTROL_INTERVAL_NATIVE_NS / executor.force_sync_native : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
                 auto value = ORIGINAL ? executor.control_original_dt[i] : executor.control_dt[i];
-                auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
+                auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : intermediate_interval;
                 if(value > expected * (ORIGINAL ? SPEC::WARNING_LEVELS::NATIVE_TIMING_JITTER_HIGH_THRESHOLD_NS : SPEC::WARNING_LEVELS::INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD_NS) || value < expected * (ORIGINAL ? SPEC::WARNING_LEVELS::NATIVE_TIMING_JITTER_LOW_THRESHOLD_NS : SPEC::WARNING_LEVELS::INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD_NS)){
                     T magnitude = value / (T)expected;
                     result.OK = false;
@@ -77,7 +78,8 @@ namespace rl_tools{
             }
             bias /= SPEC::TIMING_STATS_NUM_STEPS;
 
-            auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
+            auto intermediate_interval = SPEC::FORCE_SYNC_NATIVE_RUNTIME && executor.force_sync_native != 0 ? SPEC::CONTROL_INTERVAL_NATIVE_NS / executor.force_sync_native : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
+            auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : intermediate_interval;
             T magnitude = bias / (T)expected;
             result.MAGNITUDE = magnitude;
             if(bias > expected * (ORIGINAL ? SPEC::WARNING_LEVELS::NATIVE_TIMING_BIAS_HIGH_THRESHOLD : SPEC::WARNING_LEVELS::INTERMEDIATE_TIMING_BIAS_HIGH_THRESHOLD) || bias < expected * (ORIGINAL ? SPEC::WARNING_LEVELS::NATIVE_TIMING_BIAS_LOW_THRESHOLD : SPEC::WARNING_LEVELS::INTERMEDIATE_TIMING_BIAS_LOW_THRESHOLD)){
