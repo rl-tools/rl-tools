@@ -12,6 +12,9 @@
 //     void cblas_dgemm(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA, const enum CBLAS_TRANSPOSE TransB, const int M, const int N, const int K, const double alpha, const double *A, const int lda, const double *B, const int ldb, const double beta, double *C, const int ldc);
 // }
 
+#include "../../../containers/matrix/operations_arm_neon.h"
+
+#define RL_TOOLS_USE_EVOLVED_GEMM
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -55,10 +58,25 @@ namespace rl_tools{
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
 
+#ifndef RL_TOOLS_USE_EVOLVED_GEMM
         set_broadcast(device, matrix_view(device, layer.biases.parameters), output);
+#endif
 
         if constexpr(utils::typing::is_same_v<T, float>){
+#ifndef RL_TOOLS_USE_EVOLVED_GEMM
             cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, output._data, row_pitch(output));
+#else
+            constexpr TI LDA = INPUT_SPEC::ROW_PITCH;
+            constexpr TI LDB = decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST;
+            constexpr TI LDC = OUTPUT_SPEC::ROW_PITCH;
+            gemm_kernel<T, BATCH_SIZE, LAYER_SPEC::OUTPUT_DIM, LAYER_SPEC::INPUT_DIM, LDA, LDB, LDC>(input._data, layer.weights.parameters._data, output._data);
+            for (TI row_i=0; row_i < BATCH_SIZE; row_i++) {
+                for (TI col_j=0; col_j < LAYER_SPEC::OUTPUT_DIM; col_j++){
+                    increment(output, row_i, col_j, get(device, layer.biases.parameters, col_j));
+                }
+            }
+#endif
+
         }
         else{
             cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, output._data, row_pitch(output));
@@ -92,10 +110,24 @@ namespace rl_tools{
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
 
 
+#ifndef RL_TOOLS_USE_EVOLVED_GEMM
         set_broadcast(device, matrix_view(device, layer.biases.parameters), output);
+#endif
 
         if constexpr(utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, (T*)output._data, row_pitch(output));
+#ifndef RL_TOOLS_USE_EVOLVED_GEMM
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, beta, output._data, row_pitch(output));
+#else
+            constexpr TI LDA = INPUT_SPEC::ROW_PITCH;
+            constexpr TI LDB = decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST;
+            constexpr TI LDC = OUTPUT_SPEC::ROW_PITCH;
+            gemm_kernel<T, BATCH_SIZE, LAYER_SPEC::OUTPUT_DIM, LAYER_SPEC::INPUT_DIM, LDA, LDB, LDC>(input._data, layer.weights.parameters._data, output._data);
+            for (TI row_i=0; row_i < BATCH_SIZE; row_i++) {
+                for (TI col_j=0; col_j < LAYER_SPEC::OUTPUT_DIM; col_j++){
+                    increment(output, row_i, col_j, get(device, layer.biases.parameters, col_j));
+                }
+            }
+#endif
         }
         else{
             if constexpr(utils::typing::is_same_v<T, double>){
