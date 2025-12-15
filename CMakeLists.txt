@@ -30,7 +30,7 @@ target_link_libraries(rl_tools_full INTERFACE rl_tools_core)
 # Compiler optimizations
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(rl_tools_full INTERFACE -O3 -ffast-math -march=native)
+        target_compile_options(rl_tools_full INTERFACE -O3 -ffast-math -march=native -Wno-error=maybe-uninitialized -Wno-error=mismatched-new-delete)
     endif()
     if(RL_TOOLS_WARNINGS_AS_ERRORS)
         # Safe (just unused warnings)
