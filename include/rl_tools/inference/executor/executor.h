@@ -10,12 +10,12 @@ namespace rl_tools{
             template <typename TYPE_POLICY>
             struct WarningLevelsDefault{
                 using T = typename TYPE_POLICY::DEFAULT;
-                static constexpr T INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
-                static constexpr T INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
+                static constexpr T INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD = 1.2;
+                static constexpr T INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD = 0.8;
                 static constexpr T INTERMEDIATE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
                 static constexpr T INTERMEDIATE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
-                static constexpr T NATIVE_TIMING_JITTER_HIGH_THRESHOLD_NS = 1.2;
-                static constexpr T NATIVE_TIMING_JITTER_LOW_THRESHOLD_NS = 0.8;
+                static constexpr T NATIVE_TIMING_JITTER_HIGH_THRESHOLD = 1.2;
+                static constexpr T NATIVE_TIMING_JITTER_LOW_THRESHOLD = 0.8;
                 static constexpr T NATIVE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
                 static constexpr T NATIVE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
             };

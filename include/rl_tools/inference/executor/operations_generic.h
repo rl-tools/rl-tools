@@ -52,7 +52,7 @@ namespace rl_tools{
                 auto intermediate_interval = SPEC::FORCE_SYNC_NATIVE_RUNTIME && executor.force_sync_native != 0 ? SPEC::CONTROL_INTERVAL_NATIVE_NS / executor.force_sync_native : SPEC::CONTROL_INTERVAL_INTERMEDIATE_NS;
                 auto value = ORIGINAL ? executor.control_original_dt[i] : executor.control_dt[i];
                 auto expected = ORIGINAL ? SPEC::CONTROL_INTERVAL_NATIVE_NS : intermediate_interval;
-                if(value > expected * (ORIGINAL ? SPEC::WARNING_LEVELS::NATIVE_TIMING_JITTER_HIGH_THRESHOLD_NS : SPEC::WARNING_LEVELS::INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD_NS) || value < expected * (ORIGINAL ? SPEC::WARNING_LEVELS::NATIVE_TIMING_JITTER_LOW_THRESHOLD_NS : SPEC::WARNING_LEVELS::INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD_NS)){
+                if(value > expected * (ORIGINAL ? SPEC::WARNING_LEVELS::NATIVE_TIMING_JITTER_HIGH_THRESHOLD : SPEC::WARNING_LEVELS::INTERMEDIATE_TIMING_JITTER_HIGH_THRESHOLD) || value < expected * (ORIGINAL ? SPEC::WARNING_LEVELS::NATIVE_TIMING_JITTER_LOW_THRESHOLD : SPEC::WARNING_LEVELS::INTERMEDIATE_TIMING_JITTER_LOW_THRESHOLD)){
                     T magnitude = value / (T)expected;
                     result.OK = false;
                     result.MAGNITUDE = magnitude;
