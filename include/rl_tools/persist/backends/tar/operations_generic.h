@@ -170,21 +170,29 @@ namespace rl_tools{
         }
         namespace containers::tensor{
             template <typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
-            RL_TOOLS_FUNCTION_PLACEMENT void dim_helper(char* metadata, TI& metadata_position){
+            RL_TOOLS_FUNCTION_PLACEMENT bool dim_helper(char* metadata, TI& metadata_position){
                 if constexpr(DIM < SPEC::SHAPE::LENGTH){
                     constexpr TI DIM_KEY_LENGTH = 64;
                     constexpr TI DIM_VALUE_LENGTH = 16;
                     char dim_key[DIM_KEY_LENGTH];
                     char dim_value[DIM_VALUE_LENGTH];
                     TI pos = 0;
-                    pos += utils::string::copy(dim_key, "dim_", DIM_KEY_LENGTH);
+                    char dim_key_prefix[] = "dim_";
+                    pos += utils::string::copy(dim_key, dim_key_prefix, DIM_KEY_LENGTH);
+                    if(pos != sizeof(dim_key_prefix)-1){
+                        // just to please GCC 11, this should never happen
+                        return false;
+                    }
                     pos += utils::string::int_to_string<TI, TI>(dim_key + pos, DIM_KEY_LENGTH - pos - 1, DIM);
                     pos += utils::string::copy(dim_key + pos, ": ", DIM_KEY_LENGTH - pos - 1);
                     metadata_position += utils::string::copy(metadata + metadata_position, dim_key, METADATA_SIZE - metadata_position - 1);
                     utils::string::int_to_string<TI, TI>(dim_value, DIM_VALUE_LENGTH-1, SPEC::SHAPE::template GET<DIM>);
                     metadata_position += utils::string::copy<TI>(metadata + metadata_position, dim_value, METADATA_SIZE - metadata_position - 1);
                     metadata_position += utils::string::copy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position - 1);
-                    dim_helper<SPEC, TI, METADATA_SIZE, DIM + 1>(metadata, metadata_position);
+                    return dim_helper<SPEC, TI, METADATA_SIZE, DIM + 1>(metadata, metadata_position);
+                }
+                else{
+                    return true;
                 }
             }
             template <typename DEVICE, typename SPEC, typename TI = typename SPEC::TI, TI METADATA_SIZE, TI DIM = 0>
@@ -461,7 +469,7 @@ namespace rl_tools{
        utils::string::int_to_string<TI, TI>(num_dims_str, 16, SPEC::SHAPE::LENGTH);
         metadata_position += utils::string::copy(metadata + metadata_position, num_dims_str, METADATA_SIZE - metadata_position-1);
         metadata_position += utils::string::copy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position-1);
-        persist::backends::tar::containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position);
+        utils::assert_exit(device, persist::backends::tar::containers::tensor::dim_helper<SPEC, TI, METADATA_SIZE>(metadata, metadata_position), "persist::backends::tar: Failed to write dimensions to metadata");
         utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length");
         utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
         write_entry(device, *group.writer, current_path, metadata, metadata_position);
