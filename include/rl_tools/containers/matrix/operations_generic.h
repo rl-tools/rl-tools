@@ -638,7 +638,7 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         }
     }
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T mean(DEVICE& device, rl_tools::Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T mean(DEVICE& device, const rl_tools::Matrix<SPEC>& m){
         using T = typename SPEC::T;
         T acc = 0;
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
@@ -671,7 +671,7 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
         }
     }
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T std(DEVICE& device, rl_tools::Matrix<SPEC>& m){
+    typename SPEC::T std(DEVICE& device, rl_tools::Matrix<SPEC>& m){
         static_assert(SPEC::ROWS * SPEC::COLS > 1);
         using T = typename SPEC::T;
         T acc = 0;

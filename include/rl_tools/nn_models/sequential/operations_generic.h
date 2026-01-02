@@ -360,7 +360,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& module) {
+    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& module) {
         reset_forward_state(device, module.content);
         if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             reset_forward_state(device, module.next_module);

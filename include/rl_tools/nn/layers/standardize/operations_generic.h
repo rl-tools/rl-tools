@@ -142,6 +142,14 @@ namespace rl_tools{
         // this is a no-op as the standardize layer does not have trainable parameters
     }
 
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn::layers::standardize::LayerBackward<SPEC>& l) { }
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& l) {
+        reset_forward_state(device, static_cast<nn::layers::standardize::LayerBackward<SPEC>&>(l));
+        set_all(device, l.output, 0);
+    }
+
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {
         // this is a no-op as the standardize layer does not have trainable parameters

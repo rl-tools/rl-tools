@@ -144,10 +144,12 @@ namespace rl_tools
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         if(parameters.mdp.termination.enabled){
+            STATE desired_state;
+            get_desired_state(device, env, parameters, state, desired_state, rng);
             for(TI i = 0; i < 3; i++){
                 if(
-                    math::abs(device.math, state.position[i]) > parameters.mdp.termination.position_threshold ||
-                    math::abs(device.math, state.linear_velocity[i]) > parameters.mdp.termination.linear_velocity_threshold ||
+                    math::abs(device.math, state.position[i] - desired_state.position[i]) > parameters.mdp.termination.position_threshold ||
+                    math::abs(device.math, state.linear_velocity[i] - desired_state.linear_velocity[i]) > parameters.mdp.termination.linear_velocity_threshold ||
                     math::abs(device.math, state.angular_velocity[i]) > parameters.mdp.termination.angular_velocity_threshold
                 ){
                     return true;

@@ -114,7 +114,7 @@ namespace rl_tools{
             using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
             using MULTIROTOR = rl::environments::Multirotor<SPEC>;
             initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state));
-            state.current_step = 0;
+            state.rotor_history_step = 0;
             for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
                 for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
                     state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
@@ -127,8 +127,7 @@ namespace rl_tools{
             using STATE = rl::environments::l2f::StateTrajectory<STATE_SPEC>;
             using MULTIROTOR = rl::environments::Multirotor<SPEC>;
             initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state));
-            state.current_step = 0;
-            state.trajectory.type = POSITION;
+            state.trajectory_step = 0;
         }
     }
 }

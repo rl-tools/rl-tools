@@ -32,7 +32,7 @@ namespace rl_tools{
             static constexpr TI CRITIC_NUM_LAYERS = 3;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
 
-            static constexpr TI EPISODE_STEP_LIMIT = 1000;
+            static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
             static constexpr TI DATASET_SIZE = ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS;

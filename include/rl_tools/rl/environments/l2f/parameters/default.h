@@ -25,7 +25,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         static constexpr bool ROTOR_TIME_CONSTANT = ENABLED;
     };
 
-    template <typename T, typename TI, typename DOMAIN_RANDOMIZATION_OPTIONS=DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS<>>
+    template <typename T, typename TI, TI T_EPISODE_LENGTH_S = 5, typename DOMAIN_RANDOMIZATION_OPTIONS=DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS<>>
     struct DEFAULT_PARAMETERS_FACTORY{
         static constexpr auto MODEL = dynamics::REGISTRY::crazyflie;
         constexpr static auto MODEL_NAME = parameters::dynamics::registry_name<MODEL>;
@@ -50,9 +50,11 @@ namespace rl_tools::rl::environments::l2f::parameters {
         struct TRAJECTORY_OPTIONS{
             static constexpr bool LANGEVIN = false;
         };
+        static constexpr TI SIMULATION_FREQUENCY = 100;
+        static constexpr TI EPISODE_STEP_LIMIT_OUTER = T_EPISODE_LENGTH_S * SIMULATION_FREQUENCY;
 
-        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersObservationDelay<ParametersObservationDelaySpecification<T, TI, ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_OPTIONS, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>>>;
+        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT_OUTER, REWARD_FUNCTION>;
+        using PARAMETERS_TYPE = ParametersObservationDelay<ParametersObservationDelaySpecification<T, TI, ParametersTrajectory<ParametersTrajectorySpecification<T, TI, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>>>;
 
         static constexpr auto dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 
@@ -81,7 +83,6 @@ namespace rl_tools::rl::environments::l2f::parameters {
             action_noise,
             termination
         };
-        static constexpr TI SIMULATION_FREQUENCY = 100;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
@@ -123,16 +124,6 @@ namespace rl_tools::rl::environments::l2f::parameters {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
         };
 
-        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {
-            {0.5, 0.5}, // mixture weights
-            typename PARAMETERS_TYPE::Trajectory::Langevin{
-                1.00, // gamma
-                2.00, // omega
-                0.50, // sigma
-                0.01 // alpha
-            }
-        };
-
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
@@ -146,7 +137,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
                     }, // Disturbances
                     domain_randomization
                 }, // DomainRandomization
-                trajectory // Trajectory
+                {}
             },
             {
                 0, // linear_velocity
@@ -157,7 +148,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         struct STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
-            static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
+            static constexpr TI EPISODE_STEP_LIMIT = EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
             static constexpr TI ANGULAR_VELOCITY_DELAY = 0; // one step at 100hz = 10ms ~ delay from IMU to input to the policy: 1.3ms time constant of the IIR in the IMU (bw ~110Hz) + synchronization delay (2ms) + (negligible SPI transfer latency due to it being interrupt-based) + 1ms sensor.c RTOS loop @ 1khz + 2ms for the RLtools loop
             static constexpr TI ANGULAR_VELOCITY_HISTORY = ANGULAR_VELOCITY_DELAY;

@@ -18,6 +18,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+        using TI = typename DEVICE::index_t;
         malloc(device, ts.ppo);
         malloc(device, ts.ppo_buffers);
         malloc(device, ts.on_policy_runner_dataset);
@@ -31,13 +32,17 @@ namespace rl_tools{
         malloc(device, ts.observations_dense);
         malloc(device, ts.observation_normalizer);
         malloc(device, ts.observation_privileged_normalizer);
-        for(auto& env: ts.envs){
+        malloc(device, ts.envs);
+        malloc(device, ts.env_parameters);
+        for(TI env_i=0; env_i < T_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
+            auto& env = get_ref(device, ts.envs, env_i);
             malloc(device, env);
         }
 
     }
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+        using TI = typename DEVICE::index_t;
         free(device, ts.ppo);
         free(device, ts.ppo_buffers);
         free(device, ts.on_policy_runner_dataset);
@@ -51,7 +56,10 @@ namespace rl_tools{
         free(device, ts.critic_optimizer);
         free(device, ts.observation_normalizer);
         free(device, ts.observation_privileged_normalizer);
-        for(auto& env: ts.envs){
+        free(device, ts.envs);
+        free(device, ts.env_parameters);
+        for(TI env_i=0; env_i < T_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
+            auto& env = get_ref(device, ts.envs, env_i);
             free(device, env);
         }
     }
@@ -64,7 +72,8 @@ namespace rl_tools{
         init(device, ts.rng, seed);
 
         for(TI env_i=0; env_i < CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
-            init(device, ts.envs[env_i]);
+            auto& env = get_ref(device, ts.envs, env_i);
+            init(device, env);
         }
 
         init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng);

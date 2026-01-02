@@ -122,23 +122,26 @@ namespace rl_tools{
 
         auto actions_buffer = view(device, evaluation_buffers.actions, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{});
 
-        ENVIRONMENT envs[SPEC::N_EPISODES];
-        typename ENVIRONMENT::State states[SPEC::N_EPISODES];
-        typename ENVIRONMENT::Parameters parameters[SPEC::N_EPISODES];
+        Tensor<tensor::Specification<ENVIRONMENT, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> envs;
+        Tensor<tensor::Specification<typename ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> states;
+        Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> parameters;
         bool terminated[SPEC::N_EPISODES];
         // using ADJUSTED_POLICY = typename POLICY::template CHANGE_BATCH_SIZE<TI, SPEC::N_EPISODES>;
         // typename ADJUSTED_POLICY::template State<true> policy_state;
 
+        malloc(device, envs);
+        malloc(device, states);
+        malloc(device, parameters);
         reset(device, policy, policy_state, rng);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
-            auto& env = envs[env_i];
+            auto& env = get_ref(device, envs, env_i);
             env = env_init;
             malloc(device, env);
             results.returns[env_i] = 0;
             results.episode_length[env_i] = 0;
             terminated[env_i] = false;
-            auto& state = states[env_i];
-            auto& current_parameters = parameters[env_i];
+            auto& state = get_ref(device, states, env_i);
+            auto& current_parameters = get_ref(device, parameters, env_i);
             if constexpr(SPEC::DETERMINISTIC_INITIAL_STATE) {
                 rl_tools::initial_parameters(device, env, current_parameters);
                 rl_tools::initial_state(device, env, current_parameters, state);
@@ -152,10 +155,10 @@ namespace rl_tools{
         for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
             for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
                 auto observation = row(device, evaluation_buffers.observations, env_i);
-                auto& state = states[env_i];
-                auto& env_parameters = parameters[env_i];
-                rl::utils::evaluation::set_state(device, data, env_i, step_i, states[env_i]);
-                auto& env = envs[env_i];
+                auto& state = get_ref(device, states, env_i);
+                auto& env_parameters = get_ref(device, parameters, env_i);
+                rl::utils::evaluation::set_state(device, data, env_i, step_i, state);
+                auto& env = get_ref(device, envs, env_i);
                 observe(device, env, env_parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
             }
             auto observations_chunk = view(device, evaluation_buffers.observations, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>{}, 0, 0);
@@ -171,10 +174,10 @@ namespace rl_tools{
                         continue;
                     }
                 }
-                auto& env = envs[env_i];
+                auto& env = get_ref(device, envs, env_i);
                 typename ENVIRONMENT::State next_state;
-                auto& state = states[env_i];
-                auto& env_parameters = parameters[env_i];
+                auto& state = get_ref(device, states, env_i);
+                auto& env_parameters = get_ref(device, parameters, env_i);
                 auto action = row(device, actions_buffer, env_i);
                 T dt = step(device, env, env_parameters, state, action, next_state, rng);
                 if(env_i == 0 && !terminated[env_i]){ // only render the first environment
@@ -198,20 +201,23 @@ namespace rl_tools{
                     set_truncated(device, env, env_parameters, ui, next_state); // this is to sed the terminated flag to the car env
                     render(device, env, env_parameters, ui);
                 }
-                states[env_i] = next_state;
+                state = next_state;
             }
         }
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
-            auto& env_parameters = parameters[env_i];
-            auto& env = envs[env_i];
-            auto& state = states[env_i];
+            auto& env_parameters = get_ref(device, parameters, env_i);
+            auto& env = get_ref(device, envs, env_i);
+            auto& state = get_ref(device, states, env_i);
             set_truncated(device, env, env_parameters, ui, state); // this is to sed the terminated flag to the car env
             render(device, env, env_parameters, ui);
         }
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
-            auto &env = envs[env_i];
+            auto &env = get_ref(device, envs, env_i);
             free(device, env);
         }
+        free(device, envs);
+        free(device, states);
+        free(device, parameters);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
             results.returns[env_i] = results.returns[env_i];
             results.returns_mean += results.returns[env_i];

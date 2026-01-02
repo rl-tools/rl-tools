@@ -310,21 +310,13 @@ namespace rl_tools{
         return abs_diff(device, &l1, &l2);
     }
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackward<SPEC>* l) {
-        set_all(device, l->pre_activations, 0);
-    }
-    template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
-        reset_forward_state(device, (rl_tools::nn::layers::dense::LayerForward<SPEC>*) l);
-    }
-    template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerGradient<SPEC>* l) {
-        reset_forward_state(device, (rl_tools::nn::layers::dense::LayerBackward<SPEC>*) l);
-        set_all(device, l->output, 0);
+        set_all(device, l.pre_activations, 0);
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerGradient<SPEC>& l) {
-        reset_forward_state(device, &l);
+        reset_forward_state(device, static_cast<rl_tools::nn::layers::dense::LayerBackward<SPEC>&>(l));
+        set_all(device, l.output, 0);
     }
     template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}){

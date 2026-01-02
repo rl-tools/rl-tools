@@ -8,14 +8,16 @@
 #include "../environments.h"
 // #include "./parameters/reward_functions/default.h"
 // #include "./parameters/registry.h"
+#include "./parameters/trajectories/lissajous.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
-    template <typename T_T, typename T_TI, T_TI T_N, typename T_REWARD_FUNCTION>
+    template <typename T_T, typename T_TI, T_TI T_N, T_TI T_EPISODE_STEP_LIMIT, typename T_REWARD_FUNCTION>
     struct ParametersBaseSpecification{
         using T = T_T;
         using TI = T_TI;
         static constexpr TI N = T_N;
+        static constexpr TI EPISODE_STEP_LIMIT = T_EPISODE_STEP_LIMIT;
         using REWARD_FUNCTION = T_REWARD_FUNCTION;
         // static constexpr REGISTRY MODEL = T_MODEL;
     };
@@ -126,17 +128,9 @@ namespace rl_tools::rl::environments::l2f{
         template <typename T>
         static constexpr DomainRandomization<T> domain_randomization_disabled = {};
         template <typename T, typename TI>
-        struct Trajectory{
-            static constexpr TI MIXTURE_N = 2; // enum TrajectoryType
-            T mixture[MIXTURE_N];
-            // Langevin
-            struct Langevin{
-                T gamma;
-                T omega;
-                T sigma;
-                T alpha;
-            };
-            Langevin langevin;
+        struct ObservationDelay{
+            TI linear_velocity;
+            TI angular_velocity;
         };
         template <typename T, typename TI>
         struct ObservationDelay{
@@ -147,6 +141,7 @@ namespace rl_tools::rl::environments::l2f{
     template <typename T_SPEC>
     struct ParametersBase{
         using SPEC = T_SPEC;
+        using BASE_SPEC = SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI N = SPEC::N;
@@ -196,14 +191,10 @@ namespace rl_tools::rl::environments::l2f{
         using DomainRandomization = parameters::DomainRandomization<typename SPECC::T>;
         DomainRandomization domain_randomization;
     };
-    struct DefaultParametersTrajectoryOptions{
-        static constexpr bool LANGEVIN = false;
-    };
-    template <typename T_T, typename T_TI, typename T_OPTIONS, typename T_NEXT_COMPONENT>
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
     struct ParametersTrajectorySpecification{
         using T = T_T;
         using TI = T_TI;
-        using TRAJECTORY_OPTIONS = T_OPTIONS;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
     template <typename T_SPEC>
@@ -211,8 +202,22 @@ namespace rl_tools::rl::environments::l2f{
         using SPEC = T_SPEC;
         using TRAJECTORY_OPTIONS = typename SPEC::TRAJECTORY_OPTIONS;
         static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
-        using Trajectory = parameters::Trajectory<typename SPEC::T, typename SPEC::TI>;
-        Trajectory trajectory;
+        using TRAJECTORY_SPEC = parameters::trajectories::TrajectorySpecification<typename SPEC::T, typename SPEC::TI, SPEC::NEXT_COMPONENT::BASE_SPEC::EPISODE_STEP_LIMIT, 10000>; // dt in microseconds
+        parameters::trajectories::Trajectory<TRAJECTORY_SPEC> trajectory;
+    };
+
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    struct ParametersObservationDelaySpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename T_SPEC>
+    struct ParametersObservationDelay: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using TI = typename SPEC::TI;
+        using ObservationDelay = parameters::ObservationDelay<typename SPEC::T, typename SPEC::TI>;
+        ObservationDelay observation_delay;
     };
 
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
@@ -604,6 +609,25 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
+        template <typename T_T, typename T_TI, T_TI T_N_STEPS, T_TI T_INTERVAL, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct TrajectoryTrackingLookaheadSpecification{
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr TI N_STEPS = T_N_STEPS;
+            static constexpr TI INTERVAL = T_INTERVAL;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename SPEC>
+        struct TrajectoryTrackingLookahead{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            static constexpr TI N_STEPS = SPEC::N_STEPS;
+            static constexpr TI INTERVAL = SPEC::INTERVAL;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr TI CURRENT_DIM = 6 * SPEC::N_STEPS;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+        };
     }
 
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = void>
@@ -722,7 +746,7 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr TI PARENT_DIM = StateRotors<SPEC>::DIM;
         static constexpr TI ACTION_DIM = 4;
         static constexpr TI DIM = PARENT_DIM + HISTORY_LENGTH * ACTION_DIM;
-        TI current_step;
+        TI rotor_history_step;
         T action_history[HISTORY_LENGTH][4];
     };
 
@@ -758,10 +782,6 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr TI DIM = 4 + NEXT_COMPONENT::DIM;
         T orientation_offset[4];
     };
-    enum TrajectoryType{
-        POSITION = 0,
-        LANGEVIN = 1
-    };
     template <typename T_SPEC>
     struct StateTrajectory: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
@@ -769,20 +789,8 @@ namespace rl_tools::rl::environments::l2f{
         using TI = typename SPEC::TI;
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = false;
-        static constexpr TI DIM = 7 + NEXT_COMPONENT::DIM;
-        struct Trajectory{
-            TrajectoryType type;
-            struct Langevin{
-                T position[3];
-                T velocity[3];
-                T position_raw[3];
-                T velocity_raw[3];
-            };
-            union{
-                Langevin langevin;
-            };
-        };
-        Trajectory trajectory;
+        static constexpr TI DIM = NEXT_COMPONENT::DIM;
+        TI trajectory_step;
     };
 
 

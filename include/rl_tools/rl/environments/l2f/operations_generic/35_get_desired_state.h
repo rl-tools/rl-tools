@@ -25,27 +25,29 @@ namespace rl_tools{
         desired_state.linear_velocity[1] = 0;
         desired_state.linear_velocity[2] = 0;
     }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT typename DEVICE::index_t get_trajectory_index(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateTrajectory<STATE_SPEC>& state, typename DEVICE::index_t offset=0){
+        using TI = typename DEVICE::index_t;
+        using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
+        static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
+        static_assert(decltype(parameters.trajectory)::LENGTH == EPISODE_STEP_LIMIT);
+        TI full_step = state.trajectory_step + offset;
+        TI interval = full_step / EPISODE_STEP_LIMIT;
+        bool forward = interval % 2 == 0;
+        TI progress = full_step % EPISODE_STEP_LIMIT;
+        TI position = forward ? progress : (EPISODE_STEP_LIMIT - progress - 1);
+        return position;
+    }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void get_desired_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateTrajectory<STATE_SPEC>& state, rl::environments::l2f::StateTrajectory<STATE_SPEC>& desired_state, RNG& rng){
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
-        switch (state.trajectory.type){
-            case rl::environments::l2f::LANGEVIN:
-                desired_state.position[0] = state.trajectory.langevin.position[0];
-                desired_state.position[1] = state.trajectory.langevin.position[1];
-                desired_state.position[2] = state.trajectory.langevin.position[2];
-                desired_state.linear_velocity[0] = state.trajectory.langevin.velocity[0];
-                desired_state.linear_velocity[1] = state.trajectory.langevin.velocity[1];
-                desired_state.linear_velocity[2] = state.trajectory.langevin.velocity[2];
-                break;
-            default:
-                desired_state.position[0] = 0;
-                desired_state.position[1] = 0;
-                desired_state.position[2] = 0;
-                desired_state.linear_velocity[0] = 0;
-                desired_state.linear_velocity[1] = 0;
-                desired_state.linear_velocity[2] = 0;
-                break;
+        T traj_dt = (T)decltype(parameters.trajectory)::DT;
+        utils::assert_exit(device, parameters.integration.dt == traj_dt, "Mismatch between environment and trajectory parameters integration dt");
+        TI position = get_trajectory_index(device, env, parameters, state);
+        for (TI axis_i=0; axis_i < 3; axis_i++){
+            desired_state.position[axis_i]        = parameters.trajectory.steps[position].position[axis_i];
+            desired_state.linear_velocity[axis_i] = parameters.trajectory.steps[position].linear_velocity[axis_i];
         }
     }
 }

@@ -42,11 +42,15 @@ namespace rl_tools{
 #endif
         init_weights(device, ppo.actor, rng);
         init(device, actor_optimizer);
+        reset_forward_state(device, ppo.actor);
+        zero_gradient(device, ppo.actor);
         reset_optimizer_state(device, actor_optimizer, ppo.actor);
         auto& last_layer = get_last_layer(ppo.actor);
         set_all(device, last_layer.log_std.parameters, math::log(device.math, SPEC::PARAMETERS::INITIAL_ACTION_STD));
         init_weights(device, ppo.critic, rng);
         init(device, critic_optimizer);
+        reset_forward_state(device, ppo.actor);
+        zero_gradient(device, ppo.actor);
         reset_optimizer_state(device, critic_optimizer, ppo.critic);
 //        set_all(device, ppo.actor.input_layer.biases.parameters, 0);
 //        set_all(device, ppo.actor.hidden_layers[0].biases.parameters, 0);

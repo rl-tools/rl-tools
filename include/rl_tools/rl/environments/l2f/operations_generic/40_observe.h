@@ -323,11 +323,13 @@ namespace rl_tools{
             static_assert(Multirotor<SPEC>::State::ACTION_DIM == OBSERVATION::ACTION_DIM);
             static_assert(Multirotor<SPEC>::ACTION_DIM == OBSERVATION::ACTION_DIM);
             // the ring buffer in the state moves forwards in time, we want to observe the most recent action first, hence we need to move backwards in time
-            TI current_step = state.current_step == 0 ? STATE_HISTORY_LENGTH - 1 : state.current_step - 1;
+            TI current_step = state.rotor_history_step == 0 ? STATE_HISTORY_LENGTH - 1 : state.rotor_history_step - 1;
             for(TI step_i = 0; step_i < OBSERVATION::HISTORY_LENGTH; step_i++){
                 TI base = step_i*OBSERVATION::ACTION_DIM;
                 for(TI action_i = 0; action_i < OBSERVATION::ACTION_DIM; action_i++){
-                    set(observation, 0, base + action_i, state.action_history[current_step][action_i]);
+                    T value = state.action_history[current_step][action_i];
+                    value = math::clamp(device.math, value, (T)-1, (T)1);
+                    set(observation, 0, base + action_i, value);
                 }
                 current_step = current_step == 0 ? STATE_HISTORY_LENGTH - 1 : current_step - 1;
             }
@@ -467,6 +469,35 @@ namespace rl_tools{
                 else{
                     T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.linear_velocity, rng);
                     set(observation, 0, i, state.linear_velocity[i] - desired_state.linear_velocity[i] + noise);
+                }
+            }
+            auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::TrajectoryTrackingLookahead<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+            using OBSERVATION = observation::TrajectoryTrackingLookahead<OBSERVATION_SPEC>;
+            auto current_observation = view(device, observation, matrix::ViewSpec<1, OBSERVATION::CURRENT_DIM>{}, 0, 0);
+            static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
+            static_assert(OBS_SPEC::ROWS == 1);
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            static_assert(OBSERVATION_SPEC::N_STEPS == 0 || ((OBSERVATION_SPEC::N_STEPS-1) * OBSERVATION_SPEC::INTERVAL < decltype(parameters.trajectory)::LENGTH), "The lookahead steps exceed the trajectory length");
+            T position_noise[3] = {0, 0, 0};
+            T linear_velocity_noise[3] = {0, 0, 0};
+            if constexpr(!OBSERVATION_SPEC::PRIVILEGED || SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
+                for (TI axis_i=0; axis_i < 3 ; axis_i++){
+                    position_noise[axis_i] = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.position, rng);
+                    linear_velocity_noise[axis_i] = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.linear_velocity, rng);
+                }
+            }
+            for(TI step_i = 0; step_i < OBSERVATION_SPEC::N_STEPS; step_i++){
+                TI trajectory_step = get_trajectory_index(device, env, parameters, state, step_i * OBSERVATION_SPEC::INTERVAL);
+                for(TI axis_i = 0; axis_i < 3; axis_i++){
+                    set(current_observation, 0, step_i * 6 + axis_i, state.position[axis_i] - parameters.trajectory.steps[trajectory_step].position[axis_i] + position_noise[axis_i]);
+                }
+                for(TI axis_i = 0; axis_i < 3; axis_i++){
+                    set(current_observation, 0, step_i * 6 + 3 + axis_i, state.linear_velocity[axis_i] - parameters.trajectory.steps[trajectory_step].linear_velocity[axis_i] + linear_velocity_noise[axis_i]);
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);

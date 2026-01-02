@@ -198,7 +198,7 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
             using STATE = StateRotorsHistory<STATE_SPEC>;
             sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
-            state.current_step = 0;
+            state.rotor_history_step = 0;
             for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
                 for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
                     state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
@@ -213,29 +213,7 @@ namespace rl_tools{
             using STATE = StateTrajectory<STATE_SPEC>;
             using OPTS = typename PARAMETERS::TRAJECTORY_OPTIONS;
             sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
-            if constexpr(OPTS::LANGEVIN){
-                T threshold = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
-                T acc = 0;
-                state.trajectory.type = POSITION;
-                for(TI type_i = 0; type_i < decltype(parameters.trajectory)::MIXTURE_N; type_i++){
-                    acc += parameters.trajectory.mixture[type_i];
-                    if(threshold < acc){
-                        state.trajectory.type = static_cast<TrajectoryType>(type_i);
-                        break;
-                    }
-                }
-                switch(state.trajectory.type){
-                    case POSITION:
-                        break;
-                    case LANGEVIN:
-                        for(TI dim_i = 0; dim_i < 3; dim_i++){
-                            state.trajectory.langevin.position[dim_i] = 0;
-                            state.trajectory.langevin.velocity[dim_i] = 0;
-                            state.trajectory.langevin.position_raw[dim_i] = 0;
-                            state.trajectory.langevin.velocity_raw[dim_i] = 0;
-                        }
-                }
-            }
+            state.trajectory_step = 0;
         }
     }
 }

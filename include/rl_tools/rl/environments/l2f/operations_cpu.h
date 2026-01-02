@@ -114,13 +114,18 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::TrajectoryTrackingPosition<OBS_SPEC>& obs, bool first = true){
-        using OBSERVATION = rl::environments::l2f::observation::ParametersInertia<OBS_SPEC>;
+        using OBSERVATION = rl::environments::l2f::observation::TrajectoryTrackingPosition<OBS_SPEC>;
         return std::string(first ? "" : ".") + "TrajectoryTrackingPosition" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::TrajectoryTrackingLinearVelocity<OBS_SPEC>& obs, bool first = true){
-        using OBSERVATION = rl::environments::l2f::observation::ParametersInertia<OBS_SPEC>;
+        using OBSERVATION = rl::environments::l2f::observation::TrajectoryTrackingLinearVelocity<OBS_SPEC>;
         return std::string(first ? "" : ".") + "TrajectoryTrackingLinearVelocity" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::TrajectoryTrackingLookahead<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::TrajectoryTrackingLookahead<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "TrajectoryTrackingLookahead(" + std::to_string(OBS_SPEC::N_STEPS) + ", " + std::to_string(OBS_SPEC::INTERVAL) + ")" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     namespace rl::environments::l2f::obs_helper{
         template <typename DEVICE, typename ENV, typename OBS>
@@ -379,25 +384,24 @@ namespace rl_tools{
         json_string += (top_level ? "}" : "");
         return json_string;
     }
-    template <typename DEVICE, typename SPEC, typename T, typename TI>
-    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::Trajectory<T, TI>& parameters) {
-        using PARAMETERS = rl::environments::l2f::parameters::Trajectory<T, TI>;
+    template <typename DEVICE, typename SPEC, typename TRAJ_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::trajectories::Trajectory<TRAJ_SPEC>& parameters) {
+        using TI = typename DEVICE::index_t;
+        using TRAJECTORY = rl::environments::l2f::parameters::trajectories::Trajectory<TRAJ_SPEC>;
         std::string json_string = "{";
-        json_string += "\"MIXTURE_N\": " + std::to_string(PARAMETERS::MIXTURE_N) + ", ";
-        json_string += "\"mixture\": [";
-        for (TI i = 0; i < PARAMETERS::MIXTURE_N; i++){
-            json_string += std::to_string(parameters.mixture[i]);
-            if (i < PARAMETERS::MIXTURE_N - 1) {
-                json_string += ", ";
-            }
+        json_string += "\"LENGTH\": " + std::to_string(TRAJECTORY::LENGTH) + ", ";
+        json_string += "\"DT\": " + std::to_string(TRAJECTORY::DT) + ", ";
+        json_string += "\"steps\": [";
+        for (TI step_i=0; step_i < TRAJECTORY::LENGTH; ++step_i){
+            json_string += "{";
+            json_string += "\"position\": [" + std::to_string(parameters.steps[step_i].position[0]) + ", " + std::to_string(parameters.steps[step_i].position[1]) + ", " + std::to_string(parameters.steps[step_i].position[2]) + "], ";
+            json_string += "\"yaw\": " + std::to_string(parameters.steps[step_i].yaw) + ", ";
+            json_string += "\"linear_velocity\": [" + std::to_string(parameters.steps[step_i].linear_velocity[0]) + ", " + std::to_string(parameters.steps[step_i].linear_velocity[1]) + ", " + std::to_string(parameters.steps[step_i].linear_velocity[2]) + "], ";
+            json_string += "\"yaw_velocity\": " + std::to_string(parameters.steps[step_i].yaw_velocity);
+            json_string += "}";
+            json_string += (step_i < TRAJECTORY::LENGTH-1 ? ", " : "");
         }
-        json_string += "], ";
-        json_string += "\"langevin\": {";
-        json_string += "\"gamma\": " + std::to_string(parameters.langevin.gamma) + ", ";
-        json_string += "\"omega\": " + std::to_string(parameters.langevin.omega) + ", ";
-        json_string += "\"sigma\": " + std::to_string(parameters.langevin.sigma) + ", ";
-        json_string += "\"alpha\": " + std::to_string(parameters.langevin.alpha);
-        json_string += "}";
+        json_string += "]";
         json_string += "}";
         return json_string;
     }
@@ -579,25 +583,7 @@ namespace rl_tools{
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
         json_string += "\"trajectory\": {";
-        json_string += "\"type\": ";
-        switch (state.trajectory.type){
-            case rl::environments::l2f::TrajectoryType::POSITION:
-                json_string += "\"POSITION\"";
-                break;
-            case rl::environments::l2f::TrajectoryType::LANGEVIN:
-                json_string += "\"LANGEVIN\"";
-                json_string += ", ";
-                json_string += "\"langevin\": {";
-                json_string += "\"position\": [" +  std::to_string(state.trajectory.langevin.position[0]) + ", " + std::to_string(state.trajectory.langevin.position[1]) + ", " + std::to_string(state.trajectory.langevin.position[2]) + "], ";
-                json_string += "\"velocity\": [" + std::to_string(state.trajectory.langevin.velocity[0]) + ", " + std::to_string(state.trajectory.langevin.velocity[1]) + ", " + std::to_string(state.trajectory.langevin.velocity[2]) + "], ";
-                json_string += "\"position_raw\": [" + std::to_string(state.trajectory.langevin.position_raw[0]) + ", " + std::to_string(state.trajectory.langevin.position_raw[1]) + ", " + std::to_string(state.trajectory.langevin.position_raw[2]) + "], ";
-                json_string += "\"velocity_raw\": [" + std::to_string(state.trajectory.langevin.velocity_raw[0]) + ", " + std::to_string(state.trajectory.langevin.velocity_raw[1]) + ", " + std::to_string(state.trajectory.langevin.velocity_raw[2]) + "]";
-                json_string += "}";
-                break;
-            default:
-                json_string += "\"NONE\"";
-                break;
-        }
+        json_string += "\"trajectory_step\": " + std::to_string(state.trajectory_step);
         json_string += "}";
         json_string += top_level ? "}" : "";
         return json_string;
@@ -742,17 +728,24 @@ namespace rl_tools{
         from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
         from_json(device, env, json_object["domain_randomization"], parameters.domain_randomization);
     }
-    template <typename DEVICE, typename SPEC, typename T, typename TI>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::Trajectory<T, TI>& parameters) {
-        using PARAMETERS = rl::environments::l2f::parameters::Trajectory<T, TI>;
-        rl_tools::utils::assert_exit(device, json_object["MIXTURE_N"] == PARAMETERS::MIXTURE_N, "Mismatch in MIXTURE_N");
-        for (TI i = 0; i < PARAMETERS::MIXTURE_N; i++){
-            parameters.mixture[i] = json_object["mixture"][i];
+    template <typename DEVICE, typename SPEC, typename TRAJ_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::trajectories::Trajectory<TRAJ_SPEC>& trajectory) {
+        using T = typename TRAJ_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        using TRAJECTORY = rl::environments::l2f::parameters::trajectories::Trajectory<TRAJ_SPEC>;
+        rl_tools::utils::assert_exit(device, json_object["LENGTH"] == TRAJECTORY::LENGTH, "Mismatch in trajectory length");
+        T json_dt = json_object["DT"];
+        T traj_dt = TRAJECTORY::DT;
+        rl_tools::utils::assert_exit(device, json_dt == traj_dt, "Mismatch in trajectory dt");
+        for (TI step_i = 0; step_i < TRAJECTORY::LENGTH; step_i++){
+            auto& step = trajectory.steps[step_i];
+            for (TI axis_i=0; axis_i < 3; axis_i++){
+                step.position[axis_i] = json_object["steps"][step_i]["position"][axis_i];
+                step.yaw = json_object["steps"][step_i]["yaw"];
+                step.linear_velocity[axis_i] = json_object["steps"][step_i]["linear_velocity"][axis_i];
+                step.yaw_velocity = json_object["steps"][step_i]["yaw_velocity"];
+            }
         }
-        parameters.langevin.gamma = json_object["langevin"]["gamma"];
-        parameters.langevin.omega = json_object["langevin"]["omega"];
-        parameters.langevin.sigma = json_object["langevin"]["sigma"];
-        parameters.langevin.alpha = json_object["langevin"]["alpha"];
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersTrajectory<PARAM_SPEC>& parameters){
@@ -864,19 +857,7 @@ namespace rl_tools{
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateTrajectory<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        std::string type = json_object["trajectory"]["type"];
-        if(type == "POSITION"){
-            state.trajectory.type = rl::environments::l2f::TrajectoryType::POSITION;
-        }
-        if (type == "LANGEVIN"){
-            state.trajectory.type = rl::environments::l2f::TrajectoryType::LANGEVIN;
-            for (TI i = 0; i < 3; i++){
-                state.trajectory.langevin.position[i] = json_object["trajectory"]["langevin"]["position"][i];
-                state.trajectory.langevin.velocity[i] = json_object["trajectory"]["langevin"]["velocity"][i];
-                state.trajectory.langevin.position_raw[i] = json_object["trajectory"]["langevin"]["position_raw"][i];
-                state.trajectory.langevin.velocity_raw[i] = json_object["trajectory"]["langevin"]["velocity_raw"][i];
-            }
-        }
+        state.trajectory.trajectory_step = json_object["trajectory_step"];
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, std::string json_string, STATE& state){
@@ -1298,6 +1279,17 @@ function clear_episode(ui_state){
             ui_state.origin_coordinate_systems.map(cs => ui_state.simulator.remove(cs.get()))
         }
     }
+    // Clear trajectory visualization
+    if(ui_state.trajectoryVis){
+        ui_state.simulator.remove(ui_state.trajectoryVis.group)
+        ui_state.trajectoryVis = null
+    }
+    if(ui_state.trajectoryVisArray){
+        ui_state.trajectoryVisArray.forEach(tv => {
+            if(tv) ui_state.simulator.remove(tv.group)
+        })
+        ui_state.trajectoryVisArray = null
+    }
 }
 function set_camera(ui_state, distance){
     const scale = 1/Math.sqrt(ui_state.camera_position[0]**2 + ui_state.camera_position[1]**2 + ui_state.camera_position[2]**2) * distance
@@ -1317,9 +1309,15 @@ export async function episode_init(ui_state, parameters){
     clear_episode(ui_state)
     ui_state.drone = await drone_factory(parameters, [0, 0, 0], ui_state.showAxes, false, ui_state.conta_url)
     ui_state.simulator.add(ui_state.drone.get())
+    const scale = parameters.dynamics.mass
     if(ui_state.showAxes){
         ui_state.origin_coordinate_system = new CoordinateSystem([0, 0, 0], 1 * scale, 0.01 * scale)
         ui_state.simulator.add(ui_state.origin_coordinate_system.get())
+    }
+    // Create trajectory visualization if trajectory data exists
+    ui_state.trajectoryVis = create_trajectory_visualization(parameters, scale)
+    if(ui_state.trajectoryVis){
+        ui_state.simulator.add(ui_state.trajectoryVis.group)
     }
 }
 
@@ -1336,6 +1334,7 @@ export async function episode_init_multi(ui_state, parameters){
     set_camera(ui_state, distance)
     clear_episode(ui_state)
     ui_state.drones = []
+    ui_state.trajectoryVisArray = []
     if(!ui_state.showAxes && ui_state.origin_coordinate_systems){
         ui_state.origin_coordinate_systems.forEach(cs => {
             ui_state.simulator.remove(cs.get())
@@ -1353,6 +1352,20 @@ export async function episode_init_multi(ui_state, parameters){
             ui_state.origin_coordinate_systems.push(cs)
         }
         ui_state.drones.push(drone)
+        // Create trajectory visualization for first N drones only (performance optimization)
+        const MAX_TRAJECTORY_VISUALIZATIONS = 5
+        if(i < MAX_TRAJECTORY_VISUALIZATIONS){
+            const scale = parameter.dynamics.mass
+            const trajectoryVis = create_trajectory_visualization(parameter, scale)
+            if(trajectoryVis){
+                // Offset trajectory to match drone grid position
+                trajectoryVis.group.position.set(x, y, 0)
+                ui_state.simulator.add(trajectoryVis.group)
+            }
+            ui_state.trajectoryVisArray.push(trajectoryVis)
+        } else {
+            ui_state.trajectoryVisArray.push(null)
+        }
     }))
 }
 
@@ -1405,10 +1418,71 @@ function clip_position(scale, position){
     })
 }
 
+function get_trajectory_index(trajectory_step, trajectory_length){
+    const full_step = trajectory_step
+    const interval = Math.floor(full_step / trajectory_length)
+    const forward = interval % 2 === 0
+    const progress = full_step % trajectory_length
+    const position = forward ? progress : (trajectory_length - progress - 1)
+    return position
+}
+
+function create_trajectory_visualization(parameters, scale){
+    if(!parameters.trajectory || !parameters.trajectory.steps){
+        return null
+    }
+    const trajectory = parameters.trajectory
+    const steps = trajectory.steps
+    if(steps.length < 2){
+        return null
+    }
+    
+    const group = new THREE.Group()
+    
+    // Create trajectory line
+    const points = steps.map(step => new THREE.Vector3(step.position[0], step.position[1], step.position[2]))
+    const curve = new THREE.CatmullRomCurve3(points, false)
+    const lineThickness = Math.cbrt(scale) * 0.02
+    const tubeGeometry = new THREE.TubeGeometry(curve, steps.length * 4, lineThickness, 8, false)
+    const lineMaterial = new THREE.MeshLambertMaterial({color: 0x4488FF, transparent: true, opacity: 0.6})
+    const trajectoryMesh = new THREE.Mesh(tubeGeometry, lineMaterial)
+    group.add(trajectoryMesh)
+    
+    // Create bug (target indicator sphere)
+    const bugRadius = Math.cbrt(scale) * 0.05
+    const bugGeometry = new THREE.SphereGeometry(bugRadius, 16, 16)
+    const bugMaterial = new THREE.MeshLambertMaterial({color: 0xFF4444, emissive: 0x441111})
+    const bug = new THREE.Mesh(bugGeometry, bugMaterial)
+    bug.position.set(steps[0].position[0], steps[0].position[1], steps[0].position[2])
+    group.add(bug)
+    
+    return {
+        group: group,
+        bug: bug,
+        steps: steps,
+        length: trajectory.LENGTH || steps.length
+    }
+}
+
+function update_trajectory_bug(trajectoryVis, trajectory_step){
+    if(!trajectoryVis || !trajectoryVis.bug || trajectory_step === undefined){
+        return
+    }
+    const index = get_trajectory_index(trajectory_step, trajectoryVis.length)
+    const step = trajectoryVis.steps[index]
+    if(step){
+        trajectoryVis.bug.position.set(step.position[0], step.position[1], step.position[2])
+    }
+}
+
 export async function render(ui_state, parameters, state, action) {
     if(ui_state.drone){
         ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, state.position))
         ui_state.drone.get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+    }
+    // Update trajectory bug position if trajectory_step is in state
+    if(ui_state.trajectoryVis && state.trajectory && state.trajectory.trajectory_step !== undefined){
+        update_trajectory_bug(ui_state.trajectoryVis, state.trajectory.trajectory_step)
     }
     update_camera(ui_state)
 }
@@ -1421,6 +1495,10 @@ export async function render_multi(ui_state, parameters, states, actions){
             ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
             ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
             ui_state.drones[i].set_action(action)
+            // Update trajectory bug position if trajectory_step is in state
+            if(ui_state.trajectoryVisArray && ui_state.trajectoryVisArray[i] && state.trajectory && state.trajectory.trajectory_step !== undefined){
+                update_trajectory_bug(ui_state.trajectoryVisArray[i], state.trajectory.trajectory_step)
+            }
         })
     }
     update_camera(ui_state)
