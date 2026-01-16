@@ -39,11 +39,17 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::utils::evaluation::Buffer<SPEC>& buffer){
         malloc(device, buffer.actions);
         malloc(device, buffer.observations);
+        malloc(device, buffer.envs);
+        malloc(device, buffer.states);
+        malloc(device, buffer.parameters);
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::utils::evaluation::Buffer<SPEC>& buffer){
         free(device, buffer.actions);
         free(device, buffer.observations);
+        free(device, buffer.envs);
+        free(device, buffer.states);
+        free(device, buffer.parameters);
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::utils::evaluation::PolicyBuffer<SPEC>& buffer){
@@ -122,16 +128,13 @@ namespace rl_tools{
 
         auto actions_buffer = view(device, evaluation_buffers.actions, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{});
 
-        Tensor<tensor::Specification<ENVIRONMENT, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> envs;
-        Tensor<tensor::Specification<typename ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> states;
-        Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_EPISODES>>> parameters;
         bool terminated[SPEC::N_EPISODES];
         // using ADJUSTED_POLICY = typename POLICY::template CHANGE_BATCH_SIZE<TI, SPEC::N_EPISODES>;
         // typename ADJUSTED_POLICY::template State<true> policy_state;
+        auto& envs = evaluation_buffers.envs;
+        auto& states = evaluation_buffers.states;
+        auto& parameters = evaluation_buffers.parameters;
 
-        malloc(device, envs);
-        malloc(device, states);
-        malloc(device, parameters);
         reset(device, policy, policy_state, rng);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
             auto& env = get_ref(device, envs, env_i);
@@ -215,9 +218,6 @@ namespace rl_tools{
             auto &env = get_ref(device, envs, env_i);
             free(device, env);
         }
-        free(device, envs);
-        free(device, states);
-        free(device, parameters);
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
             results.returns[env_i] = results.returns[env_i];
             results.returns_mean += results.returns[env_i];

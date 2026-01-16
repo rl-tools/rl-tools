@@ -73,7 +73,8 @@ auto run(TI seed, bool verbose){
     rlt::log(device, device.logger, "PPO steps: ", ts.step);
     rlt::rl::utils::evaluation::Result<EVAL_SPEC> result;
     auto actor = rlt::get_actor(ts);
-    evaluate(device, ts.envs[0], ts.ui, actor, eval_buffer, result, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+    auto& env = rlt::get_ref(device, ts.envs, 0);
+    evaluate(device, env, ts.ui, actor, eval_buffer, result, ts.rng, rlt::Mode<rlt::mode::Evaluation<>>{});
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);
     rlt::log(device, device.logger, "              mean: ", result.returns_mean);
     rlt::log(device, device.logger, "              std : ", result.returns_std);

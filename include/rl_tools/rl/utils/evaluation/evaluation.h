@@ -78,6 +78,9 @@ namespace rl_tools::rl::utils::evaluation{
         static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
         Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM, DYNAMIC_ALLOCATION>> actions;
         Matrix<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM, DYNAMIC_ALLOCATION>> observations;
+        Tensor<tensor::Specification<ENVIRONMENT, TI, tensor::Shape<TI, SPEC::N_EPISODES>, DYNAMIC_ALLOCATION>> envs;
+        Tensor<tensor::Specification<typename ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_EPISODES>, DYNAMIC_ALLOCATION>> states;
+        Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_EPISODES>, DYNAMIC_ALLOCATION>> parameters;
     };
     template <typename T_SPEC, typename T_POLICY, bool T_DYNAMIC_ALLOCATION=true>
     struct PolicyBufferSpecification{

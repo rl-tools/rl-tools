@@ -125,6 +125,14 @@ namespace rl_tools::rl::environments::l2f::parameters {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
         };
 
+        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {};
+        static constexpr typename PARAMETERS_TYPE::TrajectoryParameters trajectory_parameters = {
+            rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS,
+            {
+                rl::environments::l2f::parameters::trajectories::lissajous::default_parameters<T>
+            }
+        };
+
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
@@ -138,7 +146,8 @@ namespace rl_tools::rl::environments::l2f::parameters {
                     }, // Disturbances
                     domain_randomization
                 }, // DomainRandomization
-                {}
+                trajectory,
+                trajectory_parameters
             },
             {
                 0, // linear_velocity

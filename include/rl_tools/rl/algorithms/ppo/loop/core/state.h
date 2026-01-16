@@ -17,6 +17,7 @@ namespace rl_tools{
             using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
             using TI = typename CONFIG::TI;
             using T = typename TYPE_POLICY::DEFAULT;
+            static constexpr bool DYNAMIC_ALLOCATION = CONFIG::DYNAMIC_ALLOCATION;
             typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
             typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizer;
             typename CONFIG::RNG rng;
@@ -28,11 +29,11 @@ namespace rl_tools{
             typename CONFIG::ACTOR_BUFFERS actor_buffers;
             typename CONFIG::CRITIC_BUFFERS critic_buffers;
             typename CONFIG::CRITIC_BUFFERS_GAE critic_buffers_gae;
-            Matrix<matrix::Specification<T, TI, CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::STEPS_TOTAL, CONFIG::ENVIRONMENT::Observation::DIM>> observations_dense;
-            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<T, TI, CONFIG::ENVIRONMENT::Observation::DIM/CONFIG::ENVIRONMENT::N_AGENTS>> observation_normalizer;
-            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<T, TI, CONFIG::ENVIRONMENT::ObservationPrivileged::DIM>> observation_privileged_normalizer;
-            Tensor<tensor::Specification<typename CONFIG::ENVIRONMENT, TI, tensor::Shape<TI, CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS>>> envs;
-            Tensor<tensor::Specification<typename CONFIG::ENVIRONMENT::Parameters, TI, tensor::Shape<TI, CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS>>> env_parameters;
+            Matrix<matrix::Specification<T, TI, CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::STEPS_TOTAL, CONFIG::ENVIRONMENT::Observation::DIM, DYNAMIC_ALLOCATION>> observations_dense;
+            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<TYPE_POLICY, TI, CONFIG::ENVIRONMENT::Observation::DIM/CONFIG::ENVIRONMENT::N_AGENTS, DYNAMIC_ALLOCATION>> observation_normalizer;
+            rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<TYPE_POLICY, TI, CONFIG::ENVIRONMENT::ObservationPrivileged::DIM, DYNAMIC_ALLOCATION>> observation_privileged_normalizer;
+            Tensor<tensor::Specification<typename CONFIG::ENVIRONMENT, TI, tensor::Shape<TI, CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS>, DYNAMIC_ALLOCATION>> envs;
+            Tensor<tensor::Specification<typename CONFIG::ENVIRONMENT::Parameters, TI, tensor::Shape<TI, CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS>, DYNAMIC_ALLOCATION>> env_parameters;
 //            MatrixDynamic<matrix::Specification<typename CONFIG::T, TI, 1, CONFIG::ENVIRONMENT::Observation::DIM>> observations_mean, observations_std;
             environments::DummyUI ui;
             TI next_checkpoint_id = 0;
