@@ -36,9 +36,10 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, 500, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
-
         static constexpr TI SIMULATION_FREQUENCY = 100;
+        static constexpr TI TRAJECTORY_DT = 1000000/SIMULATION_FREQUENCY; // in microseconds
+        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_DT, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
+
 
         static constexpr auto BASE_PARAMS = BASE_ENV::SPEC::PARAMETER_VALUES;
 
@@ -71,11 +72,7 @@ namespace rl_tools::rl::zoo::l2f{
             return mdp;
         }();
 
-        static constexpr auto trajectory = [](){
-                auto traj = BASE_PARAMS.trajectory;
-                traj.mixture[0] = 1.0; // ensure that the probability of using position control is 1
-                return traj;
-        }();
+        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {};
 
         static constexpr decltype(BASE_PARAMS.domain_randomization) domain_randomization = {
             0, // thrust_to_weight_min;
@@ -95,6 +92,10 @@ namespace rl_tools::rl::zoo::l2f{
             0  // disturbance_force_max;
         };
 
+        static constexpr rl::environments::l2f::parameters::trajectories::TaggedParameters<rl::environments::l2f::parameters::trajectories::TaggedParameterSpecification<T>> trajectory_parameters = {
+            rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS,
+            {rl::environments::l2f::parameters::trajectories::lissajous::default_parameters<T>}
+        };
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
@@ -107,8 +108,9 @@ namespace rl_tools::rl::zoo::l2f{
                 }, // Disturbances
                 domain_randomization
             }, // DomainRandomization
-            trajectory
-        }; // Trajectory
+            trajectory, // Trajectory
+            trajectory_parameters // TaggedParameters
+        };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
@@ -117,9 +119,7 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI CLOSED_FORM = false;
             static constexpr TI ANGULAR_VELOCITY_DELAY = 0; // one step at 100hz = 10ms ~ delay from IMU to input to the policy: 1.3ms time constant of the IIR in the IMU (bw ~110Hz) + synchronization delay (2ms) + (negligible SPI transfer latency due to it being interrupt-based) + 1ms sensor.c RTOS loop @ 1khz + 2ms for the RLtools loop
             using STATE_BASE = StateAngularVelocityDelay<StateAngularVelocityDelaySpecification<T, TI, ANGULAR_VELOCITY_DELAY, StateLastAction<StateSpecification<T, TI, StateBase<StateSpecification<T, TI>>>>>>;
-            using STATE_TYPE_MOTOR_DELAY = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;
-            using STATE_TYPE_NO_MOTOR_DELAY = StateRandomForce<StateSpecification<T, TI, STATE_BASE>>;
-            using STATE_TYPE = rl_tools::utils::typing::conditional_t<OPTIONS::MOTOR_DELAY, STATE_TYPE_MOTOR_DELAY, STATE_TYPE_NO_MOTOR_DELAY>;
+            using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;
             using OBSERVATION_TYPE = observation::TrajectoryTrackingPosition<observation::PositionSpecification<T, TI,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::TrajectoryTrackingLinearVelocity<observation::LinearVelocitySpecification<T, TI,

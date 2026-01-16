@@ -211,7 +211,6 @@ namespace rl_tools{
             using TI = typename DEVICE::index_t;
             using T = typename SPEC::T;
             using STATE = StateTrajectory<STATE_SPEC>;
-            using OPTS = typename PARAMETERS::TRAJECTORY_OPTIONS;
             sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
             state.trajectory_step = 0;
         }

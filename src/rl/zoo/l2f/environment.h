@@ -15,7 +15,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::l2f{
     namespace rlt = rl_tools;
     using namespace rl_tools::rl::environments::l2f;
-    template <typename DEVICE, typename TYPE_POLICY, typename TI, typename DOMAIN_RANDOMIZATION_OPTIONS=DefaultParametersDomainRandomizationOptions>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, TI EPISODE_LENGTH_S=5, TI SIMULATION_FREQUENCY=100, typename DOMAIN_RANDOMIZATION_OPTIONS=DefaultParametersDomainRandomizationOptions>
     struct ENVIRONMENT_FACTORY{
         using T = typename TYPE_POLICY::DEFAULT;
 
@@ -51,12 +51,14 @@ namespace rl_tools::rl::zoo::l2f{
         //     static constexpr bool ROTOR_TIME_CONSTANT = ON;
         // };
 
-        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, 500, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
+        static constexpr TI EPISODE_STEP_LIMIT_OUTER = EPISODE_LENGTH_S * SIMULATION_FREQUENCY;
+        static constexpr TI TRAJECTORY_DT = 1000000/SIMULATION_FREQUENCY; // in microseconds
+        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT_OUTER, REWARD_FUNCTION>;
+        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_DT, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
 
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
-            0.01 // integration dt
+            (T)1/(T)SIMULATION_FREQUENCY // integration dt
         };
         static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
@@ -105,7 +107,13 @@ namespace rl_tools::rl::zoo::l2f{
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} // random_torque;
         };
-        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {};
+        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {}; // steps will be filled at runtime
+        static constexpr typename PARAMETERS_TYPE::TrajectoryParameters trajectory_parameters = {
+            rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS,
+            {
+                rl::environments::l2f::parameters::trajectories::lissajous::default_parameters<T>
+            }
+        };
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {
@@ -118,13 +126,14 @@ namespace rl_tools::rl::zoo::l2f{
                 }, // Disturbances
                 domain_randomization
             }, // DomainRandomization
-            trajectory // Trajectory
+            trajectory, // Trajectory
+            trajectory_parameters // TaggedParameters
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
-            static constexpr TI EPISODE_STEP_LIMIT = 500;
+            static constexpr TI EPISODE_STEP_LIMIT = EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = StateBase<StateSpecification<T, TI>>;
             using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;

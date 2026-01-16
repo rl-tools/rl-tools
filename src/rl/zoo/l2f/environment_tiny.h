@@ -29,7 +29,9 @@ namespace rl_tools::rl::zoo::l2f{
     template <typename DEVICE, typename TYPE_POLICY, typename TI>
     struct ENVIRONMENT_TINY_FACTORY{
         using T = typename TYPE_POLICY::DEFAULT;
-        using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI>;
+        static constexpr TI SIMULATION_FREQUENCY = 50;
+        static constexpr TI EPISODE_LENGTH_S = 5;
+        using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI, EPISODE_LENGTH_S, SIMULATION_FREQUENCY>;
         using PARAMETERS_SPEC = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_SPEC;
         using PARAMETERS_TYPE = typename ENVIRONMENT_FACTORY_BASE::PARAMETERS_TYPE;
 
@@ -99,20 +101,11 @@ namespace rl_tools::rl::zoo::l2f{
             ENVIRONMENT_FACTORY_BASE::action_noise,
             ENVIRONMENT_FACTORY_BASE::termination
         };
-        static constexpr TI SIMULATION_FREQUENCY = 50;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             1.0/((T)SIMULATION_FREQUENCY) // integration dt
         };
 
-        static constexpr decltype(ENVIRONMENT_FACTORY_BASE::trajectory) trajectory = {
-            {1.0, 0.0}, // mixture weights
-            typename PARAMETERS_TYPE::Trajectory::Langevin{
-                1.00, // gamma
-                2.00, // omega
-                0.50, // sigma
-                0.01 // alpha
-            }
-        };
+        static constexpr decltype(ENVIRONMENT_FACTORY_BASE::trajectory) trajectory = {};
 
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
@@ -126,17 +119,20 @@ namespace rl_tools::rl::zoo::l2f{
                 },
                 ENVIRONMENT_FACTORY_BASE::domain_randomization
             },
-            ENVIRONMENT_FACTORY_BASE::trajectory
+            ENVIRONMENT_FACTORY_BASE::trajectory, // Trajectory
+            ENVIRONMENT_FACTORY_BASE::trajectory_parameters // TaggedParameters
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 2;
-            static constexpr TI EPISODE_STEP_LIMIT = 5 * SIMULATION_FREQUENCY;
+            static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
+            static constexpr TI TRAJECTORY_TRACKING_LOOKAHEAD_STEPS = 1;
+            static constexpr TI TRAJECTORY_TRACKING_LOOKAHEAD_INTERVAL = 1;
             using STATE_BASE = StateBase<StateSpecification<T, TI>>;
-            using STATE_TYPE = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>;
-            using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
+            using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;
+            using OBSERVATION_TYPE = observation::TrajectoryTrackingLookahead<observation::TrajectoryTrackingLookaheadSpecification<T, TI, TRAJECTORY_TRACKING_LOOKAHEAD_STEPS, TRAJECTORY_TRACKING_LOOKAHEAD_INTERVAL,
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                             observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,

@@ -857,7 +857,7 @@ namespace rl_tools{
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateTrajectory<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        state.trajectory.trajectory_step = json_object["trajectory_step"];
+        state.trajectory_step = json_object["trajectory"]["trajectory_step"];
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, std::string json_string, STATE& state){

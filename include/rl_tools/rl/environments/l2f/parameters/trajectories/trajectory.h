@@ -33,4 +33,45 @@ namespace rl_tools::rl::environments::l2f::parameters::trajectories{
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#include "./lissajous.h"
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools{
+    namespace rl::environments::l2f::parameters::trajectories{
+        enum class Type{
+            LISSAJOUS,
+        };
+
+        template <typename T_T>
+        union Parameters{
+            lissajous::Parameters<T_T> lissajous;
+        };
+
+        template <typename T_T>
+        struct TaggedParameterSpecification{
+            using T = T_T;
+        };
+        template <typename T_SPEC>
+        struct TaggedParameters{
+            using SPEC = T_SPEC;
+            using T = typename SPEC::T;
+            Type type = Type::LISSAJOUS;
+            Parameters<T> parameters;
+        };
+    }
+    template <typename DEVICE, typename ENVIRONMENT, typename PARAM_SPEC, typename SPEC, typename RNG>
+    void fill(DEVICE& device, ENVIRONMENT& env, rl::environments::l2f::parameters::trajectories::TaggedParameters<PARAM_SPEC>& params, rl_tools::rl::environments::l2f::parameters::trajectories::Trajectory<SPEC>& traj, RNG& rng){
+        using T = typename SPEC::T;
+        if (params.type == rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS){
+            fill(device, params.parameters.lissajous, traj, rng);
+        }
+        else{
+            utils::assert_exit(device, false, "Unknown trajectory type");
+        }
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+
 #endif

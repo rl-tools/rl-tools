@@ -12,14 +12,27 @@ namespace rl_tools{
     namespace rl::environments::l2f::parameters::trajectories::lissajous{
         template <typename T>
         struct Parameters{
-            T A = 0.5; // amplitude a
-            T B = 1.0; // amplitude b
-            T C = 0.0; // amplitude c
-            T a = 2.0; // frequency a
-            T b = 1.0; // frequency b
-            T c = 1.0; // frequency c
-            T duration = 6.5;
-            T ramp_duration = 0.0;
+            T A;
+            T B;
+            T C;
+            T a;
+            T b;
+            T c;
+            T duration;
+            T ramp_duration;
+        };
+
+        // Changed to C++17-compatible, no designated initializers
+        template <typename T_T>
+        static constexpr Parameters<T_T> default_parameters = {
+            0.5,    // A
+            1.0,    // B
+            0.0,    // C
+            2.0,    // a
+            1.0,    // b
+            1.0,    // c
+            6.5,    // duration
+            0.0     // ramp_duration
         };
 
         template <typename DEVICE, typename T, typename PARAMETERS>
@@ -52,12 +65,6 @@ namespace rl_tools{
             T time = step_i * SPEC::DT;
             traj.steps[step_i] = rl::environments::l2f::parameters::trajectories::lissajous::evaluate(device, params, time);
         }
-    }
-    template <typename DEVICE, typename ENVIRONMENT, typename PARAMETERS, typename SPEC, typename RNG>
-    void fill(DEVICE& device, ENVIRONMENT& env, PARAMETERS& params, rl_tools::rl::environments::l2f::parameters::trajectories::Trajectory<SPEC>& traj, RNG& rng){
-        using T = typename SPEC::T;
-        rl::environments::l2f::parameters::trajectories::lissajous::Parameters<T> default_parameters{};
-        fill(device, default_parameters, traj, rng);
     }
 
 }
