@@ -16,6 +16,7 @@ namespace rl_tools{
             using CONFIG = T_CONFIG;
             using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
             using TI = typename CONFIG::TI;
+            using T = typename TYPE_POLICY::DEFAULT;
             typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
             typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizer;
             typename CONFIG::RNG rng;

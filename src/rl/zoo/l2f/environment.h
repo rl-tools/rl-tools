@@ -51,13 +51,8 @@ namespace rl_tools::rl::zoo::l2f{
         //     static constexpr bool ROTOR_TIME_CONSTANT = ON;
         // };
 
-        struct TRAJECTORY_OPTIONS{
-            static constexpr bool LANGEVIN = false;
-        };
-        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_OPTIONS, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
-
-        static_assert(PARAMETERS_TYPE::SPEC::TRAJECTORY_OPTIONS::LANGEVIN == false);
+        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, 500, REWARD_FUNCTION>;
+        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
 
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -110,15 +105,7 @@ namespace rl_tools::rl::zoo::l2f{
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} // random_torque;
         };
-        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {
-            {0.5, 0.5}, // mixture weights
-            typename PARAMETERS_TYPE::Trajectory::Langevin{
-                1.00, // gamma
-                2.00, // omega
-                0.50, // sigma
-                0.01 // alpha
-            }
-        };
+        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {};
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
                 {

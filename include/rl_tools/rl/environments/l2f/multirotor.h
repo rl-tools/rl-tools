@@ -132,11 +132,6 @@ namespace rl_tools::rl::environments::l2f{
             TI linear_velocity;
             TI angular_velocity;
         };
-        template <typename T, typename TI>
-        struct ObservationDelay{
-            TI linear_velocity;
-            TI angular_velocity;
-        };
     }
     template <typename T_SPEC>
     struct ParametersBase{
@@ -200,10 +195,10 @@ namespace rl_tools::rl::environments::l2f{
     template <typename T_SPEC>
     struct ParametersTrajectory: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
-        using TRAJECTORY_OPTIONS = typename SPEC::TRAJECTORY_OPTIONS;
         static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
         using TRAJECTORY_SPEC = parameters::trajectories::TrajectorySpecification<typename SPEC::T, typename SPEC::TI, SPEC::NEXT_COMPONENT::BASE_SPEC::EPISODE_STEP_LIMIT, 10000>; // dt in microseconds
-        parameters::trajectories::Trajectory<TRAJECTORY_SPEC> trajectory;
+        using Trajectory = parameters::trajectories::Trajectory<TRAJECTORY_SPEC>;
+        Trajectory trajectory;
     };
 
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
@@ -219,21 +214,6 @@ namespace rl_tools::rl::environments::l2f{
         using ObservationDelay = parameters::ObservationDelay<typename SPEC::T, typename SPEC::TI>;
         ObservationDelay observation_delay;
     };
-
-    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
-    struct ParametersObservationDelaySpecification{
-        using T = T_T;
-        using TI = T_TI;
-        using NEXT_COMPONENT = T_NEXT_COMPONENT;
-    };
-    template <typename T_SPEC>
-    struct ParametersObservationDelay: T_SPEC::NEXT_COMPONENT{
-        using SPEC = T_SPEC;
-        using TI = typename SPEC::TI;
-        using ObservationDelay = parameters::ObservationDelay<typename SPEC::T, typename SPEC::TI>;
-        ObservationDelay observation_delay;
-    };
-
 
 //    enum class LatentStateType{
 //        Empty,

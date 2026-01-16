@@ -210,12 +210,6 @@ namespace rl_tools{
             parameters.observation_delay.linear_velocity = env.parameters.observation_delay.linear_velocity;
             parameters.observation_delay.angular_velocity = env.parameters.observation_delay.angular_velocity;
         }
-        template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
-        static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersObservationDelay<PARAMETER_SPEC>& parameters, RNG& rng){
-            sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
-            parameters.observation_delay.linear_velocity = env.parameters.observation_delay.linear_velocity;
-            parameters.observation_delay.angular_velocity = env.parameters.observation_delay.angular_velocity;
-        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
