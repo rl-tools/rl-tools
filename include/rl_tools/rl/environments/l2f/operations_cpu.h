@@ -405,11 +405,39 @@ namespace rl_tools{
         json_string += "}";
         return json_string;
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::trajectories::lissajous::Parameters<T>& parameters) {
+        std::string json_string = "{";
+        json_string += "\"A\": " + std::to_string(parameters.A) + ", ";
+        json_string += "\"B\": " + std::to_string(parameters.B) + ", ";
+        json_string += "\"C\": " + std::to_string(parameters.C) + ", ";
+        json_string += "\"a\": " + std::to_string(parameters.a) + ", ";
+        json_string += "\"b\": " + std::to_string(parameters.b) + ", ";
+        json_string += "\"c\": " + std::to_string(parameters.c) + ", ";
+        json_string += "\"duration\": " + std::to_string(parameters.duration) + ", ";
+        json_string += "\"ramp_duration\": " + std::to_string(parameters.ramp_duration);
+        json_string += "}";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename TRAJ_PARAM_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::trajectories::TaggedParameters<TRAJ_PARAM_SPEC>& parameters) {
+        std::string json_string = "{";
+        if (parameters.type == rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS) {
+            json_string += "\"type\": \"LISSAJOUS\", ";
+            json_string += "\"lissajous\": " + json(device, env, parameters.parameters.lissajous);
+        }
+        else {
+            utils::assert_exit(device, false, "L2F json export: Unknown trajectory_parameters type");
+        }
+        json_string += "}";
+        return json_string;
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersTrajectory<PARAM_SPEC>& parameters, bool top_level=true){
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
         json_string += ", \"trajectory\": " + json(device, env, parameters.trajectory);
+        json_string += ", \"trajectory_parameters\": " + json(device, env, parameters.trajectory_parameters);
         json_string += (top_level ? "}" : "");
         return json_string;
     }
@@ -747,10 +775,33 @@ namespace rl_tools{
             }
         }
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::trajectories::lissajous::Parameters<T>& parameters) {
+        parameters.A = json_object["A"];
+        parameters.B = json_object["B"];
+        parameters.C = json_object["C"];
+        parameters.a = json_object["a"];
+        parameters.b = json_object["b"];
+        parameters.c = json_object["c"];
+        parameters.duration = json_object["duration"];
+        parameters.ramp_duration = json_object["ramp_duration"];
+    }
+    template <typename DEVICE, typename SPEC, typename TRAJ_PARAM_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::trajectories::TaggedParameters<TRAJ_PARAM_SPEC>& parameters) {
+        std::string type_str = json_object["type"];
+        if (type_str == "LISSAJOUS") {
+            parameters.type = rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS;
+            from_json(device, env, json_object["lissajous"], parameters.parameters.lissajous);
+        }
+        else {
+            utils::assert_exit(device, false, "L2F json import: Unknown trajectory_parameters type");
+        }
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersTrajectory<PARAM_SPEC>& parameters){
         from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
         from_json(device, env, json_object["trajectory"], parameters.trajectory);
+        from_json(device, env, json_object["trajectory_parameters"], parameters.trajectory_parameters);
     }
     template <typename DEVICE, typename SPEC, typename T, typename TI>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::ObservationDelay<T, TI>& parameters) {

@@ -173,6 +173,77 @@ namespace rl_tools{
         acc += abs_diff(device, a.domain_randomization, b.domain_randomization);
         return acc;
     }
+    template<typename DEVICE, typename T_A, typename T_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::trajectories::Step<T_A>& a, const rl::environments::l2f::parameters::trajectories::Step<T_B>& b) {
+        T_A acc = 0;
+        for (typename DEVICE::index_t dim_i = 0; dim_i < 3; dim_i++){
+            acc += math::abs(device.math, a.position[dim_i] - b.position[dim_i]);
+            acc += math::abs(device.math, a.linear_velocity[dim_i] - b.linear_velocity[dim_i]);
+        }
+        acc += math::abs(device.math, a.yaw - b.yaw);
+        acc += math::abs(device.math, a.yaw_velocity - b.yaw_velocity);
+        return acc;
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::parameters::trajectories::Trajectory<SPEC_A>& a, const rl::environments::l2f::parameters::trajectories::Trajectory<SPEC_B>& b) {
+        using T = typename SPEC_A::T;
+        using TI = typename DEVICE::index_t;
+        static_assert(SPEC_A::LENGTH == SPEC_B::LENGTH, "Trajectory lengths must match");
+        T acc = 0;
+        for (TI step_i = 0; step_i < SPEC_A::LENGTH; step_i++){
+            acc += abs_diff(device, a.steps[step_i], b.steps[step_i]);
+        }
+        return acc;
+    }
+    template<typename DEVICE, typename T_A, typename T_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::trajectories::lissajous::Parameters<T_A>& a, const rl::environments::l2f::parameters::trajectories::lissajous::Parameters<T_B>& b) {
+        T_A acc = 0;
+        acc += math::abs(device.math, a.A - b.A);
+        acc += math::abs(device.math, a.B - b.B);
+        acc += math::abs(device.math, a.C - b.C);
+        acc += math::abs(device.math, a.a - b.a);
+        acc += math::abs(device.math, a.b - b.b);
+        acc += math::abs(device.math, a.c - b.c);
+        acc += math::abs(device.math, a.duration - b.duration);
+        acc += math::abs(device.math, a.ramp_duration - b.ramp_duration);
+        return acc;
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::parameters::trajectories::TaggedParameters<SPEC_A>& a, const rl::environments::l2f::parameters::trajectories::TaggedParameters<SPEC_B>& b) {
+        using T = typename SPEC_A::T;
+        T acc = 0;
+        acc += (a.type == b.type ? 0 : 1);
+        // Compare based on the type (currently only LISSAJOUS is supported)
+        if (a.type == rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS && b.type == rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS){
+            acc += abs_diff(device, a.parameters.lissajous, b.parameters.lissajous);
+        }
+        return acc;
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersTrajectory<SPEC_A>& a, const rl::environments::l2f::ParametersTrajectory<SPEC_B>& b){
+        using T = typename SPEC_A::T;
+        using TI = typename DEVICE::index_t;
+        T acc = 0;
+        acc += abs_diff(device, static_cast<const typename SPEC_A::NEXT_COMPONENT&>(a), static_cast<const typename SPEC_B::NEXT_COMPONENT&>(b));
+        acc += abs_diff(device, a.trajectory, b.trajectory);
+        acc += abs_diff(device, a.trajectory_parameters, b.trajectory_parameters);
+        return acc;
+    }
+    template<typename DEVICE, typename T_A, typename T_B, typename TI_A, typename TI_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::ObservationDelay<T_A, TI_A>& a, const rl::environments::l2f::parameters::ObservationDelay<T_B, TI_B>& b) {
+        T_A acc = 0;
+        acc += math::abs(device.math, (T_A)a.linear_velocity - (T_A)b.linear_velocity);
+        acc += math::abs(device.math, (T_A)a.angular_velocity - (T_A)b.angular_velocity);
+        return acc;
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersObservationDelay<SPEC_A>& a, const rl::environments::l2f::ParametersObservationDelay<SPEC_B>& b){
+        using T = typename SPEC_A::T;
+        T acc = 0;
+        acc += abs_diff(device, static_cast<const typename SPEC_A::NEXT_COMPONENT&>(a), static_cast<const typename SPEC_B::NEXT_COMPONENT&>(b));
+        acc += abs_diff(device, a.observation_delay, b.observation_delay);
+        return acc;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

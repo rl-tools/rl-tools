@@ -40,7 +40,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::environments::l2f::parameters::trajectories{
         enum class Type{
-            LISSAJOUS,
+            LISSAJOUS = 1,
         };
 
         template <typename T_T>

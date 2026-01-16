@@ -37,9 +37,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     ENVIRONMENT::State state, state_reconstruct;
 
     rlt::malloc(device, env);
-    env.parameters.trajectory.steps[0].position[0] = 1337;
     env.parameters.dynamics.rotor_positions[0][0] = 1337;
     rlt::init(device, env);
+    env.parameters.trajectory.steps[7].position[1] = 1337;
+    env.parameters.trajectory_parameters.type = rlt::rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS;
+    env.parameters.trajectory_parameters.parameters.lissajous.b = 1337;
     env.parameters.observation_delay.linear_velocity = 1337;
     env.parameters.observation_delay.angular_velocity = 1338;
     unsigned char* raw = reinterpret_cast<unsigned char*>(&params);
@@ -47,10 +49,16 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     std::generate(raw, raw + sizeof(params), [] { return static_cast<unsigned char>(std::rand() % 256); });
     std::generate(raw_reconstruct, raw_reconstruct + sizeof(params_reconstruct), [] { return static_cast<unsigned char>(std::rand() % 256); });
     rlt::sample_initial_parameters(device, env, params, rng);
-    ASSERT_NE(params.trajectory.steps[0].position[0], 1337);
+    params.trajectory.steps[8].position[1] = 1337;
+    ASSERT_NE(params.trajectory.steps[7].position[1], 1337);
+    // trajectory_parameters.type is always LISSAJOUS since it's the only type
+    ASSERT_EQ(params.trajectory_parameters.type, rlt::rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS);
+    ASSERT_EQ(params.trajectory_parameters.parameters.lissajous.b, 1337);
     ASSERT_NE(params.dynamics.rotor_positions[0][0], 1337);
     rlt::sample_initial_state(device, env, params, state, rng);
     auto params_json = rlt::json(device, env, params);
+    // Set valid type before exporting params_reconstruct (which was filled with random bytes)
+    params_reconstruct.trajectory_parameters.type = rlt::rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS;
     auto params_json_reconstruct = rlt::json(device, env, params_reconstruct);
     ASSERT_NE(params_json_reconstruct, params_json);
 
@@ -70,6 +78,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     ASSERT_EQ(params_json_reconstruct, params_json);
     ASSERT_NEAR(params_reconstruct.observation_delay.linear_velocity, 1337, EPSILON);
     ASSERT_NEAR(params_reconstruct.observation_delay.angular_velocity, 1338, EPSILON);
+
+    ASSERT_NEAR(params_reconstruct.trajectory.steps[8].position[1], 1337, EPSILON);
+    ASSERT_EQ(params_reconstruct.trajectory_parameters.type, rlt::rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS);
+    ASSERT_NEAR(params_reconstruct.trajectory_parameters.parameters.lissajous.b, 1337, EPSILON);
 
     {
         auto params_temp = params;
