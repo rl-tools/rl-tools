@@ -46,6 +46,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     prl::CRITIC_BUFFERS critic_buffers;
     prl::CRITIC_BUFFERS_ALL critic_buffers_all;
 
+    rlt::Tensor<rlt::tensor::Specification<penv::ENVIRONMENT, TI, rlt::tensor::Shape<TI, prl::N_ENVIRONMENTS>>> envs;
+    rlt::Tensor<rlt::tensor::Specification<penv::ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, prl::N_ENVIRONMENTS>>> env_parameters;
+
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, critic_optimizer);
     rlt::malloc(device, ppo);
@@ -56,9 +59,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     rlt::malloc(device, actor_buffers);
     rlt::malloc(device, critic_buffers);
     rlt::malloc(device, critic_buffers_all);
+    rlt::malloc(device, envs);
+    rlt::malloc(device, env_parameters);
 
-    penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
-    penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
     rlt::init(device, on_policy_runner, envs, env_parameters, rng);
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
     rlt::construct(device, device.logger);
@@ -120,5 +123,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     rlt::free(device, actor_buffers);
     rlt::free(device, critic_buffers);
     rlt::free(device, critic_buffers_all);
+    rlt::free(device, envs);
+    rlt::free(device, env_parameters);
 
 }

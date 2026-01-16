@@ -41,8 +41,8 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     DEVICE device;
     ON_POLICY_RUNNER runner;
     rlt::malloc(device, runner);
-    ENVIRONMENT envs[ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS];
-    ENVIRONMENT::Parameters parameters[ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS];
+    rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT, TI, rlt::tensor::Shape<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>>> envs;
+    rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>>> parameters;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 199);
@@ -80,7 +80,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     ENVIRONMENT::Parameters env_parameters[ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS];
     for(TI env_i = 0; env_i < ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; env_i++){
         states[env_i] = get(runner.states, 0, env_i);
-        parameters[env_i] = get(runner.env_parameters, 0, env_i);
+        env_parameters[env_i] = get(runner.env_parameters, 0, env_i);
     }
     rlt::collect(device, dataset, runner, actor, actor_buffers, rng);
     for(TI env_i = 0; env_i < ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; env_i++){
@@ -89,7 +89,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
             {
                 rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
                 rlt::malloc(device, observation);
-                rlt::observe(device, get(runner.environments, 0, env_i), parameters[env_i], states[env_i], typename ENVIRONMENT::Observation{}, observation, rng);
+                rlt::observe(device, get(runner.environments, 0, env_i), env_parameters[env_i], states[env_i], typename ENVIRONMENT::Observation{}, observation, rng);
                 auto observation_runner = rlt::view<DEVICE, decltype(dataset.observations)::SPEC, 1, ENVIRONMENT::Observation::DIM>(device, dataset.observations, pos, 0);
                 auto abs_diff = rlt::abs_diff(device, observation, observation_runner);
                 if(!get(dataset.truncated, pos, 0)){
@@ -99,7 +99,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
             }
             typename ENVIRONMENT::State next_state;
             auto action = rlt::view<DEVICE, decltype(dataset.actions)::SPEC, 1, ENVIRONMENT::ACTION_DIM>(device, dataset.actions, pos, 0);
-            step(device, get(runner.environments, 0, env_i), parameters[env_i], states[env_i], action, next_state, rng);
+            step(device, get(runner.environments, 0, env_i), env_parameters[env_i], states[env_i], action, next_state, rng);
             states[env_i] = next_state;
         }
     }

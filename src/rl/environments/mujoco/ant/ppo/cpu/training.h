@@ -149,8 +149,8 @@ void run(){
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
         rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<TYPE_POLICY, TI, penv::ENVIRONMENT::Observation::DIM>> observation_normalizer;
-        penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
-        penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
+        rlt::Tensor<rlt::tensor::Specification<penv::ENVIRONMENT, TI, rlt::tensor::Shape<TI, prl::N_ENVIRONMENTS>>> envs;
+        rlt::Tensor<rlt::tensor::Specification<penv::ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, prl::N_ENVIRONMENTS>>> env_parameters;
         penv::ENVIRONMENT evaluation_env;
         penv::ENVIRONMENT::Parameters evaluation_env_parameters;
         rlt::rl::environments::DummyUI ui;
@@ -171,8 +171,11 @@ void run(){
         rlt::malloc(device, observation_normalizer);
         rlt::malloc(device, actor_optimizer);
         rlt::malloc(device, critic_optimizer);
+        rlt::malloc(device, envs);
+        rlt::malloc(device, env_parameters);
         for(TI env_i = 0; env_i < prl::N_ENVIRONMENTS; env_i++){
-            rlt::malloc(device, envs[env_i]);
+            auto& env = rlt::get_ref(device, envs, env_i);
+            rlt::malloc(device, env);
         }
         rlt::malloc(device, evaluation_env);
 
@@ -308,9 +311,12 @@ void run(){
         rlt::free(device, critic_buffers);
         rlt::free(device, critic_buffers_gae);
         rlt::free(device, observation_normalizer);
-        for(auto& env : envs){
+        for(TI env_i = 0; env_i < prl::N_ENVIRONMENTS; env_i++){
+            auto& env = rlt::get_ref(device, envs, env_i);
             rlt::free(device, env);
         }
+        rlt::free(device, envs);
+        rlt::free(device, env_parameters);
         rlt::free(device, evaluation_env);
         rlt::free(device, device.logger);
     }

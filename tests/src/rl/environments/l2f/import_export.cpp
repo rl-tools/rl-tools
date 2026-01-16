@@ -37,7 +37,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     ENVIRONMENT::State state, state_reconstruct;
 
     rlt::malloc(device, env);
-    env.parameters.trajectory.langevin.alpha = 1337;
+    env.parameters.trajectory.steps[0].position[0] = 1337;
     env.parameters.dynamics.rotor_positions[0][0] = 1337;
     rlt::init(device, env);
     env.parameters.observation_delay.linear_velocity = 1337;
@@ -47,7 +47,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     std::generate(raw, raw + sizeof(params), [] { return static_cast<unsigned char>(std::rand() % 256); });
     std::generate(raw_reconstruct, raw_reconstruct + sizeof(params_reconstruct), [] { return static_cast<unsigned char>(std::rand() % 256); });
     rlt::sample_initial_parameters(device, env, params, rng);
-    ASSERT_NE(params.trajectory.langevin.alpha, 1337);
+    ASSERT_NE(params.trajectory.steps[0].position[0], 1337);
     ASSERT_NE(params.dynamics.rotor_positions[0][0], 1337);
     rlt::sample_initial_state(device, env, params, state, rng);
     auto params_json = rlt::json(device, env, params);
