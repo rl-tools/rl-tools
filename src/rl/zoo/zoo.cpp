@@ -338,8 +338,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
         std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
         using T = typename TYPE_POLICY::DEFAULT;
-        T difficulty = 0; // [0, 1]
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
+        T difficulty = 0; // [0, 1]
         const auto initial_parameters = rlt::get(ts.off_policy_runner.envs, 0, 0).parameters;
         auto set_difficulty = [&device, &initial_parameters](auto& env, T difficulty) {
             env.parameters.mdp.init.guidance = (T)0.5 + ((T)1-difficulty)/(T)2;
