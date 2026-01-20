@@ -186,18 +186,19 @@ namespace rl_tools::rl::environments::l2f{
         using DomainRandomization = parameters::DomainRandomization<typename SPECC::T>;
         DomainRandomization domain_randomization;
     };
-    template <typename T_T, typename T_TI, T_TI T_DT, typename T_NEXT_COMPONENT>
+    template <typename T_T, typename T_TI, T_TI T_LENGTH, T_TI T_DT, typename T_NEXT_COMPONENT>
     struct ParametersTrajectorySpecification{
         using T = T_T;
         using TI = T_TI;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        static constexpr TI LENGTH = T_LENGTH;
         static constexpr TI DT = T_DT; // dt in microseconds
     };
     template <typename T_SPEC>
     struct ParametersTrajectory: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
         static constexpr typename SPEC::TI N = SPEC::NEXT_COMPONENT::N;
-        using TRAJECTORY_SPEC = parameters::trajectories::TrajectorySpecification<typename SPEC::T, typename SPEC::TI, SPEC::NEXT_COMPONENT::BASE_SPEC::EPISODE_STEP_LIMIT, SPEC::DT>; // dt in microseconds
+        using TRAJECTORY_SPEC = parameters::trajectories::TrajectorySpecification<typename SPEC::T, typename SPEC::TI, SPEC::LENGTH, SPEC::DT>; // dt in microseconds
         using Trajectory = parameters::trajectories::Trajectory<TRAJECTORY_SPEC>;
         using TrajectoryParameters = parameters::trajectories::TaggedParameters<parameters::trajectories::TaggedParameterSpecification<typename SPEC::T>>;
         Trajectory trajectory;
