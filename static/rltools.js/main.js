@@ -193,7 +193,13 @@ class MLP{
         this.input_layer = new DenseLayer(group.get("input_layer"))
         this.hidden_layers = []
         for(let i = 0; i < group.attrs.num_layers - 2; i++){
-            this.hidden_layers.push(new DenseLayer(group.get(`hidden_layer_${i}`)))
+            if(group.keys.includes(`hidden_layer_${i}`)){
+                this.hidden_layers.push(new DenseLayer(group.get(`hidden_layer_${i}`)))
+            }
+            else{
+                const hidden_layers_group = group.get("hidden_layers")
+                this.hidden_layers.push(new DenseLayer(hidden_layers_group.get(`${i}`)))
+            }
         }
         this.output_layer = new DenseLayer(group.get("output_layer"))
         this.input_shape = this.input_layer.input_shape
