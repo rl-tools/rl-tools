@@ -1,10 +1,14 @@
 if(NOT RL_TOOLS_DISABLE_TENSORBOARD)
     find_package(Protobuf CONFIG QUIET)
+    if(NOT Protobuf_FOUND)
+        find_package(Protobuf QUIET)
+        set(RL_TOOLS_PROTOBUF_NO_CONFIG_PACKAGE ON)
+    endif()
     find_package(Git QUIET)
     if(Protobuf_FOUND AND Protobuf_PROTOC_EXECUTABLE AND GIT_FOUND)
         FetchContent_Declare(tensorboard
                 GIT_REPOSITORY https://github.com/rl-tools/tensorboard_logger.git
-                GIT_TAG   412af82de07ddc9cdb9df77fed90263adac93067
+                GIT_TAG   674fc0fe2f8c9ae0f106e92444c60385df666b97
         )
         FetchContent_MakeAvailable(tensorboard)
         target_link_libraries(rl_tools_full INTERFACE tensorboard_logger)

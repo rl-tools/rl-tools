@@ -52,9 +52,10 @@ namespace rl_tools::rl::zoo::l2f{
         // };
 
         static constexpr TI EPISODE_STEP_LIMIT_OUTER = EPISODE_LENGTH_S * SIMULATION_FREQUENCY;
+        static constexpr TI TRAJECTORY_LENGTH = EPISODE_STEP_LIMIT_OUTER;
         static constexpr TI TRAJECTORY_DT = 1000000/SIMULATION_FREQUENCY; // in microseconds
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT_OUTER, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_DT, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
+        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_LENGTH, TRAJECTORY_DT, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
 
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {

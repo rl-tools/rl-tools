@@ -35,10 +35,12 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr bool ROTOR_TIME_CONSTANT = ENABLED;
         };
 
-        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, 500, REWARD_FUNCTION>;
+        static constexpr TI EPISODE_STEP_LIMIT = 500;
+        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
         static constexpr TI SIMULATION_FREQUENCY = 100;
+        static constexpr TI TRAJECTORY_LENGTH = EPISODE_STEP_LIMIT; // in microseconds
         static constexpr TI TRAJECTORY_DT = 1000000/SIMULATION_FREQUENCY; // in microseconds
-        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_DT, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
+        using PARAMETERS_TYPE = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_LENGTH, TRAJECTORY_DT, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>;
 
 
         static constexpr auto BASE_PARAMS = BASE_ENV::SPEC::PARAMETER_VALUES;
