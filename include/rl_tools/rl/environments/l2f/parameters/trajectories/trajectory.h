@@ -40,6 +40,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::environments::l2f::parameters::trajectories{
         enum class Type{
+            None = 0,
             LISSAJOUS = 1,
         };
 
@@ -56,7 +57,7 @@ namespace rl_tools{
         struct TaggedParameters{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
-            Type type = Type::LISSAJOUS;
+            Type type;
             Parameters<T> parameters;
         };
     }

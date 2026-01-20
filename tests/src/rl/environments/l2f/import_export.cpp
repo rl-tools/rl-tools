@@ -41,6 +41,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     rlt::init(device, env);
     env.parameters.trajectory.steps[7].position[1] = 1337;
     env.parameters.trajectory_parameters.type = rlt::rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS;
+    env.parameters.trajectory_parameters.parameters.lissajous = rlt::rl::environments::l2f::parameters::trajectories::lissajous::default_parameters<T>;
     env.parameters.trajectory_parameters.parameters.lissajous.b = 1337;
     env.parameters.observation_delay.linear_velocity = 1337;
     env.parameters.observation_delay.angular_velocity = 1338;

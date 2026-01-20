@@ -492,12 +492,13 @@ namespace rl_tools{
                 }
             }
             for(TI step_i = 0; step_i < OBSERVATION_SPEC::N_STEPS; step_i++){
-                TI trajectory_step = get_trajectory_index(device, env, parameters, state, step_i * OBSERVATION_SPEC::INTERVAL);
+                auto traj_idx = get_trajectory_index(device, env, parameters, state, step_i * OBSERVATION_SPEC::INTERVAL);
+                T direction = traj_idx.forward ? (T)1 : (T)-1;
                 for(TI axis_i = 0; axis_i < 3; axis_i++){
-                    set(current_observation, 0, step_i * 6 + axis_i, state.position[axis_i] - parameters.trajectory.steps[trajectory_step].position[axis_i] + position_noise[axis_i]);
+                    set(current_observation, 0, step_i * 6 + axis_i, state.position[axis_i] - parameters.trajectory.steps[traj_idx.index].position[axis_i] + position_noise[axis_i]);
                 }
                 for(TI axis_i = 0; axis_i < 3; axis_i++){
-                    set(current_observation, 0, step_i * 6 + 3 + axis_i, state.linear_velocity[axis_i] - parameters.trajectory.steps[trajectory_step].linear_velocity[axis_i] + linear_velocity_noise[axis_i]);
+                    set(current_observation, 0, step_i * 6 + 3 + axis_i, state.linear_velocity[axis_i] - parameters.trajectory.steps[traj_idx.index].linear_velocity[axis_i] * direction + linear_velocity_noise[axis_i]);
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
