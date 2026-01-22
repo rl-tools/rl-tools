@@ -204,7 +204,7 @@ namespace rl_tools{
         acc += math::abs(device.math, a.a - b.a);
         acc += math::abs(device.math, a.b - b.b);
         acc += math::abs(device.math, a.c - b.c);
-        acc += math::abs(device.math, a.duration - b.duration);
+        acc += math::abs(device.math, a.interval - b.interval);
         acc += math::abs(device.math, a.ramp_duration - b.ramp_duration);
         return acc;
     }
