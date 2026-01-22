@@ -414,7 +414,7 @@ namespace rl_tools{
         json_string += "\"a\": " + std::to_string(parameters.a) + ", ";
         json_string += "\"b\": " + std::to_string(parameters.b) + ", ";
         json_string += "\"c\": " + std::to_string(parameters.c) + ", ";
-        json_string += "\"duration\": " + std::to_string(parameters.duration) + ", ";
+        json_string += "\"interval\": " + std::to_string(parameters.interval) + ", ";
         json_string += "\"ramp_duration\": " + std::to_string(parameters.ramp_duration);
         json_string += "}";
         return json_string;
@@ -783,7 +783,13 @@ namespace rl_tools{
         parameters.a = json_object["a"];
         parameters.b = json_object["b"];
         parameters.c = json_object["c"];
-        parameters.duration = json_object["duration"];
+        // backwards compat, deprecated
+        if (json_object.contains("duration")) {
+            parameters.interval = json_object["duration"];
+        }
+        else {
+            parameters.interval = json_object["interval"];
+        }
         parameters.ramp_duration = json_object["ramp_duration"];
     }
     template <typename DEVICE, typename SPEC, typename TRAJ_PARAM_SPEC>

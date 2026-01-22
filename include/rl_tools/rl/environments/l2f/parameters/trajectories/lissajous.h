@@ -18,7 +18,7 @@ namespace rl_tools{
             T a;
             T b;
             T c;
-            T duration;
+            T interval;
             T ramp_duration;
         };
 
@@ -42,8 +42,8 @@ namespace rl_tools{
                 : (T)1.0;
 
             T ramp_time = time_velocity * math::min(device.math, time, params.ramp_duration) / 2.0;
-            T progress = (ramp_time + math::max(device.math, (T)0.0, time - params.ramp_duration)) * 2.0 * math::PI<T> / params.duration;
-            T d_progress = 2.0 * math::PI<T> * time_velocity / params.duration;
+            T progress = (ramp_time + math::max(device.math, (T)0.0, time - params.ramp_duration)) * 2.0 * math::PI<T> / params.interval;
+            T d_progress = 2.0 * math::PI<T> * time_velocity / params.interval;
 
             rl::environments::l2f::parameters::trajectories::Step<T> step{};
             step.position[0] = params.A * math::sin(device.math, params.a * progress);
