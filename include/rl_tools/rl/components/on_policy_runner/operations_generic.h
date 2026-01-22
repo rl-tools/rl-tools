@@ -48,6 +48,7 @@ namespace rl_tools{
         malloc(device, runner.environments);
         malloc(device, runner.env_parameters);
         malloc(device, runner.states);
+        malloc(device, runner.policy_state);
         malloc(device, runner.episode_step);
         malloc(device, runner.episode_return);
         malloc(device, runner.truncated);
@@ -57,12 +58,13 @@ namespace rl_tools{
         free(device, runner.environments);
         free(device, runner.env_parameters);
         free(device, runner.states);
+        free(device, runner.policy_state);
         free(device, runner.episode_step);
         free(device, runner.episode_return);
         free(device, runner.truncated);
     }
-    template <typename DEVICE, typename SPEC, typename ENV_SPEC, typename PARAM_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, Tensor<ENV_SPEC> environments, Tensor<PARAM_SPEC> parameters, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename ENV_SPEC, typename PARAM_SPEC, typename ACTOR, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, Tensor<ENV_SPEC> environments, Tensor<PARAM_SPEC> parameters, ACTOR& actor, RNG& rng){
         using TI = typename SPEC::TI;
         set_all(device, runner.episode_step, 0);
         set_all(device, runner.episode_return, 0);
@@ -71,6 +73,7 @@ namespace rl_tools{
             set(runner.environments, 0, env_i, get_ref(device, environments, env_i));
             set(runner.env_parameters, 0, env_i, get_ref(device, parameters, env_i));
         }
+        reset(device, actor, runner.policy_state, rng);
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         runner.initialized = true;
 #endif
@@ -110,11 +113,11 @@ namespace rl_tools{
             auto observations_privileged = view(device, dataset.all_observations_privileged, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations            = view(device, dataset.observations               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>()          , step_i*SPEC::N_ENVIRONMENTS, 0);
             rl::components::on_policy_runner::prologue(device, observations_privileged, observations, runner, rng, step_i);
-            typename ACTOR::template State<> actor_state;
-            Mode<mode::Rollout<>> mode;
+            Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(runner.truncated)>>> mode;
+            mode.reset_container = runner.truncated;
             auto observations_tensor = to_tensor(device, observations);
             auto actions_mean_tensor = to_tensor(device, actions_mean);
-            evaluate_step(device, actor, observations_tensor, actor_state, actions_mean_tensor, policy_eval_buffers, rng, mode);
+            evaluate_step(device, actor, observations_tensor, runner.policy_state, actions_mean_tensor, policy_eval_buffers, rng, mode);
             auto& last_layer = get_last_layer(actor);
             auto log_std = matrix_view(device, last_layer.log_std.parameters);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, log_std, rng, step_i);

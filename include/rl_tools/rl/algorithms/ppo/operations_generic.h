@@ -122,32 +122,33 @@ namespace rl_tools{
             copy(device, device, log_std, ppo_buffers.rollout_log_std);
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
-            // shuffling
-            for(TI dataset_i = 0; dataset_i < DATASET::STEPS_TOTAL; dataset_i++){
-                TI sample_index = random::uniform_int_distribution(device.random, dataset_i, DATASET::STEPS_TOTAL-1, rng);
-                {
-                    auto target_row = row(device, dataset.observations, dataset_i);
-                    auto source_row = row(device, dataset.observations, sample_index);
-                    swap(device, target_row, source_row);
+            if constexpr(PPO_SPEC::PARAMETERS::SHUFFLE_EPOCH){ // shuffling
+                for(TI dataset_i = 0; dataset_i < DATASET::STEPS_TOTAL; dataset_i++){
+                    TI sample_index = random::uniform_int_distribution(device.random, dataset_i, DATASET::STEPS_TOTAL-1, rng);
+                    {
+                        auto target_row = row(device, dataset.observations, dataset_i);
+                        auto source_row = row(device, dataset.observations, sample_index);
+                        swap(device, target_row, source_row);
+                    }
+                    if(PPO_SPEC::ASYMMETRIC_OBSERVATIONS){
+                        auto target_row = row(device, dataset.all_observations_privileged, dataset_i);
+                        auto source_row = row(device, dataset.all_observations_privileged, sample_index);
+                        swap(device, target_row, source_row);
+                    }
+                    if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
+                        auto target_row = row(device, dataset.actions_mean, dataset_i);
+                        auto source_row = row(device, dataset.actions_mean, sample_index);
+                        swap(device, target_row, source_row);
+                    }
+                    {
+                        auto target_row = row(device, dataset.actions, dataset_i);
+                        auto source_row = row(device, dataset.actions, sample_index);
+                        swap(device, target_row, source_row);
+                    }
+                    swap(device, dataset.advantages      , dataset.advantages      , dataset_i, 0, sample_index, 0);
+                    swap(device, dataset.action_log_probs, dataset.action_log_probs, dataset_i, 0, sample_index, 0);
+                    swap(device, dataset.target_values   , dataset.target_values   , dataset_i, 0, sample_index, 0);
                 }
-                if(PPO_SPEC::ASYMMETRIC_OBSERVATIONS){
-                    auto target_row = row(device, dataset.all_observations_privileged, dataset_i);
-                    auto source_row = row(device, dataset.all_observations_privileged, sample_index);
-                    swap(device, target_row, source_row);
-                }
-                if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
-                    auto target_row = row(device, dataset.actions_mean, dataset_i);
-                    auto source_row = row(device, dataset.actions_mean, sample_index);
-                    swap(device, target_row, source_row);
-                }
-                {
-                    auto target_row = row(device, dataset.actions, dataset_i);
-                    auto source_row = row(device, dataset.actions, sample_index);
-                    swap(device, target_row, source_row);
-                }
-                swap(device, dataset.advantages      , dataset.advantages      , dataset_i, 0, sample_index, 0);
-                swap(device, dataset.action_log_probs, dataset.action_log_probs, dataset_i, 0, sample_index, 0);
-                swap(device, dataset.target_values   , dataset.target_values   , dataset_i, 0, sample_index, 0);
             }
             static_assert(N_BATCHES > 0);
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
@@ -163,6 +164,7 @@ namespace rl_tools{
                 auto batch_action_log_probs        = view(device, dataset.action_log_probs           , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
                 auto batch_advantages              = view(device, dataset.advantages                 , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
                 auto batch_target_values           = view(device, dataset.target_values              , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
+                auto batch_truncated               = view(device, dataset.truncated                  , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
 
                 T advantage_mean = 0;
                 T advantage_std = 0;
@@ -180,10 +182,22 @@ namespace rl_tools{
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
                 auto batch_observations_tensor = to_tensor(device, batch_observations);
-                auto batch_observations_tensor_unsqueezed = unsqueeze(device, batch_observations_tensor);
+                auto batch_observations_tensor_3D = reshape_row_major(device, batch_observations_tensor, tensor::Shape<TI, DATASET_SPEC::STEPS_PER_ENV, DATASET_SPEC::SPEC::N_ENVIRONMENTS, OBSERVATION_DIM>{});
+                // auto batch_observations_tensor_unsqueezed = unsqueeze(device, batch_observations_tensor);
                 auto current_batch_actions_tensor = to_tensor(device, ppo_buffers.current_batch_actions);
-                auto current_batch_actions_tensor_unsqueezed = unsqueeze(device, current_batch_actions_tensor);
-                forward(device, ppo.actor, batch_observations_tensor_unsqueezed, current_batch_actions_tensor_unsqueezed, actor_buffers, rng);
+                // auto current_batch_actions_tensor_unsqueezed = unsqueeze(device, current_batch_actions_tensor);
+                auto current_batch_actions_tensor_3D = reshape_row_major(device, current_batch_actions_tensor, tensor::Shape<TI, DATASET_SPEC::STEPS_PER_ENV, DATASET_SPEC::SPEC::N_ENVIRONMENTS, ACTION_DIM>{});
+                auto batch_truncated_tensor_flat = to_tensor(device, batch_truncated);
+                auto batch_truncated_tensor = reshape_row_major(device, batch_truncated_tensor_flat, tensor::Shape<TI, DATASET_SPEC::STEPS_PER_ENV, DATASET_SPEC::SPEC::N_ENVIRONMENTS, 1>{});
+                static_assert(DATASET_SPEC::STEPS_PER_ENV >= 1);
+                for (TI step_i = DATASET_SPEC::STEPS_PER_ENV - 1; step_i > 0 ; step_i--){
+                    for (TI env_i = 0; env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS; env_i++){
+                        get_ref(device, batch_truncated_tensor, step_i, env_i, 0) = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
+                    }
+                }
+                Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_truncated_tensor)>>> mode;
+                mode.reset_container = batch_truncated_tensor;
+                forward(device, ppo.actor, batch_observations_tensor_3D, current_batch_actions_tensor_3D, actor_buffers, rng, mode);
 //                auto abs_diff = abs_diff(device, batch_actions, dataset.actions);
 
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
@@ -280,21 +294,24 @@ namespace rl_tools{
                     }
                 }
                 auto d_action_d_log_prob_action_tensor = to_tensor(device, ppo_buffers.d_action_log_prob_d_action);
-                auto d_action_d_log_prob_action_tensor_unsqueezed = unsqueeze(device, d_action_d_log_prob_action_tensor);
-                backward(device, ppo.actor, batch_observations_tensor_unsqueezed, d_action_d_log_prob_action_tensor_unsqueezed, actor_buffers);
+                // auto d_action_d_log_prob_action_tensor_unsqueezed = unsqueeze(device, d_action_d_log_prob_action_tensor);
+                auto d_action_d_log_prob_action_tensor_3D = reshape_row_major(device, d_action_d_log_prob_action_tensor, tensor::Shape<TI, DATASET_SPEC::STEPS_PER_ENV, DATASET_SPEC::SPEC::N_ENVIRONMENTS, ACTION_DIM>{});
+                backward(device, ppo.actor, batch_observations_tensor_3D, d_action_d_log_prob_action_tensor_3D, actor_buffers);
 //                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
 
                 auto batch_observations_privileged_tensor = to_tensor(device, batch_observations_privileged);
-                auto batch_observations_privileged_tensor_unsqueezed = unsqueeze(device, batch_observations_privileged_tensor);
+                auto batch_observations_privileged_tensor_3D = reshape_row_major(device, batch_observations_privileged_tensor, tensor::Shape<TI, DATASET_SPEC::STEPS_PER_ENV, DATASET_SPEC::SPEC::N_ENVIRONMENTS, OBSERVATION_PRIVILEGED_DIM>{});
+                // auto batch_observations_privileged_tensor_unsqueezed = unsqueeze(device, batch_observations_privileged_tensor);
                 {
-                    forward(device, ppo.critic, batch_observations_privileged_tensor_unsqueezed, critic_buffers, rng);
+                    forward(device, ppo.critic, batch_observations_privileged_tensor_3D, critic_buffers, rng);
                     auto output_tensor = output(device, ppo.critic);
                     static_assert(sizeof(output_tensor) <= sizeof(void*));
                     auto output_matrix_view = matrix_view(device, output_tensor);
                     nn::loss_functions::mse::gradient(device, output_matrix_view, batch_target_values, ppo_buffers.d_critic_output, 0.5);
                     auto d_critic_output_tensor = to_tensor(device, ppo_buffers.d_critic_output);
-                    auto d_critic_output_tensor_unsqueezed = unsqueeze(device, d_critic_output_tensor);
-                    backward(device, ppo.critic, batch_observations_privileged_tensor_unsqueezed, d_critic_output_tensor_unsqueezed, critic_buffers);
+                    // auto d_critic_output_tensor_unsqueezed = unsqueeze(device, d_critic_output_tensor);
+                    auto d_critic_output_tensor_3D = reshape_row_major(device, d_critic_output_tensor, tensor::Shape<TI, DATASET_SPEC::STEPS_PER_ENV, DATASET_SPEC::SPEC::N_ENVIRONMENTS, 1>{});
+                    backward(device, ppo.critic, batch_observations_privileged_tensor_3D, d_critic_output_tensor_3D, critic_buffers);
                 }
                 auto output_tensor = output(device, ppo.critic);
                 auto output_matrix_view = matrix_view(device, output_tensor);

@@ -90,6 +90,7 @@ target_link_libraries(rl_zoo_flag_ppo PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_ppo)
 target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
+target_compile_options(rl_zoo_flag_ppo PRIVATE -ftemplate-backtrace-limit=0)
 
 # AcrobotSwingup-v0
 # SAC

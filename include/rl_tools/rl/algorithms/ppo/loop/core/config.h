@@ -164,7 +164,7 @@ namespace rl_tools{
             static constexpr TI NUM_NNS = 2;
 
             static constexpr TI AGENTS_PER_ENV = 1;
-            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, CORE_PARAMETERS::N_ENVIRONMENTS, CORE_PARAMETERS::EPISODE_STEP_LIMIT, AGENTS_PER_ENV, DYNAMIC_ALLOCATION>;
+            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename NN::ACTOR_TYPE::template State<DYNAMIC_ALLOCATION>, CORE_PARAMETERS::N_ENVIRONMENTS, CORE_PARAMETERS::EPISODE_STEP_LIMIT, AGENTS_PER_ENV, DYNAMIC_ALLOCATION>;
             using ON_POLICY_RUNNER_TYPE = rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
             using ON_POLICY_RUNNER_DATASET_SPEC = rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, DYNAMIC_ALLOCATION>;
             using ON_POLICY_RUNNER_DATASET_TYPE = rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;

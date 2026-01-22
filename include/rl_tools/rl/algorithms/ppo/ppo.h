@@ -32,6 +32,7 @@ namespace rl_tools::rl::algorithms{
             static constexpr TI N_EPOCHS = 10;
             static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
             static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
+            static constexpr bool SHUFFLE_EPOCH = true;
         };
 
         template<

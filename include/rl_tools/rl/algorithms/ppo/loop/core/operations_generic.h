@@ -76,7 +76,7 @@ namespace rl_tools{
             init(device, env);
         }
 
-        init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng);
+        init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
         init(device, ts.observation_normalizer);
         init(device, ts.observation_privileged_normalizer);
         init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
@@ -102,7 +102,7 @@ namespace rl_tools{
                 update(device, ts.observation_normalizer, per_agent_observations);
                 update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
             }
-            init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
+            init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
             set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
