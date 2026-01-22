@@ -51,7 +51,7 @@ namespace rl_tools{
         struct ConfigApproximatorsSequential{
             template <typename CAPABILITY>
             struct Actor{
-                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+                using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::Observation::DIM>;
                 using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                 using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
@@ -65,7 +65,7 @@ namespace rl_tools{
             };
             template <typename CAPABILITY>
             struct Critic{
-                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM>;
+                using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::ObservationPrivileged::DIM>;
                 using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                 using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;

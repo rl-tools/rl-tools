@@ -60,7 +60,8 @@
 #include "pendulum-multitask-v1/ppo.h"
 #include "flag/sac.h"
 #include "flag/td3.h"
-#include "flag/ppo_gru.h"
+// #include "flag/ppo_gru.h"
+#include "flag/ppo.h"
 #include "acrobot-swingup-v0/sac.h"
 #include "bottleneck-v0/ppo.h"
 #ifdef RL_TOOLS_EXPERIMENTAL
