@@ -185,7 +185,7 @@ void run(){
         rlt::init(device);
         rlt::init(device, rng, seed);
         rlt::init(device, evaluation_rng, seed);
-        rlt::init(device, on_policy_runner, envs, env_parameters, rng);
+        rlt::init(device, on_policy_runner, envs, env_parameters, ppo.actor, rng);
         rlt::init(device, observation_normalizer);
         rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         rlt::get_ref(device, actor_optimizer.parameters, 0).alpha = 3e-4;
@@ -201,7 +201,7 @@ void run(){
             rlt::print(device, observation_normalizer.mean);
             std::cout << "Observation std: " << std::endl;
             rlt::print(device, observation_normalizer.std);
-            rlt::init(device, on_policy_runner, envs, env_parameters, rng); // reinitializing the on_policy_runner to reset the episode counters
+            rlt::init(device, on_policy_runner, envs, env_parameters, ppo.actor, rng); // reinitializing the on_policy_runner to reset the episode counters
             rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
             rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
         }
