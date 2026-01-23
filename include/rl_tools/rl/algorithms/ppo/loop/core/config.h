@@ -49,8 +49,8 @@ namespace rl_tools{
 
         template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION=true>
         struct ConfigApproximatorsSequential{
-            static constexpr TI STEPS = PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV : 1;
-            static constexpr TI FORWARD_BATCH_SIZE = PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? PARAMETERS::N_ENVIRONMENTS : PARAMETERS::BATCH_SIZE;
+            static constexpr TI STEPS = PARAMETERS::PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV : 1;
+            static constexpr TI FORWARD_BATCH_SIZE = PARAMETERS::PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? PARAMETERS::N_ENVIRONMENTS : PARAMETERS::BATCH_SIZE;
             template <typename CAPABILITY>
             struct Actor{
                 using INPUT_SHAPE = tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
