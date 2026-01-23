@@ -1,6 +1,7 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/pendulum/pendulum.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
+#include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
@@ -32,9 +33,11 @@ struct Actor{
 };
 
 TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
+    using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+    using ACTOR_TYPE = typename Actor<ACTOR_CAPABILITY>::MODEL;
 
     constexpr TI N_ENVIRONMENTS = 3;
-    using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, N_ENVIRONMENTS>;
+    using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, ACTOR_TYPE::State<>, N_ENVIRONMENTS>;
     using ON_POLICY_RUNNER = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
 
 
@@ -44,14 +47,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT, TI, rlt::tensor::Shape<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>>> envs;
     rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>>> parameters;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
-    rlt::malloc(device, rng);
-    rlt::init(device, rng, 199);
-    rlt::init(device, runner, envs, parameters, rng);
 
-//    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::TANH>;
-    using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-////    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
-    using ACTOR_TYPE = typename Actor<ACTOR_CAPABILITY>::MODEL;
     using ACTOR_ROLLOUT_TYPE = typename ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
     using ACTOR_BUFFERS = typename ACTOR_ROLLOUT_TYPE::template Buffer<>;
 
@@ -63,11 +59,14 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     ACTOR_TYPE actor;
     ACTOR_BUFFERS actor_buffers;
     DATASET dataset;
+    rlt::malloc(device, rng);
     rlt::malloc(device, actor);
     rlt::malloc(device, actor_buffers);
     rlt::malloc(device, dataset);
     rlt::init_weights(device, actor, rng);
     rlt::set_all(device, dataset.data, 0);
+    rlt::init(device, rng, 199);
+    rlt::init(device, runner, envs, parameters, actor, rng);
 
 
     rlt::collect(device, dataset, runner, actor, actor_buffers, rng);

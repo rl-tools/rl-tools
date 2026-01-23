@@ -57,7 +57,7 @@ namespace parameters_0{
 
         static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 200;
         static constexpr TI N_ENVIRONMENTS = 10;
-        using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, N_ENVIRONMENTS, ON_POLICY_RUNNER_STEP_LIMIT>;
+        using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename ACTOR_TYPE::template State<>, N_ENVIRONMENTS, ON_POLICY_RUNNER_STEP_LIMIT>;
         using ON_POLICY_RUNNER_TYPE = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
         static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 200;
         using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;
