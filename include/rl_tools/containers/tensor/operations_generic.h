@@ -1071,32 +1071,153 @@ namespace rl_tools{
             }
         }
     }
+    namespace tensor::reshape_row_major_detail{
+        template <typename ELEMENT>
+        struct IsEmpty{
+            static constexpr bool VALUE = utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, tensor::FinalElement>;
+        };
+        template <typename ELEMENT, typename EMPTY, bool SINGLE = (length(ELEMENT{}) <= 1)>
+        struct PopBackSafe;
+        template <typename ELEMENT, typename EMPTY>
+        struct PopBackSafe<ELEMENT, EMPTY, true>{
+            using TYPE = EMPTY;
+        };
+        template <typename ELEMENT, typename EMPTY>
+        struct PopBackSafe<ELEMENT, EMPTY, false>{
+            using TYPE = tensor::PopBack<ELEMENT>;
+        };
+        template <typename LEFT, typename RIGHT, bool END = utils::typing::is_same_v<typename LEFT::NEXT_ELEMENT, tensor::FinalElement>>
+        struct ConcatImpl;
+        template <typename LEFT, typename RIGHT>
+        struct ConcatImpl<LEFT, RIGHT, true>{
+            using TYPE = RIGHT;
+        };
+        template <typename LEFT, typename RIGHT>
+        struct ConcatImpl<LEFT, RIGHT, false>{
+            using TYPE = tensor::Element<typename LEFT::TI, LEFT::VALUE, typename ConcatImpl<typename LEFT::NEXT_ELEMENT, RIGHT>::TYPE>;
+        };
+        template <typename LEFT, typename RIGHT>
+        using Concat = typename ConcatImpl<LEFT, RIGHT>::TYPE;
+        template <typename REM_SHAPE, typename REM_STRIDE, auto BLOCK_SIZE, auto BLOCK_FIRST_SIZE, auto BLOCK_FIRST_STRIDE, bool EMPTY = IsEmpty<REM_SHAPE>::VALUE>
+        struct ExpandBlock;
+        template <typename REM_SHAPE, typename REM_STRIDE, auto BLOCK_SIZE, auto BLOCK_FIRST_SIZE, auto BLOCK_FIRST_STRIDE>
+        struct ExpandBlock<REM_SHAPE, REM_STRIDE, BLOCK_SIZE, BLOCK_FIRST_SIZE, BLOCK_FIRST_STRIDE, true>{
+            static constexpr auto SIZE = BLOCK_SIZE;
+            using REMAINDER_SHAPE = REM_SHAPE;
+            using REMAINDER_STRIDE = REM_STRIDE;
+        };
+        template <typename REM_SHAPE, typename REM_STRIDE, auto BLOCK_SIZE, auto BLOCK_FIRST_SIZE, auto BLOCK_FIRST_STRIDE>
+        struct ExpandBlock<REM_SHAPE, REM_STRIDE, BLOCK_SIZE, BLOCK_FIRST_SIZE, BLOCK_FIRST_STRIDE, false>{
+            static constexpr auto PREV_SIZE = get_last(REM_SHAPE{});
+            static constexpr auto PREV_STRIDE = get_last(REM_STRIDE{});
+            static constexpr bool CONTIG = (PREV_STRIDE == BLOCK_FIRST_STRIDE * BLOCK_FIRST_SIZE) || (BLOCK_FIRST_SIZE == 1) || (PREV_SIZE == 1);
+            using NEXT_REM_SHAPE = typename PopBackSafe<REM_SHAPE, tensor::Shape<typename REM_SHAPE::TI>>::TYPE;
+            using NEXT_REM_STRIDE = typename PopBackSafe<REM_STRIDE, tensor::Stride<typename REM_STRIDE::TI>>::TYPE;
+            using NEXT = ExpandBlock<NEXT_REM_SHAPE, NEXT_REM_STRIDE, BLOCK_SIZE * PREV_SIZE, PREV_SIZE, PREV_STRIDE>;
+            using REMAINDER_SHAPE = utils::typing::conditional_t<CONTIG, typename NEXT::REMAINDER_SHAPE, REM_SHAPE>;
+            using REMAINDER_STRIDE = utils::typing::conditional_t<CONTIG, typename NEXT::REMAINDER_STRIDE, REM_STRIDE>;
+            static constexpr auto SIZE = CONTIG ? NEXT::SIZE : BLOCK_SIZE;
+        };
+        template <typename SHAPE, typename STRIDE, bool SINGLE = (length(SHAPE{}) == 1)>
+        struct RightmostBlock;
+        template <typename SHAPE, typename STRIDE>
+        struct RightmostBlock<SHAPE, STRIDE, true>{
+            static constexpr auto BLOCK_SIZE = get_last(SHAPE{});
+            static constexpr auto BLOCK_INNER_STRIDE = get_last(STRIDE{});
+            using REMAINDER_SHAPE = tensor::Shape<typename SHAPE::TI>;
+            using REMAINDER_STRIDE = tensor::Stride<typename STRIDE::TI>;
+        };
+        template <typename SHAPE, typename STRIDE>
+        struct RightmostBlock<SHAPE, STRIDE, false>{
+            static constexpr auto LAST_DIM = get_last(SHAPE{});
+            static constexpr auto LAST_STRIDE = get_last(STRIDE{});
+            using REM_SHAPE = typename PopBackSafe<SHAPE, tensor::Shape<typename SHAPE::TI>>::TYPE;
+            using REM_STRIDE = typename PopBackSafe<STRIDE, tensor::Stride<typename STRIDE::TI>>::TYPE;
+            using EXPAND = ExpandBlock<REM_SHAPE, REM_STRIDE, LAST_DIM, LAST_DIM, LAST_STRIDE>;
+            static constexpr auto BLOCK_SIZE = EXPAND::SIZE;
+            static constexpr auto BLOCK_INNER_STRIDE = LAST_STRIDE;
+            using REMAINDER_SHAPE = typename EXPAND::REMAINDER_SHAPE;
+            using REMAINDER_STRIDE = typename EXPAND::REMAINDER_STRIDE;
+        };
+        template <typename SHAPE, auto BLOCK_SIZE, auto BLOCK_STRIDE, auto CURRENT_PRODUCT, bool EMPTY = IsEmpty<SHAPE>::VALUE>
+        struct ConsumeBlockImpl;
+        template <typename SHAPE, auto BLOCK_SIZE, auto BLOCK_STRIDE, auto CURRENT_PRODUCT>
+        struct ConsumeBlockImpl<SHAPE, BLOCK_SIZE, BLOCK_STRIDE, CURRENT_PRODUCT, true>{
+            static_assert(CURRENT_PRODUCT == BLOCK_SIZE, "Tensor reshape: incompatible shape");
+            using REMAINDER_SHAPE = SHAPE;
+            using STRIDE_SUFFIX = tensor::Stride<typename SHAPE::TI>;
+        };
+        template <typename SHAPE, auto BLOCK_SIZE, auto BLOCK_STRIDE, auto CURRENT_PRODUCT, bool STOP>
+        struct ConsumeBlockStep;
+        template <typename SHAPE, auto BLOCK_SIZE, auto BLOCK_STRIDE, auto CURRENT_PRODUCT>
+        struct ConsumeBlockStep<SHAPE, BLOCK_SIZE, BLOCK_STRIDE, CURRENT_PRODUCT, true>{
+            using REMAINDER_SHAPE = SHAPE;
+            using STRIDE_SUFFIX = tensor::Stride<typename SHAPE::TI>;
+        };
+        template <typename SHAPE, auto BLOCK_SIZE, auto BLOCK_STRIDE, auto CURRENT_PRODUCT>
+        struct ConsumeBlockStep<SHAPE, BLOCK_SIZE, BLOCK_STRIDE, CURRENT_PRODUCT, false>{
+            using TI = typename SHAPE::TI;
+            static constexpr TI LAST_DIM = get_last(SHAPE{});
+            static constexpr TI NEW_PRODUCT = CURRENT_PRODUCT * LAST_DIM;
+            static_assert(NEW_PRODUCT <= BLOCK_SIZE, "Tensor reshape: incompatible shape");
+            using POP_SHAPE = typename PopBackSafe<SHAPE, tensor::Shape<TI>>::TYPE;
+            using NEXT = ConsumeBlockImpl<POP_SHAPE, BLOCK_SIZE, BLOCK_STRIDE, NEW_PRODUCT>;
+            using STRIDE_CURRENT = tensor::Stride<TI, BLOCK_STRIDE * CURRENT_PRODUCT>;
+            using STRIDE_SUFFIX = Concat<typename NEXT::STRIDE_SUFFIX, STRIDE_CURRENT>;
+            using REMAINDER_SHAPE = typename NEXT::REMAINDER_SHAPE;
+        };
+        template <typename SHAPE, auto BLOCK_SIZE, auto BLOCK_STRIDE, auto CURRENT_PRODUCT>
+        struct ConsumeBlockImpl<SHAPE, BLOCK_SIZE, BLOCK_STRIDE, CURRENT_PRODUCT, false>{
+            using TI = typename SHAPE::TI;
+            static constexpr TI LAST_DIM = get_last(SHAPE{});
+            static constexpr bool STOP = (CURRENT_PRODUCT == BLOCK_SIZE) && (LAST_DIM != 1);
+            using STEP = ConsumeBlockStep<SHAPE, BLOCK_SIZE, BLOCK_STRIDE, CURRENT_PRODUCT, STOP>;
+            using REMAINDER_SHAPE = typename STEP::REMAINDER_SHAPE;
+            using STRIDE_SUFFIX = typename STEP::STRIDE_SUFFIX;
+        };
+        template <typename SHAPE, auto BLOCK_SIZE, auto BLOCK_STRIDE>
+        struct ConsumeBlock{
+            using RESULT = ConsumeBlockImpl<SHAPE, BLOCK_SIZE, BLOCK_STRIDE, 1>;
+            using REMAINDER_SHAPE = typename RESULT::REMAINDER_SHAPE;
+            using STRIDE_SUFFIX = typename RESULT::STRIDE_SUFFIX;
+        };
+        template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE, bool OLD_EMPTY = IsEmpty<OLD_SHAPE>::VALUE>
+        struct ReshapeStride;
+        template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE>
+        struct ReshapeStride<OLD_SHAPE, OLD_STRIDE, NEW_SHAPE, true>{
+            static_assert(IsEmpty<NEW_SHAPE>::VALUE, "Tensor reshape: incompatible shape");
+            using TYPE = tensor::Stride<typename OLD_SHAPE::TI>;
+        };
+        template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE>
+        struct ReshapeStride<OLD_SHAPE, OLD_STRIDE, NEW_SHAPE, false>{
+            using BLOCK = RightmostBlock<OLD_SHAPE, OLD_STRIDE>;
+            using CONSUME = ConsumeBlock<NEW_SHAPE, BLOCK::BLOCK_SIZE, BLOCK::BLOCK_INNER_STRIDE>;
+            using PREFIX = ReshapeStride<typename BLOCK::REMAINDER_SHAPE, typename BLOCK::REMAINDER_STRIDE, typename CONSUME::REMAINDER_SHAPE>;
+            using TYPE = Concat<typename PREFIX::TYPE, typename CONSUME::STRIDE_SUFFIX>;
+        };
+    }
     template<typename DEVICE, typename SPEC, typename RESHAPE>
     RL_TOOLS_FUNCTION_PLACEMENT auto reshape_row_major(DEVICE& device, Tensor<SPEC>& t, const RESHAPE&){
-        static_assert(tensor::dense_row_major_layout<SPEC, true>());
+        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         constexpr TI N_ELEMENTS = get<0>(tensor::CumulativeProduct<typename SPEC::SHAPE>{});
         constexpr TI N_NEW_ELEMENTS = get<0>(tensor::CumulativeProduct<RESHAPE>{});
         static_assert(N_ELEMENTS == N_NEW_ELEMENTS, "Tensor reshape: Number of elements must be the same");
-        using STRIDE = typename SPEC::STRIDE;
-        constexpr TI OLD_LAST_STRIDE = get<length(STRIDE{}) - 1>(STRIDE{});
-        using NEW_STRIDE = tensor::PopFront<tensor::CumulativeProduct<tensor::Append<RESHAPE, OLD_LAST_STRIDE>>>;
+        using NEW_STRIDE = typename tensor::reshape_row_major_detail::ReshapeStride<typename SPEC::SHAPE, typename SPEC::STRIDE, RESHAPE>::TYPE;
         using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, true, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(t)};
     }
     template<typename DEVICE, typename SPEC, typename RESHAPE>
     RL_TOOLS_FUNCTION_PLACEMENT auto reshape_row_major(DEVICE& device, const Tensor<SPEC>& t, const RESHAPE&){
 
-        static_assert(tensor::dense_row_major_layout<SPEC, true>());
+        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         constexpr TI N_ELEMENTS = get<0>(tensor::CumulativeProduct<typename SPEC::SHAPE>{});
         constexpr TI N_NEW_ELEMENTS = get<0>(tensor::CumulativeProduct<RESHAPE>{});
         static_assert(N_ELEMENTS == N_NEW_ELEMENTS, "Tensor reshape: Number of elements must be the same");
-        using STRIDE = typename SPEC::STRIDE;
-        constexpr TI OLD_LAST_STRIDE = get<length(STRIDE{}) - 1>(STRIDE{});
-        using NEW_STRIDE = tensor::PopFront<tensor::CumulativeProduct<tensor::Append<RESHAPE, OLD_LAST_STRIDE>>>;
+        using NEW_STRIDE = typename tensor::reshape_row_major_detail::ReshapeStride<typename SPEC::SHAPE, typename SPEC::STRIDE, RESHAPE>::TYPE;
         using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, true, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(t)};
     }
