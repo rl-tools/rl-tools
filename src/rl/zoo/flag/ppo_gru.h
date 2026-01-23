@@ -59,7 +59,7 @@ namespace rl_tools::rl::zoo::flag::ppo{
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 256;
             static constexpr TI BATCH_SIZE = N_ENVIRONMENTS*ON_POLICY_RUNNER_STEPS_PER_ENV;
-            static constexpr TI TOTAL_STEP_LIMIT = 10000000;
+            static constexpr TI TOTAL_STEP_LIMIT = 100000000;
             static constexpr TI ACTOR_HIDDEN_DIM = 128;
             static constexpr TI CRITIC_HIDDEN_DIM = 128;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
@@ -77,6 +77,7 @@ namespace rl_tools::rl::zoo::flag::ppo{
                 static constexpr T LAMBDA = 0.95;
                 static constexpr T INITIAL_ACTION_STD = 1.0;
                 static constexpr bool SHUFFLE_EPOCH = false;
+                static constexpr bool STATEFUL_ACTOR_AND_CRITIC = true;
             };
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
