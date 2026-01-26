@@ -52,7 +52,7 @@
 #include "pendulum-v1/sac.h"
 // #include "pendulum-v1/sac_state_estimation_dataset.h"
 #include "pendulum-v1/td3.h"
-#include "pendulum-v1/ppo.h"
+#include "pendulum-v1/ppo_gru.h"
 #include "pendulum-velocity-v1/sac.h"
 #include "pendulum-velocity-v1/td3.h"
 #include "pendulum-multitask-v1/sac.h"
