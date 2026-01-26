@@ -14,8 +14,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename STATE>
-    static bool is_nan(DEVICE& device, STATE& state);
+    // template<typename DEVICE, typename STATE>
+    // static bool is_nan(DEVICE& device, STATE& state);
     namespace rl::environments::l2f{
         template<typename DEVICE, typename STATE_SPEC>
         static bool _is_nan(DEVICE& device, rl::environments::l2f::StateBase<STATE_SPEC>& state){

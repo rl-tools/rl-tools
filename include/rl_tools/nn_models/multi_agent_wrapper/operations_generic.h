@@ -261,6 +261,10 @@ namespace rl_tools{
         bool current_module_nan = is_nan(device, model.content);
         return current_module_nan;
     }
+    template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::multi_agent_wrapper::ModuleState<SPEC>& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return is_nan(device, state.inner_state, mode);
+    }
 
     template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void sample(DEVICE& device, nn_models::multi_agent_wrapper::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng){

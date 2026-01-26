@@ -200,6 +200,10 @@ namespace rl_tools{
         }
         return upstream_nan || is_nan(device, l.output, mode);
     }
+    template<typename DEVICE, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn::layers::standardize::State& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

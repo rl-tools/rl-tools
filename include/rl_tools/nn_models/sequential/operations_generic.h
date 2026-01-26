@@ -467,6 +467,24 @@ namespace rl_tools{
         return current_module_nan;
     }
 
+    template<typename DEVICE, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::sequential::OutputModule& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
+    }
+    template<typename DEVICE, typename MODULE_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::sequential::ContentState<MODULE_SPEC>& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        bool current_module_nan = is_nan(device, state.state, mode);
+        if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            current_module_nan = current_module_nan || is_nan(device, state.next_content_state, mode);
+        }
+        return current_module_nan;
+    }
+
+    template<typename DEVICE, typename MODULE_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::sequential::ModuleState<MODULE_SPEC>& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return is_nan(device, state.content_state, mode);
+    }
+
     template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void sample(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffers, RNG& rng){
         using BUFFER = nn_models::sequential::ContentBuffer<BUFFER_SPEC>;

@@ -481,6 +481,10 @@ namespace rl_tools{
         }
         return upstream_nan || is_nan(device, l.log_probabilities, mode) || is_nan(device, l.output, mode);
     }
+    template<typename DEVICE, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn::layers::sample_and_squash::State& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
+    }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto gradient_norm(DEVICE& device, const nn::layers::sample_and_squash::LayerGradient<SPEC>& layer) {
         return 0;

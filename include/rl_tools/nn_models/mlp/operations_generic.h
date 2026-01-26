@@ -284,6 +284,10 @@ namespace rl_tools {
         found_nan = found_nan || is_nan(device, n.output_layer, mode);
         return found_nan;
     }
+    template<typename DEVICE, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::mlp::State& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
+    }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>& target){
         copy(source_device, target_device, source.tick, target.tick);

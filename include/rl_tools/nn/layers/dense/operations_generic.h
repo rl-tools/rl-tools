@@ -338,6 +338,10 @@ namespace rl_tools{
         }
         return  upstream_nan || is_nan(device, l.output, mode);
     }
+    template<typename DEVICE, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn::layers::dense::State& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
+    }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto output(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& l){
         auto tensor_flat = to_tensor(device, l.output);

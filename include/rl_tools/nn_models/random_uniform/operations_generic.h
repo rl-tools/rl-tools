@@ -46,6 +46,10 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::RandomUniform<MODULE_SPEC>& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         return false;
     }
+    template<typename DEVICE, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::random_uniform::State& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

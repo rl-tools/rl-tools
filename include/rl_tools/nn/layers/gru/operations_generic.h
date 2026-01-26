@@ -895,6 +895,10 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         return is_nan(device, static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC>&>(l), mode);
     }
+    template<typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn::layers::gru::State<SPEC>& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return is_nan(device, state.state);
+    }
 
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& layer){

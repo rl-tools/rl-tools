@@ -197,6 +197,10 @@ namespace rl_tools{
         }
         return upstream_nan || is_nan(device, l.output, mode);
     }
+    template<typename DEVICE, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn::layers::embedding::State& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
+    }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto output(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& l){
         // return l.output;

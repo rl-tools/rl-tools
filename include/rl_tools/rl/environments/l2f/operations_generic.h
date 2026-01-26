@@ -62,10 +62,10 @@ namespace rl_tools
             dynamics.rotor_time_constants_falling[rotor_i] = copy.rotor_time_constants_falling[indices[rotor_i]];
         }
     }
-    template<typename DEVICE, typename STATE>
-    static bool is_nan(DEVICE& device, STATE& state){
-        return rl::environments::l2f::_is_nan(device, state);
-    }
+    // template<typename DEVICE, typename STATE>
+    // static bool is_nan(DEVICE& device, STATE& state){
+    //     return rl::environments::l2f::_is_nan(device, state);
+    // }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     static void initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters){
         parameters = env.parameters;
