@@ -51,8 +51,9 @@
 // Environment Configurations
 #include "pendulum-v1/sac.h"
 // #include "pendulum-v1/sac_state_estimation_dataset.h"
+#include "pendulum-v1/ppo.h"
 #include "pendulum-v1/td3.h"
-#include "pendulum-v1/ppo_gru.h"
+#include "pendulum-velocity-v1/ppo.h"
 #include "pendulum-velocity-v1/sac.h"
 #include "pendulum-velocity-v1/td3.h"
 #include "pendulum-multitask-v1/sac.h"
@@ -190,6 +191,10 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_v1::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_velocity_v1::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to have a different EPISODE_STEP_LIMIT for training and evaluation (on a per algorithm&environment baseis)
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_MULTITASK_V1)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_multitask_v1::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>

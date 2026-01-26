@@ -45,6 +45,12 @@ target_link_libraries(rl_zoo_pendulum_velocity_v1_td3 PRIVATE RLtools::RLtools)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_velocity_v1_td3)
 target_compile_definitions(rl_zoo_pendulum_velocity_v1_td3 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3 RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
 
+# PPO
+add_executable(rl_zoo_pendulum_velocity_v1_ppo zoo_cli.cpp zoo.cpp)
+target_link_libraries(rl_zoo_pendulum_velocity_v1_ppo PRIVATE RLtools::RLtools)
+RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_pendulum_velocity_v1_ppo)
+target_compile_definitions(rl_zoo_pendulum_velocity_v1_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_VELOCITY_V1)
+
 # PendulumMultiTask-v1
 # PPO
 add_executable(rl_zoo_pendulum_multitask_v1_ppo zoo_cli.cpp zoo.cpp)
