@@ -119,7 +119,9 @@ namespace rl_tools{
             auto actions_mean_tensor = to_tensor(device, actions_mean);
             evaluate_step(device, actor, observations_tensor, runner.policy_state, actions_mean_tensor, policy_eval_buffers, rng, mode);
             auto& last_layer = get_last_layer(actor);
-            auto log_std = matrix_view(device, last_layer.log_std.parameters);
+            // auto log_std = matrix_view(device, last_layer.log_std.parameters);
+            Matrix<matrix::Specification<T, TI, 1, 1, false>> log_std;
+            set(log_std, 0, 0, (T)-1.5);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, log_std, rng, step_i);
         }
         // final observation

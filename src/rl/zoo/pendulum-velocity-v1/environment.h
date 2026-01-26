@@ -14,7 +14,7 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1{
             constexpr static T OBSERVATION_NOISE_VELOCITY = 0.0;
         };
         using ENVIRONMENT_SPEC = environments::pendulum::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
-        using ENVIRONMENT = environments::PendulumVelocity<ENVIRONMENT_SPEC>;
+        using ENVIRONMENT = environments::Pendulum<ENVIRONMENT_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
