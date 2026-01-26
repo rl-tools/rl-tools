@@ -11,7 +11,7 @@ namespace rl_tools::rl::zoo::pendulum_v1::ppo{
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
             using T = typename TYPE_POLICY::DEFAULT;
             static constexpr TI N_ENVIRONMENTS = 64;
-            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
+            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 1;
             static constexpr TI BATCH_SIZE = N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV;
             static constexpr TI TOTAL_STEP_LIMIT = 10000000;
             static constexpr TI ACTOR_HIDDEN_DIM = 32;
