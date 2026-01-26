@@ -190,17 +190,17 @@ namespace rl_tools{
                 auto batch_observations_tensor_reshaped = reshape_row_major(device, batch_observations_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, OBSERVATION_DIM>{});
                 auto current_batch_actions_tensor = to_tensor(device, ppo_buffers.current_batch_actions);
                 auto current_batch_actions_tensor_reshaped = reshape_row_major(device, current_batch_actions_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
-                // auto batch_truncated_tensor_flat = to_tensor(device, batch_truncated);
-                // auto batch_truncated_tensor = reshape_row_major(device, batch_truncated_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-                // static_assert(DATASET_SPEC::STEPS_PER_ENV >= 1);
-                // for (TI step_i = DATASET_SPEC::STEPS_PER_ENV - 1; step_i > 0 ; step_i--){
-                //     for (TI env_i = 0; env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS; env_i++){
-                //         get_ref(device, batch_truncated_tensor, step_i, env_i, 0) = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
-                //     }
-                // }
-                // Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_truncated_tensor)>>> mode;
-                // mode.reset_container = batch_truncated_tensor;
-                forward(device, ppo.actor, batch_observations_tensor_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng);
+                auto batch_truncated_tensor_flat = to_tensor(device, batch_truncated);
+                auto batch_truncated_tensor = reshape_row_major(device, batch_truncated_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
+                static_assert(DATASET_SPEC::STEPS_PER_ENV >= 1);
+                for (TI step_i = DATASET_SPEC::STEPS_PER_ENV - 1; step_i > 0 ; step_i--){
+                    for (TI env_i = 0; env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS; env_i++){
+                        get_ref(device, batch_truncated_tensor, step_i, env_i, 0) = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
+                    }
+                }
+                Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_truncated_tensor)>>> mode;
+                mode.reset_container = batch_truncated_tensor;
+                forward(device, ppo.actor, batch_observations_tensor_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng, mode);
 //                auto abs_diff = abs_diff(device, batch_actions, dataset.actions);
 
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
