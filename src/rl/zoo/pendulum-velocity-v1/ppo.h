@@ -11,7 +11,7 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::ppo{
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
             using T = typename TYPE_POLICY::DEFAULT;
             static constexpr TI N_ENVIRONMENTS = 512;
-            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 2;
+            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 10;
             static constexpr TI BATCH_SIZE = N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV;
             static constexpr TI TOTAL_STEP_LIMIT = 100000000;
             static constexpr TI ACTOR_HIDDEN_DIM = 32;
@@ -34,7 +34,7 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::ppo{
                 static constexpr bool STATEFUL_ACTOR_AND_CRITIC = true;
             };
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential, DYNAMIC_ALLOCATION>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
