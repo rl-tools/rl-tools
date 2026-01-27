@@ -297,14 +297,12 @@ namespace rl_tools{
                     }
                 }
                 auto d_action_d_log_prob_action_tensor = to_tensor(device, ppo_buffers.d_action_log_prob_d_action);
-                // auto d_action_d_log_prob_action_tensor_unsqueezed = unsqueeze(device, d_action_d_log_prob_action_tensor);
                 auto d_action_d_log_prob_action_tensor_reshaped = reshape_row_major(device, d_action_d_log_prob_action_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
                 backward(device, ppo.actor, batch_observations_tensor_reshaped, d_action_d_log_prob_action_tensor_reshaped, actor_buffers, mode);
 //                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
 
                 auto batch_observations_privileged_tensor = to_tensor(device, batch_observations_privileged);
                 auto batch_observations_privileged_tensor_reshaped = reshape_row_major(device, batch_observations_privileged_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, OBSERVATION_PRIVILEGED_DIM>{});
-                // auto batch_observations_privileged_tensor_unsqueezed = unsqueeze(device, batch_observations_privileged_tensor);
                 {
                     forward(device, ppo.critic, batch_observations_privileged_tensor_reshaped, critic_buffers, rng, mode);
                     auto output_tensor = output(device, ppo.critic);
@@ -312,7 +310,6 @@ namespace rl_tools{
                     auto output_matrix_view = matrix_view(device, output_tensor);
                     nn::loss_functions::mse::gradient(device, output_matrix_view, batch_target_values, ppo_buffers.d_critic_output, 0.5);
                     auto d_critic_output_tensor = to_tensor(device, ppo_buffers.d_critic_output);
-                    // auto d_critic_output_tensor_unsqueezed = unsqueeze(device, d_critic_output_tensor);
                     auto d_critic_output_tensor_reshaped = reshape_row_major(device, d_critic_output_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
                     backward(device, ppo.critic, batch_observations_privileged_tensor_reshaped, d_critic_output_tensor_reshaped, critic_buffers, mode);
                 }
