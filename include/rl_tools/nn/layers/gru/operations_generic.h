@@ -84,18 +84,26 @@ namespace rl_tools{
             }
         }
     }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename BASE_MODE, typename MODE_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void _reset_sequential(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, mode::sequential::ResetMask<BASE_MODE, MODE_SPEC>& mode){
+        using TI = typename DEVICE::index_t;
+        static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
+        static_assert(decltype(mode.mask)::ROWS == 1, "The reset mask for GRU layers must have a single row.");
+        static_assert(decltype(mode.mask)::COLS == BATCH_SIZE, "The reset mask for GRU layers must have a column for each batch element.");
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            if (get(mode.mask, 0, batch_i)) {
+                set(device, state.step, 0, batch_i);
+                auto row = view(device, state.state, batch_i);
+                copy(device, device, layer.initial_hidden_state.parameters, row);
+            }
+        }
+    }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) {
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
         if constexpr(mode::is<MODE, mode::sequential::ResetMask>){
-            for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-                if (get(mode.mask, 0, batch_i)) {
-                    set(device, state.step, batch_i, 0);
-                    auto row = view(device, state.state, batch_i);
-                    copy(device, device, layer.initial_hidden_state.parameters, row);
-                }
-            }
+            _reset_sequential(device, layer, state,  mode);
         }
         else{
             if constexpr(mode::is<MODE, mode::Default>){
@@ -679,9 +687,11 @@ namespace rl_tools{
         multiply(device, r_post_activation, buffers.buffer_n);
 
         if(reset_full_batch){
-            if constexpr(CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+            if constexpr(CALCULATE_D_PARAMETERS){
                 matrix_multiply_broadcast_accumulate(device, buffer_transpose, layer.initial_hidden_state.parameters, layer.weights_hidden.gradient);
-                matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, layer.initial_hidden_state.gradient);
+                if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+                    matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, layer.initial_hidden_state.gradient);
+                }
             }
         }
         else{
