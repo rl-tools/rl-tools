@@ -113,8 +113,9 @@ namespace rl_tools{
             auto observations_privileged = view(device, dataset.all_observations_privileged, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations            = view(device, dataset.observations               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>()          , step_i*SPEC::N_ENVIRONMENTS, 0);
             rl::components::on_policy_runner::prologue(device, observations_privileged, observations, runner, rng, step_i);
-            Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(runner.truncated)>>> mode;
-            mode.reset_container = runner.truncated;
+            auto truncated_view = view(device, runner.truncated);
+            Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(truncated_view)>>> mode;
+            mode.reset_container = truncated_view;
             auto observations_tensor = to_tensor(device, observations);
             auto actions_mean_tensor = to_tensor(device, actions_mean);
             evaluate_step(device, actor, observations_tensor, runner.policy_state, actions_mean_tensor, policy_eval_buffers, rng, mode);

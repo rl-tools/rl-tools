@@ -171,7 +171,7 @@ namespace rl_tools{
             auto input_tensor = to_tensor(device, observations_chunk);
             auto output_tensor = to_tensor(device, actions_buffer_chunk);
 
-            auto reset_mask = view(device, evaluation_buffers.reset_mask, matrix::ViewSpec<1, SPEC::N_EPISODES>{}, 0, 0); // such that we don't get a huge stack size if the reset mask is not dynamically allocated.
+            auto reset_mask = view(device, evaluation_buffers.reset_mask); // such that we don't get a huge stack size if the reset mask is not dynamically allocated.
             Mode<mode::sequential::ResetMask<MODE, mode::sequential::ResetMaskSpecification<decltype(reset_mask)>>> mode_reset_mask = {mode, reset_mask};
             for (TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
                 set(mode_reset_mask.mask, 0, step_i == 0 ? 0 : terminated[env_i], env_i);
