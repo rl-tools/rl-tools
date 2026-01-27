@@ -1110,7 +1110,7 @@ namespace rl_tools{
         struct ExpandBlock<REM_SHAPE, REM_STRIDE, BLOCK_SIZE, BLOCK_FIRST_SIZE, BLOCK_FIRST_STRIDE, false>{
             static constexpr auto PREV_SIZE = get_last(REM_SHAPE{});
             static constexpr auto PREV_STRIDE = get_last(REM_STRIDE{});
-            static constexpr bool CONTIG = (PREV_STRIDE == BLOCK_FIRST_STRIDE * BLOCK_FIRST_SIZE) || (BLOCK_FIRST_SIZE == 1) || (PREV_SIZE == 1);
+            static constexpr bool CONTIG = (PREV_STRIDE == BLOCK_FIRST_STRIDE * BLOCK_FIRST_SIZE) || (PREV_SIZE == 1);
             using NEXT_REM_SHAPE = typename PopBackSafe<REM_SHAPE, tensor::Shape<typename REM_SHAPE::TI>>::TYPE;
             using NEXT_REM_STRIDE = typename PopBackSafe<REM_STRIDE, tensor::Stride<typename REM_STRIDE::TI>>::TYPE;
             using NEXT = ExpandBlock<NEXT_REM_SHAPE, NEXT_REM_STRIDE, BLOCK_SIZE * PREV_SIZE, PREV_SIZE, PREV_STRIDE>;
