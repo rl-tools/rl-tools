@@ -13,7 +13,7 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::ppo{
             static constexpr TI N_ENVIRONMENTS = 512;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 10;
             static constexpr TI BATCH_SIZE = N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV;
-            static constexpr TI TOTAL_STEP_LIMIT = 100000000;
+            static constexpr TI TOTAL_STEP_LIMIT = 1000000000;
             static constexpr TI ACTOR_HIDDEN_DIM = 32;
             static constexpr TI CRITIC_HIDDEN_DIM = 32;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
