@@ -169,7 +169,13 @@ namespace rl_tools{
             auto input_tensor = to_tensor(device, observations_chunk);
             auto output_tensor = to_tensor(device, actions_buffer_chunk);
 
-            evaluate_step(device, policy, input_tensor, policy_state, output_tensor, policy_evaluation_buffers, rng, mode);
+            Matrix<matrix::Specification<bool, TI, 1, SPEC::N_EPISODES, false>> reset_mask;
+            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(reset_mask)>>> mode_reset_mask;
+            for (TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+                set(mode_reset_mask.mask, 0, step_i == 0 ? 0 : terminated[env_i], env_i);
+            }
+
+            evaluate_step(device, policy, input_tensor, policy_state, output_tensor, policy_evaluation_buffers, rng, mode_reset_mask);
             rl::utils::evaluation::set_action(device, data, step_i, actions_buffer);
             for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
                 if(step_i > 0){
