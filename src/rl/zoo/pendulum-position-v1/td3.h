@@ -3,7 +3,7 @@
 #include <rl_tools/rl/algorithms/td3/loop/core/config.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::pendulum_velocity_v1::td3{
+namespace rl_tools::rl::zoo::pendulum_position_v1::td3{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
