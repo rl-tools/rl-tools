@@ -25,10 +25,11 @@ namespace rl_tools::rl::zoo::pendulum_velocity_v1::ppo{
             };
             static constexpr bool NORMALIZE_OBSERVATIONS = true;
             struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
-                static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
+                static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.1;
                 static constexpr TI N_EPOCHS = 1;
                 static constexpr T GAMMA = 0.99;
                 static constexpr T INITIAL_ACTION_STD = 0.2;
+                static constexpr bool LEARN_ACTION_STD = false;
                 static constexpr bool SHUFFLE_EPOCH = false;
                 static constexpr bool STATEFUL_ACTOR_AND_CRITIC = true;
             };

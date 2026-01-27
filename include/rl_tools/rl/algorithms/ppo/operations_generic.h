@@ -46,7 +46,7 @@ namespace rl_tools{
         zero_gradient(device, ppo.actor);
         reset_optimizer_state(device, actor_optimizer, ppo.actor);
         auto& last_layer = get_last_layer(ppo.actor);
-        // set_all(device, last_layer.log_std.parameters, math::log(device.math, SPEC::PARAMETERS::INITIAL_ACTION_STD));
+        set_all(device, last_layer.log_std.parameters, math::log(device.math, SPEC::PARAMETERS::INITIAL_ACTION_STD));
         init_weights(device, ppo.critic, rng);
         init(device, critic_optimizer);
         reset_forward_state(device, ppo.actor);
@@ -118,9 +118,7 @@ namespace rl_tools{
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
             auto& last_layer = get_last_layer(ppo.actor);
-            // auto log_std = matrix_view(device, last_layer.log_std.parameters);
-            Matrix<matrix::Specification<T, TI, 1, 1, false>> log_std;
-            set(log_std, 0, 0, (T)-1.5);
+            auto log_std = matrix_view(device, last_layer.log_std.parameters);
             copy(device, device, log_std, ppo_buffers.rollout_log_std);
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
@@ -212,9 +210,7 @@ namespace rl_tools{
                         T current_action = get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
                         T rollout_action = get(batch_actions, batch_step_i, action_i);
                         auto& last_layer = get_last_layer(ppo.actor);
-                        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1>, false>> log_std;
-                        set(device, log_std, (T)-1.5, 0);
-                        T current_action_log_std = get(device, log_std, action_i % PER_AGENT_ACTION_DIM);
+                        T current_action_log_std = get(device, last_layer.log_std.parameters, action_i % PER_AGENT_ACTION_DIM);
                         T current_action_std = math::exp(device.math, current_action_log_std);
                         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
                             T rollout_action_log_std = get(ppo_buffers.rollout_log_std, 0, action_i);
@@ -242,7 +238,7 @@ namespace rl_tools{
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
                             auto& last_layer = get_last_layer(ppo.actor);
-                            // increment(device, last_layer.log_std.gradient, d_entropy_loss_d_current_action_log_std, action_i % PER_AGENT_ACTION_DIM);
+                            increment(device, last_layer.log_std.gradient, d_entropy_loss_d_current_action_log_std, action_i % PER_AGENT_ACTION_DIM);
 //                          derivation: d_current_action_log_prob_d_action_log_std
 //                          d_current_action_log_prob_d_action_std =  (-action_diff_by_action_std) * (-action_diff_by_action_std)      / action_std - 1 / action_std)
 //                          d_current_action_log_prob_d_action_std = ((-action_diff_by_action_std) * (-action_diff_by_action_std) - 1) / action_std)
@@ -286,7 +282,7 @@ namespace rl_tools{
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d_action_log_prob_d_action_log_std = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
                             auto& last_layer = get_last_layer(ppo.actor);
-                            // increment(device, last_layer.log_std.gradient, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std, action_i % PER_AGENT_ACTION_DIM);
+                            increment(device, last_layer.log_std.gradient, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std, action_i % PER_AGENT_ACTION_DIM);
                         }
                     }
                 }
