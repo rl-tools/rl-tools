@@ -10,10 +10,10 @@ namespace rl_tools::rl::zoo::pendulum_position_v1::ppo{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
             using T = typename TYPE_POLICY::DEFAULT;
-            static constexpr TI N_ENVIRONMENTS = 512;
-            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 10;
+            static constexpr TI N_ENVIRONMENTS = 16;
+            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = ENVIRONMENT::EPISODE_STEP_LIMIT;
             static constexpr TI BATCH_SIZE = N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV;
-            static constexpr TI TOTAL_STEP_LIMIT = 1000000000;
+            static constexpr TI TOTAL_STEP_LIMIT = 1000*1000*1000;
             static constexpr TI ACTOR_HIDDEN_DIM = 32;
             static constexpr TI CRITIC_HIDDEN_DIM = 32;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;

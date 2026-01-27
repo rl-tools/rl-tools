@@ -113,7 +113,11 @@ using SUPER_DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using TI = typename SUPER_DEVICE::index_t;
 
 namespace execution_hints{
+    #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
     struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
+    #else
+    struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
+    #endif
 }
 struct DEV_SPEC: rlt::devices::DEVICE_FACTORY<>::SPEC{
     using EXECUTION_HINTS = execution_hints::HINTS;
