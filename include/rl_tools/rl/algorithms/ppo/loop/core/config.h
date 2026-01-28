@@ -111,7 +111,7 @@ namespace rl_tools{
 
                 template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
                 using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-                using MODULE = Module<STANDARDIZATION_LAYER, Module<GRU, Module<MLP>>>;
+                using MODULE = Module<STANDARDIZATION_LAYER, Module<MLP>>;
                 using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE, INPUT_SHAPE>;
             };
             template <typename CAPABILITY>
@@ -126,10 +126,10 @@ namespace rl_tools{
                 using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, nn::activation_functions::IDENTITY, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Output>;
                 using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
                 using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
-                using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
+                using MLP = nn_models::mlp::BindConfiguration<CONFIG>;
                 template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
                 using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-                using MODULE = Module<STANDARDIZATION_LAYER, Module<GRU, Module<OUTPUT_LAYER>>>;
+                using MODULE = Module<STANDARDIZATION_LAYER, Module<MLP>>;
                 using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE, INPUT_SHAPE>;
             };
 

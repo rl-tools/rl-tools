@@ -180,7 +180,10 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State state, RNG& rng){
-        return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_2_VISITED;
+        using PARAMS = typename SPEC::PARAMETERS;
+        bool out_of_boundary = state.position[0] == 0 || state.position[0] == PARAMS::BOARD_SIZE;
+        out_of_boundary = out_of_boundary || state.position[1] == 0 || state.position[1] == PARAMS::BOARD_SIZE;
+        return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_2_VISITED || out_of_boundary;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
