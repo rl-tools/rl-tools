@@ -93,6 +93,8 @@ namespace rl_tools{
         struct ConfigApproximatorsGRU{
             static constexpr bool USE_GRU = true;
             using PPO_PARAMETERS = typename PARAMETERS::PPO_PARAMETERS;
+            static_assert(PPO_PARAMETERS::SHUFFLE_EPOCH == false, "When using sequence models for the actor and critic, SHUFFLE_EPOCH has to be disabled (in the PPO parameters) because it scrambles the episodes.");
+            static_assert(PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC == true, "When using sequence models for the actor and critic, STATEFUL_ACTOR_AND_CRITIC has to be enabled.");
             template <typename CAPABILITY>
             struct Actor{
                 using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::Observation::DIM>;

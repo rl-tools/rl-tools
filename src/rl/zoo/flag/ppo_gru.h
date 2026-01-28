@@ -3,7 +3,7 @@
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::flag::ppo{
+namespace rl_tools::rl::zoo::flag::ppo_gru{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
