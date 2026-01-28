@@ -192,9 +192,9 @@ namespace rl_tools{
                 auto current_batch_actions_tensor_reshaped = reshape_row_major(device, current_batch_actions_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
                 auto batch_truncated_tensor_flat = to_tensor(device, batch_truncated);
                 auto batch_truncated_tensor = reshape_row_major(device, batch_truncated_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-                static_assert(DATASET_SPEC::STEPS_PER_ENV >= 1);
-                for (TI step_i = DATASET_SPEC::STEPS_PER_ENV - 1; step_i > 0 ; step_i--){
-                    for (TI env_i = 0; env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS; env_i++){
+                static_assert(STEPS >= 1);
+                for (TI step_i = STEPS - 1; step_i > 0 ; step_i--){
+                    for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
                         get_ref(device, batch_truncated_tensor, step_i, env_i, 0) = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
                     }
                 }
