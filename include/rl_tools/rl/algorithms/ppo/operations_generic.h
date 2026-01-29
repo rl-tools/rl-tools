@@ -192,12 +192,19 @@ namespace rl_tools{
                 auto current_batch_actions_tensor_reshaped = reshape_row_major(device, current_batch_actions_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
                 auto batch_truncated_tensor_flat = to_tensor(device, batch_truncated);
                 auto batch_truncated_tensor = reshape_row_major(device, batch_truncated_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-                // static_assert(STEPS >= 1);
-                // for (TI step_i = STEPS - 1; step_i > 0 ; step_i--){
-                //     for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
-                //         get_ref(device, batch_truncated_tensor, step_i, env_i, 0) = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
-                //     }
-                // }
+                if(PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC){
+                    // STATEFUL_ACTOR_AND_CRITIC implies N_EPOCHS == 1, hence we can shift the truncated flags in place. Long term we should add a buffer that we copy to such that we don't have a side-effect on the dataset.
+                    static_assert(STEPS >= 1);
+                    for (TI step_i = STEPS - 1; step_i > 0 ; step_i--){
+                        for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
+                            bool truncated = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
+                            set(device, batch_truncated_tensor, truncated, step_i, env_i, 0);
+                        }
+                    }
+                    for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
+                        set(device, batch_truncated_tensor, true, 0, env_i, 0);
+                    }
+                }
                 Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_truncated_tensor)>>> mode;
                 mode.reset_container = batch_truncated_tensor;
                 forward(device, ppo.actor, batch_observations_tensor_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng, mode);
