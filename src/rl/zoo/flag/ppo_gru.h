@@ -13,7 +13,7 @@ namespace rl_tools::rl::zoo::flag::ppo_gru{
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
             static constexpr TI BATCH_SIZE = N_ENVIRONMENTS*ON_POLICY_RUNNER_STEPS_PER_ENV;
-            static constexpr TI TOTAL_STEP_LIMIT = 1 * ((TI)100 * 1000 * 1000);
+            static constexpr TI TOTAL_STEP_LIMIT = 10 * ((TI)1000 * 1000 * 1000);
             static constexpr TI ACTOR_HIDDEN_DIM = 32;
             static constexpr TI ACTOR_NUM_LAYERS = 2;
             static constexpr TI CRITIC_HIDDEN_DIM = 32;
