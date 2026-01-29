@@ -129,7 +129,7 @@ namespace rl_tools{
             constexpr TI PER_AGENT_ACTION_DIM = T_CONFIG::ENVIRONMENT::ACTION_DIM/N_AGENTS;
             for(TI action_i = 0; action_i < PER_AGENT_ACTION_DIM; action_i++){
                 T current_action_log_std = get(device, last_layer.log_std.parameters, action_i % PER_AGENT_ACTION_DIM);
-                add_scalar(device, device.logger, "actor/log_std", current_action_log_std);
+                add_scalar(device, device.logger, "actor/log_std", current_action_log_std, 100);
             }
         }
 
