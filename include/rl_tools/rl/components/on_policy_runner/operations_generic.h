@@ -112,10 +112,7 @@ namespace rl_tools{
             auto actions                 = view(device, dataset.actions                    , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations_privileged = view(device, dataset.all_observations_privileged, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations            = view(device, dataset.observations               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>()          , step_i*SPEC::N_ENVIRONMENTS, 0);
-            Matrix<matrix::Specification<bool, TI, 1, SPEC::N_ENVIRONMENTS, true>> truncated;
-            malloc(device, truncated);
-            copy(device, device, runner.truncated, truncated);
-            auto truncated_view = view(device, truncated);
+            auto truncated_view = view(device, runner.truncated);
             Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(truncated_view)>>> mode_reset_mask;
             mode_reset_mask.mask = truncated_view;
             reset(device, actor, runner.policy_state, rng, mode_reset_mask); // it is important that this happens before prologue because prologue resets the truncated flags on the runner
@@ -127,7 +124,6 @@ namespace rl_tools{
             auto& last_layer = get_last_layer(actor);
             auto log_std = matrix_view(device, last_layer.log_std.parameters);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, log_std, rng, step_i);
-            free(device, truncated);
         }
         // final observation
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
