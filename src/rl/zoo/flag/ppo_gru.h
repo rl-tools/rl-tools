@@ -35,7 +35,7 @@ namespace rl_tools::rl::zoo::flag::ppo_gru{
             struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
                 static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.001;
                 static constexpr TI N_EPOCHS = 1;
-                static constexpr T GAMMA = 0.97;
+                static constexpr T GAMMA = 0.98;
                 static constexpr T LAMBDA = 0.95;
                 static constexpr T INITIAL_ACTION_STD = 0.2;
                 static constexpr bool LEARN_ACTION_STD = true;

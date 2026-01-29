@@ -81,7 +81,6 @@ namespace rl_tools::rl::utils::evaluation{
         Tensor<tensor::Specification<ENVIRONMENT, TI, tensor::Shape<TI, SPEC::N_EPISODES>, DYNAMIC_ALLOCATION>> envs;
         Tensor<tensor::Specification<typename ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_EPISODES>, DYNAMIC_ALLOCATION>> states;
         Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_EPISODES>, DYNAMIC_ALLOCATION>> parameters;
-        Matrix<matrix::Specification<bool, TI, 1, SPEC::N_EPISODES, DYNAMIC_ALLOCATION>> reset_mask;
     };
     template <typename T_SPEC, typename T_POLICY, bool T_DYNAMIC_ALLOCATION=true>
     struct PolicyBufferSpecification{
