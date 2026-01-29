@@ -172,12 +172,14 @@ namespace rl_tools{
             auto output_tensor = to_tensor(device, actions_buffer_chunk);
 
             auto reset_mask = view(device, evaluation_buffers.reset_mask); // such that we don't get a huge stack size if the reset mask is not dynamically allocated.
-            Mode<mode::sequential::ResetMask<MODE, mode::sequential::ResetMaskSpecification<decltype(reset_mask)>>> mode_reset_mask = {mode, reset_mask};
+            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(reset_mask)>>> mode_reset_mask;
+            mode_reset_mask.mask = reset_mask;
             for (TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
-                set(mode_reset_mask.mask, 0, step_i == 0 ? 0 : terminated[env_i], env_i);
+                set(mode_reset_mask.mask, 0, step_i == 0 ? true : terminated[env_i], env_i);
             }
+            reset(device, policy, policy_state, rng, mode_reset_mask);
 
-            evaluate_step(device, policy, input_tensor, policy_state, output_tensor, policy_evaluation_buffers, rng, mode_reset_mask);
+            evaluate_step(device, policy, input_tensor, policy_state, output_tensor, policy_evaluation_buffers, rng, mode);
             rl::utils::evaluation::set_action(device, data, step_i, actions_buffer);
             for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
                 if(step_i > 0){
