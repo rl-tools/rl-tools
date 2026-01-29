@@ -123,6 +123,11 @@ namespace rl_tools{
             static_assert(ENVIRONMENT::EPISODE_STEP_LIMIT > 2);
             // reward = -1.0/(ENVIRONMENT::EPISODE_STEP_LIMIT - 2);
         }
+        bool out_of_boundary = next_state.position[0] == 0 || next_state.position[0] == PARAMETERS::BOARD_SIZE;
+        out_of_boundary = out_of_boundary || next_state.position[1] == 0 || next_state.position[1] == PARAMETERS::BOARD_SIZE;
+        if (out_of_boundary){
+            reward -= 100;
+        }
         return reward;
     }
 
