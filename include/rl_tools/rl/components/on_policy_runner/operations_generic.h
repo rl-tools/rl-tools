@@ -107,6 +107,7 @@ namespace rl_tools{
         using SPEC = typename DATASET_SPEC::SPEC;
         using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
+        set_all(device, runner.truncated, true);
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             auto actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto actions                 = view(device, dataset.actions                    , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
