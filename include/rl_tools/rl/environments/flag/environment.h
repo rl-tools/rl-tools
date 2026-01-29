@@ -8,7 +8,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::flag{
-    template <typename T, typename TI, TI T_MAX_EPISODE_LENGTH = 200, bool T_PRIVILEGED_OBSERVATION = false>
+    template <typename T, typename TI, TI T_MAX_EPISODE_LENGTH = 200, bool T_ACTOR_PRIVILEGED_OBSERVATION = false, bool T_CRITIC_PRIVILEGED_OBSERVATION = false>
     struct DefaultParameters {
         constexpr static T MAX_ACCELERATION = 50;
         constexpr static T MAX_VELOCITY = 5;
@@ -19,7 +19,8 @@ namespace rl_tools::rl::environments::flag{
         constexpr static T DT = EPISODE_TIME / MAX_EPISODE_LENGTH;
         constexpr static T REWARD_SCALE = 1000;
         constexpr static bool SAMPLE_INITIAL_STATE_WITH_FLAG_1_VISITED = true;
-        constexpr static bool PRIVILEGED_OBSERVATION = T_PRIVILEGED_OBSERVATION;
+        constexpr static bool ACTOR_PRIVILEGED_OBSERVATION = T_ACTOR_PRIVILEGED_OBSERVATION;
+        constexpr static bool CRITIC_PRIVILEGED_OBSERVATION = T_CRITIC_PRIVILEGED_OBSERVATION;
         T flag_positions[2][2];
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T, T_TI>>
@@ -65,8 +66,8 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = flag::State<T, TI>;
         using Parameters = typename SPEC::PARAMETERS;
-        using Observation = rl_tools::utils::typing::conditional_t<Parameters::PRIVILEGED_OBSERVATION, flag::ObservationPrivileged<TI>, flag::Observation<TI>>;
-        using ObservationPrivileged = flag::ObservationPrivileged<TI>;
+        using Observation = rl_tools::utils::typing::conditional_t<Parameters::ACTOR_PRIVILEGED_OBSERVATION, flag::ObservationPrivileged<TI>, flag::Observation<TI>>;
+        using ObservationPrivileged = rl_tools::utils::typing::conditional_t<Parameters::CRITIC_PRIVILEGED_OBSERVATION, flag::ObservationPrivileged<TI>, flag::Observation<TI>>;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 2;
         static constexpr TI EPISODE_STEP_LIMIT = Parameters::MAX_EPISODE_LENGTH;

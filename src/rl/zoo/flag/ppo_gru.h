@@ -8,7 +8,10 @@ namespace rl_tools::rl::zoo::flag::ppo_gru{
     template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{
         using T = typename TYPE_POLICY::DEFAULT;
-        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI>::ENVIRONMENT;
+        static constexpr TI MAX_EPISODE_LENGTH = 50;
+        static constexpr bool ACTOR_PRIVILEGED_OBSERVATION = false;
+        static constexpr bool CRITIC_PRIVILEGED_OBSERVATION = true;
+        using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI, MAX_EPISODE_LENGTH, ACTOR_PRIVILEGED_OBSERVATION, CRITIC_PRIVILEGED_OBSERVATION>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = ENVIRONMENT::EPISODE_STEP_LIMIT;

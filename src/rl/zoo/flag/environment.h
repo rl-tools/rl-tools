@@ -8,10 +8,10 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::flag{
     namespace rlt = rl_tools;
-    template <typename DEVICE, typename TYPE_POLICY, typename TI, TI MAX_EPISODE_LENGTH = 50, bool PRIVILEGED_OBSERVATION = false>
+    template <typename DEVICE, typename TYPE_POLICY, typename TI, TI MAX_EPISODE_LENGTH = 50, bool ACTOR_PRIVILEGED_OBSERVATION = false, bool CRITIC_PRIVILEGED_OBSERVATION = true>
     struct ENVIRONMENT_FACTORY{
         using T = typename TYPE_POLICY::DEFAULT;
-        using ENVIRONMENT_SPEC = rlt::rl::environments::flag::Specification<T, TI, rlt::rl::environments::flag::DefaultParameters<T, TI, MAX_EPISODE_LENGTH, PRIVILEGED_OBSERVATION>>;
+        using ENVIRONMENT_SPEC = rlt::rl::environments::flag::Specification<T, TI, rlt::rl::environments::flag::DefaultParameters<T, TI, MAX_EPISODE_LENGTH, ACTOR_PRIVILEGED_OBSERVATION, CRITIC_PRIVILEGED_OBSERVATION>>;
         using ENVIRONMENT = rlt::rl::environments::Flag<ENVIRONMENT_SPEC>;
     };
 }
