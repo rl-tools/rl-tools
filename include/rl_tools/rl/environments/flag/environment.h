@@ -66,7 +66,7 @@ namespace rl_tools::rl::environments{
         using State = flag::State<T, TI>;
         using Parameters = typename SPEC::PARAMETERS;
         using Observation = rl_tools::utils::typing::conditional_t<Parameters::PRIVILEGED_OBSERVATION, flag::ObservationPrivileged<TI>, flag::Observation<TI>>;
-        using ObservationPrivileged = Observation; //flag::ObservationPrivileged<TI>;
+        using ObservationPrivileged = flag::ObservationPrivileged<TI>;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 2;
         static constexpr TI EPISODE_STEP_LIMIT = Parameters::MAX_EPISODE_LENGTH;
