@@ -17,7 +17,8 @@ struct CONFIG_FACTORY{
         static constexpr TI TOTAL_STEP_LIMIT = 300000;
         static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
         static constexpr TI EPISODE_STEP_LIMIT = 200;
-        using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>;
+        using ACTOR_OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>;
+        using CRITIC_OPTIMIZER_PARAMETERS = ACTOR_OPTIMIZER_PARAMETERS;
         struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
             static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
             static constexpr TI N_EPOCHS = 2;

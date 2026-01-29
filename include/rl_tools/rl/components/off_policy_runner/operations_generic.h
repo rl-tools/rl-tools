@@ -196,8 +196,9 @@ namespace rl_tools{
             auto action_view_tensor = to_tensor(device, action_view);
             // static_assert(SPEC::PARAMETERS::N_ENVIRONMENTS == 1); // we assume only one environment here for now, so we can reset the hidden state of the whole batch
             auto& policy_state = get<POLICY_INDEX>(runner.policy_states);
-            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.truncated)>>> mode_reset_mask;
-            mode_reset_mask.mask = runner.truncated;
+            auto truncated_view = view(device, runner.truncated);
+            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(truncated_view)>>> mode_reset_mask;
+            mode_reset_mask.mask = truncated_view;
             reset(device, policy, policy_state, rng, mode_reset_mask);
             Mode<mode::Rollout<>> mode; // we want stochasticity for exploration
             evaluate_step(device, policy, observation_view_tensor, policy_state, action_view_tensor, policy_eval_buffers, rng, mode);

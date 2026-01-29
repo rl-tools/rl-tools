@@ -23,9 +23,10 @@ namespace rl_tools::rl::zoo::bottleneck_v0::ppo{
             static constexpr TI N_ENVIRONMENTS = 128;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
             static constexpr TI BATCH_SIZE = 1024;
-            struct OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
+            struct ACTOR_OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
                 static constexpr T ALPHA = 1e-3;
             };
+            using CRITIC_OPTIMIZER_PARAMETERS = ACTOR_OPTIMIZER_PARAMETERS;
             static constexpr bool NORMALIZE_OBSERVATIONS = true;
             struct PPO_PARAMETERS: rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
                 static constexpr T GAMMA = 0.98;

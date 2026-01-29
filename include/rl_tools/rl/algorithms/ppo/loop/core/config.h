@@ -190,8 +190,8 @@ namespace rl_tools{
 //                using MODEL = nn_models::multi_agent_wrapper::Module<WRAPPER_CONFIG, CAPABILITY, INPUT_SHAPE>;
             };
 
-            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS>;
+            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
             using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
