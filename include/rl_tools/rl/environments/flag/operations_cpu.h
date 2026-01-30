@@ -196,12 +196,12 @@ export async function render(ui_state, parameters, state, action) {
         using ENVIRONMENT = rl::environments::Flag<SPEC>;
         std::string description;
         description += "In this environment the agent is randomly placed on a 2D board of size " + std::to_string(SPEC::PARAMETERS::BOARD_SIZE) + "x" + std::to_string(SPEC::PARAMETERS::BOARD_SIZE) + ". ";
-        description += "The agent can move in 2D space with a maximum acceleration of " + std::to_string(SPEC::PARAMETERS::MAX_ACCELERATION) + " and a maximum velocity of " + std::to_string(SPEC::PARAMETERS::MAX_VELOCITY) + ". ";
-        description += "Furthermore at the beginning of each episode two flags are sampled uniformly at random on the board.";
+        description += "The agent can move in 2D space with a maximum acceleration of " + std::to_string(SPEC::PARAMETERS::MAX_ACCELERATION) + " and a maximum velocity of " + std::to_string(SPEC::PARAMETERS::MAX_VELOCITY) + " (timestep DT=" + std::to_string(SPEC::PARAMETERS::DT) + "). ";
+        description += "Furthermore at the beginning of each episode two flags are sampled uniformly at random on the board. ";
         description += "On the first step (only) the agent is revealed the positions of the flags. ";
-        description += "The goal of the agent is to visit the flags in order as fast as possible. ";
-        description += "The agent receives a reward of " + std::to_string(1000.0 / ENVIRONMENT::EPISODE_STEP_LIMIT) + " for visiting the next flag and a reward of " + std::to_string(-1.0 / ENVIRONMENT::EPISODE_STEP_LIMIT) + " else. ";
-        description += "The episode ends when the agent visits the second flag. ";
+        description += "The goal of the agent is to visit the flags in order (within a distance of " + std::to_string(SPEC::PARAMETERS::FLAG_DISTANCE_THRESHOLD) + "). ";
+        description += "The agent receives a reward of " + std::to_string(SPEC::PARAMETERS::REWARD_SCALE) + " for visiting each flag and a penalty of -100 for going out of bounds. ";
+        description += "The episode ends when the agent visits the second flag or goes out of bounds (max " + std::to_string(ENVIRONMENT::EPISODE_STEP_LIMIT) + " steps). ";
         description += "To achieve this, the agent must memorize the positions of the flags that are only revealed in the first step. We've added a second flag, because in the case of only one flag, theoretically, the agent could \"cheat\" by accelerating fast in the direction of the flag at the first state, and then maintaining that velocity. ";
         description += "With the second flag, there is no way the agent can encode this information into the state of the environment, and hence it must memorize it internally.";
         return description;

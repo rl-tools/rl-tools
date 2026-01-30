@@ -62,6 +62,7 @@
 #include "flag/sac.h"
 #include "flag/td3.h"
 #include "flag/ppo.h"
+#include "flag/ppo_gru_asymmetric.h"
 #include "flag/ppo_gru.h"
 #include "acrobot-swingup-v0/sac.h"
 #include "bottleneck-v0/ppo.h"
@@ -204,10 +205,12 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::pendulum_multitask_v1::ppo::FACTORY<DEVIC
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
-#ifndef RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU
+#if !defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU) && !defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU_ASYMMETRIC)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
-#else
+#elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::ppo_gru::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+#else
+using LOOP_CORE_CONFIG = rlt::rl::zoo::flag::ppo_gru_asymmetric::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 #endif
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
@@ -279,10 +282,12 @@ std::string algorithm = "sac";
 #elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 std::string algorithm = "td3";
 #elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
-#ifndef RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU
+#if !defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU) && !defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU_ASYMMETRIC)
 std::string algorithm = "ppo";
-#else
+#elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU)
 std::string algorithm = "ppo-gru";
+#else
+std::string algorithm = "ppo-gru-asymmetric";
 #endif
 #else
 #error "RLtools Zoo: Algorithm not defined"

@@ -15,8 +15,10 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         auto& state = get(runner.states, 0, env_i);
         auto& parameters = get(runner.env_parameters, 0, env_i);
         if(get(runner.truncated, 0, env_i)){
-            add_scalar(device, device.logger, "episode/length", get(runner.episode_step, 0, env_i), 10000);
-            add_scalar(device, device.logger, "episode/return", get(runner.episode_return, 0, env_i), 10000);
+            if (env_i < SPEC::EPISODE_STATS_N_ENVIRONMENTS){
+                add_scalar(device, device.logger, "episode/length", get(runner.episode_step, 0, env_i), SPEC::EPISODE_STATS_CADENCE);
+                add_scalar(device, device.logger, "episode/return", get(runner.episode_return, 0, env_i), SPEC::EPISODE_STATS_CADENCE);
+            }
             set(runner.truncated, 0, env_i, false);
             set(runner.episode_step, 0, env_i, 0);
             set(runner.episode_return, 0, env_i, 0);

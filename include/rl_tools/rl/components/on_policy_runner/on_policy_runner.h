@@ -19,6 +19,8 @@ namespace rl_tools::rl::components{
             static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
             static constexpr TI N_AGENTS_PER_ENV = T_N_AGENTS_PER_ENV; // 1 for single agent, >1 for multi-agent
             static constexpr bool DYANMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+            static constexpr TI EPISODE_STATS_N_ENVIRONMENTS = 1;
+            static constexpr TI EPISODE_STATS_CADENCE = 10000;
         };
 
         template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV, bool T_DYNAMIC_ALLOCATION = true>

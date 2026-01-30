@@ -89,6 +89,8 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT bool step(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         using TI = typename DEVICE::index_t;
+        constexpr TI CADENCE_PRE = CONFIG::CORE_PARAMETERS::STEP_LIMIT / 1000;
+        constexpr TI CADENCE = CADENCE_PRE > 0 ? CADENCE_PRE : 1;
         using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
         constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
         set_step(device, device.logger, ts.step * CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS * CONFIG::CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
@@ -135,12 +137,12 @@ namespace rl_tools{
             constexpr TI PER_AGENT_ACTION_DIM = T_CONFIG::ENVIRONMENT::ACTION_DIM/N_AGENTS;
             for(TI action_i = 0; action_i < PER_AGENT_ACTION_DIM; action_i++){
                 T current_action_log_std = get(device, last_layer.log_std.parameters, action_i % PER_AGENT_ACTION_DIM);
-                add_scalar(device, device.logger, "actor/log_std", current_action_log_std, 100);
+                add_scalar(device, device.logger, "actor/log_std", current_action_log_std, CADENCE);
             }
         }
 
 //        log(device, device.logger, "log_std: ", get(ts.ppo.actor.log_std.parameters, 0, 0));
-        add_scalar(device, device.logger, "ppo/step", ts.step, 10);
+        add_scalar(device, device.logger, "ppo/step", ts.step, CADENCE);
 
         ts.step++;
         if(ts.step > CONFIG::CORE_PARAMETERS::STEP_LIMIT){

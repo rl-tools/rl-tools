@@ -35,7 +35,8 @@ namespace rl_tools::rl::zoo::pendulum_position_v1::ppo{
                 static constexpr bool STATEFUL_ACTOR_AND_CRITIC = true;
             };
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsGRU, DYNAMIC_ALLOCATION>;
+        static constexpr bool CRITIC_GRU = true;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsGRU<CRITIC_GRU>::template Approximators, DYNAMIC_ALLOCATION>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

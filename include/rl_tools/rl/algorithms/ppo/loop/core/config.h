@@ -89,62 +89,66 @@ namespace rl_tools{
             using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
             using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
         };
-
-        template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION=true>
+        template <bool T_GRU_CRITIC = false>
         struct ConfigApproximatorsGRU{
-            static constexpr bool USE_GRU = true;
-            using PPO_PARAMETERS = typename PARAMETERS::PPO_PARAMETERS;
-            static_assert(PPO_PARAMETERS::SHUFFLE_EPOCH == false, "When using sequence models for the actor and critic, SHUFFLE_EPOCH has to be disabled (in the PPO parameters) because it scrambles the episodes.");
-            static_assert(PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC == true, "When using sequence models for the actor and critic, STATEFUL_ACTOR_AND_CRITIC has to be enabled.");
-            template <typename CAPABILITY>
-            struct Actor{
-                using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::Observation::DIM>;
-                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
-                using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
-                using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>;
-                using INPUT_LAYER = nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
-                using GRU_SPEC = nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, nn::parameters::groups::Normal>;
-                using GRU = nn::layers::gru::BindConfiguration<GRU_SPEC>;
-                using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Normal>;
-                using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
-                using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, nn::activation_functions::IDENTITY, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Output>;
-                using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
-                using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
-                using MLP = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
+            template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION=true>
+            struct Approximators{
+                static constexpr bool USE_GRU = true;
+                using PPO_PARAMETERS = typename PARAMETERS::PPO_PARAMETERS;
+                static_assert(PPO_PARAMETERS::SHUFFLE_EPOCH == false, "When using sequence models for the actor and critic, SHUFFLE_EPOCH has to be disabled (in the PPO parameters) because it scrambles the episodes.");
+                static_assert(PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC == true, "When using sequence models for the actor and critic, STATEFUL_ACTOR_AND_CRITIC has to be enabled.");
+                template <typename CAPABILITY>
+                struct Actor{
+                    using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::Observation::DIM>;
+                    using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
+                    using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+                    using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>;
+                    using INPUT_LAYER = nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
+                    using GRU_SPEC = nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, nn::parameters::groups::Normal>;
+                    using GRU = nn::layers::gru::BindConfiguration<GRU_SPEC>;
+                    using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Normal>;
+                    using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
+                    using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, nn::activation_functions::IDENTITY, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Output>;
+                    using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
+                    using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
+                    using MLP = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-                using MODULE = Module<STANDARDIZATION_LAYER, Module<INPUT_LAYER, Module<GRU, Module<MLP>>>>;
-                using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE, INPUT_SHAPE>;
-            };
-            template <typename CAPABILITY>
-            struct Critic{
-                using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::ObservationPrivileged::DIM>;
-                using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
-                using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
-                using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>;
-                using INPUT_LAYER = nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
-                using GRU_SPEC = nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, nn::parameters::groups::Normal>;
-                using GRU = nn::layers::gru::BindConfiguration<GRU_SPEC>;
-                using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Normal>;
-                using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
-                using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, nn::activation_functions::IDENTITY, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Output>;
-                using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
-                using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
-                using MLP = nn_models::mlp::BindConfiguration<CONFIG>;
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-                using MODULE = Module<STANDARDIZATION_LAYER, Module<INPUT_LAYER, Module<GRU, Module<MLP>>>>;
-                using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE, INPUT_SHAPE>;
-            };
+                    template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+                    using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+                    using MODULE = Module<STANDARDIZATION_LAYER, Module<INPUT_LAYER, Module<GRU, Module<MLP>>>>;
+                    using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE, INPUT_SHAPE>;
+                };
+                template <typename CAPABILITY>
+                struct Critic{
+                    using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::ObservationPrivileged::DIM>;
+                    using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
+                    using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+                    using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>;
+                    using INPUT_LAYER = nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
+                    using GRU_SPEC = nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, nn::parameters::groups::Normal>;
+                    using GRU = nn::layers::gru::BindConfiguration<GRU_SPEC>;
+                    using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Normal>;
+                    using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
+                    using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, nn::activation_functions::IDENTITY, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Output>;
+                    using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
+                    using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
+                    using MLP = nn_models::mlp::BindConfiguration<CONFIG>;
+                    template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
+                    using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+                    using MODULE_DENSE = Module<STANDARDIZATION_LAYER, Module<INPUT_LAYER, Module<DENSE_LAYER, Module<MLP>>>>;
+                    using MODULE_GRU = Module<STANDARDIZATION_LAYER, Module<INPUT_LAYER, Module<GRU, Module<MLP>>>>;
+                    using MODULE = rl_tools::utils::typing::conditional_t<T_GRU_CRITIC, MODULE_GRU, MODULE_DENSE>;
+                    using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE, INPUT_SHAPE>;
+                };
 
-            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
-            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
-            using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
-            using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
-            using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
-            using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
-            using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
+                using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::ACTOR_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
+                using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<TYPE_POLICY, TI, typename PARAMETERS::CRITIC_OPTIMIZER_PARAMETERS, DYNAMIC_ALLOCATION>;
+                using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
+                using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
+                using CAPABILITY_ADAM = nn::capability::Gradient<nn::parameters::Adam, DYNAMIC_ALLOCATION>;
+                using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
+                using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
+            };
         };
 
         template<typename TYPE_POLICY, typename TI, typename ENVIRONMENT, typename PARAMETERS, bool DYNAMIC_ALLOCATION=true>

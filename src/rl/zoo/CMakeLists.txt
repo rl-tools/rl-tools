@@ -97,6 +97,13 @@ RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_ppo)
 target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_flag_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 target_compile_options(rl_zoo_flag_ppo PRIVATE -ftemplate-backtrace-limit=0)
+# PPO-GRU-ASYMMETRIC
+add_executable(rl_zoo_flag_ppo_gru_asymmetric zoo_cli.cpp zoo.cpp)
+target_link_libraries(rl_zoo_flag_ppo_gru_asymmetric PRIVATE RLtools::RLtools)
+RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_ppo_gru_asymmetric)
+target_compile_definitions(rl_zoo_flag_ppo_gru_asymmetric PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
+target_compile_definitions(rl_zoo_flag_ppo_gru_asymmetric PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU_ASYMMETRIC)
+target_compile_definitions(rl_zoo_flag_ppo_gru_asymmetric PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
 # PPO-GRU
 add_executable(rl_zoo_flag_ppo_gru zoo_cli.cpp zoo.cpp)
 target_link_libraries(rl_zoo_flag_ppo_gru PRIVATE RLtools::RLtools)
