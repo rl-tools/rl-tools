@@ -34,6 +34,10 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void add_histogram(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const ARG*, const ARG_LEN, const CADENCE){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN>
     RL_TOOLS_FUNCTION_PLACEMENT void add_histogram(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const ARG*, const ARG_LEN){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename TEXT>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_text(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const TEXT){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename TEXT, typename CADENCE>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_text(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const TEXT, const CADENCE){ /* noop */ }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

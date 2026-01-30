@@ -80,6 +80,10 @@ namespace rl_tools{
     void add_histogram(DEVICE& device, devices::logging::CPU& logger, const TOPIC, const ARG*, const ARG_LEN, const CADENCE){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN>
     void add_histogram(DEVICE& device, devices::logging::CPU& logger, const TOPIC, const ARG*, const ARG_LEN){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename TEXT>
+    void add_text(DEVICE& device, devices::logging::CPU& logger, const TOPIC, const TEXT){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename TEXT, typename CADENCE>
+    void add_text(DEVICE& device, devices::logging::CPU& logger, const TOPIC, const TEXT, const CADENCE){ /* noop */ }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

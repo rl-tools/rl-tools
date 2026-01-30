@@ -90,6 +90,20 @@ namespace rl_tools{
     void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const T* values, const TI n_values){
         add_histogram(device, logger, key, values, n_values, (typename DEVICE::index_t)1);
     }
+    template <typename DEVICE, typename KEY_TYPE, typename TEXT_TYPE, typename CADENCE_TYPE, typename SPEC>
+    void add_text(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const TEXT_TYPE text, const CADENCE_TYPE cadence){
+        std::lock_guard<std::mutex> lock(logger.mutex);
+        if(logger.tb){
+            if(logger.step % cadence == 0){
+                logger.tb->add_text(key, logger.step, text);
+                logging::tensorboard::count_topic(device, logger, key);
+            }
+        }
+    }
+    template <typename DEVICE, typename KEY_TYPE, typename TEXT_TYPE, typename SPEC>
+    void add_text(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const TEXT_TYPE text){
+        add_text(device, logger, key, text, (typename DEVICE::index_t)1);
+    }
 #ifdef RL_TOOLS_ENABLE_LIBATTOPNG
     template <typename DEVICE, typename KEY_TYPE, typename LOGGING_SPEC, typename SPEC>
     void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGING_SPEC>& logger, const KEY_TYPE key, rl_tools::Matrix<SPEC> values){

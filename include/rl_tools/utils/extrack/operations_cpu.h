@@ -58,6 +58,9 @@ namespace rl_tools{
         }
         std::cerr << "Seed: " << seed << std::endl;
         std::cerr << "Extrack Experiment: " << paths.seed << std::endl;
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+        init(device, device.logger, paths.seed);
+#endif
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
         // Save rl-tools library git info
         std::filesystem::path git_library_path = paths.seed / "git" / "rl_tools";
@@ -107,7 +110,11 @@ namespace rl_tools{
             diff_file << rl_tools::utils::extrack::git::rl_tools::word_diff_staged_color;
             diff_file.close();
         }
-        
+        add_text(device, device.logger, "git/rl_tools/commit", (std::string("`") + rl_tools::utils::extrack::git::rl_tools::commit + "`").c_str());
+        add_text(device, device.logger, "git/rl_tools/diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::diff + "```").c_str());
+        add_text(device, device.logger, "git/rl_tools/word_diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::word_diff + "```").c_str());
+        add_text(device, device.logger, "git/rl_tools/diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::diff_staged + "```").c_str());
+        add_text(device, device.logger, "git/rl_tools/word_diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::word_diff_staged + "```").c_str());
         // Save parent project git info if available
         if(rl_tools::utils::extrack::git::project::available){
             std::filesystem::path git_project_path = paths.seed / "git" / "project";
@@ -157,6 +164,11 @@ namespace rl_tools{
                 diff_file << rl_tools::utils::extrack::git::project::word_diff_staged_color;
                 diff_file.close();
             }
+            add_text(device, device.logger, "git/project/commit", (std::string("`") + rl_tools::utils::extrack::git::project::commit + "`").c_str());
+            add_text(device, device.logger, "git/project/diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::diff + "```").c_str());
+            add_text(device, device.logger, "git/project/word_diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::word_diff + "```").c_str());
+            add_text(device, device.logger, "git/project/diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::diff_staged + "```").c_str());
+            add_text(device, device.logger, "git/project/word_diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::word_diff_staged + "```").c_str());
         }
 #endif
 
