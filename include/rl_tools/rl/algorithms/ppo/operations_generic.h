@@ -325,7 +325,7 @@ namespace rl_tools{
                 T critic_loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, batch_target_values);
                 add_scalar(device, device.logger, "ppo/critic_loss", critic_loss);
                 step(device, actor_optimizer, ppo.actor);
-                step(device, actor_optimizer, ppo.critic); // todo: evaluate switch to critic_optimizer
+                step(device, critic_optimizer, ppo.critic);
             }
         }
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
