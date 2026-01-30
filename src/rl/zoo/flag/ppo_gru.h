@@ -10,7 +10,7 @@ namespace rl_tools::rl::zoo::flag::ppo_gru{
         using T = typename TYPE_POLICY::DEFAULT;
         static constexpr TI MAX_EPISODE_LENGTH = 50;
         static constexpr bool ACTOR_PRIVILEGED_OBSERVATION = false;
-        static constexpr bool CRITIC_PRIVILEGED_OBSERVATION = true;
+        static constexpr bool CRITIC_PRIVILEGED_OBSERVATION = false;
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI, MAX_EPISODE_LENGTH, ACTOR_PRIVILEGED_OBSERVATION, CRITIC_PRIVILEGED_OBSERVATION>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
             static constexpr TI N_ENVIRONMENTS = 128;

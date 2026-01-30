@@ -134,7 +134,7 @@ namespace rl_tools{
                 using MLP = nn_models::mlp::BindConfiguration<CONFIG>;
                 template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
                 using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-                using MODULE = Module<STANDARDIZATION_LAYER, Module<INPUT_LAYER, Module<DENSE_LAYER, Module<MLP>>>>;
+                using MODULE = Module<STANDARDIZATION_LAYER, Module<INPUT_LAYER, Module<GRU, Module<MLP>>>>;
                 using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE, INPUT_SHAPE>;
             };
 
