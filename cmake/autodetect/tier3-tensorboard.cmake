@@ -8,7 +8,7 @@ if(NOT RL_TOOLS_DISABLE_TENSORBOARD)
     if(Protobuf_FOUND AND Protobuf_PROTOC_EXECUTABLE AND GIT_FOUND)
         FetchContent_Declare(tensorboard
                 GIT_REPOSITORY https://github.com/rl-tools/tensorboard_logger.git
-                GIT_TAG   674fc0fe2f8c9ae0f106e92444c60385df666b97
+                GIT_TAG   e1c368611062ec358af8e9e29bda8b76fd4f4910
         )
         FetchContent_MakeAvailable(tensorboard)
         target_link_libraries(rl_tools_full INTERFACE tensorboard_logger)

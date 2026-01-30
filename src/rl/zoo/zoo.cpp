@@ -348,6 +348,9 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         rlt::init(device);
         rlt::malloc(device, ts);
         rlt::init(device, ts, seed);
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+        rlt::add_hparams(device, device.logger, {{"dummy", 1}}, {});
+#endif
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
         std::cout << "Evaluation Interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
         std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;

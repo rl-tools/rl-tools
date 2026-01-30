@@ -104,6 +104,13 @@ namespace rl_tools{
     void add_text(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const TEXT_TYPE text){
         add_text(device, logger, key, text, (typename DEVICE::index_t)1);
     }
+    template <typename DEVICE, typename SPEC>
+    void add_hparams(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const std::map<std::string, HParamValue>& hparams, const std::vector<std::string>& metrics){
+        std::lock_guard<std::mutex> lock(logger.mutex);
+        if(logger.tb){
+            logger.tb->add_hparams(hparams, metrics);
+        }
+    }
 #ifdef RL_TOOLS_ENABLE_LIBATTOPNG
     template <typename DEVICE, typename KEY_TYPE, typename LOGGING_SPEC, typename SPEC>
     void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGING_SPEC>& logger, const KEY_TYPE key, rl_tools::Matrix<SPEC> values){

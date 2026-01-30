@@ -47,6 +47,8 @@ namespace rl_tools{
     void add_text(DEVICE& device, devices::logging::ARM& logger, const TOPIC, const TEXT){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename TEXT, typename CADENCE>
     void add_text(DEVICE& device, devices::logging::ARM& logger, const TOPIC, const TEXT, const CADENCE){ /* noop */ }
+    template <typename DEVICE, typename HPARAMS, typename METRICS>
+    void add_hparams(DEVICE& device, devices::logging::ARM& logger, const HPARAMS&, const METRICS&){ /* noop */ }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

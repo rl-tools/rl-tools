@@ -38,6 +38,8 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void add_text(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const TEXT){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename TEXT, typename CADENCE>
     RL_TOOLS_FUNCTION_PLACEMENT void add_text(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const TEXT, const CADENCE){ /* noop */ }
+    template <typename DEVICE, typename HPARAMS, typename METRICS>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_hparams(DEVICE& device, devices::logging::CUDA* logger, const HPARAMS&, const METRICS&){ /* noop */ }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
