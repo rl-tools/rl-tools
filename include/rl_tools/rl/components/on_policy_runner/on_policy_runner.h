@@ -60,6 +60,7 @@ namespace rl_tools::rl::components{
             DATA_VIEW<1> rewards;
             DATA_VIEW<1> terminated;
             DATA_VIEW<1> truncated;
+            DATA_VIEW<1, true> all_reset;
             DATA_VIEW<1> reset; // = truncation delayed by one step for the reset of stateful actors and critics
             DATA_VIEW<1, true> all_values;
             DATA_VIEW<1> values;

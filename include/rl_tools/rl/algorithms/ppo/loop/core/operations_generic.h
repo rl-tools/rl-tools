@@ -118,7 +118,10 @@ namespace rl_tools{
         auto all_observations_privileged_tensor_unsqueezed = unsqueeze(device, all_observations_privileged_tensor);
         auto all_values_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_values);
         auto all_values_tensor_unsqueezed = unsqueeze(device, all_values_tensor);
-        evaluate(device, ts.ppo.critic, all_observations_privileged_tensor_unsqueezed, all_values_tensor_unsqueezed, ts.critic_buffers_gae, ts.rng);
+        auto all_reset_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_reset);
+        Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(all_reset_tensor)>>> critic_reset_mode;
+        critic_reset_mode.reset_container = all_reset_tensor;
+        evaluate(device, ts.ppo.critic, all_observations_privileged_tensor_unsqueezed, all_values_tensor_unsqueezed, ts.critic_buffers_gae, ts.rng, critic_reset_mode);
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
