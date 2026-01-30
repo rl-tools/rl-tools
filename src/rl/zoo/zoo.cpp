@@ -483,6 +483,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 //         }
 // #endif
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
+        // rlt::logging::tensorboard::print_topic_frequencies(device, device.logger);
         rlt::free(device, device.logger);
 #endif
         rlt::free(device, ts);

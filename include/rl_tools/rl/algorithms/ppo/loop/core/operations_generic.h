@@ -134,7 +134,7 @@ namespace rl_tools{
         }
 
 //        log(device, device.logger, "log_std: ", get(ts.ppo.actor.log_std.parameters, 0, 0));
-        add_scalar(device, device.logger, "ppo/step", ts.step);
+        add_scalar(device, device.logger, "ppo/step", ts.step, 10);
 
         ts.step++;
         if(ts.step > CONFIG::CORE_PARAMETERS::STEP_LIMIT){
