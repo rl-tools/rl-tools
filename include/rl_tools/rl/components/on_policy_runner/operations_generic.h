@@ -22,6 +22,7 @@ namespace rl_tools{
         dataset.rewards                     = view<DEVICE, DATA_SPEC, decltype(dataset.rewards                    )::ROWS, decltype(dataset.rewards                    )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.rewards                )::COLS;
         dataset.terminated                  = view<DEVICE, DATA_SPEC, decltype(dataset.terminated                 )::ROWS, decltype(dataset.terminated                 )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.terminated             )::COLS;
         dataset.truncated                   = view<DEVICE, DATA_SPEC, decltype(dataset.truncated                  )::ROWS, decltype(dataset.truncated                  )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.truncated              )::COLS;
+        dataset.reset                       = view<DEVICE, DATA_SPEC, decltype(dataset.reset                      )::ROWS, decltype(dataset.reset                      )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.reset                  )::COLS;
         dataset.all_values                  = view<DEVICE, DATA_SPEC, decltype(dataset.all_values                 )::ROWS, decltype(dataset.all_values                 )::COLS>(device, dataset.data, 0, pos);
         dataset.values                      = view<DEVICE, DATA_SPEC, decltype(dataset.values                     )::ROWS, decltype(dataset.values                     )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.values                 )::COLS;
         dataset.advantages                  = view<DEVICE, DATA_SPEC, decltype(dataset.advantages                 )::ROWS, decltype(dataset.advantages                 )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.advantages             )::COLS;
@@ -108,6 +109,9 @@ namespace rl_tools{
         using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
         set_all(device, runner.truncated, true);
+        for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
+            set(dataset.reset, env_i, 0, get(runner.truncated, 0, env_i));
+        }
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             auto actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto actions                 = view(device, dataset.actions                    , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);

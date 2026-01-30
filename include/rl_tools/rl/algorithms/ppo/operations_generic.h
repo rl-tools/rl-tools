@@ -167,7 +167,7 @@ namespace rl_tools{
                 auto batch_action_log_probs        = view(device, dataset.action_log_probs           , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
                 auto batch_advantages              = view(device, dataset.advantages                 , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
                 auto batch_target_values           = view(device, dataset.target_values              , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
-                auto batch_truncated               = view(device, dataset.truncated                  , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
+                auto batch_reset                   = view(device, dataset.reset                      , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
 
                 T advantage_mean = 0;
                 T advantage_std = 0;
@@ -190,23 +190,23 @@ namespace rl_tools{
                 auto batch_observations_tensor_reshaped = reshape_row_major(device, batch_observations_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, OBSERVATION_DIM>{});
                 auto current_batch_actions_tensor = to_tensor(device, ppo_buffers.current_batch_actions);
                 auto current_batch_actions_tensor_reshaped = reshape_row_major(device, current_batch_actions_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
-                auto batch_truncated_tensor_flat = to_tensor(device, batch_truncated);
-                auto batch_truncated_tensor = reshape_row_major(device, batch_truncated_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-                if(PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC){
-                    // STATEFUL_ACTOR_AND_CRITIC implies N_EPOCHS == 1, hence we can shift the truncated flags in place. Long term we should add a buffer that we copy to such that we don't have a side-effect on the dataset.
-                    static_assert(STEPS >= 1);
-                    for (TI step_i = STEPS - 1; step_i > 0 ; step_i--){
-                        for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
-                            bool truncated = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
-                            set(device, batch_truncated_tensor, truncated, step_i, env_i, 0);
-                        }
-                    }
-                    for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
-                        set(device, batch_truncated_tensor, true, 0, env_i, 0);
-                    }
-                }
-                Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_truncated_tensor)>>> mode;
-                mode.reset_container = batch_truncated_tensor;
+                auto batch_reset_tensor_flat = to_tensor(device, batch_reset);
+                auto batch_reset_tensor = reshape_row_major(device, batch_reset_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
+                // if(PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC){
+                //     // STATEFUL_ACTOR_AND_CRITIC implies N_EPOCHS == 1, hence we can shift the truncated flags in place. Long term we should add a buffer that we copy to such that we don't have a side-effect on the dataset.
+                //     static_assert(STEPS >= 1);
+                //     for (TI step_i = STEPS - 1; step_i > 0 ; step_i--){
+                //         for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
+                //             bool truncated = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
+                //             set(device, batch_truncated_tensor, truncated, step_i, env_i, 0);
+                //         }
+                //     }
+                //     for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
+                //         set(device, batch_truncated_tensor, true, 0, env_i, 0);
+                //     }
+                // }
+                Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_reset_tensor)>>> mode;
+                mode.reset_container = batch_reset_tensor;
                 forward(device, ppo.actor, batch_observations_tensor_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng, mode);
 //                auto abs_diff = abs_diff(device, batch_actions, dataset.actions);
 

@@ -70,6 +70,10 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         increment(runner.episode_step, 0, env_i, 1);
         bool truncated = terminated_flag || (SPEC::STEP_LIMIT > 0 && get(runner.episode_step, 0, env_i) >= SPEC::STEP_LIMIT);
         set(dataset.truncated, pos, 0, truncated);
+        TI pos_reset = pos + SPEC::N_ENVIRONMENTS; // setting dataset.reset (truncation delayed by one step for the reset of stateful actors and critics)
+        if (pos_reset < DATASET_SPEC::STEPS_TOTAL){
+            set(dataset.reset, pos_reset, 0, truncated);
+        }
         set(runner.truncated, 0, env_i, truncated);
         state = next_state;
     }

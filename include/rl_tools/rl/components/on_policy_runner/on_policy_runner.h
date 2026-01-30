@@ -41,8 +41,8 @@ namespace rl_tools::rl::components{
             using TI = typename SPEC::TI;
             static constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = DATASET_SPEC::STEPS_TOTAL;
-            // structure: OBSERVATION_PRIVILIGED_DIM + OBSERVATION_DIM + ACTIONS + ACTIONS_MEAN + ACTION_LOG_P + REWARD + TERMINATED + TRUNCATED + VALUE + ADVANTAGE + TARGET_VALUE
-            static constexpr TI DATA_DIM = (SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::ObservationPrivileged::DIM : 0) + SPEC::ENVIRONMENT::Observation::DIM + SPEC::ENVIRONMENT::ACTION_DIM * 2 + 7;
+            // structure: OBSERVATION_PRIVILIGED_DIM + OBSERVATION_DIM + ACTIONS + ACTIONS_MEAN + ACTION_LOG_P + REWARD + TERMINATED + TRUNCATED + RESET + VALUE + ADVANTAGE + TARGET_VALUE
+            static constexpr TI DATA_DIM = (SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::ObservationPrivileged::DIM : 0) + SPEC::ENVIRONMENT::Observation::DIM + SPEC::ENVIRONMENT::ACTION_DIM * 2 + 8;
 
             // mem
             // todo: evaluate transposing this / storing in column major order for better memory access in the single dimensional columns
@@ -60,6 +60,7 @@ namespace rl_tools::rl::components{
             DATA_VIEW<1> rewards;
             DATA_VIEW<1> terminated;
             DATA_VIEW<1> truncated;
+            DATA_VIEW<1> reset; // = truncation delayed by one step for the reset of stateful actors and critics
             DATA_VIEW<1, true> all_values;
             DATA_VIEW<1> values;
             DATA_VIEW<1> advantages;
