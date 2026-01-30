@@ -47,6 +47,10 @@ namespace rl_tools{
         success &= load(device, network.output_layer, output_layer_group);
         return success;
     }
+    template<typename DEVICE, typename GROUP>
+    void save(DEVICE& device, nn_models::mlp::State& state, GROUP& group) {}
+    template<typename DEVICE, typename GROUP>
+    bool load(DEVICE& device, nn_models::mlp::State& state, GROUP& group) { return true; }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

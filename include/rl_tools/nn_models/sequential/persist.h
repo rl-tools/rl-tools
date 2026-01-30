@@ -42,6 +42,45 @@ namespace rl_tools{
         }
         return success;
     }
+    template<typename DEVICE, typename SPEC, typename GROUP, typename DEVICE::index_t LAYER_I = 0>
+    void save(DEVICE& device, nn_models::sequential::ContentState<SPEC>& state, GROUP& group) {
+        using TI = typename DEVICE::index_t;
+        if constexpr(LAYER_I == 0){
+            group = create_group(device, group, "layers");
+        }
+        static constexpr TI BUFFER_SIZE = 10;
+        char layer_index_str[BUFFER_SIZE];
+        utils::string::int_to_string<long int, TI>(layer_index_str, BUFFER_SIZE, LAYER_I);
+        auto layer_group = create_group(device, group, layer_index_str);
+        save(device, state.state, layer_group);
+        if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_SPEC, nn_models::sequential::OutputModule>){
+            save<DEVICE, typename SPEC::NEXT_SPEC, GROUP, LAYER_I+1>(device, state.next_content_state, group);
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    bool load(DEVICE& device, nn_models::sequential::ContentState<SPEC>& state, GROUP& group, typename DEVICE::index_t layer_i = 0) {
+        using TI = typename DEVICE::index_t;
+        if(layer_i == 0){
+            group = get_group(device, group, "layers");
+        }
+        static constexpr TI BUFFER_SIZE = 10;
+        char layer_index_str[BUFFER_SIZE];
+        utils::string::int_to_string<long int, TI>(layer_index_str, BUFFER_SIZE, layer_i);
+        auto layer_group = get_group(device, group, layer_index_str);
+        bool success = load(device, state.state, layer_group);
+        if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_SPEC, nn_models::sequential::OutputModule>){
+            success &= load(device, state.next_content_state, group, layer_i + 1);
+        }
+        return success;
+    }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn_models::sequential::ModuleState<SPEC>& state, GROUP& group) {
+        save(device, state.content_state, group);
+    }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    bool load(DEVICE& device, nn_models::sequential::ModuleState<SPEC>& state, GROUP& group) {
+        return load(device, state.content_state, group);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

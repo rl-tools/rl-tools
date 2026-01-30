@@ -4,6 +4,8 @@
 #include "../../../version.h"
 #include "layer.h"
 #include "persist_common.h"
+#include "../../parameters/persist.h"
+#include "../../optimizers/adam/instance/persist.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
@@ -51,6 +53,10 @@ namespace rl_tools {
         }
         return success;
     }
+    template<typename DEVICE, typename GROUP>
+    void save(DEVICE& device, nn::layers::dense::State& state, GROUP& group) {}
+    template<typename DEVICE, typename GROUP>
+    bool load(DEVICE& device, nn::layers::dense::State& state, GROUP& group) { return true; }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

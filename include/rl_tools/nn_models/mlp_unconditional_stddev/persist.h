@@ -5,10 +5,6 @@
 #include "../../nn/parameters/persist.h"
 #include "../../nn/persist.h"
 #include "network.h"
-#include "../../utils/persist.h"
-#include "../../persist/backends/hdf5/operations_cpu.h"
-#include <highfive/H5File.hpp>
-
 #include "../mlp/persist.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

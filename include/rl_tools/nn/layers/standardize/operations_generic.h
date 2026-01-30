@@ -167,13 +167,18 @@ namespace rl_tools{
         copy(source_device, target_device, source.output, target.output);
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::standardize::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::standardize::LayerForward<SPEC_2>& l2) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::standardize::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::standardize::LayerForward<SPEC_2>& l2) {
         static_assert(nn::layers::standardize::check_compatibility<SPEC_1, SPEC_2>);
-        using T = typename SPEC_1::T;
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
         T acc = 0;
         acc += abs_diff(device, l1.mean, l2.mean);
         acc += abs_diff(device, l1.precision, l2.precision);
         return acc;
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::standardize::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::standardize::LayerGradient<SPEC_2>& l2) {
+        static_assert(nn::layers::standardize::check_compatibility<SPEC_1, SPEC_2>);
+        return abs_diff(device, static_cast<const rl_tools::nn::layers::standardize::LayerForward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::standardize::LayerForward<SPEC_2>&>(l2));
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& l){

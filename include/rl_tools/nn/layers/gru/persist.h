@@ -59,6 +59,17 @@ namespace rl_tools {
     bool load(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer, GROUP& group) {
         return load(device, (nn::layers::gru::LayerBackward<SPEC>&)layer, group);
     }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn::layers::gru::State<SPEC>& state, GROUP& group) {
+        save(device, state.state, group, "state");
+        save(device, state.step, group, "step");
+    }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    bool load(DEVICE& device, nn::layers::gru::State<SPEC>& state, GROUP& group) {
+        bool success = load(device, state.state, group, "state");
+        success &= load(device, state.step, group, "step");
+        return success;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
