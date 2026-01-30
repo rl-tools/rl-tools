@@ -10,6 +10,10 @@
 #include <cstring>
 #endif
 
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+#include "../../../../persist/backends/hdf5/hdf5.h"
+#endif
+
 #include "../../../../numeric_types/persist_code.h"
 #include "../../../../containers/matrix/persist_code.h"
 #include "../../../../containers/tensor/persist_code.h"
@@ -122,6 +126,7 @@ namespace rl_tools{
             malloc(device, evaluation_actor);
             copy(device, device, actor, evaluation_actor);
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+            std::lock_guard<std::mutex> lock(persist::backends::hdf5::global_mutex());
             std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.h5";
             auto root_group = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
             auto actor_group = create_group(device, root_group, "actor");

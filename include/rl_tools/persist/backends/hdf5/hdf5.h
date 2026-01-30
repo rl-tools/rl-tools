@@ -4,9 +4,14 @@
 #define RL_TOOLS_PERSIST_BACKENDS_HDF5_HDF5
 
 #include <highfive/H5File.hpp>
+#include <mutex>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::persist::backends::hdf5{
+    inline std::mutex& global_mutex(){
+        static std::mutex mutex;
+        return mutex;
+    }
     template <typename T=void>
     struct GroupSpecification{
     };
