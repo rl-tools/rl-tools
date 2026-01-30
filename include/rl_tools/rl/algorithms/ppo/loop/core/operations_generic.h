@@ -114,14 +114,17 @@ namespace rl_tools{
             update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
+        static constexpr TI STEPS = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_PER_ENV+1 : 1;
+        static constexpr TI FORWARD_BATCH_SIZE = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::SPEC::N_ENVIRONMENTS : CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL;
         auto all_observations_privileged_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_observations_privileged);
-        auto all_observations_privileged_tensor_unsqueezed = unsqueeze(device, all_observations_privileged_tensor);
+        auto all_observations_privileged_tensor_reshaped = reshape_row_major(device, all_observations_privileged_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, decltype(all_observations_privileged_tensor)::SHAPE::LAST>{});
         auto all_values_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_values);
-        auto all_values_tensor_unsqueezed = unsqueeze(device, all_values_tensor);
+        auto all_values_tensor_reshaped = reshape_row_major(device, all_values_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
         auto all_reset_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_reset);
-        Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(all_reset_tensor)>>> critic_reset_mode;
-        critic_reset_mode.reset_container = all_reset_tensor;
-        evaluate(device, ts.ppo.critic, all_observations_privileged_tensor_unsqueezed, all_values_tensor_unsqueezed, ts.critic_buffers_gae, ts.rng, critic_reset_mode);
+        auto all_reset_tensor_reshaped = reshape_row_major(device, all_reset_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
+        Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(all_reset_tensor_reshaped)>>> critic_reset_mode;
+        critic_reset_mode.reset_container = all_reset_tensor_reshaped;
+        evaluate(device, ts.ppo.critic, all_observations_privileged_tensor_reshaped, all_values_tensor_reshaped, ts.critic_buffers_gae, ts.rng, critic_reset_mode);
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
