@@ -39,6 +39,8 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC>
+    void init(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger){ }
+    template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, std::filesystem::path run_dir){
         if (!std::filesystem::is_directory(run_dir) || !std::filesystem::exists(run_dir)) {
             std::filesystem::create_directories(run_dir);

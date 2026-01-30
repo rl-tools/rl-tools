@@ -7,6 +7,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE>
     void init(DEVICE& dev, devices::logging::ARDUINO& logger){ }
+    template <typename DEVICE, typename PARAM>
+    void init(DEVICE& dev, devices::logging::ARDUINO& logger, PARAM& param){ }
     template <typename DEVICE, typename A>
     void log(DEVICE& dev, devices::logging::ARDUINO& logger, const A a){
         Serial.print(a);

@@ -5,6 +5,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename DEVICE>
+    void init(DEVICE& device, devices::logging::Dummy& logger){ }
+    template <typename DEVICE, typename PARAM>
+    void init(DEVICE& device, devices::logging::Dummy& logger, PARAM& param){ }
     template <typename DEVICE, typename A>
     void log(DEVICE& device, devices::logging::Dummy& logger, const A a){
     }

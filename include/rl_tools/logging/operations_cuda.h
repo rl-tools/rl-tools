@@ -8,6 +8,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, devices::logging::CUDA* logger){ }
+    template <typename DEVICE, typename PARAM>
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, devices::logging::CUDA* logger, PARAM& param){ }
     template <typename DEVICE, typename A>
     RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const char * a, const char * b){
         std::cout << a << b << std::endl;

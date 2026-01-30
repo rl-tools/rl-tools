@@ -7,6 +7,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE>
     void init(DEVICE& device, devices::logging::WASM32& logger){ }
+    template <typename DEVICE, typename PARAM>
+    void init(DEVICE& device, devices::logging::WASM32& logger, PARAM& param){ }
     template <typename DEVICE, typename A>
     void log(DEVICE& device, devices::logging::WASM32& logger, const A a){ }
     template <typename DEVICE, typename A, typename B>
