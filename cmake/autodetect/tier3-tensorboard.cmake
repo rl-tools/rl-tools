@@ -1,5 +1,5 @@
 if(NOT RL_TOOLS_DISABLE_TENSORBOARD)
-    find_package(Protobuf CONFIG REQUIRED)
+    find_package(Protobuf CONFIG QUIET)
     if(NOT Protobuf_FOUND)
         message(STATUS "Protobuf not found in config mode, trying to find it with CMake config.")
         find_package(Protobuf QUIET)
