@@ -1,4 +1,4 @@
-#include <rl_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
@@ -22,15 +22,15 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
-using DEVICE = rlt::devices::DefaultCPU;
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using TI = typename DEVICE::index_t;
 using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
-    static constexpr TI N_ENVIRONMENTS = 2;
-    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 8;
-    static constexpr TI BATCH_SIZE = 16;
-    static constexpr TI TOTAL_STEP_LIMIT = 1000;
+    static constexpr TI N_ENVIRONMENTS = 16;
+    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = ENVIRONMENT::EPISODE_STEP_LIMIT;
+    static constexpr TI BATCH_SIZE = N_ENVIRONMENTS*ON_POLICY_RUNNER_STEPS_PER_ENV;
+    static constexpr TI TOTAL_STEP_LIMIT = 1000 * 1000 * 10;
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
     static constexpr TI ACTOR_HIDDEN_DIM = 16;
     static constexpr TI CRITIC_HIDDEN_DIM = 16;
@@ -204,16 +204,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
 
         rlt::step(device, ts);
         rlt::step(device, ts_loaded);
-
-        std::cout << "orig states: " << std::endl;
-        rlt::print(device, ts.on_policy_runner_dataset.observations);
-        std::cout << "loaded states: " << std::endl;
-        rlt::print(device, ts_loaded.on_policy_runner_dataset.observations);
-
-        std::cout << "orig actions: " << std::endl;
-        rlt::print(device, ts.on_policy_runner_dataset.actions);
-        std::cout << "loaded actions: " << std::endl;
-        rlt::print(device, ts_loaded.on_policy_runner_dataset.actions);
 
         StateComparison<DEVICE, LOOP_CORE_CONFIG> comp_step;
         comp_step.compare(device, ts, ts_loaded);

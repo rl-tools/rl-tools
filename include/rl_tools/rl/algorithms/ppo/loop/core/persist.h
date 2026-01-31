@@ -6,6 +6,7 @@
 #include "../../../../../nn/optimizers/adam/persist.h"
 #include "../../../../../nn/optimizers/adam/instance/persist.h"
 #include "../../../../../nn_models/sequential/persist.h"
+#include "../../../../../rl/algorithms/ppo/persist.h"
 #include "../../../../../rl/components/on_policy_runner/persist.h"
 #include "../../../../../rl/components/running_normalizer/persist.h"
 #include "../../../../../random/persist.h"
@@ -19,10 +20,8 @@ namespace rl_tools{
         save(device, ts.actor_optimizer, actor_optimizer_group);
         auto critic_optimizer_group = create_group(device, group, "critic_optimizer");
         save(device, ts.critic_optimizer, critic_optimizer_group);
-        auto actor_group = create_group(device, group, "actor");
-        save(device, ts.ppo.actor, actor_group);
-        auto critic_group = create_group(device, group, "critic");
-        save(device, ts.ppo.critic, critic_group);
+        auto ppo_group = create_group(device, group, "ppo");
+        save(device, ts.ppo, ppo_group);
         auto on_policy_runner_group = create_group(device, group, "on_policy_runner");
         save(device, ts.on_policy_runner, on_policy_runner_group);
         auto on_policy_runner_dataset_group = create_group(device, group, "on_policy_runner_dataset");
@@ -57,10 +56,8 @@ namespace rl_tools{
         bool success = load(device, ts.actor_optimizer, actor_optimizer_group);
         auto critic_optimizer_group = get_group(device, group, "critic_optimizer");
         success &= load(device, ts.critic_optimizer, critic_optimizer_group);
-        auto actor_group = get_group(device, group, "actor");
-        success &= load(device, ts.ppo.actor, actor_group);
-        auto critic_group = get_group(device, group, "critic");
-        success &= load(device, ts.ppo.critic, critic_group);
+        auto ppo_group = get_group(device, group, "ppo");
+        success &= load(device, ts.ppo, ppo_group);
         auto on_policy_runner_group = get_group(device, group, "on_policy_runner");
         success &= load(device, ts.on_policy_runner, on_policy_runner_group);
         auto on_policy_runner_dataset_group = get_group(device, group, "on_policy_runner_dataset");
@@ -86,9 +83,6 @@ namespace rl_tools{
         success &= load(device, next_evaluation_id_tensor, group, "next_evaluation_id");
         ts.next_evaluation_id = get(device, next_evaluation_id_tensor, 0);
         free(device, next_evaluation_id_tensor);
-#ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
-        ts.ppo.initialized = true;
-#endif
         return success;
     }
 }
