@@ -41,6 +41,7 @@ namespace rl_tools::rl::zoo::flag::ppo_gru_asymmetric{
                 static constexpr bool LEARN_ACTION_STD = true;
                 static constexpr bool SHUFFLE_EPOCH = false;
                 static constexpr bool STATEFUL_ACTOR_AND_CRITIC = true;
+                static constexpr bool TRUNCATE_ON_EACH_ITERATION = true;
             };
         };
         static constexpr bool CRITIC_GRU = false;

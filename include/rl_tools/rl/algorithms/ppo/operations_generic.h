@@ -123,6 +123,7 @@ namespace rl_tools{
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             static_assert(!PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC || (N_EPOCHS == 1), "Stateful actor and critic implies single epoch");
+            static_assert(!PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC || (PPO_SPEC::PARAMETERS::TRUNCATE_ON_EACH_ITERATION == true), "Stateful actor and critic implies that the OnPolicyRunner should truncate in the beginning of each iteration, to prevent hidden state spillover.");
             static_assert(!PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC || (BATCH_SIZE == DATASET_SPEC::STEPS_PER_ENV * DATASET_SPEC::SPEC::N_ENVIRONMENTS), "Stateful actor and critic implies single batch");
             static_assert(!PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC || !PPO_SPEC::PARAMETERS::SHUFFLE_EPOCH, "Stateful actor and critic implies epoch shuffling");
             if constexpr(PPO_SPEC::PARAMETERS::SHUFFLE_EPOCH){ // shuffling

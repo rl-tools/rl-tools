@@ -38,7 +38,6 @@ namespace rl_tools{
             static constexpr TI DATASET_SIZE = ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS;
             static constexpr TI BATCH_SIZE = 64 * 8;
 
-
             static constexpr bool NORMALIZE_OBSERVATIONS = false;
             static constexpr bool NORMALIZE_OBSERVATIONS_CONTINUOUSLY = false;
 
@@ -228,7 +227,7 @@ namespace rl_tools{
             static constexpr TI NUM_NNS = 2;
 
             static constexpr TI AGENTS_PER_ENV = 1;
-            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename NN::ACTOR_TYPE::template State<DYNAMIC_ALLOCATION>, CORE_PARAMETERS::N_ENVIRONMENTS, CORE_PARAMETERS::EPISODE_STEP_LIMIT, AGENTS_PER_ENV, DYNAMIC_ALLOCATION>;
+            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename NN::ACTOR_TYPE::template State<DYNAMIC_ALLOCATION>, CORE_PARAMETERS::N_ENVIRONMENTS, CORE_PARAMETERS::EPISODE_STEP_LIMIT, AGENTS_PER_ENV, CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, DYNAMIC_ALLOCATION>;
             using ON_POLICY_RUNNER_TYPE = rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
             using ON_POLICY_RUNNER_DATASET_SPEC = rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, DYNAMIC_ALLOCATION>;
             using ON_POLICY_RUNNER_DATASET_TYPE = rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;

@@ -109,7 +109,9 @@ namespace rl_tools{
         using SPEC = typename DATASET_SPEC::SPEC;
         using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
-        set_all(device, runner.truncated, true);
+        if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
+            set_all(device, runner.truncated, true);
+        }
         for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
             set(dataset.reset, env_i, 0, get(runner.truncated, 0, env_i));
         }
