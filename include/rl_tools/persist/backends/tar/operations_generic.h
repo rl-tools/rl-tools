@@ -6,7 +6,6 @@
 #include "tar.h"
 #include "../../../utils/string/operations_generic.h"
 
-
 /*
 import tarfile;
 import numpy as np;
@@ -342,9 +341,20 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT bool group_exists(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name) {
         using TI = typename DEVICE::index_t;
-        char* output_data;
-        TI read_size;
-        return get(device, group.data, group.size, name, output_data, read_size);
+        // Construct full path: group.path + "/" + name + "/meta"
+        char full_path[SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(full_path, group.path, SPEC::MAX_PATH_LENGTH);
+        TI current_pos = utils::string::length(full_path, SPEC::MAX_PATH_LENGTH);
+        if (current_pos > 0 && current_pos + 1 < SPEC::MAX_PATH_LENGTH) {
+            full_path[current_pos++] = '/';
+        }
+        utils::string::copy(full_path + current_pos, name, SPEC::MAX_PATH_LENGTH - current_pos);
+        current_pos = utils::string::length(full_path, SPEC::MAX_PATH_LENGTH);
+        if (current_pos + sizeof("/meta") <= SPEC::MAX_PATH_LENGTH) {
+            utils::string::copy(full_path + current_pos, "/meta", SPEC::MAX_PATH_LENGTH - current_pos);
+        }
+        TI entry_offset, entry_size;
+        return persist::backends::tar::seek(device, group.data, full_path, entry_offset, entry_size);
     }
     template<typename TYPE, typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void get_attribute(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name, char* output, typename DEVICE::index_t output_size){
@@ -363,10 +373,9 @@ namespace rl_tools{
         char metadata[METADATA_SIZE];
         TI read_size = 0;
         utils::assert_exit(device, persist::backends::tar::get(device, group.data, group_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
-        using TI = typename DEVICE::index_t;
         TI position;
         TI value_length = 0;
-        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, name, position, value_length), "persist::backends::tar: key not found in metadata");
+        utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, read_size, name, position, value_length), "persist::backends::tar: key not found in metadata");
         utils::string::memcpy(output, metadata + position, value_length < output_size ? value_length : output_size);
         output[output_size-1] = '\0';
     }
@@ -417,16 +426,11 @@ namespace rl_tools{
         TI type_value_length = 0;
         if (!utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar: 'type' not found in metadata")){return false;};
         if (!utils::assert_exit(device, utils::string::compare(metadata + type_position, "tensor", sizeof("tensor")-1), "persist::backends::tar: 'type' is not 'tensor' in metadata")){return false;};
-
-        // constexpr TI MAX_VALUE_LENGTH = 20;
-        // char value[MAX_VALUE_LENGTH];
-        // utils::string::copy(value, metadata + type_position, type_value_length + 1 < MAX_VALUE_LENGTH ? type_value_length + 1 : MAX_VALUE_LENGTH);
-        // std::cout << "type: " << value << std::endl;
         if (!utils::assert_exit(device, persist::backends::tar::containers::tensor::dim_helper_read<DEVICE, SPEC, TI, METADATA_SIZE>(device, metadata), "persist::backends::tar::load(Tensor) dimension mismatch")){return false;};
 
         if (!utils::assert_exit(device, current_path_length + 1 + (sizeof("data")-1) < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar: Meta path and name exceed maximum length")){return false;};
         utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
-        if (!utils::assert_exit(device, persist::backends::tar::get(device, group.data, current_path, (char*)tensor._data, SPEC::SIZE_BYTES, read_size), "persist::backends::tar: 'data' not found in metadata")){return false;};
+        if (!utils::assert_exit(device, persist::backends::tar::get(device, group.data, current_path, (char*)data(tensor), SPEC::SIZE_BYTES, read_size), "persist::backends::tar: 'data' not found in metadata")){return false;};
         if (!utils::assert_exit(device, read_size == SPEC::SIZE_BYTES, "persist::backends::tar: Data size mismatch")){return false;};
         return true;
     }
@@ -457,12 +461,24 @@ namespace rl_tools{
         char metadata[METADATA_SIZE];
         TI metadata_position = 0;
         metadata_position += utils::string::copy(metadata, "type: tensor\n", METADATA_SIZE - metadata_position-1);
-        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>, "Only float32 and float64 are supported for now");
+        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double> || utils::typing::is_same_v<typename SPEC::T, bool> || sizeof(typename SPEC::T) == 1 || sizeof(typename SPEC::T) == 4 || sizeof(typename SPEC::T) == 8, "Only float32, float64, bool, uint8, int32 and int64 are supported for now");
         if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
             metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position-1);
         }
         else if constexpr(utils::typing::is_same_v<typename SPEC::T, double>){
             metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float64\n", METADATA_SIZE - metadata_position-1);
+        }
+        else if constexpr(utils::typing::is_same_v<typename SPEC::T, bool>){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: bool\n", METADATA_SIZE - metadata_position-1);
+        }
+        else if constexpr(sizeof(typename SPEC::T) == 1){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: uint8\n", METADATA_SIZE - metadata_position-1);
+        }
+        else if constexpr(sizeof(typename SPEC::T) == 4){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: int32\n", METADATA_SIZE - metadata_position-1);
+        }
+        else if constexpr(sizeof(typename SPEC::T) == 8){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: int64\n", METADATA_SIZE - metadata_position-1);
         }
         metadata_position += utils::string::copy(metadata + metadata_position, "num_dims: ", METADATA_SIZE - metadata_position-1);
         char num_dims_str[16];

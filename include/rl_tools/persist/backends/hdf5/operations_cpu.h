@@ -110,7 +110,7 @@ namespace rl_tools{
             auto data_type_class = data_type.getClass();
             auto data_type_size = data_type.getSize();
             if (!utils::assert_exit(device, data_type_class == HighFive::DataTypeClass::Float || data_type_class == HighFive::DataTypeClass::Integer, "Only Float and Int are currently supported")){return false;};
-            if (!utils::assert_exit(device, data_type_size == 4 || data_type_size == 8, "Only Float32 and Float64 are currently supported")){return false;};
+            if (!utils::assert_exit(device, data_type_size == 1 || data_type_size == 4 || data_type_size == 8, "Only uint8, int32, int64, float32 and float64 are currently supported")){return false;};
             if (!utils::assert_exit(device, dataset.getStorageSize() == data_type_size * SPEC::SIZE, "Storage size mismatch")){return false;};
             if (data_type_class == HighFive::DataTypeClass::Float){
                 if(data_type_size == 4){
@@ -118,34 +118,33 @@ namespace rl_tools{
                     dataset.read(buffer.data());
                     from_flat_vector(device, buffer, tensor);
                 }
+                else if(data_type_size == 8){
+                    std::vector<double> buffer(SPEC::SIZE);
+                    dataset.read(buffer.data());
+                    from_flat_vector(device, buffer, tensor);
+                }
                 else{
-                    if(data_type_size == 8){
-                        std::vector<double> buffer(SPEC::SIZE);
-                        dataset.read(buffer.data());
-                        from_flat_vector(device, buffer, tensor);
-                    }
-                    else{
-                        if (!utils::assert_exit(device, false, "Unsupported data type size")){return false;};
-                    }
+                    if (!utils::assert_exit(device, false, "Unsupported float data type size")){return false;};
                 }
             }
-            else{
-                if(data_type_class == HighFive::DataTypeClass::Integer){
-                    if(data_type_size == 4){
-                        std::vector<int32_t> buffer(SPEC::SIZE);
-                        dataset.read(buffer.data());
-                        from_flat_vector(device, buffer, tensor);
-                    }
-                    else{
-                        if(data_type_size == 8){
-                            std::vector<int64_t> buffer(SPEC::SIZE);
-                            dataset.read(buffer.data());
-                            from_flat_vector(device, buffer, tensor);
-                        }
-                        else{
-                            if (!utils::assert_exit(device, false, "Unsupported data type size")){return false;};
-                        }
-                    }
+            else if(data_type_class == HighFive::DataTypeClass::Integer){
+                if(data_type_size == 1){
+                    std::vector<uint8_t> buffer(SPEC::SIZE);
+                    dataset.read(buffer.data());
+                    from_flat_vector(device, buffer, tensor);
+                }
+                else if(data_type_size == 4){
+                    std::vector<int32_t> buffer(SPEC::SIZE);
+                    dataset.read(buffer.data());
+                    from_flat_vector(device, buffer, tensor);
+                }
+                else if(data_type_size == 8){
+                    std::vector<int64_t> buffer(SPEC::SIZE);
+                    dataset.read(buffer.data());
+                    from_flat_vector(device, buffer, tensor);
+                }
+                else{
+                    if (!utils::assert_exit(device, false, "Unsupported integer data type size")){return false;};
                 }
             }
         }
@@ -248,6 +247,15 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     std::string get_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {
         return group.group.getAttribute(name).template read<std::string>();
+    }
+    template<typename TYPE, typename DEVICE, typename SPEC>
+    void get_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, const char* name, char* output, typename DEVICE::index_t output_size) {
+        std::string value = group.group.getAttribute(name).template read<std::string>();
+        typename DEVICE::index_t copy_len = value.size() < output_size - 1 ? value.size() : output_size - 1;
+        for(typename DEVICE::index_t i = 0; i < copy_len; i++){
+            output[i] = value[i];
+        }
+        output[copy_len] = '\0';
     }
     template<typename TYPE, typename DEVICE, typename SPEC>
     TYPE get_attribute_int(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name) {

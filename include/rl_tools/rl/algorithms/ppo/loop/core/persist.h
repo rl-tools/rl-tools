@@ -52,35 +52,59 @@ namespace rl_tools{
     bool load(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts, GROUP& group){
         using TI = typename DEVICE::index_t;
         using T = typename T_CONFIG::T;
+        bool success = true;
+        bool step_result;
         auto actor_optimizer_group = get_group(device, group, "actor_optimizer");
-        bool success = load(device, ts.actor_optimizer, actor_optimizer_group);
+        step_result = load(device, ts.actor_optimizer, actor_optimizer_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: actor_optimizer"); }
+        success &= step_result;
         auto critic_optimizer_group = get_group(device, group, "critic_optimizer");
-        success &= load(device, ts.critic_optimizer, critic_optimizer_group);
+        step_result = load(device, ts.critic_optimizer, critic_optimizer_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: critic_optimizer"); }
+        success &= step_result;
         auto ppo_group = get_group(device, group, "ppo");
-        success &= load(device, ts.ppo, ppo_group);
+        step_result = load(device, ts.ppo, ppo_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: ppo"); }
+        success &= step_result;
         auto on_policy_runner_group = get_group(device, group, "on_policy_runner");
-        success &= load(device, ts.on_policy_runner, on_policy_runner_group);
+        step_result = load(device, ts.on_policy_runner, on_policy_runner_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: on_policy_runner"); }
+        success &= step_result;
         auto on_policy_runner_dataset_group = get_group(device, group, "on_policy_runner_dataset");
-        success &= load(device, ts.on_policy_runner_dataset, on_policy_runner_dataset_group);
+        step_result = load(device, ts.on_policy_runner_dataset, on_policy_runner_dataset_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: on_policy_runner_dataset"); }
+        success &= step_result;
         auto observation_normalizer_group = get_group(device, group, "observation_normalizer");
-        success &= load(device, ts.observation_normalizer, observation_normalizer_group);
+        step_result = load(device, ts.observation_normalizer, observation_normalizer_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: observation_normalizer"); }
+        success &= step_result;
         auto observation_privileged_normalizer_group = get_group(device, group, "observation_privileged_normalizer");
-        success &= load(device, ts.observation_privileged_normalizer, observation_privileged_normalizer_group);
+        step_result = load(device, ts.observation_privileged_normalizer, observation_privileged_normalizer_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: observation_privileged_normalizer"); }
+        success &= step_result;
         auto rng_group = get_group(device, group, "rng");
-        success &= load(device, ts.rng, rng_group);
+        step_result = load(device, ts.rng, rng_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: rng"); }
+        success &= step_result;
         Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, 1>>> step_tensor;
         malloc(device, step_tensor);
-        success &= load(device, step_tensor, group, "step");
+        step_result = load(device, step_tensor, group, "step");
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: step"); }
+        success &= step_result;
         ts.step = get(device, step_tensor, 0);
         free(device, step_tensor);
         Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, 1>>> next_checkpoint_id_tensor;
         malloc(device, next_checkpoint_id_tensor);
-        success &= load(device, next_checkpoint_id_tensor, group, "next_checkpoint_id");
+        step_result = load(device, next_checkpoint_id_tensor, group, "next_checkpoint_id");
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: next_checkpoint_id"); }
+        success &= step_result;
         ts.next_checkpoint_id = get(device, next_checkpoint_id_tensor, 0);
         free(device, next_checkpoint_id_tensor);
         Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, 1>>> next_evaluation_id_tensor;
         malloc(device, next_evaluation_id_tensor);
-        success &= load(device, next_evaluation_id_tensor, group, "next_evaluation_id");
+        step_result = load(device, next_evaluation_id_tensor, group, "next_evaluation_id");
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: next_evaluation_id"); }
+        success &= step_result;
         ts.next_evaluation_id = get(device, next_evaluation_id_tensor, 0);
         free(device, next_evaluation_id_tensor);
         return success;

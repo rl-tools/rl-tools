@@ -9,6 +9,9 @@
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
 #include <rl_tools/persist/backends/hdf5/hdf5.h>
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#define RL_TOOLS_PERSIST_BACKENDS_TAR_OPERATIONS_CPU_NOT_INCLUDE_GENERIC
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_posix.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
@@ -19,6 +22,7 @@
 #include <filesystem>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -255,40 +259,87 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
 TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD) {
     DEVICE device;
     rlt::init(device);
-    LOOP_STATE ts, ts_loaded;
+    LOOP_STATE ts, ts_loaded_hdf5, ts_loaded_tar;
     rlt::malloc(device, ts);
-    rlt::malloc(device, ts_loaded);
+    rlt::malloc(device, ts_loaded_hdf5);
+    rlt::malloc(device, ts_loaded_tar);
     rlt::init(device, ts, 123);
-    rlt::init(device, ts_loaded, 123);
+    rlt::init(device, ts_loaded_hdf5, 123);
+    rlt::init(device, ts_loaded_tar, 123);
     for(TI step_i = 0; step_i < 5; step_i++){
         rlt::step(device, ts);
     }
-    std::string checkpoint_path = "test_ppo_loop_persist_save_load.h5";
+    std::string hdf5_path = "test_ppo_loop_persist_save_load.h5";
+    std::string tar_path = "test_ppo_loop_persist_save_load.tar";
+    // Save HDF5
     {
         std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-        auto file = HighFive::File(checkpoint_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = HighFive::File(hdf5_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
         auto group = rlt::create_group(device, file, "loop_state");
         rlt::save(device, ts, group);
     }
+    // Save TAR
+    {
+        rlt::persist::backends::tar::Writer tar_writer;
+        rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(tar_writer)>> tar_group{"", &tar_writer};
+        auto loop_state_group = rlt::create_group(device, tar_group, "loop_state");
+        rlt::save(device, ts, loop_state_group);
+        rlt::persist::backends::tar::finalize(device, tar_writer);
+        std::ofstream tar_file(tar_path, std::ios::binary);
+        tar_file.write(tar_writer.buffer.data(), tar_writer.buffer.size());
+        tar_file.close();
+    }
+    // Load HDF5
     {
         std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-        auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
+        auto file = HighFive::File(hdf5_path, HighFive::File::ReadOnly);
         auto group = rlt::get_group(device, file, "loop_state");
-        bool success = rlt::load(device, ts_loaded, group);
-        ASSERT_TRUE(success);
+        bool success = rlt::load(device, ts_loaded_hdf5, group);
+        ASSERT_TRUE(success) << "HDF5 load failed";
     }
-    
-    StateComparison<DEVICE, LOOP_CORE_CONFIG> comp;
-    comp.compare(device, ts, ts_loaded);
-    comp.print("After Load");
-    ASSERT_EQ(comp.total_diff(), 0);
-    ASSERT_EQ(ts.step, ts_loaded.step);
-    ASSERT_EQ(ts.next_checkpoint_id, ts_loaded.next_checkpoint_id);
-    ASSERT_EQ(ts.next_evaluation_id, ts_loaded.next_evaluation_id);
-    ASSERT_EQ(ts.observation_normalizer.age, ts_loaded.observation_normalizer.age);
-    ASSERT_EQ(ts.observation_privileged_normalizer.age, ts_loaded.observation_privileged_normalizer.age);
+    // Load TAR
+    {
+        FILE* tar_file = fopen(tar_path.c_str(), "rb");
+        ASSERT_NE(tar_file, nullptr) << "Failed to open TAR file";
+        rlt::persist::backends::tar::PosixFileData<TI> tar_data;
+        tar_data.f = tar_file;
+        fseek(tar_file, 0, SEEK_END);
+        tar_data.size = ftell(tar_file);
+        fseek(tar_file, 0, SEEK_SET);
+        rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI, rlt::persist::backends::tar::PosixFileData<TI>>> tar_group;
+        tar_group.data = tar_data;
+        auto loop_state_group = rlt::get_group(device, tar_group, "loop_state");
+        bool success = rlt::load(device, ts_loaded_tar, loop_state_group);
+        fclose(tar_file);
+        ASSERT_TRUE(success) << "TAR load failed";
+    }
+    // Compare HDF5
+    StateComparison<DEVICE, LOOP_CORE_CONFIG> comp_hdf5;
+    comp_hdf5.compare(device, ts, ts_loaded_hdf5);
+    comp_hdf5.print("After Load (HDF5)");
+    ASSERT_EQ(comp_hdf5.total_diff(), 0) << "HDF5: State mismatch";
+    ASSERT_EQ(ts.step, ts_loaded_hdf5.step);
+    ASSERT_EQ(ts.next_checkpoint_id, ts_loaded_hdf5.next_checkpoint_id);
+    ASSERT_EQ(ts.next_evaluation_id, ts_loaded_hdf5.next_evaluation_id);
+    ASSERT_EQ(ts.observation_normalizer.age, ts_loaded_hdf5.observation_normalizer.age);
+    ASSERT_EQ(ts.observation_privileged_normalizer.age, ts_loaded_hdf5.observation_privileged_normalizer.age);
+    // Compare TAR
+    StateComparison<DEVICE, LOOP_CORE_CONFIG> comp_tar;
+    comp_tar.compare(device, ts, ts_loaded_tar);
+    comp_tar.print("After Load (TAR)");
+    ASSERT_EQ(comp_tar.total_diff(), 0) << "TAR: State mismatch";
+    ASSERT_EQ(ts.step, ts_loaded_tar.step);
+    ASSERT_EQ(ts.next_checkpoint_id, ts_loaded_tar.next_checkpoint_id);
+    ASSERT_EQ(ts.next_evaluation_id, ts_loaded_tar.next_evaluation_id);
+    ASSERT_EQ(ts.observation_normalizer.age, ts_loaded_tar.observation_normalizer.age);
+    ASSERT_EQ(ts.observation_privileged_normalizer.age, ts_loaded_tar.observation_privileged_normalizer.age);
+    // Compare HDF5 vs TAR
+    StateComparison<DEVICE, LOOP_CORE_CONFIG> comp_cross;
+    comp_cross.compare(device, ts_loaded_hdf5, ts_loaded_tar);
+    comp_cross.print("HDF5 vs TAR");
+    ASSERT_EQ(comp_cross.total_diff(), 0) << "HDF5 and TAR loaded states differ";
     
     rlt::free(device, ts);
-    rlt::free(device, ts_loaded);
-    std::filesystem::remove(checkpoint_path);
+    rlt::free(device, ts_loaded_hdf5);
+    rlt::free(device, ts_loaded_tar);
 }
