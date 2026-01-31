@@ -70,6 +70,7 @@ using NN_DEVICE = rlt::devices::DefaultCPU;
 using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<TYPE_POLICY, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+using ACTOR_LOADER_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>;
 
 //using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPABILITY, ACTOR_INPUT_SHAPE>;
 using ACTOR_MODULE_CHAIN = Module<ACTOR>;
@@ -77,15 +78,18 @@ using ACTOR_TYPE = rlt::nn_models::sequential::Build<ACTOR_CAPABILITY, ACTOR_MOD
 
 //using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, rlt::nn::capability::Forward<>, ACTOR_INPUT_SHAPE>;
 using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
+using ACTOR_LOADER_TYPE = rlt::nn_models::sequential::Build<ACTOR_LOADER_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 
 
 using CRITIC_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+using CRITIC_LOADER_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>;
 //using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, CRITIC_CAPABILITY, CRITIC_INPUT_SHAPE>;
 using CRITIC_MODULE_CHAIN = Module<CRITIC>;
 using CRITIC_TYPE = rlt::nn_models::sequential::Build<CRITIC_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
 //using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::capability::Forward<>, CRITIC_INPUT_SHAPE>;
 using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
+using CRITIC_LOADER_TYPE = rlt::nn_models::sequential::Build<CRITIC_LOADER_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
 using TD3_SPEC = rlt::rl::algorithms::td3::Specification<TYPE_POLICY, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3ParametersCopyTraining>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
@@ -220,18 +224,27 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
+    ACTOR_LOADER_TYPE actor_loader;
+    CRITIC_LOADER_TYPE critic_loader;
+    rlt::malloc(device, actor_loader);
+    rlt::malloc(device, critic_loader);
     rlt::persist::backends::hdf5::Group<> actor_group = {data_file.getGroup("actor")};
-    rlt::load(device, actor_critic.actor.content, actor_group);
+    rlt::load(device, actor_loader.content, actor_group);
+    rlt::copy(device, device, actor_loader, actor_critic.actor);
     rlt::persist::backends::hdf5::Group<> actor_target_group = {data_file.getGroup("actor_target")};
     rlt::load(device, actor_critic.actor_target.content, actor_target_group);
     rlt::persist::backends::hdf5::Group<> critic_1_group = {data_file.getGroup("critic_1")};
-    rlt::load(device, actor_critic.critics[0].content, critic_1_group);
+    rlt::load(device, critic_loader.content, critic_1_group);
+    rlt::copy(device, device, critic_loader, actor_critic.critics[0]);
     rlt::persist::backends::hdf5::Group<> critic_target_1_group = {data_file.getGroup("critic_target_1")};
     rlt::load(device, actor_critic.critics_target[0].content, critic_target_1_group);
     rlt::persist::backends::hdf5::Group<> critic_2_group = {data_file.getGroup("critic_2")};
-    rlt::load(device, actor_critic.critics[1].content, critic_2_group);
+    rlt::load(device, critic_loader.content, critic_2_group);
+    rlt::copy(device, device, critic_loader, actor_critic.critics[1]);
     rlt::persist::backends::hdf5::Group<> critic_target_2_group = {data_file.getGroup("critic_target_2")};
     rlt::load(device, actor_critic.critics_target[1].content, critic_target_2_group);
+    rlt::free(device, actor_loader);
+    rlt::free(device, critic_loader);
 
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     rlt::malloc(device, off_policy_runner);
@@ -310,12 +323,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //            }
 
             rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> post_critic_1, post_critic_2;// = actor_critic.critics[0];
+            CRITIC_LOADER_TYPE critic_loader_temp;
             rlt::malloc(device, post_critic_1);
             rlt::malloc(device, post_critic_2);
+            rlt::malloc(device, critic_loader_temp);
             auto critic1_group = rlt::get_group(device, step_group, "critic1");
             auto critic2_group = rlt::get_group(device, step_group, "critic2");
-            rlt::load(device, post_critic_1.content, critic1_group);
-            rlt::load(device, post_critic_2.content, critic2_group);
+            rlt::load(device, critic_loader_temp.content, critic1_group);
+            rlt::copy(device, device, critic_loader_temp, post_critic_1);
+            rlt::load(device, critic_loader_temp.content, critic2_group);
+            rlt::copy(device, device, critic_loader_temp, post_critic_2);
+            rlt::free(device, critic_loader_temp);
 
 
             rlt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
@@ -415,14 +433,19 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             load(device, replay_buffer, batch);
 
             decltype(actor_critic.actor) post_actor;
+            ACTOR_LOADER_TYPE actor_loader_temp;
             rlt::malloc(device, post_actor);
+            rlt::malloc(device, actor_loader_temp);
             auto actor_group = rlt::get_group(device, step_group, "actor");
-            rlt::load(device, post_actor.content, actor_group);
+            rlt::load(device, actor_loader_temp.content, actor_group);
+            rlt::copy(device, device, actor_loader_temp, post_actor);
 
             decltype(actor_critic.actor) pre_actor_loaded;
             rlt::malloc(device, pre_actor_loaded);
             auto pre_actor_group = rlt::get_group(device, step_group, "pre_actor");
-            rlt::load(device, pre_actor_loaded.content, pre_actor_group);
+            rlt::load(device, actor_loader_temp.content, pre_actor_group);
+            rlt::copy(device, device, actor_loader_temp, pre_actor_loaded);
+            rlt::free(device, actor_loader_temp);
             rlt::reset_forward_state(device, pre_actor_loaded);
             rlt::reset_forward_state(device, actor_critic.actor);
             T pre_current_diff = abs_diff(device, pre_actor_loaded.content, actor_critic.actor.content);
