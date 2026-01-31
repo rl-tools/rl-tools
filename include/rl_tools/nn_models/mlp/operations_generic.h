@@ -284,6 +284,10 @@ namespace rl_tools {
         found_nan = found_nan || is_nan(device, n.output_layer, mode);
         return found_nan;
     }
+    template<typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, nn_models::mlp::State& s1, nn_models::mlp::State& s2){
+        return 0;
+    }
     template<typename DEVICE, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::mlp::State& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         return false;

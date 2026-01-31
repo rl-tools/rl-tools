@@ -54,6 +54,22 @@ namespace rl_tools{
         copy_from_generic(source_device, target_device, static_cast<const nn_models::mlp::NeuralNetworkForward<SOURCE_SPEC>&>(source), static_cast<nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>&>(target));
         copy_from_generic(source_device, target_device, source.log_std, target.log_std);
     }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2, template <typename> typename BASE_1, template <typename> typename BASE_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC_1, BASE_1>& n1, const nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC_2, BASE_2>& n2){
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
+        T acc = 0;
+        acc += abs_diff(device, static_cast<BASE_1<SPEC_1>&>(n1), static_cast<const BASE_2<SPEC_2>&>(n2));
+        acc += abs_diff(device, n1.log_std, n2.log_std);
+        return acc;
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2, template <typename> typename BASE_1, template <typename> typename BASE_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkBackward<SPEC_1, BASE_1>& n1, const nn_models::mlp_unconditional_stddev::NeuralNetworkBackward<SPEC_2, BASE_2>& n2){
+        return abs_diff(device, static_cast<nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC_1, BASE_1>&>(n1), static_cast<const nn_models::mlp_unconditional_stddev::NeuralNetworkForward<SPEC_2, BASE_2>&>(n2));
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2, template <typename> typename BASE_1, template <typename> typename BASE_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<SPEC_1, BASE_1>& n1, const nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<SPEC_2, BASE_2>& n2){
+        return abs_diff(device, static_cast<nn_models::mlp_unconditional_stddev::NeuralNetworkBackward<SPEC_1, BASE_1>&>(n1), static_cast<const nn_models::mlp_unconditional_stddev::NeuralNetworkBackward<SPEC_2, BASE_2>&>(n2));
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

@@ -6,34 +6,14 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, GROUP& group){
+        // All fields (observations, actions, rewards, etc.) are views into dataset.data
+        // So saving dataset.data is sufficient
         save(device, dataset.data, group, "data");
-        save(device, dataset.all_observations_privileged, group, "all_observations");
-        save(device, dataset.observations, group, "observations");
-        save(device, dataset.actions, group, "actions");
-        save(device, dataset.action_log_probs, group, "action_log_probs");
-        save(device, dataset.rewards, group, "rewards");
-        save(device, dataset.terminated, group, "terminated");
-        save(device, dataset.truncated, group, "truncated");
-        save(device, dataset.all_values, group, "all_values");
-        save(device, dataset.values, group, "values");
-        save(device, dataset.advantages, group, "advantages");
-        save(device, dataset.target_values, group, "target_values");
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
     bool load(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, GROUP& group){
-        bool success = load(device, dataset.data, group, "data");
-        success &= load(device, dataset.all_observations_privileged, group, "all_observations");
-        success &= load(device, dataset.observations, group, "observations");
-        success &= load(device, dataset.actions, group, "actions");
-        success &= load(device, dataset.action_log_probs, group, "action_log_probs");
-        success &= load(device, dataset.rewards, group, "rewards");
-        success &= load(device, dataset.terminated, group, "terminated");
-        success &= load(device, dataset.truncated, group, "truncated");
-        success &= load(device, dataset.all_values, group, "all_values");
-        success &= load(device, dataset.values, group, "values");
-        success &= load(device, dataset.advantages, group, "advantages");
-        success &= load(device, dataset.target_values, group, "target_values");
-        return success;
+        // All fields are views into dataset.data, so loading data restores everything
+        return load(device, dataset.data, group, "data");
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, GROUP& group){
@@ -53,6 +33,22 @@ namespace rl_tools{
         std::memcpy(data(states_raw), &get(runner.states, 0, 0), STATE_SIZE_BYTES);
         save(device, states_raw, group, "states");
         free(device, states_raw);
+        // Save env_parameters as raw memory
+        static constexpr TI PARAMS_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT::Parameters);
+        static constexpr TI PARAMS_SIZE_T = (PARAMS_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, PARAMS_SIZE_T>>> params_raw;
+        malloc(device, params_raw);
+        std::memcpy(data(params_raw), &get(runner.env_parameters, 0, 0), PARAMS_SIZE_BYTES);
+        save(device, params_raw, group, "env_parameters");
+        free(device, params_raw);
+        // Save environments as raw memory  
+        static constexpr TI ENVS_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT);
+        static constexpr TI ENVS_SIZE_T = (ENVS_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, ENVS_SIZE_T>>> envs_raw;
+        malloc(device, envs_raw);
+        std::memcpy(data(envs_raw), &get(runner.environments, 0, 0), ENVS_SIZE_BYTES);
+        save(device, envs_raw, group, "environments");
+        free(device, envs_raw);
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>>> truncated_tensor;
         malloc(device, truncated_tensor);
         for(TI i = 0; i < SPEC::N_ENVIRONMENTS; i++){
@@ -93,6 +89,22 @@ namespace rl_tools{
         success &= load(device, states_raw, group, "states");
         std::memcpy(&get(runner.states, 0, 0), data(states_raw), STATE_SIZE_BYTES);
         free(device, states_raw);
+        // Load env_parameters as raw memory
+        static constexpr TI PARAMS_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT::Parameters);
+        static constexpr TI PARAMS_SIZE_T = (PARAMS_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, PARAMS_SIZE_T>>> params_raw;
+        malloc(device, params_raw);
+        success &= load(device, params_raw, group, "env_parameters");
+        std::memcpy(&get(runner.env_parameters, 0, 0), data(params_raw), PARAMS_SIZE_BYTES);
+        free(device, params_raw);
+        // Load environments as raw memory
+        static constexpr TI ENVS_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT);
+        static constexpr TI ENVS_SIZE_T = (ENVS_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, ENVS_SIZE_T>>> envs_raw;
+        malloc(device, envs_raw);
+        success &= load(device, envs_raw, group, "environments");
+        std::memcpy(&get(runner.environments, 0, 0), data(envs_raw), ENVS_SIZE_BYTES);
+        free(device, envs_raw);
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>>> truncated_tensor;
         malloc(device, truncated_tensor);
         success &= load(device, truncated_tensor, group, "truncated");

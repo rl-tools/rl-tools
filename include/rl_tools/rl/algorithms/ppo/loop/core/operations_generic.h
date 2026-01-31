@@ -193,8 +193,23 @@ namespace rl_tools{
             return "critic";
         }
     }
-
-
+    template <typename DEVICE, typename CONFIG>
+    typename CONFIG::T abs_diff(DEVICE& device, rl::algorithms::ppo::loop::core::State<CONFIG>& s1, rl::algorithms::ppo::loop::core::State<CONFIG>& s2){
+        using T = typename CONFIG::T;
+        T acc = 0;
+        acc += abs_diff(device, s1.actor_optimizer, s2.actor_optimizer);
+        acc += abs_diff(device, s1.critic_optimizer, s2.critic_optimizer);
+        acc += abs_diff(device, s1.ppo, s2.ppo);
+        acc += abs_diff(device, s1.on_policy_runner, s2.on_policy_runner);
+        acc += abs_diff(device, s1.on_policy_runner_dataset, s2.on_policy_runner_dataset);
+        acc += abs_diff(device, s1.observation_normalizer, s2.observation_normalizer);
+        acc += abs_diff(device, s1.observation_privileged_normalizer, s2.observation_privileged_normalizer);
+        acc += math::abs(device.math, (T)s1.step - (T)s2.step);
+        acc += math::abs(device.math, (T)s1.next_checkpoint_id - (T)s2.next_checkpoint_id);
+        acc += math::abs(device.math, (T)s1.next_evaluation_id - (T)s2.next_evaluation_id);
+        acc += abs_diff(device, s1.rng, s2.rng);
+        return acc;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

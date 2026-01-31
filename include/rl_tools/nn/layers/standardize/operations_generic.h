@@ -180,6 +180,10 @@ namespace rl_tools{
         static_assert(nn::layers::standardize::check_compatibility<SPEC_1, SPEC_2>);
         return abs_diff(device, static_cast<const rl_tools::nn::layers::standardize::LayerForward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::standardize::LayerForward<SPEC_2>&>(l2));
     }
+    template <typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, const rl_tools::nn::layers::standardize::State& s1, const rl_tools::nn::layers::standardize::State& s2) {
+        return 0;
+    }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& l){
         auto tensor_flat = to_tensor(device, l.output);

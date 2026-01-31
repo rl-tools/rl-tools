@@ -245,6 +245,18 @@ namespace rl_tools{
         using T = typename SPEC::T;
         return false; //random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng) > 0.9;
     }
+    template<typename DEVICE, typename STATE_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT typename STATE_SPEC::T abs_diff(DEVICE& device, const rl::environments::pendulum::State<STATE_SPEC>& s1, const rl::environments::pendulum::State<STATE_SPEC>& s2){
+        using T = typename STATE_SPEC::T;
+        T acc = 0;
+        acc += math::abs(device.math, s1.theta - s2.theta);
+        acc += math::abs(device.math, s1.theta_dot - s2.theta_dot);
+        return acc;
+    }
+    template<typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT T abs_diff(DEVICE& device, const rl::environments::pendulum::DefaultParameters<T>& p1, const rl::environments::pendulum::DefaultParameters<T>& p2){
+        return 0;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

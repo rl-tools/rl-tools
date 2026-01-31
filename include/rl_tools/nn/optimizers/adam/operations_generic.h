@@ -73,6 +73,30 @@ namespace rl_tools{
         bool param_nan = is_nan(device, (nn::parameters::Gradient::Instance<SPEC>&) p);
         return param_nan || is_nan(device, p.gradient_first_order_moment) || is_nan(device, p.gradient_second_order_moment);
     }
+    template <typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT T abs_diff(DEVICE& device, const nn::optimizers::adam::Parameters<T>& p1, const nn::optimizers::adam::Parameters<T>& p2){
+        T acc = 0;
+        acc += math::abs(device.math, p1.alpha - p2.alpha);
+        acc += math::abs(device.math, p1.beta_1 - p2.beta_1);
+        acc += math::abs(device.math, p1.beta_2 - p2.beta_2);
+        acc += math::abs(device.math, p1.epsilon - p2.epsilon);
+        acc += math::abs(device.math, p1.epsilon_sqrt - p2.epsilon_sqrt);
+        acc += math::abs(device.math, p1.weight_decay - p2.weight_decay);
+        acc += math::abs(device.math, p1.weight_decay_input - p2.weight_decay_input);
+        acc += math::abs(device.math, p1.weight_decay_output - p2.weight_decay_output);
+        acc += math::abs(device.math, p1.bias_lr_factor - p2.bias_lr_factor);
+        return acc;
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, nn::optimizers::Adam<SPEC_1>& o1, nn::optimizers::Adam<SPEC_2>& o2){
+        using T = typename SPEC_1::T;
+        T acc = 0;
+        acc += abs_diff(device, o1.age, o2.age);
+        acc += abs_diff(device, o1.first_order_moment_bias_correction, o2.first_order_moment_bias_correction);
+        acc += abs_diff(device, o1.second_order_moment_bias_correction, o2.second_order_moment_bias_correction);
+        acc += abs_diff(device, get(device, o1.parameters, 0), get(device, o2.parameters, 0));
+        return acc;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

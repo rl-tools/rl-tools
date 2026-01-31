@@ -62,6 +62,15 @@ namespace rl_tools{
         copy(source_device, target_device, source.std, target.std);
         target.age = source.age;
     }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::RunningNormalizer<SPEC_1>& n1, rl::components::RunningNormalizer<SPEC_2>& n2){
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
+        T acc = 0;
+        acc += abs_diff(device, n1.mean, n2.mean);
+        acc += abs_diff(device, n1.std, n2.std);
+        acc += math::abs(device.math, (T)n1.age - (T)n2.age);
+        return acc;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

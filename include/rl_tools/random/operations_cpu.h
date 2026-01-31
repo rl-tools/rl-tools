@@ -9,6 +9,7 @@
 
 #include <random>
 #include <limits>
+#include <sstream>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -47,7 +48,13 @@ namespace rl_tools{
         }
 
     }
-
+    template <typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename T = int>
+    T abs_diff(devices::CPU<DEV_SPEC>& device, devices::random::CPU::ENGINE<SPEC_1>& rng1, devices::random::CPU::ENGINE<SPEC_2>& rng2){
+        std::stringstream ss1, ss2;
+        ss1 << rng1.engine;
+        ss2 << rng2.engine;
+        return (ss1.str() == ss2.str()) ? 0 : 1;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

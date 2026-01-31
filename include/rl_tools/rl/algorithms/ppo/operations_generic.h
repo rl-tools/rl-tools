@@ -343,7 +343,14 @@ namespace rl_tools{
         target.initialized = source.initialized;
 #endif
     }
-
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::algorithms::PPO<SPEC_1>& p1, rl::algorithms::PPO<SPEC_2>& p2){
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
+        T acc = 0;
+        acc += abs_diff(device, p1.actor, p2.actor);
+        acc += abs_diff(device, p1.critic, p2.critic);
+        return acc;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

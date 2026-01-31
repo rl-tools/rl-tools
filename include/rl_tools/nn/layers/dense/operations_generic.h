@@ -309,6 +309,10 @@ namespace rl_tools{
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         return abs_diff(device, &l1, &l2);
     }
+    template <typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::State& s1, const rl_tools::nn::layers::dense::State& s2) {
+        return 0;
+    }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
         set_all(device, l.pre_activations, 0);

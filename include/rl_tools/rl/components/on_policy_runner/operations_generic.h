@@ -144,6 +144,40 @@ namespace rl_tools{
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC_1>& d1, rl::components::on_policy_runner::Dataset<SPEC_2>& d2){
+        using T = typename SPEC_1::SPEC::TYPE_POLICY::DEFAULT;
+        T acc = 0;
+        acc += abs_diff(device, d1.all_observations_privileged, d2.all_observations_privileged);
+        acc += abs_diff(device, d1.observations, d2.observations);
+        acc += abs_diff(device, d1.actions_mean, d2.actions_mean);
+        acc += abs_diff(device, d1.actions, d2.actions);
+        acc += abs_diff(device, d1.action_log_probs, d2.action_log_probs);
+        acc += abs_diff(device, d1.rewards, d2.rewards);
+        acc += abs_diff(device, d1.terminated, d2.terminated);
+        acc += abs_diff(device, d1.truncated, d2.truncated);
+        acc += abs_diff(device, d1.all_reset, d2.all_reset);
+        acc += abs_diff(device, d1.all_values, d2.all_values);
+        acc += abs_diff(device, d1.advantages, d2.advantages);
+        acc += abs_diff(device, d1.target_values, d2.target_values);
+        return acc;
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::OnPolicyRunner<SPEC_1>& r1, rl::components::OnPolicyRunner<SPEC_2>& r2){
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
+        using TI = typename DEVICE::index_t;
+        T acc = 0;
+        acc += math::abs(device.math, (T)r1.step - (T)r2.step);
+        acc += abs_diff(device, r1.policy_state, r2.policy_state);
+        acc += abs_diff(device, r1.episode_step, r2.episode_step);
+        acc += abs_diff(device, r1.episode_return, r2.episode_return);
+        acc += abs_diff(device, r1.truncated, r2.truncated);
+        for(TI env_i = 0; env_i < SPEC_1::N_ENVIRONMENTS; env_i++){
+            acc += abs_diff(device, get(r1.states, 0, env_i), get(r2.states, 0, env_i));
+            acc += abs_diff(device, get(r1.env_parameters, 0, env_i), get(r2.env_parameters, 0, env_i));
+        }
+        return acc;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
