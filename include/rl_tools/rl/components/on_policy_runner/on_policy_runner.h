@@ -8,7 +8,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace on_policy_runner{
-        template <typename T_TYPE_POLICY, typename T_TI, typename T_ENVIRONMENT, typename T_POLICY_STATE, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, T_TI T_N_AGENTS_PER_ENV = 1, bool T_DYNAMIC_ALLOCATION=true>
+        template <typename T_TYPE_POLICY, typename T_TI, typename T_ENVIRONMENT, typename T_POLICY_STATE, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, T_TI T_N_AGENTS_PER_ENV = 1, bool T_TRUNCATE_ON_EACH_ITERATION = false, bool T_DYNAMIC_ALLOCATION=true>
         struct Specification{
             using TYPE_POLICY = T_TYPE_POLICY;
             using TI = T_TI;
@@ -21,6 +21,7 @@ namespace rl_tools::rl::components{
             static constexpr bool DYANMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static constexpr TI EPISODE_STATS_N_ENVIRONMENTS = 1;
             static constexpr TI EPISODE_STATS_CADENCE = 10000;
+            static constexpr bool TRUNCATE_ON_EACH_ITERATION = T_TRUNCATE_ON_EACH_ITERATION;
         };
 
         template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV, bool T_DYNAMIC_ALLOCATION = true>
