@@ -33,6 +33,7 @@ namespace rl_tools::rl::zoo::pendulum_position_v1::ppo{
                 static constexpr bool LEARN_ACTION_STD = false;
                 static constexpr bool SHUFFLE_EPOCH = false;
                 static constexpr bool STATEFUL_ACTOR_AND_CRITIC = true;
+                static constexpr bool TRUNCATE_ON_EACH_ITERATION = true;
             };
         };
         static constexpr bool CRITIC_GRU = true;
