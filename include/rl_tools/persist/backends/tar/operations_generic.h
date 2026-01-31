@@ -494,6 +494,86 @@ namespace rl_tools{
         save(device, tensor, group, name);
     }
 
+    template <typename DEVICE, typename STRUCT, typename GROUP_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void save_binary(DEVICE& device, const STRUCT* structs, typename DEVICE::index_t count, persist::backends::tar::WriterGroup<GROUP_SPEC>& group, const char* name){
+        using TI = typename DEVICE::index_t;
+        constexpr TI STRUCT_SIZE = sizeof(STRUCT);
+        constexpr TI METADATA_SIZE = 64;
+        char group_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(group_path, group.path, GROUP_SPEC::MAX_PATH_LENGTH - 1);
+        TI group_path_length = utils::string::length(group_path, GROUP_SPEC::MAX_PATH_LENGTH - 1);
+        TI name_length = utils::string::length(name, GROUP_SPEC::MAX_PATH_LENGTH - 1);
+        utils::assert_exit(device, group_path_length + 1 + name_length < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar::save_binary: Group path and name exceed maximum length");
+        TI current_position = group_path_length;
+        if(group_path_length > 0){
+            group_path[group_path_length] = '/';
+            current_position += 1;
+        }
+        utils::string::copy(group_path + current_position, name, GROUP_SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(current_path, group_path, GROUP_SPEC::MAX_PATH_LENGTH - 1);
+        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH - 1);
+        TI meta_current_position = current_path_length;
+        if(current_path_length > 0){
+            current_path[current_path_length] = '/';
+            meta_current_position += 1;
+        }
+        char metadata[METADATA_SIZE];
+        TI metadata_position = 0;
+        metadata_position += utils::string::copy(metadata, "type: binary\nsize: ", METADATA_SIZE - metadata_position - 1);
+        char size_str[16];
+        utils::string::int_to_string<TI, TI>(size_str, 16, STRUCT_SIZE * count);
+        metadata_position += utils::string::copy(metadata + metadata_position, size_str, METADATA_SIZE - metadata_position - 1);
+        metadata_position += utils::string::copy(metadata + metadata_position, "\n", METADATA_SIZE - metadata_position - 1);
+        utils::assert_exit(device, current_path_length + 1 + sizeof("meta") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar::save_binary: Meta path exceeds maximum length");
+        utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        persist::backends::tar::write_entry(device, *group.writer, current_path, metadata, metadata_position);
+        utils::assert_exit(device, current_path_length + 1 + sizeof("data") - 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar::save_binary: Data path exceeds maximum length");
+        utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        persist::backends::tar::write_entry(device, *group.writer, current_path, reinterpret_cast<const char*>(structs), STRUCT_SIZE * count);
+    }
+
+    template <typename DEVICE, typename STRUCT, typename GROUP_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT bool load_binary(DEVICE& device, STRUCT* structs, typename DEVICE::index_t count, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name){
+        using TI = typename DEVICE::index_t;
+        constexpr TI STRUCT_SIZE = sizeof(STRUCT);
+        auto binary_group = get_group(device, group, name);
+        if(!utils::assert_exit(device, binary_group.success, "persist::backends::tar::load_binary: Failed to get binary group")){return false;}
+        char current_path[GROUP_SPEC::MAX_PATH_LENGTH];
+        utils::string::copy<TI>(current_path, binary_group.path, GROUP_SPEC::MAX_PATH_LENGTH);
+        TI current_path_length = utils::string::length(current_path, GROUP_SPEC::MAX_PATH_LENGTH);
+        TI meta_current_position = current_path_length;
+        if(!utils::assert_exit(device, current_path_length + 1 < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar::load_binary: Current path length exceeds maximum length")){return false;}
+        if(current_path_length > 0 && current_path_length + 1 < GROUP_SPEC::MAX_PATH_LENGTH){
+            current_path[current_path_length] = '/';
+            if(current_path_length < GROUP_SPEC::MAX_PATH_LENGTH - 1){
+                current_path[current_path_length + 1] = '\0';
+            }
+            meta_current_position += 1;
+        }
+        if(!utils::assert_exit(device, current_path_length + 1 + (sizeof("meta") - 1) <= GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar::load_binary: Meta path exceeds maximum length")){return false;}
+        utils::string::copy(current_path + meta_current_position, "meta", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        constexpr TI METADATA_SIZE = 64;
+        char metadata[METADATA_SIZE];
+        TI read_size = 0;
+        if(!utils::assert_exit(device, persist::backends::tar::get(device, group.data, current_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar::load_binary: Failed to read metadata")){return false;}
+        metadata[read_size] = '\0';
+        TI type_position = 0;
+        TI type_value_length = 0;
+        if(!utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "type", type_position, type_value_length), "persist::backends::tar::load_binary: 'type' not found in metadata")){return false;}
+        if(!utils::assert_exit(device, utils::string::compare(metadata + type_position, "binary", sizeof("binary") - 1), "persist::backends::tar::load_binary: 'type' is not 'binary' in metadata")){return false;}
+        TI size_position = 0;
+        TI size_value_length = 0;
+        if(!utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, METADATA_SIZE, "size", size_position, size_value_length), "persist::backends::tar::load_binary: 'size' not found in metadata")){return false;}
+        TI expected_size = utils::string::string_to_int<TI>(metadata + size_position, size_value_length);
+        if(!utils::assert_exit(device, expected_size == STRUCT_SIZE * count, "persist::backends::tar::load_binary: Size mismatch")){return false;}
+        if(!utils::assert_exit(device, current_path_length + 1 + (sizeof("data") - 1) < GROUP_SPEC::MAX_PATH_LENGTH, "persist::backends::tar::load_binary: Data path exceeds maximum length")){return false;}
+        utils::string::copy(current_path + meta_current_position, "data", GROUP_SPEC::MAX_PATH_LENGTH - current_path_length - 1);
+        if(!utils::assert_exit(device, persist::backends::tar::get(device, group.data, current_path, reinterpret_cast<char*>(structs), STRUCT_SIZE * count, read_size), "persist::backends::tar::load_binary: Failed to read data")){return false;}
+        if(!utils::assert_exit(device, read_size == STRUCT_SIZE * count, "persist::backends::tar::load_binary: Data size mismatch")){return false;}
+        return true;
+    }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -254,6 +254,29 @@ namespace rl_tools{
         return std::stoi(group.group.getAttribute(name).template read<std::string>());
     }
 
+    template <typename DEVICE, typename STRUCT, typename GROUP_SPEC>
+    void save_binary(DEVICE& device, const STRUCT* structs, typename DEVICE::index_t count, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string name){
+        using TI = typename DEVICE::index_t;
+        constexpr TI STRUCT_SIZE = sizeof(STRUCT);
+        std::vector<uint8_t> bytes(STRUCT_SIZE * count);
+        std::memcpy(bytes.data(), structs, STRUCT_SIZE * count);
+        auto dataset = group.group.createDataSet(name, bytes);
+        dataset.template createAttribute<std::string>("type", "binary");
+        dataset.template createAttribute<std::string>("size", std::to_string(STRUCT_SIZE * count));
+    }
+
+    template <typename DEVICE, typename STRUCT, typename GROUP_SPEC>
+    bool load_binary(DEVICE& device, STRUCT* structs, typename DEVICE::index_t count, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string name){
+        using TI = typename DEVICE::index_t;
+        constexpr TI STRUCT_SIZE = sizeof(STRUCT);
+        auto dataset = group.group.getDataSet(name);
+        std::vector<uint8_t> bytes;
+        dataset.read(bytes);
+        if(!utils::assert_exit(device, bytes.size() == STRUCT_SIZE * count, "persist::backends::hdf5::load_binary: Size mismatch")){return false;}
+        std::memcpy(structs, bytes.data(), STRUCT_SIZE * count);
+        return true;
+    }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

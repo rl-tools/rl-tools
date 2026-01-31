@@ -18,7 +18,6 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, GROUP& group){
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, 1>>> step_tensor;
         malloc(device, step_tensor);
         set(device, step_tensor, runner.step, 0);
@@ -26,55 +25,16 @@ namespace rl_tools{
         free(device, step_tensor);
         auto policy_state_group = create_group(device, group, "policy_state");
         save(device, runner.policy_state, policy_state_group);
-        static constexpr TI STATE_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT::State);
-        static constexpr TI STATE_SIZE_T = (STATE_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, STATE_SIZE_T>>> states_raw;
-        malloc(device, states_raw);
-        std::memcpy(data(states_raw), &get(runner.states, 0, 0), STATE_SIZE_BYTES);
-        save(device, states_raw, group, "states");
-        free(device, states_raw);
-        // Save env_parameters as raw memory
-        static constexpr TI PARAMS_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT::Parameters);
-        static constexpr TI PARAMS_SIZE_T = (PARAMS_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, PARAMS_SIZE_T>>> params_raw;
-        malloc(device, params_raw);
-        std::memcpy(data(params_raw), &get(runner.env_parameters, 0, 0), PARAMS_SIZE_BYTES);
-        save(device, params_raw, group, "env_parameters");
-        free(device, params_raw);
-        // Save environments as raw memory  
-        static constexpr TI ENVS_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT);
-        static constexpr TI ENVS_SIZE_T = (ENVS_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, ENVS_SIZE_T>>> envs_raw;
-        malloc(device, envs_raw);
-        std::memcpy(data(envs_raw), &get(runner.environments, 0, 0), ENVS_SIZE_BYTES);
-        save(device, envs_raw, group, "environments");
-        free(device, envs_raw);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>>> truncated_tensor;
-        malloc(device, truncated_tensor);
-        for(TI i = 0; i < SPEC::N_ENVIRONMENTS; i++){
-            set(device, truncated_tensor, get(runner.truncated, 0, i) ? (T)1 : (T)0, i);
-        }
-        save(device, truncated_tensor, group, "truncated");
-        free(device, truncated_tensor);
-        Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>>> episode_step_tensor;
-        malloc(device, episode_step_tensor);
-        for(TI i = 0; i < SPEC::N_ENVIRONMENTS; i++){
-            set(device, episode_step_tensor, get(runner.episode_step, 0, i), i);
-        }
-        save(device, episode_step_tensor, group, "episode_step");
-        free(device, episode_step_tensor);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>>> episode_return_tensor;
-        malloc(device, episode_return_tensor);
-        for(TI i = 0; i < SPEC::N_ENVIRONMENTS; i++){
-            set(device, episode_return_tensor, get(runner.episode_return, 0, i), i);
-        }
-        save(device, episode_return_tensor, group, "episode_return");
-        free(device, episode_return_tensor);
+        save_binary(device, &get(runner.states, 0, 0), SPEC::N_ENVIRONMENTS, group, "states");
+        save_binary(device, &get(runner.env_parameters, 0, 0), SPEC::N_ENVIRONMENTS, group, "env_parameters");
+        save_binary(device, &get(runner.environments, 0, 0), SPEC::N_ENVIRONMENTS, group, "environments");
+        save(device, runner.truncated, group, "truncated");
+        save(device, runner.episode_step, group, "episode_step");
+        save(device, runner.episode_return, group, "episode_return");
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
     bool load(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, GROUP& group){
         using TI = typename DEVICE::index_t;
-        using T = typename SPEC::TYPE_POLICY::DEFAULT;
         Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, 1>>> step_tensor;
         malloc(device, step_tensor);
         bool success = load(device, step_tensor, group, "step");
@@ -82,50 +42,12 @@ namespace rl_tools{
         free(device, step_tensor);
         auto policy_state_group = get_group(device, group, "policy_state");
         success &= load(device, runner.policy_state, policy_state_group);
-        static constexpr TI STATE_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT::State);
-        static constexpr TI STATE_SIZE_T = (STATE_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, STATE_SIZE_T>>> states_raw;
-        malloc(device, states_raw);
-        success &= load(device, states_raw, group, "states");
-        std::memcpy(&get(runner.states, 0, 0), data(states_raw), STATE_SIZE_BYTES);
-        free(device, states_raw);
-        // Load env_parameters as raw memory
-        static constexpr TI PARAMS_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT::Parameters);
-        static constexpr TI PARAMS_SIZE_T = (PARAMS_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, PARAMS_SIZE_T>>> params_raw;
-        malloc(device, params_raw);
-        success &= load(device, params_raw, group, "env_parameters");
-        std::memcpy(&get(runner.env_parameters, 0, 0), data(params_raw), PARAMS_SIZE_BYTES);
-        free(device, params_raw);
-        // Load environments as raw memory
-        static constexpr TI ENVS_SIZE_BYTES = SPEC::N_ENVIRONMENTS * sizeof(typename SPEC::ENVIRONMENT);
-        static constexpr TI ENVS_SIZE_T = (ENVS_SIZE_BYTES + sizeof(T) - 1) / sizeof(T);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, ENVS_SIZE_T>>> envs_raw;
-        malloc(device, envs_raw);
-        success &= load(device, envs_raw, group, "environments");
-        std::memcpy(&get(runner.environments, 0, 0), data(envs_raw), ENVS_SIZE_BYTES);
-        free(device, envs_raw);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>>> truncated_tensor;
-        malloc(device, truncated_tensor);
-        success &= load(device, truncated_tensor, group, "truncated");
-        for(TI i = 0; i < SPEC::N_ENVIRONMENTS; i++){
-            set(runner.truncated, 0, i, get(device, truncated_tensor, i) > (T)0.5);
-        }
-        free(device, truncated_tensor);
-        Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>>> episode_step_tensor;
-        malloc(device, episode_step_tensor);
-        success &= load(device, episode_step_tensor, group, "episode_step");
-        for(TI i = 0; i < SPEC::N_ENVIRONMENTS; i++){
-            set(runner.episode_step, 0, i, get(device, episode_step_tensor, i));
-        }
-        free(device, episode_step_tensor);
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>>> episode_return_tensor;
-        malloc(device, episode_return_tensor);
-        success &= load(device, episode_return_tensor, group, "episode_return");
-        for(TI i = 0; i < SPEC::N_ENVIRONMENTS; i++){
-            set(runner.episode_return, 0, i, get(device, episode_return_tensor, i));
-        }
-        free(device, episode_return_tensor);
+        success &= load_binary(device, &get(runner.states, 0, 0), SPEC::N_ENVIRONMENTS, group, "states");
+        success &= load_binary(device, &get(runner.env_parameters, 0, 0), SPEC::N_ENVIRONMENTS, group, "env_parameters");
+        success &= load_binary(device, &get(runner.environments, 0, 0), SPEC::N_ENVIRONMENTS, group, "environments");
+        success &= load(device, runner.truncated, group, "truncated");
+        success &= load(device, runner.episode_step, group, "episode_step");
+        success &= load(device, runner.episode_return, group, "episode_return");
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         runner.initialized = true;
 #endif
