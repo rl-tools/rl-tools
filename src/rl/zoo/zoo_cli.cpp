@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
         app.add_option("-s,--seed", seed, "seed");
         app.add_option("-n,--n_seeds", n_seeds, "n_seeds");
         app.add_option("-j,--jobs", n_jobs, "number of parallel threads");
-        app.add_option("--e,--extrack", extrack_base_path, "extrack");
+        app.add_option("-e,--extrack", extrack_base_path, "extrack");
         app.add_option("--ee,--extrack-experiment", extrack_experiment, "extrack-experiment");
         app.add_option("--eep,--extrack-experiment-path", extrack_experiment_path, "extrack-experiment-path");
         app.add_option("-c,--config", config_path, "config");

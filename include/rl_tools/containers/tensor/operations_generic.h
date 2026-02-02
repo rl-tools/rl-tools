@@ -394,6 +394,8 @@ namespace rl_tools{
             struct Sigmoid: Operation {
                 template <typename DEVICE, typename T>
                 RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Sigmoid& parameter, T a){
+                    if(a < -20) return 0;
+                    if(a > 20) return 1;
                     return 1 / (1 + math::exp(device.math, -a));
                 }
             };
