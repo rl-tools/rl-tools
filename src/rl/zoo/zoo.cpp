@@ -26,6 +26,8 @@
 #include <rl_tools/persist/backends/tar/operations_generic.h>
 
 #include <rl_tools/numeric_types/persist_code.h>
+
+#include <rl_tools/nn/optimizers/adam/instance/persist.h>
 #include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
@@ -36,6 +38,11 @@
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
+
+#include <rl_tools/nn/optimizers/adam/persist.h>
+#include <rl_tools/rl/components/on_policy_runner/persist.h>
+#include <rl_tools/rl/algorithms/ppo/persist.h>
+#include <rl_tools/rl/algorithms/ppo/loop/core/persist.h>
 
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
@@ -382,7 +389,17 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         };
 #endif
 #endif
-        while(!rlt::step(device, ts)){
+        bool finished = false;
+        while(!finished){
+            if(ts.step % LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
+                auto step_folder = rlt::get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
+                std::string checkpoint_path = step_folder / "loop_state.h5";
+                std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
+                auto file = HighFive::File(checkpoint_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+                auto group = rlt::create_group(device, file, "loop_state");
+                rlt::save(device, ts, group);
+            }
+            finished = rlt::step(device, ts);
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
 #endif

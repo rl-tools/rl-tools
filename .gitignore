@@ -74,3 +74,4 @@
 /foundation-model-experiments
 /1k-experiments
 /*.tar
+/build*
