@@ -44,6 +44,13 @@
 #include <rl_tools/rl/components/on_policy_runner/persist.h>
 #include <rl_tools/rl/algorithms/ppo/persist.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/persist.h>
+// Loop step persist files (must be included after ppo/loop/core/persist.h for proper overload chaining)
+#include <rl_tools/rl/loop/steps/extrack/persist.h>
+#include <rl_tools/rl/loop/steps/timing/persist.h>
+#include <rl_tools/rl/loop/steps/evaluation/persist.h>
+#include <rl_tools/rl/loop/steps/checkpoint/persist.h>
+#include <rl_tools/rl/loop/steps/save_trajectories/persist.h>
+#include <rl_tools/rl/loop/steps/nn_analytics/persist.h>
 
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
