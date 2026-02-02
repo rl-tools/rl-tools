@@ -330,64 +330,6 @@ void signal_handler(int signal_number){
 bool signal_flag = false;
 #endif
 
-using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
-
-using T = float;
-template <typename DEVICE, typename CONFIG>
-struct StateComparison {
-    T actor_diff = 0;
-    T critic_diff = 0;
-    T ppo_diff = 0;
-    T actor_optimizer_diff = 0;
-    T critic_optimizer_diff = 0;
-    T on_policy_runner_diff = 0;
-    T dataset_diff = 0;
-    T obs_normalizer_diff = 0;
-    T obs_priv_normalizer_diff = 0;
-    TI step_diff = 0;
-    TI next_checkpoint_id_diff = 0;
-    TI next_evaluation_id_diff = 0;
-    bool rng_match = true;
-    void compare(DEVICE& device, LOOP_STATE& s1, LOOP_STATE& s2) {
-        actor_diff = rlt::abs_diff(device, s1.ppo.actor, s2.ppo.actor);
-        critic_diff = rlt::abs_diff(device, s1.ppo.critic, s2.ppo.critic);
-        ppo_diff = rlt::abs_diff(device, s1.ppo, s2.ppo);
-        actor_optimizer_diff = rlt::abs_diff(device, s1.actor_optimizer, s2.actor_optimizer);
-        critic_optimizer_diff = rlt::abs_diff(device, s1.critic_optimizer, s2.critic_optimizer);
-        on_policy_runner_diff = rlt::abs_diff(device, s1.on_policy_runner, s2.on_policy_runner);
-        dataset_diff = rlt::abs_diff(device, s1.on_policy_runner_dataset, s2.on_policy_runner_dataset);
-        obs_normalizer_diff = rlt::abs_diff(device, s1.observation_normalizer, s2.observation_normalizer);
-        obs_priv_normalizer_diff = rlt::abs_diff(device, s1.observation_privileged_normalizer, s2.observation_privileged_normalizer);
-        step_diff = (s1.step > s2.step) ? (s1.step - s2.step) : (s2.step - s1.step);
-        next_checkpoint_id_diff = (s1.next_checkpoint_id > s2.next_checkpoint_id) ? (s1.next_checkpoint_id - s2.next_checkpoint_id) : (s2.next_checkpoint_id - s1.next_checkpoint_id);
-        next_evaluation_id_diff = (s1.next_evaluation_id > s2.next_evaluation_id) ? (s1.next_evaluation_id - s2.next_evaluation_id) : (s2.next_evaluation_id - s1.next_evaluation_id);
-        std::stringstream ss1, ss2;
-        ss1 << s1.rng.engine;
-        ss2 << s2.rng.engine;
-        rng_match = (ss1.str() == ss2.str());
-    }
-    T total_diff() const {
-        return ppo_diff + actor_optimizer_diff + critic_optimizer_diff + on_policy_runner_diff + dataset_diff + obs_normalizer_diff + obs_priv_normalizer_diff + (T)step_diff + (T)next_checkpoint_id_diff + (T)next_evaluation_id_diff + (rng_match ? 0 : 1);
-    }
-    void print(const std::string& label) const {
-        std::cout << "=== " << label << " ===" << std::endl;
-        std::cout << "  actor_diff: " << actor_diff << std::endl;
-        std::cout << "  critic_diff: " << critic_diff << std::endl;
-        std::cout << "  ppo_diff: " << ppo_diff << std::endl;
-        std::cout << "  actor_optimizer_diff: " << actor_optimizer_diff << std::endl;
-        std::cout << "  critic_optimizer_diff: " << critic_optimizer_diff << std::endl;
-        std::cout << "  on_policy_runner_diff: " << on_policy_runner_diff << std::endl;
-        std::cout << "  dataset_diff: " << dataset_diff << std::endl;
-        std::cout << "  obs_normalizer_diff: " << obs_normalizer_diff << std::endl;
-        std::cout << "  obs_priv_normalizer_diff: " << obs_priv_normalizer_diff << std::endl;
-        std::cout << "  step_diff: " << step_diff << std::endl;
-        std::cout << "  next_checkpoint_id_diff: " << next_checkpoint_id_diff << std::endl;
-        std::cout << "  next_evaluation_id_diff: " << next_evaluation_id_diff << std::endl;
-        std::cout << "  rng_match: " << (rng_match ? "YES" : "NO") << std::endl;
-        std::cout << "  TOTAL: " << total_diff() << std::endl;
-    }
-};
-
 int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path, std::string loop_state_path){
 #if defined(__unix__) || defined(__APPLE__)
     std::cerr << "PID: " << getpid() << " (use kill -SIGUSR1 " << getpid() << " to create evaluate, create a checkpoint and save trajectories on demand)" << std::endl;
@@ -396,9 +338,10 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         exit(EXIT_FAILURE);
     }
 #endif
+    using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
+
     DEVICE device;
     static_assert(sizeof(LOOP_STATE) < 100000000);
-    LOOP_STATE test_state;
 //    rlt::utils::assert_exit(device, num_seeds > 0, "Number of seeds must be greater than 0.");
     for(TI seed = initial_seed; seed < (TI)num_seeds; seed++){
         LOOP_STATE ts, ts_loaded;
@@ -476,7 +419,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
                 auto file = HighFive::File(checkpoint_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
                 auto group = rlt::create_group(device, file, "loop_state");
                 rlt::save(device, ts, group);
-                {
+                { // load for testing
                     auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
                     auto group = rlt::get_group(device, file, "loop_state");
                     bool success = rlt::load(device, ts_loaded, group);
@@ -484,9 +427,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
                         std::cerr << "Failed to load loop state from " << checkpoint_path << std::endl;
                         return 1;
                     }
-                    StateComparison<DEVICE, LOOP_CONFIG> comp;
-                    comp.compare(device, ts, ts_loaded);
-                    comp.print("Checkpoint diff");
+                    LOOP_STATE::T diff = rlt::abs_diff(device, ts, ts_loaded);
+                    std::cout << "Checkpoint diff: " << diff << std::endl;
                 }
             }
             finished = rlt::step(device, ts);
