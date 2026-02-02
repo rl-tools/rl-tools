@@ -484,21 +484,19 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::sequential::ModuleState<MODULE_SPEC>& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         return is_nan(device, state.content_state, mode);
     }
-    template<typename DEVICE>
-    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, nn_models::sequential::OutputModule&, nn_models::sequential::OutputModule&){
-        return 0;
-    }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
-    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, nn_models::sequential::ContentState<SPEC_A>& a, nn_models::sequential::ContentState<SPEC_B>& b){
-        auto diff = abs_diff(device, a.state, b.state);
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::sequential::ContentState<SPEC_A>& a, nn_models::sequential::ContentState<SPEC_B>& b){
+        using T = typename SPEC_A::SPEC::TYPE_POLICY::DEFAULT;
+        T diff = (T)abs_diff(device, a.state, b.state);
         if constexpr(!utils::typing::is_same_v<typename SPEC_A::NEXT_SPEC, nn_models::sequential::OutputModule>){
-            diff += abs_diff(device, a.next_content_state, b.next_content_state);
+            diff += (T)abs_diff(device, a.next_content_state, b.next_content_state);
         }
         return diff;
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
-    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, nn_models::sequential::ModuleState<SPEC_A>& a, nn_models::sequential::ModuleState<SPEC_B>& b){
-        return abs_diff(device, a.content_state, b.content_state);
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::sequential::ModuleState<SPEC_A>& a, nn_models::sequential::ModuleState<SPEC_B>& b){
+        using T = typename SPEC_A::SPEC::TYPE_POLICY::DEFAULT;
+        return (T)abs_diff(device, a.content_state, b.content_state);
     }
 
     template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
