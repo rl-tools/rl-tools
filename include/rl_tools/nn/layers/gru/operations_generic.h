@@ -885,6 +885,10 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::gru::LayerGradient<SPEC_2>& l2) {
         return abs_diff(device, static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::gru::LayerBackward<SPEC_2>&>(l2));
     }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::gru::State<SPEC_1>& s1, const rl_tools::nn::layers::gru::State<SPEC_2>& s2) {
+        return abs_diff(device, s1.state, s2.state);
+    }
 
     template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const rl_tools::nn::layers::gru::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {

@@ -190,6 +190,26 @@ namespace rl_tools{
         out_of_boundary = out_of_boundary || state.position[1] == 0 || state.position[1] == PARAMS::BOARD_SIZE;
         return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_2_VISITED || out_of_boundary;
     }
+    template<typename DEVICE, typename T, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT static T abs_diff(DEVICE& device, const rl::environments::flag::State<T, TI>& s1, const rl::environments::flag::State<T, TI>& s2){
+        T diff = 0;
+        diff += math::abs(device.math, s1.position[0] - s2.position[0]);
+        diff += math::abs(device.math, s1.position[1] - s2.position[1]);
+        diff += math::abs(device.math, s1.velocity[0] - s2.velocity[0]);
+        diff += math::abs(device.math, s1.velocity[1] - s2.velocity[1]);
+        diff += (s1.state_machine != s2.state_machine) ? 1 : 0;
+        diff += math::abs(device.math, (T)s1.step - (T)s2.step);
+        return diff;
+    }
+    template<typename DEVICE, typename T, typename TI, TI T_MAX_EPISODE_LENGTH, bool T_ACTOR_PRIVILEGED_OBSERVATION, bool T_CRITIC_PRIVILEGED_OBSERVATION>
+    RL_TOOLS_FUNCTION_PLACEMENT static T abs_diff(DEVICE& device, const rl::environments::flag::DefaultParameters<T, TI, T_MAX_EPISODE_LENGTH, T_ACTOR_PRIVILEGED_OBSERVATION, T_CRITIC_PRIVILEGED_OBSERVATION>& p1, const rl::environments::flag::DefaultParameters<T, TI, T_MAX_EPISODE_LENGTH, T_ACTOR_PRIVILEGED_OBSERVATION, T_CRITIC_PRIVILEGED_OBSERVATION>& p2){
+        T diff = 0;
+        diff += math::abs(device.math, p1.flag_positions[0][0] - p2.flag_positions[0][0]);
+        diff += math::abs(device.math, p1.flag_positions[0][1] - p2.flag_positions[0][1]);
+        diff += math::abs(device.math, p1.flag_positions[1][0] - p2.flag_positions[1][0]);
+        diff += math::abs(device.math, p1.flag_positions[1][1] - p2.flag_positions[1][1]);
+        return diff;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
