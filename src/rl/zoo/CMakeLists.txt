@@ -111,6 +111,7 @@ RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_flag_ppo_gru)
 target_compile_definitions(rl_zoo_flag_ppo_gru PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_flag_ppo_gru PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO_GRU)
 target_compile_definitions(rl_zoo_flag_ppo_gru PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_FLAG)
+target_compile_options(rl_zoo_flag_ppo_gru PRIVATE -fmax-errors=1)
 
 # AcrobotSwingup-v0
 # SAC
