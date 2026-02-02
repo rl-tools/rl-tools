@@ -35,6 +35,7 @@
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/td3_sampling/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
@@ -329,7 +330,7 @@ void signal_handler(int signal_number){
 bool signal_flag = false;
 #endif
 
-int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
+int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path, std::string loop_state_path){
 #if defined(__unix__) || defined(__APPLE__)
     std::cerr << "PID: " << getpid() << " (use kill -SIGUSR1 " << getpid() << " to create evaluate, create a checkpoint and save trajectories on demand)" << std::endl;
     if (signal(SIGUSR1, signal_handler) == SIG_ERR){
@@ -389,9 +390,28 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         };
 #endif
 #endif
+
+        if(loop_state_path != ""){
+            std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
+            auto file = HighFive::File(loop_state_path, HighFive::File::ReadOnly);
+            auto group = rlt::get_group(device, file, "loop_state");
+            auto prev_extrack_config = ts.extrack_config;
+            auto prev_extrack_paths = ts.extrack_paths;
+            bool success = rlt::load(device, ts, group);
+            ts.extrack_config = prev_extrack_config;
+            ts.extrack_paths = prev_extrack_paths;
+            if(!success){
+                std::cerr << "Failed to load loop state from " << loop_state_path << std::endl;
+                return 1;
+            }
+            std::cout << "Loaded loop state from " << loop_state_path << std::endl;
+        }
+
+
         bool finished = false;
         while(!finished){
-            if(ts.step % LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
+            // if(ts.step % LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
+            if(ts.step % 100 == 0){
                 auto step_folder = rlt::get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
                 std::string checkpoint_path = step_folder / "loop_state.h5";
                 std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
