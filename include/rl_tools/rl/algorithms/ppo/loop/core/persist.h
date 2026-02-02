@@ -5,6 +5,7 @@
 #include "state.h"
 #include "../../../../../nn/optimizers/adam/persist.h"
 #include "../../../../../nn/optimizers/adam/instance/persist.h"
+#include "../../../../../nn_models/mlp_unconditional_stddev/persist.h"  // Must be before sequential for correct overload resolution
 #include "../../../../../nn_models/sequential/persist.h"
 #include "../../../../../rl/algorithms/ppo/persist.h"
 #include "../../../../../rl/components/on_policy_runner/persist.h"
