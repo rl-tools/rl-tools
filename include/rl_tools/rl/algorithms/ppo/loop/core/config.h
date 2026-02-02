@@ -103,7 +103,8 @@ namespace rl_tools{
                     using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                     using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>;
                     using INPUT_LAYER = nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
-                    using GRU_SPEC = nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, nn::parameters::groups::Normal>;
+                    static constexpr bool FAST_TANH = false;
+                    using GRU_SPEC = nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, nn::parameters::groups::Normal, FAST_TANH>;
                     using GRU = nn::layers::gru::BindConfiguration<GRU_SPEC>;
                     using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Normal>;
                     using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
@@ -124,7 +125,8 @@ namespace rl_tools{
                     using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                     using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>;
                     using INPUT_LAYER = nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
-                    using GRU_SPEC = nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, nn::parameters::groups::Normal>;
+                    static constexpr bool FAST_TANH = false;
+                    using GRU_SPEC = nn::layers::gru::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, nn::parameters::groups::Normal, FAST_TANH>;
                     using GRU = nn::layers::gru::BindConfiguration<GRU_SPEC>;
                     using DENSE_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Normal>;
                     using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;

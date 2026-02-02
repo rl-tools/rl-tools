@@ -522,6 +522,26 @@ namespace rl_tools{
             using IsNan = UnaryReduceOperation<OperationEmptyParameter, bool, T, impl::is_nan<DEVICE, OperationEmptyParameter, T>>;
             template <typename DEVICE, typename T>
             using IsFinite = UnaryReduceOperation<OperationEmptyParameter, bool, T, impl::is_finite<DEVICE, OperationEmptyParameter, T>>;
+            namespace impl{
+                template <typename DEVICE, typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE>
+                RL_TOOLS_FUNCTION_PLACEMENT ACCUMULATOR_TYPE abs_sum(DEVICE& device, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
+                    return accumulator + math::abs(device, current);
+                }
+                template <typename DEVICE, typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE>
+                RL_TOOLS_FUNCTION_PLACEMENT ACCUMULATOR_TYPE abs_max(DEVICE& device, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
+                    return math::max(device, accumulator, math::abs(device, current));
+                }
+                template <typename DEVICE, typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE>
+                RL_TOOLS_FUNCTION_PLACEMENT ACCUMULATOR_TYPE abs_min(DEVICE& device, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
+                    return math::min(device, accumulator, math::abs(device, current));
+                }
+            }
+            template <typename DEVICE, typename T>
+            using AbsSum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::abs_sum<DEVICE, OperationEmptyParameter, T, T>>;
+            template <typename DEVICE, typename T>
+            using AbsMax = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::abs_max<DEVICE, OperationEmptyParameter, T, T>>;
+            template <typename DEVICE, typename T>
+            using AbsMin = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::abs_min<DEVICE, OperationEmptyParameter, T, T>>;
         }
         template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE1, typename T_CURRENT_TYPE2, auto T_OPERATION, auto T_REDUCE_OPERATION>
         struct BinaryReduceOperation{
@@ -782,6 +802,29 @@ namespace rl_tools{
         static_assert(!utils::typing::is_same_v<typename SPEC::T, bool>, "Sum would work like or for boolean tensors");
         tensor::unary_reduce_operations::SquaredSum<decltype(device.math), typename SPEC::T> op;
         op.initial_value = 0;
+        return unary_associative_reduce(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T abs_sum(DEVICE& device, const Tensor<SPEC>& t){
+        tensor::unary_reduce_operations::AbsSum<decltype(device.math), typename SPEC::T> op;
+        op.initial_value = 0;
+        return unary_associative_reduce(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T abs_mean(DEVICE& device, const Tensor<SPEC>& t){
+        return abs_sum(device, t) / SPEC::SIZE;
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T abs_max(DEVICE& device, const Tensor<SPEC>& t){
+        tensor::unary_reduce_operations::AbsMax<decltype(device.math), typename SPEC::T> op;
+        op.initial_value = 0;
+        return unary_associative_reduce(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T abs_min(DEVICE& device, const Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        tensor::unary_reduce_operations::AbsMin<decltype(device.math), T> op;
+        op.initial_value = (T)1e38;
         return unary_associative_reduce(device, op, t);
     }
     template<typename TARGET_TYPE, typename DEVICE, typename SPEC>
