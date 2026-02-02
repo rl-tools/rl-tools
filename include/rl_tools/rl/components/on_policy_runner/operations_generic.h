@@ -169,7 +169,11 @@ namespace rl_tools{
         T acc = 0;
         acc += math::abs(device.math, (T)r1.step - (T)r2.step);
         acc += abs_diff(device, r1.policy_state, r2.policy_state);
-        acc += abs_diff(device, r1.episode_step, r2.episode_step);
+        for(TI env_i = 0; env_i < SPEC_1::N_ENVIRONMENTS; env_i++){
+            TI episode_step_r1 = get(r1.episode_step, 0, env_i);
+            TI episode_step_r2 = get(r2.episode_step, 0, env_i);
+            acc += math::abs(device.math, (T)episode_step_r1 - (T)episode_step_r2);
+        }
         acc += abs_diff(device, r1.episode_return, r2.episode_return);
         acc += abs_diff(device, r1.truncated, r2.truncated);
         for(TI env_i = 0; env_i < SPEC_1::N_ENVIRONMENTS; env_i++){

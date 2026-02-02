@@ -76,10 +76,10 @@ namespace rl_tools{
             init(device, env);
         }
 
+        init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng); // this needs to be initialized before the on_policy_runner because the initial hidden state (might be learnable) might be used to set the initial policy state in the OnPolicyRunner
         init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
         init(device, ts.observation_normalizer);
         init(device, ts.observation_privileged_normalizer);
-        init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
 
         ts.step = 0;
     }
