@@ -419,24 +419,24 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         bool finished = false;
         while(!finished){
             // if(ts.step % LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
-            if(ts.step % 100 == 0){
+            if(ts.step % 1000 == 0){
                 auto step_folder = rlt::get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
                 std::string checkpoint_path = step_folder / "loop_state.h5";
                 std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
                 auto file = HighFive::File(checkpoint_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
                 auto group = rlt::create_group(device, file, "loop_state");
                 rlt::save(device, ts, group);
-                { // load for testing
-                    auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
-                    auto group = rlt::get_group(device, file, "loop_state");
-                    bool success = rlt::load(device, ts_loaded, group);
-                    if(!success){
-                        std::cerr << "Failed to load loop state from " << checkpoint_path << std::endl;
-                        return 1;
-                    }
-                    LOOP_STATE::T diff = rlt::abs_diff(device, ts, ts_loaded);
-                    std::cout << "Checkpoint diff: " << diff << std::endl;
-                }
+                // { // load for testing
+                //     auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
+                //     auto group = rlt::get_group(device, file, "loop_state");
+                //     bool success = rlt::load(device, ts_loaded, group);
+                //     if(!success){
+                //         std::cerr << "Failed to load loop state from " << checkpoint_path << std::endl;
+                //         return 1;
+                //     }
+                //     LOOP_STATE::T diff = rlt::abs_diff(device, ts, ts_loaded);
+                //     std::cout << "Checkpoint diff: " << diff << std::endl;
+                // }
             }
             finished = rlt::step(device, ts);
 #ifdef RL_TOOLS_ENABLE_TRACY
