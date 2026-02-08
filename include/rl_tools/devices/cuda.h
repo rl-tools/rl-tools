@@ -196,11 +196,19 @@ namespace rl_tools {
 
         // Get all edges (dependencies)
         size_t numEdges = 0;
+#if CUDART_VERSION >= 12030
+        cudaGraphGetEdges(graph, nullptr, nullptr, nullptr, &numEdges);
+#else
         cudaGraphGetEdges(graph, nullptr, nullptr, &numEdges);
+#endif
         std::vector<cudaGraphNode_t> srcNodes(numEdges);
         std::vector<cudaGraphNode_t> dstNodes(numEdges);
         if(numEdges > 0){
+#if CUDART_VERSION >= 12030
+            cudaGraphGetEdges(graph, srcNodes.data(), dstNodes.data(), nullptr, &numEdges);
+#else
             cudaGraphGetEdges(graph, srcNodes.data(), dstNodes.data(), &numEdges);
+#endif
         }
 
         // Map dependencies: destination node -> list of source nodes
