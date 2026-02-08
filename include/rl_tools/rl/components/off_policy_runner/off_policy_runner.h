@@ -47,7 +47,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr bool DYNAMIC_ALLOCATION_EPISODE_STATS = false;
 #else
 #ifdef RL_TOOLS_BACKEND_ENABLE_CUDA
-#fatal "CUDA requires static allocation of the replay buffers in the OffPolicyRunner"
+#error "CUDA requires static allocation of the replay buffers in the OffPolicyRunner"
 #endif
         static constexpr bool DYNAMIC_ALLOCATION_REPLAY_BUFFER = true;
         static constexpr bool DYNAMIC_ALLOCATION_EPISODE_STATS = true;

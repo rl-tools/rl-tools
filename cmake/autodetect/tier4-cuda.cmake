@@ -1,4 +1,4 @@
-if(NOT RL_TOOLS_BACKEND_DISABLE_CUDA)
+if(NOT RL_TOOLS_BACKEND_DISABLE_CUDA AND NOT WIN32) # CUDA Not supported when using MSVC right now
     cmake_minimum_required(VERSION 3.17)
     find_package(CUDAToolkit QUIET)
     if(CUDAToolkit_FOUND)
