@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_CONFIG_H
 
 #include "../../../../../nn/layers/standardize/layer.h"
+#include "../../../../../nn/layers/gru/layer.h"
 #include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../nn_models/mlp_unconditional_stddev/network.h"
 #include "../../../../../nn_models/multi_agent_wrapper/model.h"

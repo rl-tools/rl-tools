@@ -22,6 +22,9 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
+#if defined(RL_TOOLS_ENABLE_HDF5) && defined(RL_TOOLS_RL_ZOO_ALGORITHMS_PPO)
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#endif
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
 #include <rl_tools/persist/backends/tar/operations_generic.h>
 
@@ -399,7 +402,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #endif
 #endif
 
-        if(loop_state_path != ""){
+#if defined(RL_TOOLS_ENABLE_HDF5) && defined(RL_TOOLS_RL_ZOO_ALGORITHMS_PPO)
+        if(!loop_state_path.empty()){
             std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
             auto file = HighFive::File(loop_state_path, HighFive::File::ReadOnly);
             auto group = rlt::get_group(device, file, "loop_state");
@@ -414,11 +418,18 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             }
             std::cout << "Loaded loop state from " << loop_state_path << std::endl;
         }
+#else
+        if(!loop_state_path.empty()) {
+            std::cerr << "Loop state path specified but HDF5 support not enabled." << std::endl;
+            return 1;
+        }
+#endif
 
 
         bool finished = false;
         while(!finished){
             // if(ts.step % LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
+#if defined(RL_TOOLS_ENABLE_HDF5) && defined(RL_TOOLS_RL_ZOO_ALGORITHMS_PPO)
             if(ts.step % 1000 == 0){
                 auto step_folder = rlt::get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
                 std::string checkpoint_path = step_folder / "loop_state.h5";
@@ -438,6 +449,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
                 //     std::cout << "Checkpoint diff: " << diff << std::endl;
                 // }
             }
+#endif
             finished = rlt::step(device, ts);
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
