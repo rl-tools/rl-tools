@@ -177,5 +177,15 @@
             "cwd": "${workspaceFolder}",
             "args": ["embedded_platforms/betaflight/gamepad_mapping_ubuntu.json"]
         },
+        {
+            "name": "src/nn/conv/timm_test.py",
+            "type": "python",
+            "request": "launch",
+            "program": "src/nn/conv/timm_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceFolder}/.venv/bin/python",
+        },
     ]
 }
