@@ -21,6 +21,16 @@ namespace rl_tools {
         set_attribute(device, group, "stride_w", std::to_string(SPEC::STRIDE_W));
         set_attribute(device, group, "padding_h", std::to_string(SPEC::PADDING_H));
         set_attribute(device, group, "padding_w", std::to_string(SPEC::PADDING_W));
+        if constexpr(SPEC::NORMALIZATION != nn::layers::conv2d::Normalization::NONE) {
+            auto gamma_group = create_group(device, group, "gamma");
+            auto beta_group = create_group(device, group, "beta");
+            save(device, layer.norm.gamma, gamma_group);
+            save(device, layer.norm.beta, beta_group);
+            if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
+                save(device, layer.norm.running_mean.parameters, group, "running_mean");
+                save(device, layer.norm.running_var.parameters, group, "running_var");
+            }
+        }
         write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
@@ -39,6 +49,20 @@ namespace rl_tools {
         auto biases_group = get_group(device, group, "biases");
         bool success = load(device, layer.weights, weights_group);
         success &= load(device, layer.biases, biases_group);
+        if constexpr(SPEC::NORMALIZATION != nn::layers::conv2d::Normalization::NONE) {
+            if(group_exists(device, group, "gamma") && group_exists(device, group, "beta")) {
+                auto gamma_group = get_group(device, group, "gamma");
+                auto beta_group = get_group(device, group, "beta");
+                success &= load(device, layer.norm.gamma, gamma_group);
+                success &= load(device, layer.norm.beta, beta_group);
+            }
+            if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
+                if(group_exists(device, group, "running_mean") || dataset_exists(device, group, "running_mean")) {
+                    success &= load(device, layer.norm.running_mean.parameters, group, "running_mean");
+                    success &= load(device, layer.norm.running_var.parameters, group, "running_var");
+                }
+            }
+        }
         return success;
     }
     template<typename DEVICE, typename SPEC, typename GROUP>

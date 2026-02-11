@@ -12,6 +12,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::conv2d {
 
+    enum class Normalization { NONE, BATCH_NORM, LAYER_NORM };
+
     template <typename T_TYPE_POLICY, typename T_TI>
     struct KaimingUniformSpecification{
         using T = typename T_TYPE_POLICY::DEFAULT;
@@ -32,6 +34,7 @@ namespace rl_tools::nn::layers::conv2d {
              T_TI T_STRIDE_H = 1, T_TI T_STRIDE_W = T_STRIDE_H,
              T_TI T_PADDING_H = 0, T_TI T_PADDING_W = T_PADDING_H,
              nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::IDENTITY,
+             Normalization T_NORMALIZATION = Normalization::NONE,
              typename T_INITIALIZER = DefaultInitializer<T_TYPE_POLICY, T_TI>,
              typename T_PARAMETER_GROUP = parameters::groups::Normal>
     struct Configuration{
@@ -45,10 +48,73 @@ namespace rl_tools::nn::layers::conv2d {
         static constexpr TI PADDING_H = T_PADDING_H;
         static constexpr TI PADDING_W = T_PADDING_W;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
+        static constexpr Normalization NORMALIZATION = T_NORMALIZATION;
         using INITIALIZER = T_INITIALIZER;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
+        static constexpr typename TYPE_POLICY::DEFAULT NORM_EPSILON = (typename TYPE_POLICY::DEFAULT)1e-5;
+        static constexpr typename TYPE_POLICY::DEFAULT BN_MOMENTUM = (typename TYPE_POLICY::DEFAULT)0.1;
     };
 
+    // ======================== Normalization forward storage (learnable parameters + running stats) ========================
+    template<Normalization NORM, typename SPEC>
+    struct NormForwardState {};
+
+    template<typename SPEC>
+    struct NormForwardState<Normalization::BATCH_NORM, SPEC> {
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
+        using TI = typename SPEC::TI;
+        using PARAM_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
+
+        using GAMMA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        typename SPEC::PARAMETER_TYPE::template Instance<GAMMA_PARAMETER_SPEC> gamma;
+
+        using BETA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        typename SPEC::PARAMETER_TYPE::template Instance<BETA_PARAMETER_SPEC> beta;
+
+        // Running statistics (non-learnable, always Plain)
+        using RUNNING_STAT_PARAMETER_SPEC = nn::parameters::Plain::Specification<TYPE_POLICY, TI, PARAM_SHAPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        nn::parameters::Plain::template Instance<RUNNING_STAT_PARAMETER_SPEC> running_mean;
+        nn::parameters::Plain::template Instance<RUNNING_STAT_PARAMETER_SPEC> running_var;
+    };
+
+    template<typename SPEC>
+    struct NormForwardState<Normalization::LAYER_NORM, SPEC> {
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
+        using TI = typename SPEC::TI;
+        using PARAM_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
+
+        using GAMMA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        typename SPEC::PARAMETER_TYPE::template Instance<GAMMA_PARAMETER_SPEC> gamma;
+
+        using BETA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        typename SPEC::PARAMETER_TYPE::template Instance<BETA_PARAMETER_SPEC> beta;
+    };
+
+    // ======================== Normalization backward storage (cached statistics) ========================
+    template<Normalization NORM, typename SPEC>
+    struct NormBackwardCache {};
+
+    template<typename SPEC>
+    struct NormBackwardCache<Normalization::BATCH_NORM, SPEC> {
+        using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
+        using TI = typename SPEC::TI;
+        using STAT_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
+        using STAT_SPEC = tensor::Specification<T, TI, STAT_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
+        Tensor<STAT_SPEC> mean;
+        Tensor<STAT_SPEC> inv_std;
+    };
+
+    template<typename SPEC>
+    struct NormBackwardCache<Normalization::LAYER_NORM, SPEC> {
+        using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
+        using TI = typename SPEC::TI;
+        using STAT_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE>;
+        using STAT_SPEC = tensor::Specification<T, TI, STAT_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
+        Tensor<STAT_SPEC> mean;
+        Tensor<STAT_SPEC> inv_std;
+    };
+
+    // ======================== Specification ========================
     template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
     struct Specification: T_CAPABILITY, T_CONFIG{
         using CONFIG = T_CONFIG;
@@ -83,7 +149,8 @@ namespace rl_tools::nn::layers::conv2d {
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
         using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
         static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<BATCH_SHAPE>{});
-        static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_CHANNELS * INPUT_CHANNELS * CONFIG::KERNEL_HEIGHT * CONFIG::KERNEL_WIDTH + CONFIG::OUTPUT_CHANNELS;
+        static constexpr TI NUM_WEIGHTS = CONFIG::OUTPUT_CHANNELS * INPUT_CHANNELS * CONFIG::KERNEL_HEIGHT * CONFIG::KERNEL_WIDTH + CONFIG::OUTPUT_CHANNELS
+            + (CONFIG::NORMALIZATION != Normalization::NONE ? 2 * CONFIG::OUTPUT_CHANNELS : 0);
     };
 
     template<typename SPEC_1, typename SPEC_2>
@@ -93,7 +160,8 @@ namespace rl_tools::nn::layers::conv2d {
             && SPEC_1::KERNEL_HEIGHT == SPEC_2::KERNEL_HEIGHT
             && SPEC_1::KERNEL_WIDTH == SPEC_2::KERNEL_WIDTH
             && SPEC_1::INPUT_HEIGHT == SPEC_2::INPUT_HEIGHT
-            && SPEC_1::INPUT_WIDTH == SPEC_2::INPUT_WIDTH;
+            && SPEC_1::INPUT_WIDTH == SPEC_2::INPUT_WIDTH
+            && SPEC_1::NORMALIZATION == SPEC_2::NORMALIZATION;
 
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec =
@@ -137,6 +205,7 @@ namespace rl_tools::nn::layers::conv2d {
         static constexpr TI PADDING_W = SPEC::PADDING_W;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
         static constexpr TI INTERNAL_BATCH_SIZE = SPEC::INTERNAL_BATCH_SIZE;
+        static constexpr Normalization NORMALIZATION = SPEC::NORMALIZATION;
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
         template <typename NEW_INPUT_SHAPE>
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>::SHAPE;
@@ -152,6 +221,9 @@ namespace rl_tools::nn::layers::conv2d {
         using BIASES_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, BIASES_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<BIASES_PARAMETER_SPEC> biases;
 
+        // Normalization parameters (conditionally populated)
+        NormForwardState<SPEC::NORMALIZATION, SPEC> norm;
+
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = conv2d::Buffer;
         template<bool DYNAMIC_ALLOCATION=true>
@@ -163,11 +235,14 @@ namespace rl_tools::nn::layers::conv2d {
         using PARENT = LayerForward<SPEC>;
         using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename SPEC::TI;
-        // Pre-activations: [INTERNAL_BATCH_SIZE, OUTPUT_HEIGHT, OUTPUT_WIDTH, OUTPUT_CHANNELS]
+        // Pre-activations stores the conv output (before normalization and activation)
         using PRE_ACTIVATIONS_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_HEIGHT, SPEC::OUTPUT_WIDTH, SPEC::OUTPUT_CHANNELS>;
         using PRE_ACTIVATIONS_SPEC = tensor::Specification<T, TI, PRE_ACTIVATIONS_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<PRE_ACTIVATIONS_SHAPE>, SPEC::CONST>;
         using PRE_ACTIVATIONS_TYPE = Tensor<PRE_ACTIVATIONS_SPEC>;
         PRE_ACTIVATIONS_TYPE pre_activations;
+
+        // Cached normalization statistics (conditionally populated)
+        NormBackwardCache<SPEC::NORMALIZATION, SPEC> norm_cache;
     };
 
     template<typename SPEC>
@@ -175,7 +250,6 @@ namespace rl_tools::nn::layers::conv2d {
         using PARENT = LayerBackward<SPEC>;
         using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename SPEC::TI;
-        // Output: [INTERNAL_BATCH_SIZE, OUTPUT_HEIGHT, OUTPUT_WIDTH, OUTPUT_CHANNELS]
         using OUTPUT_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_HEIGHT, SPEC::OUTPUT_WIDTH, SPEC::OUTPUT_CHANNELS>;
         using OUTPUT_CONTAINER_SPEC = tensor::Specification<T, TI, OUTPUT_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<OUTPUT_CONTAINER_SHAPE>, SPEC::CONST>;
         using OUTPUT_CONTAINER_TYPE = Tensor<OUTPUT_CONTAINER_SPEC>;
