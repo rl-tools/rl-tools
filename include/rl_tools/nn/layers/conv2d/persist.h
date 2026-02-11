@@ -57,7 +57,7 @@ namespace rl_tools {
                 success &= load(device, layer.norm.beta, beta_group);
             }
             if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                if(group_exists(device, group, "running_mean") || dataset_exists(device, group, "running_mean")) {
+                if(group_exists(device, group, "running_mean")) {
                     success &= load(device, layer.norm.running_mean.parameters, group, "running_mean");
                     success &= load(device, layer.norm.running_var.parameters, group, "running_var");
                 }

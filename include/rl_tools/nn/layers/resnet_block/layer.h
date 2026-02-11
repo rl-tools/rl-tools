@@ -1,0 +1,191 @@
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_RESNET_BLOCK_LAYER_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_NN_LAYERS_RESNET_BLOCK_LAYER_H
+#include "../../../utils/generic/typing.h"
+#include "../../../containers/tensor/tensor.h"
+#include "../../../nn/capability/capability.h"
+#include "../../../nn/parameters/parameters.h"
+#include "../conv2d/layer.h"
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::nn::layers::resnet_block {
+
+    template<typename T_TYPE_POLICY, typename T_TI,
+             T_TI T_OUTPUT_CHANNELS,
+             T_TI T_STRIDE = 1,
+             typename T_PARAMETER_GROUP = parameters::groups::Normal>
+    struct Configuration{
+        using TYPE_POLICY = T_TYPE_POLICY;
+        using TI = T_TI;
+        static constexpr TI OUTPUT_CHANNELS = T_OUTPUT_CHANNELS;
+        static constexpr TI STRIDE = T_STRIDE;
+        using PARAMETER_GROUP = T_PARAMETER_GROUP;
+    };
+
+    // Conditional downsample storage
+    template<bool HAS_DOWNSAMPLE, typename CONV_SPEC>
+    struct DownsampleStorage {};
+
+    template<typename CONV_SPEC>
+    struct DownsampleStorage<true, CONV_SPEC> {
+        conv2d::LayerGradient<CONV_SPEC> conv;
+    };
+
+    template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
+    struct Specification: T_CAPABILITY, T_CONFIG{
+        using CONFIG = T_CONFIG;
+        using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
+        using TI = typename CONFIG::TI;
+        using CAPABILITY = T_CAPABILITY;
+        using INPUT_SHAPE = T_INPUT_SHAPE;
+        static_assert(length(INPUT_SHAPE{}) >= 4, "ResnetBlock input must have >= 4 dimensions (...BATCH x H x W x C)");
+
+        static constexpr TI INPUT_HEIGHT = get<length(INPUT_SHAPE{})-3>(INPUT_SHAPE{});
+        static constexpr TI INPUT_WIDTH = get<length(INPUT_SHAPE{})-2>(INPUT_SHAPE{});
+        static constexpr TI INPUT_CHANNELS = get_last(INPUT_SHAPE{});
+        static constexpr TI OUTPUT_CHANNELS = CONFIG::OUTPUT_CHANNELS;
+        static constexpr TI STRIDE = CONFIG::STRIDE;
+
+        // Block output spatial dims (determined by first conv: 3x3, stride=STRIDE, pad=1)
+        static constexpr TI OUTPUT_HEIGHT = (INPUT_HEIGHT + 2 - 3) / STRIDE + 1;
+        static constexpr TI OUTPUT_WIDTH = (INPUT_WIDTH + 2 - 3) / STRIDE + 1;
+        static constexpr bool HAS_DOWNSAMPLE = (INPUT_CHANNELS != OUTPUT_CHANNELS) || (STRIDE != 1);
+
+        using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
+        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<BATCH_SHAPE>{});
+
+        // Internal capability: always Gradient but with outer's PARAMETER_TYPE
+        struct INTERNAL_CAPABILITY {
+            static constexpr nn::LayerCapability TAG = nn::LayerCapability::Gradient;
+            using PARAMETER_TYPE = typename T_CAPABILITY::PARAMETER_TYPE;
+            static constexpr bool DYNAMIC_ALLOCATION = T_CAPABILITY::DYNAMIC_ALLOCATION;
+            static constexpr bool CONST = T_CAPABILITY::CONST;
+        };
+
+        // Conv1: 3x3, stride=STRIDE, pad=1, BN + ReLU
+        using CONV1_CONFIG = conv2d::Configuration<TYPE_POLICY, TI, OUTPUT_CHANNELS, 3, 3, STRIDE, STRIDE, 1, 1,
+            nn::activation_functions::ActivationFunction::RELU,
+            conv2d::Normalization::BATCH_NORM,
+            conv2d::DefaultInitializer<TYPE_POLICY, TI>,
+            typename CONFIG::PARAMETER_GROUP>;
+        using CONV1_SPEC = conv2d::Specification<CONV1_CONFIG, INTERNAL_CAPABILITY, INPUT_SHAPE>;
+
+        // Conv2: 3x3, stride=1, pad=1, BN + IDENTITY (no activation before skip)
+        using CONV1_OUTPUT_SHAPE = typename CONV1_SPEC::OUTPUT_SHAPE;
+        using CONV2_CONFIG = conv2d::Configuration<TYPE_POLICY, TI, OUTPUT_CHANNELS, 3, 3, 1, 1, 1, 1,
+            nn::activation_functions::ActivationFunction::IDENTITY,
+            conv2d::Normalization::BATCH_NORM,
+            conv2d::DefaultInitializer<TYPE_POLICY, TI>,
+            typename CONFIG::PARAMETER_GROUP>;
+        using CONV2_SPEC = conv2d::Specification<CONV2_CONFIG, INTERNAL_CAPABILITY, CONV1_OUTPUT_SHAPE>;
+
+        // Downsample: 1x1, stride=STRIDE, pad=0, BN + IDENTITY
+        using DOWNSAMPLE_CONFIG = conv2d::Configuration<TYPE_POLICY, TI, OUTPUT_CHANNELS, 1, 1, STRIDE, STRIDE, 0, 0,
+            nn::activation_functions::ActivationFunction::IDENTITY,
+            conv2d::Normalization::BATCH_NORM,
+            conv2d::DefaultInitializer<TYPE_POLICY, TI>,
+            typename CONFIG::PARAMETER_GROUP>;
+        using DOWNSAMPLE_SPEC = conv2d::Specification<DOWNSAMPLE_CONFIG, INTERNAL_CAPABILITY, INPUT_SHAPE>;
+
+        template <typename NEW_INPUT_SHAPE>
+        struct OUTPUT_SHAPE_FACTORY{
+            static_assert(length(NEW_INPUT_SHAPE{}) >= 4);
+            static constexpr TI NEW_H = get<length(NEW_INPUT_SHAPE{})-3>(NEW_INPUT_SHAPE{});
+            static constexpr TI NEW_W = get<length(NEW_INPUT_SHAPE{})-2>(NEW_INPUT_SHAPE{});
+            static constexpr TI NEW_C = get_last(NEW_INPUT_SHAPE{});
+            static_assert(NEW_H == INPUT_HEIGHT);
+            static_assert(NEW_W == INPUT_WIDTH);
+            static_assert(NEW_C == INPUT_CHANNELS);
+            static constexpr TI NEW_OH = (NEW_H + 2 - 3) / STRIDE + 1;
+            static constexpr TI NEW_OW = (NEW_W + 2 - 3) / STRIDE + 1;
+            using SHAPE = tensor::Replace<
+                tensor::Replace<
+                    tensor::Replace<NEW_INPUT_SHAPE, OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{})-1>,
+                    NEW_OW, length(NEW_INPUT_SHAPE{})-2>,
+                NEW_OH, length(NEW_INPUT_SHAPE{})-3>;
+        };
+        using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
+
+        static constexpr TI NUM_WEIGHTS = CONV1_SPEC::NUM_WEIGHTS + CONV2_SPEC::NUM_WEIGHTS + (HAS_DOWNSAMPLE ? DOWNSAMPLE_SPEC::NUM_WEIGHTS : 0);
+    };
+
+    struct State{};
+
+    // Buffer for evaluate (holds intermediate tensors)
+    template<bool T_DYNAMIC_ALLOCATION, typename T_SPEC>
+    struct Buffer{
+        using T = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
+        using TI = typename T_SPEC::TI;
+        // Conv1 output = Conv2 input
+        using INTERMEDIATE_SHAPE = tensor::Shape<TI, T_SPEC::INTERNAL_BATCH_SIZE, T_SPEC::OUTPUT_HEIGHT, T_SPEC::OUTPUT_WIDTH, T_SPEC::OUTPUT_CHANNELS>;
+        using INTERMEDIATE_SPEC = tensor::Specification<T, TI, INTERMEDIATE_SHAPE, T_DYNAMIC_ALLOCATION>;
+        Tensor<INTERMEDIATE_SPEC> intermediate;
+        // Shortcut for downsample path
+        using SHORTCUT_SHAPE = tensor::Shape<TI, T_SPEC::INTERNAL_BATCH_SIZE, T_SPEC::OUTPUT_HEIGHT, T_SPEC::OUTPUT_WIDTH, T_SPEC::OUTPUT_CHANNELS>;
+        using SHORTCUT_SPEC = tensor::Specification<T, TI, SHORTCUT_SHAPE, T_DYNAMIC_ALLOCATION>;
+        Tensor<SHORTCUT_SPEC> shortcut;
+        // Internal conv buffers (currently empty)
+        conv2d::Buffer conv1_buffer, conv2_buffer, downsample_buffer;
+    };
+
+    template<typename T_SPEC>
+    struct LayerForward {
+        using SPEC = T_SPEC;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
+        using TI = typename SPEC::TI;
+        static constexpr TI INPUT_HEIGHT = SPEC::INPUT_HEIGHT;
+        static constexpr TI INPUT_WIDTH = SPEC::INPUT_WIDTH;
+        static constexpr TI INPUT_CHANNELS = SPEC::INPUT_CHANNELS;
+        static constexpr TI OUTPUT_HEIGHT = SPEC::OUTPUT_HEIGHT;
+        static constexpr TI OUTPUT_WIDTH = SPEC::OUTPUT_WIDTH;
+        static constexpr TI OUTPUT_CHANNELS = SPEC::OUTPUT_CHANNELS;
+        static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
+        static constexpr TI INTERNAL_BATCH_SIZE = SPEC::INTERNAL_BATCH_SIZE;
+        static constexpr bool HAS_DOWNSAMPLE = SPEC::HAS_DOWNSAMPLE;
+        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
+        template <typename NEW_INPUT_SHAPE>
+        using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>::SHAPE;
+        using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
+
+        // Internal conv layers (always LayerGradient for intermediate storage)
+        conv2d::LayerGradient<typename SPEC::CONV1_SPEC> conv1;
+        conv2d::LayerGradient<typename SPEC::CONV2_SPEC> conv2;
+        DownsampleStorage<SPEC::HAS_DOWNSAMPLE, typename SPEC::DOWNSAMPLE_SPEC> downsample;
+
+        template<bool DYNAMIC_ALLOCATION=true>
+        using Buffer = resnet_block::Buffer<DYNAMIC_ALLOCATION, SPEC>;
+        template<bool DYNAMIC_ALLOCATION=true>
+        using State = resnet_block::State;
+    };
+
+    template<typename SPEC>
+    struct LayerBackward: public LayerForward<SPEC>{};
+
+    template<typename SPEC>
+    struct LayerGradient: public LayerBackward<SPEC>{
+        using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
+        using TI = typename SPEC::TI;
+        using OUTPUT_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_HEIGHT, SPEC::OUTPUT_WIDTH, SPEC::OUTPUT_CHANNELS>;
+        using OUTPUT_CONTAINER_SPEC = tensor::Specification<T, TI, OUTPUT_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<OUTPUT_CONTAINER_SHAPE>, SPEC::CONST>;
+        using OUTPUT_CONTAINER_TYPE = Tensor<OUTPUT_CONTAINER_SPEC>;
+        OUTPUT_CONTAINER_TYPE output;
+    };
+
+    template<typename CONFIG, typename CAPABILITY, typename INPUT_SHAPE>
+    using Layer =
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
+            LayerForward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
+            LayerBackward<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
+            LayerGradient<Specification<CONFIG, CAPABILITY, INPUT_SHAPE>>, void>>>;
+
+    template <typename CONFIG>
+    struct BindConfiguration{
+        template <typename CAPABILITY, typename INPUT_SHAPE>
+        using Layer = nn::layers::resnet_block::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;
+    };
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+#endif
