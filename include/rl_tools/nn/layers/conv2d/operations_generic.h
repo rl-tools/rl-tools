@@ -1,0 +1,433 @@
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_CONV2D_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_NN_LAYERS_CONV2D_OPERATIONS_GENERIC_H
+
+#include "../../../containers/tensor/tensor.h"
+#include "../../../nn/parameters/operations_generic.h"
+
+#include "layer.h"
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_FUNCTION_PLACEMENT
+#endif
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools{
+    // ======================== malloc / free ========================
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::LayerForward<SPEC>& layer) {
+        malloc(device, layer.weights);
+        malloc(device, layer.biases);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::LayerForward<SPEC>& layer) {
+        free(device, layer.weights);
+        free(device, layer.biases);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::LayerBackward<SPEC>& layer) {
+        malloc(device, (nn::layers::conv2d::LayerForward<SPEC>&) layer);
+        malloc(device, layer.pre_activations);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::LayerBackward<SPEC>& layer) {
+        free(device, (nn::layers::conv2d::LayerForward<SPEC>&) layer);
+        free(device, layer.pre_activations);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::LayerGradient<SPEC>& layer) {
+        malloc(device, (nn::layers::conv2d::LayerBackward<SPEC>&) layer);
+        malloc(device, layer.output);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::LayerGradient<SPEC>& layer) {
+        free(device, (nn::layers::conv2d::LayerBackward<SPEC>&) layer);
+        free(device, layer.output);
+    }
+    template<typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::State& state) { }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::conv2d::State& source, nn::layers::conv2d::State& target){}
+    template<typename SPEC, typename DEVICE, typename RNG, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn::layers::conv2d::LayerForward<SPEC>& layer, nn::layers::conv2d::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { }
+    template<typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::State& state) { }
+    template<typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::Buffer& buffer) { }
+    template<typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::Buffer& buffer) { }
+
+    // ======================== init_weights ========================
+    template<typename DEVICE, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::conv2d::LayerForward<SPEC>& layer, const nn::layers::conv2d::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng){
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
+        using TI = typename SPEC::TI;
+        T gain;
+        if constexpr(INITIALIZER_SPEC::INIT_LEGACY){
+            T negative_slope = math::sqrt(device.math, (T)5);
+            gain = math::sqrt(device.math, (T)2.0 / (1 + negative_slope * negative_slope));
+        }
+        else{
+            gain = math::sqrt(device.math, (T)2.0) * INITIALIZER_SPEC::SCALE;
+        }
+        // fan_in for Conv2d = INPUT_CHANNELS * KERNEL_HEIGHT * KERNEL_WIDTH
+        T fan = (T)(SPEC::INPUT_CHANNELS * SPEC::KERNEL_HEIGHT * SPEC::KERNEL_WIDTH);
+        T std = gain / math::sqrt(device.math, fan);
+        T weight_bound = math::sqrt(device.math, (T)3.0) * std;
+        T bias_bound = 1/math::sqrt(device.math, fan);
+        using PARAMETER_TYPE = typename decltype(layer.weights.parameters)::SPEC::T;
+        for(TI oc = 0; oc < SPEC::OUTPUT_CHANNELS; oc++) {
+            if constexpr(INITIALIZER_SPEC::INIT_LEGACY) {
+                set(device, layer.biases.parameters, (PARAMETER_TYPE)random::uniform_real_distribution(device.random, -bias_bound, bias_bound, rng), oc);
+            }
+            else{
+                set(device, layer.biases.parameters, (PARAMETER_TYPE)0, oc);
+            }
+            for(TI ic = 0; ic < SPEC::INPUT_CHANNELS; ic++) {
+                for(TI kh = 0; kh < SPEC::KERNEL_HEIGHT; kh++) {
+                    for(TI kw = 0; kw < SPEC::KERNEL_WIDTH; kw++) {
+                        set(device, layer.weights.parameters, (PARAMETER_TYPE)random::uniform_real_distribution(device.random, -weight_bound, weight_bound, rng), oc, ic, kh, kw);
+                    }
+                }
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::conv2d::LayerForward<SPEC>& layer, RNG& rng) {
+        init_weights(device, layer, typename SPEC::INITIALIZER{}, rng);
+    }
+
+    // ======================== evaluate (LayerForward, no storage) ========================
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::conv2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        using TI = typename DEVICE::index_t;
+        using T = typename OUTPUT_SPEC::T;
+        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        // Reshape to 4D: [INTERNAL_BATCH_SIZE, H, W, C]
+        using INTERNAL_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
+        using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, LAYER_SPEC::OUTPUT_CHANNELS>;
+        auto input_4d = view_memory<INTERNAL_INPUT_SHAPE>(device, input);
+        auto output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, output);
+
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                    for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                        T acc = get(device, layer.biases.parameters, oc);
+                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                    for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                        acc += get(device, layer.weights.parameters, oc, ic, kh, kw) * get(device, input_4d, bi, ih, iw, ic);
+                                    }
+                                }
+                            }
+                        }
+                        set(device, output_4d, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, oc);
+                    }
+                }
+            }
+        }
+    }
+
+    // ======================== forward (LayerBackward, stores pre_activations) ========================
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        using TI = typename DEVICE::index_t;
+        using T = typename OUTPUT_SPEC::T;
+        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+
+        using INTERNAL_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
+        using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, LAYER_SPEC::OUTPUT_CHANNELS>;
+        auto input_4d = view_memory<INTERNAL_INPUT_SHAPE>(device, input);
+        auto output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, output);
+
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                    for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                        T acc = get(device, layer.biases.parameters, oc);
+                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                    for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                        acc += get(device, layer.weights.parameters, oc, ic, kh, kw) * get(device, input_4d, bi, ih, iw, ic);
+                                    }
+                                }
+                            }
+                        }
+                        set(device, layer.pre_activations, acc, bi, oh, ow, oc);
+                        set(device, output_4d, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, oc);
+                    }
+                }
+            }
+        }
+    }
+#endif
+
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::conv2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        forward(device, static_cast<nn::layers::conv2d::LayerBackward<LAYER_SPEC>&>(layer), input, layer.output, buffer, rng, mode);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        forward(device, layer, input, buffer, rng, mode);
+        copy(device, device, layer.output, output);
+    }
+
+    // ======================== backward_input ========================
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename DEVICE::index_t;
+        using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+
+        using INTERNAL_D_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
+        using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, LAYER_SPEC::OUTPUT_CHANNELS>;
+        auto d_input_4d = view_memory<INTERNAL_D_INPUT_SHAPE>(device, d_input);
+        auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+
+        set_all(device, d_input_4d, (T)0);
+
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                    for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                        T d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(device, layer.pre_activations, bi, oh, ow, oc)) * get(device, d_output_4d, bi, oh, ow, oc);
+                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                    for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                        increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_pre_act, bi, ih, iw, ic);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ======================== backward (gradient accumulation only) ========================
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        using TI = typename DEVICE::index_t;
+        using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+
+        using INTERNAL_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
+        using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, LAYER_SPEC::OUTPUT_CHANNELS>;
+        auto input_4d = view_memory<INTERNAL_INPUT_SHAPE>(device, input);
+        auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                    for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                        T d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(device, layer.pre_activations, bi, oh, ow, oc)) * get(device, d_output_4d, bi, oh, ow, oc);
+                        increment(device, layer.biases.gradient, d_pre_act, oc);
+                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                    for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                        increment(device, layer.weights.gradient, d_pre_act * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ======================== backward_full (d_input + gradient accumulation) ========================
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        using TI = typename DEVICE::index_t;
+        using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+
+        using INTERNAL_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
+        using INTERNAL_D_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
+        using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, LAYER_SPEC::OUTPUT_CHANNELS>;
+        auto input_4d = view_memory<INTERNAL_INPUT_SHAPE>(device, input);
+        auto d_input_4d = view_memory<INTERNAL_D_INPUT_SHAPE>(device, d_input);
+        auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+
+        set_all(device, d_input_4d, (T)0);
+
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                    for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                        T d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(device, layer.pre_activations, bi, oh, ow, oc)) * get(device, d_output_4d, bi, oh, ow, oc);
+                        increment(device, layer.biases.gradient, d_pre_act, oc);
+                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                    for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                        increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_pre_act, bi, ih, iw, ic);
+                                        increment(device, layer.weights.gradient, d_pre_act * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+#endif
+
+    // ======================== zero_gradient / update / _reset_optimizer_state ========================
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::conv2d::LayerGradient<SPEC>& layer) {
+        zero_gradient(device, layer.weights);
+        zero_gradient(device, layer.biases);
+    }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::conv2d::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
+        update(device, layer.weights, optimizer);
+        update(device, layer.biases, optimizer);
+    }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::conv2d::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {
+        _reset_optimizer_state(device, layer.weights, optimizer);
+        _reset_optimizer_state(device, layer.biases, optimizer);
+    }
+
+    // ======================== copy ========================
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::conv2d::LayerForward<SOURCE_SPEC>& source, nn::layers::conv2d::LayerForward<TARGET_SPEC>& target){
+        static_assert(nn::layers::conv2d::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, source.weights, target.weights);
+        copy(source_device, target_device, source.biases, target.biases);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::conv2d::LayerBackward<SOURCE_SPEC>& source, nn::layers::conv2d::LayerBackward<TARGET_SPEC>& target){
+        static_assert(nn::layers::conv2d::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, static_cast<const nn::layers::conv2d::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::conv2d::LayerForward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, source.pre_activations, target.pre_activations);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::conv2d::LayerGradient<SOURCE_SPEC>& source, nn::layers::conv2d::LayerGradient<TARGET_SPEC>& target){
+        static_assert(nn::layers::conv2d::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, static_cast<const nn::layers::conv2d::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::conv2d::LayerBackward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, source.output, target.output);
+    }
+
+    // ======================== abs_diff ========================
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::conv2d::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::conv2d::LayerForward<SPEC_2>& l2) {
+        static_assert(nn::layers::conv2d::check_spec_memory<SPEC_1, SPEC_2>);
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
+        T acc = 0;
+        acc += abs_diff(device, l1.weights, l2.weights);
+        acc += abs_diff(device, l1.biases, l2.biases);
+        return acc;
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::conv2d::LayerBackward<SPEC_1>& l1, const rl_tools::nn::layers::conv2d::LayerBackward<SPEC_2>& l2) {
+        static_assert(nn::layers::conv2d::check_spec_memory<SPEC_1, SPEC_2>);
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
+        T acc = abs_diff(device, static_cast<const rl_tools::nn::layers::conv2d::LayerForward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::conv2d::LayerForward<SPEC_2>&>(l2));
+        acc += abs_diff(device, l1.pre_activations, l2.pre_activations);
+        return acc;
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const rl_tools::nn::layers::conv2d::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::conv2d::LayerGradient<SPEC_2>& l2) {
+        static_assert(nn::layers::conv2d::check_spec_memory<SPEC_1, SPEC_2>);
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
+        T acc = abs_diff(device, static_cast<const rl_tools::nn::layers::conv2d::LayerBackward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::conv2d::LayerBackward<SPEC_2>&>(l2));
+        acc += abs_diff(device, l1.output, l2.output);
+        return acc;
+    }
+    template <typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, const rl_tools::nn::layers::conv2d::State& s1, const rl_tools::nn::layers::conv2d::State& s2) {
+        return 0;
+    }
+
+    // ======================== reset_forward_state ========================
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rl_tools::nn::layers::conv2d::LayerBackward<SPEC>& l) {
+        set_all(device, l.pre_activations, 0);
+    }
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rl_tools::nn::layers::conv2d::LayerGradient<SPEC>& l) {
+        reset_forward_state(device, static_cast<rl_tools::nn::layers::conv2d::LayerBackward<SPEC>&>(l));
+        set_all(device, l.output, 0);
+    }
+
+    // ======================== is_nan ========================
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const rl_tools::nn::layers::conv2d::LayerForward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return is_nan(device, l.weights, mode) || is_nan(device, l.biases, mode);
+    }
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const rl_tools::nn::layers::conv2d::LayerBackward<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::conv2d::LayerForward<SPEC>&>(l), mode);
+        if(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
+            return upstream_nan;
+        }
+        return upstream_nan || is_nan(device, l.pre_activations, mode);
+    }
+    template <typename DEVICE, typename SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const rl_tools::nn::layers::conv2d::LayerGradient<SPEC>& l, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        bool upstream_nan = is_nan(device, static_cast<const rl_tools::nn::layers::conv2d::LayerBackward<SPEC>&>(l), mode);
+        if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
+            return upstream_nan;
+        }
+        return upstream_nan || is_nan(device, l.output, mode);
+    }
+    template<typename DEVICE, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn::layers::conv2d::State& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        return false;
+    }
+
+    // ======================== output ========================
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT auto output(DEVICE& device, nn::layers::conv2d::LayerGradient<SPEC>& l){
+        return view_memory<typename SPEC::OUTPUT_SHAPE>(device, l.output);
+    }
+
+    // ======================== gradient_norm ========================
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT auto gradient_norm(DEVICE& device, const nn::layers::conv2d::LayerGradient<SPEC>& layer) {
+        return gradient_norm(device, layer.weights) + gradient_norm(device, layer.biases);
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif
