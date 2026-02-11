@@ -12,47 +12,47 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     // ======================== DownsampleStorage malloc / free / copy / etc ========================
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&) {}
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&) {}
-    template<typename SD, typename TD, typename S1, typename S2>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD&, TD&, const nn::layers::resnet_block::DownsampleStorage<false, S1>&, nn::layers::resnet_block::DownsampleStorage<false, S2>&) {}
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&) {}
-    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&, OPTIMIZER&) {}
-    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&, OPTIMIZER&) {}
-    template<typename DEVICE, typename S1, typename S2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename S1::TYPE_POLICY::DEFAULT abs_diff(DEVICE&, const nn::layers::resnet_block::DownsampleStorage<false, S1>&, const nn::layers::resnet_block::DownsampleStorage<false, S2>&) { return 0; }
-    template<typename DEVICE, typename SPEC, typename MODE>
-    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE&, const nn::layers::resnet_block::DownsampleStorage<false, SPEC>&, const Mode<MODE>&) { return false; }
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&) {}
-    template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&, RNG&) {}
+    template<typename DEVICE, typename LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&) {}
+    template<typename DEVICE, typename LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&) {}
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_LAYER, typename TARGET_LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE&, TARGET_DEVICE&, const nn::layers::resnet_block::DownsampleStorage<false, SOURCE_LAYER>&, nn::layers::resnet_block::DownsampleStorage<false, TARGET_LAYER>&) {}
+    template<typename DEVICE, typename LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&) {}
+    template<typename DEVICE, typename LAYER, typename OPTIMIZER>
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&, OPTIMIZER&) {}
+    template<typename DEVICE, typename LAYER, typename OPTIMIZER>
+    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&, OPTIMIZER&) {}
+    template<typename DEVICE, typename SOURCE_LAYER, typename TARGET_LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SOURCE_LAYER::TYPE_POLICY::DEFAULT abs_diff(DEVICE&, const nn::layers::resnet_block::DownsampleStorage<false, SOURCE_LAYER>&, const nn::layers::resnet_block::DownsampleStorage<false, TARGET_LAYER>&) { return 0; }
+    template<typename DEVICE, typename LAYER, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE&, const nn::layers::resnet_block::DownsampleStorage<false, LAYER>&, const Mode<MODE>&) { return false; }
+    template<typename DEVICE, typename LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&) {}
+    template<typename DEVICE, typename LAYER, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&, RNG&) {}
 
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds) { malloc(device, ds.conv); }
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds) { free(device, ds.conv); }
-    template<typename SD, typename TD, typename S1, typename S2>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::resnet_block::DownsampleStorage<true, S1>& src, nn::layers::resnet_block::DownsampleStorage<true, S2>& dst) { copy(sd, td, src.conv, dst.conv); }
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds) { zero_gradient(device, ds.conv); }
-    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds, OPTIMIZER& opt) { update(device, ds.conv, opt); }
-    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds, OPTIMIZER& opt) { _reset_optimizer_state(device, ds.conv, opt); }
-    template<typename DEVICE, typename S1, typename S2>
-    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, const nn::layers::resnet_block::DownsampleStorage<true, S1>& a, const nn::layers::resnet_block::DownsampleStorage<true, S2>& b) { return abs_diff(device, a.conv, b.conv); }
-    template<typename DEVICE, typename SPEC, typename MODE>
-    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds, const Mode<MODE>& mode) { return is_nan(device, ds.conv, mode); }
-    template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds) { reset_forward_state(device, ds.conv); }
-    template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds, RNG& rng) { init_weights(device, ds.conv, rng); }
+    template<typename DEVICE, typename LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds) { malloc(device, ds.conv); }
+    template<typename DEVICE, typename LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds) { free(device, ds.conv); }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_LAYER, typename TARGET_LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::resnet_block::DownsampleStorage<true, SOURCE_LAYER>& source, nn::layers::resnet_block::DownsampleStorage<true, TARGET_LAYER>& target) { copy(source_device, target_device, source.conv, target.conv); }
+    template<typename DEVICE, typename LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds) { zero_gradient(device, ds.conv); }
+    template<typename DEVICE, typename LAYER, typename OPTIMIZER>
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds, OPTIMIZER& opt) { update(device, ds.conv, opt); }
+    template<typename DEVICE, typename LAYER, typename OPTIMIZER>
+    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds, OPTIMIZER& opt) { _reset_optimizer_state(device, ds.conv, opt); }
+    template<typename DEVICE, typename SOURCE_LAYER, typename TARGET_LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT auto abs_diff(DEVICE& device, const nn::layers::resnet_block::DownsampleStorage<true, SOURCE_LAYER>& a, const nn::layers::resnet_block::DownsampleStorage<true, TARGET_LAYER>& b) { return abs_diff(device, a.conv, b.conv); }
+    template<typename DEVICE, typename LAYER, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds, const Mode<MODE>& mode) { return is_nan(device, ds.conv, mode); }
+    template<typename DEVICE, typename LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds) { reset_forward_state(device, ds.conv); }
+    template<typename DEVICE, typename LAYER, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds, RNG& rng) { init_weights(device, ds.conv, rng); }
 
     // ======================== Buffer malloc / free ========================
     template<typename DEVICE, bool DA, typename SPEC>
@@ -126,6 +126,7 @@ namespace rl_tools{
 #ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::resnet_block::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        static_assert(nn::layers::resnet_block::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
         constexpr TI BATCH = LAYER_SPEC::INTERNAL_BATCH_SIZE;
@@ -167,6 +168,7 @@ namespace rl_tools{
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::resnet_block::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        static_assert(nn::layers::resnet_block::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
         constexpr TI BATCH = LAYER_SPEC::INTERNAL_BATCH_SIZE;
@@ -178,26 +180,23 @@ namespace rl_tools{
         auto input_4d = view_memory<INTERNAL_INPUT_SHAPE>(device, input);
         auto output_4d = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, output);
 
-        // Conv1: input → conv1.output
-        forward(device, layer.conv1, input, buffer.conv1_buffer, rng, mode);
-        // Conv2: conv1.output → conv2.output
-        auto conv1_out = rl_tools::output(device, layer.conv1);
-        forward(device, layer.conv2, conv1_out, buffer.conv2_buffer, rng, mode);
-        // Downsample if needed
+        // Conv1: input → buffer.intermediate
+        forward(device, layer.conv1, input, buffer.intermediate, buffer.conv1_buffer, rng, mode);
+        // Conv2: buffer.intermediate → output (before skip addition)
+        forward(device, layer.conv2, buffer.intermediate, output, buffer.conv2_buffer, rng, mode);
+        // Downsample shortcut if needed
         if constexpr(LAYER_SPEC::HAS_DOWNSAMPLE) {
-            forward(device, layer.downsample.conv, input, buffer.downsample_buffer, rng, mode);
+            forward(device, layer.downsample.conv, input, buffer.shortcut, buffer.downsample_buffer, rng, mode);
         }
-        // output = ReLU(conv2.output + shortcut)
-        auto conv2_out = rl_tools::output(device, layer.conv2);
+        // output = ReLU(conv2_out + shortcut)
         for(TI bi = 0; bi < BATCH; bi++){
             for(TI h = 0; h < OH; h++){
                 for(TI w = 0; w < OW; w++){
                     for(TI c = 0; c < OC; c++){
-                        T conv2_val = get(device, conv2_out, bi, h, w, c);
+                        T conv2_val = get(device, output_4d, bi, h, w, c);
                         T shortcut_val;
                         if constexpr(LAYER_SPEC::HAS_DOWNSAMPLE) {
-                            auto ds_out = rl_tools::output(device, layer.downsample.conv);
-                            shortcut_val = get(device, ds_out, bi, h, w, c);
+                            shortcut_val = get(device, buffer.shortcut, bi, h, w, c);
                         } else {
                             shortcut_val = get(device, input_4d, bi, h, w, c);
                         }
@@ -348,20 +347,23 @@ namespace rl_tools{
     }
 
     // ======================== copy ========================
-    template<typename SD, typename TD, typename SS, typename TS>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::resnet_block::LayerForward<SS>& src, nn::layers::resnet_block::LayerForward<TS>& dst) {
-        copy(sd, td, src.conv1, dst.conv1);
-        copy(sd, td, src.conv2, dst.conv2);
-        copy(sd, td, src.downsample, dst.downsample);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::resnet_block::LayerForward<SOURCE_SPEC>& source, nn::layers::resnet_block::LayerForward<TARGET_SPEC>& target) {
+        static_assert(nn::layers::resnet_block::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, source.conv1, target.conv1);
+        copy(source_device, target_device, source.conv2, target.conv2);
+        copy(source_device, target_device, source.downsample, target.downsample);
     }
-    template<typename SD, typename TD, typename SS, typename TS>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::resnet_block::LayerBackward<SS>& src, nn::layers::resnet_block::LayerBackward<TS>& dst) {
-        copy(sd, td, static_cast<const nn::layers::resnet_block::LayerForward<SS>&>(src), static_cast<nn::layers::resnet_block::LayerForward<TS>&>(dst));
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::resnet_block::LayerBackward<SOURCE_SPEC>& source, nn::layers::resnet_block::LayerBackward<TARGET_SPEC>& target) {
+        static_assert(nn::layers::resnet_block::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, static_cast<const nn::layers::resnet_block::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::resnet_block::LayerForward<TARGET_SPEC>&>(target));
     }
-    template<typename SD, typename TD, typename SS, typename TS>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::resnet_block::LayerGradient<SS>& src, nn::layers::resnet_block::LayerGradient<TS>& dst) {
-        copy(sd, td, static_cast<const nn::layers::resnet_block::LayerBackward<SS>&>(src), static_cast<nn::layers::resnet_block::LayerBackward<TS>&>(dst));
-        copy(sd, td, src.output, dst.output);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::resnet_block::LayerGradient<SOURCE_SPEC>& source, nn::layers::resnet_block::LayerGradient<TARGET_SPEC>& target) {
+        static_assert(nn::layers::resnet_block::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, static_cast<const nn::layers::resnet_block::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::resnet_block::LayerBackward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, source.output, target.output);
     }
 
     // ======================== abs_diff ========================

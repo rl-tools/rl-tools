@@ -7,17 +7,17 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     // ======================== DownsampleStorage save / load ========================
-    template<typename DEVICE, typename SPEC, typename GROUP>
-    void save(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&, GROUP& group) {}
-    template<typename DEVICE, typename SPEC, typename GROUP>
-    bool load(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<false, SPEC>&, GROUP& group) { return true; }
-    template<typename DEVICE, typename SPEC, typename GROUP>
-    void save(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds, GROUP& group) {
+    template<typename DEVICE, typename LAYER, typename GROUP>
+    void save(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&, GROUP& group) {}
+    template<typename DEVICE, typename LAYER, typename GROUP>
+    bool load(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&, GROUP& group) { return true; }
+    template<typename DEVICE, typename LAYER, typename GROUP>
+    void save(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds, GROUP& group) {
         auto ds_group = create_group(device, group, "downsample");
         save(device, ds.conv, ds_group);
     }
-    template<typename DEVICE, typename SPEC, typename GROUP>
-    bool load(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SPEC>& ds, GROUP& group) {
+    template<typename DEVICE, typename LAYER, typename GROUP>
+    bool load(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds, GROUP& group) {
         if(group_exists(device, group, "downsample")){
             auto ds_group = get_group(device, group, "downsample");
             return load(device, ds.conv, ds_group);

@@ -47,6 +47,7 @@ namespace rl_tools{
 #ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::max_pool2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::max_pool2d::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+        static_assert(nn::layers::max_pool2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
@@ -163,13 +164,18 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::max_pool2d::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {}
 
     // ======================== copy ========================
-    template<typename SD, typename TD, typename SS, typename TS>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::max_pool2d::LayerForward<SS>& src, nn::layers::max_pool2d::LayerForward<TS>& dst) {}
-    template<typename SD, typename TD, typename SS, typename TS>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::max_pool2d::LayerBackward<SS>& src, nn::layers::max_pool2d::LayerBackward<TS>& dst) {}
-    template<typename SD, typename TD, typename SS, typename TS>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::max_pool2d::LayerGradient<SS>& src, nn::layers::max_pool2d::LayerGradient<TS>& dst) {
-        copy(sd, td, src.output, dst.output);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::max_pool2d::LayerForward<SOURCE_SPEC>& source, nn::layers::max_pool2d::LayerForward<TARGET_SPEC>& target) {
+        static_assert(nn::layers::max_pool2d::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::max_pool2d::LayerBackward<SOURCE_SPEC>& source, nn::layers::max_pool2d::LayerBackward<TARGET_SPEC>& target) {
+        static_assert(nn::layers::max_pool2d::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::max_pool2d::LayerGradient<SOURCE_SPEC>& source, nn::layers::max_pool2d::LayerGradient<TARGET_SPEC>& target) {
+        static_assert(nn::layers::max_pool2d::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, source.output, target.output);
     }
 
     // ======================== abs_diff ========================

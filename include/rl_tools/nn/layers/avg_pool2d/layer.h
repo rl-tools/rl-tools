@@ -29,21 +29,41 @@ namespace rl_tools::nn::layers::avg_pool2d {
         static constexpr TI INPUT_CHANNELS = get_last(INPUT_SHAPE{});
         static constexpr TI OUTPUT_CHANNELS = INPUT_CHANNELS;
 
+        using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
         // Compute INTERNAL_BATCH_SIZE = product of all dims except the last 3 (H, W, C)
-        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>>{});
+        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<BATCH_SHAPE>{});
 
-        // Output shape: (INTERNAL_BATCH_SIZE, C)  [global average pool collapses H and W]
+        // Output shape: (...BATCH, C)  [global average pool collapses H and W, preserves batch dims]
         template <typename NEW_INPUT_SHAPE>
         struct OUTPUT_SHAPE_FACTORY{
             static_assert(length(NEW_INPUT_SHAPE{}) >= 4);
             static constexpr TI NEW_C = get_last(NEW_INPUT_SHAPE{});
             static_assert(NEW_C == INPUT_CHANNELS);
-            static constexpr TI NEW_BATCH = get<0>(tensor::CumulativeProduct<tensor::PopBack<tensor::PopBack<tensor::PopBack<NEW_INPUT_SHAPE>>>>{});
-            using SHAPE = tensor::Shape<TI, NEW_BATCH, NEW_C>;
+            // Pop C, W, H from the back to get batch dims, then append C
+            using NEW_BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<NEW_INPUT_SHAPE>>>;
+            using SHAPE = tensor::Append<NEW_BATCH_SHAPE, NEW_C>;
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
         static constexpr TI NUM_WEIGHTS = 0;
     };
+
+    template<typename SPEC_1, typename SPEC_2>
+    constexpr bool check_spec_memory =
+        SPEC_1::INPUT_HEIGHT == SPEC_2::INPUT_HEIGHT
+        && SPEC_1::INPUT_WIDTH == SPEC_2::INPUT_WIDTH
+        && SPEC_1::INPUT_CHANNELS == SPEC_2::INPUT_CHANNELS;
+
+    template<typename SPEC_1, typename SPEC_2>
+    constexpr bool check_spec = check_spec_memory<SPEC_1, SPEC_2>;
+
+    template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    constexpr bool check_input_output =
+        length(typename INPUT_SPEC::SHAPE{}) >= 4 &&
+        length(typename OUTPUT_SPEC::SHAPE{}) >= 2 &&
+        get<length(typename INPUT_SPEC::SHAPE{})-1>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_CHANNELS &&
+        get<length(typename INPUT_SPEC::SHAPE{})-2>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_WIDTH &&
+        get<length(typename INPUT_SPEC::SHAPE{})-3>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_HEIGHT &&
+        get_last(typename OUTPUT_SPEC::SHAPE{}) == LAYER_SPEC::OUTPUT_CHANNELS;
 
     struct State{};
     struct Buffer{};
@@ -76,7 +96,7 @@ namespace rl_tools::nn::layers::avg_pool2d {
     struct LayerGradient: public LayerBackward<SPEC>{
         using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename SPEC::TI;
-        // Output is 2D: [INTERNAL_BATCH_SIZE, CHANNELS]
+        // Internal storage: [INTERNAL_BATCH_SIZE, CHANNELS] (mapped to OUTPUT_SHAPE via view_memory)
         using OUTPUT_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_CHANNELS>;
         using OUTPUT_CONTAINER_SPEC = tensor::Specification<T, TI, OUTPUT_CONTAINER_SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<OUTPUT_CONTAINER_SHAPE>, SPEC::CONST>;
         using OUTPUT_CONTAINER_TYPE = Tensor<OUTPUT_CONTAINER_SPEC>;

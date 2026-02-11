@@ -60,6 +60,33 @@ namespace rl_tools::nn::layers::max_pool2d {
         static constexpr TI NUM_WEIGHTS = 0;
     };
 
+    template<typename SPEC_1, typename SPEC_2>
+    constexpr bool check_spec_memory =
+        SPEC_1::INPUT_HEIGHT == SPEC_2::INPUT_HEIGHT
+        && SPEC_1::INPUT_WIDTH == SPEC_2::INPUT_WIDTH
+        && SPEC_1::INPUT_CHANNELS == SPEC_2::INPUT_CHANNELS
+        && SPEC_1::KERNEL_HEIGHT == SPEC_2::KERNEL_HEIGHT
+        && SPEC_1::KERNEL_WIDTH == SPEC_2::KERNEL_WIDTH;
+
+    template<typename SPEC_1, typename SPEC_2>
+    constexpr bool check_spec =
+        check_spec_memory<SPEC_1, SPEC_2>
+        && SPEC_1::STRIDE_H == SPEC_2::STRIDE_H
+        && SPEC_1::STRIDE_W == SPEC_2::STRIDE_W
+        && SPEC_1::PADDING_H == SPEC_2::PADDING_H
+        && SPEC_1::PADDING_W == SPEC_2::PADDING_W;
+
+    template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    constexpr bool check_input_output =
+        length(typename INPUT_SPEC::SHAPE{}) >= 4 &&
+        length(typename OUTPUT_SPEC::SHAPE{}) >= 4 &&
+        get<length(typename INPUT_SPEC::SHAPE{})-1>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_CHANNELS &&
+        get<length(typename INPUT_SPEC::SHAPE{})-2>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_WIDTH &&
+        get<length(typename INPUT_SPEC::SHAPE{})-3>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_HEIGHT &&
+        get<length(typename OUTPUT_SPEC::SHAPE{})-1>(typename OUTPUT_SPEC::SHAPE{}) == LAYER_SPEC::OUTPUT_CHANNELS &&
+        get<length(typename OUTPUT_SPEC::SHAPE{})-2>(typename OUTPUT_SPEC::SHAPE{}) == LAYER_SPEC::OUTPUT_WIDTH &&
+        get<length(typename OUTPUT_SPEC::SHAPE{})-3>(typename OUTPUT_SPEC::SHAPE{}) == LAYER_SPEC::OUTPUT_HEIGHT;
+
     struct State{};
     struct Buffer{};
 

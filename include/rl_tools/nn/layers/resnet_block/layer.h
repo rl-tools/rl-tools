@@ -23,13 +23,13 @@ namespace rl_tools::nn::layers::resnet_block {
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
     };
 
-    // Conditional downsample storage
-    template<bool HAS_DOWNSAMPLE, typename CONV_SPEC>
+    // Conditional downsample storage (parameterized on the conv layer type, not just the spec)
+    template<bool HAS_DOWNSAMPLE, typename CONV_LAYER>
     struct DownsampleStorage {};
 
-    template<typename CONV_SPEC>
-    struct DownsampleStorage<true, CONV_SPEC> {
-        conv2d::LayerGradient<CONV_SPEC> conv;
+    template<typename CONV_LAYER>
+    struct DownsampleStorage<true, CONV_LAYER> {
+        CONV_LAYER conv;
     };
 
     template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
@@ -55,21 +55,13 @@ namespace rl_tools::nn::layers::resnet_block {
         using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
         static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<BATCH_SHAPE>{});
 
-        // Internal capability: always Gradient but with outer's PARAMETER_TYPE
-        struct INTERNAL_CAPABILITY {
-            static constexpr nn::LayerCapability TAG = nn::LayerCapability::Gradient;
-            using PARAMETER_TYPE = typename T_CAPABILITY::PARAMETER_TYPE;
-            static constexpr bool DYNAMIC_ALLOCATION = T_CAPABILITY::DYNAMIC_ALLOCATION;
-            static constexpr bool CONST = T_CAPABILITY::CONST;
-        };
-
         // Conv1: 3x3, stride=STRIDE, pad=1, BN + ReLU
         using CONV1_CONFIG = conv2d::Configuration<TYPE_POLICY, TI, OUTPUT_CHANNELS, 3, 3, STRIDE, STRIDE, 1, 1,
             nn::activation_functions::ActivationFunction::RELU,
             conv2d::Normalization::BATCH_NORM,
             conv2d::DefaultInitializer<TYPE_POLICY, TI>,
             typename CONFIG::PARAMETER_GROUP>;
-        using CONV1_SPEC = conv2d::Specification<CONV1_CONFIG, INTERNAL_CAPABILITY, INPUT_SHAPE>;
+        using CONV1_SPEC = conv2d::Specification<CONV1_CONFIG, T_CAPABILITY, INPUT_SHAPE>;
 
         // Conv2: 3x3, stride=1, pad=1, BN + IDENTITY (no activation before skip)
         using CONV1_OUTPUT_SHAPE = typename CONV1_SPEC::OUTPUT_SHAPE;
@@ -78,7 +70,7 @@ namespace rl_tools::nn::layers::resnet_block {
             conv2d::Normalization::BATCH_NORM,
             conv2d::DefaultInitializer<TYPE_POLICY, TI>,
             typename CONFIG::PARAMETER_GROUP>;
-        using CONV2_SPEC = conv2d::Specification<CONV2_CONFIG, INTERNAL_CAPABILITY, CONV1_OUTPUT_SHAPE>;
+        using CONV2_SPEC = conv2d::Specification<CONV2_CONFIG, T_CAPABILITY, CONV1_OUTPUT_SHAPE>;
 
         // Downsample: 1x1, stride=STRIDE, pad=0, BN + IDENTITY
         using DOWNSAMPLE_CONFIG = conv2d::Configuration<TYPE_POLICY, TI, OUTPUT_CHANNELS, 1, 1, STRIDE, STRIDE, 0, 0,
@@ -86,7 +78,19 @@ namespace rl_tools::nn::layers::resnet_block {
             conv2d::Normalization::BATCH_NORM,
             conv2d::DefaultInitializer<TYPE_POLICY, TI>,
             typename CONFIG::PARAMETER_GROUP>;
-        using DOWNSAMPLE_SPEC = conv2d::Specification<DOWNSAMPLE_CONFIG, INTERNAL_CAPABILITY, INPUT_SHAPE>;
+        using DOWNSAMPLE_SPEC = conv2d::Specification<DOWNSAMPLE_CONFIG, T_CAPABILITY, INPUT_SHAPE>;
+
+        // Helper: select conv2d layer type matching the outer capability
+        template <typename CONV_SPEC>
+        using ConvLayerType = typename utils::typing::conditional_t<T_CAPABILITY::TAG == nn::LayerCapability::Forward,
+            conv2d::LayerForward<CONV_SPEC>,
+            typename utils::typing::conditional_t<T_CAPABILITY::TAG == nn::LayerCapability::Backward,
+                conv2d::LayerBackward<CONV_SPEC>,
+                conv2d::LayerGradient<CONV_SPEC>>>;
+
+        using CONV1_LAYER = ConvLayerType<CONV1_SPEC>;
+        using CONV2_LAYER = ConvLayerType<CONV2_SPEC>;
+        using DOWNSAMPLE_LAYER = ConvLayerType<DOWNSAMPLE_SPEC>;
 
         template <typename NEW_INPUT_SHAPE>
         struct OUTPUT_SHAPE_FACTORY{
@@ -109,6 +113,29 @@ namespace rl_tools::nn::layers::resnet_block {
 
         static constexpr TI NUM_WEIGHTS = CONV1_SPEC::NUM_WEIGHTS + CONV2_SPEC::NUM_WEIGHTS + (HAS_DOWNSAMPLE ? DOWNSAMPLE_SPEC::NUM_WEIGHTS : 0);
     };
+
+    template<typename SPEC_1, typename SPEC_2>
+    constexpr bool check_spec_memory =
+        SPEC_1::INPUT_HEIGHT == SPEC_2::INPUT_HEIGHT
+        && SPEC_1::INPUT_WIDTH == SPEC_2::INPUT_WIDTH
+        && SPEC_1::INPUT_CHANNELS == SPEC_2::INPUT_CHANNELS
+        && SPEC_1::OUTPUT_CHANNELS == SPEC_2::OUTPUT_CHANNELS;
+
+    template<typename SPEC_1, typename SPEC_2>
+    constexpr bool check_spec =
+        check_spec_memory<SPEC_1, SPEC_2>
+        && SPEC_1::STRIDE == SPEC_2::STRIDE;
+
+    template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    constexpr bool check_input_output =
+        length(typename INPUT_SPEC::SHAPE{}) >= 4 &&
+        length(typename OUTPUT_SPEC::SHAPE{}) >= 4 &&
+        get<length(typename INPUT_SPEC::SHAPE{})-1>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_CHANNELS &&
+        get<length(typename INPUT_SPEC::SHAPE{})-2>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_WIDTH &&
+        get<length(typename INPUT_SPEC::SHAPE{})-3>(typename INPUT_SPEC::SHAPE{}) == LAYER_SPEC::INPUT_HEIGHT &&
+        get<length(typename OUTPUT_SPEC::SHAPE{})-1>(typename OUTPUT_SPEC::SHAPE{}) == LAYER_SPEC::OUTPUT_CHANNELS &&
+        get<length(typename OUTPUT_SPEC::SHAPE{})-2>(typename OUTPUT_SPEC::SHAPE{}) == LAYER_SPEC::OUTPUT_WIDTH &&
+        get<length(typename OUTPUT_SPEC::SHAPE{})-3>(typename OUTPUT_SPEC::SHAPE{}) == LAYER_SPEC::OUTPUT_HEIGHT;
 
     struct State{};
 
@@ -152,10 +179,10 @@ namespace rl_tools::nn::layers::resnet_block {
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>::SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
-        // Internal conv layers (always LayerGradient for intermediate storage)
-        conv2d::LayerGradient<typename SPEC::CONV1_SPEC> conv1;
-        conv2d::LayerGradient<typename SPEC::CONV2_SPEC> conv2;
-        DownsampleStorage<SPEC::HAS_DOWNSAMPLE, typename SPEC::DOWNSAMPLE_SPEC> downsample;
+        // Internal conv layers (matching the outer capability level)
+        typename SPEC::CONV1_LAYER conv1;
+        typename SPEC::CONV2_LAYER conv2;
+        DownsampleStorage<SPEC::HAS_DOWNSAMPLE, typename SPEC::DOWNSAMPLE_LAYER> downsample;
 
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = resnet_block::Buffer<DYNAMIC_ALLOCATION, SPEC>;
