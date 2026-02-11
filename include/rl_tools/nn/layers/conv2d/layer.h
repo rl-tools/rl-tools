@@ -57,10 +57,10 @@ namespace rl_tools::nn::layers::conv2d {
 
     // ======================== Normalization forward storage (learnable parameters + running stats) ========================
     template<Normalization NORM, typename SPEC>
-    struct NormForwardState {};
+    struct NormForward {};
 
     template<typename SPEC>
-    struct NormForwardState<Normalization::BATCH_NORM, SPEC> {
+    struct NormForward<Normalization::BATCH_NORM, SPEC> {
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         using PARAM_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
@@ -78,7 +78,7 @@ namespace rl_tools::nn::layers::conv2d {
     };
 
     template<typename SPEC>
-    struct NormForwardState<Normalization::LAYER_NORM, SPEC> {
+    struct NormForward<Normalization::LAYER_NORM, SPEC> {
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         using PARAM_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
@@ -92,10 +92,10 @@ namespace rl_tools::nn::layers::conv2d {
 
     // ======================== Normalization backward storage (cached statistics) ========================
     template<Normalization NORM, typename SPEC>
-    struct NormBackwardCache {};
+    struct NormBackward {};
 
     template<typename SPEC>
-    struct NormBackwardCache<Normalization::BATCH_NORM, SPEC> {
+    struct NormBackward<Normalization::BATCH_NORM, SPEC> {
         using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename SPEC::TI;
         using STAT_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
@@ -105,7 +105,7 @@ namespace rl_tools::nn::layers::conv2d {
     };
 
     template<typename SPEC>
-    struct NormBackwardCache<Normalization::LAYER_NORM, SPEC> {
+    struct NormBackward<Normalization::LAYER_NORM, SPEC> {
         using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename SPEC::TI;
         using STAT_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE>;
@@ -222,7 +222,7 @@ namespace rl_tools::nn::layers::conv2d {
         typename SPEC::PARAMETER_TYPE::template Instance<BIASES_PARAMETER_SPEC> biases;
 
         // Normalization parameters (conditionally populated)
-        NormForwardState<SPEC::NORMALIZATION, SPEC> norm;
+        NormForward<SPEC::NORMALIZATION, SPEC> norm;
 
         template<bool DYNAMIC_ALLOCATION=true>
         using Buffer = conv2d::Buffer;
@@ -242,7 +242,7 @@ namespace rl_tools::nn::layers::conv2d {
         PRE_ACTIVATIONS_TYPE pre_activations;
 
         // Cached normalization statistics (conditionally populated)
-        NormBackwardCache<SPEC::NORMALIZATION, SPEC> norm_cache;
+        NormBackward<SPEC::NORMALIZATION, SPEC> norm_cache;
     };
 
     template<typename SPEC>

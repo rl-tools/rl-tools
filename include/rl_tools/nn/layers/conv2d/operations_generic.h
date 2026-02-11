@@ -13,64 +13,64 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    // ======================== NormForwardState malloc / free / copy / zero_gradient / update / _reset_optimizer_state ========================
+    // ======================== NormForward malloc / free / copy / zero_gradient / update / _reset_optimizer_state ========================
     // NONE
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
     template<typename SD, typename TD, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD&, TD&, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC1>&, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC2>&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD&, TD&, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC1>&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC2>&) {}
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE&, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE&, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC>&, OPTIMIZER&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC>&, OPTIMIZER&) {}
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE&, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC>&, OPTIMIZER&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC>&, OPTIMIZER&) {}
     template<typename DEVICE, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC1::TYPE_POLICY::DEFAULT abs_diff(DEVICE&, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC1>&, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC2>&) { return 0; }
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC1::TYPE_POLICY::DEFAULT abs_diff(DEVICE&, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC1>&, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC2>&) { return 0; }
     template<typename DEVICE, typename SPEC, typename MODE>
-    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE&, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::NONE, SPEC>&, const Mode<MODE>&) { return false; }
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE&, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC>&, const Mode<MODE>&) { return false; }
 
     // BATCH_NORM
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm) {
         malloc(device, norm.gamma);
         malloc(device, norm.beta);
         malloc(device, norm.running_mean);
         malloc(device, norm.running_var);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm) {
         free(device, norm.gamma);
         free(device, norm.beta);
         free(device, norm.running_mean);
         free(device, norm.running_var);
     }
     template<typename SD, typename TD, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC1>& src, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC2>& dst) {
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC1>& src, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC2>& dst) {
         copy(sd, td, src.gamma, dst.gamma);
         copy(sd, td, src.beta, dst.beta);
         copy(sd, td, src.running_mean, dst.running_mean);
         copy(sd, td, src.running_var, dst.running_var);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm) {
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm) {
         zero_gradient(device, norm.gamma);
         zero_gradient(device, norm.beta);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
         update(device, norm.gamma, optimizer);
         update(device, norm.beta, optimizer);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
         _reset_optimizer_state(device, norm.gamma, optimizer);
         _reset_optimizer_state(device, norm.beta, optimizer);
     }
     template<typename DEVICE, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC1>& a, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC2>& b) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC1>& a, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC2>& b) {
         using T = typename SPEC1::TYPE_POLICY::DEFAULT;
         T acc = 0;
         acc += abs_diff(device, a.gamma, b.gamma);
@@ -80,43 +80,43 @@ namespace rl_tools{
         return acc;
     }
     template<typename DEVICE, typename SPEC, typename MODE>
-    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm, const Mode<MODE>& mode) {
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm, const Mode<MODE>& mode) {
         return is_nan(device, norm.gamma, mode) || is_nan(device, norm.beta, mode) || is_nan(device, norm.running_mean, mode) || is_nan(device, norm.running_var, mode);
     }
 
     // LAYER_NORM
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm) {
         malloc(device, norm.gamma);
         malloc(device, norm.beta);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm) {
         free(device, norm.gamma);
         free(device, norm.beta);
     }
     template<typename SD, typename TD, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC1>& src, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC2>& dst) {
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC1>& src, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC2>& dst) {
         copy(sd, td, src.gamma, dst.gamma);
         copy(sd, td, src.beta, dst.beta);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm) {
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm) {
         zero_gradient(device, norm.gamma);
         zero_gradient(device, norm.beta);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
         update(device, norm.gamma, optimizer);
         update(device, norm.beta, optimizer);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
         _reset_optimizer_state(device, norm.gamma, optimizer);
         _reset_optimizer_state(device, norm.beta, optimizer);
     }
     template<typename DEVICE, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC1>& a, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC2>& b) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC1>& a, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC2>& b) {
         using T = typename SPEC1::TYPE_POLICY::DEFAULT;
         T acc = 0;
         acc += abs_diff(device, a.gamma, b.gamma);
@@ -124,47 +124,47 @@ namespace rl_tools{
         return acc;
     }
     template<typename DEVICE, typename SPEC, typename MODE>
-    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::layers::conv2d::NormForwardState<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm, const Mode<MODE>& mode) {
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm, const Mode<MODE>& mode) {
         return is_nan(device, norm.gamma, mode) || is_nan(device, norm.beta, mode);
     }
 
-    // ======================== NormBackwardCache malloc / free / copy ========================
+    // ======================== NormBackward malloc / free / copy ========================
     // NONE
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE&, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE&, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE&, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE&, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
     template<typename SD, typename TD, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD&, TD&, const nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::NONE, SPEC1>&, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::NONE, SPEC2>&) {}
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD&, TD&, const nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::NONE, SPEC1>&, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::NONE, SPEC2>&) {}
     // BATCH_NORM
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& cache) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& cache) {
         malloc(device, cache.mean);
         malloc(device, cache.inv_std);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& cache) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& cache) {
         free(device, cache.mean);
         free(device, cache.inv_std);
     }
     template<typename SD, typename TD, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC1>& src, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC2>& dst) {
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC1>& src, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC2>& dst) {
         copy(sd, td, src.mean, dst.mean);
         copy(sd, td, src.inv_std, dst.inv_std);
     }
     // LAYER_NORM
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& cache) {
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& cache) {
         malloc(device, cache.mean);
         malloc(device, cache.inv_std);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& cache) {
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& cache) {
         free(device, cache.mean);
         free(device, cache.inv_std);
     }
     template<typename SD, typename TD, typename SPEC1, typename SPEC2>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC1>& src, nn::layers::conv2d::NormBackwardCache<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC2>& dst) {
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(SD& sd, TD& td, const nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC1>& src, nn::layers::conv2d::NormBackward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC2>& dst) {
         copy(sd, td, src.mean, dst.mean);
         copy(sd, td, src.inv_std, dst.inv_std);
     }
