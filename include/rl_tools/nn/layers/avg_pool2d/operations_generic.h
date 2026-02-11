@@ -86,6 +86,40 @@ namespace rl_tools{
         copy(device, device, layer.output, output);
     }
 
+    // ======================== backward ========================
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::avg_pool2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::avg_pool2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename DEVICE::index_t;
+        using T = typename D_OUTPUT_SPEC::T;
+        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr TI IH = LAYER_SPEC::INPUT_HEIGHT;
+        constexpr TI IW = LAYER_SPEC::INPUT_WIDTH;
+        constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
+        using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, C>;
+        using INTERNAL_D_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, IH, IW, C>;
+        auto d_output_2d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+        auto d_input_4d = view_memory<INTERNAL_D_INPUT_SHAPE>(device, d_input);
+        constexpr T scale = (T)1 / (T)(IH * IW);
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            for(TI c_i = 0; c_i < C; c_i++){
+                T grad = get(device, d_output_2d, bi, c_i) * scale;
+                for(TI h = 0; h < IH; h++){
+                    for(TI w = 0; w < IW; w++){
+                        set(device, d_input_4d, grad, bi, h, w, c_i);
+                    }
+                }
+            }
+        }
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::avg_pool2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::avg_pool2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        // No parameters to accumulate gradients for
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::avg_pool2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::avg_pool2d::Buffer& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        backward_input(device, static_cast<const nn::layers::avg_pool2d::LayerBackward<LAYER_SPEC>&>(layer), d_output, d_input, buffer, mode);
+    }
+
     // ======================== zero_gradient / update / _reset_optimizer_state (no-ops) ========================
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::avg_pool2d::LayerGradient<SPEC>& layer) {}

@@ -112,19 +112,23 @@ namespace rl_tools::nn::layers::resnet_block {
 
     struct State{};
 
-    // Buffer for evaluate (holds intermediate tensors)
+    // Buffer for evaluate and backward (holds intermediate tensors)
     template<bool T_DYNAMIC_ALLOCATION, typename T_SPEC>
     struct Buffer{
         using T = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename T_SPEC::TI;
-        // Conv1 output = Conv2 input
+        // Conv1 output = Conv2 input (also used for d_conv1_out in backward)
         using INTERMEDIATE_SHAPE = tensor::Shape<TI, T_SPEC::INTERNAL_BATCH_SIZE, T_SPEC::OUTPUT_HEIGHT, T_SPEC::OUTPUT_WIDTH, T_SPEC::OUTPUT_CHANNELS>;
         using INTERMEDIATE_SPEC = tensor::Specification<T, TI, INTERMEDIATE_SHAPE, T_DYNAMIC_ALLOCATION>;
         Tensor<INTERMEDIATE_SPEC> intermediate;
-        // Shortcut for downsample path
+        // Shortcut for downsample path (also used for d_pre_relu in backward)
         using SHORTCUT_SHAPE = tensor::Shape<TI, T_SPEC::INTERNAL_BATCH_SIZE, T_SPEC::OUTPUT_HEIGHT, T_SPEC::OUTPUT_WIDTH, T_SPEC::OUTPUT_CHANNELS>;
         using SHORTCUT_SPEC = tensor::Specification<T, TI, SHORTCUT_SHAPE, T_DYNAMIC_ALLOCATION>;
         Tensor<SHORTCUT_SPEC> shortcut;
+        // Buffer for d_input accumulation from downsample path in backward
+        using D_INPUT_SHAPE = tensor::Shape<TI, T_SPEC::INTERNAL_BATCH_SIZE, T_SPEC::INPUT_HEIGHT, T_SPEC::INPUT_WIDTH, T_SPEC::INPUT_CHANNELS>;
+        using D_INPUT_SPEC = tensor::Specification<T, TI, D_INPUT_SHAPE, T_DYNAMIC_ALLOCATION>;
+        Tensor<D_INPUT_SPEC> d_input_buffer;
         // Internal conv buffers (currently empty)
         conv2d::Buffer conv1_buffer, conv2_buffer, downsample_buffer;
     };

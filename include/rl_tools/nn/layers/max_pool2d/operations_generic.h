@@ -98,6 +98,62 @@ namespace rl_tools{
         copy(device, device, layer.output, output);
     }
 
+    // ======================== backward ========================
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::max_pool2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::max_pool2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        // Max pool has no stored pre_activations; we need the input to find which element was max.
+        // This version is unused directly; backward_full provides the input.
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::max_pool2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::max_pool2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        // No parameters to accumulate gradients for
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::max_pool2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::max_pool2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename DEVICE::index_t;
+        using T = typename D_OUTPUT_SPEC::T;
+        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        using INTERNAL_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
+        using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, LAYER_SPEC::OUTPUT_CHANNELS>;
+        using INTERNAL_D_INPUT_SHAPE = INTERNAL_INPUT_SHAPE;
+        auto input_4d = view_memory<INTERNAL_INPUT_SHAPE>(device, input);
+        auto d_output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, d_output);
+        auto d_input_4d = view_memory<INTERNAL_D_INPUT_SHAPE>(device, d_input);
+        set_all(device, d_input_4d, (T)0);
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                    for(TI c = 0; c < LAYER_SPEC::OUTPUT_CHANNELS; c++){
+                        // Find the max element position
+                        bool first = true;
+                        T max_val = 0;
+                        TI max_ih = 0, max_iw = 0;
+                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                    T val = get(device, input_4d, bi, ih, iw, c);
+                                    if(first || val > max_val){
+                                        max_val = val;
+                                        max_ih = ih;
+                                        max_iw = iw;
+                                        first = false;
+                                    }
+                                }
+                            }
+                        }
+                        // Route gradient to the max element
+                        increment(device, d_input_4d, get(device, d_output_4d, bi, oh, ow, c), bi, max_ih, max_iw, c);
+                    }
+                }
+            }
+        }
+    }
+
     // ======================== zero_gradient / update / _reset_optimizer_state (no-ops) ========================
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::max_pool2d::LayerGradient<SPEC>& layer) {}

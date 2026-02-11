@@ -312,3 +312,192 @@ TEST(RESNET18, BLOCK_LAYER3_0) { test_resnet_block<BLOCK_256_S2_CONFIG, 28, 28, 
 TEST(RESNET18, BLOCK_LAYER3_1) { test_resnet_block<BLOCK_256_S1_CONFIG, 14, 14, 256>("7", "after_layer3_block1"); }
 TEST(RESNET18, BLOCK_LAYER4_0) { test_resnet_block<BLOCK_512_S2_CONFIG, 14, 14, 256>("8", "after_layer4_block0"); }
 TEST(RESNET18, BLOCK_LAYER4_1) { test_resnet_block<BLOCK_512_S1_CONFIG, 7, 7, 512>("9", "after_layer4_block1"); }
+
+// ======================== Test: Full backward pass ========================
+// Helper to check conv2d parameter gradients
+template<typename CONV_LAYER, typename GROUP>
+void check_conv_gradients(DEVICE& device, CONV_LAYER& layer, GROUP& grad_group, const std::string& prefix, T epsilon) {
+    using TI = DEVICE::index_t;
+    // d_weights
+    {
+        using WEIGHTS_SHAPE = typename decltype(layer.weights.gradient)::SPEC::SHAPE;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, WEIGHTS_SHAPE>> expected;
+        rlt::malloc(device, expected);
+        rlt::load(device, expected, grad_group, prefix + "_d_weights");
+        T diff = rlt::abs_diff(device, layer.weights.gradient, expected) / decltype(expected)::SPEC::SIZE;
+        std::cout << "    " << prefix << " d_weights diff: " << diff << std::endl;
+        EXPECT_LT(diff, epsilon) << prefix << " d_weights mismatch";
+        rlt::free(device, expected);
+    }
+    // d_gamma
+    {
+        using GAMMA_SHAPE = typename decltype(layer.norm.gamma.gradient)::SPEC::SHAPE;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, GAMMA_SHAPE>> expected;
+        rlt::malloc(device, expected);
+        rlt::load(device, expected, grad_group, prefix + "_d_gamma");
+        T diff = rlt::abs_diff(device, layer.norm.gamma.gradient, expected) / decltype(expected)::SPEC::SIZE;
+        std::cout << "    " << prefix << " d_gamma diff: " << diff << std::endl;
+        EXPECT_LT(diff, epsilon) << prefix << " d_gamma mismatch";
+        rlt::free(device, expected);
+    }
+    // d_beta
+    {
+        using BETA_SHAPE = typename decltype(layer.norm.beta.gradient)::SPEC::SHAPE;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, BETA_SHAPE>> expected;
+        rlt::malloc(device, expected);
+        rlt::load(device, expected, grad_group, prefix + "_d_beta");
+        T diff = rlt::abs_diff(device, layer.norm.beta.gradient, expected) / decltype(expected)::SPEC::SIZE;
+        std::cout << "    " << prefix << " d_beta diff: " << diff << std::endl;
+        EXPECT_LT(diff, epsilon) << prefix << " d_beta mismatch";
+        rlt::free(device, expected);
+    }
+}
+
+// Helper to check resnet_block gradients
+template<typename BLOCK_LAYER, typename GROUP>
+void check_block_gradients(DEVICE& device, BLOCK_LAYER& block, GROUP& grad_group, const std::string& block_prefix, T epsilon) {
+    check_conv_gradients(device, block.conv1, grad_group, block_prefix + "_conv1", epsilon);
+    check_conv_gradients(device, block.conv2, grad_group, block_prefix + "_conv2", epsilon);
+    if constexpr(std::remove_reference_t<BLOCK_LAYER>::SPEC::HAS_DOWNSAMPLE) {
+        check_conv_gradients(device, block.downsample.conv, grad_group, block_prefix + "_downsample", epsilon);
+    }
+}
+
+using GRAD_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>;
+using RESNET18_GRAD = rlt::nn_models::sequential::Build<GRAD_CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+
+TEST(RESNET18, FULL_BACKWARD) {
+    DEVICE device;
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 0);
+
+    static constexpr T GRAD_EPSILON = 1e-7;  // Looser tolerance for accumulated gradients
+
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
+    std::string data_file_path = std::string(data_path_stub) + "/resnet18_test_data.h5";
+    std::cout << "Loading test data from: " << data_file_path << std::endl;
+    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+
+    // Create and malloc model with Gradient capability
+    RESNET18_GRAD model;
+    typename RESNET18_GRAD::template Buffer<true> buffer;
+    rlt::malloc(device, model);
+    rlt::malloc(device, buffer);
+
+    // Load model weights
+    auto model_group = rlt::get_group(device, file, "model");
+    bool load_success = rlt::load(device, model, model_group);
+    ASSERT_TRUE(load_success) << "Failed to load model weights";
+
+    // Load input
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input;
+    rlt::malloc(device, input);
+    auto test_group = rlt::get_group(device, file, "test_data");
+    rlt::load(device, input, test_group, "input");
+
+    // ===================== Forward pass (Evaluation mode for BN) =====================
+    rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
+    rlt::forward(device, model, input, buffer, rng, eval_mode);
+
+    // Verify forward output
+    using OUTPUT_SHAPE = typename RESNET18_GRAD::OUTPUT_SHAPE;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> expected_output;
+    rlt::malloc(device, expected_output);
+    rlt::load(device, expected_output, test_group, "output");
+    auto model_output_view = rlt::output(device, model);
+    auto model_output_tensor = rlt::to_tensor(device, model_output_view);
+    T fwd_diff = rlt::abs_diff(device, model_output_tensor, expected_output) / decltype(expected_output)::SPEC::SIZE;
+    std::cout << "Forward diff (per element): " << fwd_diff << std::endl;
+    ASSERT_LT(fwd_diff, EPSILON) << "Forward pass mismatch before backward";
+    rlt::free(device, expected_output);
+
+    // ===================== Backward pass =====================
+    // d_output = ones (loss = sum of outputs)
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
+    rlt::malloc(device, d_output);
+    rlt::set_all(device, d_output, (T)1);
+
+    // d_input for the full model
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> d_input;
+    rlt::malloc(device, d_input);
+
+    rlt::zero_gradient(device, model);
+    rlt::backward_full(device, model, input, d_output, d_input, buffer, eval_mode);
+
+    // ===================== Verify d_input =====================
+    auto grad_group = rlt::get_group(device, file, "gradient_data");
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> d_input_expected;
+    rlt::malloc(device, d_input_expected);
+    rlt::load(device, d_input_expected, grad_group, "d_input");
+    T d_input_diff = rlt::abs_diff(device, d_input, d_input_expected) / decltype(d_input_expected)::SPEC::SIZE;
+    std::cout << "d_input diff (per element): " << d_input_diff << std::endl;
+    EXPECT_LT(d_input_diff, GRAD_EPSILON) << "d_input mismatch";
+    rlt::free(device, d_input_expected);
+
+    // ===================== Verify parameter gradients =====================
+    std::cout << "\nChecking parameter gradients:" << std::endl;
+
+    // Layer 0: Stem conv
+    std::cout << "  Stem:" << std::endl;
+    check_conv_gradients(device, model.content, grad_group, "stem", GRAD_EPSILON);
+
+    // Layer 1: MaxPool - no parameters
+
+    // Layer 2-3: Layer1 blocks (64ch, stride=1)
+    std::cout << "  Layer1 Block0:" << std::endl;
+    check_block_gradients(device, model.next_module.next_module.content, grad_group, "layer1_block0", GRAD_EPSILON);
+    std::cout << "  Layer1 Block1:" << std::endl;
+    check_block_gradients(device, model.next_module.next_module.next_module.content, grad_group, "layer1_block1", GRAD_EPSILON);
+
+    // Layer 4-5: Layer2 blocks (128ch)
+    std::cout << "  Layer2 Block0:" << std::endl;
+    check_block_gradients(device, model.next_module.next_module.next_module.next_module.content, grad_group, "layer2_block0", GRAD_EPSILON);
+    std::cout << "  Layer2 Block1:" << std::endl;
+    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer2_block1", GRAD_EPSILON);
+
+    // Layer 6-7: Layer3 blocks (256ch)
+    std::cout << "  Layer3 Block0:" << std::endl;
+    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer3_block0", GRAD_EPSILON);
+    std::cout << "  Layer3 Block1:" << std::endl;
+    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer3_block1", GRAD_EPSILON);
+
+    // Layer 8-9: Layer4 blocks (512ch)
+    std::cout << "  Layer4 Block0:" << std::endl;
+    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer4_block0", GRAD_EPSILON);
+    std::cout << "  Layer4 Block1:" << std::endl;
+    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer4_block1", GRAD_EPSILON);
+
+    // Layer 10: AvgPool - no parameters
+
+    // Layer 11: FC (Dense)
+    std::cout << "  FC:" << std::endl;
+    auto& fc_layer = model.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.content;
+    {
+        using FC_W_SHAPE = typename decltype(fc_layer.weights.gradient)::SPEC::SHAPE;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, FC_W_SHAPE>> expected;
+        rlt::malloc(device, expected);
+        rlt::load(device, expected, grad_group, "fc_d_weights");
+        T diff = rlt::abs_diff(device, fc_layer.weights.gradient, expected) / decltype(expected)::SPEC::SIZE;
+        std::cout << "    fc d_weights diff: " << diff << std::endl;
+        EXPECT_LT(diff, GRAD_EPSILON) << "fc d_weights mismatch";
+        rlt::free(device, expected);
+    }
+    {
+        using FC_B_SHAPE = typename decltype(fc_layer.biases.gradient)::SPEC::SHAPE;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, FC_B_SHAPE>> expected;
+        rlt::malloc(device, expected);
+        rlt::load(device, expected, grad_group, "fc_d_biases");
+        T diff = rlt::abs_diff(device, fc_layer.biases.gradient, expected) / decltype(expected)::SPEC::SIZE;
+        std::cout << "    fc d_biases diff: " << diff << std::endl;
+        EXPECT_LT(diff, GRAD_EPSILON) << "fc d_biases mismatch";
+        rlt::free(device, expected);
+    }
+
+    // Cleanup
+    rlt::free(device, model);
+    rlt::free(device, buffer);
+    rlt::free(device, input);
+    rlt::free(device, d_output);
+    rlt::free(device, d_input);
+}

@@ -59,6 +59,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::resnet_block::Buffer<DA, SPEC>& buffer) {
         malloc(device, buffer.intermediate);
         malloc(device, buffer.shortcut);
+        malloc(device, buffer.d_input_buffer);
         malloc(device, buffer.conv1_buffer);
         malloc(device, buffer.conv2_buffer);
         malloc(device, buffer.downsample_buffer);
@@ -67,6 +68,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::resnet_block::Buffer<DA, SPEC>& buffer) {
         free(device, buffer.intermediate);
         free(device, buffer.shortcut);
+        free(device, buffer.d_input_buffer);
         free(device, buffer.conv1_buffer);
         free(device, buffer.conv2_buffer);
         free(device, buffer.downsample_buffer);
@@ -215,6 +217,114 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         forward(device, layer, input, buffer, rng, mode);
         copy(device, device, layer.output, output);
+    }
+
+    // ======================== backward ========================
+    // backward_input: compute d_input only (no gradient accumulation)
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::resnet_block::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        // Not implemented standalone (use backward_full)
+    }
+    // backward: accumulate parameter gradients only (no d_input)
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename DEVICE::index_t;
+        using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        constexpr TI BATCH = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr TI OH = LAYER_SPEC::OUTPUT_HEIGHT;
+        constexpr TI OW = LAYER_SPEC::OUTPUT_WIDTH;
+        constexpr TI OC = LAYER_SPEC::OUTPUT_CHANNELS;
+        // Step 1: d_pre_relu = d_output * relu'(output)
+        auto output_view = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, layer.output);
+        auto d_output_4d = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, d_output);
+        auto d_pre_relu = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, buffer.shortcut);
+        for(TI bi = 0; bi < BATCH; bi++){
+            for(TI h = 0; h < OH; h++){
+                for(TI w = 0; w < OW; w++){
+                    for(TI c = 0; c < OC; c++){
+                        T out_val = get(device, output_view, bi, h, w, c);
+                        T d_val = get(device, d_output_4d, bi, h, w, c);
+                        set(device, d_pre_relu, out_val > 0 ? d_val : (T)0, bi, h, w, c);
+                    }
+                }
+            }
+        }
+        // Step 2: backward through conv2 (accumulate gradients, get d_conv1_out)
+        auto conv1_out = rl_tools::output(device, layer.conv1);
+        backward(device, layer.conv2, conv1_out, d_pre_relu, buffer.conv2_buffer, mode);
+        // Step 3: backward through conv1 (accumulate gradients)
+        // Need d_conv1_out from conv2's backward_input
+        auto d_conv1_out = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, buffer.intermediate);
+        backward_input(device, static_cast<const nn::layers::conv2d::LayerBackward<typename LAYER_SPEC::CONV2_SPEC>&>(layer.conv2), d_pre_relu, d_conv1_out, buffer.conv2_buffer, mode);
+        backward(device, layer.conv1, input, d_conv1_out, buffer.conv1_buffer, mode);
+        // Step 4: backward through downsample (accumulate gradients)
+        if constexpr(LAYER_SPEC::HAS_DOWNSAMPLE) {
+            backward(device, layer.downsample.conv, input, d_pre_relu, buffer.downsample_buffer, mode);
+        }
+    }
+    // backward_full: compute d_input AND accumulate parameter gradients
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename DEVICE::index_t;
+        using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        constexpr TI BATCH = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr TI OH = LAYER_SPEC::OUTPUT_HEIGHT;
+        constexpr TI OW = LAYER_SPEC::OUTPUT_WIDTH;
+        constexpr TI OC = LAYER_SPEC::OUTPUT_CHANNELS;
+        constexpr TI IH = LAYER_SPEC::INPUT_HEIGHT;
+        constexpr TI IW = LAYER_SPEC::INPUT_WIDTH;
+        constexpr TI IC = LAYER_SPEC::INPUT_CHANNELS;
+        // Step 1: d_pre_relu = d_output * relu'(output)
+        auto output_view = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, layer.output);
+        auto d_output_4d = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, d_output);
+        auto d_pre_relu = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, buffer.shortcut);
+        for(TI bi = 0; bi < BATCH; bi++){
+            for(TI h = 0; h < OH; h++){
+                for(TI w = 0; w < OW; w++){
+                    for(TI c = 0; c < OC; c++){
+                        T out_val = get(device, output_view, bi, h, w, c);
+                        T d_val = get(device, d_output_4d, bi, h, w, c);
+                        set(device, d_pre_relu, out_val > 0 ? d_val : (T)0, bi, h, w, c);
+                    }
+                }
+            }
+        }
+        // Step 2: backward_full through conv2 (accumulate gradients + d_conv1_out)
+        auto conv1_out = rl_tools::output(device, layer.conv1);
+        auto d_conv1_out = view_memory<tensor::Shape<TI, BATCH, OH, OW, OC>>(device, buffer.intermediate);
+        backward_full(device, layer.conv2, conv1_out, d_pre_relu, d_conv1_out, buffer.conv2_buffer, mode);
+        // Step 3: backward_full through conv1 (accumulate gradients + d_input)
+        backward_full(device, layer.conv1, input, d_conv1_out, d_input, buffer.conv1_buffer, mode);
+        // Step 4: backward through shortcut path and add to d_input
+        if constexpr(LAYER_SPEC::HAS_DOWNSAMPLE) {
+            auto d_input_ds = view_memory<tensor::Shape<TI, BATCH, IH, IW, IC>>(device, buffer.d_input_buffer);
+            backward_full(device, layer.downsample.conv, input, d_pre_relu, d_input_ds, buffer.downsample_buffer, mode);
+            // d_input += d_input_ds
+            auto d_input_4d = view_memory<tensor::Shape<TI, BATCH, IH, IW, IC>>(device, d_input);
+            for(TI bi = 0; bi < BATCH; bi++){
+                for(TI h = 0; h < IH; h++){
+                    for(TI w = 0; w < IW; w++){
+                        for(TI c = 0; c < IC; c++){
+                            increment(device, d_input_4d, get(device, d_input_ds, bi, h, w, c), bi, h, w, c);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Identity shortcut: d_input += d_pre_relu
+            // d_pre_relu has shape (BATCH, OH, OW, OC) and d_input has shape (BATCH, IH, IW, IC)
+            // For identity shortcut, OH==IH, OW==IW, OC==IC
+            auto d_input_4d = view_memory<tensor::Shape<TI, BATCH, IH, IW, IC>>(device, d_input);
+            for(TI bi = 0; bi < BATCH; bi++){
+                for(TI h = 0; h < IH; h++){
+                    for(TI w = 0; w < IW; w++){
+                        for(TI c = 0; c < IC; c++){
+                            increment(device, d_input_4d, get(device, d_pre_relu, bi, h, w, c), bi, h, w, c);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ======================== zero_gradient / update / _reset_optimizer_state ========================

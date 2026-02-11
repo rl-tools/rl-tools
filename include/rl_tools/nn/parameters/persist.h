@@ -23,7 +23,9 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename GROUP>
     bool load(DEVICE& device, nn::parameters::Gradient::Instance<SPEC>& parameter, GROUP& group) {
         bool success = load(device, (nn::parameters::Plain::Instance<SPEC>&)parameter, group);
-        success &= load(device, parameter.gradient, group, "gradient");
+        if(group_exists(device, group, "gradient")){
+            success &= load(device, parameter.gradient, group, "gradient");
+        }
         return success;
     }
 }

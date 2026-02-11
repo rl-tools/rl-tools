@@ -88,7 +88,7 @@ def save_resnet_block(group, block):
             ds_bn.running_mean, ds_bn.running_var)
 
 # ============================================================
-# Generate test data with intermediate activations
+# Generate test data with intermediate activations (forward)
 # ============================================================
 torch.manual_seed(42)
 np.random.seed(42)
@@ -144,6 +144,63 @@ for name, arr in intermediates.items():
     print(f"  {name}: {arr.shape}")
 
 # ============================================================
+# Generate backward pass test data
+# ============================================================
+print("\nComputing backward pass...")
+model.zero_grad()
+input_grad = input_tensor.clone().requires_grad_(True)
+output = model(input_grad)
+# Use sum as the loss so d_output = ones
+loss = output.sum()
+loss.backward()
+
+gradient_data = {}
+# d_input
+gradient_data["d_input"] = to_nhwc(input_grad.grad)
+# d_output (ones, same shape as output)
+gradient_data["d_output"] = to_numpy(torch.ones_like(output))
+
+def save_conv2d_gradients(grad_dict, conv, bn, prefix):
+    """Save gradients for a Conv2d+BN layer into a dict."""
+    # d_weights: [OC, IC, KH, KW]
+    grad_dict[f"{prefix}_d_weights"] = to_numpy(conv.weight.grad)
+    # d_biases: Conv has no bias when followed by BN, so zeros
+    grad_dict[f"{prefix}_d_biases"] = np.zeros(conv.weight.shape[0], dtype=np.float64)
+    # d_gamma, d_beta
+    grad_dict[f"{prefix}_d_gamma"] = to_numpy(bn.weight.grad)
+    grad_dict[f"{prefix}_d_beta"] = to_numpy(bn.bias.grad)
+
+# Stem gradients
+save_conv2d_gradients(gradient_data, model.conv1, model.bn1, "stem")
+
+# ResNet block gradients
+block_map = [
+    ("layer1", 0), ("layer1", 1),
+    ("layer2", 0), ("layer2", 1),
+    ("layer3", 0), ("layer3", 1),
+    ("layer4", 0), ("layer4", 1),
+]
+for layer_name, block_idx in block_map:
+    layer_module = getattr(model, layer_name)
+    block = layer_module[block_idx]
+    prefix = f"{layer_name}_block{block_idx}"
+    save_conv2d_gradients(gradient_data, block.conv1, block.bn1, f"{prefix}_conv1")
+    save_conv2d_gradients(gradient_data, block.conv2, block.bn2, f"{prefix}_conv2")
+    if block.downsample is not None:
+        save_conv2d_gradients(gradient_data, block.downsample[0], block.downsample[1], f"{prefix}_downsample")
+
+# FC gradients
+gradient_data["fc_d_weights"] = to_numpy(model.fc.weight.grad)
+gradient_data["fc_d_biases"] = to_numpy(model.fc.bias.grad)
+
+print("Gradient data collected:")
+for name, arr in gradient_data.items():
+    if isinstance(arr, np.ndarray):
+        print(f"  {name}: {arr.shape}")
+    else:
+        print(f"  {name}: dict")
+
+# ============================================================
 # Write HDF5 file
 # ============================================================
 print(f"\nWriting to: {OUTPUT_PATH}")
@@ -185,11 +242,17 @@ with h5py.File(OUTPUT_PATH, "w") as f:
     bg = fc_group.create_group("biases")
     bg.create_dataset("parameters", data=to_numpy(model.fc.bias))
 
-    # ---- Test data ----
+    # ---- Test data (forward) ----
     test_group = f.create_group("test_data")
     test_group.create_dataset("input", data=to_nhwc(input_tensor))
     for name, arr in intermediates.items():
         test_group.create_dataset(name, data=arr)
+
+    # ---- Gradient data (backward) ----
+    grad_group = f.create_group("gradient_data")
+    for name, data in gradient_data.items():
+        if isinstance(data, np.ndarray):
+            grad_group.create_dataset(name, data=data)
 
 print("Done! HDF5 file written successfully.")
 print(f"\nSequential layer mapping:")

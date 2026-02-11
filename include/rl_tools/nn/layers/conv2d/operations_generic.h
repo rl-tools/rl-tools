@@ -451,45 +451,51 @@ namespace rl_tools{
             }
         } else if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
             constexpr T eps = (T)LAYER_SPEC::NORM_EPSILON;
-            constexpr T momentum = (T)LAYER_SPEC::BN_MOMENTUM;
-            constexpr TI N_BN = BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH;
-
-            // Phase 2: Compute batch statistics per channel
-            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                T mean_val = 0;
-                for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                            mean_val += get(device, layer.pre_activations, bi, oh, ow, oc);
+            if constexpr(mode::is<MODE, mode::Evaluation>) {
+                // Evaluation mode: use running statistics (like PyTorch model.eval())
+                for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                    T mean_val = get(device, layer.norm.running_mean.parameters, oc);
+                    T var_val = get(device, layer.norm.running_var.parameters, oc);
+                    T inv_std = (T)1 / math::sqrt(device.math, var_val + eps);
+                    set(device, layer.norm_cache.mean, mean_val, oc);
+                    set(device, layer.norm_cache.inv_std, inv_std, oc);
+                }
+            } else {
+                // Training mode: compute batch statistics
+                constexpr T momentum = (T)LAYER_SPEC::BN_MOMENTUM;
+                constexpr TI N_BN = BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH;
+                for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                    T mean_val = 0;
+                    for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                        for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                            for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                                mean_val += get(device, layer.pre_activations, bi, oh, ow, oc);
+                            }
                         }
                     }
-                }
-                mean_val /= (T)N_BN;
-
-                T var_val = 0;
-                for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                            T diff = get(device, layer.pre_activations, bi, oh, ow, oc) - mean_val;
-                            var_val += diff * diff;
+                    mean_val /= (T)N_BN;
+                    T var_val = 0;
+                    for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                        for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                            for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                                T diff = get(device, layer.pre_activations, bi, oh, ow, oc) - mean_val;
+                                var_val += diff * diff;
+                            }
                         }
                     }
+                    var_val /= (T)N_BN;
+                    T inv_std = (T)1 / math::sqrt(device.math, var_val + eps);
+                    set(device, layer.norm_cache.mean, mean_val, oc);
+                    set(device, layer.norm_cache.inv_std, inv_std, oc);
+                    // Update running statistics (EMA)
+                    T running_mean = get(device, layer.norm.running_mean.parameters, oc);
+                    T running_var = get(device, layer.norm.running_var.parameters, oc);
+                    set(device, layer.norm.running_mean.parameters, ((T)1 - momentum) * running_mean + momentum * mean_val, oc);
+                    set(device, layer.norm.running_var.parameters, ((T)1 - momentum) * running_var + momentum * var_val, oc);
                 }
-                var_val /= (T)N_BN;
-                T inv_std = (T)1 / math::sqrt(device.math, var_val + eps);
-
-                // Cache statistics
-                set(device, layer.norm_cache.mean, mean_val, oc);
-                set(device, layer.norm_cache.inv_std, inv_std, oc);
-
-                // Update running statistics (EMA)
-                T running_mean = get(device, layer.norm.running_mean.parameters, oc);
-                T running_var = get(device, layer.norm.running_var.parameters, oc);
-                set(device, layer.norm.running_mean.parameters, ((T)1 - momentum) * running_mean + momentum * mean_val, oc);
-                set(device, layer.norm.running_var.parameters, ((T)1 - momentum) * running_var + momentum * var_val, oc);
             }
 
-            // Phase 3: Normalize + activate -> output
+            // Phase 3: Normalize + activate -> output (same for both modes, uses cached stats)
             for(TI bi = 0; bi < BATCH_SIZE; bi++){
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
@@ -611,80 +617,96 @@ namespace rl_tools{
                 }
             }
         } else {
-            // Two-phase normalization backward
-            constexpr TI NORM_DIM = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ? LAYER_SPEC::OUTPUT_CHANNELS : BATCH_SIZE;
-            constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
-                (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
-                (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
-
-            T sum_dz_hat[NORM_DIM];
-            T sum_dz_hat_z_hat[NORM_DIM];
-            for(TI i = 0; i < NORM_DIM; i++){
-                sum_dz_hat[i] = 0;
-                sum_dz_hat_z_hat[i] = 0;
-            }
-
-            // Phase 1: Compute sums for norm backward
-            for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                            TI stat_idx;
-                            T mean_val, inv_std_val;
-                            if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                                stat_idx = oc;
-                                mean_val = get(device, layer.norm_cache.mean, oc);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                            } else {
-                                stat_idx = bi;
-                                mean_val = get(device, layer.norm_cache.mean, bi);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+            // Normalization backward
+            constexpr bool IS_EVAL = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) && mode::is<MODE, mode::Evaluation>;
+            if constexpr(IS_EVAL) {
+                // Evaluation mode: statistics are fixed, simple backward
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                T mean_val = get(device, layer.norm_cache.mean, oc);
+                                T inv_std_val = get(device, layer.norm_cache.inv_std, oc);
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                T d_conv_out = d_norm_out * get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
+                                            }
+                                        }
+                                    }
+                                }
                             }
-                            T z_hat = (conv_out - mean_val) * inv_std_val;
-                            T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                            T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                            T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                            sum_dz_hat[stat_idx] += d_z_hat_val;
-                            sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                         }
                     }
                 }
-            }
-
-            // Phase 2: Compute d_conv_out and propagate to d_input
-            for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                            TI stat_idx;
-                            T mean_val, inv_std_val;
-                            if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                                stat_idx = oc;
-                                mean_val = get(device, layer.norm_cache.mean, oc);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                            } else {
-                                stat_idx = bi;
-                                mean_val = get(device, layer.norm_cache.mean, bi);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+            } else {
+                // Training mode: two-phase normalization backward
+                constexpr TI NORM_DIM = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ? LAYER_SPEC::OUTPUT_CHANNELS : BATCH_SIZE;
+                constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
+                    (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
+                    (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
+                T sum_dz_hat[NORM_DIM];
+                T sum_dz_hat_z_hat[NORM_DIM];
+                for(TI i = 0; i < NORM_DIM; i++){ sum_dz_hat[i] = 0; sum_dz_hat_z_hat[i] = 0; }
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; T mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
+                                    stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc);
+                                } else {
+                                    stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+                                }
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                sum_dz_hat[stat_idx] += d_z_hat_val;
+                                sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                             }
-                            T z_hat = (conv_out - mean_val) * inv_std_val;
-                            T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                            T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                            T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                            T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
-
-                            for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
-                                for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
-                                    TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
-                                    TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
-                                    if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
-                                       iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
-                                        TI ih = ih_padded - LAYER_SPEC::PADDING_H;
-                                        TI iw = iw_padded - LAYER_SPEC::PADDING_W;
-                                        for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
+                        }
+                    }
+                }
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; T mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
+                                    stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc);
+                                } else {
+                                    stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+                                }
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
+                                            }
                                         }
                                     }
                                 }
@@ -735,83 +757,93 @@ namespace rl_tools{
                 }
             }
         } else {
-            constexpr TI NORM_DIM = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ? LAYER_SPEC::OUTPUT_CHANNELS : BATCH_SIZE;
-            constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
-                (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
-                (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
-
-            T sum_dz_hat[NORM_DIM];
-            T sum_dz_hat_z_hat[NORM_DIM];
-            for(TI i = 0; i < NORM_DIM; i++){
-                sum_dz_hat[i] = 0;
-                sum_dz_hat_z_hat[i] = 0;
-            }
-
-            // Phase 1: Compute sums + accumulate d_gamma, d_beta
-            for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                            TI stat_idx;
-                            T mean_val, inv_std_val;
-                            if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                                stat_idx = oc;
-                                mean_val = get(device, layer.norm_cache.mean, oc);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                            } else {
-                                stat_idx = bi;
-                                mean_val = get(device, layer.norm_cache.mean, bi);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+            constexpr bool IS_EVAL = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) && mode::is<MODE, mode::Evaluation>;
+            if constexpr(IS_EVAL) {
+                // Evaluation mode: fixed statistics, simple backward
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                T mean_val = get(device, layer.norm_cache.mean, oc);
+                                T inv_std_val = get(device, layer.norm_cache.inv_std, oc);
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
+                                increment(device, layer.norm.beta.gradient, d_norm_out, oc);
+                                T d_conv_out = d_norm_out * get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
+                                increment(device, layer.biases.gradient, d_conv_out, oc);
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                            }
+                                        }
+                                    }
+                                }
                             }
-                            T z_hat = (conv_out - mean_val) * inv_std_val;
-                            T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                            T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                            T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                            // Accumulate d_gamma and d_beta
-                            increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
-                            increment(device, layer.norm.beta.gradient, d_norm_out, oc);
-                            sum_dz_hat[stat_idx] += d_z_hat_val;
-                            sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                         }
                     }
                 }
-            }
-
-            // Phase 2: Compute d_conv_out and accumulate d_weights, d_biases
-            for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                            TI stat_idx;
-                            T mean_val, inv_std_val;
-                            if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                                stat_idx = oc;
-                                mean_val = get(device, layer.norm_cache.mean, oc);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                            } else {
-                                stat_idx = bi;
-                                mean_val = get(device, layer.norm_cache.mean, bi);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+            } else {
+                // Training mode: two-phase normalization backward
+                constexpr TI NORM_DIM = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ? LAYER_SPEC::OUTPUT_CHANNELS : BATCH_SIZE;
+                constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
+                    (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
+                    (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
+                T sum_dz_hat[NORM_DIM]; T sum_dz_hat_z_hat[NORM_DIM];
+                for(TI i = 0; i < NORM_DIM; i++){ sum_dz_hat[i] = 0; sum_dz_hat_z_hat[i] = 0; }
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; T mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc); }
+                                else { stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi); }
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
+                                increment(device, layer.norm.beta.gradient, d_norm_out, oc);
+                                sum_dz_hat[stat_idx] += d_z_hat_val; sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                             }
-                            T z_hat = (conv_out - mean_val) * inv_std_val;
-                            T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                            T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                            T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                            T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
-
-                            increment(device, layer.biases.gradient, d_conv_out, oc);
-                            for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
-                                for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
-                                    TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
-                                    TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
-                                    if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
-                                       iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
-                                        TI ih = ih_padded - LAYER_SPEC::PADDING_H;
-                                        TI iw = iw_padded - LAYER_SPEC::PADDING_W;
-                                        for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                        }
+                    }
+                }
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; T mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc); }
+                                else { stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi); }
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
+                                increment(device, layer.biases.gradient, d_conv_out, oc);
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                            }
                                         }
                                     }
                                 }
@@ -867,83 +899,95 @@ namespace rl_tools{
                 }
             }
         } else {
-            constexpr TI NORM_DIM = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ? LAYER_SPEC::OUTPUT_CHANNELS : BATCH_SIZE;
-            constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
-                (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
-                (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
-
-            T sum_dz_hat[NORM_DIM];
-            T sum_dz_hat_z_hat[NORM_DIM];
-            for(TI i = 0; i < NORM_DIM; i++){
-                sum_dz_hat[i] = 0;
-                sum_dz_hat_z_hat[i] = 0;
-            }
-
-            // Phase 1: Compute sums + accumulate d_gamma, d_beta
-            for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                            TI stat_idx;
-                            T mean_val, inv_std_val;
-                            if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                                stat_idx = oc;
-                                mean_val = get(device, layer.norm_cache.mean, oc);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                            } else {
-                                stat_idx = bi;
-                                mean_val = get(device, layer.norm_cache.mean, bi);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+            constexpr bool IS_EVAL = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) && mode::is<MODE, mode::Evaluation>;
+            if constexpr(IS_EVAL) {
+                // Evaluation mode: fixed statistics, simple backward
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                T mean_val = get(device, layer.norm_cache.mean, oc);
+                                T inv_std_val = get(device, layer.norm_cache.inv_std, oc);
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
+                                increment(device, layer.norm.beta.gradient, d_norm_out, oc);
+                                T d_conv_out = d_norm_out * get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
+                                increment(device, layer.biases.gradient, d_conv_out, oc);
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                            }
+                                        }
+                                    }
+                                }
                             }
-                            T z_hat = (conv_out - mean_val) * inv_std_val;
-                            T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                            T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                            T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                            increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
-                            increment(device, layer.norm.beta.gradient, d_norm_out, oc);
-                            sum_dz_hat[stat_idx] += d_z_hat_val;
-                            sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                         }
                     }
                 }
-            }
-
-            // Phase 2: Compute d_conv_out, accumulate d_weights, d_biases, d_input
-            for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                            TI stat_idx;
-                            T mean_val, inv_std_val;
-                            if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                                stat_idx = oc;
-                                mean_val = get(device, layer.norm_cache.mean, oc);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                            } else {
-                                stat_idx = bi;
-                                mean_val = get(device, layer.norm_cache.mean, bi);
-                                inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+            } else {
+                // Training mode: two-phase normalization backward
+                constexpr TI NORM_DIM = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ? LAYER_SPEC::OUTPUT_CHANNELS : BATCH_SIZE;
+                constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
+                    (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
+                    (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
+                T sum_dz_hat[NORM_DIM]; T sum_dz_hat_z_hat[NORM_DIM];
+                for(TI i = 0; i < NORM_DIM; i++){ sum_dz_hat[i] = 0; sum_dz_hat_z_hat[i] = 0; }
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; T mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc); }
+                                else { stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi); }
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
+                                increment(device, layer.norm.beta.gradient, d_norm_out, oc);
+                                sum_dz_hat[stat_idx] += d_z_hat_val; sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                             }
-                            T z_hat = (conv_out - mean_val) * inv_std_val;
-                            T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                            T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                            T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                            T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
-
-                            increment(device, layer.biases.gradient, d_conv_out, oc);
-                            for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
-                                for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
-                                    TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
-                                    TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
-                                    if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
-                                       iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
-                                        TI ih = ih_padded - LAYER_SPEC::PADDING_H;
-                                        TI iw = iw_padded - LAYER_SPEC::PADDING_W;
-                                        for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
-                                            increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                        }
+                    }
+                }
+                for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                    for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                        for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; T mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc); }
+                                else { stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi); }
+                                T z_hat = (conv_out - mean_val) * inv_std_val;
+                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
+                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
+                                increment(device, layer.biases.gradient, d_conv_out, oc);
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
+                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                            }
                                         }
                                     }
                                 }
