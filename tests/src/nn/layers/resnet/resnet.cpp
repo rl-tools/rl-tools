@@ -17,6 +17,9 @@
 #include <rl_tools/nn/layers/resnet_block/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 
+// Shared model definition
+#include <rl_tools/nn_models/resnet/resnet.h>
+
 #define RL_TOOLS_STRINGIZE(x) #x
 #define RL_TOOLS_MACRO_TO_STR(macro) RL_TOOLS_STRINGIZE(macro)
 
@@ -28,54 +31,21 @@ using TI = DEVICE::index_t;
 
 static constexpr T EPSILON = 1e-8;
 
-// ======================== ResNet-18 Model Definition ========================
-// Stem: 7x7 conv, stride=2, pad=3, 64 channels, BN+ReLU
-using STEM_CONV_CONFIG = rlt::nn::layers::conv2d::Configuration<
-    TYPE_POLICY, TI, 64, 7, 7, 2, 2, 3, 3,
-    rlt::nn::activation_functions::ActivationFunction::RELU,
-    rlt::nn::layers::conv2d::Normalization::BATCH_NORM>;
+// ======================== ResNet-18 type aliases (from shared header) ========================
+using STEM_CONV_CONFIG = rlt::nn_models::resnet18::STEM_CONV_CONFIG<TYPE_POLICY, TI>;
+using MAXPOOL_CONFIG = rlt::nn_models::resnet18::MAXPOOL_CONFIG<TYPE_POLICY, TI>;
+using BLOCK_64_S1_CONFIG = rlt::nn_models::resnet18::BLOCK_64_S1_CONFIG<TYPE_POLICY, TI>;
+using BLOCK_128_S2_CONFIG = rlt::nn_models::resnet18::BLOCK_128_S2_CONFIG<TYPE_POLICY, TI>;
+using BLOCK_128_S1_CONFIG = rlt::nn_models::resnet18::BLOCK_128_S1_CONFIG<TYPE_POLICY, TI>;
+using BLOCK_256_S2_CONFIG = rlt::nn_models::resnet18::BLOCK_256_S2_CONFIG<TYPE_POLICY, TI>;
+using BLOCK_256_S1_CONFIG = rlt::nn_models::resnet18::BLOCK_256_S1_CONFIG<TYPE_POLICY, TI>;
+using BLOCK_512_S2_CONFIG = rlt::nn_models::resnet18::BLOCK_512_S2_CONFIG<TYPE_POLICY, TI>;
+using BLOCK_512_S1_CONFIG = rlt::nn_models::resnet18::BLOCK_512_S1_CONFIG<TYPE_POLICY, TI>;
 
-// MaxPool: 3x3, stride=2, pad=1
-using MAXPOOL_CONFIG = rlt::nn::layers::max_pool2d::Configuration<TYPE_POLICY, TI, 3, 3, 2, 2, 1, 1>;
-
-// ResNet blocks
-using BLOCK_64_S1_CONFIG = rlt::nn::layers::resnet_block::Configuration<TYPE_POLICY, TI, 64, 1>;
-using BLOCK_128_S2_CONFIG = rlt::nn::layers::resnet_block::Configuration<TYPE_POLICY, TI, 128, 2>;
-using BLOCK_128_S1_CONFIG = rlt::nn::layers::resnet_block::Configuration<TYPE_POLICY, TI, 128, 1>;
-using BLOCK_256_S2_CONFIG = rlt::nn::layers::resnet_block::Configuration<TYPE_POLICY, TI, 256, 2>;
-using BLOCK_256_S1_CONFIG = rlt::nn::layers::resnet_block::Configuration<TYPE_POLICY, TI, 256, 1>;
-using BLOCK_512_S2_CONFIG = rlt::nn::layers::resnet_block::Configuration<TYPE_POLICY, TI, 512, 2>;
-using BLOCK_512_S1_CONFIG = rlt::nn::layers::resnet_block::Configuration<TYPE_POLICY, TI, 512, 1>;
-
-// Global average pool
-using AVGPOOL_CONFIG = rlt::nn::layers::avg_pool2d::Configuration<TYPE_POLICY, TI>;
-
-// FC: 512 -> 1000, identity activation
-using FC_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 1000,
-    rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-
-// Sequential chain
-template<typename C, typename N = rlt::nn_models::sequential::OutputModule>
-using Module = rlt::nn_models::sequential::Module<C, N>;
-
-using MODULE_CHAIN =
-    Module<rlt::nn::layers::conv2d::BindConfiguration<STEM_CONV_CONFIG>,       // 0: stem
-    Module<rlt::nn::layers::max_pool2d::BindConfiguration<MAXPOOL_CONFIG>,     // 1: maxpool
-    Module<rlt::nn::layers::resnet_block::BindConfiguration<BLOCK_64_S1_CONFIG>,  // 2: layer1.0
-    Module<rlt::nn::layers::resnet_block::BindConfiguration<BLOCK_64_S1_CONFIG>,  // 3: layer1.1
-    Module<rlt::nn::layers::resnet_block::BindConfiguration<BLOCK_128_S2_CONFIG>, // 4: layer2.0
-    Module<rlt::nn::layers::resnet_block::BindConfiguration<BLOCK_128_S1_CONFIG>, // 5: layer2.1
-    Module<rlt::nn::layers::resnet_block::BindConfiguration<BLOCK_256_S2_CONFIG>, // 6: layer3.0
-    Module<rlt::nn::layers::resnet_block::BindConfiguration<BLOCK_256_S1_CONFIG>, // 7: layer3.1
-    Module<rlt::nn::layers::resnet_block::BindConfiguration<BLOCK_512_S2_CONFIG>, // 8: layer4.0
-    Module<rlt::nn::layers::resnet_block::BindConfiguration<BLOCK_512_S1_CONFIG>, // 9: layer4.1
-    Module<rlt::nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG>,     // 10: avgpool
-    Module<rlt::nn::layers::dense::BindConfiguration<FC_CONFIG>                // 11: fc
-    >>>>>>>>>>>>;
-
-using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 224, 224, 3>;
+using MODULE_CHAIN = rlt::nn_models::resnet18::MODULE_CHAIN<TYPE_POLICY, TI>;
+using INPUT_SHAPE = rlt::nn_models::resnet18::INPUT_SHAPE<TYPE_POLICY, TI>;
 using CAPABILITY = rlt::nn::capability::Forward<>;
-using RESNET18 = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+using RESNET18 = rlt::nn_models::resnet18::MODEL<TYPE_POLICY, TI, CAPABILITY>;
 
 // ======================== Test: Full model forward pass ========================
 TEST(RESNET18, FULL_FORWARD) {

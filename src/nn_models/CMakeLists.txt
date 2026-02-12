@@ -1,1 +1,2 @@
 add_subdirectory(port_checkpoint)
+add_subdirectory(resnet)
