@@ -17,7 +17,8 @@ except ImportError:
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-IMAGE_PATH = os.path.join(REPO_ROOT, "tests", "data", "IMG_8734.jpg")
+IMAGE_PATH = os.path.join(REPO_ROOT, "tests", "data", "IMG_8734_224x224.png")
+CLASSES_PATH = os.path.join(REPO_ROOT, "tests", "data", "imagenet-1k-classes.txt")
 
 if len(sys.argv) > 1:
     IMAGE_PATH = sys.argv[1]
@@ -55,18 +56,18 @@ with torch.no_grad():
 
 logits_np = logits.squeeze().numpy()
 
-# Top-10
-indices = np.argsort(logits_np)[::-1][:10]
+# Load class names
+class_names = []
+if os.path.exists(CLASSES_PATH):
+    with open(CLASSES_PATH) as f:
+        class_names = [line.strip() for line in f]
+
+# Top-5
+indices = np.argsort(logits_np)[::-1][:5]
 exp_logits = np.exp(logits_np - logits_np.max())
 probs = exp_logits / exp_logits.sum()
 
-print("\nTop-10 predictions:")
-print(f"  {'Rank':<6}{'Class':<7}{'Logit':<12}{'Probability'}")
-print(f"  {'----':<6}{'-----':<7}{'---------':<12}{'-----------'}")
+print("\nTop-5 predictions:")
 for k, idx in enumerate(indices):
-    print(f"  {k+1:<6}{idx:<7}{logits_np[idx]:<12.5f}{probs[idx]*100:.4f}%")
-
-# All logits
-print("\nAll logits:")
-for i in range(1000):
-    print(f"  class {i}: {logits_np[i]}")
+    name = class_names[idx] if idx < len(class_names) else "???"
+    print(f"  {k+1}. {name} (class {idx})  logit: {logits_np[idx]:.5f}  prob: {probs[idx]*100:.4f}%")

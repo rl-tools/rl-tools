@@ -5,3 +5,7 @@ if(RL_TOOLS_ENABLE_HDF5)
         gtest_discover_tests(test_nn_layers_resnet)
     endif()
 endif()
+
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    add_subdirectory(cuda)
+endif()

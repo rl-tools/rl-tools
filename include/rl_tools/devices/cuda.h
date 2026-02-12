@@ -9,6 +9,9 @@
 #include "devices.h"
 #include "cpu.h"
 #include <cublas_v2.h>
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+#include <cudnn.h>
+#endif
 #include <vector>
 #include <unordered_map>
 #include <curand_kernel.h>
@@ -58,6 +61,11 @@ namespace rl_tools::devices{
             cublasHandle_t handle;
             bool graph_capture_active = false;
             cudaStream_t stream;
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+            cudnnHandle_t cudnn_handle;
+            void* cudnn_workspace = nullptr;
+            size_t cudnn_workspace_size = 0;
+#endif
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
             index_t malloc_counter = 0;
 #endif
@@ -151,7 +159,52 @@ namespace rl_tools {
         }
         device.initialized = true;
 #endif
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+        {
+            cudnnStatus_t cudnn_stat;
+            cudnn_stat = cudnnCreate(&device.cudnn_handle);
+            if(cudnn_stat != CUDNN_STATUS_SUCCESS){
+                std::cout << "cuDNN initialization failed: " << cudnnGetErrorString(cudnn_stat) << std::endl;
+            }
+            cudnn_stat = cudnnSetStream(device.cudnn_handle, device.stream);
+            if(cudnn_stat != CUDNN_STATUS_SUCCESS){
+                std::cout << "cuDNN setting stream failed: " << cudnnGetErrorString(cudnn_stat) << std::endl;
+            }
+        }
+#endif
     }
+    namespace nn::cuda{
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+        template<typename T>
+        constexpr cudnnDataType_t get_cudnn_dtype(){
+            if constexpr(utils::typing::is_same_v<T, float>){
+                return CUDNN_DATA_FLOAT;
+            }
+            else{
+                static_assert(utils::typing::is_same_v<T, double>);
+                return CUDNN_DATA_DOUBLE;
+            }
+        }
+#endif
+    }
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+    template <typename SPEC>
+    void ensure_cudnn_workspace(devices::CUDA<SPEC>& device, size_t required_size){
+        if(required_size > device.cudnn_workspace_size){
+            if(device.cudnn_workspace){
+                cudaFree(device.cudnn_workspace);
+            }
+            auto result = cudaMalloc(&device.cudnn_workspace, required_size);
+            if(result != cudaSuccess){
+                std::cerr << "Failed to allocate cuDNN workspace (" << required_size << " bytes): " << cudaGetErrorString(result) << std::endl;
+                device.cudnn_workspace = nullptr;
+                device.cudnn_workspace_size = 0;
+                return;
+            }
+            device.cudnn_workspace_size = required_size;
+        }
+    }
+#endif
     template <typename SPEC>
     void check_status(devices::CUDA<SPEC>& device){
 #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT

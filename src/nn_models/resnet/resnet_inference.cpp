@@ -28,6 +28,7 @@
 #include <stb_image_resize2.h>
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -46,15 +47,34 @@ using RESNET18 = rlt::nn_models::resnet18::MODEL<TYPE_POLICY, TI, CAPABILITY>;
 static constexpr TI TARGET_SIZE = 224;
 
 int main(int argc, char* argv[]) {
-    if(argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <image.jpg> <model.h5>" << std::endl;
-        std::cerr << "  image.jpg  - Input image (JPEG, PNG, BMP, etc.)" << std::endl;
-        std::cerr << "  model.h5   - HDF5 file with ResNet-18 weights (resnet18_test_data.h5)" << std::endl;
+    if(argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " <image> <model.h5> <classes.txt>" << std::endl;
+        std::cerr << "  image       - Input image (JPEG, PNG, BMP, etc.)" << std::endl;
+        std::cerr << "  model.h5    - HDF5 file with ResNet-18 weights (resnet18_test_data.h5)" << std::endl;
+        std::cerr << "  classes.txt - ImageNet class names, one per line (imagenet-1k-classes.txt)" << std::endl;
         return 1;
     }
 
     const std::string image_path = argv[1];
     const std::string model_path = argv[2];
+    const std::string classes_path = argv[3];
+
+    // ======================== Load class names ========================
+    std::vector<std::string> class_names;
+    {
+        std::ifstream ifs(classes_path);
+        if(!ifs.is_open()) {
+            std::cerr << "Error: Failed to open class names file: " << classes_path << std::endl;
+            return 1;
+        }
+        std::string line;
+        while(std::getline(ifs, line)) {
+            class_names.push_back(line);
+        }
+        if(class_names.size() != 1000) {
+            std::cerr << "Warning: Expected 1000 class names, got " << class_names.size() << std::endl;
+        }
+    }
 
     // ======================== Load and preprocess image ========================
     int img_w, img_h, img_channels;
@@ -126,10 +146,9 @@ int main(int argc, char* argv[]) {
     rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
     rlt::evaluate(device, model, input, output, buffer, rng, eval_mode);
 
-    // ======================== Output logits ========================
+    // ======================== Output results ========================
     auto output_flat = rlt::view_memory<rlt::tensor::Shape<TI, 1000>>(device, output);
 
-    // Find top-10 predictions
     struct Prediction {
         TI class_idx;
         T logit;
@@ -142,27 +161,22 @@ int main(int argc, char* argv[]) {
         return a.logit > b.logit;
     });
 
-    // Compute softmax probabilities for the top predictions
+    // Softmax probabilities
     T max_logit = predictions[0].logit;
     T sum_exp = 0;
     for(TI i = 0; i < 1000; i++) {
         sum_exp += std::exp(predictions[i].logit - max_logit);
     }
 
-    std::cout << "\nTop-10 predictions:" << std::endl;
-    std::cout << "  Rank  Class  Logit      Probability" << std::endl;
-    std::cout << "  ----  -----  ---------  -----------" << std::endl;
-    for(int k = 0; k < 10; k++) {
+    std::cout << "\nTop-5 predictions:" << std::endl;
+    for(int k = 0; k < 5; k++) {
         T prob = std::exp(predictions[k].logit - max_logit) / sum_exp;
-        std::cout << "  " << (k+1) << "     " << predictions[k].class_idx
-                  << "    " << predictions[k].logit
-                  << "    " << (prob * 100.0) << "%" << std::endl;
-    }
-
-    // Print all 1000 logits
-    std::cout << "\nAll logits:" << std::endl;
-    for(TI i = 0; i < 1000; i++) {
-        std::cout << "  class " << i << ": " << rlt::get(device, output_flat, i) << std::endl;
+        TI idx = predictions[k].class_idx;
+        std::string name = idx < class_names.size() ? class_names[idx] : "???";
+        std::cout << "  " << (k+1) << ". " << name
+                  << " (class " << idx << ")"
+                  << "  logit: " << predictions[k].logit
+                  << "  prob: " << (prob * 100.0) << "%" << std::endl;
     }
 
     // Cleanup
