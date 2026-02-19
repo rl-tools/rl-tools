@@ -41,6 +41,7 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DEVICE_CPU = rlt::devices::DefaultCPU;
+using RNG_CPU = DEVICE_CPU::SPEC::RANDOM::ENGINE<>;
 using DEVICE_CUDA = rlt::devices::DefaultCUDA;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -57,10 +58,13 @@ TEST(NN_LAYERS_RESNET_CUDA, FORWARD_COMPARISON){
     DEVICE_CPU device_cpu;
     DEVICE_CUDA device_cuda;
     rlt::init(device_cuda);
+    RNG_CPU rng_cpu;
 
     // Load model on CPU
     RESNET18_CPU model_cpu;
     typename RESNET18_CPU::template Buffer<true> buffer_cpu;
+    rlt::malloc(device_cpu, rng_cpu);
+    rlt::init(device_cpu, rng_cpu, 0);
     rlt::malloc(device_cpu, model_cpu);
     rlt::malloc(device_cpu, buffer_cpu);
 
@@ -88,7 +92,6 @@ TEST(NN_LAYERS_RESNET_CUDA, FORWARD_COMPARISON){
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> output_cpu;
     rlt::malloc(device_cpu, output_cpu);
     rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
-    auto rng_cpu = rlt::random::default_engine(typename DEVICE_CPU::SPEC::RANDOM{}, 0);
     rlt::evaluate(device_cpu, model_cpu, input_cpu, output_cpu, buffer_cpu, rng_cpu, eval_mode);
 
     // Copy model to GPU

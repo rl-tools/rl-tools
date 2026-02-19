@@ -7,4 +7,5 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN AND RL_TOOLS_E
     add_executable(test_nn_layers_resnet_cuda resnet_cuda.cu)
     target_link_libraries(test_nn_layers_resnet_cuda PRIVATE rl_tools_full RLtools::Test GTest::gtest_main)
     gtest_discover_tests(test_nn_layers_resnet_cuda)
+    target_compile_options(test_nn_layers_resnet_cuda PRIVATE --diag-suppress=186)
 endif()
