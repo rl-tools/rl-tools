@@ -30,6 +30,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     )
     target_compile_definitions(rl_environments_pendulum_sac_cuda PRIVATE RL_TOOLS_BACKEND_ENABLE_CUDA)
     target_compile_options(rl_environments_pendulum_sac_cuda PRIVATE -g -Xcompiler -fno-omit-frame-pointer --diag-suppress=186,177)
+    target_compile_options(rl_environments_pendulum_sac_cuda PRIVATE -ftemplate-depth=30)
 endif()
 
 

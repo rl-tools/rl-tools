@@ -224,10 +224,26 @@ namespace rl_tools::nn_models::sequential{
         using TI = typename T_SPEC::TI;
     };
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-    struct Module{
+    template <typename... T_CONTENTS>
+    struct Module;
+
+    template <typename T_CONTENT>
+    struct Module<T_CONTENT>{
         using CONTENT = T_CONTENT;
-        using NEXT_CARRIER_MODULE = T_NEXT_MODULE;
+        using NEXT_CARRIER_MODULE = OutputModule;
+    };
+
+    template <typename T_CONTENT, typename... T_REST>
+    struct Module<T_CONTENT, OutputModule, T_REST...>{
+        static_assert(sizeof...(T_REST) == 0, "OutputModule must be the last element in a Module chain");
+        using CONTENT = T_CONTENT;
+        using NEXT_CARRIER_MODULE = OutputModule;
+    };
+
+    template <typename T_FIRST, typename T_SECOND, typename... T_REST>
+    struct Module<T_FIRST, T_SECOND, T_REST...>{
+        using CONTENT = T_FIRST;
+        using NEXT_CARRIER_MODULE = Module<T_SECOND, T_REST...>;
     };
 
     template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE>
