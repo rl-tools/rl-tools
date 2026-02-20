@@ -246,7 +246,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
     {
-        auto& first_layer = model.content;
+        auto& first_layer = rlt::get_layer<0>(model);
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
             rlt::set(device, first_layer.mean.parameters, input_i, input_i);
             rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
@@ -316,7 +316,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
     {
-        auto& first_layer = model.content;
+        auto& first_layer = rlt::get_layer<0>(model);
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
             rlt::set(device, first_layer.mean.parameters, input_i, input_i);
             rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
@@ -380,7 +380,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
     {
-        auto& first_layer = model.content;
+        auto& first_layer = rlt::get_layer<0>(model);
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
             rlt::set(device, first_layer.mean.parameters, input_i, input_i);
             rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
@@ -551,7 +551,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
     rlt::randn(device, input, rng);
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
-    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::randn(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, rng);
     rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
@@ -559,7 +559,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
-        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
+        auto noise_code = rlt::save_code_split(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
         auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
         auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;
@@ -606,7 +606,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
     rlt::randn(device, input, rng);
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
-    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::randn(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, rng);
     rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
@@ -614,7 +614,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
-        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
+        auto noise_code = rlt::save_code_split(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
         auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
         auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;
@@ -659,7 +659,7 @@ rlt::malloc(device, rng); rlt::init(device, rng, 0);
     rlt::randn(device, input, rng);
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
-    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::randn(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, rng);
     rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
@@ -667,7 +667,7 @@ rlt::malloc(device, rng); rlt::init(device, rng, 0);
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
-        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
+        auto noise_code = rlt::save_code_split(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
         auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
         auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;

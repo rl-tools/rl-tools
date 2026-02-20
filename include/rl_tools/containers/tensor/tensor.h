@@ -256,6 +256,15 @@ namespace rl_tools{
                 return out;
             }
 
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr TI leading_product(ConstexprArray<TI, N> in, SizeType trailing_dims) {
+                TI out = 1;
+                for (SizeType i = 0; i + trailing_dims < N; ++i) {
+                    out *= in.data[i];
+                }
+                return out;
+            }
+
             template <typename ELEMENT, auto NEW_ELEMENT, SizeType... Is>
             RL_TOOLS_FUNCTION_PLACEMENT constexpr auto append_unpack(IndexSequence<Is...>) {
                 using TI = typename ELEMENT::TI;

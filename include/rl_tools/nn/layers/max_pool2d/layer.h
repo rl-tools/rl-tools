@@ -50,13 +50,17 @@ namespace rl_tools::nn::layers::max_pool2d {
             static_assert(NEW_C == INPUT_CHANNELS);
             static constexpr TI NEW_OH = (NEW_H + 2 * CONFIG::PADDING_H - CONFIG::KERNEL_HEIGHT) / CONFIG::STRIDE_H + 1;
             static constexpr TI NEW_OW = (NEW_W + 2 * CONFIG::PADDING_W - CONFIG::KERNEL_WIDTH) / CONFIG::STRIDE_W + 1;
-            using SHAPE = tensor::Replace<
-                tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{})-3>,
-                NEW_OW, length(NEW_INPUT_SHAPE{})-2>;
+            template <tensor::shape_math::SizeType... Is>
+            static constexpr auto shape_unpack(tensor::shape_math::IndexSequence<Is...>){
+                constexpr auto shape_array_in = tensor::shape_math::element_to_array<NEW_INPUT_SHAPE>();
+                constexpr auto shape_array_height = tensor::shape_math::compute_replace<TI, tensor::shape_math::rank<NEW_INPUT_SHAPE>()>(shape_array_in, NEW_OH, static_cast<tensor::shape_math::SizeType>(length(NEW_INPUT_SHAPE{}) - 3));
+                constexpr auto shape_array_width = tensor::shape_math::compute_replace<TI, tensor::shape_math::rank<NEW_INPUT_SHAPE>()>(shape_array_height, NEW_OW, static_cast<tensor::shape_math::SizeType>(length(NEW_INPUT_SHAPE{}) - 2));
+                return tensor::Shape<TI, shape_array_width.data[Is]...>{};
+            }
+            using SHAPE = decltype(shape_unpack(tensor::shape_math::MakeIndexSequence<tensor::shape_math::rank<NEW_INPUT_SHAPE>()>{}));
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
-        using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
-        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<BATCH_SHAPE>{});
+        static constexpr TI INTERNAL_BATCH_SIZE = tensor::shape_math::leading_product(tensor::shape_math::element_to_array<INPUT_SHAPE>(), 3);
         static constexpr TI NUM_WEIGHTS = 0;
     };
 

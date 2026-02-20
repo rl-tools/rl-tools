@@ -309,7 +309,7 @@ namespace rl_tools{
         RL_TOOLS_FUNCTION_PLACEMENT void update_target_module(DEVICE& device, const  nn_models::sequential::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target, T polyak) {
             auto update_impl = [&](auto self, auto layer_i_const) -> void {
                 constexpr auto I = decltype(layer_i_const)::value;
-                update_target_module(device, get_layer<I>(source), get_layer<I>(target), polyak);
+                update_target_module(device, get<I>(source.content), get<I>(target.content), polyak);
                 if constexpr(I + 1 < SOURCE_SPEC::NUM_LAYERS){
                     self(self, rl_tools::utils::typing::integral_constant<decltype(I + 1), I + 1>{});
                 }

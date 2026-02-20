@@ -31,7 +31,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_SAMPLE_AND_SQUASH
     rlt::init(device, rng, 0);
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
-    rlt::copy(device, device, rl_tools_export::noise::container, buffer.content_buffer.next_content_buffer.buffer.noise);
+    rlt::copy(device, device, rl_tools_export::noise::container, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise);
     const rl_tools_export::model::TYPE module = rl_tools_export::model::factory_function(); // MSVC fix:
     rlt::evaluate(device, module, rl_tools_export::input::container, output, buffer, rng, mode);
 

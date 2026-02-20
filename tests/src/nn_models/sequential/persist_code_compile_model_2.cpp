@@ -41,7 +41,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2){
     ASSERT_LT(abs_diff, 1e-5);
 
     {
-        auto& first_layer = module.content;
+        auto& first_layer = rlt::get_layer<0>(module);
         for(TI input_i=0; input_i < rlt::get_last(typename rl_tools_export::model::TYPE::INPUT_SHAPE{}); input_i++){
             T mean = rlt::get(device, first_layer.mean.parameters, input_i);
             ASSERT_EQ(mean, input_i);

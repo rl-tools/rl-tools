@@ -54,60 +54,43 @@ namespace rl_tools{
 //            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
 //            std::string capability = "Forward";
             ss << ind << "    " << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << "; \n";
-            ss << ind << "    " << "    " << "template <typename T_CONTENT, typename T_NEXT_MODULE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::OutputModule>\n";
-            ss << ind << "    " << "    " << "using Module = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;\n";
+            ss << ind << "    " << "    " << "template <typename... T_CONTENTS>\n";
+            ss << ind << "    " << "    " << "using Module = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<T_CONTENTS...>;\n";
             ss << ind << "    " << "    " << "using MODULE_CHAIN = Module<";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "layer_" << layer_i << "::TEMPLATE";
                 if(layer_i < num_layers(model)-1){
-                    ss << ", Module<";
+                    ss << ", ";
                 }
             }
-            for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
-                ss << ">";
-            }
-            ss << ";\n";
+            ss << ">;\n";
             ss << ind << "    " << "    " << "using MODEL = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, layer_0::INPUT_SHAPE>;\n";
             ss << ind << "    " << "}\n";
             ss << ind << "    " << "using TYPE = model_definition::MODEL;\n";
-            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = {";
-            std::string model_stub = "TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
-            std::stringstream ss_initializer_list;
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = [](){\n";
+            ss << ind << "    " << "    TYPE m{};\n";
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list << "layer_" << inner_layer_i << "::factory<" << model_stub << "::CONTENT>";
-                if(inner_layer_i < num_layers(model)-1){
-                    ss_initializer_list << ", {";
-                }
-                model_stub += "::NEXT_MODULE";
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.content) = layer_" << inner_layer_i << "::factory<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename TYPE::SPEC::LAYER_SPECS>::type::CONTENT>;\n";
             }
-            ss_initializer_list << ", {}";
-            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list << "}";
-            }
-            ss << ss_initializer_list.str() << ";\n";
+            ss << ind << "    " << "    return m;\n";
+            ss << ind << "    " << "}();\n";
 
-            std::stringstream ss_initializer_list_create, ss_initializer_list_create_function;
-            std::string model_stub_create = "T_TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
-            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list_create << "layer_" << inner_layer_i << "::factory<typename " << model_stub_create << "::CONTENT>";
-                ss_initializer_list_create_function << "layer_" << inner_layer_i << "::factory_function<typename " << model_stub_create << "::CONTENT>()";
-                if(inner_layer_i < num_layers(model)-1){
-                    ss_initializer_list_create << ", {";
-                    ss_initializer_list_create_function << ", {";
-                }
-                model_stub_create += "::NEXT_MODULE";
-            }
-            ss_initializer_list_create << ", {}";
-            ss_initializer_list_create_function << ", {}";
-            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list_create << "}";
-                ss_initializer_list_create_function << "}";
-            }
-            std::string initializer_list = ss_initializer_list_create.str();
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = {" << initializer_list << ";" << "\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = [](){\n";
+            ss << ind << "    " << "    T_TYPE m{};\n";
+            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.content) = layer_" << inner_layer_i << "::factory<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename T_TYPE::SPEC::LAYER_SPECS>::type::CONTENT>;\n";
+            }
+            ss << ind << "    " << "    return m;\n";
+            ss << ind << "    " << "}();" << "\n";
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){return T_TYPE{" << ss_initializer_list_create_function.str() << ";" << "}\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){\n";
+            ss << ind << "    " << "    T_TYPE m{};\n";
+            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.content) = layer_" << inner_layer_i << "::factory_function<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename T_TYPE::SPEC::LAYER_SPECS>::type::CONTENT>();\n";
+            }
+            ss << ind << "    " << "    return m;\n";
+            ss << ind << "    " << "}\n";
             ss << ind << "}";
 
 

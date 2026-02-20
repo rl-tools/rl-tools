@@ -63,7 +63,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, MAIN){
 
     rlt::inference::applications::L2F<SPEC> executor;
     rlt::malloc(device, executor);
-    rlt::print(device, executor.executor.policy_state.content_state.next_content_state.state.step);
+    rlt::print(device, rlt::nn_models::sequential::content_state<1>(executor.executor.policy_state.content_state).step);
     rlt::reset(device, executor, policy, rng);
 
     rlt::inference::applications::l2f::Action<SPEC> action;

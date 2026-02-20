@@ -38,7 +38,8 @@ using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, I
 
 int main(){
     ACTOR actor;
-    ACTOR::CONTENT::Buffer<> actor_buffer;
+    using FIRST_LAYER = rlt::utils::typing::remove_reference_t<decltype(rlt::get_layer<0>(actor))>;
+    FIRST_LAYER::Buffer<> actor_buffer;
     ACTOR::Buffer<> actor_buffer_sequential;
     DEVICE device;
 
@@ -47,7 +48,7 @@ int main(){
     rlt::init(device, rng, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::INPUT_SHAPE, false>> input;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::CONTENT::OUTPUT_SHAPE, false>> intermediate_output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, FIRST_LAYER::OUTPUT_SHAPE, false>> intermediate_output;
     rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::OUTPUT_SHAPE, false>> output, output_sequential;
     rlt::malloc(device, actor);
     rlt::malloc(device, actor_buffer);
@@ -59,7 +60,8 @@ int main(){
 
     auto rng2 = rng;
     rlt::evaluate(device, actor, input, output_sequential, actor_buffer_sequential, rng);
-    rlt::evaluate(device, actor.content, input, intermediate_output, actor_buffer, rng2);
+    rlt::evaluate(device, rlt::get_layer<0>(actor), input, intermediate_output, actor_buffer, rng2);
+    rlt::evaluate(device, rlt::get_layer<1>(actor), intermediate_output, output, rlt::get_buffer<1>(actor_buffer_sequential), rng2);
 
 
     auto& sas_buffer = rlt::get_buffer<1>(actor_buffer_sequential);

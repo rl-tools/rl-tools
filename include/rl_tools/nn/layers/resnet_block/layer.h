@@ -52,8 +52,7 @@ namespace rl_tools::nn::layers::resnet_block {
         static constexpr TI OUTPUT_WIDTH = (INPUT_WIDTH + 2 - 3) / STRIDE + 1;
         static constexpr bool HAS_DOWNSAMPLE = (INPUT_CHANNELS != OUTPUT_CHANNELS) || (STRIDE != 1);
 
-        using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
-        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<BATCH_SHAPE>{});
+        static constexpr TI INTERNAL_BATCH_SIZE = tensor::shape_math::leading_product(tensor::shape_math::element_to_array<INPUT_SHAPE>(), 3);
 
         // Conv1: 3x3, stride=STRIDE, pad=1, BN + ReLU
         using CONV1_CONFIG = conv2d::Configuration<TYPE_POLICY, TI, OUTPUT_CHANNELS, 3, 3, STRIDE, STRIDE, 1, 1,
@@ -103,11 +102,15 @@ namespace rl_tools::nn::layers::resnet_block {
             static_assert(NEW_C == INPUT_CHANNELS);
             static constexpr TI NEW_OH = (NEW_H + 2 - 3) / STRIDE + 1;
             static constexpr TI NEW_OW = (NEW_W + 2 - 3) / STRIDE + 1;
-            using SHAPE = tensor::Replace<
-                tensor::Replace<
-                    tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{})-3>,
-                    NEW_OW, length(NEW_INPUT_SHAPE{})-2>,
-                OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{})-1>;
+            template <tensor::shape_math::SizeType... Is>
+            static constexpr auto shape_unpack(tensor::shape_math::IndexSequence<Is...>){
+                constexpr auto shape_array_in = tensor::shape_math::element_to_array<NEW_INPUT_SHAPE>();
+                constexpr auto shape_array_height = tensor::shape_math::compute_replace<TI, tensor::shape_math::rank<NEW_INPUT_SHAPE>()>(shape_array_in, NEW_OH, static_cast<tensor::shape_math::SizeType>(length(NEW_INPUT_SHAPE{}) - 3));
+                constexpr auto shape_array_width = tensor::shape_math::compute_replace<TI, tensor::shape_math::rank<NEW_INPUT_SHAPE>()>(shape_array_height, NEW_OW, static_cast<tensor::shape_math::SizeType>(length(NEW_INPUT_SHAPE{}) - 2));
+                constexpr auto shape_array_channels = tensor::shape_math::compute_replace<TI, tensor::shape_math::rank<NEW_INPUT_SHAPE>()>(shape_array_width, OUTPUT_CHANNELS, static_cast<tensor::shape_math::SizeType>(length(NEW_INPUT_SHAPE{}) - 1));
+                return tensor::Shape<TI, shape_array_channels.data[Is]...>{};
+            }
+            using SHAPE = decltype(shape_unpack(tensor::shape_math::MakeIndexSequence<tensor::shape_math::rank<NEW_INPUT_SHAPE>()>{}));
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
 

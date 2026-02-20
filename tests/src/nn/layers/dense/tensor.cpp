@@ -120,7 +120,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
         }
     }
     rlt::evaluate(device, model, input, output, buffer, rng);
-    rlt::evaluate(device, model.content, matrix_input, matrix_output2, buffer.content_buffer.buffer, rng);
+    rlt::evaluate(device, rlt::get_first_layer(model), matrix_input, matrix_output2, rlt::nn_models::sequential::content_buffer<0>(buffer.content_buffer), rng);
 
     T abs_diff = rlt::abs_diff(device, matrix_output, matrix_output2);
     std::cout << "abs_diff: " << abs_diff << std::endl;

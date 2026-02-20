@@ -78,11 +78,23 @@ namespace rl_tools::nn_models::sequential{
         using CONTENT = typename T_MODULE::CONTENT::template Layer<CAPABILITY, INPUT_SHAPE>;
         using OUTPUT_SHAPE = typename CONTENT::SPEC::OUTPUT_SHAPE;
         using LAYER_SPEC = LayerSpecification<CONTENT, INPUT_SHAPE, OUTPUT_SHAPE>;
-        static constexpr TI NEW_MAX = CURRENT_MAX > product(OUTPUT_SHAPE{}) ? CURRENT_MAX : product(OUTPUT_SHAPE{});
         using LAYER_SPECS = tuple_append_t<ACCUMULATOR, LAYER_SPEC>;
         using FINAL_OUTPUT_SHAPE = OUTPUT_SHAPE;
-        static constexpr TI MAX_HIDDEN_DIM = NEW_MAX;
+        static constexpr TI MAX_HIDDEN_DIM = CURRENT_MAX;
     };
+
+    template <typename TI, typename SPEC, auto INDEX = 0>
+    constexpr TI find_max_hiddend_dim(TI current_max = 0){
+        if constexpr(INDEX + 1 >= SPEC::NUM_LAYERS){
+            return current_max;
+        }
+        else{
+            using LAYER_SPEC = typename tuple_element<INDEX, typename SPEC::LAYER_SPECS>::type;
+            constexpr TI OUT_DIM = product(typename LAYER_SPEC::OUTPUT_SHAPE{});
+            TI next_max = current_max > OUT_DIM ? current_max : OUT_DIM;
+            return find_max_hiddend_dim<TI, SPEC, INDEX + 1>(next_max);
+        }
+    }
 
     template <typename T_CAPABILITY, typename T_MODULE, typename T_INPUT_SHAPE, typename T_LAYER_SPECS, typename T_OUTPUT_SHAPE, auto T_MAX_HIDDEN_DIM>
     struct Specification{
@@ -246,6 +258,18 @@ namespace rl_tools::nn_models::sequential{
     struct Module<T_FIRST, T_SECOND, T_REST...>{
         using CONTENT = T_FIRST;
         using NEXT_CARRIER_MODULE = Module<T_SECOND, T_REST...>;
+    };
+
+    template <typename T_FIRST, typename... T_NESTED>
+    struct Module<T_FIRST, Module<T_NESTED...>>{
+        using CONTENT = T_FIRST;
+        using NEXT_CARRIER_MODULE = Module<T_NESTED...>;
+    };
+
+    template <typename T_FIRST, typename... T_NESTED, typename... T_REST>
+    struct Module<T_FIRST, Module<T_NESTED...>, T_REST...>{
+        using CONTENT = T_FIRST;
+        using NEXT_CARRIER_MODULE = Module<T_NESTED..., T_REST...>;
     };
 
     template <typename CAPABILITY, typename ROOT_SPEC>
