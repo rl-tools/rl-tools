@@ -54,6 +54,14 @@ namespace rl_tools {
             return get<INDEX - 1>(static_cast<utils::Tuple<TI, Types...> &>(tuple));
         }
     }
+    template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types>
+    const auto &get(const utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
+        if constexpr (INDEX == 0) {
+            return tuple.content;
+        } else {
+            return get<INDEX - 1>(static_cast<const utils::Tuple<TI, Types...> &>(tuple));
+        }
+    }
 
     template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types, template <typename> typename F>
     auto &get(utils::MapTuple<utils::Tuple<TI, CURRENT_TYPE, Types...>, F> &tuple) {
@@ -61,6 +69,14 @@ namespace rl_tools {
             return tuple.content;
         } else {
             return get<INDEX - 1>(static_cast<utils::MapTuple<utils::Tuple<TI, Types...>, F> &>(tuple));
+        }
+    }
+    template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types, template <typename> typename F>
+    const auto &get(const utils::MapTuple<utils::Tuple<TI, CURRENT_TYPE, Types...>, F> &tuple) {
+        if constexpr (INDEX == 0) {
+            return tuple.content;
+        } else {
+            return get<INDEX - 1>(static_cast<const utils::MapTuple<utils::Tuple<TI, Types...>, F> &>(tuple));
         }
     }
 }

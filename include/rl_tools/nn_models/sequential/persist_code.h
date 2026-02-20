@@ -21,15 +21,31 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
-        auto layer_output = save_code_split(device, model.content, "layer_" + std::to_string(layer_i), const_declaration, indent+1);
+        persist::Code layer_output;
+        if(layer_i == 0){ layer_output = save_code_split(device, get_layer<0>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); }
+        if constexpr (SPEC::NUM_LAYERS > 1){ if(layer_i == 1){ layer_output = save_code_split(device, get_layer<1>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 2){ if(layer_i == 2){ layer_output = save_code_split(device, get_layer<2>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 3){ if(layer_i == 3){ layer_output = save_code_split(device, get_layer<3>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 4){ if(layer_i == 4){ layer_output = save_code_split(device, get_layer<4>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 5){ if(layer_i == 5){ layer_output = save_code_split(device, get_layer<5>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 6){ if(layer_i == 6){ layer_output = save_code_split(device, get_layer<6>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 7){ if(layer_i == 7){ layer_output = save_code_split(device, get_layer<7>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 8){ if(layer_i == 8){ layer_output = save_code_split(device, get_layer<8>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 9){ if(layer_i == 9){ layer_output = save_code_split(device, get_layer<9>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 10){ if(layer_i == 10){ layer_output = save_code_split(device, get_layer<10>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 11){ if(layer_i == 11){ layer_output = save_code_split(device, get_layer<11>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 12){ if(layer_i == 12){ layer_output = save_code_split(device, get_layer<12>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 13){ if(layer_i == 13){ layer_output = save_code_split(device, get_layer<13>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 14){ if(layer_i == 14){ layer_output = save_code_split(device, get_layer<14>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        if constexpr (SPEC::NUM_LAYERS > 15){ if(layer_i == 15){ layer_output = save_code_split(device, get_layer<15>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
         ss_header << layer_output.header;
         ss_header << "#include <rl_tools/nn_models/sequential/model.h>\n";
         if(layer_i == 0){
             ss << ind << "namespace " << name << " {\n";
         }
         ss << layer_output.body;
-        if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            auto downstream_output = save_code_split(device, model.next_module, name, const_declaration, indent, layer_i+1);
+        if(layer_i + 1 < num_layers(model)){
+            auto downstream_output = save_code_split(device, model, name, const_declaration, indent, layer_i+1);
             ss_header << downstream_output.header;
             ss << downstream_output.body;
         }
@@ -107,15 +123,19 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     std::string nn_analytics(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model, typename DEVICE::index_t layer_i = 0) {
         std::string data;
-        if(layer_i == 0){
+        if(layer_i == 0) {
             data += "{\"layers\":[";
-        }
-        data += nn_analytics(device, model.content);
-        if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            data += ", ";
-            data += nn_analytics(device, model.next_module, layer_i + 1);
-        }
-        if(layer_i == 0){
+            if constexpr(SPEC::NUM_LAYERS > 0) {
+                auto append_impl = [&](auto self, auto layer_i_const) -> void {
+                    constexpr auto I = decltype(layer_i_const)::value;
+                    data += nn_analytics(device, get_layer<I>(model));
+                    if constexpr(I + 1 < SPEC::NUM_LAYERS) {
+                        data += ", ";
+                        self(self, utils::typing::integral_constant<decltype(I + 1), I + 1>{});
+                    }
+                };
+                append_impl(append_impl, utils::typing::integral_constant<int, 0>{});
+            }
             data += "]}";
         }
         return data;
