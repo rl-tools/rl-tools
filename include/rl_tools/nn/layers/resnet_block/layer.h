@@ -105,9 +105,9 @@ namespace rl_tools::nn::layers::resnet_block {
             static constexpr TI NEW_OW = (NEW_W + 2 - 3) / STRIDE + 1;
             using SHAPE = tensor::Replace<
                 tensor::Replace<
-                    tensor::Replace<NEW_INPUT_SHAPE, OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{})-1>,
+                    tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{})-3>,
                     NEW_OW, length(NEW_INPUT_SHAPE{})-2>,
-                NEW_OH, length(NEW_INPUT_SHAPE{})-3>;
+                OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{})-1>;
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
 

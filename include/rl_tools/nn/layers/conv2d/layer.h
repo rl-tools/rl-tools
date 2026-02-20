@@ -142,9 +142,9 @@ namespace rl_tools::nn::layers::conv2d {
             static constexpr TI NEW_OW = (NEW_W + 2 * CONFIG::PADDING_W - CONFIG::KERNEL_WIDTH) / CONFIG::STRIDE_W + 1;
             using SHAPE = tensor::Replace<
                 tensor::Replace<
-                    tensor::Replace<NEW_INPUT_SHAPE, CONFIG::OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{})-1>,
+                    tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{})-3>,
                     NEW_OW, length(NEW_INPUT_SHAPE{})-2>,
-                NEW_OH, length(NEW_INPUT_SHAPE{})-3>;
+                CONFIG::OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{})-1>;
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
         using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;

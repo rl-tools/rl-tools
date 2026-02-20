@@ -137,71 +137,223 @@ namespace rl_tools{
         }
     }
     namespace tensor {
-        template<typename ELEMENT, auto NEW_ELEMENT> // since the last Element is a dummy element containing 0, we need to insert the new element once the NEXT_ELEMENT is the FinalElement
-        struct Append: Element<
-                typename ELEMENT::TI,
-                !utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement> ? ELEMENT::VALUE : NEW_ELEMENT,
-        utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
-        Append<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT>,
-        Element<typename ELEMENT::TI, 0, FinalElement>
-        >>{};
-        template<typename ELEMENT, auto NEW_ELEMENT> // since the last Element is a dummy element containing 0, we need to insert the new element once the NEXT_ELEMENT is the FinalElement
-        struct Prepend: Element<typename ELEMENT::TI, NEW_ELEMENT, ELEMENT>{};
+        namespace shape_math {
+            using SizeType = decltype(sizeof(0));
 
-        template<typename ELEMENT>
-        struct PopFront: ELEMENT::NEXT_ELEMENT{
-            static_assert(length(ELEMENT{}) > 0);
-        };
+            template <typename T, SizeType N>
+            struct ConstexprArray {
+                T data[N > 0 ? N : 1];
+            };
 
-        template<typename ELEMENT>
-        struct PopBack: utils::typing::conditional_t<
-                utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT, FinalElement>,
-                typename ELEMENT::NEXT_ELEMENT,
-                Element<typename ELEMENT::TI, ELEMENT::VALUE, PopBack<typename ELEMENT::NEXT_ELEMENT>>
-        >{
-            static_assert(length(ELEMENT{}) > 0);
-        };
+            template <SizeType... Is>
+            struct IndexSequence {};
+
+            template <SizeType N, SizeType... Is>
+            struct MakeIndexSequenceImpl : MakeIndexSequenceImpl<N - 1, N - 1, Is...> {};
+
+            template <SizeType... Is>
+            struct MakeIndexSequenceImpl<0, Is...> {
+                using type = IndexSequence<Is...>;
+            };
+
+            template <SizeType N>
+            using MakeIndexSequence = typename MakeIndexSequenceImpl<N>::type;
+
+            template <typename ELEMENT>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr SizeType rank() {
+                return static_cast<SizeType>(length(ELEMENT{}));
+            }
+
+            template <typename ELEMENT, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto element_to_array_unpack(IndexSequence<Is...>) {
+                using TI = typename ELEMENT::TI;
+                return ConstexprArray<TI, sizeof...(Is)>{{get<static_cast<TI>(Is)>(ELEMENT{})...}};
+            }
+
+            template <typename ELEMENT>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto element_to_array() {
+                return element_to_array_unpack<ELEMENT>(MakeIndexSequence<rank<ELEMENT>()>{});
+            }
+
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_append(ConstexprArray<TI, N> in, TI new_element) {
+                ConstexprArray<TI, N + 1> out{};
+                for (SizeType i = 0; i < N; ++i) {
+                    out.data[i] = in.data[i];
+                }
+                out.data[N] = new_element;
+                return out;
+            }
+
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_prepend(ConstexprArray<TI, N> in, TI new_element) {
+                ConstexprArray<TI, N + 1> out{};
+                out.data[0] = new_element;
+                for (SizeType i = 0; i < N; ++i) {
+                    out.data[i + 1] = in.data[i];
+                }
+                return out;
+            }
+
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_pop_front(ConstexprArray<TI, N> in) {
+                ConstexprArray<TI, N - 1> out{};
+                for (SizeType i = 1; i < N; ++i) {
+                    out.data[i - 1] = in.data[i];
+                }
+                return out;
+            }
+
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_pop_back(ConstexprArray<TI, N> in) {
+                ConstexprArray<TI, N - 1> out{};
+                for (SizeType i = 0; i + 1 < N; ++i) {
+                    out.data[i] = in.data[i];
+                }
+                return out;
+            }
+
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_cumulative_product(ConstexprArray<TI, N> in) {
+                ConstexprArray<TI, N> out{};
+                if constexpr (N > 0) {
+                    out.data[N - 1] = in.data[N - 1];
+                    for (SizeType i = N - 1; i > 0; --i) {
+                        out.data[i - 1] = out.data[i] * in.data[i - 1];
+                    }
+                }
+                return out;
+            }
+
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_replace(ConstexprArray<TI, N> in, TI new_element, SizeType offset) {
+                in.data[offset] = new_element;
+                return in;
+            }
+
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_insert(ConstexprArray<TI, N> in, TI new_element, SizeType offset) {
+                ConstexprArray<TI, N + 1> out{};
+                for (SizeType i = 0; i < offset; ++i) {
+                    out.data[i] = in.data[i];
+                }
+                out.data[offset] = new_element;
+                for (SizeType i = offset; i < N; ++i) {
+                    out.data[i + 1] = in.data[i];
+                }
+                return out;
+            }
+
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_remove(ConstexprArray<TI, N> in, SizeType offset) {
+                ConstexprArray<TI, N - 1> out{};
+                for (SizeType i = 0; i < offset; ++i) {
+                    out.data[i] = in.data[i];
+                }
+                for (SizeType i = offset + 1; i < N; ++i) {
+                    out.data[i - 1] = in.data[i];
+                }
+                return out;
+            }
+
+            template <typename ELEMENT, auto NEW_ELEMENT, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto append_unpack(IndexSequence<Is...>) {
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                constexpr auto out = compute_append<TI, rank<ELEMENT>()>(in, static_cast<TI>(NEW_ELEMENT));
+                return Shape<TI, out.data[Is]...>{};
+            }
+
+            template <typename ELEMENT, auto NEW_ELEMENT, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto prepend_unpack(IndexSequence<Is...>) {
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                constexpr auto out = compute_prepend<TI, rank<ELEMENT>()>(in, static_cast<TI>(NEW_ELEMENT));
+                return Shape<TI, out.data[Is]...>{};
+            }
+
+            template <typename ELEMENT, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto pop_front_unpack(IndexSequence<Is...>) {
+                static_assert(rank<ELEMENT>() > 0, "PopFront requires rank > 0");
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                constexpr auto out = compute_pop_front<TI, rank<ELEMENT>()>(in);
+                return Shape<TI, out.data[Is]...>{};
+            }
+
+            template <typename ELEMENT, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto pop_back_unpack(IndexSequence<Is...>) {
+                static_assert(rank<ELEMENT>() > 0, "PopBack requires rank > 0");
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                constexpr auto out = compute_pop_back<TI, rank<ELEMENT>()>(in);
+                return Shape<TI, out.data[Is]...>{};
+            }
+
+            template <typename ELEMENT, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto cumulative_product_unpack(IndexSequence<Is...>) {
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                constexpr auto out = compute_cumulative_product<TI, rank<ELEMENT>()>(in);
+                return Shape<TI, out.data[Is]...>{};
+            }
+
+            template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto replace_unpack(IndexSequence<Is...>) {
+                static_assert(rank<ELEMENT>() > 0, "Replace requires rank > 0");
+                static_assert(NEW_ELEMENT_OFFSET < rank<ELEMENT>(), "Replace index out of bounds");
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                constexpr auto out = compute_replace<TI, rank<ELEMENT>()>(in, static_cast<TI>(NEW_ELEMENT), static_cast<SizeType>(NEW_ELEMENT_OFFSET));
+                return Shape<TI, out.data[Is]...>{};
+            }
+
+            template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto insert_unpack(IndexSequence<Is...>) {
+                static_assert(NEW_ELEMENT_OFFSET <= rank<ELEMENT>(), "Insert index out of bounds");
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                constexpr auto out = compute_insert<TI, rank<ELEMENT>()>(in, static_cast<TI>(NEW_ELEMENT), static_cast<SizeType>(NEW_ELEMENT_OFFSET));
+                return Shape<TI, out.data[Is]...>{};
+            }
+
+            template <typename ELEMENT, auto ELEMENT_OFFSET, SizeType... Is>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr auto remove_unpack(IndexSequence<Is...>) {
+                static_assert(rank<ELEMENT>() > 0, "Remove requires rank > 0");
+                static_assert(ELEMENT_OFFSET < rank<ELEMENT>(), "Remove index out of bounds");
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                constexpr auto out = compute_remove<TI, rank<ELEMENT>()>(in, static_cast<SizeType>(ELEMENT_OFFSET));
+                return Shape<TI, out.data[Is]...>{};
+            }
+        }
+
+        template <typename ELEMENT, auto NEW_ELEMENT>
+        using Append = decltype(shape_math::append_unpack<ELEMENT, NEW_ELEMENT>(shape_math::MakeIndexSequence<shape_math::rank<ELEMENT>() + 1>{}));
+
+        template <typename ELEMENT, auto NEW_ELEMENT>
+        using Prepend = decltype(shape_math::prepend_unpack<ELEMENT, NEW_ELEMENT>(shape_math::MakeIndexSequence<shape_math::rank<ELEMENT>() + 1>{}));
 
         template <typename ELEMENT>
-        struct CumulativeProduct: Element< // e.g. (2, 3, 4) -> (24, 12, 4)
-                typename ELEMENT::TI,
-                product(ELEMENT{}),
-                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
-                        CumulativeProduct<typename ELEMENT::NEXT_ELEMENT>,
-                        FinalElement
-        >>{};
-        template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
-        struct Replace: Element<
-                typename ELEMENT::TI,
-                NEW_ELEMENT_OFFSET == 0 ? NEW_ELEMENT : ELEMENT::VALUE,
-                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
-                        Replace<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET-1>,
-                        FinalElement
-                >>{
-        };
+        using PopFront = decltype(shape_math::pop_front_unpack<ELEMENT>(shape_math::MakeIndexSequence<(shape_math::rank<ELEMENT>() > 0 ? shape_math::rank<ELEMENT>() - 1 : 0)>{}));
+
+        template <typename ELEMENT>
+        using PopBack = decltype(shape_math::pop_back_unpack<ELEMENT>(shape_math::MakeIndexSequence<(shape_math::rank<ELEMENT>() > 0 ? shape_math::rank<ELEMENT>() - 1 : 0)>{}));
+
+        template <typename ELEMENT>
+        using CumulativeProduct = decltype(shape_math::cumulative_product_unpack<ELEMENT>(shape_math::MakeIndexSequence<shape_math::rank<ELEMENT>()>{}));
 
         template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
-        struct Insert: utils::typing::conditional_t<NEW_ELEMENT_OFFSET == 0,
-                Element<typename ELEMENT::TI, NEW_ELEMENT, ELEMENT>,//Element<typename ELEMENT::TI, ELEMENT::VALUE, typename ELEMENT::NEXT_ELEMENT>>,
-                Element<typename ELEMENT::TI, ELEMENT::VALUE,
-                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
-                Insert<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET-1>,
-                FinalElement
-                >>>{
-        };
+        using Replace = decltype(shape_math::replace_unpack<ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET>(shape_math::MakeIndexSequence<shape_math::rank<ELEMENT>()>{}));
+
+        template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
+        using Insert = decltype(shape_math::insert_unpack<ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET>(shape_math::MakeIndexSequence<shape_math::rank<ELEMENT>() + 1>{}));
 
         template <typename SHAPE, auto COMPARISON>
         constexpr bool RANK_LARGER_THAN = length(SHAPE{}) > COMPARISON;
 
-        template <typename ELEMENT, auto ELEMENT_OFFSET> //, typename utils::typing::enable_if_t<tensor::RANK_LARGER_THAN<ELEMENT, ELEMENT_OFFSET>, void>* = nullptr>
-        struct Remove: utils::typing::conditional_t<ELEMENT_OFFSET == 0,
-                typename ELEMENT::NEXT_ELEMENT,
-                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
-                        Element<typename ELEMENT::TI, ELEMENT::VALUE, Remove<typename ELEMENT::NEXT_ELEMENT, ELEMENT_OFFSET-1>>,
-                        FinalElement
-                >>{
-            static_assert(length(ELEMENT{}) > ELEMENT_OFFSET);
-        };
+        template <typename ELEMENT, auto ELEMENT_OFFSET>
+        using Remove = decltype(shape_math::remove_unpack<ELEMENT, ELEMENT_OFFSET>(shape_math::MakeIndexSequence<(shape_math::rank<ELEMENT>() > 0 ? shape_math::rank<ELEMENT>() - 1 : 0)>{}));
 
         template <typename SHAPE>
         using RowMajorStride = Append<PopFront<CumulativeProduct<SHAPE>>, 1>;

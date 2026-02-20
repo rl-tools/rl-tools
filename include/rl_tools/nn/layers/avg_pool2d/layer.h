@@ -39,7 +39,7 @@ namespace rl_tools::nn::layers::avg_pool2d {
             static_assert(length(NEW_INPUT_SHAPE{}) >= 4);
             static constexpr TI NEW_C = get_last(NEW_INPUT_SHAPE{});
             static_assert(NEW_C == INPUT_CHANNELS);
-            // Pop C, W, H from the back to get batch dims, then append C
+            // Pop C, W, H from the back to get batch dims, then append C.
             using NEW_BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<NEW_INPUT_SHAPE>>>;
             using SHAPE = tensor::Append<NEW_BATCH_SHAPE, NEW_C>;
         };
