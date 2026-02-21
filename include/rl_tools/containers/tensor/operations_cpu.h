@@ -57,20 +57,23 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEV_SPEC, typename TI, TI VALUE, typename NEXT_ELEMENT >
-    void print(devices::CPU<DEV_SPEC>& device, tensor::Element<TI, VALUE, NEXT_ELEMENT>, typename DEV_SPEC::index_t level=0, bool python_literal=false){
-        using ELEMENT = tensor::Element<TI, VALUE, NEXT_ELEMENT>;
+    template<typename DEV_SPEC, typename TI, TI... VALUES>
+    void print(devices::CPU<DEV_SPEC>& device, tensor::Tuple<TI, VALUES...>, typename DEV_SPEC::index_t level=0, bool python_literal=false){
+        (void)device;
+        (void)python_literal;
+        (void)level;
         if(level == 0){
             std::cout << "[";
         }
-        if constexpr(utils::typing::is_same_v<typename NEXT_ELEMENT::NEXT_ELEMENT, tensor::FinalElement>){
-            std::cout << VALUE << "]";
+        constexpr TI values[] = {VALUES...};
+        for(TI i = 0; i < static_cast<TI>(sizeof...(VALUES)); ++i){
+            if(i > 0){
+                std::cout << ", ";
+            }
+            std::cout << values[i];
         }
-        else{
-            std::cout << VALUE << ", ";
-            print(device, NEXT_ELEMENT{}, level+1, python_literal);
-        }
-        if (level==0){
+        std::cout << "]";
+        if(level == 0){
             std::cout << std::endl;
         }
     }

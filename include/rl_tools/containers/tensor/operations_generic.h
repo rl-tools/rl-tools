@@ -1119,7 +1119,7 @@ namespace rl_tools{
     namespace tensor::reshape_row_major_detail{
         template <typename ELEMENT>
         struct IsEmpty{
-            static constexpr bool VALUE = utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, tensor::FinalElement>;
+            static constexpr bool VALUE = length(ELEMENT{}) == 0;
         };
         template <typename ELEMENT, typename EMPTY, bool SINGLE = (length(ELEMENT{}) <= 1)>
         struct PopBackSafe;
@@ -1131,15 +1131,15 @@ namespace rl_tools{
         struct PopBackSafe<ELEMENT, EMPTY, false>{
             using TYPE = tensor::PopBack<ELEMENT>;
         };
-        template <typename LEFT, typename RIGHT, bool END = utils::typing::is_same_v<typename LEFT::NEXT_ELEMENT, tensor::FinalElement>>
+        template <typename LEFT, typename RIGHT>
         struct ConcatImpl;
-        template <typename LEFT, typename RIGHT>
-        struct ConcatImpl<LEFT, RIGHT, true>{
-            using TYPE = RIGHT;
+        template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
+        struct ConcatImpl<tensor::Tuple<TI, LEFT_VALUES...>, tensor::Tuple<TI, RIGHT_VALUES...>>{
+            using TYPE = tensor::Tuple<TI, LEFT_VALUES..., RIGHT_VALUES...>;
         };
-        template <typename LEFT, typename RIGHT>
-        struct ConcatImpl<LEFT, RIGHT, false>{
-            using TYPE = tensor::Element<typename LEFT::TI, LEFT::VALUE, typename ConcatImpl<typename LEFT::NEXT_ELEMENT, RIGHT>::TYPE>;
+        template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
+        struct ConcatImpl<tensor::Stride<TI, LEFT_VALUES...>, tensor::Stride<TI, RIGHT_VALUES...>>{
+            using TYPE = tensor::Stride<TI, LEFT_VALUES..., RIGHT_VALUES...>;
         };
         template <typename LEFT, typename RIGHT>
         using Concat = typename ConcatImpl<LEFT, RIGHT>::TYPE;

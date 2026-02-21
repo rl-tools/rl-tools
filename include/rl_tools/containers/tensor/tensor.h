@@ -6,70 +6,39 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace tensor{
-        struct FinalElement{
-            static constexpr auto LENGTH = 0;
-            static constexpr auto FIRST = 0;
-            static constexpr auto LAST = 0;
-            template <auto N>
-            struct GET {
-                static_assert(N == 0, "Index out of bounds in FinalElement");
-            };
-        };
-        template <typename TI, typename ELEMENT, TI N>
-        struct GET_IMPL {
-            static constexpr TI VALUE() {
-                if constexpr (N == 0) {
-                    return ELEMENT::VALUE;
-                } else {
-                    static_assert(!utils::typing::is_same_v<ELEMENT, FinalElement>, "Index out of bounds in GET_IMPL");
-                    return GET_IMPL<TI, typename ELEMENT::NEXT_ELEMENT, N - 1>::VALUE();
-                }
-            }
-        };
-        
-        template <typename TI, TI N>
-        struct GET_IMPL<TI, FinalElement, N> {
-            static constexpr TI VALUE() {
-                static_assert(N == 0, "Index out of bounds accessing FinalElement");
-                return 0;
-            }
-        };
-
-        template <typename T_TI, T_TI T_VALUE, typename T_NEXT_ELEMENT>
-        struct Element{
+        template <typename T_TI, T_TI... T_VALUES>
+        struct Tuple{
             using TI = T_TI;
-            static constexpr TI VALUE = T_VALUE;
-    //            static constexpr bool FINAL_ELEMENT = utils::typing::is_same_v<T_NEXT_ELEMENT, FinalElement>;
-            using NEXT_ELEMENT = T_NEXT_ELEMENT;
-
-            static constexpr bool NEXT_IS_FINAL = utils::typing::is_same_v<T_NEXT_ELEMENT, FinalElement>;
-            static constexpr TI LENGTH = (NEXT_IS_FINAL ? 0 : 1) + NEXT_ELEMENT::LENGTH;
-
-
+            static constexpr TI LENGTH = sizeof...(T_VALUES);
             template <TI N>
-            static constexpr TI GET = GET_IMPL<TI, Element<T_TI, T_VALUE, T_NEXT_ELEMENT>, N>::VALUE();
+            static constexpr TI GET = [](){
+                static_assert(N < LENGTH, "Index out of bounds in Tuple::GET");
+                if constexpr(LENGTH == 0){
+                    return static_cast<TI>(0);
+                }
+                else{
+                    constexpr TI values[] = {T_VALUES...};
+                    return values[N];
+                }
+            }();
 
+            static constexpr TI VALUE = [](){
+                if constexpr(LENGTH == 0){
+                    return static_cast<TI>(0);
+                }
+                else{
+                    return GET<0>;
+                }
+            }();
             static constexpr TI FIRST = VALUE;
-            static constexpr TI _compute_last(){
-                if constexpr (LENGTH == 0){
-                    return 0;
+            static constexpr TI LAST = [](){
+                if constexpr(LENGTH == 0){
+                    return static_cast<TI>(0);
                 }
                 else{
                     return GET<LENGTH-1>;
                 }
-            }
-            static constexpr TI LAST = _compute_last();
-        };
-
-
-        template <typename T_TI, T_TI... T_VALUES>
-        struct Tuple: Element<T_TI, 0, FinalElement>{
-        };
-
-        template <typename T_TI, T_TI T_VALUE, T_TI... T_VALUES>
-        struct Tuple<T_TI, T_VALUE, T_VALUES...>: Element<T_TI, T_VALUE, Tuple<T_TI, T_VALUES...>>{
-            using TI = T_TI;
-            static constexpr TI VALUE = T_VALUE;
+            }();
         };
 
         template <typename TI, TI... T_DIMS>
@@ -81,60 +50,36 @@ namespace rl_tools{
         };
 
     }
-    template <typename TI, TI VALUE, typename NEXT_ELEMENT>
-    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr length(tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI current_length=0){
-        if constexpr(utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
-            return current_length;
-        }
-        else{
-            return length(NEXT_ELEMENT{}, current_length+1);
-        }
+    template <typename TI, TI... VALUES>
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr length(tensor::Tuple<TI, VALUES...>, TI current_length=0){
+        return static_cast<TI>(sizeof...(VALUES)) + current_length;
     }
-    template <typename TI, TI VALUE, typename NEXT_ELEMENT>
-    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr product(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
-        if constexpr(utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
-            return 1;
-        }
-        else{
-            return VALUE * product(NEXT_ELEMENT{});
-        }
+    template <typename TI, TI... VALUES>
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr product(tensor::Tuple<TI, VALUES...>){
+        return (static_cast<TI>(1) * ... * VALUES);
     }
-    template <auto TARGET_INDEX_INPUT, typename TI, TI VALUE, typename NEXT_ELEMENT>
-    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr get(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
+    template <auto TARGET_INDEX_INPUT, typename TI, TI... VALUES>
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr get(tensor::Tuple<TI, VALUES...>){
         constexpr TI TARGET_INDEX = TARGET_INDEX_INPUT;
-    //        constexpr bool LAST_ELEMENT = utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>;
-        static_assert(TARGET_INDEX <= length(NEXT_ELEMENT{}), "Index out of bounds");
-        if constexpr(TARGET_INDEX == 0){
-            return VALUE;
+        static_assert(TARGET_INDEX >= 0, "Index out of bounds");
+        static_assert(TARGET_INDEX < static_cast<TI>(sizeof...(VALUES)), "Index out of bounds");
+        return tensor::Tuple<TI, VALUES...>::template GET<TARGET_INDEX>;
+    }
+    template <typename DEVICE, typename TI, TI... VALUES>
+    RL_TOOLS_FUNCTION_PLACEMENT TI get(DEVICE& device, const tensor::Tuple<TI, VALUES...>, TI index){
+        utils::assert_exit(device, index >= 0 && index < static_cast<TI>(sizeof...(VALUES)), "Index out of bounds");
+        if constexpr(sizeof...(VALUES) == 0){
+            return static_cast<TI>(0);
         }
         else{
-            return get<TARGET_INDEX_INPUT-1>(NEXT_ELEMENT{});
+            constexpr TI values[] = {VALUES...};
+            return values[index];
         }
     }
-    template <typename DEVICE, typename TI, TI VALUE, typename NEXT_ELEMENT>
-    RL_TOOLS_FUNCTION_PLACEMENT TI get(DEVICE& device, const tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI index){
-        utils::assert_exit(device, index < length(tensor::Element<TI, VALUE, NEXT_ELEMENT>{}), "Index out of bounds");
-        if constexpr (utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
-            return VALUE;
-        }
-        else{
-            if(index == 0){
-                return VALUE;
-            }
-            else{
-                return get(device, NEXT_ELEMENT{}, index-1);
-            }
-        }
-    }
-    template <typename TI, TI VALUE, typename NEXT_ELEMENT>
-    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr get_last(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
-        constexpr TI TARGET_INDEX = length(tensor::Element<TI, VALUE, NEXT_ELEMENT>{}) - 1;
-        if constexpr(TARGET_INDEX == 0){
-            return VALUE;
-        }
-        else{
-            return get<TARGET_INDEX-1>(NEXT_ELEMENT{});
-        }
+    template <typename TI, TI... VALUES>
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr get_last(tensor::Tuple<TI, VALUES...>){
+        static_assert(sizeof...(VALUES) > 0, "Cannot get last element of empty Tuple");
+        return get<static_cast<TI>(sizeof...(VALUES) - 1)>(tensor::Tuple<TI, VALUES...>{});
     }
     namespace tensor {
         namespace shape_math {

@@ -149,7 +149,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SHAPE_OPERATIONS2){
     }
     {
         using SHAPE = rlt::tensor::Shape<TI, 2>;
-        static_assert(rlt::utils::typing::is_same_v<SHAPE::NEXT_ELEMENT::NEXT_ELEMENT, rlt::tensor::FinalElement>);
+        static_assert(rlt::length(SHAPE{}) == 1);
         using POP = rlt::tensor::PopFront<SHAPE>;
         using POP_BACK = rlt::tensor::PopBack<SHAPE>;
         static_assert(rlt::length(POP{}) == 0);
@@ -494,7 +494,7 @@ TEST(RL_TOOLS_TENSOR_TEST, COMPARE_DIMS) {
         using SHAPE2 = rlt::tensor::Shape<TI, 20, 30, 40>;
         using SHAPE3 = rlt::tensor::Shape<TI, 10, 31, 41>;
         static_assert(rlt::length(rlt::tensor::PopFront<rlt::tensor::PopFront<rlt::tensor::PopFront<SHAPE1>>>{}) == 0);
-        static_assert(rlt::utils::typing::is_same_v<SHAPE1::NEXT_ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT, rlt::tensor::FinalElement>);
+        static_assert(rlt::length(SHAPE1{}) == 3);
         static_assert(rlt::tensor::same_dimensions_shape<SHAPE1, SHAPE2>());
         static_assert(!rlt::tensor::same_dimensions_shape<SHAPE1, SHAPE3>());
     }
@@ -1138,9 +1138,8 @@ TEST(RL_TOOLS_TENSOR_TEST, SHAPE_GETTER){
     {
         using SHAPE = rlt::tensor::Shape<TI, 10, 5, 3>;
         ASSERT_EQ(SHAPE::VALUE, 10);
-        ASSERT_EQ(SHAPE::NEXT_ELEMENT::VALUE, 5);
-        ASSERT_EQ(SHAPE::NEXT_ELEMENT::NEXT_ELEMENT::VALUE, 3);
-        ASSERT_EQ(SHAPE::NEXT_ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT::VALUE, 0);
+        ASSERT_EQ(SHAPE::GET<1>, 5);
+        ASSERT_EQ(SHAPE::GET<2>, 3);
         ASSERT_EQ(SHAPE::GET<0>, 10);
         ASSERT_EQ(SHAPE::GET<1>, 5);
         ASSERT_EQ(SHAPE::GET<2>, 3);
