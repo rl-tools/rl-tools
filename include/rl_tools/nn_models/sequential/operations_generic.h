@@ -118,8 +118,10 @@ namespace rl_tools{
         template <auto LAYER_I = 0, typename TARGET_SPEC, typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE>
         RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic_layers(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, ModuleForward<TARGET_SPEC>& target){
             if constexpr(LAYER_I < TARGET_SPEC::NUM_LAYERS){
-                copy_from_generic(source_device, target_device, layer<LAYER_I>(source), layer<LAYER_I>(target));
-                copy_from_generic_layers<LAYER_I + 1>(source_device, target_device, source, target);
+                copy_from_generic(source_device, target_device, source.content, layer<LAYER_I>(target));
+                if constexpr(LAYER_I + 1 < TARGET_SPEC::NUM_LAYERS){
+                    copy_from_generic_layers<LAYER_I + 1>(source_device, target_device, source.next_module, target);
+                }
             }
         }
 

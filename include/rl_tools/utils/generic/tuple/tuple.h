@@ -3,6 +3,10 @@
 #pragma once
 #define RL_TOOLS_UTILS_GENERIC_TUPLE_TUPLE_H
 
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_FUNCTION_PLACEMENT
+#endif
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace utils{
@@ -37,17 +41,17 @@ namespace rl_tools {
         };
     }
     template<typename TI>
-    constexpr TI length(utils::Tuple<TI> &tuple) {
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr TI length(utils::Tuple<TI> &tuple) {
         return 1;
     }
 
     template<typename TI, typename CURRENT_TYPE, typename... Types>
-    constexpr TI length(utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr TI length(utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
         return 1 + length(static_cast<utils::Tuple<TI, Types...> &>(tuple));
     }
 
     template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types>
-    constexpr auto &get(utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto &get(utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
         if constexpr (INDEX == 0) {
             return tuple.content;
         } else {
@@ -55,7 +59,7 @@ namespace rl_tools {
         }
     }
     template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types>
-    constexpr const auto &get(const utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr const auto &get(const utils::Tuple<TI, CURRENT_TYPE, Types...> &tuple) {
         if constexpr (INDEX == 0) {
             return tuple.content;
         } else {
@@ -64,7 +68,7 @@ namespace rl_tools {
     }
 
     template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types, template <typename> typename F>
-    constexpr auto &get(utils::MapTuple<utils::Tuple<TI, CURRENT_TYPE, Types...>, F> &tuple) {
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto &get(utils::MapTuple<utils::Tuple<TI, CURRENT_TYPE, Types...>, F> &tuple) {
         if constexpr (INDEX == 0) {
             return tuple.content;
         } else {
@@ -72,7 +76,7 @@ namespace rl_tools {
         }
     }
     template<auto INDEX, typename TI, typename CURRENT_TYPE, typename... Types, template <typename> typename F>
-    constexpr const auto &get(const utils::MapTuple<utils::Tuple<TI, CURRENT_TYPE, Types...>, F> &tuple) {
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr const auto &get(const utils::MapTuple<utils::Tuple<TI, CURRENT_TYPE, Types...>, F> &tuple) {
         if constexpr (INDEX == 0) {
             return tuple.content;
         } else {

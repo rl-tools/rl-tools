@@ -48,14 +48,23 @@ namespace rl_tools::nn_models::sequential{
     template <auto INDEX, typename TUPLE>
     struct tuple_element;
 
-    template <auto INDEX, typename TI, typename CURRENT, typename... REST>
-    struct tuple_element<INDEX, utils::Tuple<TI, CURRENT, REST...>> {
-        using type = typename tuple_element<INDEX - 1, utils::Tuple<TI, REST...>>::type;
+    template <typename TI, TI INDEX, typename TUPLE, bool DONE = (INDEX == 0)>
+    struct tuple_element_typed;
+
+    template <typename TI, TI INDEX, typename CURRENT, typename... REST>
+    struct tuple_element_typed<TI, INDEX, utils::Tuple<TI, CURRENT, REST...>, false> {
+        using type = typename tuple_element_typed<TI, INDEX - 1, utils::Tuple<TI, REST...>>::type;
     };
 
-    template <typename TI, typename CURRENT, typename... REST>
-    struct tuple_element<0, utils::Tuple<TI, CURRENT, REST...>> {
+    template <typename TI, TI INDEX, typename CURRENT, typename... REST>
+    struct tuple_element_typed<TI, INDEX, utils::Tuple<TI, CURRENT, REST...>, true> {
         using type = CURRENT;
+    };
+
+    template <auto INDEX, typename TI, typename... TYPES>
+    struct tuple_element<INDEX, utils::Tuple<TI, TYPES...>> {
+        static_assert(static_cast<TI>(INDEX) < sizeof...(TYPES), "tuple_element index out of bounds");
+        using type = typename tuple_element_typed<TI, static_cast<TI>(INDEX), utils::Tuple<TI, TYPES...>>::type;
     };
 
     template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX, bool IS_FINAL = utils::typing::is_same_v<typename T_MODULE::NEXT_CARRIER_MODULE, OutputModule>>
