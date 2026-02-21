@@ -1137,7 +1137,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SHAPE_GETTER){
     rlt::init(device, rng, 1);
     {
         using SHAPE = rlt::tensor::Shape<TI, 10, 5, 3>;
-        ASSERT_EQ(SHAPE::VALUE, 10);
+        ASSERT_EQ(SHAPE::FIRST, 10);
         ASSERT_EQ(SHAPE::GET<1>, 5);
         ASSERT_EQ(SHAPE::GET<2>, 3);
         ASSERT_EQ(SHAPE::GET<0>, 10);

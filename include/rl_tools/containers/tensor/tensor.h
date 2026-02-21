@@ -22,7 +22,7 @@ namespace rl_tools{
                 }
             }();
 
-            static constexpr TI VALUE = [](){
+            static constexpr TI FIRST = [](){
                 if constexpr(LENGTH == 0){
                     return static_cast<TI>(0);
                 }
@@ -30,7 +30,6 @@ namespace rl_tools{
                     return GET<0>;
                 }
             }();
-            static constexpr TI FIRST = VALUE;
             static constexpr TI LAST = [](){
                 if constexpr(LENGTH == 0){
                     return static_cast<TI>(0);
@@ -377,7 +376,7 @@ namespace rl_tools{
             else{
                 using NEXT_A = PopFront<A>;
                 using NEXT_B = PopFront<B>;
-                return (A::VALUE == B::VALUE) && same_dimensions_shape<NEXT_A, NEXT_B>();
+                return (A::FIRST == B::FIRST) && same_dimensions_shape<NEXT_A, NEXT_B>();
             }
         }
         template <typename SPEC_A, typename SPEC_B>
@@ -402,7 +401,7 @@ namespace rl_tools{
                 else{
                     using NEXT_SHAPE = PopFront<SHAPE>;
                     using NEXT_STRIDE = PopFront<STRIDE>;
-                    return (STRIDE::VALUE == NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST || ((SHAPE::FIRST == 1) && (STRIDE::VALUE >= NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST))) && _dense_row_major_layout_shape<NEXT_SHAPE, NEXT_STRIDE, RELAX_MAJOR>();
+                    return (STRIDE::FIRST == NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST || ((SHAPE::FIRST == 1) && (STRIDE::FIRST >= NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST))) && _dense_row_major_layout_shape<NEXT_SHAPE, NEXT_STRIDE, RELAX_MAJOR>();
                 }
             }
         }
