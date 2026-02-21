@@ -27,7 +27,8 @@ namespace rl_tools{
                     return static_cast<TI>(0);
                 }
                 else{
-                    return GET<0>;
+                    constexpr TI values[] = {T_VALUES...};
+                    return values[0];
                 }
             }();
             static constexpr TI LAST = [](){
@@ -35,7 +36,8 @@ namespace rl_tools{
                     return static_cast<TI>(0);
                 }
                 else{
-                    return GET<LENGTH-1>;
+                    constexpr TI values[] = {T_VALUES...};
+                    return values[LENGTH - 1];
                 }
             }();
         };
@@ -50,8 +52,8 @@ namespace rl_tools{
 
     }
     template <typename TI, TI... VALUES>
-    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr length(tensor::Tuple<TI, VALUES...>, TI current_length=0){
-        return static_cast<TI>(sizeof...(VALUES)) + current_length;
+    RL_TOOLS_FUNCTION_PLACEMENT TI constexpr length(tensor::Tuple<TI, VALUES...>){
+        return static_cast<TI>(sizeof...(VALUES));
     }
     template <typename TI, TI... VALUES>
     RL_TOOLS_FUNCTION_PLACEMENT TI constexpr product(tensor::Tuple<TI, VALUES...>){
@@ -310,9 +312,6 @@ namespace rl_tools{
         template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
         using Insert = decltype(shape_math::insert_unpack<ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET>(shape_math::MakeIndexSequence<shape_math::rank<ELEMENT>() + 1>{}));
 
-        template <typename SHAPE, auto COMPARISON>
-        constexpr bool RANK_LARGER_THAN = length(SHAPE{}) > COMPARISON;
-
         template <typename ELEMENT, auto ELEMENT_OFFSET>
         using Remove = decltype(shape_math::remove_unpack<ELEMENT, ELEMENT_OFFSET>(shape_math::MakeIndexSequence<(shape_math::rank<ELEMENT>() > 0 ? shape_math::rank<ELEMENT>() - 1 : 0)>{}));
 
@@ -354,15 +353,19 @@ namespace rl_tools{
         template <typename SHAPE, typename STRIDE>
         RL_TOOLS_FUNCTION_PLACEMENT bool constexpr generalized_row_major(){
             static_assert(length(SHAPE{}) == length(STRIDE{}));
-            if constexpr(length(SHAPE{}) == 1){
+            constexpr auto rank = shape_math::rank<SHAPE>();
+            if constexpr(rank <= 1){
                 return true;
             }
             else{
-                constexpr auto back_value_shape = get<length(SHAPE{})-1>(SHAPE{});
-                constexpr auto back_value_stride = get<length(STRIDE{})-1>(STRIDE{});
-                using NEXT_SHAPE = PopBack<SHAPE>;
-                using NEXT_STRIDE = PopBack<STRIDE>;
-                return back_value_shape * back_value_stride <= get<length(NEXT_STRIDE{})-1>(NEXT_STRIDE{}) && generalized_row_major<NEXT_SHAPE, NEXT_STRIDE>();
+                constexpr auto shape = shape_math::element_to_array<SHAPE>();
+                constexpr auto stride = shape_math::element_to_array<STRIDE>();
+                for(typename shape_math::SizeType i = rank - 1; i > 0; --i){
+                    if(shape.data[i] * stride.data[i] > stride.data[i - 1]){
+                        return false;
+                    }
+                }
+                return true;
             }
         }
         template <typename A, typename B>
@@ -370,13 +373,19 @@ namespace rl_tools{
             if constexpr(length(A{}) != length(B{})){
                 return false;
             }
-            if constexpr(length(A{}) == 0){
+            constexpr auto a = shape_math::element_to_array<A>();
+            constexpr auto b = shape_math::element_to_array<B>();
+            constexpr auto rank = shape_math::rank<A>();
+            if constexpr(rank == 0){
                 return true;
             }
             else{
-                using NEXT_A = PopFront<A>;
-                using NEXT_B = PopFront<B>;
-                return (A::FIRST == B::FIRST) && same_dimensions_shape<NEXT_A, NEXT_B>();
+                for(typename shape_math::SizeType i = 0; i < rank; ++i){
+                    if(a.data[i] != b.data[i]){
+                        return false;
+                    }
+                }
+                return true;
             }
         }
         template <typename SPEC_A, typename SPEC_B>
@@ -391,18 +400,39 @@ namespace rl_tools{
             if(length(STRIDE{}) != length(SHAPE{})){
                 return false;
             }
-            if constexpr(length(STRIDE{}) == 1){
-                return RELAX_MAJOR || STRIDE::FIRST == 1;
+            constexpr auto rank = shape_math::rank<SHAPE>();
+            constexpr auto shape = shape_math::element_to_array<SHAPE>();
+            constexpr auto stride = shape_math::element_to_array<STRIDE>();
+            if constexpr(rank == 1){
+                return RELAX_MAJOR || stride.data[0] == 1;
             }
             else{
-                if constexpr(RELAX_MAJOR && STRIDE::LENGTH == 2){
-                    return STRIDE::FIRST >= STRIDE::template GET<1> * SHAPE::template GET<1>;
+                for(typename shape_math::SizeType i = 0; i + 1 < rank; ++i){
+                    const auto expected = stride.data[i + 1] * shape.data[i + 1];
+                    const bool is_last_pair = (i + 1 == rank - 1);
+                    if constexpr(RELAX_MAJOR){
+                        if(is_last_pair){
+                            if(stride.data[i] < expected){
+                                return false;
+                            }
+                        }
+                        else{
+                            const bool contiguous = stride.data[i] == expected;
+                            const bool relaxed_broadcast = (shape.data[i] == 1) && (stride.data[i] >= expected);
+                            if(!(contiguous || relaxed_broadcast)){
+                                return false;
+                            }
+                        }
+                    }
+                    else{
+                        const bool contiguous = stride.data[i] == expected;
+                        const bool relaxed_broadcast = (shape.data[i] == 1) && (stride.data[i] >= expected);
+                        if(!(contiguous || relaxed_broadcast)){
+                            return false;
+                        }
+                    }
                 }
-                else{
-                    using NEXT_SHAPE = PopFront<SHAPE>;
-                    using NEXT_STRIDE = PopFront<STRIDE>;
-                    return (STRIDE::FIRST == NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST || ((SHAPE::FIRST == 1) && (STRIDE::FIRST >= NEXT_STRIDE::FIRST * NEXT_SHAPE::FIRST))) && _dense_row_major_layout_shape<NEXT_SHAPE, NEXT_STRIDE, RELAX_MAJOR>();
-                }
+                return true;
             }
         }
         template <typename SPEC, bool RELAX_MAJOR=false>

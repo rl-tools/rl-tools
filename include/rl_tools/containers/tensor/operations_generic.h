@@ -275,7 +275,7 @@ namespace rl_tools{
         *(data(tensor) + idx) = value;
     }
 
-    template<typename DEVICE, typename SPEC, typename TII, typename... INDICES> //, typename utils::typing::enable_if_t<tensor::RANK_LARGER_THAN<typename SPEC::SHAPE, 1>>* = nullptr>
+    template<typename DEVICE, typename SPEC, typename TII, typename... INDICES>
     RL_TOOLS_FUNCTION_PLACEMENT void set(DEVICE& device, Tensor<SPEC>& tensor, typename SPEC::T value, const TII index, const INDICES... indices){
         auto v = view(device, tensor, static_cast<typename DEVICE::index_t>(index));
         if constexpr(length(typename SPEC::SHAPE{}) == 1){
@@ -286,7 +286,7 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename SPEC, typename TII, typename... INDICES> //, typename utils::typing::enable_if_t<tensor::RANK_LARGER_THAN<typename SPEC::SHAPE, 1>>* = nullptr>
+    template<typename DEVICE, typename SPEC, typename TII, typename... INDICES>
     RL_TOOLS_FUNCTION_PLACEMENT void increment(DEVICE& device, Tensor<SPEC>& tensor, typename SPEC::T value, const TII index, const INDICES... indices){
         typename SPEC::T current = get(device, tensor, index, indices...);
         set(device, tensor, current + value, index, indices...);
