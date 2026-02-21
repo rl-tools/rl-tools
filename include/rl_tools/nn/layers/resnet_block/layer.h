@@ -103,11 +103,9 @@ namespace rl_tools::nn::layers::resnet_block {
             static_assert(NEW_C == INPUT_CHANNELS);
             static constexpr TI NEW_OH = (NEW_H + 2 - 3) / STRIDE + 1;
             static constexpr TI NEW_OW = (NEW_W + 2 - 3) / STRIDE + 1;
-            using SHAPE = tensor::Replace<
-                tensor::Replace<
-                    tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{})-3>,
-                    NEW_OW, length(NEW_INPUT_SHAPE{})-2>,
-                OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{})-1>;
+            using SHAPE_HEIGHT = tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{}) - 3>;
+            using SHAPE_WIDTH = tensor::Replace<SHAPE_HEIGHT, NEW_OW, length(NEW_INPUT_SHAPE{}) - 2>;
+            using SHAPE = tensor::Replace<SHAPE_WIDTH, OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{}) - 1>;
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
 

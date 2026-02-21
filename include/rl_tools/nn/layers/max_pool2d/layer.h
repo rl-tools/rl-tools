@@ -50,9 +50,8 @@ namespace rl_tools::nn::layers::max_pool2d {
             static_assert(NEW_C == INPUT_CHANNELS);
             static constexpr TI NEW_OH = (NEW_H + 2 * CONFIG::PADDING_H - CONFIG::KERNEL_HEIGHT) / CONFIG::STRIDE_H + 1;
             static constexpr TI NEW_OW = (NEW_W + 2 * CONFIG::PADDING_W - CONFIG::KERNEL_WIDTH) / CONFIG::STRIDE_W + 1;
-            using SHAPE = tensor::Replace<
-                tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{})-3>,
-                NEW_OW, length(NEW_INPUT_SHAPE{})-2>;
+            using SHAPE_HEIGHT = tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{}) - 3>;
+            using SHAPE = tensor::Replace<SHAPE_HEIGHT, NEW_OW, length(NEW_INPUT_SHAPE{}) - 2>;
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
         using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
