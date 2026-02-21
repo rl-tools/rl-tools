@@ -1131,18 +1131,6 @@ namespace rl_tools{
         struct PopBackSafe<ELEMENT, EMPTY, false>{
             using TYPE = tensor::PopBack<ELEMENT>;
         };
-        template <typename LEFT, typename RIGHT>
-        struct ConcatImpl;
-        template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
-        struct ConcatImpl<tensor::Tuple<TI, LEFT_VALUES...>, tensor::Tuple<TI, RIGHT_VALUES...>>{
-            using TYPE = tensor::Tuple<TI, LEFT_VALUES..., RIGHT_VALUES...>;
-        };
-        template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
-        struct ConcatImpl<tensor::Stride<TI, LEFT_VALUES...>, tensor::Stride<TI, RIGHT_VALUES...>>{
-            using TYPE = tensor::Stride<TI, LEFT_VALUES..., RIGHT_VALUES...>;
-        };
-        template <typename LEFT, typename RIGHT>
-        using Concat = typename ConcatImpl<LEFT, RIGHT>::TYPE;
         template <typename REM_SHAPE, typename REM_STRIDE, auto BLOCK_SIZE, auto BLOCK_FIRST_SIZE, auto BLOCK_FIRST_STRIDE, bool EMPTY = IsEmpty<REM_SHAPE>::VALUE>
         struct ExpandBlock;
         template <typename REM_SHAPE, typename REM_STRIDE, auto BLOCK_SIZE, auto BLOCK_FIRST_SIZE, auto BLOCK_FIRST_STRIDE>
@@ -1208,7 +1196,7 @@ namespace rl_tools{
             using POP_SHAPE = typename PopBackSafe<SHAPE, tensor::Shape<TI>>::TYPE;
             using NEXT = ConsumeBlockImpl<POP_SHAPE, BLOCK_SIZE, BLOCK_STRIDE, NEW_PRODUCT>;
             using STRIDE_CURRENT = tensor::Stride<TI, BLOCK_STRIDE * CURRENT_PRODUCT>;
-            using STRIDE_SUFFIX = Concat<typename NEXT::STRIDE_SUFFIX, STRIDE_CURRENT>;
+            using STRIDE_SUFFIX = tensor::shape_math::Concat<typename NEXT::STRIDE_SUFFIX, STRIDE_CURRENT>;
             using REMAINDER_SHAPE = typename NEXT::REMAINDER_SHAPE;
         };
         template <typename SHAPE, auto BLOCK_SIZE, auto BLOCK_STRIDE, auto CURRENT_PRODUCT>
@@ -1238,7 +1226,7 @@ namespace rl_tools{
             using BLOCK = RightmostBlock<OLD_SHAPE, OLD_STRIDE>;
             using CONSUME = ConsumeBlock<NEW_SHAPE, BLOCK::BLOCK_SIZE, BLOCK::BLOCK_INNER_STRIDE>;
             using PREFIX = ReshapeStride<typename BLOCK::REMAINDER_SHAPE, typename BLOCK::REMAINDER_STRIDE, typename CONSUME::REMAINDER_SHAPE>;
-            using TYPE = Concat<typename PREFIX::TYPE, typename CONSUME::STRIDE_SUFFIX>;
+            using TYPE = tensor::shape_math::Concat<typename PREFIX::TYPE, typename CONSUME::STRIDE_SUFFIX>;
         };
     }
     template<typename DEVICE, typename SPEC, typename RESHAPE>

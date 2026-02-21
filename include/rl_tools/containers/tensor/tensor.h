@@ -120,6 +120,23 @@ namespace rl_tools{
                 return element_to_array_unpack<ELEMENT>(MakeIndexSequence<rank<ELEMENT>()>{});
             }
 
+            template <typename LEFT, typename RIGHT>
+            struct ConcatImpl;
+            template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
+            struct ConcatImpl<Tuple<TI, LEFT_VALUES...>, Tuple<TI, RIGHT_VALUES...>>{
+                using TYPE = Tuple<TI, LEFT_VALUES..., RIGHT_VALUES...>;
+            };
+            template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
+            struct ConcatImpl<Shape<TI, LEFT_VALUES...>, Shape<TI, RIGHT_VALUES...>>{
+                using TYPE = Shape<TI, LEFT_VALUES..., RIGHT_VALUES...>;
+            };
+            template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
+            struct ConcatImpl<Stride<TI, LEFT_VALUES...>, Stride<TI, RIGHT_VALUES...>>{
+                using TYPE = Stride<TI, LEFT_VALUES..., RIGHT_VALUES...>;
+            };
+            template <typename LEFT, typename RIGHT>
+            using Concat = typename ConcatImpl<LEFT, RIGHT>::TYPE;
+
             template <typename TI, SizeType N>
             RL_TOOLS_FUNCTION_PLACEMENT constexpr auto compute_append(ConstexprArray<TI, N> in, TI new_element) {
                 ConstexprArray<TI, N + 1> out{};
