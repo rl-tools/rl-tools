@@ -245,9 +245,6 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, dense_layer){
     ASSERT_NEAR(abs_diff, 0, 1e-6);
 }
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-
 TEST(TEST_PERSIST_BACKENDS_TAR_TAR, sequential_model){
     DEVICE device;
     RNG rng;
@@ -263,7 +260,7 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, sequential_model){
     using MLP_LAYER_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 15, 3, 7, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using MLP_LAYER = rlt::nn_models::mlp::BindConfiguration<MLP_LAYER_CONFIG>;
     using CAPABILITY = rlt::nn::capability::Forward<>;
-    using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU_LAYER, Module<MLP_LAYER>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<INPUT_LAYER, rlt::nn_models::sequential::Module<GRU_LAYER, rlt::nn_models::sequential::Module<MLP_LAYER>>>;
 
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 5, 3, 10>;
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;

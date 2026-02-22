@@ -11,9 +11,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, std::string name, bool const_declaration=true, typename DEVICE::index_t indent = 0, typename DEVICE::index_t layer_i = 0) {
-        // using T = typename SPEC::T;
+    template<auto LAYER_I = 0, typename DEVICE, typename SPEC>
+    persist::Code save_code_split(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, std::string name, bool const_declaration=true, typename DEVICE::index_t indent = 0) {
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -21,77 +20,58 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
-        auto layer_output = save_code_split(device, model.content, "layer_" + std::to_string(layer_i), const_declaration, indent+1);
+        persist::Code layer_output = save_code_split(device, get_layer<LAYER_I>(model), "layer_" + std::to_string(LAYER_I), const_declaration, indent+1);
         ss_header << layer_output.header;
         ss_header << "#include <rl_tools/nn_models/sequential/model.h>\n";
-        if(layer_i == 0){
+        if constexpr(LAYER_I == 0){
             ss << ind << "namespace " << name << " {\n";
         }
         ss << layer_output.body;
-        if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            auto downstream_output = save_code_split(device, model.next_module, name, const_declaration, indent, layer_i+1);
+        if constexpr(LAYER_I + 1 < SPEC::NUM_LAYERS){
+            auto downstream_output = save_code_split<LAYER_I + 1>(device, model, name, const_declaration, indent);
             ss_header << downstream_output.header;
             ss << downstream_output.body;
         }
-        if(layer_i == 0){
+        if constexpr(LAYER_I == 0){
             ss << ind << "    " << "namespace model_definition {\n";
 //            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
 //            std::string capability = "Forward";
             ss << ind << "    " << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << "; \n";
-            ss << ind << "    " << "    " << "template <typename T_CONTENT, typename T_NEXT_MODULE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::OutputModule>\n";
-            ss << ind << "    " << "    " << "using Module = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;\n";
-            ss << ind << "    " << "    " << "using MODULE_CHAIN = Module<";
+            ss << ind << "    " << "    " << "using MODULE_CHAIN = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "layer_" << layer_i << "::TEMPLATE";
                 if(layer_i < num_layers(model)-1){
-                    ss << ", Module<";
+                    ss << ", ";
                 }
             }
-            for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
-                ss << ">";
-            }
-            ss << ";\n";
+            ss << ">;\n";
             ss << ind << "    " << "    " << "using MODEL = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, layer_0::INPUT_SHAPE>;\n";
             ss << ind << "    " << "}\n";
             ss << ind << "    " << "using TYPE = model_definition::MODEL;\n";
-            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = {";
-            std::string model_stub = "TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
-            std::stringstream ss_initializer_list;
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = [](){\n";
+            ss << ind << "    " << "    TYPE m{};\n";
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list << "layer_" << inner_layer_i << "::factory<" << model_stub << "::CONTENT>";
-                if(inner_layer_i < num_layers(model)-1){
-                    ss_initializer_list << ", {";
-                }
-                model_stub += "::NEXT_MODULE";
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.layers) = layer_" << inner_layer_i << "::factory<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::tuple_element<" << inner_layer_i << ", typename TYPE::SPEC::LAYER_SPECS>::type::CONTENT>;\n";
             }
-            ss_initializer_list << ", {}";
-            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list << "}";
-            }
-            ss << ss_initializer_list.str() << ";\n";
+            ss << ind << "    " << "    return m;\n";
+            ss << ind << "    " << "}();\n";
 
-            std::stringstream ss_initializer_list_create, ss_initializer_list_create_function;
-            std::string model_stub_create = "T_TYPE"; // this is required because we can not instantiate layers before defining the MODEL, as the model dictates the layer types through the INPUT_SHAPE mangling process
-            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list_create << "layer_" << inner_layer_i << "::factory<typename " << model_stub_create << "::CONTENT>";
-                ss_initializer_list_create_function << "layer_" << inner_layer_i << "::factory_function<typename " << model_stub_create << "::CONTENT>()";
-                if(inner_layer_i < num_layers(model)-1){
-                    ss_initializer_list_create << ", {";
-                    ss_initializer_list_create_function << ", {";
-                }
-                model_stub_create += "::NEXT_MODULE";
-            }
-            ss_initializer_list_create << ", {}";
-            ss_initializer_list_create_function << ", {}";
-            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss_initializer_list_create << "}";
-                ss_initializer_list_create_function << "}";
-            }
-            std::string initializer_list = ss_initializer_list_create.str();
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = {" << initializer_list << ";" << "\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = [](){\n";
+            ss << ind << "    " << "    T_TYPE m{};\n";
+            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.layers) = layer_" << inner_layer_i << "::factory<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::tuple_element<" << inner_layer_i << ", typename T_TYPE::SPEC::LAYER_SPECS>::type::CONTENT>;\n";
+            }
+            ss << ind << "    " << "    return m;\n";
+            ss << ind << "    " << "}();" << "\n";
             ss << ind << "    " << "template <typename T_TYPE = TYPE>" << "\n";
-            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){return T_TYPE{" << ss_initializer_list_create_function.str() << ";" << "}\n";
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){\n";
+            ss << ind << "    " << "    T_TYPE m{};\n";
+            for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.layers) = layer_" << inner_layer_i << "::factory_function<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::tuple_element<" << inner_layer_i << ", typename T_TYPE::SPEC::LAYER_SPECS>::type::CONTENT>();\n";
+            }
+            ss << ind << "    " << "    return m;\n";
+            ss << ind << "    " << "}\n";
             ss << ind << "}";
 
 
@@ -104,20 +84,21 @@ namespace rl_tools{
         auto code = save_code_split(device, network, name, const_declaration, indent);
         return code.header + code.body;
     }
+    namespace nn_models::sequential{
+        template <auto LAYER_I = 0, typename DEVICE, typename SPEC>
+        void nn_analytics_layers(std::string& data, DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model) {
+            if constexpr(LAYER_I < SPEC::NUM_LAYERS) {
+                if constexpr(LAYER_I > 0){ data += ", "; }
+                data += nn_analytics(device, get_layer<LAYER_I>(model));
+                nn_analytics_layers<LAYER_I + 1>(data, device, model);
+            }
+        }
+    }
     template <typename DEVICE, typename SPEC>
-    std::string nn_analytics(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model, typename DEVICE::index_t layer_i = 0) {
-        std::string data;
-        if(layer_i == 0){
-            data += "{\"layers\":[";
-        }
-        data += nn_analytics(device, model.content);
-        if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            data += ", ";
-            data += nn_analytics(device, model.next_module, layer_i + 1);
-        }
-        if(layer_i == 0){
-            data += "]}";
-        }
+    std::string nn_analytics(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model) {
+        std::string data = "{\"layers\":[";
+        nn_models::sequential::nn_analytics_layers(data, device, model);
+        data += "]}";
         return data;
     }
 }

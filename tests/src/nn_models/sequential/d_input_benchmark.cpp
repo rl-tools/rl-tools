@@ -46,9 +46,7 @@ namespace config{
         using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>>;
         using SEQUENTIAL_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>>;
 
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-        using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
 
         using SEQUENTIAL_MODEL = rlt::nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
     };
@@ -103,9 +101,9 @@ void test_correctness(){
     rlt::randn(device, input, rng);
     rlt::randn(device, d_output, rng);
 
-    rlt::copy(device, sdevice, model.input_layer, sequential_model.content);
-    rlt::copy(device, sdevice, model.hidden_layers[0], sequential_model.next_module.content);
-    rlt::copy(device, sdevice, model.output_layer, sequential_model.next_module.next_module.content);
+    rlt::copy(device, sdevice, model.input_layer, rlt::get_layer<0>(sequential_model));
+    rlt::copy(device, sdevice, model.hidden_layers[0], rlt::get_layer<1>(sequential_model));
+    rlt::copy(device, sdevice, model.output_layer, rlt::get_layer<2>(sequential_model));
 
     rlt::evaluate(device, model, input, output_eval, buffer, rng);
     rlt::evaluate(sdevice, sequential_model, input, output_sequential_eval, sequential_buffer, rng);
@@ -133,9 +131,9 @@ void test_correctness(){
     rlt::backward(sdevice, sequential_model, input, d_output, sequential_buffer);
 
     {
-        auto abs_diff = rlt::abs_diff(device, model.input_layer, sequential_model.content);
-        abs_diff += rlt::abs_diff(device, model.hidden_layers[0], sequential_model.next_module.content);
-        abs_diff += rlt::abs_diff(device, model.output_layer, sequential_model.next_module.next_module.content);
+        auto abs_diff = rlt::abs_diff(device, model.input_layer, rlt::get_layer<0>(sequential_model));
+        abs_diff += rlt::abs_diff(device, model.hidden_layers[0], rlt::get_layer<1>(sequential_model));
+        abs_diff += rlt::abs_diff(device, model.output_layer, rlt::get_layer<2>(sequential_model));
         std::cout << "abs_diff gradient: " << abs_diff << std::endl;
         ASSERT_LT(abs_diff, CONFIG::THRESHOLD);
     }
@@ -147,9 +145,9 @@ void test_correctness(){
     rlt::step(sdevice, sequential_optimizer, sequential_model);
 
     {
-        auto abs_diff = rlt::abs_diff(device, model.input_layer, sequential_model.content);
-        abs_diff += rlt::abs_diff(device, model.hidden_layers[0], sequential_model.next_module.content);
-        abs_diff += rlt::abs_diff(device, model.output_layer, sequential_model.next_module.next_module.content);
+        auto abs_diff = rlt::abs_diff(device, model.input_layer, rlt::get_layer<0>(sequential_model));
+        abs_diff += rlt::abs_diff(device, model.hidden_layers[0], rlt::get_layer<1>(sequential_model));
+        abs_diff += rlt::abs_diff(device, model.output_layer, rlt::get_layer<2>(sequential_model));
         std::cout << "abs_diff adam step: " << abs_diff << std::endl;
         ASSERT_LT(abs_diff, CONFIG::THRESHOLD);
     }
@@ -165,9 +163,9 @@ void test_correctness(){
     rlt::reset_forward_state(sdevice, sequential_model);
 
     {
-        auto abs_diff = rlt::abs_diff(device, model.input_layer, sequential_model.content);
-        abs_diff += rlt::abs_diff(device, model.hidden_layers[0], sequential_model.next_module.content);
-        abs_diff += rlt::abs_diff(device, model.output_layer, sequential_model.next_module.next_module.content);
+        auto abs_diff = rlt::abs_diff(device, model.input_layer, rlt::get_layer<0>(sequential_model));
+        abs_diff += rlt::abs_diff(device, model.hidden_layers[0], rlt::get_layer<1>(sequential_model));
+        abs_diff += rlt::abs_diff(device, model.output_layer, rlt::get_layer<2>(sequential_model));
         std::cout << "abs diff reset forward state: " << abs_diff << std::endl;
         ASSERT_LT(abs_diff, CONFIG::THRESHOLD);
     }
@@ -182,9 +180,9 @@ void test_correctness(){
     rlt::backward_full(sdevice, sequential_model, input, d_output, d_input_sequential, sequential_buffer);
 
     {
-        auto abs_diff = rlt::abs_diff(device, model.input_layer, sequential_model.content);
-        abs_diff += rlt::abs_diff(device, model.hidden_layers[0], sequential_model.next_module.content);
-        abs_diff += rlt::abs_diff(device, model.output_layer, sequential_model.next_module.next_module.content);
+        auto abs_diff = rlt::abs_diff(device, model.input_layer, rlt::get_layer<0>(sequential_model));
+        abs_diff += rlt::abs_diff(device, model.hidden_layers[0], rlt::get_layer<1>(sequential_model));
+        abs_diff += rlt::abs_diff(device, model.output_layer, rlt::get_layer<2>(sequential_model));
         std::cout << "abs_diff gradient full: " << abs_diff << std::endl;
         ASSERT_LT(abs_diff, CONFIG::THRESHOLD);
     }

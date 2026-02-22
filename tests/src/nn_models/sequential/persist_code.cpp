@@ -51,9 +51,7 @@ namespace MODEL_BENCHMARK{
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
@@ -69,9 +67,7 @@ namespace MODEL_1{
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 namespace MODEL_2{
@@ -85,9 +81,7 @@ namespace MODEL_2{
     using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-    using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<ACTOR_TYPE>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<STANDARDIZATION_LAYER, rlt::nn_models::sequential::Module<ACTOR_TYPE>>;
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
@@ -100,9 +94,7 @@ namespace MODEL_MLP{
 
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-    using MODULE_CHAIN = Module<ACTOR_TYPE>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<ACTOR_TYPE>;
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
@@ -116,9 +108,7 @@ namespace MODEL_SAMPLE_AND_SQUASH{
     using SAMPLE_AND_SQUASH_LAYER_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<TYPE_POLICY, TI>;
     using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-    using MODULE_CHAIN = Module<ACTOR_TYPE, Module<SAMPLE_AND_SQUASH_LAYER>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<ACTOR_TYPE, rlt::nn_models::sequential::Module<SAMPLE_AND_SQUASH_LAYER>>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using MODEL = typename rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 }
@@ -246,7 +236,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
     {
-        auto& first_layer = model.content;
+        auto& first_layer = rlt::get_layer<0>(model);
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
             rlt::set(device, first_layer.mean.parameters, input_i, input_i);
             rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
@@ -316,7 +306,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
     {
-        auto& first_layer = model.content;
+        auto& first_layer = rlt::get_layer<0>(model);
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
             rlt::set(device, first_layer.mean.parameters, input_i, input_i);
             rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
@@ -380,7 +370,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
     {
-        auto& first_layer = model.content;
+        auto& first_layer = rlt::get_layer<0>(model);
         for(TI input_i=0; input_i < rlt::get_last(typename MODEL::INPUT_SHAPE{}); input_i++){
             rlt::set(device, first_layer.mean.parameters, input_i, input_i);
             rlt::set(device, first_layer.precision.parameters, input_i*2, input_i);
@@ -551,7 +541,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
     rlt::randn(device, input, rng);
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
-    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::randn(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, rng);
     rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
@@ -559,7 +549,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
-        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
+        auto noise_code = rlt::save_code_split(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
         auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
         auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;
@@ -606,7 +596,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
     rlt::randn(device, input, rng);
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
-    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::randn(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, rng);
     rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
@@ -614,7 +604,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
-        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
+        auto noise_code = rlt::save_code_split(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
         auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
         auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;
@@ -659,7 +649,7 @@ rlt::malloc(device, rng); rlt::init(device, rng, 0);
     rlt::randn(device, input, rng);
 
     rlt::Mode<rlt::nn::layers::sample_and_squash::mode::ExternalNoise<rlt::mode::Default<>>> mode;
-    rlt::randn(device, buffer.content_buffer.next_content_buffer.buffer.noise, rng);
+    rlt::randn(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, rng);
     rlt::evaluate(device, model, input, output, buffer, rng, mode);
 
     rlt::print(device, output);
@@ -667,7 +657,7 @@ rlt::malloc(device, rng); rlt::init(device, rng, 0);
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
         auto input_code = rlt::save_code_split(device, input, "input", true, 1);
-        auto noise_code = rlt::save_code_split(device, buffer.content_buffer.next_content_buffer.buffer.noise, "noise", true, 1);
+        auto noise_code = rlt::save_code_split(device, rlt::nn_models::sequential::content_buffer<1>(buffer.content_buffer).noise, "noise", true, 1);
         auto output_code = rlt::save_code_split(device, output, "output", true, 1);
         auto header = model_code.header + "\n" + input_code.header + "\n" + noise_code.header + "\n" + output_code.header;
         auto body = model_code.body + "\n" + input_code.body + "\n" + noise_code.body + "\n" + output_code.body;

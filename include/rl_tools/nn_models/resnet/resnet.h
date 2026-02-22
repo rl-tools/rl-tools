@@ -47,25 +47,21 @@ namespace rl_tools::nn_models::resnet18 {
     using FC_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, 1000,
         nn::activation_functions::ActivationFunction::IDENTITY>;
 
-    // Sequential chain
-    template<typename C, typename N = nn_models::sequential::OutputModule>
-    using Module = nn_models::sequential::Module<C, N>;
-
     template<typename TYPE_POLICY, typename TI>
-    using MODULE_CHAIN =
-        Module<nn::layers::conv2d::BindConfiguration<STEM_CONV_CONFIG<TYPE_POLICY, TI>>,           // 0: stem
-        Module<nn::layers::max_pool2d::BindConfiguration<MAXPOOL_CONFIG<TYPE_POLICY, TI>>,         // 1: maxpool
-        Module<nn::layers::resnet_block::BindConfiguration<BLOCK_64_S1_CONFIG<TYPE_POLICY, TI>>,   // 2: layer1.0
-        Module<nn::layers::resnet_block::BindConfiguration<BLOCK_64_S1_CONFIG<TYPE_POLICY, TI>>,   // 3: layer1.1
-        Module<nn::layers::resnet_block::BindConfiguration<BLOCK_128_S2_CONFIG<TYPE_POLICY, TI>>,  // 4: layer2.0
-        Module<nn::layers::resnet_block::BindConfiguration<BLOCK_128_S1_CONFIG<TYPE_POLICY, TI>>,  // 5: layer2.1
-        Module<nn::layers::resnet_block::BindConfiguration<BLOCK_256_S2_CONFIG<TYPE_POLICY, TI>>,  // 6: layer3.0
-        Module<nn::layers::resnet_block::BindConfiguration<BLOCK_256_S1_CONFIG<TYPE_POLICY, TI>>,  // 7: layer3.1
-        Module<nn::layers::resnet_block::BindConfiguration<BLOCK_512_S2_CONFIG<TYPE_POLICY, TI>>,  // 8: layer4.0
-        Module<nn::layers::resnet_block::BindConfiguration<BLOCK_512_S1_CONFIG<TYPE_POLICY, TI>>,  // 9: layer4.1
-        Module<nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG<TYPE_POLICY, TI>>,         // 10: avgpool
-        Module<nn::layers::dense::BindConfiguration<FC_CONFIG<TYPE_POLICY, TI>>                    // 11: fc
-        >>>>>>>>>>>>;
+    using MODULE_CHAIN = nn_models::sequential::Module<
+        nn::layers::conv2d::BindConfiguration<STEM_CONV_CONFIG<TYPE_POLICY, TI>>,           // 0: stem
+        nn::layers::max_pool2d::BindConfiguration<MAXPOOL_CONFIG<TYPE_POLICY, TI>>,         // 1: maxpool
+        nn::layers::resnet_block::BindConfiguration<BLOCK_64_S1_CONFIG<TYPE_POLICY, TI>>,   // 2: layer1.0
+        nn::layers::resnet_block::BindConfiguration<BLOCK_64_S1_CONFIG<TYPE_POLICY, TI>>,   // 3: layer1.1
+        nn::layers::resnet_block::BindConfiguration<BLOCK_128_S2_CONFIG<TYPE_POLICY, TI>>,  // 4: layer2.0
+        nn::layers::resnet_block::BindConfiguration<BLOCK_128_S1_CONFIG<TYPE_POLICY, TI>>,  // 5: layer2.1
+        nn::layers::resnet_block::BindConfiguration<BLOCK_256_S2_CONFIG<TYPE_POLICY, TI>>,  // 6: layer3.0
+        nn::layers::resnet_block::BindConfiguration<BLOCK_256_S1_CONFIG<TYPE_POLICY, TI>>,  // 7: layer3.1
+        nn::layers::resnet_block::BindConfiguration<BLOCK_512_S2_CONFIG<TYPE_POLICY, TI>>,  // 8: layer4.0
+        nn::layers::resnet_block::BindConfiguration<BLOCK_512_S1_CONFIG<TYPE_POLICY, TI>>,  // 9: layer4.1
+        nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG<TYPE_POLICY, TI>>,         // 10: avgpool
+        nn::layers::dense::BindConfiguration<FC_CONFIG<TYPE_POLICY, TI>>                    // 11: fc
+    >;
 
     template<typename TYPE_POLICY, typename TI>
     using INPUT_SHAPE = tensor::Shape<TI, 1, 224, 224, 3>;

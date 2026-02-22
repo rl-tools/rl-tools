@@ -65,7 +65,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     ACTOR::Buffer<> actor_buffer;
     CRITIC critic;
     CRITIC::Buffer<> critic_buffer;
-    CRITIC::CONTENT::Buffer<> critic_gru_buffer;
     APPROXIMATORS::ACTOR_OPTIMIZER actor_optimizer;
     APPROXIMATORS::CRITIC_OPTIMIZER critic_optimizer;
 
@@ -82,7 +81,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::malloc(device, actor_buffer);
     rlt::malloc(device, critic);
     rlt::malloc(device, critic_buffer);
-    rlt::malloc(device, critic_gru_buffer);
     rlt::init_weights(device, actor, rng);
     rlt::init_weights(device, critic, rng);
     rlt::init(device, actor_optimizer);
@@ -93,7 +91,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::INPUT_SHAPE>> actor_input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::OUTPUT_SHAPE>> actor_output_evaluate, actor_output, d_actor_output, actor_output_after_update;
     rlt::Tensor<rlt::tensor::Specification<T, TI, CRITIC::INPUT_SHAPE>> critic_input;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, CRITIC::CONTENT::OUTPUT_SHAPE>> critic_gru_output;
     rlt::Tensor<rlt::tensor::Specification<T, TI, CRITIC::OUTPUT_SHAPE>> critic_output, d_critic_output;
     rlt::malloc(device, actor_input);
     rlt::malloc(device, actor_output_evaluate);
@@ -101,7 +98,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::malloc(device, d_actor_output);
     rlt::malloc(device, actor_output_after_update);
     rlt::malloc(device, critic_input);
-    rlt::malloc(device, critic_gru_output);
     rlt::malloc(device, critic_output);
     rlt::malloc(device, d_critic_output);
 
@@ -136,7 +132,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_SEQUENTIAL, APPROXIMATORS){
     rlt::zero_gradient(device, actor);
     rlt::zero_gradient(device, critic);
     rlt::backward(device, actor, actor_input, d_actor_output, actor_buffer);
-    rlt::utils::assert_exit(device, !rlt::is_nan(device, rlt::matrix_view(device, actor.content.weights.gradient)), "Actor gradient contains NaNs");
+    rlt::utils::assert_exit(device, !rlt::is_nan(device, rlt::matrix_view(device, rlt::get_layer<0>(actor).weights.gradient)), "Actor gradient contains NaNs");
     rlt::step(device, actor_optimizer, actor);
     rlt::forward(device, actor, actor_input, actor_output_after_update, actor_buffer, rng);
     T sum = rlt::sum(device, actor_output);

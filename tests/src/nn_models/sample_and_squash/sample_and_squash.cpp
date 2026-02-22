@@ -30,15 +30,14 @@ using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindConfiguration<
 //using SAMPLE_AND_SQUASH_MODULE_SPEC = rlt::nn_models::sequential::Specification<SAMPLE_AND_SQUASH>;
 using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-using MODULE_CHAIN = Module<MLP_TYPE, Module<SAMPLE_AND_SQUASH>>;
+using MODULE_CHAIN = rlt::nn_models::sequential::Module<MLP_TYPE, rlt::nn_models::sequential::Module<SAMPLE_AND_SQUASH>>;
 
 using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
 
 int main(){
     ACTOR actor;
-    ACTOR::CONTENT::Buffer<> actor_buffer;
+    using FIRST_LAYER = rlt::utils::typing::remove_reference_t<decltype(rlt::get_layer<0>(actor))>;
+    FIRST_LAYER::Buffer<> actor_buffer;
     ACTOR::Buffer<> actor_buffer_sequential;
     DEVICE device;
 
@@ -47,7 +46,7 @@ int main(){
     rlt::init(device, rng, 0);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::INPUT_SHAPE, false>> input;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::CONTENT::OUTPUT_SHAPE, false>> intermediate_output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, FIRST_LAYER::OUTPUT_SHAPE, false>> intermediate_output;
     rlt::Tensor<rlt::tensor::Specification<T, TI, ACTOR::OUTPUT_SHAPE, false>> output, output_sequential;
     rlt::malloc(device, actor);
     rlt::malloc(device, actor_buffer);
@@ -59,7 +58,8 @@ int main(){
 
     auto rng2 = rng;
     rlt::evaluate(device, actor, input, output_sequential, actor_buffer_sequential, rng);
-    rlt::evaluate(device, actor.content, input, intermediate_output, actor_buffer, rng2);
+    rlt::evaluate(device, rlt::get_layer<0>(actor), input, intermediate_output, actor_buffer, rng2);
+    rlt::evaluate(device, rlt::get_layer<1>(actor), intermediate_output, output, rlt::get_buffer<1>(actor_buffer_sequential), rng2);
 
 
     auto& sas_buffer = rlt::get_buffer<1>(actor_buffer_sequential);

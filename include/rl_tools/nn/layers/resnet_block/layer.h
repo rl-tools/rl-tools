@@ -52,8 +52,7 @@ namespace rl_tools::nn::layers::resnet_block {
         static constexpr TI OUTPUT_WIDTH = (INPUT_WIDTH + 2 - 3) / STRIDE + 1;
         static constexpr bool HAS_DOWNSAMPLE = (INPUT_CHANNELS != OUTPUT_CHANNELS) || (STRIDE != 1);
 
-        using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
-        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<BATCH_SHAPE>{});
+        static constexpr TI INTERNAL_BATCH_SIZE = tensor::shape_math::leading_product(tensor::shape_math::element_to_array<INPUT_SHAPE>(), 3);
 
         // Conv1: 3x3, stride=STRIDE, pad=1, BN + ReLU
         using CONV1_CONFIG = conv2d::Configuration<TYPE_POLICY, TI, OUTPUT_CHANNELS, 3, 3, STRIDE, STRIDE, 1, 1,

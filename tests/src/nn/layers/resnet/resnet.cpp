@@ -410,39 +410,39 @@ TEST(RESNET18, FULL_BACKWARD) {
 
     // Layer 0: Stem conv
     std::cout << "  Stem:" << std::endl;
-    check_conv_gradients(device, model.content, grad_group, "stem", GRAD_EPSILON);
+    check_conv_gradients(device, rlt::get_layer<0>(model), grad_group, "stem", GRAD_EPSILON);
 
     // Layer 1: MaxPool - no parameters
 
     // Layer 2-3: Layer1 blocks (64ch, stride=1)
     std::cout << "  Layer1 Block0:" << std::endl;
-    check_block_gradients(device, model.next_module.next_module.content, grad_group, "layer1_block0", GRAD_EPSILON);
+    check_block_gradients(device, rlt::get_layer<2>(model), grad_group, "layer1_block0", GRAD_EPSILON);
     std::cout << "  Layer1 Block1:" << std::endl;
-    check_block_gradients(device, model.next_module.next_module.next_module.content, grad_group, "layer1_block1", GRAD_EPSILON);
+    check_block_gradients(device, rlt::get_layer<3>(model), grad_group, "layer1_block1", GRAD_EPSILON);
 
     // Layer 4-5: Layer2 blocks (128ch)
     std::cout << "  Layer2 Block0:" << std::endl;
-    check_block_gradients(device, model.next_module.next_module.next_module.next_module.content, grad_group, "layer2_block0", GRAD_EPSILON);
+    check_block_gradients(device, rlt::get_layer<4>(model), grad_group, "layer2_block0", GRAD_EPSILON);
     std::cout << "  Layer2 Block1:" << std::endl;
-    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer2_block1", GRAD_EPSILON);
+    check_block_gradients(device, rlt::get_layer<5>(model), grad_group, "layer2_block1", GRAD_EPSILON);
 
     // Layer 6-7: Layer3 blocks (256ch)
     std::cout << "  Layer3 Block0:" << std::endl;
-    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer3_block0", GRAD_EPSILON);
+    check_block_gradients(device, rlt::get_layer<6>(model), grad_group, "layer3_block0", GRAD_EPSILON);
     std::cout << "  Layer3 Block1:" << std::endl;
-    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer3_block1", GRAD_EPSILON);
+    check_block_gradients(device, rlt::get_layer<7>(model), grad_group, "layer3_block1", GRAD_EPSILON);
 
     // Layer 8-9: Layer4 blocks (512ch)
     std::cout << "  Layer4 Block0:" << std::endl;
-    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer4_block0", GRAD_EPSILON);
+    check_block_gradients(device, rlt::get_layer<8>(model), grad_group, "layer4_block0", GRAD_EPSILON);
     std::cout << "  Layer4 Block1:" << std::endl;
-    check_block_gradients(device, model.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.content, grad_group, "layer4_block1", GRAD_EPSILON);
+    check_block_gradients(device, rlt::get_layer<9>(model), grad_group, "layer4_block1", GRAD_EPSILON);
 
     // Layer 10: AvgPool - no parameters
 
     // Layer 11: FC (Dense)
     std::cout << "  FC:" << std::endl;
-    auto& fc_layer = model.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.next_module.content;
+    auto& fc_layer = rlt::get_layer<11>(model);
     {
         using FC_W_SHAPE = typename decltype(fc_layer.weights.gradient)::SPEC::SHAPE;
         rlt::Tensor<rlt::tensor::Specification<T, TI, FC_W_SHAPE>> expected;

@@ -24,9 +24,7 @@ namespace MODEL_FORWARD{
     using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
 
     using CAPABILITY = rlt::nn::capability::Forward<>;
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
@@ -165,7 +163,13 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_gradient_adam)
         catch(HighFive::DataSetException& e){
 
             std::cerr << "Error while loading model: " << e.what() << std::endl;
-            if(std::string(e.what()) == std::string("Unable to open the dataset \"gradient_first_order_moment\": (Symbol table) Object not found")){
+            const std::string error = e.what();
+            const bool missing_object = error.find("Object not found") != std::string::npos;
+            const bool missing_expected_dataset =
+                error.find("\"gradient\"") != std::string::npos ||
+                error.find("\"gradient_first_order_moment\"") != std::string::npos ||
+                error.find("\"gradient_second_order_moment\"") != std::string::npos;
+            if(missing_object && missing_expected_dataset){
                 got_expected_error = true;
             }
         }
@@ -187,32 +191,32 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_gradient_adam_gradient
     rlt::malloc(device, model_loaded);
 
     rlt::init_weights(device, model, rng);
-    rlt::randn(device, model.content.output, rng);
-    rlt::randn(device, model.content.pre_activations, rng);
-    rlt::randn(device, model.content.weights.gradient, rng);
-    rlt::randn(device, model.content.weights.gradient_first_order_moment, rng);
-    rlt::randn(device, model.content.weights.gradient_second_order_moment, rng);
-    rlt::randn(device, model.content.biases.gradient, rng);
-    rlt::randn(device, model.content.biases.gradient_first_order_moment, rng);
-    rlt::randn(device, model.content.biases.gradient_second_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<0>(model).output, rng);
+    rlt::randn(device, rlt::get_layer<0>(model).pre_activations, rng);
+    rlt::randn(device, rlt::get_layer<0>(model).weights.gradient, rng);
+    rlt::randn(device, rlt::get_layer<0>(model).weights.gradient_first_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<0>(model).weights.gradient_second_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<0>(model).biases.gradient, rng);
+    rlt::randn(device, rlt::get_layer<0>(model).biases.gradient_first_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<0>(model).biases.gradient_second_order_moment, rng);
 
-    rlt::randn(device, model.next_module.content.output, rng);
-    rlt::randn(device, model.next_module.content.pre_activations, rng);
-    rlt::randn(device, model.next_module.content.weights.gradient, rng);
-    rlt::randn(device, model.next_module.content.weights.gradient_first_order_moment, rng);
-    rlt::randn(device, model.next_module.content.weights.gradient_second_order_moment, rng);
-    rlt::randn(device, model.next_module.content.biases.gradient, rng);
-    rlt::randn(device, model.next_module.content.biases.gradient_first_order_moment, rng);
-    rlt::randn(device, model.next_module.content.biases.gradient_second_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<1>(model).output, rng);
+    rlt::randn(device, rlt::get_layer<1>(model).pre_activations, rng);
+    rlt::randn(device, rlt::get_layer<1>(model).weights.gradient, rng);
+    rlt::randn(device, rlt::get_layer<1>(model).weights.gradient_first_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<1>(model).weights.gradient_second_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<1>(model).biases.gradient, rng);
+    rlt::randn(device, rlt::get_layer<1>(model).biases.gradient_first_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<1>(model).biases.gradient_second_order_moment, rng);
 
-    rlt::randn(device, model.next_module.next_module.content.output, rng);
-    rlt::randn(device, model.next_module.next_module.content.pre_activations, rng);
-    rlt::randn(device, model.next_module.next_module.content.weights.gradient, rng);
-    rlt::randn(device, model.next_module.next_module.content.weights.gradient_first_order_moment, rng);
-    rlt::randn(device, model.next_module.next_module.content.weights.gradient_second_order_moment, rng);
-    rlt::randn(device, model.next_module.next_module.content.biases.gradient, rng);
-    rlt::randn(device, model.next_module.next_module.content.biases.gradient_first_order_moment, rng);
-    rlt::randn(device, model.next_module.next_module.content.biases.gradient_second_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<2>(model).output, rng);
+    rlt::randn(device, rlt::get_layer<2>(model).pre_activations, rng);
+    rlt::randn(device, rlt::get_layer<2>(model).weights.gradient, rng);
+    rlt::randn(device, rlt::get_layer<2>(model).weights.gradient_first_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<2>(model).weights.gradient_second_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<2>(model).biases.gradient, rng);
+    rlt::randn(device, rlt::get_layer<2>(model).biases.gradient_first_order_moment, rng);
+    rlt::randn(device, rlt::get_layer<2>(model).biases.gradient_second_order_moment, rng);
 
     {
         auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_gradient_adam.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);

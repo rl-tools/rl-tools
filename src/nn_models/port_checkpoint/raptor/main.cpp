@@ -65,8 +65,6 @@ namespace target{
     using DEVICE = rl_tools::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
 
     using INPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Input>;
     using INPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<INPUT_LAYER_CONFIG>;
@@ -74,7 +72,7 @@ namespace target{
     using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
     using OUTPUT_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Output>;
     using OUTPUT_LAYER = rlt::nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
-    using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU, Module<OUTPUT_LAYER>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<INPUT_LAYER, GRU, OUTPUT_LAYER>;
     using CAPABILITY = rlt::nn::capability::Forward<DYNAMIC_ALLOCATION>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using POLICY = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;

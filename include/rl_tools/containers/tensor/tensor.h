@@ -153,6 +153,15 @@ namespace rl_tools{
             template <auto NEW_ELEMENT, typename TI, TI... Vs>
             constexpr Tuple<TI, static_cast<TI>(NEW_ELEMENT), Vs...> prepend_helper(Tuple<TI, Vs...>);
 
+            template <typename TI, SizeType N>
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr TI leading_product(ConstexprArray<TI, N> in, SizeType trailing_dims) {
+                TI out = 1;
+                for (SizeType i = 0; i + trailing_dims < N; ++i) {
+                    out *= in.data[i];
+                }
+                return out;
+            }
+
             template <typename TI, TI FIRST, TI... REST>
             constexpr Tuple<TI, REST...> pop_front_helper(Tuple<TI, FIRST, REST...>);
 

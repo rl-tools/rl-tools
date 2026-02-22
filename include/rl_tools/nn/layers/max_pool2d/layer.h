@@ -54,8 +54,7 @@ namespace rl_tools::nn::layers::max_pool2d {
             using SHAPE = tensor::Replace<SHAPE_HEIGHT, NEW_OW, length(NEW_INPUT_SHAPE{}) - 2>;
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
-        using BATCH_SHAPE = tensor::PopBack<tensor::PopBack<tensor::PopBack<INPUT_SHAPE>>>;
-        static constexpr TI INTERNAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<BATCH_SHAPE>{});
+        static constexpr TI INTERNAL_BATCH_SIZE = tensor::shape_math::leading_product(tensor::shape_math::element_to_array<INPUT_SHAPE>(), 3);
         static constexpr TI NUM_WEIGHTS = 0;
     };
 

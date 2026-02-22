@@ -77,9 +77,7 @@ struct APPROXIMATOR_CONFIG{
         using SAMPLE_AND_SQUASH_LAYER_SPEC = rlt::nn::layers::sample_and_squash::Configuration<T, TI, rlt::nn::layers::sample_and_squash::DefaultParameters<T>>;
         using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_SPEC>;
 
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-        using MODULE_CHAIN = Module<ACTOR_TYPE, Module<SAMPLE_AND_SQUASH_LAYER>>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<ACTOR_TYPE, SAMPLE_AND_SQUASH_LAYER>;
 
         using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
     };
@@ -89,9 +87,7 @@ struct APPROXIMATOR_CONFIG{
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
         using SPEC = rlt::nn_models::mlp::Configuration<T, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>>;
         using TYPE = rlt::nn_models::mlp::BindConfiguration<SPEC>;
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
-        using MODULE_CHAIN = Module<TYPE>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<TYPE>;
         using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     };
 
