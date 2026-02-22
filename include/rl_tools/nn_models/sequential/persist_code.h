@@ -53,7 +53,7 @@ namespace rl_tools{
             ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = [](){\n";
             ss << ind << "    " << "    TYPE m{};\n";
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.content) = layer_" << inner_layer_i << "::factory<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename TYPE::SPEC::LAYER_SPECS>::type::CONTENT>;\n";
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.layers) = layer_" << inner_layer_i << "::factory<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename TYPE::SPEC::LAYER_SPECS>::type::CONTENT>;\n";
             }
             ss << ind << "    " << "    return m;\n";
             ss << ind << "    " << "}();\n";
@@ -62,7 +62,7 @@ namespace rl_tools{
             ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory = [](){\n";
             ss << ind << "    " << "    T_TYPE m{};\n";
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.content) = layer_" << inner_layer_i << "::factory<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename T_TYPE::SPEC::LAYER_SPECS>::type::CONTENT>;\n";
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.layers) = layer_" << inner_layer_i << "::factory<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename T_TYPE::SPEC::LAYER_SPECS>::type::CONTENT>;\n";
             }
             ss << ind << "    " << "    return m;\n";
             ss << ind << "    " << "}();" << "\n";
@@ -70,7 +70,7 @@ namespace rl_tools{
             ss << ind << "    " << (const_declaration ? "constexpr " : "") << "T_TYPE factory_function(){\n";
             ss << ind << "    " << "    T_TYPE m{};\n";
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){
-                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.content) = layer_" << inner_layer_i << "::factory_function<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename T_TYPE::SPEC::LAYER_SPECS>::type::CONTENT>();\n";
+                ss << ind << "    " << "    RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << inner_layer_i << ">(m.layers) = layer_" << inner_layer_i << "::factory_function<typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::tuple_element<" << inner_layer_i << ", typename T_TYPE::SPEC::LAYER_SPECS>::type::CONTENT>();\n";
             }
             ss << ind << "    " << "    return m;\n";
             ss << ind << "    " << "}\n";

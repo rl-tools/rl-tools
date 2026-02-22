@@ -22,11 +22,11 @@ namespace rl_tools{
 
         template <auto LAYER_I, typename MODULE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& layer(ModuleForward<MODULE_SPEC>& model) {
-            return get<LAYER_I>(model.content);
+            return get<LAYER_I>(model.layers);
         }
         template <auto LAYER_I, typename MODULE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT constexpr const auto& layer(const ModuleForward<MODULE_SPEC>& model) {
-            return get<LAYER_I>(model.content);
+            return get<LAYER_I>(model.layers);
         }
         template <auto LAYER_I, typename CONTENT_BUFFER_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& content_buffer(ContentBuffer<CONTENT_BUFFER_SPEC>& buffer) {

@@ -308,7 +308,7 @@ namespace rl_tools{
         template<auto LAYER_I = 0, typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void update_target_module(DEVICE& device, const  nn_models::sequential::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target, T polyak) {
             if constexpr(LAYER_I < SOURCE_SPEC::NUM_LAYERS){
-                update_target_module(device, get<LAYER_I>(source.content), get<LAYER_I>(target.content), polyak);
+                update_target_module(device, get<LAYER_I>(source.layers), get<LAYER_I>(target.layers), polyak);
                 update_target_module<LAYER_I + 1>(device, source, target, polyak);
             }
         }

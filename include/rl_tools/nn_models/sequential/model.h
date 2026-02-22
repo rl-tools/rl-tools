@@ -146,7 +146,7 @@ namespace rl_tools::nn_models::sequential{
         static constexpr TI MAX_HIDDEN_DIM = detail::max_hidden_dim<TI, LAYER_SPECS>();
         using FIRST_LAYER_SPEC = typename tuple_element<0, LAYER_SPECS>::type;
         using TYPE_POLICY = typename FIRST_LAYER_SPEC::TYPE_POLICY;
-        using CONTENT = typename FIRST_LAYER_SPEC::CONTENT;
+        using FIRST_LAYER_CONTENT = typename FIRST_LAYER_SPEC::CONTENT;
     };
 
     template <typename CAPABILITY, typename MODULE, typename INPUT_SHAPE>
@@ -251,7 +251,7 @@ namespace rl_tools::nn_models::sequential{
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
         using LAYERS = utils::MapTuple<typename SPEC::LAYER_SPECS, LayerContentMap>;
-        LAYERS content;
+        LAYERS layers;
 
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
