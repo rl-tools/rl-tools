@@ -12,6 +12,8 @@
 
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include "../../../../persist/backends/hdf5/hdf5.h"
+#else
+#include "../../../../persist/backends/tar/operations_cpu.h"
 #endif
 
 #include "../../../../numeric_types/persist_code.h"
