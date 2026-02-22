@@ -30,8 +30,8 @@ using GRU = rlt::nn::layers::gru::BindConfiguration<GRU_CONFIG>;
 using DENSE_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::IDENTITY>;
 using DENSE = rlt::nn::layers::dense::BindConfiguration<DENSE_CONFIG>;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 using MODULE_CHAIN = Module<GRU, Module<DENSE>>;
 
 using CAPABILITY = rlt::nn::capability::Forward<>;

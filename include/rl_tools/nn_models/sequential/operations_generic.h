@@ -518,10 +518,6 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE&, nn_models::sequential::OutputModule&, const Mode<MODE>& = Mode<mode::Default<>>{}){
-        return false;
-    }
 
     template<auto LAYER_I = 0, typename DEVICE, typename MODULE_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::sequential::ContentState<MODULE_SPEC>& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){

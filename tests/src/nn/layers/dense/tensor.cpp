@@ -69,8 +69,8 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, ND_Tensor){
     ASSERT_NEAR(abs_diff, 0, 1e-5);
 }
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;

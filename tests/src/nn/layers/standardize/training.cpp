@@ -68,8 +68,8 @@ namespace config{
                 using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Configuration<T, TI, nn::layers::sample_and_squash::DefaultParameters<T>>;
                 using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_SPEC>;
 
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+                template <typename... T_CONTENTS>
+                using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
                 using MODULE_CHAIN = Module<LAYER_0, Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<SAMPLE_AND_SQUASH_LAYER>>>>>;
 
                 using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
@@ -88,8 +88,8 @@ namespace config{
                 using LAYER_3_SPEC = nn::layers::dense::Configuration<T, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Output>;
                 using LAYER_3 = nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-                template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-                using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+                template <typename... T_CONTENTS>
+                using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
                 using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 
                 using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;

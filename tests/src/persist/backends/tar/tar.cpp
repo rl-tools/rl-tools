@@ -245,8 +245,8 @@ TEST(TEST_PERSIST_BACKENDS_TAR_TAR, dense_layer){
     ASSERT_NEAR(abs_diff, 0, 1e-6);
 }
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 
 TEST(TEST_PERSIST_BACKENDS_TAR_TAR, sequential_model){
     DEVICE device;

@@ -27,8 +27,8 @@ namespace parameters_0{
             static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
             static constexpr bool IGNORE_TERMINATION = false;
         };
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+        template <typename... T_CONTENTS>
+        using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 
         using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
         using ACTOR_CONFIG = rlt::nn_models::mlp::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;

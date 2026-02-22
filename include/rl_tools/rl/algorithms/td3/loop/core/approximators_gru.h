@@ -23,8 +23,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using OUTPUT_CONFIG = nn::layers::dense::Configuration<T, TI, ENVIRONMENT::ACTION_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<T, TI>, nn::parameters::groups::Output>;
             using OUTPUT = nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename... T_CONTENTS>
+            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
 
             using MODULE_GRU = Module<GRU, Module<OUTPUT>>;
             using MODULE_GRU_TWO_LAYER = Module<GRU, Module<GRU2, Module<OUTPUT>>>;
@@ -49,8 +49,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using OUTPUT = nn::layers::dense::BindConfiguration<OUTPUT_CONFIG>;
             static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename... T_CONTENTS>
+            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
 
             using MODULE_GRU = Module<GRU, Module<OUTPUT>>;
             using MODULE_GRU_TWO_LAYER = Module<GRU, Module<GRU2, Module<OUTPUT>>>;

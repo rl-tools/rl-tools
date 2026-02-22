@@ -24,8 +24,8 @@ namespace MODEL_FORWARD{
     using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename... T_CONTENTS>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
     using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 
     using CAPABILITY = rlt::nn::capability::Forward<>;

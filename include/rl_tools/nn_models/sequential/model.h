@@ -9,14 +9,6 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::sequential{
-    struct OutputModule{
-        struct CONTENT{
-            using INPUT_SHAPE = tensor::Shape<decltype(0), 0>;
-        };
-        template <typename>
-        using CHANGE_CAPABILITY = OutputModule;
-    };
-
     template <typename T_CONTENT, typename T_INPUT_SHAPE, typename T_OUTPUT_SHAPE>
     struct LayerSpecification {
         using CONTENT = T_CONTENT;
@@ -94,13 +86,6 @@ namespace rl_tools::nn_models::sequential{
 
     template <typename CAPABILITY, typename INPUT_SHAPE, typename ACCUMULATOR>
     struct BuildLayerSpecsImpl<CAPABILITY, Module<>, INPUT_SHAPE, ACCUMULATOR> {
-        using LAYER_SPECS = ACCUMULATOR;
-        using FINAL_OUTPUT_SHAPE = INPUT_SHAPE;
-    };
-
-    template <typename CAPABILITY, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR>
-    struct BuildLayerSpecsImpl<CAPABILITY, Module<OutputModule, TAIL...>, INPUT_SHAPE, ACCUMULATOR> {
-        static_assert(sizeof...(TAIL) == 0, "OutputModule must be the last element in a Module chain");
         using LAYER_SPECS = ACCUMULATOR;
         using FINAL_OUTPUT_SHAPE = INPUT_SHAPE;
     };

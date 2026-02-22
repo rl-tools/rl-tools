@@ -46,8 +46,8 @@ namespace config{
         using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>>;
         using SEQUENTIAL_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>>;
 
-        template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-        using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+        template <typename... T_CONTENTS>
+        using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
         using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 
         using SEQUENTIAL_MODEL = rlt::nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;

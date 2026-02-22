@@ -59,8 +59,8 @@ using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam
 using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 using MODULE_CHAIN = Module<ACTOR>;
 using ACTOR_NETWORK_TYPE = rlt::nn_models::sequential::Build<ACTOR_CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 //using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPABILITY, ACTOR_INPUT_SHAPE>;

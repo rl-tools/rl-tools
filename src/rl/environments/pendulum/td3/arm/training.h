@@ -43,8 +43,8 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<TYPE_P
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>>;

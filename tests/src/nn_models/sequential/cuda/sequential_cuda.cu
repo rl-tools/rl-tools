@@ -30,8 +30,8 @@ using MLP_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DI
 using MLP = rlt::nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 using SAMPLE_AND_SQUASH_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<TYPE_POLICY, TI>;
 using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_CONFIG>;
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 using MODULE_CHAIN = Module<MLP, Module<SAMPLE_AND_SQUASH>>;
 
 

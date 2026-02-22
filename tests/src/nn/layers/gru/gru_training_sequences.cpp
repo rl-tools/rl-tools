@@ -77,8 +77,8 @@ struct Config{
     using DENSE_LAYER2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Normal>;
     using DENSE_LAYER2 = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER2_CONFIG>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename... T_CONTENTS>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 
     using MODULE_CHAIN = Module<GRU, Module<DENSE_LAYER1, Module<DENSE_LAYER2>>>;
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;

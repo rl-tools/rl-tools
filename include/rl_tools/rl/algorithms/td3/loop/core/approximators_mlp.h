@@ -21,8 +21,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using SAMPLING_CONFIG = nn::layers::td3_sampling::Configuration<TYPE_POLICY, TI, SAMPLING_PARAMETERS>;
             using SAMPLING = nn::layers::td3_sampling::BindConfiguration<SAMPLING_CONFIG>;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename... T_CONTENTS>
+            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
 
             using MODULE_CHAIN = Module<MLP, Module<SAMPLING>>;
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
@@ -37,8 +37,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using MLP_CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction::IDENTITY>;
             using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename... T_CONTENTS>
+            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
 
             using MODULE_CHAIN = Module<MLP>;
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;

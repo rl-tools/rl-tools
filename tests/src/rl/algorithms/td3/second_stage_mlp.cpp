@@ -55,8 +55,8 @@ struct TD3ParametersCopyTraining: public rlt::rl::algorithms::td3::DefaultParame
     constexpr static typename AC_DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 
 
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3ParametersCopyTraining::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;

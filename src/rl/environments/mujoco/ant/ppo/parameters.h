@@ -26,10 +26,10 @@ namespace parameters_0{
             using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
             using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename... T_CONTENTS>
+            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
 
-            using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
+            using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, TYPE>;
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
         template <typename CAPABILITY>
@@ -40,10 +40,10 @@ namespace parameters_0{
             using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
             using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
 
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename... T_CONTENTS>
+            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
 
-            using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<TYPE>>;
+            using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, TYPE>;
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
 

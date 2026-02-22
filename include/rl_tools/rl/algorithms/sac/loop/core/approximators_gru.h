@@ -34,8 +34,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             };
             using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Configuration<TYPE_POLICY, TI, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
             using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_SPEC>;
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename... T_CONTENTS>
+            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
             using SAMPLE_AND_SQUASH_MODULE = Module<SAMPLE_AND_SQUASH_LAYER>;
             using MODULE_GRU = Module<INPUT_LAYER, Module<GRU, Module<OUTPUT_LAYER, SAMPLE_AND_SQUASH_MODULE>>>;
             using MODULE_GRU_TWO_LAYER = Module<INPUT_LAYER, Module<GRU, Module<GRU2, Module<OUTPUT_LAYER, SAMPLE_AND_SQUASH_MODULE>>>>;
@@ -58,8 +58,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             using DENSE_LAYER = nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
             using OUTPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Output>;
             using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<OUTPUT_LAYER_CONFIG>;
-            template <typename T_CONTENT, typename T_NEXT_MODULE = nn_models::sequential::OutputModule>
-            using Module = typename nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+            template <typename... T_CONTENTS>
+            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
             using MODULE_GRU = Module<INPUT_LAYER, Module<GRU, Module<OUTPUT_LAYER>>>;
             using MODULE_GRU_TWO_LAYER = Module<INPUT_LAYER, Module<GRU, Module<GRU2, Module<OUTPUT_LAYER>>>>;
             using MODULE_GRU_THREE_LAYER = Module<INPUT_LAYER, Module<GRU, Module<GRU2, Module<DENSE_LAYER, Module<OUTPUT_LAYER>>>>>;

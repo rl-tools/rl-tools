@@ -40,8 +40,8 @@ using TI = typename DEVICE::index_t;
 using T = double;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST_CODE){
     static constexpr TI SEQUENCE_LENGTH = 2;
     static constexpr TI BATCH_SIZE = 3;

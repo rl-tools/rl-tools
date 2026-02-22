@@ -29,8 +29,8 @@ struct Actor{
     using STANDARDIZATION_LAYER_SPEC = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_SPEC>;
 
-    template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+    template <typename... T_CONTENTS>
+    using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
     using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<ACTOR_TYPE>>;
 
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;

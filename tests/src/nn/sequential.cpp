@@ -9,12 +9,6 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 
 
-//template <typename T_CONTENT>
-//struct OutputModule{
-//    using CONTENT = T_CONTENT;
-//    static constexpr auto MAX_HIDDEN_DIM = CONTENT::INPUT_DIM;
-//    CONTENT content;
-//};
 //
 //template <typename T_CONTENT, typename T_NEXT_MODULE>
 //struct Specification{
@@ -27,8 +21,8 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 //
 
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     using DEVICE = rlt::devices::DefaultCPU;

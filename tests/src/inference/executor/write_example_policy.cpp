@@ -44,8 +44,8 @@ using DOWN_PROJECTION_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration
 using DENSE_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Normal>;
 using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
 
-template <typename T_CONTENT, typename T_NEXT_MODULE = rlt::nn_models::sequential::OutputModule>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENT, T_NEXT_MODULE>;
+template <typename... T_CONTENTS>
+using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 
 //    using MODULE_CHAIN = Module<EMBEDDING_LAYER, Module<GRU, Module<GRU2, Module<DOWN_PROJECTION_LAYER_TEMPLATE, Module<DENSE_LAYER_TEMPLATE>>>>>;
 using MODULE_CHAIN = Module<INPUT_LAYER, Module<GRU, Module<DOWN_PROJECTION_LAYER_TEMPLATE, Module<DENSE_LAYER_TEMPLATE>>>>;
