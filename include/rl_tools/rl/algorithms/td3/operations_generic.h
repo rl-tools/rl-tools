@@ -305,17 +305,11 @@ namespace rl_tools{
             }
             update_target_module(device, source.output_layer, target.output_layer, polyak);
         }
-        template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        template<auto LAYER_I = 0, typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void update_target_module(DEVICE& device, const  nn_models::sequential::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target, T polyak) {
-            auto update_impl = [&](auto self, auto layer_i_const) -> void {
-                constexpr auto I = decltype(layer_i_const)::value;
-                update_target_module(device, get<I>(source.content), get<I>(target.content), polyak);
-                if constexpr(I + 1 < SOURCE_SPEC::NUM_LAYERS){
-                    self(self, rl_tools::utils::typing::integral_constant<decltype(I + 1), I + 1>{});
-                }
-            };
-            if constexpr(SOURCE_SPEC::NUM_LAYERS > 0){
-                update_impl(update_impl, rl_tools::utils::typing::integral_constant<int, 0>{});
+            if constexpr(LAYER_I < SOURCE_SPEC::NUM_LAYERS){
+                update_target_module(device, get<LAYER_I>(source.content), get<LAYER_I>(target.content), polyak);
+                update_target_module<LAYER_I + 1>(device, source, target, polyak);
             }
         }
     }
