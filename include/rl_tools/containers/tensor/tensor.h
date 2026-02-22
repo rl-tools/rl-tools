@@ -122,22 +122,30 @@ namespace rl_tools{
                 return element_to_array_unpack<ELEMENT>(MakeIndexSequence<rank<ELEMENT>()>{});
             }
 
+            template <typename LEFT, typename RIGHT, SizeType... Is>
+            constexpr auto concat_helper(IndexSequence<Is...>) {
+                static_assert(utils::typing::is_same_v<typename LEFT::TI, typename RIGHT::TI>, "Concat requires matching TI types");
+                using TI = typename LEFT::TI;
+                constexpr SizeType LEFT_RANK = rank<LEFT>();
+                constexpr SizeType RIGHT_RANK = rank<RIGHT>();
+                constexpr auto out = []() constexpr {
+                    constexpr auto left = element_to_array<LEFT>();
+                    constexpr auto right = element_to_array<RIGHT>();
+                    ConstexprArray<TI, LEFT_RANK + RIGHT_RANK> out{};
+                    for(SizeType i = 0; i < LEFT_RANK; ++i){
+                        out.data[i] = left.data[i];
+                    }
+                    for(SizeType i = 0; i < RIGHT_RANK; ++i){
+                        out.data[LEFT_RANK + i] = right.data[i];
+                    }
+                    return out;
+                }();
+                return Tuple<TI, out.data[Is]...>{};
+            }
+
             template <typename LEFT, typename RIGHT>
-            struct ConcatImpl;
-            template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
-            struct ConcatImpl<Tuple<TI, LEFT_VALUES...>, Tuple<TI, RIGHT_VALUES...>>{
-                using TYPE = Tuple<TI, LEFT_VALUES..., RIGHT_VALUES...>;
-            };
-            template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
-            struct ConcatImpl<Shape<TI, LEFT_VALUES...>, Shape<TI, RIGHT_VALUES...>>{
-                using TYPE = Shape<TI, LEFT_VALUES..., RIGHT_VALUES...>;
-            };
-            template <typename TI, TI... LEFT_VALUES, TI... RIGHT_VALUES>
-            struct ConcatImpl<Stride<TI, LEFT_VALUES...>, Stride<TI, RIGHT_VALUES...>>{
-                using TYPE = Stride<TI, LEFT_VALUES..., RIGHT_VALUES...>;
-            };
-            template <typename LEFT, typename RIGHT>
-            using Concat = typename ConcatImpl<LEFT, RIGHT>::TYPE;
+            using Concat = decltype(concat_helper<LEFT, RIGHT>(
+                MakeIndexSequence<rank<LEFT>() + rank<RIGHT>()>{}));
 
             template <auto NEW_ELEMENT, typename TI, TI... Vs>
             constexpr Tuple<TI, Vs..., static_cast<TI>(NEW_ELEMENT)> append_helper(Tuple<TI, Vs...>);
