@@ -165,7 +165,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_gradient_adam)
         catch(HighFive::DataSetException& e){
 
             std::cerr << "Error while loading model: " << e.what() << std::endl;
-            if(std::string(e.what()) == std::string("Unable to open the dataset \"gradient\": (Symbol table) Object not found")){
+            if(std::string(e.what()) == std::string("Unable to open the dataset \"gradient_first_order_moment\": (Symbol table) Object not found")){
                 got_expected_error = true;
             }
         }
