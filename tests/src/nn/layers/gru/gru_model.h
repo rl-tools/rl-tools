@@ -39,11 +39,8 @@ struct Config{
     using DENSE_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMS::OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, rlt::nn::parameters::groups::Normal>;
     using DENSE_LAYER_TEMPLATE = rlt::nn::layers::dense::BindConfiguration<DENSE_LAYER_CONFIG>;
 
-    template <typename... T_CONTENTS>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-
 //    using MODULE_CHAIN = Module<EMBEDDING_LAYER, Module<GRU, Module<GRU2, Module<DOWN_PROJECTION_LAYER_TEMPLATE, Module<DENSE_LAYER_TEMPLATE>>>>>;
-    using MODULE_CHAIN = Module<EMBEDDING_LAYER, Module<GRU, Module<DOWN_PROJECTION_LAYER_TEMPLATE, Module<DENSE_LAYER_TEMPLATE>>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<EMBEDDING_LAYER, rlt::nn_models::sequential::Module<GRU, rlt::nn_models::sequential::Module<DOWN_PROJECTION_LAYER_TEMPLATE, rlt::nn_models::sequential::Module<DENSE_LAYER_TEMPLATE>>>>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 

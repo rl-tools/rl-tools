@@ -25,9 +25,7 @@ struct Actor{
     using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
     using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_SPEC>;
-    template <typename... T_CONTENTS>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-    using MODULE_CHAIN = Module<ACTOR>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<ACTOR>;
 
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 };

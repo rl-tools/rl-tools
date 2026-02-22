@@ -37,9 +37,7 @@ namespace rl_tools{
 //            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
 //            std::string capability = "Forward";
             ss << ind << "    " << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << "; \n";
-            ss << ind << "    " << "    " << "template <typename... T_CONTENTS>\n";
-            ss << ind << "    " << "    " << "using Module = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<T_CONTENTS...>;\n";
-            ss << ind << "    " << "    " << "using MODULE_CHAIN = Module<";
+            ss << ind << "    " << "    " << "using MODULE_CHAIN = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "layer_" << layer_i << "::TEMPLATE";
                 if(layer_i < num_layers(model)-1){

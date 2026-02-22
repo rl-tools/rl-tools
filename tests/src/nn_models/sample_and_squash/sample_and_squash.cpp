@@ -30,9 +30,7 @@ using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindConfiguration<
 //using SAMPLE_AND_SQUASH_MODULE_SPEC = rlt::nn_models::sequential::Specification<SAMPLE_AND_SQUASH>;
 using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-using MODULE_CHAIN = Module<MLP_TYPE, Module<SAMPLE_AND_SQUASH>>;
+using MODULE_CHAIN = rlt::nn_models::sequential::Module<MLP_TYPE, rlt::nn_models::sequential::Module<SAMPLE_AND_SQUASH>>;
 
 using ACTOR = rlt::nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;
 

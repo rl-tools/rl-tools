@@ -51,9 +51,7 @@ namespace MODEL_BENCHMARK{
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
@@ -69,9 +67,7 @@ namespace MODEL_1{
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 namespace MODEL_2{
@@ -85,9 +81,7 @@ namespace MODEL_2{
     using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-    using MODULE_CHAIN = Module<STANDARDIZATION_LAYER, Module<ACTOR_TYPE>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<STANDARDIZATION_LAYER, rlt::nn_models::sequential::Module<ACTOR_TYPE>>;
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
@@ -100,9 +94,7 @@ namespace MODEL_MLP{
 
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-    using MODULE_CHAIN = Module<ACTOR_TYPE>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<ACTOR_TYPE>;
     using MODEL = typename rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 }
 
@@ -116,9 +108,7 @@ namespace MODEL_SAMPLE_AND_SQUASH{
     using SAMPLE_AND_SQUASH_LAYER_CONFIG = rlt::nn::layers::sample_and_squash::Configuration<TYPE_POLICY, TI>;
     using SAMPLE_AND_SQUASH_LAYER = rlt::nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_LAYER_CONFIG>;
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-    using MODULE_CHAIN = Module<ACTOR_TYPE, Module<SAMPLE_AND_SQUASH_LAYER>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<ACTOR_TYPE, rlt::nn_models::sequential::Module<SAMPLE_AND_SQUASH_LAYER>>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
     using MODEL = typename rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 }

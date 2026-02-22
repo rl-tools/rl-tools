@@ -101,9 +101,7 @@ namespace network_builder{
     using INPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     using MLP_CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, nn::activation_functions::RELU, nn::activation_functions::IDENTITY>;
     using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
-    template <typename... T_CONTENTS>
-    using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
-    using MODULE_CHAIN = Module<MLP>;
+    using MODULE_CHAIN = nn_models::sequential::Module<MLP>;
     using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
     using MODEL_STATIC = nn_models::sequential::Build<CAPABILITY_STATIC, MODULE_CHAIN, INPUT_SHAPE>;
 };

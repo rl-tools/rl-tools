@@ -47,12 +47,8 @@ namespace rl_tools::nn_models::resnet18 {
     using FC_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, 1000,
         nn::activation_functions::ActivationFunction::IDENTITY>;
 
-    // Sequential chain
-    template<typename... C>
-    using Module = nn_models::sequential::Module<C...>;
-
     template<typename TYPE_POLICY, typename TI>
-    using MODULE_CHAIN = Module<
+    using MODULE_CHAIN = nn_models::sequential::Module<
         nn::layers::conv2d::BindConfiguration<STEM_CONV_CONFIG<TYPE_POLICY, TI>>,           // 0: stem
         nn::layers::max_pool2d::BindConfiguration<MAXPOOL_CONFIG<TYPE_POLICY, TI>>,         // 1: maxpool
         nn::layers::resnet_block::BindConfiguration<BLOCK_64_S1_CONFIG<TYPE_POLICY, TI>>,   // 2: layer1.0

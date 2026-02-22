@@ -43,9 +43,7 @@ namespace mnist_model{ // to simplify the model definition we import the sequent
     using LAYER_3_SPEC = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_SPEC>;
 
-    template <typename... T_CONTENTS>
-    using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-    using MODULE_CHAIN = Module<LAYER_1, LAYER_2, LAYER_3>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, LAYER_2, LAYER_3>;
 
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
     using MODEL = rlt::nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, INPUT_SHAPE>;

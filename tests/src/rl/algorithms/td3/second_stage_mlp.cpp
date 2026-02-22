@@ -55,10 +55,6 @@ struct TD3ParametersCopyTraining: public rlt::rl::algorithms::td3::DefaultParame
     constexpr static typename AC_DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-
-
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3ParametersCopyTraining::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
 using ACTOR = rlt::nn_models::mlp::BindConfiguration<ACTOR_NETWORK_SPEC>;
@@ -73,7 +69,7 @@ using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam
 using ACTOR_LOADER_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>;
 
 //using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, ACTOR_CAPABILITY, ACTOR_INPUT_SHAPE>;
-using ACTOR_MODULE_CHAIN = Module<ACTOR>;
+using ACTOR_MODULE_CHAIN = rlt::nn_models::sequential::Module<ACTOR>;
 using ACTOR_TYPE = rlt::nn_models::sequential::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 
 //using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_NETWORK_SPEC, rlt::nn::capability::Forward<>, ACTOR_INPUT_SHAPE>;
@@ -84,7 +80,7 @@ using ACTOR_LOADER_TYPE = rlt::nn_models::sequential::Build<ACTOR_LOADER_CAPABIL
 using CRITIC_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using CRITIC_LOADER_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>;
 //using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, CRITIC_CAPABILITY, CRITIC_INPUT_SHAPE>;
-using CRITIC_MODULE_CHAIN = Module<CRITIC>;
+using CRITIC_MODULE_CHAIN = rlt::nn_models::sequential::Module<CRITIC>;
 using CRITIC_TYPE = rlt::nn_models::sequential::Build<CRITIC_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
 //using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_NETWORK_SPEC, rlt::nn::capability::Forward<>, CRITIC_INPUT_SHAPE>;

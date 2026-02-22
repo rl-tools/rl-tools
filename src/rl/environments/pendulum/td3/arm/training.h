@@ -43,9 +43,6 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<TYPE_P
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-
 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3_PARAMETERS::ACTOR_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
 using ACTOR_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, DEVICE::index_t, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>>;
 using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TD3_PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM>;
@@ -60,8 +57,8 @@ using ACTOR = rlt::nn_models::mlp::BindConfiguration<ACTOR_SPEC>;
 using CRITIC_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using CRITIC = rlt::nn_models::mlp::BindConfiguration<CRITIC_SPEC>;
 
-using ACTOR_MODULE_CHAIN = Module<ACTOR>;
-using CRITIC_MODULE_CHAIN = Module<CRITIC>;
+using ACTOR_MODULE_CHAIN = rlt::nn_models::sequential::Module<ACTOR>;
+using CRITIC_MODULE_CHAIN = rlt::nn_models::sequential::Module<CRITIC>;
 
 using ACTOR_NETWORK_TYPE = rlt::nn_models::sequential::Build<ACTOR_CAPABILITY, ACTOR_MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
 using CRITIC_NETWORK_TYPE = rlt::nn_models::sequential::Build<CRITIC_CAPABILITY, CRITIC_MODULE_CHAIN, CRITIC_INPUT_SHAPE>;

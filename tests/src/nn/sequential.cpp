@@ -21,9 +21,6 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 //
 
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
-
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
@@ -39,7 +36,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_1 = rlt::nn::layers::dense::BindConfiguration<LAYER_1_CONFIG>;
         
 
-        using MODULE_CHAIN = Module<LAYER_1>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1>;
         using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, MODULE_CHAIN, INPUT_SHAPE>;
 
         static_assert(SEQUENTIAL::SPEC::MAX_HIDDEN_DIM == 0);
@@ -53,7 +50,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
         
-        using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2>>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2>>;
         using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, MODULE_CHAIN, INPUT_SHAPE>;
 
         static_assert(SEQUENTIAL::SPEC::MAX_HIDDEN_DIM == 10);
@@ -66,7 +63,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 100, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
 
-        using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2>>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2>>;
         using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, MODULE_CHAIN, INPUT_SHAPE>;
 
         static_assert(SEQUENTIAL::SPEC::MAX_HIDDEN_DIM == 10);
@@ -83,7 +80,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_4_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 20, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_4 = rlt::nn::layers::dense::BindConfiguration<LAYER_4_CONFIG>;
 
-        using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<LAYER_4>>>>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3, rlt::nn_models::sequential::Module<LAYER_4>>>>;
         using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, MODULE_CHAIN, INPUT_SHAPE>;
 
         static_assert(SEQUENTIAL::SPEC::MAX_HIDDEN_DIM == 11);
@@ -102,7 +99,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_5_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 20, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_5 = rlt::nn::layers::dense::BindConfiguration<LAYER_5_CONFIG>;
         
-        using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<LAYER_4, Module<LAYER_5>>>>>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3, rlt::nn_models::sequential::Module<LAYER_4, rlt::nn_models::sequential::Module<LAYER_5>>>>>;
         using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, MODULE_CHAIN, INPUT_SHAPE>;
 
         static_assert(SEQUENTIAL::SPEC::MAX_HIDDEN_DIM == 100);
@@ -133,7 +130,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 
     std::cout << "Max hidden dim: " << SEQUENTIAL::SPEC::MAX_HIDDEN_DIM << std::endl;
@@ -241,7 +238,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
     using LAYER_2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindConfiguration<LAYER_2_CONFIG>;
 
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2>>;
     using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 
     DEVICE device;
@@ -273,7 +270,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
 
     using CAPABILITY_ADAM = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
 
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 
 
@@ -305,7 +302,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     rlt::randn(device, input, rng);
     rlt::print(device, input);
 
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 
     auto output_sequential_tensor_ravel = rlt::to_tensor(device, output_sequential);
@@ -350,7 +347,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 
     std::cout << "Max hidden dim: " << SEQUENTIAL::SPEC::MAX_HIDDEN_DIM << std::endl;
@@ -512,7 +509,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD_2){
     using LAYER_3_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindConfiguration<LAYER_3_CONFIG>;
 
-    using MODULE_CHAIN = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER_1, rlt::nn_models::sequential::Module<LAYER_2, rlt::nn_models::sequential::Module<LAYER_3>>>;
     using SEQUENTIAL = rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_CHAIN, INPUT_SHAPE>;
 
     std::cout << "Max hidden dim: " << SEQUENTIAL::SPEC::MAX_HIDDEN_DIM << std::endl;

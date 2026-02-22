@@ -69,8 +69,6 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, ND_Tensor){
     ASSERT_NEAR(abs_diff, 0, 1e-5);
 }
 
-template <typename... T_CONTENTS>
-using Module = typename rlt::nn_models::sequential::Module<T_CONTENTS...>;
 TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
@@ -86,7 +84,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_TENSOR, FORWARD){
     using LAYER = rlt::nn::layers::dense::BindConfiguration<LAYER_SPEC>;
     using CAPA = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
-    using MODULE_CHAIN = Module<LAYER>;
+    using MODULE_CHAIN = rlt::nn_models::sequential::Module<LAYER>;
     using MODEL = rlt::nn_models::sequential::Build<CAPA, MODULE_CHAIN, INPUT_SHAPE>;
     MODEL model;
     MODEL::Buffer<> buffer;

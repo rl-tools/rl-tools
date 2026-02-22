@@ -27,9 +27,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             };
             using SAMPLE_AND_SQUASH_CONFIG = nn::layers::sample_and_squash::Configuration<TYPE_POLICY, TI, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
             using SAMPLE_AND_SQUASH = nn::layers::sample_and_squash::BindConfiguration<SAMPLE_AND_SQUASH_CONFIG>;
-            template <typename... T_CONTENTS>
-            using Module = nn_models::sequential::Module<T_CONTENTS...>;
-            using MODULE_CHAIN = Module<MLP, SAMPLE_AND_SQUASH>;
+            using MODULE_CHAIN = nn_models::sequential::Module<MLP, SAMPLE_AND_SQUASH>;
 
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 
@@ -40,9 +38,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             using INPUT_SHAPE = tensor::Shape<TI, SAC_PARAMETERS::SEQUENCE_LENGTH, SAC_PARAMETERS::CRITIC_BATCH_SIZE, INPUT_DIM>;
             using MLP_CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER>;
             using MLP = nn_models::mlp::BindConfiguration<MLP_CONFIG>;
-            template <typename... T_CONTENTS>
-            using Module = nn_models::sequential::Module<T_CONTENTS...>;
-            using MODULE_CHAIN = Module<MLP>;
+            using MODULE_CHAIN = nn_models::sequential::Module<MLP>;
 
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };

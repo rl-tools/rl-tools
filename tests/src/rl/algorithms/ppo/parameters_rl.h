@@ -24,9 +24,7 @@ namespace parameters_0{
             using ACTOR_SPEC = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, nn::activation_functions::IDENTITY>;
             using ACTOR = nn_models::mlp_unconditional_stddev::BindConfiguration<ACTOR_SPEC>;
 
-            template <typename... T_CONTENTS>
-            using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
-            using MODULE_CHAIN = Module<ACTOR>;
+            using MODULE_CHAIN = nn_models::sequential::Module<ACTOR>;
 
             using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, ACTOR_INPUT_SHAPE>;
         };
@@ -41,9 +39,7 @@ namespace parameters_0{
         using CRITIC_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
         using CRITIC_SPEC = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
         using CRITIC = rlt::nn_models::mlp::BindConfiguration<CRITIC_SPEC>;
-        template <typename... T_CONTENTS>
-        using Module = typename nn_models::sequential::Module<T_CONTENTS...>;
-        using MODULE_CHAIN = Module<CRITIC>;
+        using MODULE_CHAIN = nn_models::sequential::Module<CRITIC>;
 
         using CRITIC_TYPE = nn_models::sequential::Build<CAPABILITY_ADAM, MODULE_CHAIN, CRITIC_INPUT_SHAPE>;
 
