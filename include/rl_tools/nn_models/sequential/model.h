@@ -48,49 +48,81 @@ namespace rl_tools::nn_models::sequential{
     template <auto INDEX, typename TUPLE>
     struct tuple_element;
 
-    template <typename TI, TI INDEX, typename TUPLE, bool DONE = (INDEX == 0)>
-    struct tuple_element_typed;
+    namespace detail {
+        template <typename TI, TI... Is>
+        struct index_sequence {};
 
-    template <typename TI, TI INDEX, typename CURRENT, typename... REST>
-    struct tuple_element_typed<TI, INDEX, utils::Tuple<TI, CURRENT, REST...>, false> {
-        using type = typename tuple_element_typed<TI, INDEX - 1, utils::Tuple<TI, REST...>>::type;
-    };
+        template <typename TI, bool DONE, TI N, TI... Is>
+        struct make_index_sequence_impl;
+        template <typename TI, TI N, TI... Is>
+        struct make_index_sequence_impl<TI, true, N, Is...> {
+            using type = index_sequence<TI, Is...>;
+        };
+        template <typename TI, TI N, TI... Is>
+        struct make_index_sequence_impl<TI, false, N, Is...> {
+            using type = typename make_index_sequence_impl<TI, N - 1 == 0, N - 1, N - 1, Is...>::type;
+        };
+        template <typename TI, TI N>
+        using make_index_sequence = typename make_index_sequence_impl<TI, N == 0, N>::type;
 
-    template <typename TI, TI INDEX, typename CURRENT, typename... REST>
-    struct tuple_element_typed<TI, INDEX, utils::Tuple<TI, CURRENT, REST...>, true> {
-        using type = CURRENT;
-    };
+        template <typename TI, TI Index, typename T>
+        struct TupleLeaf {
+            using type = T;
+        };
+
+        template <typename SEQ, typename TI, typename... Ts>
+        struct TupleIndex;
+        template <typename TI, TI... Is, typename... Ts>
+        struct TupleIndex<index_sequence<TI, Is...>, TI, Ts...> : TupleLeaf<TI, Is, Ts>... {};
+
+        template <typename TI, TI I, typename T>
+        TupleLeaf<TI, I, T> select_leaf(const TupleLeaf<TI, I, T>&);
+    }
 
     template <auto INDEX, typename TI, typename... TYPES>
     struct tuple_element<INDEX, utils::Tuple<TI, TYPES...>> {
         static_assert(static_cast<TI>(INDEX) < sizeof...(TYPES), "tuple_element index out of bounds");
-        using type = typename tuple_element_typed<TI, static_cast<TI>(INDEX), utils::Tuple<TI, TYPES...>>::type;
+        using Indexed = detail::TupleIndex<detail::make_index_sequence<TI, sizeof...(TYPES)>, TI, TYPES...>;
+        using type = typename decltype(detail::select_leaf<TI, static_cast<TI>(INDEX)>(Indexed{}))::type;
     };
 
-    template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX, bool IS_FINAL = utils::typing::is_same_v<typename T_MODULE::NEXT_CARRIER_MODULE, OutputModule>>
-    struct BuildLayerSpecsImpl;
+    template <typename... T_CONTENTS>
+    struct Module {};
 
     template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
-    struct BuildLayerSpecsImpl<CAPABILITY, T_MODULE, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX, false> {
-        using CONTENT = typename T_MODULE::CONTENT::template Layer<CAPABILITY, INPUT_SHAPE>;
+    struct BuildLayerSpecsImpl;
+
+    template <typename CAPABILITY, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX> {
+        using LAYER_SPECS = ACCUMULATOR;
+        using FINAL_OUTPUT_SHAPE = INPUT_SHAPE;
+        static constexpr TI MAX_HIDDEN_DIM = CURRENT_MAX;
+    };
+
+    template <typename CAPABILITY, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<OutputModule, TAIL...>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX> {
+        static_assert(sizeof...(TAIL) == 0, "OutputModule must be the last element in a Module chain");
+        using LAYER_SPECS = ACCUMULATOR;
+        using FINAL_OUTPUT_SHAPE = INPUT_SHAPE;
+        static constexpr TI MAX_HIDDEN_DIM = CURRENT_MAX;
+    };
+
+    template <typename CAPABILITY, typename HEAD, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<HEAD, TAIL...>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX> {
+        using CONTENT = typename HEAD::template Layer<CAPABILITY, INPUT_SHAPE>;
         using OUTPUT_SHAPE = typename CONTENT::SPEC::OUTPUT_SHAPE;
         using LAYER_SPEC = LayerSpecification<CONTENT, INPUT_SHAPE, OUTPUT_SHAPE>;
         static constexpr TI NEW_MAX = CURRENT_MAX > product(OUTPUT_SHAPE{}) ? CURRENT_MAX : product(OUTPUT_SHAPE{});
-        using NEXT = BuildLayerSpecsImpl<CAPABILITY, typename T_MODULE::NEXT_CARRIER_MODULE, OUTPUT_SHAPE, tuple_append_t<ACCUMULATOR, LAYER_SPEC>, TI, NEW_MAX>;
+        using NEXT_ACCUMULATOR = tuple_append_t<ACCUMULATOR, LAYER_SPEC>;
+        using NEXT = BuildLayerSpecsImpl<CAPABILITY, Module<TAIL...>, OUTPUT_SHAPE, NEXT_ACCUMULATOR, TI, NEW_MAX>;
         using LAYER_SPECS = typename NEXT::LAYER_SPECS;
         using FINAL_OUTPUT_SHAPE = typename NEXT::FINAL_OUTPUT_SHAPE;
         static constexpr TI MAX_HIDDEN_DIM = NEXT::MAX_HIDDEN_DIM;
     };
 
-    template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
-    struct BuildLayerSpecsImpl<CAPABILITY, T_MODULE, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX, true> {
-        using CONTENT = typename T_MODULE::CONTENT::template Layer<CAPABILITY, INPUT_SHAPE>;
-        using OUTPUT_SHAPE = typename CONTENT::SPEC::OUTPUT_SHAPE;
-        using LAYER_SPEC = LayerSpecification<CONTENT, INPUT_SHAPE, OUTPUT_SHAPE>;
-        using LAYER_SPECS = tuple_append_t<ACCUMULATOR, LAYER_SPEC>;
-        using FINAL_OUTPUT_SHAPE = OUTPUT_SHAPE;
-        static constexpr TI MAX_HIDDEN_DIM = CURRENT_MAX;
-    };
+    template <typename CAPABILITY, typename... NESTED, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<Module<NESTED...>, TAIL...>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX>
+        : BuildLayerSpecsImpl<CAPABILITY, Module<NESTED..., TAIL...>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX> {};
 
     template <typename TI, typename SPEC, auto INDEX = 0>
     constexpr TI find_max_hiddend_dim(TI current_max = 0){
@@ -245,40 +277,6 @@ namespace rl_tools::nn_models::sequential{
     struct ModuleGradient: public ModuleBackward<T_SPEC>{
         using PARENT = ModuleBackward<T_SPEC>;
         using TI = typename T_SPEC::TI;
-    };
-
-    template <typename... T_CONTENTS>
-    struct Module;
-
-    template <typename T_CONTENT>
-    struct Module<T_CONTENT>{
-        using CONTENT = T_CONTENT;
-        using NEXT_CARRIER_MODULE = OutputModule;
-    };
-
-    template <typename T_CONTENT, typename... T_REST>
-    struct Module<T_CONTENT, OutputModule, T_REST...>{
-        static_assert(sizeof...(T_REST) == 0, "OutputModule must be the last element in a Module chain");
-        using CONTENT = T_CONTENT;
-        using NEXT_CARRIER_MODULE = OutputModule;
-    };
-
-    template <typename T_FIRST, typename T_SECOND, typename... T_REST>
-    struct Module<T_FIRST, T_SECOND, T_REST...>{
-        using CONTENT = T_FIRST;
-        using NEXT_CARRIER_MODULE = Module<T_SECOND, T_REST...>;
-    };
-
-    template <typename T_FIRST, typename... T_NESTED>
-    struct Module<T_FIRST, Module<T_NESTED...>>{
-        using CONTENT = T_FIRST;
-        using NEXT_CARRIER_MODULE = Module<T_NESTED...>;
-    };
-
-    template <typename T_FIRST, typename... T_NESTED, typename... T_REST>
-    struct Module<T_FIRST, Module<T_NESTED...>, T_REST...>{
-        using CONTENT = T_FIRST;
-        using NEXT_CARRIER_MODULE = Module<T_NESTED..., T_REST...>;
     };
 
     template <typename CAPABILITY, typename ROOT_SPEC>
