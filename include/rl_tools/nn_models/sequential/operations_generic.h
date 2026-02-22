@@ -45,76 +45,23 @@ namespace rl_tools{
             return get<LAYER_I>(state.states);
         }
 
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void malloc_layers(DEVICE& device, ModuleForward<MODULE_SPEC>& module){
-            if constexpr(LAYER_I < MODULE_SPEC::NUM_LAYERS){
-                malloc(device, layer<LAYER_I>(module));
-                malloc_layers<LAYER_I + 1>(device, module);
+        // Compile-time index iteration primitives
+        template <auto N, auto I = 0, typename F>
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr void for_each_index(F&& f) {
+            if constexpr(I < N) {
+                f(utils::typing::integral_constant<decltype(I), I>{});
+                for_each_index<N, I + 1>(static_cast<F&&>(f));
             }
         }
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void free_layers(DEVICE& device, ModuleForward<MODULE_SPEC>& module){
-            if constexpr(LAYER_I < MODULE_SPEC::NUM_LAYERS){
-                free(device, layer<LAYER_I>(module));
-                free_layers<LAYER_I + 1>(device, module);
-            }
-        }
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename DEVICE, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void init_weights_layers(DEVICE& device, ModuleForward<MODULE_SPEC>& module, RNG& rng){
-            if constexpr(LAYER_I < MODULE_SPEC::NUM_LAYERS){
-                init_weights(device, layer<LAYER_I>(module), rng);
-                init_weights_layers<LAYER_I + 1>(device, module, rng);
-            }
-        }
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state_layers(DEVICE& device, ModuleForward<MODULE_SPEC>& module){
-            if constexpr(LAYER_I < MODULE_SPEC::NUM_LAYERS){
-                reset_forward_state(device, layer<LAYER_I>(module));
-                reset_forward_state_layers<LAYER_I + 1>(device, module);
+        template <auto N, auto I = 0, typename T, typename F>
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr T fold_index(T init, F&& f) {
+            if constexpr(I < N) {
+                return fold_index<N, I + 1>(f(init, utils::typing::integral_constant<decltype(I), I>{}), static_cast<F&&>(f));
+            } else {
+                return init;
             }
         }
 
-        template <auto LAYER_I = 0, typename CONTENT_STATE_SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void malloc_state_layers(DEVICE& device, ContentState<CONTENT_STATE_SPEC>& state){
-            constexpr auto N = CONTENT_STATE_SPEC::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                malloc(device, content_state<LAYER_I>(state));
-                malloc_state_layers<LAYER_I + 1>(device, state);
-            }
-        }
-        template <auto LAYER_I = 0, typename CONTENT_STATE_SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void free_state_layers(DEVICE& device, ContentState<CONTENT_STATE_SPEC>& state){
-            constexpr auto N = CONTENT_STATE_SPEC::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                free(device, content_state<LAYER_I>(state));
-                free_state_layers<LAYER_I + 1>(device, state);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename CONTENT_BUFFER_SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void malloc_buffer_layers(DEVICE& device, ContentBuffer<CONTENT_BUFFER_SPEC>& buffer){
-            constexpr auto N = CONTENT_BUFFER_SPEC::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                malloc(device, content_buffer<LAYER_I>(buffer));
-                malloc_buffer_layers<LAYER_I + 1>(device, buffer);
-            }
-        }
-        template <auto LAYER_I = 0, typename CONTENT_BUFFER_SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void free_buffer_layers(DEVICE& device, ContentBuffer<CONTENT_BUFFER_SPEC>& buffer){
-            constexpr auto N = CONTENT_BUFFER_SPEC::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                free(device, content_buffer<LAYER_I>(buffer));
-                free_buffer_layers<LAYER_I + 1>(device, buffer);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename SOURCE_SPEC, typename TARGET_SPEC, typename SOURCE_DEVICE, typename TARGET_DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void copy_layers(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const ModuleForward<SOURCE_SPEC>& source, ModuleForward<TARGET_SPEC>& target){
-            if constexpr(LAYER_I < SOURCE_SPEC::NUM_LAYERS){
-                copy(source_device, target_device, layer<LAYER_I>(source), layer<LAYER_I>(target));
-                copy_layers<LAYER_I + 1>(source_device, target_device, source, target);
-            }
-        }
         template <auto LAYER_I = 0, typename TARGET_SPEC, typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE>
         RL_TOOLS_FUNCTION_PLACEMENT void copy_from_generic_layers(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const SOURCE& source, ModuleForward<TARGET_SPEC>& target){
             if constexpr(LAYER_I < TARGET_SPEC::NUM_LAYERS){
@@ -122,121 +69,6 @@ namespace rl_tools{
                 if constexpr(LAYER_I + 1 < TARGET_SPEC::NUM_LAYERS){
                     copy_from_generic_layers<LAYER_I + 1>(source_device, target_device, source.next_module, target);
                 }
-            }
-        }
-
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient_layers(DEVICE& device, ModuleGradient<MODULE_SPEC>& module){
-            if constexpr(LAYER_I < MODULE_SPEC::NUM_LAYERS){
-                zero_gradient(device, layer<LAYER_I>(module));
-                zero_gradient_layers<LAYER_I + 1>(device, module);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename DEVICE, typename OPTIMIZER>
-        RL_TOOLS_FUNCTION_PLACEMENT void reset_optimizer_layers(DEVICE& device, ModuleGradient<MODULE_SPEC>& module, OPTIMIZER& optimizer){
-            if constexpr(LAYER_I < MODULE_SPEC::NUM_LAYERS){
-                _reset_optimizer_state(device, layer<LAYER_I>(module), optimizer);
-                reset_optimizer_layers<LAYER_I + 1>(device, module, optimizer);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename DEVICE, typename OPTIMIZER>
-        RL_TOOLS_FUNCTION_PLACEMENT void update_layers(DEVICE& device, ModuleGradient<MODULE_SPEC>& model, OPTIMIZER& optimizer) {
-            if constexpr(LAYER_I < MODULE_SPEC::NUM_LAYERS){
-                update(device, layer<LAYER_I>(model), optimizer);
-                update_layers<LAYER_I + 1>(device, model, optimizer);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename SPEC_A, typename SPEC_B, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::TYPE_POLICY::DEFAULT abs_diff_layers(DEVICE& device, ModuleForward<SPEC_A>& a, const ModuleForward<SPEC_B>& b){
-            using T = typename SPEC_A::TYPE_POLICY::DEFAULT;
-            if constexpr(LAYER_I < SPEC_A::NUM_LAYERS){
-                return static_cast<T>(abs_diff(device, layer<LAYER_I>(a), layer<LAYER_I>(b))) + abs_diff_layers<LAYER_I + 1>(device, a, b);
-            }
-            else{
-                return static_cast<T>(0);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename DEVICE, typename MODE>
-        RL_TOOLS_FUNCTION_PLACEMENT bool is_nan_layers(DEVICE& device, ModuleForward<MODULE_SPEC>& model, const Mode<MODE>& mode){
-            if constexpr(LAYER_I < MODULE_SPEC::NUM_LAYERS){
-                return is_nan(device, layer<LAYER_I>(model), mode) || is_nan_layers<LAYER_I + 1>(device, model, mode);
-            }
-            else{
-                return false;
-            }
-        }
-
-        template <auto LAYER_I = 0, typename CONTENT_STATE_SPEC, typename DEVICE, typename MODE>
-        RL_TOOLS_FUNCTION_PLACEMENT bool is_nan_state_layers(DEVICE& device, ContentState<CONTENT_STATE_SPEC>& state, const Mode<MODE>& mode){
-            constexpr auto N = CONTENT_STATE_SPEC::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                return is_nan(device, content_state<LAYER_I>(state), mode) || is_nan_state_layers<LAYER_I + 1>(device, state, mode);
-            }
-            else{
-                return false;
-            }
-        }
-
-        template <auto LAYER_I = 0, typename SPEC_A, typename SPEC_B, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::SPEC::TYPE_POLICY::DEFAULT abs_diff_state_layers(DEVICE& device, ContentState<SPEC_A>& a, ContentState<SPEC_B>& b){
-            using T = typename SPEC_A::SPEC::TYPE_POLICY::DEFAULT;
-            constexpr auto N = SPEC_A::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                return static_cast<T>(abs_diff(device, content_state<LAYER_I>(a), content_state<LAYER_I>(b))) + abs_diff_state_layers<LAYER_I + 1>(device, a, b);
-            }
-            else{
-                return static_cast<T>(0);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename BUFFER_SPEC, typename DEVICE, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void sample_buffer_layers(DEVICE& device, ContentBuffer<BUFFER_SPEC>& buffers, RNG& rng){
-            constexpr auto N = BUFFER_SPEC::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                sample(device, content_buffer<LAYER_I>(buffers), rng);
-                sample_buffer_layers<LAYER_I + 1>(device, buffers, rng);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename MODULE_SPEC, typename STATE_SPEC, typename DEVICE, typename RNG, typename MODE>
-        RL_TOOLS_FUNCTION_PLACEMENT void reset_state_layers(DEVICE& device, const ModuleForward<MODULE_SPEC>& model, ContentState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode){
-            constexpr auto N = MODULE_SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                reset(device, layer<LAYER_I>(model), content_state<LAYER_I>(state), rng, mode);
-                reset_state_layers<LAYER_I + 1>(device, model, state, rng, mode);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename SOURCE_STATE_SPEC, typename TARGET_STATE_SPEC, typename SOURCE_DEVICE, typename TARGET_DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void copy_state_layers(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, ContentState<SOURCE_STATE_SPEC>& source, ContentState<TARGET_STATE_SPEC>& target){
-            constexpr auto N = SOURCE_STATE_SPEC::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                copy(source_device, target_device, get<LAYER_I>(source.states), get<LAYER_I>(target.states));
-                copy_state_layers<LAYER_I + 1>(source_device, target_device, source, target);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC, typename SOURCE_DEVICE, typename TARGET_DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT void copy_content_buffer_layers(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, ContentBuffer<SOURCE_BUFFER_SPEC>& source, ContentBuffer<TARGET_BUFFER_SPEC>& target){
-            constexpr auto N = SOURCE_BUFFER_SPEC::SPEC::NUM_LAYERS;
-            if constexpr(LAYER_I < N){
-                copy(source_device, target_device, get<LAYER_I>(source.buffers), get<LAYER_I>(target.buffers));
-                copy_content_buffer_layers<LAYER_I + 1>(source_device, target_device, source, target);
-            }
-        }
-
-        template <auto LAYER_I = 0, typename SPEC, typename DEVICE>
-        RL_TOOLS_FUNCTION_PLACEMENT auto gradient_norm_layers(DEVICE& device, const ModuleForward<SPEC>& model){
-            using T = typename SPEC::TYPE_POLICY::DEFAULT;
-            if constexpr(LAYER_I < SPEC::NUM_LAYERS){
-                return static_cast<T>(gradient_norm(device, layer<LAYER_I>(model))) + gradient_norm_layers<LAYER_I + 1>(device, model);
-            }
-            else{
-                return static_cast<T>(0);
             }
         }
 
@@ -329,32 +161,32 @@ namespace rl_tools{
 
     template <typename DEVICE, typename MODULE_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module){
-        nn_models::sequential::malloc_layers(device, module);
+        nn_models::sequential::for_each_index<MODULE_SPEC::NUM_LAYERS>([&](auto ic){ malloc(device, nn_models::sequential::layer<decltype(ic)::value>(module)); });
     }
 
     template <typename DEVICE, typename MODULE_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module){
-        nn_models::sequential::free_layers(device, module);
+        nn_models::sequential::for_each_index<MODULE_SPEC::NUM_LAYERS>([&](auto ic){ free(device, nn_models::sequential::layer<decltype(ic)::value>(module)); });
     }
 
     template <typename DEVICE, typename STATE_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ContentState<STATE_SPEC>& content_state){
-        nn_models::sequential::malloc_state_layers(device, content_state);
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ContentState<STATE_SPEC>& state){
+        nn_models::sequential::for_each_index<STATE_SPEC::SPEC::NUM_LAYERS>([&](auto ic){ malloc(device, nn_models::sequential::content_state<decltype(ic)::value>(state)); });
     }
 
     template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, nn_models::sequential::ContentState<STATE_SPEC>& content_state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        nn_models::sequential::reset_state_layers(device, model, content_state, rng, mode);
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, nn_models::sequential::ContentState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        nn_models::sequential::for_each_index<MODULE_SPEC::NUM_LAYERS>([&](auto ic){ constexpr auto I = decltype(ic)::value; reset(device, nn_models::sequential::layer<I>(model), nn_models::sequential::content_state<I>(state), rng, mode); });
     }
 
     template <typename DEVICE, typename STATE_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ContentState<STATE_SPEC>& content_state){
-        nn_models::sequential::free_state_layers(device, content_state);
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ContentState<STATE_SPEC>& state){
+        nn_models::sequential::for_each_index<STATE_SPEC::SPEC::NUM_LAYERS>([&](auto ic){ free(device, nn_models::sequential::content_state<decltype(ic)::value>(state)); });
     }
 
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_STATE_SPEC, typename TARGET_STATE_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentState<SOURCE_STATE_SPEC>& source, nn_models::sequential::ContentState<TARGET_STATE_SPEC>& target){
-        nn_models::sequential::copy_state_layers(source_device, target_device, source, target);
+        nn_models::sequential::for_each_index<SOURCE_STATE_SPEC::SPEC::NUM_LAYERS>([&](auto ic){ constexpr auto I = decltype(ic)::value; copy(source_device, target_device, get<I>(source.states), get<I>(target.states)); });
     }
 
     template <typename DEVICE, typename STATE_SPEC>
@@ -378,18 +210,18 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename BUFFER_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
-        nn_models::sequential::malloc_buffer_layers(device, content_buffer);
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffer){
+        nn_models::sequential::for_each_index<BUFFER_SPEC::SPEC::NUM_LAYERS>([&](auto ic){ malloc(device, nn_models::sequential::content_buffer<decltype(ic)::value>(buffer)); });
     }
 
     template <typename DEVICE, typename BUFFER_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
-        nn_models::sequential::free_buffer_layers(device, content_buffer);
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffer){
+        nn_models::sequential::for_each_index<BUFFER_SPEC::SPEC::NUM_LAYERS>([&](auto ic){ free(device, nn_models::sequential::content_buffer<decltype(ic)::value>(buffer)); });
     }
 
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ContentBuffer<TARGET_BUFFER_SPEC>& target){
-        nn_models::sequential::copy_content_buffer_layers(source_device, target_device, source, target);
+        nn_models::sequential::for_each_index<SOURCE_BUFFER_SPEC::SPEC::NUM_LAYERS>([&](auto ic){ constexpr auto I = decltype(ic)::value; copy(source_device, target_device, get<I>(source.buffers), get<I>(target.buffers)); });
     }
 
     template <typename DEVICE, typename BUFFER_SPEC>
@@ -415,7 +247,7 @@ namespace rl_tools{
 
     template <typename DEVICE, typename MODULE_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module, RNG& rng){
-        nn_models::sequential::init_weights_layers(device, module, rng);
+        nn_models::sequential::for_each_index<MODULE_SPEC::NUM_LAYERS>([&](auto ic){ init_weights(device, nn_models::sequential::layer<decltype(ic)::value>(module), rng); });
     }
 
     namespace nn_models::sequential{
@@ -575,17 +407,17 @@ namespace rl_tools{
 
     template <typename DEVICE, typename MODULE_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module){
-        nn_models::sequential::zero_gradient_layers(device, module);
+        nn_models::sequential::for_each_index<MODULE_SPEC::NUM_LAYERS>([&](auto ic){ zero_gradient(device, nn_models::sequential::layer<decltype(ic)::value>(module)); });
     }
 
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& module, OPTIMIZER& optimizer) {
-        nn_models::sequential::reset_optimizer_layers(device, module, optimizer);
+        nn_models::sequential::for_each_index<SPEC::NUM_LAYERS>([&](auto ic){ _reset_optimizer_state(device, nn_models::sequential::layer<decltype(ic)::value>(module), optimizer); });
     }
 
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& module) {
-        nn_models::sequential::reset_forward_state_layers(device, module);
+        nn_models::sequential::for_each_index<SPEC::NUM_LAYERS>([&](auto ic){ reset_forward_state(device, nn_models::sequential::layer<decltype(ic)::value>(module)); });
     }
 
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC, typename CONTENT_BUFFER_SPEC, typename MODE = mode::Default<>>
@@ -624,12 +456,12 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model, OPTIMIZER& optimizer) {
-        nn_models::sequential::update_layers(device, model, optimizer);
+        nn_models::sequential::for_each_index<SPEC::NUM_LAYERS>([&](auto ic){ update(device, nn_models::sequential::layer<decltype(ic)::value>(model), optimizer); });
     }
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn_models::sequential::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target){
-        nn_models::sequential::copy_layers(source_device, target_device, source, target);
+        nn_models::sequential::for_each_index<SOURCE_SPEC::NUM_LAYERS>([&](auto ic){ constexpr auto I = decltype(ic)::value; copy(source_device, target_device, nn_models::sequential::layer<I>(source), nn_models::sequential::layer<I>(target)); });
     }
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE, typename TARGET_SPEC>
@@ -639,12 +471,18 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::sequential::ModuleForward<SPEC_A>& a, const nn_models::sequential::ModuleForward<SPEC_B>& b){
-        return nn_models::sequential::abs_diff_layers(device, a, b);
+        using T = typename SPEC_A::TYPE_POLICY::DEFAULT;
+        return nn_models::sequential::fold_index<SPEC_A::NUM_LAYERS>(T(0), [&](T acc, auto ic) -> T {
+            constexpr auto I = decltype(ic)::value;
+            return acc + static_cast<T>(abs_diff(device, nn_models::sequential::layer<I>(a), nn_models::sequential::layer<I>(b)));
+        });
     }
 
     template<typename DEVICE, typename MODULE_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        return nn_models::sequential::is_nan_layers(device, model, mode);
+        return nn_models::sequential::fold_index<MODULE_SPEC::NUM_LAYERS>(false, [&](bool acc, auto ic) -> bool {
+            return acc || is_nan(device, nn_models::sequential::layer<decltype(ic)::value>(model), mode);
+        });
     }
 
     template<typename DEVICE, typename MODE = mode::Default<>>
@@ -654,7 +492,9 @@ namespace rl_tools{
 
     template<typename DEVICE, typename MODULE_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(DEVICE& device, nn_models::sequential::ContentState<MODULE_SPEC>& state, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        return nn_models::sequential::is_nan_state_layers(device, state, mode);
+        return nn_models::sequential::fold_index<MODULE_SPEC::SPEC::NUM_LAYERS>(false, [&](bool acc, auto ic) -> bool {
+            return acc || is_nan(device, nn_models::sequential::content_state<decltype(ic)::value>(state), mode);
+        });
     }
 
     template<typename DEVICE, typename MODULE_SPEC, typename MODE = mode::Default<>>
@@ -664,7 +504,11 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, nn_models::sequential::ContentState<SPEC_A>& a, nn_models::sequential::ContentState<SPEC_B>& b){
-        return nn_models::sequential::abs_diff_state_layers(device, a, b);
+        using T = typename SPEC_A::SPEC::TYPE_POLICY::DEFAULT;
+        return nn_models::sequential::fold_index<SPEC_A::SPEC::NUM_LAYERS>(T(0), [&](T acc, auto ic) -> T {
+            constexpr auto I = decltype(ic)::value;
+            return acc + static_cast<T>(abs_diff(device, nn_models::sequential::content_state<I>(a), nn_models::sequential::content_state<I>(b)));
+        });
     }
 
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
@@ -674,7 +518,7 @@ namespace rl_tools{
 
     template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void sample(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffers, RNG& rng){
-        nn_models::sequential::sample_buffer_layers(device, buffers, rng);
+        nn_models::sequential::for_each_index<BUFFER_SPEC::SPEC::NUM_LAYERS>([&](auto ic){ sample(device, nn_models::sequential::content_buffer<decltype(ic)::value>(buffers), rng); });
     }
 
     template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
@@ -682,25 +526,22 @@ namespace rl_tools{
         sample(device, buffers.content_buffer, rng);
     }
 
-    namespace nn_models::sequential{
-        template <auto LAYER_I = 0, typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void print_layers(DEVICE& device, const ModuleForward<SPEC>& model){
-            using TI = typename DEVICE::index_t;
-            if constexpr(LAYER_I < SPEC::NUM_LAYERS){
-                using LAYER_TYPE = utils::typing::remove_reference_t<decltype(layer<LAYER_I>(model))>;
-                log(device, device.logger, "Layer ", static_cast<TI>(LAYER_I), ": ", LAYER_TYPE::INPUT_DIM, " => ", LAYER_TYPE::OUTPUT_DIM);
-                print_layers<LAYER_I + 1>(device, model);
-            }
-        }
-    }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void print(DEVICE& device, const nn_models::sequential::ModuleForward<SPEC>& model){
-        nn_models::sequential::print_layers(device, model);
+        using TI = typename DEVICE::index_t;
+        nn_models::sequential::for_each_index<SPEC::NUM_LAYERS>([&](auto ic){
+            constexpr auto I = decltype(ic)::value;
+            using LAYER_TYPE = utils::typing::remove_reference_t<decltype(nn_models::sequential::layer<I>(model))>;
+            log(device, device.logger, "Layer ", static_cast<TI>(I), ": ", LAYER_TYPE::INPUT_DIM, " => ", LAYER_TYPE::OUTPUT_DIM);
+        });
     }
 
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto gradient_norm(DEVICE& device, const nn_models::sequential::ModuleForward<SPEC>& model, bool initial = true){
-        auto return_value = nn_models::sequential::gradient_norm_layers(device, model);
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
+        auto return_value = nn_models::sequential::fold_index<SPEC::NUM_LAYERS>(T(0), [&](T acc, auto ic) -> T {
+            return acc + static_cast<T>(gradient_norm(device, nn_models::sequential::layer<decltype(ic)::value>(model)));
+        });
         if(initial) {
             return_value = math::sqrt(device.math, return_value);
         }
