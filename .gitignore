@@ -75,3 +75,4 @@
 /1k-experiments
 /*.tar
 /build*
+/resnet_ast.txt

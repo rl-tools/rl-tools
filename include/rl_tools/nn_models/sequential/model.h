@@ -19,64 +19,16 @@ namespace rl_tools::nn_models::sequential{
     };
 
     template <typename TUPLE>
-    struct tuple_size;
-
-    template <typename TI, typename... TYPES>
-    struct tuple_size<utils::Tuple<TI, TYPES...>> {
-        static constexpr TI value = sizeof...(TYPES);
-    };
+    using tuple_size = utils::tuple_size<TUPLE>;
 
     template <typename TUPLE, typename T>
-    struct tuple_append;
-
-    template <typename TI, typename... TYPES, typename T>
-    struct tuple_append<utils::Tuple<TI, TYPES...>, T> {
-        using type = utils::Tuple<TI, TYPES..., T>;
-    };
+    using tuple_append = utils::tuple_append<TUPLE, T>;
 
     template <typename TUPLE, typename T>
-    using tuple_append_t = typename tuple_append<TUPLE, T>::type;
+    using tuple_append_t = utils::tuple_append_t<TUPLE, T>;
 
     template <auto INDEX, typename TUPLE>
-    struct tuple_element;
-
-    namespace detail {
-        template <typename TI, TI... Is>
-        struct index_sequence {};
-
-        template <typename TI, bool DONE, TI N, TI... Is>
-        struct make_index_sequence_impl;
-        template <typename TI, TI N, TI... Is>
-        struct make_index_sequence_impl<TI, true, N, Is...> {
-            using type = index_sequence<TI, Is...>;
-        };
-        template <typename TI, TI N, TI... Is>
-        struct make_index_sequence_impl<TI, false, N, Is...> {
-            using type = typename make_index_sequence_impl<TI, N - 1 == 0, N - 1, N - 1, Is...>::type;
-        };
-        template <typename TI, TI N>
-        using make_index_sequence = typename make_index_sequence_impl<TI, N == 0, N>::type;
-
-        template <typename TI, TI Index, typename T>
-        struct TupleLeaf {
-            using type = T;
-        };
-
-        template <typename SEQ, typename TI, typename... Ts>
-        struct TupleIndex;
-        template <typename TI, TI... Is, typename... Ts>
-        struct TupleIndex<index_sequence<TI, Is...>, TI, Ts...> : TupleLeaf<TI, Is, Ts>... {};
-
-        template <typename TI, TI I, typename T>
-        TupleLeaf<TI, I, T> select_leaf(const TupleLeaf<TI, I, T>&);
-    }
-
-    template <auto INDEX, typename TI, typename... TYPES>
-    struct tuple_element<INDEX, utils::Tuple<TI, TYPES...>> {
-        static_assert(static_cast<TI>(INDEX) < sizeof...(TYPES), "tuple_element index out of bounds");
-        using Indexed = detail::TupleIndex<detail::make_index_sequence<TI, sizeof...(TYPES)>, TI, TYPES...>;
-        using type = typename decltype(detail::select_leaf<TI, static_cast<TI>(INDEX)>(Indexed{}))::type;
-    };
+    using tuple_element = utils::tuple_element<INDEX, TUPLE>;
 
     template <typename... T_CONTENTS>
     struct Module {};
