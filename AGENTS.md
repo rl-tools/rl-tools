@@ -23,6 +23,7 @@ CUDACXX=/usr/local/cuda-13.1/bin/nvcc cmake .. \
 make -j8
 ctest --timeout 20 -j16
 ```
+Note: the `--timeout` is essential for debugging because some tests require many minutes to finish. We want to debug efficiently, hence we only fully run the long running tests after all the short running tests pass.
 
 Training/RL tests (SAC, TD3, PPO, MLP full training) legitimately take longer than 20 seconds; use a higher timeout (e.g. `--timeout 300`) to run them to completion.
 
