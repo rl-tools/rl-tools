@@ -202,6 +202,33 @@ namespace rl_tools{
             }
         }
 
+        template <auto LAYER_I = 0, typename MODULE_SPEC, typename STATE_SPEC, typename DEVICE, typename RNG, typename MODE>
+        RL_TOOLS_FUNCTION_PLACEMENT void reset_state_layers(DEVICE& device, const ModuleForward<MODULE_SPEC>& model, ContentState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode){
+            constexpr auto N = MODULE_SPEC::NUM_LAYERS;
+            if constexpr(LAYER_I < N){
+                reset(device, layer<LAYER_I>(model), content_state<LAYER_I>(state), rng, mode);
+                reset_state_layers<LAYER_I + 1>(device, model, state, rng, mode);
+            }
+        }
+
+        template <auto LAYER_I = 0, typename SOURCE_STATE_SPEC, typename TARGET_STATE_SPEC, typename SOURCE_DEVICE, typename TARGET_DEVICE>
+        RL_TOOLS_FUNCTION_PLACEMENT void copy_state_layers(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, ContentState<SOURCE_STATE_SPEC>& source, ContentState<TARGET_STATE_SPEC>& target){
+            constexpr auto N = SOURCE_STATE_SPEC::SPEC::NUM_LAYERS;
+            if constexpr(LAYER_I < N){
+                copy(source_device, target_device, get<LAYER_I>(source.states), get<LAYER_I>(target.states));
+                copy_state_layers<LAYER_I + 1>(source_device, target_device, source, target);
+            }
+        }
+
+        template <auto LAYER_I = 0, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC, typename SOURCE_DEVICE, typename TARGET_DEVICE>
+        RL_TOOLS_FUNCTION_PLACEMENT void copy_content_buffer_layers(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, ContentBuffer<SOURCE_BUFFER_SPEC>& source, ContentBuffer<TARGET_BUFFER_SPEC>& target){
+            constexpr auto N = SOURCE_BUFFER_SPEC::SPEC::NUM_LAYERS;
+            if constexpr(LAYER_I < N){
+                copy(source_device, target_device, get<LAYER_I>(source.buffers), get<LAYER_I>(target.buffers));
+                copy_content_buffer_layers<LAYER_I + 1>(source_device, target_device, source, target);
+            }
+        }
+
         template <auto LAYER_I = 0, typename SPEC, typename DEVICE>
         RL_TOOLS_FUNCTION_PLACEMENT auto gradient_norm_layers(DEVICE& device, const ModuleForward<SPEC>& model){
             using T = typename SPEC::TYPE_POLICY::DEFAULT;
@@ -317,17 +344,7 @@ namespace rl_tools{
 
     template <typename DEVICE, typename MODULE_SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, nn_models::sequential::ContentState<STATE_SPEC>& content_state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        constexpr auto N = MODULE_SPEC::NUM_LAYERS;
-        if constexpr(N > 0){
-            auto reset_impl = [&](auto self, auto layer_i_const) -> void {
-                constexpr auto I = decltype(layer_i_const)::value;
-                reset(device, nn_models::sequential::layer<I>(model), nn_models::sequential::content_state<I>(content_state), rng, mode);
-                if constexpr(I + 1 < N){
-                    self(self, utils::typing::integral_constant<decltype(I + 1), I + 1>{});
-                }
-            };
-            reset_impl(reset_impl, utils::typing::integral_constant<int, 0>{});
-        }
+        nn_models::sequential::reset_state_layers(device, model, content_state, rng, mode);
     }
 
     template <typename DEVICE, typename STATE_SPEC>
@@ -337,17 +354,7 @@ namespace rl_tools{
 
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_STATE_SPEC, typename TARGET_STATE_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentState<SOURCE_STATE_SPEC>& source, nn_models::sequential::ContentState<TARGET_STATE_SPEC>& target){
-        constexpr auto N = SOURCE_STATE_SPEC::SPEC::NUM_LAYERS;
-        if constexpr(N > 0){
-            auto copy_impl = [&](auto self, auto layer_i_const) -> void {
-                constexpr auto I = decltype(layer_i_const)::value;
-                copy(source_device, target_device, nn_models::sequential::content_state<I>(source), nn_models::sequential::content_state<I>(target));
-                if constexpr(I + 1 < N){
-                    self(self, utils::typing::integral_constant<decltype(I + 1), I + 1>{});
-                }
-            };
-            copy_impl(copy_impl, utils::typing::integral_constant<int, 0>{});
-        }
+        nn_models::sequential::copy_state_layers(source_device, target_device, source, target);
     }
 
     template <typename DEVICE, typename STATE_SPEC>
@@ -382,17 +389,7 @@ namespace rl_tools{
 
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ContentBuffer<TARGET_BUFFER_SPEC>& target){
-        constexpr auto N = SOURCE_BUFFER_SPEC::SPEC::NUM_LAYERS;
-        if constexpr(N > 0){
-            auto copy_impl = [&](auto self, auto layer_i_const) -> void {
-                constexpr auto I = decltype(layer_i_const)::value;
-                copy(source_device, target_device, nn_models::sequential::content_buffer<I>(source), nn_models::sequential::content_buffer<I>(target));
-                if constexpr(I + 1 < N){
-                    self(self, utils::typing::integral_constant<decltype(I + 1), I + 1>{});
-                }
-            };
-            copy_impl(copy_impl, utils::typing::integral_constant<int, 0>{});
-        }
+        nn_models::sequential::copy_content_buffer_layers(source_device, target_device, source, target);
     }
 
     template <typename DEVICE, typename BUFFER_SPEC>

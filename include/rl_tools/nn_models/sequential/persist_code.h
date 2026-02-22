@@ -103,24 +103,21 @@ namespace rl_tools{
         auto code = save_code_split(device, network, name, const_declaration, indent);
         return code.header + code.body;
     }
-    template <typename DEVICE, typename SPEC>
-    std::string nn_analytics(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model, typename DEVICE::index_t layer_i = 0) {
-        std::string data;
-        if(layer_i == 0) {
-            data += "{\"layers\":[";
-            if constexpr(SPEC::NUM_LAYERS > 0) {
-                auto append_impl = [&](auto self, auto layer_i_const) -> void {
-                    constexpr auto I = decltype(layer_i_const)::value;
-                    data += nn_analytics(device, get_layer<I>(model));
-                    if constexpr(I + 1 < SPEC::NUM_LAYERS) {
-                        data += ", ";
-                        self(self, utils::typing::integral_constant<decltype(I + 1), I + 1>{});
-                    }
-                };
-                append_impl(append_impl, utils::typing::integral_constant<int, 0>{});
+    namespace nn_models::sequential{
+        template <auto LAYER_I = 0, typename DEVICE, typename SPEC>
+        void nn_analytics_layers(std::string& data, DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model) {
+            if constexpr(LAYER_I < SPEC::NUM_LAYERS) {
+                if constexpr(LAYER_I > 0){ data += ", "; }
+                data += nn_analytics(device, get_layer<LAYER_I>(model));
+                nn_analytics_layers<LAYER_I + 1>(data, device, model);
             }
-            data += "]}";
         }
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string nn_analytics(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model) {
+        std::string data = "{\"layers\":[";
+        nn_models::sequential::nn_analytics_layers(data, device, model);
+        data += "]}";
         return data;
     }
 }
