@@ -11,9 +11,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, std::string name, bool const_declaration=true, typename DEVICE::index_t indent = 0, typename DEVICE::index_t layer_i = 0) {
-        // using T = typename SPEC::T;
+    template<auto LAYER_I = 0, typename DEVICE, typename SPEC>
+    persist::Code save_code_split(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, std::string name, bool const_declaration=true, typename DEVICE::index_t indent = 0) {
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -21,35 +20,19 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
-        persist::Code layer_output;
-        if(layer_i == 0){ layer_output = save_code_split(device, get_layer<0>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); }
-        if constexpr (SPEC::NUM_LAYERS > 1){ if(layer_i == 1){ layer_output = save_code_split(device, get_layer<1>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 2){ if(layer_i == 2){ layer_output = save_code_split(device, get_layer<2>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 3){ if(layer_i == 3){ layer_output = save_code_split(device, get_layer<3>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 4){ if(layer_i == 4){ layer_output = save_code_split(device, get_layer<4>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 5){ if(layer_i == 5){ layer_output = save_code_split(device, get_layer<5>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 6){ if(layer_i == 6){ layer_output = save_code_split(device, get_layer<6>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 7){ if(layer_i == 7){ layer_output = save_code_split(device, get_layer<7>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 8){ if(layer_i == 8){ layer_output = save_code_split(device, get_layer<8>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 9){ if(layer_i == 9){ layer_output = save_code_split(device, get_layer<9>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 10){ if(layer_i == 10){ layer_output = save_code_split(device, get_layer<10>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 11){ if(layer_i == 11){ layer_output = save_code_split(device, get_layer<11>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 12){ if(layer_i == 12){ layer_output = save_code_split(device, get_layer<12>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 13){ if(layer_i == 13){ layer_output = save_code_split(device, get_layer<13>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 14){ if(layer_i == 14){ layer_output = save_code_split(device, get_layer<14>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
-        if constexpr (SPEC::NUM_LAYERS > 15){ if(layer_i == 15){ layer_output = save_code_split(device, get_layer<15>(model), "layer_" + std::to_string(layer_i), const_declaration, indent+1); } }
+        persist::Code layer_output = save_code_split(device, get_layer<LAYER_I>(model), "layer_" + std::to_string(LAYER_I), const_declaration, indent+1);
         ss_header << layer_output.header;
         ss_header << "#include <rl_tools/nn_models/sequential/model.h>\n";
-        if(layer_i == 0){
+        if constexpr(LAYER_I == 0){
             ss << ind << "namespace " << name << " {\n";
         }
         ss << layer_output.body;
-        if(layer_i + 1 < num_layers(model)){
-            auto downstream_output = save_code_split(device, model, name, const_declaration, indent, layer_i+1);
+        if constexpr(LAYER_I + 1 < SPEC::NUM_LAYERS){
+            auto downstream_output = save_code_split<LAYER_I + 1>(device, model, name, const_declaration, indent);
             ss_header << downstream_output.header;
             ss << downstream_output.body;
         }
-        if(layer_i == 0){
+        if constexpr(LAYER_I == 0){
             ss << ind << "    " << "namespace model_definition {\n";
 //            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
 //            std::string capability = "Forward";
