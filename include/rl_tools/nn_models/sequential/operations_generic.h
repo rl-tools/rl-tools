@@ -682,23 +682,20 @@ namespace rl_tools{
         sample(device, buffers.content_buffer, rng);
     }
 
-    template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void print(DEVICE& device, const nn_models::sequential::ModuleForward<SPEC>& model, typename DEVICE::index_t layer_i = 0){
-        using TI = typename DEVICE::index_t;
-        if(layer_i < SPEC::NUM_LAYERS){
-            auto print_impl = [&](auto self, TI current_i) -> void {
-                if(current_i < SPEC::NUM_LAYERS){
-                    if(current_i == 0){
-                        using LAYER_TYPE = utils::typing::remove_reference_t<decltype(nn_models::sequential::layer<0>(model))>;
-                        log(device, device.logger, "Layer ", static_cast<TI>(0), ": ", LAYER_TYPE::INPUT_DIM, " => ", LAYER_TYPE::OUTPUT_DIM);
-                    }
-                    if(current_i + 1 < SPEC::NUM_LAYERS){
-                        self(self, current_i + 1);
-                    }
-                }
-            };
-            print_impl(print_impl, layer_i);
+    namespace nn_models::sequential{
+        template <auto LAYER_I = 0, typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void print_layers(DEVICE& device, const ModuleForward<SPEC>& model){
+            using TI = typename DEVICE::index_t;
+            if constexpr(LAYER_I < SPEC::NUM_LAYERS){
+                using LAYER_TYPE = utils::typing::remove_reference_t<decltype(layer<LAYER_I>(model))>;
+                log(device, device.logger, "Layer ", static_cast<TI>(LAYER_I), ": ", LAYER_TYPE::INPUT_DIM, " => ", LAYER_TYPE::OUTPUT_DIM);
+                print_layers<LAYER_I + 1>(device, model);
+            }
         }
+    }
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void print(DEVICE& device, const nn_models::sequential::ModuleForward<SPEC>& model){
+        nn_models::sequential::print_layers(device, model);
     }
 
     template<typename DEVICE, typename SPEC>
