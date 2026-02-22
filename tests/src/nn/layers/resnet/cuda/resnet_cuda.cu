@@ -79,13 +79,8 @@ TEST(NN_LAYERS_RESNET_CUDA, FORWARD_COMPARISON){
     rlt::malloc(device_cpu, input_cpu);
 
     // Load test input from HDF5
-    auto input_flat = rlt::view_memory<rlt::tensor::Shape<TI, 1 * 224 * 224 * 3>>(device_cpu, input_cpu);
-    auto input_dataset = file.getDataSet("input");
-    std::vector<T> input_data;
-    input_dataset.read(input_data);
-    for(TI i = 0; i < 1 * 224 * 224 * 3; i++){
-        rlt::set(device_cpu, input_flat, input_data[i], i);
-    }
+    auto test_data_group = rlt::get_group(device_cpu, file, "test_data");
+    ASSERT_TRUE(rlt::load(device_cpu, input_cpu, test_data_group, "input"));
 
     // Run CPU inference
     using OUTPUT_SHAPE = typename RESNET18_CPU::OUTPUT_SHAPE;
