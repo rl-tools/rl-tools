@@ -89,52 +89,50 @@ namespace rl_tools::nn_models::sequential{
     template <typename... T_CONTENTS>
     struct Module {};
 
-    namespace detail {
-        template <typename...>
-        struct has_real_layers : utils::typing::false_type {};
-        template <typename T, typename... Ts>
-        struct has_real_layers<T, Ts...> : utils::typing::true_type {};
-        template <typename... Ts>
-        struct has_real_layers<OutputModule, Ts...> : utils::typing::false_type {};
-        template <typename... NESTED, typename... REST>
-        struct has_real_layers<Module<NESTED...>, REST...> : has_real_layers<NESTED..., REST...> {};
-    }
-
-    template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
+    template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE, typename ACCUMULATOR>
     struct BuildLayerSpecsImpl;
 
-    template <typename CAPABILITY, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
-    struct BuildLayerSpecsImpl<CAPABILITY, Module<>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX> {
+    template <typename CAPABILITY, typename INPUT_SHAPE, typename ACCUMULATOR>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<>, INPUT_SHAPE, ACCUMULATOR> {
         using LAYER_SPECS = ACCUMULATOR;
         using FINAL_OUTPUT_SHAPE = INPUT_SHAPE;
-        static constexpr TI MAX_HIDDEN_DIM = CURRENT_MAX;
     };
 
-    template <typename CAPABILITY, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
-    struct BuildLayerSpecsImpl<CAPABILITY, Module<OutputModule, TAIL...>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX> {
+    template <typename CAPABILITY, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<OutputModule, TAIL...>, INPUT_SHAPE, ACCUMULATOR> {
         static_assert(sizeof...(TAIL) == 0, "OutputModule must be the last element in a Module chain");
         using LAYER_SPECS = ACCUMULATOR;
         using FINAL_OUTPUT_SHAPE = INPUT_SHAPE;
-        static constexpr TI MAX_HIDDEN_DIM = CURRENT_MAX;
     };
 
-    template <typename CAPABILITY, typename HEAD, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
-    struct BuildLayerSpecsImpl<CAPABILITY, Module<HEAD, TAIL...>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX> {
+    template <typename CAPABILITY, typename HEAD, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<HEAD, TAIL...>, INPUT_SHAPE, ACCUMULATOR> {
         using CONTENT = typename HEAD::template Layer<CAPABILITY, INPUT_SHAPE>;
         using OUTPUT_SHAPE = typename CONTENT::SPEC::OUTPUT_SHAPE;
         using LAYER_SPEC = LayerSpecification<CONTENT, INPUT_SHAPE, OUTPUT_SHAPE>;
-        static constexpr TI NEW_MAX = detail::has_real_layers<TAIL...>::value ?
-            (CURRENT_MAX > product(OUTPUT_SHAPE{}) ? CURRENT_MAX : product(OUTPUT_SHAPE{})) : CURRENT_MAX;
-        using NEXT_ACCUMULATOR = tuple_append_t<ACCUMULATOR, LAYER_SPEC>;
-        using NEXT = BuildLayerSpecsImpl<CAPABILITY, Module<TAIL...>, OUTPUT_SHAPE, NEXT_ACCUMULATOR, TI, NEW_MAX>;
+        using NEXT = BuildLayerSpecsImpl<CAPABILITY, Module<TAIL...>, OUTPUT_SHAPE, tuple_append_t<ACCUMULATOR, LAYER_SPEC>>;
         using LAYER_SPECS = typename NEXT::LAYER_SPECS;
         using FINAL_OUTPUT_SHAPE = typename NEXT::FINAL_OUTPUT_SHAPE;
-        static constexpr TI MAX_HIDDEN_DIM = NEXT::MAX_HIDDEN_DIM;
     };
 
-    template <typename CAPABILITY, typename... NESTED, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
-    struct BuildLayerSpecsImpl<CAPABILITY, Module<Module<NESTED...>, TAIL...>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX>
-        : BuildLayerSpecsImpl<CAPABILITY, Module<NESTED..., TAIL...>, INPUT_SHAPE, ACCUMULATOR, TI, CURRENT_MAX> {};
+    template <typename CAPABILITY, typename... NESTED, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<Module<NESTED...>, TAIL...>, INPUT_SHAPE, ACCUMULATOR>
+        : BuildLayerSpecsImpl<CAPABILITY, Module<NESTED..., TAIL...>, INPUT_SHAPE, ACCUMULATOR> {};
+
+    namespace detail {
+        template <typename TI, typename LAYER_SPECS, auto INDEX = 0>
+        constexpr TI max_hidden_dim(){
+            constexpr TI NUM_LAYERS = tuple_size<LAYER_SPECS>::value;
+            if constexpr(INDEX + 1 >= NUM_LAYERS){
+                return 0;
+            }
+            else{
+                constexpr TI OUT_DIM = product(typename tuple_element<INDEX, LAYER_SPECS>::type::OUTPUT_SHAPE{});
+                constexpr TI REST = max_hidden_dim<TI, LAYER_SPECS, INDEX + 1>();
+                return OUT_DIM > REST ? OUT_DIM : REST;
+            }
+        }
+    }
 
     template <typename TI, typename SPEC, auto INDEX = 0>
     constexpr TI find_max_hiddend_dim(TI current_max = 0){
@@ -149,7 +147,7 @@ namespace rl_tools::nn_models::sequential{
         }
     }
 
-    template <typename T_CAPABILITY, typename T_MODULE, typename T_INPUT_SHAPE, typename T_LAYER_SPECS, typename T_OUTPUT_SHAPE, auto T_MAX_HIDDEN_DIM>
+    template <typename T_CAPABILITY, typename T_MODULE, typename T_INPUT_SHAPE, typename T_LAYER_SPECS, typename T_OUTPUT_SHAPE>
     struct Specification{
         using CAPABILITY = T_CAPABILITY;
         using MODULE_CHAIN = T_MODULE;
@@ -158,7 +156,7 @@ namespace rl_tools::nn_models::sequential{
         using LAYER_SPECS = T_LAYER_SPECS;
         using TI = typename INPUT_SHAPE::TI;
         static constexpr TI NUM_LAYERS = tuple_size<LAYER_SPECS>::value;
-        static constexpr TI MAX_HIDDEN_DIM = static_cast<TI>(T_MAX_HIDDEN_DIM);
+        static constexpr TI MAX_HIDDEN_DIM = detail::max_hidden_dim<TI, LAYER_SPECS>();
         using FIRST_LAYER_SPEC = typename tuple_element<0, LAYER_SPECS>::type;
         using TYPE_POLICY = typename FIRST_LAYER_SPEC::TYPE_POLICY;
         using ORIGINAL_ROOT = T_MODULE;
@@ -169,8 +167,8 @@ namespace rl_tools::nn_models::sequential{
     template <typename CAPABILITY, typename MODULE, typename INPUT_SHAPE>
     struct BuildSpecification {
         using TI = typename INPUT_SHAPE::TI;
-        using BUILDER = BuildLayerSpecsImpl<CAPABILITY, MODULE, INPUT_SHAPE, utils::Tuple<TI>, TI, static_cast<TI>(0)>;
-        using type = Specification<CAPABILITY, MODULE, INPUT_SHAPE, typename BUILDER::LAYER_SPECS, typename BUILDER::FINAL_OUTPUT_SHAPE, BUILDER::MAX_HIDDEN_DIM>;
+        using BUILDER = BuildLayerSpecsImpl<CAPABILITY, MODULE, INPUT_SHAPE, utils::Tuple<TI>>;
+        using type = Specification<CAPABILITY, MODULE, INPUT_SHAPE, typename BUILDER::LAYER_SPECS, typename BUILDER::FINAL_OUTPUT_SHAPE>;
     };
 
     template <typename T_SPEC>
