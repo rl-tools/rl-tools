@@ -42,7 +42,7 @@ namespace rl_tools {
     }
     template<typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr TI length(utils::Tuple<TI> &tuple) {
-        return 1;
+        return 0;
     }
 
     template<typename TI, typename CURRENT_TYPE, typename... Types>
