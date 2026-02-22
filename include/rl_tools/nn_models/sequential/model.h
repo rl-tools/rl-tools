@@ -134,19 +134,6 @@ namespace rl_tools::nn_models::sequential{
         }
     }
 
-    template <typename TI, typename SPEC, auto INDEX = 0>
-    constexpr TI find_max_hiddend_dim(TI current_max = 0){
-        if constexpr(INDEX + 1 >= SPEC::NUM_LAYERS){
-            return current_max;
-        }
-        else{
-            using LAYER_SPEC = typename tuple_element<INDEX, typename SPEC::LAYER_SPECS>::type;
-            constexpr TI OUT_DIM = product(typename LAYER_SPEC::OUTPUT_SHAPE{});
-            TI next_max = current_max > OUT_DIM ? current_max : OUT_DIM;
-            return find_max_hiddend_dim<TI, SPEC, INDEX + 1>(next_max);
-        }
-    }
-
     template <typename T_CAPABILITY, typename T_MODULE, typename T_INPUT_SHAPE, typename T_LAYER_SPECS, typename T_OUTPUT_SHAPE>
     struct Specification{
         using CAPABILITY = T_CAPABILITY;
@@ -159,9 +146,7 @@ namespace rl_tools::nn_models::sequential{
         static constexpr TI MAX_HIDDEN_DIM = detail::max_hidden_dim<TI, LAYER_SPECS>();
         using FIRST_LAYER_SPEC = typename tuple_element<0, LAYER_SPECS>::type;
         using TYPE_POLICY = typename FIRST_LAYER_SPEC::TYPE_POLICY;
-        using ORIGINAL_ROOT = T_MODULE;
         using CONTENT = typename FIRST_LAYER_SPEC::CONTENT;
-        using NEXT_MODULE = OutputModule;
     };
 
     template <typename CAPABILITY, typename MODULE, typename INPUT_SHAPE>
@@ -265,7 +250,6 @@ namespace rl_tools::nn_models::sequential{
         using SPEC = T_SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
-        using ORIGINAL_ROOT = typename SPEC::ORIGINAL_ROOT;
         using LAYERS = utils::MapTuple<typename SPEC::LAYER_SPECS, LayerContentMap>;
         LAYERS content;
 
