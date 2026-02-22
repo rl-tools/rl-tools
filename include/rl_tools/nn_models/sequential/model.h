@@ -89,6 +89,17 @@ namespace rl_tools::nn_models::sequential{
     template <typename... T_CONTENTS>
     struct Module {};
 
+    namespace detail {
+        template <typename...>
+        struct has_real_layers : utils::typing::false_type {};
+        template <typename T, typename... Ts>
+        struct has_real_layers<T, Ts...> : utils::typing::true_type {};
+        template <typename... Ts>
+        struct has_real_layers<OutputModule, Ts...> : utils::typing::false_type {};
+        template <typename... NESTED, typename... REST>
+        struct has_real_layers<Module<NESTED...>, REST...> : has_real_layers<NESTED..., REST...> {};
+    }
+
     template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE, typename ACCUMULATOR, typename TI, TI CURRENT_MAX>
     struct BuildLayerSpecsImpl;
 
@@ -112,7 +123,8 @@ namespace rl_tools::nn_models::sequential{
         using CONTENT = typename HEAD::template Layer<CAPABILITY, INPUT_SHAPE>;
         using OUTPUT_SHAPE = typename CONTENT::SPEC::OUTPUT_SHAPE;
         using LAYER_SPEC = LayerSpecification<CONTENT, INPUT_SHAPE, OUTPUT_SHAPE>;
-        static constexpr TI NEW_MAX = CURRENT_MAX > product(OUTPUT_SHAPE{}) ? CURRENT_MAX : product(OUTPUT_SHAPE{});
+        static constexpr TI NEW_MAX = detail::has_real_layers<TAIL...>::value ?
+            (CURRENT_MAX > product(OUTPUT_SHAPE{}) ? CURRENT_MAX : product(OUTPUT_SHAPE{})) : CURRENT_MAX;
         using NEXT_ACCUMULATOR = tuple_append_t<ACCUMULATOR, LAYER_SPEC>;
         using NEXT = BuildLayerSpecsImpl<CAPABILITY, Module<TAIL...>, OUTPUT_SHAPE, NEXT_ACCUMULATOR, TI, NEW_MAX>;
         using LAYER_SPECS = typename NEXT::LAYER_SPECS;
