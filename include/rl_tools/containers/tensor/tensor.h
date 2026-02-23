@@ -11,7 +11,7 @@ namespace rl_tools{
             using TI = T_TI;
             static constexpr TI LENGTH = sizeof...(T_VALUES);
             template <TI N>
-            static constexpr TI GET = [](){
+            static constexpr TI _get_at() {
                 static_assert(N < LENGTH, "Index out of bounds in Tuple::GET");
                 if constexpr(LENGTH == 0){
                     return static_cast<TI>(0);
@@ -20,9 +20,11 @@ namespace rl_tools{
                     constexpr TI values[] = {T_VALUES...};
                     return values[N];
                 }
-            }();
+            }
+            template <TI N>
+            static constexpr TI GET = _get_at<N>();
 
-            static constexpr TI FIRST = [](){
+            static constexpr TI _first() {
                 if constexpr(LENGTH == 0){
                     return static_cast<TI>(0);
                 }
@@ -30,8 +32,9 @@ namespace rl_tools{
                     constexpr TI values[] = {T_VALUES...};
                     return values[0];
                 }
-            }();
-            static constexpr TI LAST = [](){
+            }
+            static constexpr TI FIRST = _first();
+            static constexpr TI _last() {
                 if constexpr(LENGTH == 0){
                     return static_cast<TI>(0);
                 }
@@ -39,7 +42,8 @@ namespace rl_tools{
                     constexpr TI values[] = {T_VALUES...};
                     return values[LENGTH - 1];
                 }
-            }();
+            }
+            static constexpr TI LAST = _last();
         };
 
         template <typename TI, TI... T_DIMS>
@@ -122,24 +126,28 @@ namespace rl_tools{
                 return element_to_array_unpack<ELEMENT>(MakeIndexSequence<rank<ELEMENT>()>{});
             }
 
+            template <typename LEFT, typename RIGHT>
+            constexpr auto _concat_compute() {
+                using TI = typename LEFT::TI;
+                constexpr SizeType LEFT_RANK = rank<LEFT>();
+                constexpr SizeType RIGHT_RANK = rank<RIGHT>();
+                constexpr auto left = element_to_array<LEFT>();
+                constexpr auto right = element_to_array<RIGHT>();
+                ConstexprArray<TI, LEFT_RANK + RIGHT_RANK> out{};
+                for(SizeType i = 0; i < LEFT_RANK; ++i){
+                    out.data[i] = left.data[i];
+                }
+                for(SizeType i = 0; i < RIGHT_RANK; ++i){
+                    out.data[LEFT_RANK + i] = right.data[i];
+                }
+                return out;
+            }
+
             template <typename LEFT, typename RIGHT, SizeType... Is>
             constexpr auto concat_helper(IndexSequence<Is...>) {
                 static_assert(utils::typing::is_same_v<typename LEFT::TI, typename RIGHT::TI>, "Concat requires matching TI types");
                 using TI = typename LEFT::TI;
-                constexpr SizeType LEFT_RANK = rank<LEFT>();
-                constexpr SizeType RIGHT_RANK = rank<RIGHT>();
-                constexpr auto out = []() constexpr {
-                    constexpr auto left = element_to_array<LEFT>();
-                    constexpr auto right = element_to_array<RIGHT>();
-                    ConstexprArray<TI, LEFT_RANK + RIGHT_RANK> out{};
-                    for(SizeType i = 0; i < LEFT_RANK; ++i){
-                        out.data[i] = left.data[i];
-                    }
-                    for(SizeType i = 0; i < RIGHT_RANK; ++i){
-                        out.data[LEFT_RANK + i] = right.data[i];
-                    }
-                    return out;
-                }();
+                constexpr auto out = _concat_compute<LEFT, RIGHT>();
                 return Tuple<TI, out.data[Is]...>{};
             }
 
@@ -171,19 +179,22 @@ namespace rl_tools{
                 return Tuple<TI, ELEMENT::template GET<static_cast<TI>(Is)>...>{};
             }
 
+            template <typename ELEMENT, SizeType N>
+            constexpr auto _cumulative_product_compute() {
+                using TI = typename ELEMENT::TI;
+                constexpr auto in = element_to_array<ELEMENT>();
+                ConstexprArray<TI, N> r{};
+                if constexpr (N > 0) {
+                    r.data[N - 1] = in.data[N - 1];
+                    for (SizeType i = N - 1; i > 0; --i) r.data[i - 1] = r.data[i] * in.data[i - 1];
+                }
+                return r;
+            }
+
             template <typename ELEMENT, SizeType... Is>
             constexpr auto cumulative_product_helper(IndexSequence<Is...>) {
                 using TI = typename ELEMENT::TI;
-                constexpr auto out = []() constexpr {
-                    constexpr SizeType N = sizeof...(Is);
-                    ConstexprArray<TI, N> r{};
-                    if constexpr (N > 0) {
-                        constexpr TI values[] = {ELEMENT::template GET<static_cast<TI>(Is)>...};
-                        r.data[N - 1] = values[N - 1];
-                        for (SizeType i = N - 1; i > 0; --i) r.data[i - 1] = r.data[i] * values[i - 1];
-                    }
-                    return r;
-                }();
+                constexpr auto out = _cumulative_product_compute<ELEMENT, sizeof...(Is)>();
                 return Tuple<TI, out.data[Is]...>{};
             }
 
@@ -196,19 +207,23 @@ namespace rl_tools{
                     : ELEMENT::template GET<static_cast<TI>(Is)>)...>{};
             }
 
+            template <typename ELEMENT, auto NEW_ELEMENT, auto OFFSET>
+            constexpr auto _insert_compute() {
+                using TI = typename ELEMENT::TI;
+                constexpr SizeType N = rank<ELEMENT>();
+                constexpr auto in = element_to_array<ELEMENT>();
+                ConstexprArray<TI, N + 1> r{};
+                for (SizeType i = 0; i < static_cast<SizeType>(OFFSET); ++i) r.data[i] = in.data[i];
+                r.data[static_cast<SizeType>(OFFSET)] = static_cast<TI>(NEW_ELEMENT);
+                for (SizeType i = static_cast<SizeType>(OFFSET); i < N; ++i) r.data[i + 1] = in.data[i];
+                return r;
+            }
+
             template <typename ELEMENT, auto NEW_ELEMENT, auto OFFSET, SizeType... Is>
             constexpr auto insert_helper(IndexSequence<Is...>) {
                 static_assert(OFFSET <= rank<ELEMENT>(), "Insert index out of bounds");
                 using TI = typename ELEMENT::TI;
-                constexpr auto out = []() constexpr {
-                    constexpr SizeType N = rank<ELEMENT>();
-                    constexpr auto in = element_to_array<ELEMENT>();
-                    ConstexprArray<TI, N + 1> r{};
-                    for (SizeType i = 0; i < static_cast<SizeType>(OFFSET); ++i) r.data[i] = in.data[i];
-                    r.data[static_cast<SizeType>(OFFSET)] = static_cast<TI>(NEW_ELEMENT);
-                    for (SizeType i = static_cast<SizeType>(OFFSET); i < N; ++i) r.data[i + 1] = in.data[i];
-                    return r;
-                }();
+                constexpr auto out = _insert_compute<ELEMENT, NEW_ELEMENT, OFFSET>();
                 return Tuple<TI, out.data[Is]...>{};
             }
 
