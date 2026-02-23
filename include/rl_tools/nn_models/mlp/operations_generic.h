@@ -207,8 +207,8 @@ namespace rl_tools {
 //        backward(device, network, input, d_output, buffer);
 //    }
 
-    template<typename DEVICE, typename SPEC, typename ADAM_PARAMETERS>
-    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& network, nn::optimizers::Adam<ADAM_PARAMETERS>& optimizer) {
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& network, OPTIMIZER& optimizer) {
         update(device, network.input_layer, optimizer);
         for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             update(device, network.hidden_layers[layer_i], optimizer);
