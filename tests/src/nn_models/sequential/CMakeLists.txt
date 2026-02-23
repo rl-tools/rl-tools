@@ -16,6 +16,7 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code.h)
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile)
 endif()
 
+if(NOT MSVC) # MSVC C1054: initializers nested too deeply
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2.h)
         add_executable(test_nn_models_sequential_persist_code_compile_model_2 persist_code_compile_model_2.cpp)
         target_link_libraries(test_nn_models_sequential_persist_code_compile_model_2
@@ -24,6 +25,7 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2.h
                 GTest::gtest_main
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2)
+endif()
 endif()
 
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_sequential_persist_code_model_2_forward.h)

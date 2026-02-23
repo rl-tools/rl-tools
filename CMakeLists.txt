@@ -49,6 +49,27 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             endif()
         endif()
     endif()
+elseif(MSVC)
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_options(rl_tools_full INTERFACE /O2 /fp:fast)
+    endif()
+    target_compile_options(rl_tools_full INTERFACE /bigobj)
+    target_compile_definitions(rl_tools_full INTERFACE _CRT_SECURE_NO_WARNINGS)
+    if(RL_TOOLS_WARNINGS_AS_ERRORS)
+        target_compile_options(rl_tools_full INTERFACE /W3 /WX)
+        target_compile_options(rl_tools_full INTERFACE
+            /wd4100  # unreferenced formal parameter
+            /wd4101  # unreferenced local variable
+            /wd4146  # unary minus on unsigned type
+            /wd4189  # local variable initialized but not referenced
+            /wd4244  # conversion, possible loss of data
+            /wd4267  # conversion from size_t, possible loss of data
+            /wd4459  # declaration hides global
+            /wd4996  # deprecated functions (getenv etc.)
+            /wd4068  # unknown pragma (e.g. #pragma GCC)
+            /wd4804  # unsafe use of type 'bool' in operation
+        )
+    endif()
 endif()
 
 

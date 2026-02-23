@@ -6,6 +6,7 @@ target_link_libraries(test_nn_models_multi_agent_wrapper_persist_code
 )
 gtest_discover_tests(test_nn_models_multi_agent_wrapper_persist_code)
 
+if(NOT MSVC) # MSVC C1054: initializers nested too deeply
 if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code.h)
     add_executable(test_nn_models_multi_agent_wrapper_persist_code_compile multi_agent_wrapper_persist_code_compile.cpp)
     target_link_libraries(test_nn_models_multi_agent_wrapper_persist_code_compile
@@ -34,4 +35,5 @@ if(EXISTS ${RL_TOOLS_TEST_DATA_PATH}/nn_models_multi_agent_wrapper_persist_code_
             GTest::gtest_main
     )
     gtest_discover_tests(test_nn_models_multi_agent_wrapper_persist_code_compile_forward)
+endif()
 endif()
