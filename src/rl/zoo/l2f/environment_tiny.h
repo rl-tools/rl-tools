@@ -106,6 +106,21 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         static constexpr decltype(ENVIRONMENT_FACTORY_BASE::trajectory) trajectory = {};
+        static constexpr typename PARAMETERS_TYPE::TrajectoryParameters trajectory_parameters = {
+            rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS,
+            {
+                rl::environments::l2f::parameters::trajectories::lissajous::Parameters<T>{
+                    0, // A
+                    0, // B
+                    0, // C
+                    1, // a
+                    1, // b
+                    1, // c
+                    1, // interval
+                    0  // ramp_duration
+                }
+            }
+        };
 
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
@@ -119,8 +134,8 @@ namespace rl_tools::rl::zoo::l2f{
                 },
                 ENVIRONMENT_FACTORY_BASE::domain_randomization
             },
-            ENVIRONMENT_FACTORY_BASE::trajectory, // Trajectory
-            ENVIRONMENT_FACTORY_BASE::trajectory_parameters // TaggedParameters
+            trajectory,
+            trajectory_parameters
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
