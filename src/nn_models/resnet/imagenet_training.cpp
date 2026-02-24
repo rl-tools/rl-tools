@@ -9,10 +9,7 @@
 //   Augmentation: random resize crop (scale 0.08-1.0, ratio 3/4-4/3), hflip p=0.5
 //   Loss:       cross-entropy with label smoothing 0.1
 //
-// Data format: binary file produced by prepare_imagenet.py
-//   Header:  [num_images: u64]
-//   Index:   [offset: u64, size: u32, label: u32] * num_images
-//   Data:    concatenated JPEG bytes
+// Reads ImageNet-1k directly from HuggingFace parquet files (Apache Arrow).
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/sgd/instance/operations_generic.h>
@@ -41,6 +38,10 @@
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <stb_image_resize2.h>
 
+#include <arrow/api.h>
+#include <arrow/io/api.h>
+#include <parquet/arrow/reader.h>
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -52,8 +53,10 @@
 #include <algorithm>
 #include <numeric>
 #include <cassert>
+#include <filesystem>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace fs = std::filesystem;
 
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -65,7 +68,6 @@ using TI = typename DEVICE::index_t;
 struct TrainingConfig {
     static constexpr TI IMAGE_SIZE = 224;
     static constexpr TI NUM_CLASSES = 1000;
-    static constexpr TI BATCH_SIZE = 128;
     static constexpr TI NUM_EPOCHS = 300;
     static constexpr T BASE_LR = 0.1;
     static constexpr TI BASE_BATCH_SIZE = 256;
@@ -78,12 +80,10 @@ struct TrainingConfig {
     static constexpr T LABEL_SMOOTHING = 0.1;
     static constexpr T CROP_SCALE_MIN = 0.08;
     static constexpr T CROP_SCALE_MAX = 1.0;
-    static constexpr T CROP_RATIO_MIN = 0.75;  // 3/4
-    static constexpr T CROP_RATIO_MAX = 1.3333; // 4/3
+    static constexpr T CROP_RATIO_MIN = 0.75;
+    static constexpr T CROP_RATIO_MAX = 1.3333;
     static constexpr T HFLIP_PROB = 0.5;
-    static constexpr TI LOG_INTERVAL = 100;
     static constexpr TI CHECKPOINT_INTERVAL = 10;
-    static constexpr TI VAL_SAMPLES = 50000;
 };
 
 // ======================== SGD optimizer configuration ========================
@@ -106,56 +106,88 @@ using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::SGD, INTER
 using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TrainingConfig::IMAGE_SIZE, TrainingConfig::IMAGE_SIZE, 3>;
 using RESNET18 = rlt::nn_models::sequential::Build<CAPABILITY, rlt::nn_models::resnet18::MODULE_CHAIN<TYPE_POLICY, TI>, INPUT_SHAPE>;
 
-// ======================== Binary dataset reader ========================
+// ======================== Parquet dataset reader ========================
+// Reads HuggingFace ImageNet-1k parquet files directly.
+// Schema: image: struct<bytes: binary, path: string>, label: int64
 
-struct IndexEntry {
-    uint64_t offset;
-    uint32_t size;
-    uint32_t label;
+struct ParquetSample {
+    std::vector<uint8_t> image_bytes;
+    int64_t label;
 };
 
-struct Dataset {
-    std::vector<uint8_t> data;
-    std::vector<IndexEntry> index;
-    uint64_t num_images = 0;
+struct ParquetShard {
+    std::vector<ParquetSample> samples;
 
     bool load(const std::string& path) {
-        std::ifstream f(path, std::ios::binary);
-        if (!f.is_open()) {
-            std::cerr << "Failed to open dataset: " << path << std::endl;
+        auto maybe_file = arrow::io::ReadableFile::Open(path);
+        if (!maybe_file.ok()) {
+            std::cerr << "Failed to open: " << path << " (" << maybe_file.status().ToString() << ")" << std::endl;
             return false;
         }
-        f.seekg(0, std::ios::end);
-        size_t file_size = f.tellg();
-        f.seekg(0);
+        auto maybe_reader = parquet::arrow::OpenFile(*maybe_file, arrow::default_memory_pool());
+        if (!maybe_reader.ok()) {
+            std::cerr << "Failed to open parquet: " << path << " (" << maybe_reader.status().ToString() << ")" << std::endl;
+            return false;
+        }
+        auto& reader = *maybe_reader;
+        std::shared_ptr<arrow::Table> table;
+        auto status = reader->ReadTable(&table);
+        if (!status.ok()) {
+            std::cerr << "Failed to read table: " << path << " (" << status.ToString() << ")" << std::endl;
+            return false;
+        }
 
-        f.read(reinterpret_cast<char*>(&num_images), sizeof(uint64_t));
-        index.resize(num_images);
-        f.read(reinterpret_cast<char*>(index.data()), num_images * sizeof(IndexEntry));
+        auto image_chunked = table->GetColumnByName("image");
+        auto label_chunked = table->GetColumnByName("label");
+        if (!image_chunked || !label_chunked) {
+            std::cerr << "Missing image or label column in: " << path << std::endl;
+            return false;
+        }
 
-        size_t header_size = sizeof(uint64_t) + num_images * sizeof(IndexEntry);
-        size_t data_size = file_size - header_size;
-        data.resize(data_size);
-        f.read(reinterpret_cast<char*>(data.data()), data_size);
+        samples.clear();
+        samples.reserve(table->num_rows());
 
-        std::cout << "Loaded dataset: " << path << " (" << num_images << " images, "
-                  << (file_size / (1024.0 * 1024.0 * 1024.0)) << " GB)" << std::endl;
+        for (int chunk_i = 0; chunk_i < image_chunked->num_chunks(); chunk_i++) {
+            auto image_array = std::static_pointer_cast<arrow::StructArray>(image_chunked->chunk(chunk_i));
+            auto label_array = std::static_pointer_cast<arrow::Int64Array>(label_chunked->chunk(chunk_i));
+            auto bytes_field = image_array->GetFieldByName("bytes");
+            if (!bytes_field) {
+                std::cerr << "Missing 'bytes' field in image struct in: " << path << std::endl;
+                return false;
+            }
+            auto bytes_array = std::static_pointer_cast<arrow::BinaryArray>(bytes_field);
+
+            for (int64_t row = 0; row < image_array->length(); row++) {
+                if (bytes_array->IsNull(row) || label_array->IsNull(row)) continue;
+                auto view = bytes_array->GetView(row);
+                ParquetSample s;
+                s.image_bytes.assign(
+                    reinterpret_cast<const uint8_t*>(view.data()),
+                    reinterpret_cast<const uint8_t*>(view.data()) + view.size());
+                s.label = label_array->Value(row);
+                samples.push_back(std::move(s));
+            }
+        }
         return true;
     }
-
-    const uint8_t* jpeg_data(TI idx) const {
-        size_t header_size = sizeof(uint64_t) + num_images * sizeof(IndexEntry);
-        return data.data() + (index[idx].offset - header_size);
-    }
-
-    uint32_t jpeg_size(TI idx) const {
-        return index[idx].size;
-    }
-
-    uint32_t label(TI idx) const {
-        return index[idx].label;
-    }
 };
+
+std::vector<std::string> find_parquet_files(const std::string& base_dir, const std::string& split) {
+    std::vector<std::string> files;
+    std::string data_dir = base_dir + "/data";
+    if (!fs::exists(data_dir)) {
+        data_dir = base_dir;
+    }
+    for (auto& entry : fs::directory_iterator(data_dir)) {
+        auto fname = entry.path().filename().string();
+        if (fname.find(split + "-") == 0 && fname.find(".parquet") != std::string::npos
+            && fname.find(".metadata") == std::string::npos) {
+            files.push_back(entry.path().string());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    return files;
+}
 
 // ======================== Image preprocessing ========================
 
@@ -165,20 +197,17 @@ struct DecodedImage {
     bool valid = false;
 };
 
-DecodedImage decode_jpeg(const uint8_t* jpeg_bytes, uint32_t jpeg_size) {
+DecodedImage decode_jpeg(const uint8_t* jpeg_bytes, size_t jpeg_size) {
     DecodedImage img;
     int channels;
-    uint8_t* raw = stbi_load_from_memory(jpeg_bytes, jpeg_size, &img.width, &img.height, &channels, 3);
-    if (!raw) {
-        return img;
-    }
+    uint8_t* raw = stbi_load_from_memory(jpeg_bytes, static_cast<int>(jpeg_size), &img.width, &img.height, &channels, 3);
+    if (!raw) return img;
     img.pixels.assign(raw, raw + img.width * img.height * 3);
     stbi_image_free(raw);
     img.valid = true;
     return img;
 }
 
-// Random resize crop: pick random area and aspect ratio, crop, then resize to target_size
 void random_resize_crop(const DecodedImage& src, uint8_t* dst, TI target_size, std::mt19937& rng) {
     std::uniform_real_distribution<T> scale_dist(TrainingConfig::CROP_SCALE_MIN, TrainingConfig::CROP_SCALE_MAX);
     std::uniform_real_distribution<T> ratio_dist(
@@ -239,7 +268,6 @@ void random_resize_crop(const DecodedImage& src, uint8_t* dst, TI target_size, s
         STBIR_RGB);
 }
 
-// Center crop for validation: resize shorter side to 256, then center crop to target_size
 void center_crop_resize(const DecodedImage& src, uint8_t* dst, TI target_size) {
     constexpr int RESIZE_SIZE = 256;
     T scale = static_cast<T>(RESIZE_SIZE) / std::min(src.width, src.height);
@@ -293,7 +321,7 @@ T cosine_lr(TI epoch, TI total_epochs, T base_lr, T min_lr, TI warmup_epochs, T 
 
 // ======================== Cross-entropy with label smoothing ========================
 
-T cross_entropy_with_smoothing(DEVICE& device, const T* logits, TI target, TI num_classes, T smoothing) {
+T cross_entropy_with_smoothing(const T* logits, TI target, TI num_classes, T smoothing) {
     T max_logit = logits[0];
     for (TI i = 1; i < num_classes; i++) {
         max_logit = std::max(max_logit, logits[i]);
@@ -304,16 +332,13 @@ T cross_entropy_with_smoothing(DEVICE& device, const T* logits, TI target, TI nu
     }
     T log_sum_exp = max_logit + std::log(sum_exp);
 
-    T target_weight = 1.0f - smoothing;
-    T smooth_weight = smoothing / static_cast<T>(num_classes);
-
     T nll = -(logits[target] - log_sum_exp);
     T kl_uniform = log_sum_exp;
     for (TI i = 0; i < num_classes; i++) {
         kl_uniform -= logits[i] / static_cast<T>(num_classes);
     }
 
-    return target_weight * nll + smoothing * kl_uniform;
+    return (1.0f - smoothing) * nll + smoothing * kl_uniform;
 }
 
 void cross_entropy_gradient_with_smoothing(const T* logits, TI target, TI num_classes, T smoothing, T loss_weight, T* d_logits) {
@@ -326,58 +351,201 @@ void cross_entropy_gradient_with_smoothing(const T* logits, TI target, TI num_cl
         sum_exp += std::exp(logits[i] - max_logit);
     }
 
-    T target_weight = 1.0f - smoothing;
     T smooth_weight = smoothing / static_cast<T>(num_classes);
 
     for (TI i = 0; i < num_classes; i++) {
         T softmax_i = std::exp(logits[i] - max_logit) / sum_exp;
-        T smooth_target = (i == target) ? (target_weight + smooth_weight) : smooth_weight;
+        T smooth_target = (i == target) ? ((1.0f - smoothing) + smooth_weight) : smooth_weight;
         d_logits[i] = (softmax_i - smooth_target) * loss_weight;
     }
+}
+
+// ======================== Training step on one shard ========================
+
+struct TrainStats {
+    T loss_sum = 0;
+    TI correct = 0;
+    TI total = 0;
+    TI failed_decodes = 0;
+};
+
+template<typename MODEL, typename BUFFER, typename OPT, typename RNG_T>
+TrainStats train_on_shard(
+    DEVICE& device, MODEL& model, BUFFER& buffer, OPT& optimizer,
+    RNG_T& rng, std::mt19937& data_rng,
+    ParquetShard& shard,
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>>& input_tensor,
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::OUTPUT_SHAPE>>& d_loss_tensor,
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>>& d_input_tensor,
+    std::vector<uint8_t>& resized_img,
+    TI batch_i_offset, TI total_batches,
+    TI batch_size, TI log_interval
+) {
+    TrainStats stats;
+    TI num_samples = shard.samples.size();
+
+    std::vector<TI> indices(num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+    std::shuffle(indices.begin(), indices.end(), data_rng);
+
+    TI num_batches = num_samples / batch_size;
+    rlt::Mode<rlt::mode::Default<>> train_mode;
+
+    for (TI batch_i = 0; batch_i < num_batches; batch_i++) {
+        auto batch_start = std::chrono::high_resolution_clock::now();
+        rlt::zero_gradient(device, model);
+        T batch_loss = 0;
+        TI batch_correct = 0;
+        TI batch_valid = 0;
+
+        for (TI sample_i = 0; sample_i < batch_size; sample_i++) {
+            TI idx = indices[batch_i * batch_size + sample_i];
+            auto& s = shard.samples[idx];
+
+            auto decoded = decode_jpeg(s.image_bytes.data(), s.image_bytes.size());
+            if (!decoded.valid) { stats.failed_decodes++; continue; }
+
+            random_resize_crop(decoded, resized_img.data(), TrainingConfig::IMAGE_SIZE, data_rng);
+
+            std::uniform_real_distribution<T> flip_dist(0, 1);
+            if (flip_dist(data_rng) < TrainingConfig::HFLIP_PROB) {
+                constexpr TI S = TrainingConfig::IMAGE_SIZE;
+                for (TI y = 0; y < S; y++) {
+                    for (TI x = 0; x < S / 2; x++) {
+                        for (TI c = 0; c < 3; c++) {
+                            std::swap(resized_img[(y * S + x) * 3 + c],
+                                      resized_img[(y * S + (S - 1 - x)) * 3 + c]);
+                        }
+                    }
+                }
+            }
+
+            preprocess_to_tensor(device, resized_img.data(), input_tensor);
+            rlt::forward(device, model, input_tensor, buffer, rng, train_mode);
+
+            auto output_view = rlt::output(device, model);
+            auto output_flat = rlt::view_memory<rlt::tensor::Shape<TI, TrainingConfig::NUM_CLASSES>>(device, output_view);
+
+            T logits[TrainingConfig::NUM_CLASSES];
+            for (TI i = 0; i < TrainingConfig::NUM_CLASSES; i++) {
+                logits[i] = rlt::get(device, output_flat, i);
+            }
+
+            TI target = static_cast<TI>(s.label);
+            batch_loss += cross_entropy_with_smoothing(logits, target, TrainingConfig::NUM_CLASSES, TrainingConfig::LABEL_SMOOTHING);
+
+            TI predicted = 0;
+            for (TI i = 1; i < TrainingConfig::NUM_CLASSES; i++) {
+                if (logits[i] > logits[predicted]) predicted = i;
+            }
+            if (predicted == target) batch_correct++;
+            batch_valid++;
+
+            T d_logits[TrainingConfig::NUM_CLASSES];
+            cross_entropy_gradient_with_smoothing(logits, target, TrainingConfig::NUM_CLASSES,
+                TrainingConfig::LABEL_SMOOTHING, T(1) / T(batch_size), d_logits);
+
+            auto d_loss_flat = rlt::view_memory<rlt::tensor::Shape<TI, TrainingConfig::NUM_CLASSES>>(device, d_loss_tensor);
+            for (TI i = 0; i < TrainingConfig::NUM_CLASSES; i++) {
+                rlt::set(device, d_loss_flat, d_logits[i], i);
+            }
+
+            rlt::backward_full(device, model, input_tensor, d_loss_tensor, d_input_tensor, buffer);
+        }
+
+        rlt::step(device, optimizer, model);
+
+        auto batch_end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<T> batch_duration = batch_end - batch_start;
+
+        if (batch_valid > 0) batch_loss /= batch_valid;
+        stats.loss_sum += batch_loss;
+        stats.correct += batch_correct;
+        stats.total += batch_valid;
+
+        TI global_batch = batch_i_offset + batch_i;
+        if (global_batch % log_interval == 0) {
+            T batch_acc = batch_valid > 0 ? static_cast<T>(batch_correct) / batch_valid * 100.0f : 0;
+            T samples_per_sec = batch_valid > 0 ? static_cast<T>(batch_valid) / batch_duration.count() : 0;
+            std::cout << "  [" << global_batch << "/" << total_batches << "]"
+                      << "  loss: " << batch_loss
+                      << "  acc: " << batch_acc << "%"
+                      << "  " << samples_per_sec << " samples/s"
+                      << "  (" << batch_duration.count() << "s)"
+                      << std::endl;
+        }
+    }
+    return stats;
 }
 
 // ======================== Main ========================
 
 int main(int argc, char* argv[]) {
-    std::string train_data_path = "imagenet_bin/train.bin";
-    std::string val_data_path = "imagenet_bin/val.bin";
+    std::string dataset_dir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/git/imagenet-1k";
     std::string checkpoint_dir = "checkpoints";
     std::string resume_path = "";
+    TI batch_size = 128;
+    TI log_interval = 1;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
-        if (arg == "--train-data" && i + 1 < argc) train_data_path = argv[++i];
-        else if (arg == "--val-data" && i + 1 < argc) val_data_path = argv[++i];
+        if (arg == "--dataset-dir" && i + 1 < argc) dataset_dir = argv[++i];
         else if (arg == "--checkpoint-dir" && i + 1 < argc) checkpoint_dir = argv[++i];
         else if (arg == "--resume" && i + 1 < argc) resume_path = argv[++i];
+        else if (arg == "--batch-size" && i + 1 < argc) batch_size = std::stoi(argv[++i]);
+        else if (arg == "--log-interval" && i + 1 < argc) log_interval = std::stoi(argv[++i]);
         else if (arg == "--help") {
             std::cout << "Usage: " << argv[0] << " [options]\n"
-                      << "  --train-data PATH    Training binary dataset (default: imagenet_bin/train.bin)\n"
-                      << "  --val-data PATH      Validation binary dataset (default: imagenet_bin/val.bin)\n"
+                      << "  --dataset-dir DIR    HuggingFace imagenet-1k directory (default: ~/git/imagenet-1k)\n"
                       << "  --checkpoint-dir DIR  Checkpoint output directory (default: checkpoints)\n"
-                      << "  --resume PATH        Resume from HDF5 checkpoint\n";
+                      << "  --resume PATH        Resume from HDF5 checkpoint\n"
+                      << "  --batch-size N       Gradient accumulation batch size (default: 128)\n"
+                      << "  --log-interval N     Log every N batches (default: 1)\n";
             return 0;
         }
     }
 
+    // Discover parquet files
+    auto train_files = find_parquet_files(dataset_dir, "train");
+    auto val_files = find_parquet_files(dataset_dir, "validation");
+
+    if (train_files.empty()) {
+        std::cerr << "No training parquet files found in: " << dataset_dir << "/data/" << std::endl;
+        return 1;
+    }
+    if (val_files.empty()) {
+        std::cerr << "No validation parquet files found in: " << dataset_dir << "/data/" << std::endl;
+        return 1;
+    }
+
+    // Count total training samples by reading metadata from first/last shards
+    TI total_train_samples = 0;
+    {
+        for (auto& f : train_files) {
+            auto maybe_file = arrow::io::ReadableFile::Open(f);
+            if (!maybe_file.ok()) continue;
+            auto maybe_reader = parquet::arrow::OpenFile(*maybe_file, arrow::default_memory_pool());
+            if (!maybe_reader.ok()) continue;
+            total_train_samples += (*maybe_reader)->parquet_reader()->metadata()->num_rows();
+        }
+    }
+    TI total_batches = total_train_samples / batch_size;
+
+    T scaled_lr = TrainingConfig::BASE_LR * static_cast<T>(batch_size) / static_cast<T>(TrainingConfig::BASE_BATCH_SIZE);
+
     std::cout << "=== ImageNet-1k ResNet-18 Training (timm recipe) ===" << std::endl;
+    std::cout << "Dataset:         " << dataset_dir << std::endl;
+    std::cout << "Train shards:    " << train_files.size() << " (" << total_train_samples << " samples)" << std::endl;
+    std::cout << "Val shards:      " << val_files.size() << std::endl;
     std::cout << "Epochs:          " << TrainingConfig::NUM_EPOCHS << std::endl;
-    std::cout << "Batch size:      " << TrainingConfig::BATCH_SIZE << std::endl;
+    std::cout << "Batch size:      " << batch_size << std::endl;
     std::cout << "Base LR:         " << TrainingConfig::BASE_LR << std::endl;
+    std::cout << "Scaled LR:       " << scaled_lr << std::endl;
     std::cout << "Momentum:        " << TrainingConfig::MOMENTUM << std::endl;
     std::cout << "Weight decay:    " << TrainingConfig::WEIGHT_DECAY << std::endl;
     std::cout << "Nesterov:        " << (TrainingConfig::NESTEROV ? "true" : "false") << std::endl;
     std::cout << "Label smoothing: " << TrainingConfig::LABEL_SMOOTHING << std::endl;
     std::cout << "Warmup epochs:   " << TrainingConfig::WARMUP_EPOCHS << std::endl;
-
-    // Load datasets
-    Dataset train_dataset, val_dataset;
-    if (!train_dataset.load(train_data_path)) return 1;
-    if (!val_dataset.load(val_data_path)) return 1;
-
-    // Scale learning rate by effective batch size
-    T scaled_lr = TrainingConfig::BASE_LR * static_cast<T>(TrainingConfig::BATCH_SIZE) / static_cast<T>(TrainingConfig::BASE_BATCH_SIZE);
-    std::cout << "Scaled LR:       " << scaled_lr << " (batch " << TrainingConfig::BATCH_SIZE << " / base " << TrainingConfig::BASE_BATCH_SIZE << ")" << std::endl;
 
     // Initialize device, rng, model, optimizer
     DEVICE::SPEC::LOGGING logger;
@@ -404,13 +572,11 @@ int main(int argc, char* argv[]) {
         rlt::set(device, optimizer.parameters, opt_params, 0);
     }
 
-    TI start_epoch = 0;
     if (!resume_path.empty()) {
         std::cout << "Resuming from: " << resume_path << std::endl;
         auto file = HighFive::File(resume_path, HighFive::File::ReadOnly);
         auto model_group = rlt::get_group(device, file, "model");
-        bool load_ok = rlt::load(device, model, model_group);
-        if (!load_ok) {
+        if (!rlt::load(device, model, model_group)) {
             std::cerr << "Failed to load model from checkpoint" << std::endl;
             return 1;
         }
@@ -420,7 +586,6 @@ int main(int argc, char* argv[]) {
     }
     rlt::reset_optimizer_state(device, optimizer, model);
 
-    // Allocate input/output tensors for single-sample forward/backward
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input_tensor;
     rlt::malloc(device, input_tensor);
 
@@ -431,23 +596,13 @@ int main(int argc, char* argv[]) {
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> d_input_tensor;
     rlt::malloc(device, d_input_tensor);
 
-    // Temp buffers for image preprocessing
     std::vector<uint8_t> resized_img(TrainingConfig::IMAGE_SIZE * TrainingConfig::IMAGE_SIZE * 3);
 
-    // Shuffle indices
-    std::vector<TI> train_indices(train_dataset.num_images);
-    std::iota(train_indices.begin(), train_indices.end(), 0);
+    std::cout << "\nBatches per epoch: ~" << total_batches << std::endl << std::endl;
 
-    TI num_batches = train_dataset.num_images / TrainingConfig::BATCH_SIZE;
-
-    std::cout << "\nTraining: " << train_dataset.num_images << " images, " << num_batches << " batches/epoch" << std::endl;
-    std::cout << "Validation: " << val_dataset.num_images << " images" << std::endl;
-    std::cout << std::endl;
-
-    for (TI epoch = start_epoch; epoch < TrainingConfig::NUM_EPOCHS; epoch++) {
+    for (TI epoch = 0; epoch < TrainingConfig::NUM_EPOCHS; epoch++) {
         auto epoch_start = std::chrono::high_resolution_clock::now();
 
-        // Update learning rate
         T current_lr = cosine_lr(epoch, TrainingConfig::NUM_EPOCHS, scaled_lr,
                                   TrainingConfig::MIN_LR, TrainingConfig::WARMUP_EPOCHS,
                                   TrainingConfig::WARMUP_LR);
@@ -457,176 +612,107 @@ int main(int argc, char* argv[]) {
             rlt::set(device, optimizer.parameters, opt_params, 0);
         }
 
-        // Shuffle training data
-        std::shuffle(train_indices.begin(), train_indices.end(), data_rng);
+        std::cout << "=== Epoch " << epoch << " (lr=" << current_lr << ") ===" << std::endl;
+
+        // Shuffle shard order each epoch
+        auto shuffled_train_files = train_files;
+        std::shuffle(shuffled_train_files.begin(), shuffled_train_files.end(), data_rng);
 
         T epoch_loss = 0;
         TI epoch_correct = 0;
         TI epoch_total = 0;
-        TI failed_decodes = 0;
-        rlt::Mode<rlt::mode::Default<>> train_mode;
+        TI epoch_failed = 0;
+        TI batch_offset = 0;
 
-        for (TI batch_i = 0; batch_i < num_batches; batch_i++) {
-            rlt::zero_gradient(device, model);
-            T batch_loss = 0;
-            TI batch_correct = 0;
-            TI batch_valid = 0;
-
-            for (TI sample_i = 0; sample_i < TrainingConfig::BATCH_SIZE; sample_i++) {
-                TI global_idx = train_indices[batch_i * TrainingConfig::BATCH_SIZE + sample_i];
-                auto decoded = decode_jpeg(train_dataset.jpeg_data(global_idx), train_dataset.jpeg_size(global_idx));
-                if (!decoded.valid) {
-                    failed_decodes++;
-                    continue;
-                }
-
-                // Random resize crop + horizontal flip
-                random_resize_crop(decoded, resized_img.data(), TrainingConfig::IMAGE_SIZE, data_rng);
-
-                std::uniform_real_distribution<T> flip_dist(0, 1);
-                if (flip_dist(data_rng) < TrainingConfig::HFLIP_PROB) {
-                    constexpr TI S = TrainingConfig::IMAGE_SIZE;
-                    for (TI y = 0; y < S; y++) {
-                        for (TI x = 0; x < S / 2; x++) {
-                            for (TI c = 0; c < 3; c++) {
-                                std::swap(
-                                    resized_img[(y * S + x) * 3 + c],
-                                    resized_img[(y * S + (S - 1 - x)) * 3 + c]);
-                            }
-                        }
-                    }
-                }
-
-                preprocess_to_tensor(device, resized_img.data(), input_tensor);
-
-                rlt::forward(device, model, input_tensor, buffer, rng, train_mode);
-
-                // Get output logits
-                auto output_view = rlt::output(device, model);
-                auto output_flat = rlt::view_memory<rlt::tensor::Shape<TI, TrainingConfig::NUM_CLASSES>>(device, output_view);
-
-                T logits[TrainingConfig::NUM_CLASSES];
-                for (TI i = 0; i < TrainingConfig::NUM_CLASSES; i++) {
-                    logits[i] = rlt::get(device, output_flat, i);
-                }
-
-                TI target = train_dataset.label(global_idx);
-                T sample_loss = cross_entropy_with_smoothing(device, logits, target, TrainingConfig::NUM_CLASSES, TrainingConfig::LABEL_SMOOTHING);
-                batch_loss += sample_loss;
-
-                // Top-1 accuracy
-                TI predicted = 0;
-                for (TI i = 1; i < TrainingConfig::NUM_CLASSES; i++) {
-                    if (logits[i] > logits[predicted]) predicted = i;
-                }
-                if (predicted == target) batch_correct++;
-                batch_valid++;
-
-                // Compute gradient of loss w.r.t. output
-                T d_logits[TrainingConfig::NUM_CLASSES];
-                cross_entropy_gradient_with_smoothing(logits, target, TrainingConfig::NUM_CLASSES,
-                    TrainingConfig::LABEL_SMOOTHING, T(1) / T(TrainingConfig::BATCH_SIZE), d_logits);
-
-                auto d_loss_flat = rlt::view_memory<rlt::tensor::Shape<TI, TrainingConfig::NUM_CLASSES>>(device, d_loss_tensor);
-                for (TI i = 0; i < TrainingConfig::NUM_CLASSES; i++) {
-                    rlt::set(device, d_loss_flat, d_logits[i], i);
-                }
-
-                rlt::backward_full(device, model, input_tensor, d_loss_tensor, d_input_tensor, buffer);
+        for (TI shard_i = 0; shard_i < shuffled_train_files.size(); shard_i++) {
+            ParquetShard shard;
+            if (!shard.load(shuffled_train_files[shard_i])) {
+                std::cerr << "Skipping shard: " << shuffled_train_files[shard_i] << std::endl;
+                continue;
             }
 
-            rlt::step(device, optimizer, model);
+            auto stats = train_on_shard(
+                device, model, buffer, optimizer, rng, data_rng,
+                shard, input_tensor, d_loss_tensor, d_input_tensor,
+                resized_img, batch_offset, total_batches,
+                batch_size, log_interval);
 
-            if (batch_valid > 0) {
-                batch_loss /= batch_valid;
-            }
-            epoch_loss += batch_loss;
-            epoch_correct += batch_correct;
-            epoch_total += batch_valid;
+            epoch_loss += stats.loss_sum;
+            epoch_correct += stats.correct;
+            epoch_total += stats.total;
+            epoch_failed += stats.failed_decodes;
+            batch_offset += shard.samples.size() / batch_size;
 
-            if (batch_i % TrainingConfig::LOG_INTERVAL == 0) {
-                T batch_acc = batch_valid > 0 ? static_cast<T>(batch_correct) / batch_valid * 100.0f : 0;
-                std::cout << "Epoch " << epoch << " [" << batch_i << "/" << num_batches << "]"
-                          << "  loss: " << batch_loss
-                          << "  acc: " << batch_acc << "%"
-                          << "  lr: " << current_lr
-                          << std::endl;
+            if ((shard_i + 1) % 50 == 0) {
+                T running_acc = epoch_total > 0 ? static_cast<T>(epoch_correct) / epoch_total * 100.0f : 0;
+                std::cout << "  Shards: " << (shard_i + 1) << "/" << shuffled_train_files.size()
+                          << "  running acc: " << running_acc << "%" << std::endl;
             }
         }
 
         auto epoch_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> epoch_duration = epoch_end - epoch_start;
 
-        T epoch_avg_loss = num_batches > 0 ? epoch_loss / num_batches : 0;
+        TI num_batches_done = batch_offset;
+        T epoch_avg_loss = num_batches_done > 0 ? epoch_loss / num_batches_done : 0;
         T epoch_acc = epoch_total > 0 ? static_cast<T>(epoch_correct) / epoch_total * 100.0f : 0;
 
-        std::cout << "\n=== Epoch " << epoch << " Summary ===" << std::endl;
         std::cout << "  Train loss: " << epoch_avg_loss << std::endl;
         std::cout << "  Train acc:  " << epoch_acc << "%" << std::endl;
         std::cout << "  Time:       " << epoch_duration.count() << "s" << std::endl;
-        std::cout << "  LR:         " << current_lr << std::endl;
-        if (failed_decodes > 0) {
-            std::cout << "  Failed decodes: " << failed_decodes << std::endl;
-        }
+        if (epoch_failed > 0) std::cout << "  Failed decodes: " << epoch_failed << std::endl;
 
         // Validation
         {
-            TI val_correct = 0;
-            TI val_total = 0;
+            TI val_correct = 0, val_total = 0;
             T val_loss = 0;
-            TI val_count = std::min(static_cast<TI>(val_dataset.num_images), TrainingConfig::VAL_SAMPLES);
             rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
 
-            for (TI i = 0; i < val_count; i++) {
-                auto decoded = decode_jpeg(val_dataset.jpeg_data(i), val_dataset.jpeg_size(i));
-                if (!decoded.valid) continue;
+            for (auto& vf : val_files) {
+                ParquetShard shard;
+                if (!shard.load(vf)) continue;
 
-                center_crop_resize(decoded, resized_img.data(), TrainingConfig::IMAGE_SIZE);
-                preprocess_to_tensor(device, resized_img.data(), input_tensor);
+                for (auto& s : shard.samples) {
+                    auto decoded = decode_jpeg(s.image_bytes.data(), s.image_bytes.size());
+                    if (!decoded.valid) continue;
 
-                rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> val_output;
-                rlt::malloc(device, val_output);
-                rlt::evaluate(device, model, input_tensor, val_output, buffer, rng, eval_mode);
+                    center_crop_resize(decoded, resized_img.data(), TrainingConfig::IMAGE_SIZE);
+                    preprocess_to_tensor(device, resized_img.data(), input_tensor);
 
-                auto val_flat = rlt::view_memory<rlt::tensor::Shape<TI, TrainingConfig::NUM_CLASSES>>(device, val_output);
-                T logits[TrainingConfig::NUM_CLASSES];
-                for (TI j = 0; j < TrainingConfig::NUM_CLASSES; j++) {
-                    logits[j] = rlt::get(device, val_flat, j);
-                }
+                    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> val_output;
+                    rlt::malloc(device, val_output);
+                    rlt::evaluate(device, model, input_tensor, val_output, buffer, rng, eval_mode);
 
-                TI target = val_dataset.label(i);
-                val_loss += cross_entropy_with_smoothing(device, logits, target, TrainingConfig::NUM_CLASSES, 0);
+                    auto val_flat = rlt::view_memory<rlt::tensor::Shape<TI, TrainingConfig::NUM_CLASSES>>(device, val_output);
+                    T logits[TrainingConfig::NUM_CLASSES];
+                    for (TI j = 0; j < TrainingConfig::NUM_CLASSES; j++) {
+                        logits[j] = rlt::get(device, val_flat, j);
+                    }
 
-                TI predicted = 0;
-                for (TI j = 1; j < TrainingConfig::NUM_CLASSES; j++) {
-                    if (logits[j] > logits[predicted]) predicted = j;
-                }
-                if (predicted == target) val_correct++;
-                val_total++;
+                    TI target = static_cast<TI>(s.label);
+                    val_loss += cross_entropy_with_smoothing(logits, target, TrainingConfig::NUM_CLASSES, 0);
 
-                rlt::free(device, val_output);
+                    TI predicted = 0;
+                    for (TI j = 1; j < TrainingConfig::NUM_CLASSES; j++) {
+                        if (logits[j] > logits[predicted]) predicted = j;
+                    }
+                    if (predicted == target) val_correct++;
+                    val_total++;
 
-                if ((i + 1) % 10000 == 0) {
-                    std::cout << "  Validation progress: " << (i + 1) << "/" << val_count << std::endl;
+                    rlt::free(device, val_output);
                 }
             }
 
             T val_avg_loss = val_total > 0 ? val_loss / val_total : 0;
             T val_acc = val_total > 0 ? static_cast<T>(val_correct) / val_total * 100.0f : 0;
             std::cout << "  Val loss:   " << val_avg_loss << std::endl;
-            std::cout << "  Val acc:    " << val_acc << "% (top-1)" << std::endl;
+            std::cout << "  Val acc:    " << val_acc << "% (top-1, " << val_total << " samples)" << std::endl;
         }
 
         // Checkpoint
         if ((epoch + 1) % TrainingConfig::CHECKPOINT_INTERVAL == 0 || epoch == TrainingConfig::NUM_EPOCHS - 1) {
+            fs::create_directories(checkpoint_dir);
             std::string ckpt_path = checkpoint_dir + "/resnet18_epoch_" + std::to_string(epoch) + ".h5";
-            {
-                std::string mkdir_cmd = "mkdir -p " + checkpoint_dir;
-                int ret = system(mkdir_cmd.c_str());
-                if (ret != 0) {
-                    std::cerr << "Warning: mkdir failed for " << checkpoint_dir << std::endl;
-                }
-            }
             auto file = HighFive::File(ckpt_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
             auto model_group = rlt::create_group(device, file, "model");
             rlt::save(device, model, model_group);
@@ -635,7 +721,6 @@ int main(int argc, char* argv[]) {
         std::cout << std::endl;
     }
 
-    // Cleanup
     rlt::free(device, model);
     rlt::free(device, buffer);
     rlt::free(device, optimizer);
