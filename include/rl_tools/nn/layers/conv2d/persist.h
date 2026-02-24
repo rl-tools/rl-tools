@@ -13,14 +13,14 @@ namespace rl_tools {
         save(device, layer.weights, weights_group);
         save(device, layer.biases, biases_group);
         set_attribute(device, group, "type", "conv2d");
-        set_attribute(device, group, "output_channels", std::to_string(SPEC::OUTPUT_CHANNELS));
-        set_attribute(device, group, "input_channels", std::to_string(SPEC::INPUT_CHANNELS));
-        set_attribute(device, group, "kernel_height", std::to_string(SPEC::KERNEL_HEIGHT));
-        set_attribute(device, group, "kernel_width", std::to_string(SPEC::KERNEL_WIDTH));
-        set_attribute(device, group, "stride_h", std::to_string(SPEC::STRIDE_H));
-        set_attribute(device, group, "stride_w", std::to_string(SPEC::STRIDE_W));
-        set_attribute(device, group, "padding_h", std::to_string(SPEC::PADDING_H));
-        set_attribute(device, group, "padding_w", std::to_string(SPEC::PADDING_W));
+        set_attribute(device, group, "output_channels", std::to_string(SPEC::OUTPUT_CHANNELS).c_str());
+        set_attribute(device, group, "input_channels", std::to_string(SPEC::INPUT_CHANNELS).c_str());
+        set_attribute(device, group, "kernel_height", std::to_string(SPEC::KERNEL_HEIGHT).c_str());
+        set_attribute(device, group, "kernel_width", std::to_string(SPEC::KERNEL_WIDTH).c_str());
+        set_attribute(device, group, "stride_h", std::to_string(SPEC::STRIDE_H).c_str());
+        set_attribute(device, group, "stride_w", std::to_string(SPEC::STRIDE_W).c_str());
+        set_attribute(device, group, "padding_h", std::to_string(SPEC::PADDING_H).c_str());
+        set_attribute(device, group, "padding_w", std::to_string(SPEC::PADDING_W).c_str());
         if constexpr(SPEC::NORMALIZATION != nn::layers::conv2d::Normalization::NONE) {
             auto gamma_group = create_group(device, group, "gamma");
             auto beta_group = create_group(device, group, "beta");
