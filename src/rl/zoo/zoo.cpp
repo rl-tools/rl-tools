@@ -11,6 +11,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/optimizers/lamb/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
@@ -21,6 +22,7 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
+#include <rl_tools/nn/optimizers/lamb/operations_generic.h>
 
 #if defined(RL_TOOLS_ENABLE_HDF5) && defined(RL_TOOLS_RL_ZOO_ALGORITHMS_PPO)
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>

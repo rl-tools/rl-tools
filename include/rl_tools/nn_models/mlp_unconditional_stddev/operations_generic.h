@@ -25,8 +25,8 @@ namespace rl_tools{
         init_weights(device, static_cast<nn_models::mlp::NeuralNetworkForward<SPEC>&>(m), rng);
         set_all(device, m.log_std.parameters, 0);
     }
-    template<typename DEVICE, typename SPEC, template <typename> typename BASE, typename ADAM_PARAMETERS>
-    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<SPEC, BASE>& network, nn::optimizers::Adam<ADAM_PARAMETERS>& optimizer) {
+    template<typename DEVICE, typename SPEC, template <typename> typename BASE, typename OPTIMIZER>
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<SPEC, BASE>& network, OPTIMIZER& optimizer) {
         update(device, network.log_std, optimizer);
         update(device, static_cast<nn_models::mlp::NeuralNetworkGradient<SPEC>&>(network), optimizer);
     }
