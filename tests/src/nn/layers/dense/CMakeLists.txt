@@ -18,3 +18,7 @@ if(RL_TOOLS_TEST_DATA_PATH)
     target_link_libraries(test_nn_layers_dense_persist_code_compile PRIVATE RLtools::Core GTest::gtest_main)
     gtest_discover_tests(test_nn_layers_dense_persist_code_compile)
 endif()
+
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    add_subdirectory(cuda)
+endif()

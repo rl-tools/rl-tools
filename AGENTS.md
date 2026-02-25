@@ -1,6 +1,11 @@
 # RL-Tools Development Guide
 
+
 ## Building & Testing
+
+### Python Packages
+
+Always use the `.venv` virtual environment. If it does not exist, create it with `python3 -m venv .venv`.
 
 ### CMake Configuration
 
