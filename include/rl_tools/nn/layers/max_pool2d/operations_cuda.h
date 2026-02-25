@@ -17,51 +17,56 @@ namespace rl_tools{
         static_assert(nn::layers::max_pool2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using T = typename OUTPUT_SPEC::T;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
-
-        constexpr TI N  = LAYER_SPEC::INTERNAL_BATCH_SIZE;
-        constexpr TI IH = LAYER_SPEC::INPUT_HEIGHT;
-        constexpr TI IW = LAYER_SPEC::INPUT_WIDTH;
-        constexpr TI C  = LAYER_SPEC::INPUT_CHANNELS;
-        constexpr TI OH = LAYER_SPEC::OUTPUT_HEIGHT;
-        constexpr TI OW = LAYER_SPEC::OUTPUT_WIDTH;
-        constexpr TI KH = LAYER_SPEC::KERNEL_HEIGHT;
-        constexpr TI KW = LAYER_SPEC::KERNEL_WIDTH;
-        constexpr TI SH = LAYER_SPEC::STRIDE_H;
-        constexpr TI SW = LAYER_SPEC::STRIDE_W;
-        constexpr TI PH = LAYER_SPEC::PADDING_H;
-        constexpr TI PW = LAYER_SPEC::PADDING_W;
-
-        constexpr cudnnDataType_t cudnn_dtype = nn::cuda::get_cudnn_dtype<T>();
-
-        // Input tensor descriptor (NHWC)
-        cudnnTensorDescriptor_t x_desc;
-        cudnnCreateTensorDescriptor(&x_desc);
-        cudnnSetTensor4dDescriptor(x_desc, CUDNN_TENSOR_NHWC, cudnn_dtype, N, C, IH, IW);
-
-        // Output tensor descriptor (NHWC)
-        cudnnTensorDescriptor_t y_desc;
-        cudnnCreateTensorDescriptor(&y_desc);
-        cudnnSetTensor4dDescriptor(y_desc, CUDNN_TENSOR_NHWC, cudnn_dtype, N, C, OH, OW);
-
-        // Pooling descriptor
-        cudnnPoolingDescriptor_t pool_desc;
-        cudnnCreatePoolingDescriptor(&pool_desc);
-        cudnnSetPooling2dDescriptor(pool_desc, CUDNN_POOLING_MAX, CUDNN_NOT_PROPAGATE_NAN, KH, KW, PH, PW, SH, SW);
-
-        // Pooling forward
+        constexpr TI N = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr TI IH = LAYER_SPEC::INPUT_HEIGHT, IW = LAYER_SPEC::INPUT_WIDTH, C = LAYER_SPEC::INPUT_CHANNELS;
+        constexpr TI OH = LAYER_SPEC::OUTPUT_HEIGHT, OW = LAYER_SPEC::OUTPUT_WIDTH;
+        constexpr TI KH = LAYER_SPEC::KERNEL_HEIGHT, KW = LAYER_SPEC::KERNEL_WIDTH;
+        constexpr TI SH = LAYER_SPEC::STRIDE_H, SW = LAYER_SPEC::STRIDE_W;
+        constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
+        constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
+        cudnnTensorDescriptor_t xd, yd;
+        cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW);
+        cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, OH, OW);
+        cudnnPoolingDescriptor_t pd;
+        cudnnCreatePoolingDescriptor(&pd);
+        cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_MAX, CUDNN_NOT_PROPAGATE_NAN, KH, KW, PH, PW, SH, SW);
         T alpha = 1, beta = 0;
-        cudnnStatus_t stat = cudnnPoolingForward(device.cudnn_handle, pool_desc,
-            &alpha, x_desc, input._data,
-            &beta, y_desc, output._data);
-        if(stat != CUDNN_STATUS_SUCCESS){
-            std::cerr << "cuDNN max pooling forward failed: " << cudnnGetErrorString(stat) << std::endl;
-        }
+        cudnnPoolingForward(device.cudnn_handle, pd, &alpha, xd, input._data, &beta, yd, output._data);
+        cudnnDestroyPoolingDescriptor(pd);
+        cudnnDestroyTensorDescriptor(xd); cudnnDestroyTensorDescriptor(yd);
+        check_status(device);
+    }
 
-        // Cleanup
-        cudnnDestroyPoolingDescriptor(pool_desc);
-        cudnnDestroyTensorDescriptor(x_desc);
-        cudnnDestroyTensorDescriptor(y_desc);
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::max_pool2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::max_pool2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        evaluate(device, static_cast<const nn::layers::max_pool2d::LayerForward<LAYER_SPEC>&>(layer), input, output, buffer, rng, mode);
+    }
 
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
+    void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::max_pool2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::max_pool2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    }
+
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::max_pool2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::max_pool2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using T = typename D_OUTPUT_SPEC::T;
+        using TI = typename devices::CUDA<DEV_SPEC>::index_t;
+        constexpr TI N = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr TI IH = LAYER_SPEC::INPUT_HEIGHT, IW = LAYER_SPEC::INPUT_WIDTH, C = LAYER_SPEC::INPUT_CHANNELS;
+        constexpr TI OH = LAYER_SPEC::OUTPUT_HEIGHT, OW = LAYER_SPEC::OUTPUT_WIDTH;
+        constexpr TI KH = LAYER_SPEC::KERNEL_HEIGHT, KW = LAYER_SPEC::KERNEL_WIDTH;
+        constexpr TI SH = LAYER_SPEC::STRIDE_H, SW = LAYER_SPEC::STRIDE_W;
+        constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
+        constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
+        cudnnTensorDescriptor_t xd, yd;
+        cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW);
+        cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, OH, OW);
+        cudnnPoolingDescriptor_t pd;
+        cudnnCreatePoolingDescriptor(&pd);
+        cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_MAX, CUDNN_NOT_PROPAGATE_NAN, KH, KW, PH, PW, SH, SW);
+        T alpha = 1, beta = 0;
+        cudnnPoolingBackward(device.cudnn_handle, pd, &alpha, yd, layer.output._data, yd, d_output._data, xd, input._data, &beta, xd, d_input._data);
+        cudnnDestroyPoolingDescriptor(pd);
+        cudnnDestroyTensorDescriptor(xd); cudnnDestroyTensorDescriptor(yd);
         check_status(device);
     }
 }
