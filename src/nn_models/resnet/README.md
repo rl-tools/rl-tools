@@ -18,5 +18,5 @@ Training ImageNet
 ```
 CUDACXX=$HOME/.local/opt/cuda/bin/nvcc cmake -B build -DCMAKE_PREFIX_PATH="$HOME/.local/opt/cudnn"
 cmake --build build -j8 --target nn_models_resnet_imagenet_training_cuda
- ./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --dataset-dir /scr/jonas/imagenet-1k
+./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --dataset-dir /dev/shm/jonas/imagenet-1k --preload
 ```

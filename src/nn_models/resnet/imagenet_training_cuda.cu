@@ -224,7 +224,7 @@ int main(int argc, char* argv[]) {
     std::string dataset_dir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/git/imagenet-1k";
     auto now_tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::ostringstream ts_ss;
-    ts_ss << std::put_time(std::localtime(&now_tt), "%Y-%m-%dT%H-%M-%S");
+    ts_ss << std::put_time(std::gmtime(&now_tt), "%Y-%m-%dT%H-%M-%SZ");
     std::string logdir = "runs/" + ts_ss.str();
     std::string resume_path = "";
     TI batch_size = 256;
@@ -267,30 +267,45 @@ int main(int argc, char* argv[]) {
     std::vector<ParquetShard> preloaded_val_shards;
     std::vector<ParquetSample> preloaded_val_samples;
     if (preload) {
-        std::cout << "Preloading training data..." << std::flush;
-        preloaded_train_shards.reserve(train_files.size());
-        for (auto& f : train_files) {
-            preloaded_train_shards.emplace_back();
-            if (preloaded_train_shards.back().load(f)) {
-                for (auto& s : preloaded_train_shards.back().samples)
-                    preloaded_train_samples.push_back(s);
-            } else {
-                preloaded_train_shards.pop_back();
+        auto parallel_load_shards = [](const std::vector<std::string>& files, std::vector<ParquetShard>& shards, std::vector<ParquetSample>& samples, const std::string& label) {
+            TI max_workers = std::min({static_cast<TI>(std::thread::hardware_concurrency()), static_cast<TI>(files.size()), static_cast<TI>(32)});
+            if (max_workers < 1) max_workers = 8;
+            std::cout << "Preloading " << label << " (" << files.size() << " shards, " << max_workers << " threads)..." << std::flush;
+            auto t0 = std::chrono::high_resolution_clock::now();
+            shards.resize(files.size());
+            std::vector<bool> ok(files.size(), false);
+            std::atomic<TI> next{0};
+            std::atomic<TI> done{0};
+            {
+                std::vector<std::thread> threads;
+                for (TI w = 0; w < max_workers; w++) {
+                    threads.emplace_back([&]() {
+                        while (true) {
+                            TI idx = next.fetch_add(1);
+                            if (idx >= files.size()) break;
+                            ok[idx] = shards[idx].load(files[idx]);
+                            TI completed = done.fetch_add(1) + 1;
+                            if (completed % 10 == 0 || completed == files.size()) {
+                                std::cout << "\rPreloading " << label << ": " << completed << "/" << files.size() << " shards" << std::flush;
+                            }
+                        }
+                    });
+                }
+                for (auto& t : threads) t.join();
             }
-        }
-        std::cout << " " << preloaded_train_samples.size() << " samples from " << preloaded_train_shards.size() << " shards" << std::endl;
-        std::cout << "Preloading validation data..." << std::flush;
-        preloaded_val_shards.reserve(val_files.size());
-        for (auto& f : val_files) {
-            preloaded_val_shards.emplace_back();
-            if (preloaded_val_shards.back().load(f)) {
-                for (auto& s : preloaded_val_shards.back().samples)
-                    preloaded_val_samples.push_back(s);
-            } else {
-                preloaded_val_shards.pop_back();
+            for (TI i = 0; i < files.size(); i++) {
+                if (ok[i]) {
+                    for (auto& s : shards[i].samples)
+                        samples.push_back(s);
+                }
             }
-        }
-        std::cout << " " << preloaded_val_samples.size() << " samples" << std::endl;
+            auto t1 = std::chrono::high_resolution_clock::now();
+            double elapsed = std::chrono::duration<double>(t1 - t0).count();
+            TI loaded = std::count(ok.begin(), ok.end(), true);
+            std::cout << "\rPreloaded " << label << ": " << samples.size() << " samples from " << loaded << "/" << files.size() << " shards in " << std::fixed << std::setprecision(1) << elapsed << "s" << std::endl;
+        };
+        parallel_load_shards(train_files, preloaded_train_shards, preloaded_train_samples, "training data");
+        parallel_load_shards(val_files, preloaded_val_shards, preloaded_val_samples, "validation data");
         total_train_samples = preloaded_train_samples.size();
     }
 
