@@ -79,7 +79,7 @@ namespace rl_tools{
         }
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::conv2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::conv2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
@@ -120,7 +120,11 @@ namespace rl_tools{
         { T a = 1, b = 0;
           cudnnStatus_t stat = cudnnConvolutionForward(device.cudnn_handle, &a, xd, input._data, wd, layer.weights.parameters._data,
               cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, yd, output._data);
-          if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN convolution forward failed: " << cudnnGetErrorString(stat) << std::endl; }
+
+#ifndef __CUDA_ARCH__
+          if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN convolution forward failed: " << cudnnGetErrorString(stat) << std::endl;
+#endif
+        }
         { T a = 1, b = 1; cudnnAddTensor(device.cudnn_handle, &a, bd, layer.biases.parameters._data, &b, yd, output._data); }
         if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
             T a = 1, b = 0;
@@ -136,7 +140,7 @@ namespace rl_tools{
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
@@ -210,7 +214,7 @@ namespace rl_tools{
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
-    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
         constexpr TI N = LAYER_SPEC::INTERNAL_BATCH_SIZE;

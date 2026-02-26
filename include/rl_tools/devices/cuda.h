@@ -176,7 +176,7 @@ namespace rl_tools {
     namespace nn::cuda{
 #ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
         template<typename T>
-        constexpr cudnnDataType_t get_cudnn_dtype(){
+        constexpr RL_TOOLS_FUNCTION_PLACEMENT cudnnDataType_t get_cudnn_dtype(){
             if constexpr(utils::typing::is_same_v<T, float>){
                 return CUDNN_DATA_FLOAT;
             }
@@ -226,7 +226,7 @@ namespace rl_tools {
 #endif
     }
     template <typename DEV_SPEC, typename TI>
-    void count_malloc(devices::CUDA<DEV_SPEC>& device, TI size){
+    RL_TOOLS_FUNCTION_PLACEMENT void count_malloc(devices::CUDA<DEV_SPEC>& device, TI size){
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         device.malloc_counter += size;
 #endif

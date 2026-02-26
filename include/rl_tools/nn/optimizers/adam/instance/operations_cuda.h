@@ -57,7 +57,7 @@ namespace rl_tools {
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
-    void update(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::Instance<SPEC>& p, nn::optimizers::Adam<PARAMETERS>& optimizer) {
+    RL_TOOLS_FUNCTION_PLACEMENT void update(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::Instance<SPEC>& p, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_INPUT = 32;
         using MATRIX_SPEC = typename decltype(matrix_view(device, p.parameters))::SPEC;
