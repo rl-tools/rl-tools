@@ -76,3 +76,4 @@
 /*.tar
 /build*
 /resnet_ast.txt
+/runs
