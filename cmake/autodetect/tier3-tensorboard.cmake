@@ -12,7 +12,10 @@ if(NOT RL_TOOLS_DISABLE_TENSORBOARD)
                     GIT_REPOSITORY https://github.com/rl-tools/tensorboard_logger.git
                     GIT_TAG   6405cc19eae874ed51ac876f4ab530205f1c0147
             )
+            set(_RL_TOOLS_SAVED_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
+            set(BUILD_SHARED_LIBS OFF)
             FetchContent_MakeAvailable(tensorboard)
+            set(BUILD_SHARED_LIBS ${_RL_TOOLS_SAVED_BUILD_SHARED_LIBS})
             target_link_libraries(rl_tools_full INTERFACE tensorboard_logger)
             target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_TENSORBOARD)
             set(RL_TOOLS_ENABLE_TENSORBOARD ON)

@@ -224,11 +224,12 @@ int main(int argc, char* argv[]) {
     std::string dataset_dir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/git/imagenet-1k";
     auto now_tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::ostringstream ts_ss;
-    ts_ss << std::put_time(std::gmtime(&now_tt), "%Y-%m-%dT%H-%M-%SZ");
+    ts_ss << std::put_time(std::localtime(&now_tt), "%Y-%m-%dT%H-%M-%S");
     std::string logdir = "runs/" + ts_ss.str();
     std::string resume_path = "";
     TI batch_size = 256;
     TI log_interval = 1;
+    bool preload = false;
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--dataset-dir" && i + 1 < argc) dataset_dir = argv[++i];
@@ -236,8 +237,9 @@ int main(int argc, char* argv[]) {
         else if (arg == "--resume" && i + 1 < argc) resume_path = argv[++i];
         else if (arg == "--batch-size" && i + 1 < argc) batch_size = std::stoi(argv[++i]);
         else if (arg == "--log-interval" && i + 1 < argc) log_interval = std::stoi(argv[++i]);
+        else if (arg == "--preload") preload = true;
         else if (arg == "--help") {
-            std::cout << "Usage: " << argv[0] << " [--dataset-dir DIR] [--batch-size N] [--log-interval N] [--logdir DIR] [--resume PATH]\n";
+            std::cout << "Usage: " << argv[0] << " [--dataset-dir DIR] [--batch-size N] [--log-interval N] [--logdir DIR] [--resume PATH] [--preload]\n";
             return 0;
         }
     }
@@ -259,6 +261,39 @@ int main(int argc, char* argv[]) {
         total_train_samples += (*mr)->parquet_reader()->metadata()->num_rows();
     }
     std::cout << " " << total_train_samples << " training images" << std::endl;
+
+    std::vector<ParquetShard> preloaded_train_shards;
+    std::vector<ParquetSample> preloaded_train_samples;
+    std::vector<ParquetShard> preloaded_val_shards;
+    std::vector<ParquetSample> preloaded_val_samples;
+    if (preload) {
+        std::cout << "Preloading training data..." << std::flush;
+        preloaded_train_shards.reserve(train_files.size());
+        for (auto& f : train_files) {
+            preloaded_train_shards.emplace_back();
+            if (preloaded_train_shards.back().load(f)) {
+                for (auto& s : preloaded_train_shards.back().samples)
+                    preloaded_train_samples.push_back(s);
+            } else {
+                preloaded_train_shards.pop_back();
+            }
+        }
+        std::cout << " " << preloaded_train_samples.size() << " samples from " << preloaded_train_shards.size() << " shards" << std::endl;
+        std::cout << "Preloading validation data..." << std::flush;
+        preloaded_val_shards.reserve(val_files.size());
+        for (auto& f : val_files) {
+            preloaded_val_shards.emplace_back();
+            if (preloaded_val_shards.back().load(f)) {
+                for (auto& s : preloaded_val_shards.back().samples)
+                    preloaded_val_samples.push_back(s);
+            } else {
+                preloaded_val_shards.pop_back();
+            }
+        }
+        std::cout << " " << preloaded_val_samples.size() << " samples" << std::endl;
+        total_train_samples = preloaded_train_samples.size();
+    }
+
     T scaled_lr = TrainingConfig::BASE_LR * static_cast<T>(batch_size) / static_cast<T>(TrainingConfig::BASE_BATCH_SIZE);
 
     std::cout << "=== ImageNet ResNet-18 CUDA ===" << std::endl;
@@ -382,17 +417,38 @@ int main(int argc, char* argv[]) {
         { typename OPTIMIZER::PARAMETERS op; cudaMemcpy(&op, optimizer.parameters._data, sizeof(op), cudaMemcpyDeviceToHost); op.learning_rate = current_lr; cudaMemcpy(optimizer.parameters._data, &op, sizeof(op), cudaMemcpyHostToDevice); }
         std::cout << "=== Epoch " << epoch << " (lr=" << current_lr << ") ===" << std::endl;
 
-        auto shuffled_train_files = train_files;
-        std::shuffle(shuffled_train_files.begin(), shuffled_train_files.end(), data_rng);
         T epoch_loss = 0; TI epoch_correct = 0, epoch_correct5 = 0, epoch_total = 0, epoch_failed = 0, epoch_batches = 0;
 
-        for (TI shard_i = 0; shard_i < shuffled_train_files.size(); shard_i++) {
+        std::vector<TI> global_indices;
+        if (preload) {
+            global_indices.resize(preloaded_train_samples.size());
+            std::iota(global_indices.begin(), global_indices.end(), 0);
+            std::shuffle(global_indices.begin(), global_indices.end(), data_rng);
+        }
+        auto shuffled_train_files = train_files;
+        if (!preload) std::shuffle(shuffled_train_files.begin(), shuffled_train_files.end(), data_rng);
+        TI shard_count = preload ? 1 : static_cast<TI>(shuffled_train_files.size());
+
+        for (TI shard_i = 0; shard_i < shard_count; shard_i++) {
             ParquetShard shard;
-            if (!shard.load(shuffled_train_files[shard_i])) continue;
-            std::vector<TI> shard_indices(shard.samples.size());
-            std::iota(shard_indices.begin(), shard_indices.end(), 0);
-            std::shuffle(shard_indices.begin(), shard_indices.end(), data_rng);
-            TI shard_batches = shard.samples.size() / batch_size;
+            std::vector<TI> shard_indices;
+            const std::vector<ParquetSample>* batch_samples;
+            const std::vector<TI>* batch_indices;
+            TI shard_batches;
+
+            if (preload) {
+                batch_samples = &preloaded_train_samples;
+                batch_indices = &global_indices;
+                shard_batches = preloaded_train_samples.size() / batch_size;
+            } else {
+                if (!shard.load(shuffled_train_files[shard_i])) continue;
+                shard_indices.resize(shard.samples.size());
+                std::iota(shard_indices.begin(), shard_indices.end(), 0);
+                std::shuffle(shard_indices.begin(), shard_indices.end(), data_rng);
+                batch_samples = &shard.samples;
+                batch_indices = &shard_indices;
+                shard_batches = shard.samples.size() / batch_size;
+            }
 
             for (TI batch_i = 0; batch_i < shard_batches; batch_i++) {
                 auto batch_start = std::chrono::high_resolution_clock::now();
@@ -411,7 +467,7 @@ int main(int argc, char* argv[]) {
                     t_thread_start = std::chrono::high_resolution_clock::now();
 
                     auto process_sample = [&](TI s_i) {
-                        auto& sample = shard.samples[shard_indices[base_idx + s_i]];
+                        auto& sample = (*batch_samples)[(*batch_indices)[base_idx + s_i]];
                         auto decoded = decode_jpeg(sample.image_data, sample.image_size);
                         if (!decoded.valid) {
                             micro_failed++;
@@ -503,6 +559,7 @@ int main(int argc, char* argv[]) {
                 rlt::add_scalar(device_cpu, device_cpu.logger, "batch/top1", ba);
                 rlt::add_scalar(device_cpu, device_cpu.logger, "batch/top5", ba5);
                 rlt::add_scalar(device_cpu, device_cpu.logger, "batch/img_per_sec", sps);
+                rlt::add_scalar(device_cpu, device_cpu.logger, "batch/epoch", static_cast<T>(epoch));
 
                 if (epoch_batches % log_interval == 0) {
                     std::chrono::duration<T> dt_sync = t_post_sync - batch_start, dt_zg = t_post_zg - t_post_sync;
@@ -515,7 +572,7 @@ int main(int argc, char* argv[]) {
                 }
                 global_step++;
             }
-            if ((shard_i + 1) % 50 == 0) {
+            if (!preload && (shard_i + 1) % 50 == 0) {
                 T running_top1 = epoch_total > 0 ? static_cast<T>(epoch_correct) / epoch_total * 100.0f : 0;
                 std::cout << "  Shards: " << (shard_i + 1) << "/" << shuffled_train_files.size() << " running top1: " << running_top1 << "%" << std::endl;
             }
@@ -543,9 +600,19 @@ int main(int argc, char* argv[]) {
             TI vc = 0, vc5 = 0, vt = 0; T vl = 0;
             rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
             rlt::Tensor<GPU_D_OUTPUT_SPEC> val_output; rlt::malloc(device_cuda, val_output);
-            for (auto& vf : val_files) {
-                ParquetShard vshard; if (!vshard.load(vf)) continue;
-                TI nvb = vshard.samples.size() / GPU_BATCH;
+            TI val_shard_count = preload ? 1 : static_cast<TI>(val_files.size());
+            for (TI vi = 0; vi < val_shard_count; vi++) {
+                ParquetShard vshard;
+                const std::vector<ParquetSample>* val_batch;
+                TI nvb;
+                if (preload) {
+                    val_batch = &preloaded_val_samples;
+                    nvb = preloaded_val_samples.size() / GPU_BATCH;
+                } else {
+                    if (!vshard.load(val_files[vi])) continue;
+                    val_batch = &vshard.samples;
+                    nvb = vshard.samples.size() / GPU_BATCH;
+                }
                 for (TI vb = 0; vb < nvb; vb++) {
                     {
                         std::vector<std::thread> threads;
@@ -556,7 +623,7 @@ int main(int argc, char* argv[]) {
                             if (start >= GPU_BATCH) break;
                             threads.emplace_back([&, start, end, vb]() {
                                 for (TI s_i = start; s_i < end; s_i++) {
-                                    auto& s = vshard.samples[vb * GPU_BATCH + s_i];
+                                    auto& s = (*val_batch)[vb * GPU_BATCH + s_i];
                                     auto d = decode_jpeg(s.image_data, s.image_size);
                                     if (!d.valid) { std::memset(cpu_input_staging.data() + s_i * IMG_ELEMS, 0, IMG_ELEMS * sizeof(T)); cpu_labels[s_i] = 0; return; }
                                     center_crop_resize(d, worker_resize_bufs[s_i].data(), TrainingConfig::IMAGE_SIZE, val_scratch_bufs[s_i]);

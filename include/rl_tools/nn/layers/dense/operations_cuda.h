@@ -436,7 +436,7 @@ namespace rl_tools{
     }
 
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
-    RL_TOOLS_FUNCTION_PLACEMENT void update(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
+    void update(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_INPUT = 32;

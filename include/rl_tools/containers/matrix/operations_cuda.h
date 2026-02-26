@@ -90,7 +90,7 @@ namespace rl_tools{
         }
     }
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
+    void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
 //        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
@@ -197,7 +197,7 @@ namespace rl_tools{
     }
 
     template<typename DEV_SPEC, typename SPEC, typename VALUE_T>
-    RL_TOOLS_FUNCTION_PLACEMENT void set_all(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, VALUE_T value){
+    void set_all(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, VALUE_T value){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         constexpr TI BLOCKSIZE_COLS = 32;
@@ -208,7 +208,7 @@ namespace rl_tools{
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void randn(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, typename SPEC::T mean, typename SPEC::T std, RNG& rng){
+    void randn(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, typename SPEC::T mean, typename SPEC::T std, RNG& rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         constexpr TI BLOCKSIZE_COLS = 32;

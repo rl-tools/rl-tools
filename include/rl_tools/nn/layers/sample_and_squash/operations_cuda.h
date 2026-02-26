@@ -26,7 +26,7 @@ namespace rl_tools{
         }
     }
     template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
@@ -55,7 +55,7 @@ namespace rl_tools{
     }
 
     template <typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
@@ -100,7 +100,7 @@ namespace rl_tools{
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;

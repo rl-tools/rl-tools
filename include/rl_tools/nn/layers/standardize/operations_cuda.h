@@ -49,7 +49,7 @@ namespace rl_tools{
         }
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::standardize::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::standardize::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;

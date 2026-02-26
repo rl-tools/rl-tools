@@ -95,7 +95,7 @@ namespace rl_tools
     // Copy function when on Host
     template<typename FROM_DEV_SPEC, typename TO_DEV_SPEC, typename FROM_SPEC, typename TO_SPEC,
         typename std::enable_if<!devices::CUDA<FROM_DEV_SPEC>::TAG, int>::type = 0>
-    RL_TOOLS_FUNCTION_PLACEMENT void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+    void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
         using FROM_DEVICE = devices::CUDA<FROM_DEV_SPEC>;
         using TI = typename FROM_DEVICE::index_t;
         static_assert(tensor::same_dimensions<FROM_SPEC, TO_SPEC>());
@@ -240,7 +240,7 @@ namespace rl_tools
     // Unary operation when on Host device
     template<typename DEV_SPEC, typename SPEC, typename OPERATION, typename SPEC_OUTPUT,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    void unary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -297,7 +297,7 @@ namespace rl_tools
         }
     }
     template<typename DEV_SPEC, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER, typename RESULT_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void unary_associative_reduce(devices::CUDA<DEV_SPEC>& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
+    void unary_associative_reduce(devices::CUDA<DEV_SPEC>& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
         static_assert(RESULT_SPEC::SHAPE::LENGTH == 1);
         static_assert(RESULT_SPEC::SHAPE::template GET<0> == 1);
         using DEVICE = devices::CUDA<DEV_SPEC>;
@@ -402,7 +402,7 @@ namespace rl_tools
     // Unary operation when on Host device
     template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename OPERATION, typename SPEC_OUTPUT,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    RL_TOOLS_FUNCTION_PLACEMENT void binary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& output){
+    void binary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_OUTPUT>());
         using DEVICE = devices::CUDA<DEV_SPEC>;
@@ -496,7 +496,7 @@ namespace rl_tools
     // Unary operation when on Host device
     template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename SPEC_OUT, typename OPERATION,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
+    void ternary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
@@ -567,7 +567,7 @@ namespace rl_tools
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void randn(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, RNG& rng){
+    void randn(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, RNG& rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -607,7 +607,7 @@ namespace rl_tools
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void rand(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, RNG& rng, typename SPEC::T min=0, typename SPEC::T max=1){
+    void rand(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, RNG& rng, typename SPEC::T min=0, typename SPEC::T max=1){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
