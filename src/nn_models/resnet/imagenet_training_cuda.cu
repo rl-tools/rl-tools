@@ -78,7 +78,7 @@ struct TrainingConfig {
     static constexpr T CROP_RATIO_MIN = 0.75;
     static constexpr T CROP_RATIO_MAX = 1.3333;
     static constexpr T HFLIP_PROB = 0.5;
-    static constexpr TI CHECKPOINT_INTERVAL = 10;
+    static constexpr TI CHECKPOINT_INTERVAL = 1;
 };
 
 struct SGDParams: rlt::nn::optimizers::sgd::DefaultParameters<TYPE_POLICY>{
@@ -222,18 +222,16 @@ T cosine_lr(TI epoch, TI total_epochs, T base_lr, T min_lr, TI warmup_epochs, T 
 
 int main(int argc, char* argv[]) {
     std::string dataset_dir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/git/imagenet-1k";
-    std::string checkpoint_dir = "checkpoints";
     auto now_tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::ostringstream ts_ss;
     ts_ss << std::put_time(std::gmtime(&now_tt), "%Y-%m-%dT%H-%M-%SZ");
-    std::string logdir = "runs/resnet18_cuda_" + ts_ss.str();
+    std::string logdir = "runs/" + ts_ss.str();
     std::string resume_path = "";
     TI batch_size = 256;
     TI log_interval = 1;
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--dataset-dir" && i + 1 < argc) dataset_dir = argv[++i];
-        else if (arg == "--checkpoint-dir" && i + 1 < argc) checkpoint_dir = argv[++i];
         else if (arg == "--logdir" && i + 1 < argc) logdir = argv[++i];
         else if (arg == "--resume" && i + 1 < argc) resume_path = argv[++i];
         else if (arg == "--batch-size" && i + 1 < argc) batch_size = std::stoi(argv[++i]);
@@ -596,8 +594,9 @@ int main(int argc, char* argv[]) {
 
         if ((epoch + 1) % TrainingConfig::CHECKPOINT_INTERVAL == 0 || epoch == TrainingConfig::NUM_EPOCHS - 1) {
             rlt::copy(device_cuda, device_cpu, model, model_cpu);
-            fs::create_directories(checkpoint_dir);
-            std::string ckpt = checkpoint_dir + "/resnet18_cuda_epoch_" + std::to_string(epoch) + ".h5";
+            std::string ckpt_dir = logdir + "/checkpoints";
+            fs::create_directories(ckpt_dir);
+            std::string ckpt = ckpt_dir + "/resnet18_cuda_epoch_" + std::to_string(epoch) + ".h5";
             auto file = HighFive::File(ckpt, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
             auto mg = rlt::create_group(device_cpu, file, "model");
             rlt::save(device_cpu, model_cpu, mg);
