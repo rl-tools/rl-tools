@@ -326,14 +326,9 @@ namespace rl_tools
     template<typename DEV_SPEC, typename SPEC,
         typename utils::typing::enable_if<devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void set_all(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, typename SPEC::T value){
-        if(value == 0){
-            cudaMemsetAsync(t._data, 0, SPEC::SIZE_BYTES, device.stream);
-        }
-        else{
-            tensor::operations::unary::Constant<typename SPEC::T> op;
-            op.constant = value;
-            unary_operation(device, op, t);
-        }
+        tensor::operations::unary::Constant<typename SPEC::T> op;
+        op.constant = value;
+        unary_operation(device, op, t);
     }
     template<typename DEV_SPEC, typename SPEC,
         typename utils::typing::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
