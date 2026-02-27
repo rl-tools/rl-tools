@@ -457,29 +457,51 @@ int main(int argc, char* argv[]) {
 
     TSQueue<int> submit_queue, ready_queue;
 
-    // One-off: pre-extract JPEG dimensions
+    // One-off: pre-extract JPEG dimensions (multithreaded, raw SOF parse)
     struct ImgDims { int w, h; };
     std::vector<ImgDims> train_dims(train_samples.size()), val_dims(val_samples.size());
     {
-        nvjpegJpegStream_t parse_stream;
-        nvjpegJpegStreamCreate(nj_handle, &parse_stream);
         auto t0 = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < train_samples.size(); i++) {
-            nvjpegJpegStreamParse(nj_handle, train_samples[i].image_data, train_samples[i].image_size, 0, 0, parse_stream);
-            unsigned int w, h;
-            nvjpegJpegStreamGetFrameDimensions(parse_stream, &w, &h);
-            train_dims[i] = {(int)w, (int)h};
-        }
-        for (size_t i = 0; i < val_samples.size(); i++) {
-            nvjpegJpegStreamParse(nj_handle, val_samples[i].image_data, val_samples[i].image_size, 0, 0, parse_stream);
-            unsigned int w, h;
-            nvjpegJpegStreamGetFrameDimensions(parse_stream, &w, &h);
-            val_dims[i] = {(int)w, (int)h};
-        }
+        auto jpeg_dimensions = [](const uint8_t* data, size_t len) -> ImgDims {
+            size_t pos = 2;
+            while (pos + 4 < len) {
+                if (data[pos] != 0xFF) break;
+                uint8_t marker = data[pos + 1];
+                if (marker == 0xD9) break;
+                if (marker == 0x00 || (marker >= 0xD0 && marker <= 0xD7)) { pos += 2; continue; }
+                uint16_t seg_len = ((uint16_t)data[pos + 2] << 8) | data[pos + 3];
+                if ((marker & 0xF0) == 0xC0 && marker != 0xC4 && marker != 0xC8 && marker != 0xCC) {
+                    if (pos + 9 <= len) {
+                        int h = ((int)data[pos + 5] << 8) | data[pos + 6];
+                        int w = ((int)data[pos + 7] << 8) | data[pos + 8];
+                        return {w, h};
+                    }
+                }
+                pos += 2 + seg_len;
+            }
+            return {0, 0};
+        };
+        auto parse_range = [&](const std::vector<Sample>& samples, ImgDims* dims, size_t begin, size_t end) {
+            for (size_t i = begin; i < end; i++) {
+                dims[i] = jpeg_dimensions(samples[i].image_data, samples[i].image_size);
+            }
+        };
+        TI nw = std::min((TI)std::thread::hardware_concurrency(), (TI)32);
+        std::vector<std::thread> threads;
+        auto launch = [&](const std::vector<Sample>& samples, ImgDims* dims) {
+            size_t n = samples.size();
+            size_t chunk = (n + nw - 1) / nw;
+            for (TI t = 0; t < nw; t++) {
+                size_t b = t * chunk, e = std::min(b + chunk, n);
+                if (b < e) threads.emplace_back(parse_range, std::cref(samples), dims, b, e);
+            }
+        };
+        launch(train_samples, train_dims.data());
+        launch(val_samples, val_dims.data());
+        for (auto& t : threads) t.join();
         auto t1 = std::chrono::high_resolution_clock::now();
-        std::cout << "Pre-parsed JPEG dimensions: " << train_dims.size() << " train + " << val_dims.size() << " val in "
-                  << std::fixed << std::setprecision(1) << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl;
-        nvjpegJpegStreamDestroy(parse_stream);
+        std::cout << "Pre-parsed JPEG dimensions: " << train_dims.size() << " train + " << val_dims.size() << " val ("
+                  << nw << " threads) in " << std::fixed << std::setprecision(1) << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl;
     }
 
     // Producer thread: decode JPEGs into slots
