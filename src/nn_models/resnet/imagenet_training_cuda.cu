@@ -225,6 +225,17 @@ __global__ void val_crop_normalize(
     bilinear_normalize(pool + (size_t)n * DECODE_IMG_STRIDE, DECODE_PITCH, im.img_w, im.img_h, sx, sy, dst);
 }
 
+// GPU-side metric reduction: sum losses and correct counts across the micro-batch
+__global__ void reduce_metrics_kernel(
+    const T* __restrict__ losses, const TI_CUDA* __restrict__ correct, const TI_CUDA* __restrict__ correct5,
+    T* __restrict__ acc_loss, TI_CUDA* __restrict__ acc_correct, TI_CUDA* __restrict__ acc_correct5,
+    TI_CUDA n
+) {
+    T sl = 0; TI_CUDA sc = 0, sc5 = 0;
+    for (TI_CUDA i = 0; i < n; i++) { sl += losses[i]; sc += correct[i]; sc5 += correct5[i]; }
+    *acc_loss += sl; *acc_correct += sc; *acc_correct5 += sc5;
+}
+
 // nvJPEG helper: get image dimensions from JPEG header
 bool nvjpeg_get_dims(nvjpegHandle_t handle, const uint8_t* data, size_t len, int& w, int& h) {
     int nComp; nvjpegChromaSubsampling_t ss;
@@ -375,6 +386,17 @@ int main(int argc, char* argv[]) {
 
     std::vector<TI_CUDA> cpu_labels(GPU_BATCH);
 
+    // GPU-side batch metric accumulators (avoid mid-pipeline D2H sync)
+    T* gpu_acc_loss; cudaMalloc(&gpu_acc_loss, sizeof(T));
+    TI_CUDA* gpu_acc_correct; cudaMalloc(&gpu_acc_correct, sizeof(TI_CUDA));
+    TI_CUDA* gpu_acc_correct5; cudaMalloc(&gpu_acc_correct5, sizeof(TI_CUDA));
+
+    // CUDA events for GPU-side phase timing
+    cudaEvent_t ev_start, ev_dec, ev_fwd, ev_loss, ev_bwd, ev_step;
+    cudaEventCreate(&ev_start); cudaEventCreate(&ev_dec); cudaEventCreate(&ev_fwd);
+    cudaEventCreate(&ev_loss);  cudaEventCreate(&ev_bwd); cudaEventCreate(&ev_step);
+    struct { double dec, fwd, loss, bwd, step, wall; int n; } prof = {};
+
     // nvJPEG setup
     nvjpegHandle_t nj_handle; nvjpegJpegState_t nj_state;
     if (nvjpegCreateEx(NVJPEG_BACKEND_GPU_HYBRID, nullptr, nullptr, 0, &nj_handle) != NVJPEG_STATUS_SUCCESS) { std::cerr << "nvJPEG init failed" << std::endl; return 1; }
@@ -406,105 +428,105 @@ int main(int argc, char* argv[]) {
         std::shuffle(sample_indices.begin(), sample_indices.end(), data_rng);
         TI num_batches = train_samples.size() / batch_size;
 
-        {
-            for (TI batch_i = 0; batch_i < num_batches; batch_i++) {
-                auto batch_start = std::chrono::high_resolution_clock::now();
-                cudaDeviceSynchronize();
-                auto t_post_sync = std::chrono::high_resolution_clock::now();
-                rlt::zero_gradient(device_cuda, model);
-                auto t_post_zg = std::chrono::high_resolution_clock::now();
-                decltype(batch_start) t_decode_start, t_decode_end, t_fwd_end, t_loss_end, t_pre_step, t_post_step;
-                T batch_loss = 0; TI batch_correct = 0, batch_correct5 = 0, batch_valid = 0;
+        for (TI batch_i = 0; batch_i < num_batches; batch_i++) {
+            auto batch_wall_start = std::chrono::high_resolution_clock::now();
+            cudaDeviceSynchronize();
+            rlt::zero_gradient(device_cuda, model);
+            cudaMemsetAsync(gpu_acc_loss, 0, sizeof(T), device_cuda.stream);
+            cudaMemsetAsync(gpu_acc_correct, 0, sizeof(TI_CUDA), device_cuda.stream);
+            cudaMemsetAsync(gpu_acc_correct5, 0, sizeof(TI_CUDA), device_cuda.stream);
+            cudaEventRecord(ev_start, device_cuda.stream);
 
-                for (TI micro_i = 0; micro_i < num_micro_batches; micro_i++) {
-                    TI base_idx = batch_i * batch_size + micro_i * GPU_BATCH;
-                    t_decode_start = std::chrono::high_resolution_clock::now();
+            for (TI micro_i = 0; micro_i < num_micro_batches; micro_i++) {
+                TI base_idx = batch_i * batch_size + micro_i * GPU_BATCH;
 
-                    {
-                        TI micro_failed = 0;
-                        for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
-                            auto& sample = train_samples[sample_indices[base_idx + s_i]];
-                            nj_ptrs[s_i] = sample.image_data; nj_lens[s_i] = sample.image_size;
-                            cpu_labels[s_i] = static_cast<TI_CUDA>(sample.label);
-                            int w, h;
-                            if (nvjpeg_get_dims(nj_handle, sample.image_data, sample.image_size, w, h)) {
-                                cpu_info[s_i] = {w, h, (uint32_t)data_rng()};
-                            } else {
-                                cpu_info[s_i] = {0, 0, 0}; nj_ptrs[s_i] = nullptr; nj_lens[s_i] = 0;
-                                micro_failed++;
-                            }
-                        }
-                        nvjpegDecodeBatched(nj_handle, nj_state, nj_ptrs.data(), nj_lens.data(), nj_dest.data(), device_cuda.stream);
-                        cudaMemcpyAsync(gpu_info, cpu_info.data(), GPU_BATCH * sizeof(ImageInfo), cudaMemcpyHostToDevice, device_cuda.stream);
-                        cudaMemcpyAsync(gpu_labels, cpu_labels.data(), GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyHostToDevice, device_cuda.stream);
-                        constexpr int BLK = 16, TGT = TrainingConfig::IMAGE_SIZE;
-                        train_crop_normalize<<<dim3((TGT+BLK-1)/BLK,(TGT+BLK-1)/BLK,GPU_BATCH), dim3(BLK,BLK), 0, device_cuda.stream>>>(
-                            decode_pool, gpu_info, gpu_input._data, TGT,
-                            TrainingConfig::CROP_SCALE_MIN, TrainingConfig::CROP_SCALE_MAX,
-                            std::log(TrainingConfig::CROP_RATIO_MIN), std::log(TrainingConfig::CROP_RATIO_MAX),
-                            TrainingConfig::HFLIP_PROB);
-                        epoch_failed += micro_failed;
+                TI micro_failed = 0;
+                for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
+                    auto& sample = train_samples[sample_indices[base_idx + s_i]];
+                    nj_ptrs[s_i] = sample.image_data; nj_lens[s_i] = sample.image_size;
+                    cpu_labels[s_i] = static_cast<TI_CUDA>(sample.label);
+                    int w, h;
+                    if (nvjpeg_get_dims(nj_handle, sample.image_data, sample.image_size, w, h)) {
+                        cpu_info[s_i] = {w, h, (uint32_t)data_rng()};
+                    } else {
+                        cpu_info[s_i] = {0, 0, 0}; nj_ptrs[s_i] = nullptr; nj_lens[s_i] = 0;
+                        micro_failed++;
                     }
-                    t_decode_end = std::chrono::high_resolution_clock::now();
-
-                    // Forward
-                    rlt::forward(device_cuda, model, gpu_input, model_buffer, rng_cuda, train_mode);
-                    auto output_view = rlt::output(device_cuda, model);
-                    t_fwd_end = std::chrono::high_resolution_clock::now();
-
-                    // Loss + gradient on GPU (no D2H round-trip)
-                    cross_entropy_loss_gradient_kernel<<<GPU_BATCH, 1, 0, device_cuda.stream>>>(
-                        output_view._data, gpu_labels, gpu_d_output._data, gpu_losses, gpu_correct, gpu_correct5,
-                        TrainingConfig::NUM_CLASSES, TrainingConfig::LABEL_SMOOTHING, T(1) / T(batch_size));
-
-                    // Read back only scalar metrics (small transfer)
-                    std::vector<T> h_losses(GPU_BATCH);
-                    std::vector<TI_CUDA> h_correct(GPU_BATCH), h_correct5(GPU_BATCH);
-                    cudaMemcpy(h_losses.data(), gpu_losses, GPU_BATCH * sizeof(T), cudaMemcpyDeviceToHost);
-                    cudaMemcpy(h_correct.data(), gpu_correct, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyDeviceToHost);
-                    cudaMemcpy(h_correct5.data(), gpu_correct5, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyDeviceToHost);
-                    for (TI s_i = 0; s_i < GPU_BATCH; s_i++) {
-                        batch_loss += h_losses[s_i];
-                        batch_correct += h_correct[s_i];
-                        batch_correct5 += h_correct5[s_i];
-                    }
-                    batch_valid += GPU_BATCH;
-                    t_loss_end = std::chrono::high_resolution_clock::now();
-
-                    // Backward
-                    rlt::backward_full(device_cuda, model, gpu_input, gpu_d_output, gpu_d_input, model_buffer);
                 }
-                t_pre_step = std::chrono::high_resolution_clock::now();
-                rlt::step(device_cuda, optimizer, model);
-                t_post_step = std::chrono::high_resolution_clock::now();
-                cudaDeviceSynchronize();
+                nvjpegDecodeBatched(nj_handle, nj_state, nj_ptrs.data(), nj_lens.data(), nj_dest.data(), device_cuda.stream);
+                cudaMemcpyAsync(gpu_info, cpu_info.data(), GPU_BATCH * sizeof(ImageInfo), cudaMemcpyHostToDevice, device_cuda.stream);
+                cudaMemcpyAsync(gpu_labels, cpu_labels.data(), GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyHostToDevice, device_cuda.stream);
+                constexpr int BLK = 16, TGT = TrainingConfig::IMAGE_SIZE;
+                train_crop_normalize<<<dim3((TGT+BLK-1)/BLK,(TGT+BLK-1)/BLK,GPU_BATCH), dim3(BLK,BLK), 0, device_cuda.stream>>>(
+                    decode_pool, gpu_info, gpu_input._data, TGT,
+                    TrainingConfig::CROP_SCALE_MIN, TrainingConfig::CROP_SCALE_MAX,
+                    std::log(TrainingConfig::CROP_RATIO_MIN), std::log(TrainingConfig::CROP_RATIO_MAX),
+                    TrainingConfig::HFLIP_PROB);
+                epoch_failed += micro_failed;
+                cudaEventRecord(ev_dec, device_cuda.stream);
 
-                auto batch_end = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<T> bd = batch_end - batch_start;
-                if (batch_valid > 0) batch_loss /= batch_valid;
-                epoch_loss += batch_loss; epoch_correct += batch_correct; epoch_correct5 += batch_correct5; epoch_total += batch_valid;
-                epoch_batches++;
+                rlt::forward(device_cuda, model, gpu_input, model_buffer, rng_cuda, train_mode);
+                auto output_view = rlt::output(device_cuda, model);
+                cudaEventRecord(ev_fwd, device_cuda.stream);
 
-                T ba = batch_valid > 0 ? static_cast<T>(batch_correct) / batch_valid * 100.0f : 0;
-                T ba5 = batch_valid > 0 ? static_cast<T>(batch_correct5) / batch_valid * 100.0f : 0;
-                T sps = batch_valid > 0 ? static_cast<T>(batch_valid) / bd.count() : 0;
+                cross_entropy_loss_gradient_kernel<<<GPU_BATCH, 1, 0, device_cuda.stream>>>(
+                    output_view._data, gpu_labels, gpu_d_output._data, gpu_losses, gpu_correct, gpu_correct5,
+                    TrainingConfig::NUM_CLASSES, TrainingConfig::LABEL_SMOOTHING, T(1) / T(batch_size));
+                reduce_metrics_kernel<<<1, 1, 0, device_cuda.stream>>>(
+                    gpu_losses, gpu_correct, gpu_correct5, gpu_acc_loss, gpu_acc_correct, gpu_acc_correct5, GPU_BATCH);
+                cudaEventRecord(ev_loss, device_cuda.stream);
 
-                rlt::set_step(device_cpu, device_cpu.logger, global_step);
-                rlt::add_scalar(device_cpu, device_cpu.logger, "batch/loss", batch_loss);
-                rlt::add_scalar(device_cpu, device_cpu.logger, "batch/top1", ba);
-                rlt::add_scalar(device_cpu, device_cpu.logger, "batch/top5", ba5);
-                rlt::add_scalar(device_cpu, device_cpu.logger, "batch/img_per_sec", sps);
-                rlt::add_scalar(device_cpu, device_cpu.logger, "batch/epoch", static_cast<T>(epoch));
-
-                if (epoch_batches % log_interval == 0) {
-                    std::chrono::duration<T> dt_sync = t_post_sync - batch_start, dt_zg = t_post_zg - t_post_sync;
-                    std::chrono::duration<T> dt_decode = t_decode_end - t_decode_start;
-                    std::chrono::duration<T> dt_fwd = t_fwd_end - t_decode_end, dt_loss = t_loss_end - t_fwd_end;
-                    std::chrono::duration<T> dt_bwd = t_pre_step - t_loss_end, dt_step = t_post_step - t_pre_step, dt_dsync = batch_end - t_post_step;
-                    std::cout << "  [" << epoch_batches << "/" << total_batches << "] " << sps << " img/s zg=" << dt_zg.count()*1000 << "ms dec=" << dt_decode.count()*1000 << "ms fwd=" << dt_fwd.count()*1000 << "ms loss=" << dt_loss.count()*1000 << "ms bwd=" << dt_bwd.count()*1000 << "ms step=" << dt_step.count()*1000 << "ms sync=" << dt_dsync.count()*1000 << "ms" << std::endl;
-                }
-                global_step++;
+                rlt::backward_full(device_cuda, model, gpu_input, gpu_d_output, gpu_d_input, model_buffer);
+                cudaEventRecord(ev_bwd, device_cuda.stream);
             }
+            rlt::step(device_cuda, optimizer, model);
+            cudaEventRecord(ev_step, device_cuda.stream);
+            cudaDeviceSynchronize();
+
+            auto batch_wall_end = std::chrono::high_resolution_clock::now();
+            double wall_ms = std::chrono::duration<double, std::milli>(batch_wall_end - batch_wall_start).count();
+
+            T batch_loss; TI_CUDA batch_correct, batch_correct5;
+            cudaMemcpy(&batch_loss, gpu_acc_loss, sizeof(T), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&batch_correct, gpu_acc_correct, sizeof(TI_CUDA), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&batch_correct5, gpu_acc_correct5, sizeof(TI_CUDA), cudaMemcpyDeviceToHost);
+            TI batch_valid = batch_size;
+            if (batch_valid > 0) batch_loss /= batch_valid;
+            epoch_loss += batch_loss; epoch_correct += batch_correct; epoch_correct5 += batch_correct5; epoch_total += batch_valid;
+            epoch_batches++;
+
+            T ba = static_cast<T>(batch_correct) / batch_valid * 100.f;
+            T ba5 = static_cast<T>(batch_correct5) / batch_valid * 100.f;
+            T sps = static_cast<T>(batch_valid) / (wall_ms * 0.001);
+
+            float ms_dec, ms_fwd, ms_loss, ms_bwd, ms_step;
+            cudaEventElapsedTime(&ms_dec,  ev_start, ev_dec);
+            cudaEventElapsedTime(&ms_fwd,  ev_dec,   ev_fwd);
+            cudaEventElapsedTime(&ms_loss, ev_fwd,   ev_loss);
+            cudaEventElapsedTime(&ms_bwd,  ev_loss,  ev_bwd);
+            cudaEventElapsedTime(&ms_step, ev_bwd,   ev_step);
+            prof.dec += ms_dec; prof.fwd += ms_fwd; prof.loss += ms_loss;
+            prof.bwd += ms_bwd; prof.step += ms_step; prof.wall += wall_ms; prof.n++;
+
+            rlt::set_step(device_cpu, device_cpu.logger, global_step);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "batch/loss", batch_loss);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "batch/top1", ba);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "batch/top5", ba5);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "batch/img_per_sec", sps);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "batch/epoch", static_cast<T>(epoch));
+
+            if (epoch_batches % log_interval == 0 && prof.n > 0) {
+                double n = prof.n;
+                double gpu_total = (prof.dec + prof.fwd + prof.loss + prof.bwd + prof.step) / n;
+                std::cout << std::fixed << std::setprecision(1)
+                    << "  [" << epoch_batches << "/" << total_batches << "] " << std::setprecision(0) << sps << " img/s"
+                    << std::setprecision(1) << " | dec=" << prof.dec/n << " fwd=" << prof.fwd/n << " loss=" << prof.loss/n
+                    << " bwd=" << prof.bwd/n << " step=" << prof.step/n
+                    << " | gpu=" << gpu_total << " wall=" << prof.wall/n << "ms"
+                    << " (avg " << prof.n << ")" << std::endl;
+                prof = {};
+            }
+            global_step++;
         }
 
         auto epoch_end = std::chrono::high_resolution_clock::now();
@@ -582,6 +604,9 @@ int main(int argc, char* argv[]) {
 
     nvjpegJpegStateDestroy(nj_state); nvjpegDestroy(nj_handle);
     cudaFree(decode_pool); cudaFree(gpu_info);
+    cudaFree(gpu_acc_loss); cudaFree(gpu_acc_correct); cudaFree(gpu_acc_correct5);
+    cudaEventDestroy(ev_start); cudaEventDestroy(ev_dec); cudaEventDestroy(ev_fwd);
+    cudaEventDestroy(ev_loss);  cudaEventDestroy(ev_bwd); cudaEventDestroy(ev_step);
     rlt::free(device_cuda, model); rlt::free(device_cuda, model_buffer);
     rlt::free(device_cuda, optimizer); rlt::free(device_cuda, gpu_input);
     rlt::free(device_cuda, gpu_d_output); rlt::free(device_cuda, gpu_d_input);
