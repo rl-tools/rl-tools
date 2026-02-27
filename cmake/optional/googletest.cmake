@@ -9,7 +9,7 @@ else()
                 GIT_REPOSITORY https://github.com/google/googletest.git
                 GIT_TAG   52eb8108c5bdec04579160ae17225d66034bd723
         )
-        FetchContent_MakeAvailable(googletest)
+        rl_tools_fetchcontent_makeavailable_quiet(googletest)
         set(RL_TOOLS_ENABLE_GTEST ON)
     else()
         message(STATUS "Git not found - GTest disabled")
