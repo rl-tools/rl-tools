@@ -42,7 +42,7 @@ void test_conv2d_case(const std::string& test_case_name) {
     constexpr TI KERNEL_WIDTH = CONV_CONFIG::KERNEL_WIDTH;
 
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, OUTPUT_HEIGHT, OUTPUT_WIDTH, OUTPUT_CHANNELS>;
-    using WEIGHTS_SHAPE = rlt::tensor::Shape<TI, OUTPUT_CHANNELS, INPUT_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH>;
+    using WEIGHTS_SHAPE = rlt::tensor::Shape<TI, OUTPUT_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH, INPUT_CHANNELS>;
     using BIASES_SHAPE = rlt::tensor::Shape<TI, OUTPUT_CHANNELS>;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input, d_input, d_input_expected;
@@ -140,7 +140,7 @@ void test_conv2d_norm_case(const std::string& test_case_name, T tolerance = NORM
     constexpr TI KERNEL_WIDTH = CONV_CONFIG::KERNEL_WIDTH;
 
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, OUTPUT_HEIGHT, OUTPUT_WIDTH, OUTPUT_CHANNELS>;
-    using WEIGHTS_SHAPE = rlt::tensor::Shape<TI, OUTPUT_CHANNELS, INPUT_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH>;
+    using WEIGHTS_SHAPE = rlt::tensor::Shape<TI, OUTPUT_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH, INPUT_CHANNELS>;
     using BIASES_SHAPE = rlt::tensor::Shape<TI, OUTPUT_CHANNELS>;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input, d_input, d_input_expected;

@@ -42,12 +42,16 @@ def to_numpy(tensor):
     """Convert tensor to numpy array (double)."""
     return tensor.detach().double().numpy()
 
+def conv_weight_to_nhwc(weight):
+    """Convert PyTorch conv weight [OC, IC, KH, KW] to NHWC filter layout [OC, KH, KW, IC]."""
+    return weight.detach().double().permute(0, 2, 3, 1).contiguous().numpy()
+
 def save_conv2d_layer(group, conv_weight, conv_bias, bn_weight, bn_bias, bn_running_mean, bn_running_var):
     """Save a Conv2d + BN layer in RLtools format."""
     group.attrs["type"] = "conv2d"
-    # Weights: [OC, IC, KH, KW] - same layout as PyTorch
+    # Weights: [OC, KH, KW, IC] - NHWC filter layout
     wg = group.create_group("weights")
-    wg.create_dataset("parameters", data=to_numpy(conv_weight))
+    wg.create_dataset("parameters", data=conv_weight_to_nhwc(conv_weight))
     # Biases: always zero (BN absorbs bias)
     bg = group.create_group("biases")
     bias_data = np.zeros(conv_weight.shape[0], dtype=np.float64)
@@ -162,8 +166,8 @@ gradient_data["d_output"] = to_numpy(torch.ones_like(output))
 
 def save_conv2d_gradients(grad_dict, conv, bn, prefix):
     """Save gradients for a Conv2d+BN layer into a dict."""
-    # d_weights: [OC, IC, KH, KW]
-    grad_dict[f"{prefix}_d_weights"] = to_numpy(conv.weight.grad)
+    # d_weights: [OC, KH, KW, IC] (NHWC filter layout)
+    grad_dict[f"{prefix}_d_weights"] = conv_weight_to_nhwc(conv.weight.grad)
     # d_biases: Conv has no bias when followed by BN, so zeros
     grad_dict[f"{prefix}_d_biases"] = np.zeros(conv.weight.shape[0], dtype=np.float64)
     # d_gamma, d_beta
