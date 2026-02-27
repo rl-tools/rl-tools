@@ -13,7 +13,7 @@ Produces an HDF5 file with multiple test cases covering edge cases:
   - layernorm_relu: 3x3 kernel, padding 1, LayerNorm + ReLU
 
 All data is stored in NHWC (batch, height, width, channels) format.
-Weights are stored in PyTorch's [OUT_C, IN_C, KH, KW] format.
+Weights are stored in NHWC filter layout [OUT_C, KH, KW, IN_C].
 """
 
 import torch
@@ -178,10 +178,10 @@ with h5py.File(output_path, "w") as f:
         d_output_nhwc = d_output_nchw.detach().permute(0, 2, 3, 1).contiguous().numpy()
         d_input_nhwc = input_nchw.grad.detach().permute(0, 2, 3, 1).contiguous().numpy()
 
-        # Weights: [OUT_C, IN_C, KH, KW]
-        weights = conv.weight.detach().numpy()
+        # Weights: [OUT_C, KH, KW, IN_C] (NHWC filter layout)
+        weights = conv.weight.detach().permute(0, 2, 3, 1).contiguous().numpy()
         biases = conv.bias.detach().numpy()
-        d_weights = conv.weight.grad.detach().numpy()
+        d_weights = conv.weight.grad.detach().permute(0, 2, 3, 1).contiguous().numpy()
         d_biases = conv.bias.grad.detach().numpy()
 
         g.create_dataset("input", data=input_nhwc)

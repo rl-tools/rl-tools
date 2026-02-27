@@ -243,10 +243,10 @@ namespace rl_tools{
             else{
                 set(device, layer.biases.parameters, (PARAMETER_TYPE)0, oc);
             }
-            for(TI ic = 0; ic < SPEC::INPUT_CHANNELS; ic++) {
-                for(TI kh = 0; kh < SPEC::KERNEL_HEIGHT; kh++) {
-                    for(TI kw = 0; kw < SPEC::KERNEL_WIDTH; kw++) {
-                        set(device, layer.weights.parameters, (PARAMETER_TYPE)random::uniform_real_distribution(device.random, -weight_bound, weight_bound, rng), oc, ic, kh, kw);
+            for(TI kh = 0; kh < SPEC::KERNEL_HEIGHT; kh++) {
+                for(TI kw = 0; kw < SPEC::KERNEL_WIDTH; kw++) {
+                    for(TI ic = 0; ic < SPEC::INPUT_CHANNELS; ic++) {
+                        set(device, layer.weights.parameters, (PARAMETER_TYPE)random::uniform_real_distribution(device.random, -weight_bound, weight_bound, rng), oc, kh, kw, ic);
                     }
                 }
             }
@@ -301,7 +301,7 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            acc += get(device, layer.weights.parameters, oc, ic, kh, kw) * get(device, input_4d, bi, ih, iw, ic);
+                                            acc += get(device, layer.weights.parameters, oc, kh, kw, ic) * get(device, input_4d, bi, ih, iw, ic);
                                         }
                                     }
                                 }
@@ -327,7 +327,7 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            acc += get(device, layer.weights.parameters, oc, ic, kh, kw) * get(device, input_4d, bi, ih, iw, ic);
+                                            acc += get(device, layer.weights.parameters, oc, kh, kw, ic) * get(device, input_4d, bi, ih, iw, ic);
                                         }
                                     }
                                 }
@@ -426,7 +426,7 @@ namespace rl_tools{
                                     TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                     TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                     for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                        acc += get(device, layer.weights.parameters, oc, ic, kh, kw) * get(device, input_4d, bi, ih, iw, ic);
+                                        acc += get(device, layer.weights.parameters, oc, kh, kw, ic) * get(device, input_4d, bi, ih, iw, ic);
                                     }
                                 }
                             }
@@ -607,7 +607,7 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_pre_act, bi, ih, iw, ic);
+                                            increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_pre_act, bi, ih, iw, ic);
                                         }
                                     }
                                 }
@@ -641,7 +641,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
                                             }
                                         }
                                     }
@@ -705,7 +705,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
                                             }
                                         }
                                     }
@@ -747,7 +747,7 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, layer.weights.gradient, d_pre_act * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                            increment(device, layer.weights.gradient, d_pre_act * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                         }
                                     }
                                 }
@@ -783,7 +783,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -842,7 +842,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -888,8 +888,8 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_pre_act, bi, ih, iw, ic);
-                                            increment(device, layer.weights.gradient, d_pre_act * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                            increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_pre_act, bi, ih, iw, ic);
+                                            increment(device, layer.weights.gradient, d_pre_act * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                         }
                                     }
                                 }
@@ -925,8 +925,8 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
-                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -985,8 +985,8 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, ic, kh, kw) * d_conv_out, bi, ih, iw, ic);
-                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, ic, kh, kw);
+                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }

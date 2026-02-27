@@ -13,7 +13,7 @@ namespace rl_tools
 {
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEV_SPEC, typename T, typename T_TI, T_TI SIZE, bool CONST>
-    void malloc(devices::CUDA<DEV_SPEC>& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(devices::CUDA<DEV_SPEC>& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
@@ -27,13 +27,15 @@ namespace rl_tools
         check_status(device);
         count_malloc(device, SIZE_BYTES);
 
+#ifndef __CUDA_ARCH__
         if (result != cudaSuccess) {
             std::cerr << "Failed to allocate container: " << cudaGetErrorString(result) << std::endl;
         }
+#endif
 
     }
     template <typename DEV_SPEC, typename T, typename T_TI, T_TI SIZE, bool CONST>
-    void free(devices::CUDA<DEV_SPEC>& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
+    RL_TOOLS_FUNCTION_PLACEMENT void free(devices::CUDA<DEV_SPEC>& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
         cudaFree(tensor._data);
         check_status(device);
     }
@@ -139,7 +141,7 @@ namespace rl_tools
         }
     }
     template<typename FROM_DEV_SPEC, typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
-    void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
         static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
         constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
         constexpr bool DENSE_ROW_MAJOR = tensor::dense_row_major_layout<FROM_SPEC>();
@@ -153,7 +155,7 @@ namespace rl_tools
         }
     }
     template<typename FROM_DEVICE, typename TO_DEV_SPEC, typename FROM_SPEC, typename TO_SPEC>
-    void copy(FROM_DEVICE& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(FROM_DEVICE& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
         static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
         constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
         constexpr bool DENSE_ROW_MAJOR = tensor::dense_row_major_layout<FROM_SPEC>();
@@ -306,7 +308,7 @@ namespace rl_tools
         check_status(device);
     }
     template<typename TARGET_TYPE, typename DEV_SPEC, typename SPEC, typename RESULT_SPEC>
-    void cast_reduce_sum(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void cast_reduce_sum(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, Tensor<RESULT_SPEC>& result){
         static_assert(RESULT_SPEC::SHAPE::LENGTH == 1);
         static_assert(RESULT_SPEC::SHAPE::template GET<0> == 1);
         tensor::unary_reduce_operations::CastSum<TARGET_TYPE, decltype(device.math), TARGET_TYPE> op;
@@ -320,11 +322,18 @@ namespace rl_tools
     }
     template<typename DEV_SPEC, typename OPERATION, typename SPEC,
         typename utils::typing::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    void unary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& operation, Tensor<SPEC>& t){
+    RL_TOOLS_FUNCTION_PLACEMENT void unary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& operation, Tensor<SPEC>& t){
         unary_operation(device, operation, t, t);
     }
     template<typename DEV_SPEC, typename SPEC,
         typename utils::typing::enable_if<devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
+    RL_TOOLS_FUNCTION_PLACEMENT void set_all(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, typename SPEC::T value){
+        tensor::operations::unary::Constant<typename SPEC::T> op;
+        op.constant = value;
+        unary_operation(device, op, t);
+    }
+    template<typename DEV_SPEC, typename SPEC,
+        typename utils::typing::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void set_all(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, typename SPEC::T value){
         if(value == 0){
             cudaMemsetAsync(t._data, 0, SPEC::SIZE_BYTES, device.stream);
@@ -335,20 +344,8 @@ namespace rl_tools
             unary_operation(device, op, t);
         }
     }
-    template<typename DEV_SPEC, typename SPEC,
-        typename utils::typing::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    void set_all(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, typename SPEC::T value){
-        if(value == 0){
-            cudaMemsetAsync(t._data, 0, SPEC::SIZE_BYTES, device.stream);
-        }
-        else{
-            tensor::operations::unary::Constant<typename SPEC::T> op;
-            op.constant = value;
-            unary_operation(device, op, t);
-        }
-    }
     template<typename DEV_SPEC, typename SPEC, typename VALUE_SPEC>
-    void set_all(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, Tensor<VALUE_SPEC>& value){
+    RL_TOOLS_FUNCTION_PLACEMENT void set_all(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, Tensor<VALUE_SPEC>& value){
         static_assert(VALUE_SPEC::SHAPE::LENGTH == 1);
         static_assert(VALUE_SPEC::SHAPE::template GET<0> == 1);
         tensor::operations::unary::ConstantFromTensor<Tensor<VALUE_SPEC>> op;
@@ -356,7 +353,7 @@ namespace rl_tools
         unary_operation(device, op, t);
     }
     template<typename DEV_SPEC, typename SPEC>
-    void scale(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, typename SPEC::T scale, bool reciprocal = false){
+    RL_TOOLS_FUNCTION_PLACEMENT void scale(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, typename SPEC::T scale, bool reciprocal = false){
         using T = typename SPEC::T;
         tensor::operations::unary::Scale<T> operation;
         operation.scale = scale;
@@ -453,7 +450,7 @@ namespace rl_tools
     }
     template<typename DEV_SPEC, typename SPEC_1, typename OPERATION, typename SPEC_OUTPUT,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    void binary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void binary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_OUTPUT>& output){
         binary_operation(device, op, t1, output, output);
     }
     namespace tensor::kernels {

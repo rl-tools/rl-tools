@@ -208,8 +208,8 @@ namespace rl_tools::nn::layers::conv2d {
         using OUTPUT_SHAPE_FACTORY = typename SPEC::template OUTPUT_SHAPE_FACTORY<NEW_INPUT_SHAPE>::SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
-        // Weights: [OUTPUT_CHANNELS, INPUT_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH]
-        using WEIGHTS_SHAPE = tensor::Shape<TI, OUTPUT_CHANNELS, INPUT_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH>;
+        // Weights: [OUTPUT_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH, INPUT_CHANNELS] (NHWC filter layout)
+        using WEIGHTS_SHAPE = tensor::Shape<TI, OUTPUT_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH, INPUT_CHANNELS>;
         using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, WEIGHTS_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
         typename SPEC::PARAMETER_TYPE::template Instance<WEIGHTS_PARAMETER_SPEC> weights;
 

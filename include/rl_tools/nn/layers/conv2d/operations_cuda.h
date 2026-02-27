@@ -47,36 +47,6 @@ namespace rl_tools{
                 atomicAdd(&d_beta[c], dno);
             }
         }
-        template<typename T>
-        __global__
-        void filter_nchw_to_nhwc(const T* src, T* dst, unsigned int K, unsigned int C, unsigned int H, unsigned int W){
-            unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            unsigned int total = K * C * H * W;
-            if(idx < total){
-                unsigned int k = idx / (C * H * W);
-                unsigned int rem = idx % (C * H * W);
-                unsigned int c = rem / (H * W);
-                unsigned int hw = rem % (H * W);
-                unsigned int h = hw / W;
-                unsigned int w = hw % W;
-                dst[k * (H * W * C) + h * (W * C) + w * C + c] = src[idx];
-            }
-        }
-        template<typename T>
-        __global__
-        void filter_nhwc_to_nchw_accumulate(const T* src, T* dst, unsigned int K, unsigned int C, unsigned int H, unsigned int W){
-            unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            unsigned int total = K * C * H * W;
-            if(idx < total){
-                unsigned int k = idx / (H * W * C);
-                unsigned int rem = idx % (H * W * C);
-                unsigned int h = rem / (W * C);
-                unsigned int wc = rem % (W * C);
-                unsigned int w = wc / C;
-                unsigned int c = wc % C;
-                dst[k * (C * H * W) + c * (H * W) + h * W + w] += src[idx];
-            }
-        }
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::conv2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
@@ -101,7 +71,7 @@ namespace rl_tools{
         if(!initialized){
             cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, IC, IH, IW);
             cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, OC, OH, OW);
-            cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NCHW, OC, IC, KH, KW);
+            cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
             cudnnCreateConvolutionDescriptor(&cd); cudnnSetConvolution2dDescriptor(cd, PH, PW, SH, SW, 1, 1, CUDNN_CROSS_CORRELATION, dt); cudnnSetConvolutionMathType(cd, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
             int ac; cudnnConvolutionFwdAlgoPerf_t ap;
             cudnnGetConvolutionForwardAlgorithm_v7(device.cudnn_handle, xd, wd, cd, yd, 1, &ac, &ap);
@@ -120,7 +90,11 @@ namespace rl_tools{
         { T a = 1, b = 0;
           cudnnStatus_t stat = cudnnConvolutionForward(device.cudnn_handle, &a, xd, input._data, wd, layer.weights.parameters._data,
               cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, yd, output._data);
-          if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN convolution forward failed: " << cudnnGetErrorString(stat) << std::endl; }
+
+#ifndef __CUDA_ARCH__
+          if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN convolution forward failed: " << cudnnGetErrorString(stat) << std::endl;
+#endif
+        }
         { T a = 1, b = 1; cudnnAddTensor(device.cudnn_handle, &a, bd, layer.biases.parameters._data, &b, yd, output._data); }
         if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
             T a = 1, b = 0;
@@ -158,7 +132,7 @@ namespace rl_tools{
         if(!initialized){
             cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, IC, IH, IW);
             cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, OC, OH, OW);
-            cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NCHW, OC, IC, KH, KW);
+            cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
             cudnnCreateConvolutionDescriptor(&cd); cudnnSetConvolution2dDescriptor(cd, PH, PW, SH, SW, 1, 1, CUDNN_CROSS_CORRELATION, dt); cudnnSetConvolutionMathType(cd, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
             int ac; cudnnConvolutionFwdAlgoPerf_t ap;
             cudnnGetConvolutionForwardAlgorithm_v7(device.cudnn_handle, xd, wd, cd, yd, 1, &ac, &ap);
@@ -220,14 +194,11 @@ namespace rl_tools{
         constexpr TI SH = LAYER_SPEC::STRIDE_H, SW = LAYER_SPEC::STRIDE_W;
         constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
-        constexpr TI FILTER_SIZE = OC * IC * KH * KW;
-        constexpr TI F_BLOCKSIZE = 256;
-        constexpr TI F_NBLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(FILTER_SIZE, F_BLOCKSIZE);
 
         static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bias_d = nullptr, bnd = nullptr;
         static cudnnConvolutionDescriptor_t cd = nullptr;
         static cudnnActivationDescriptor_t relu_ad = nullptr;
-        static cudnnFilterDescriptor_t wd_nhwc_s = nullptr;
+        static cudnnFilterDescriptor_t wd = nullptr;
         static cudnnConvolutionBwdFilterAlgo_t cached_bf_algo;
         static cudnnConvolutionBwdDataAlgo_t cached_bd_algo;
         static size_t cached_bf_ws = 0, cached_bd_ws = 0;
@@ -244,15 +215,15 @@ namespace rl_tools{
             if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
                 cudnnCreateTensorDescriptor(&bnd); cudnnDeriveBNTensorDescriptor(bnd, yd, CUDNN_BATCHNORM_SPATIAL);
             }
-            cudnnCreateFilterDescriptor(&wd_nhwc_s); cudnnSetFilter4dDescriptor(wd_nhwc_s, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
+            cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
             { constexpr int MA = 8; int ac; cudnnConvolutionBwdFilterAlgoPerf_t ap[MA];
-              cudnnGetConvolutionBackwardFilterAlgorithm_v7(device.cudnn_handle, xd, yd, cd, wd_nhwc_s, MA, &ac, ap);
+              cudnnGetConvolutionBackwardFilterAlgorithm_v7(device.cudnn_handle, xd, yd, cd, wd, MA, &ac, ap);
               for(int i = 0; i < ac; i++){ if(ap[i].status == CUDNN_STATUS_SUCCESS){ cached_bf_algo = ap[i].algo; bf_ok = true; break; } }
-              if(bf_ok) cudnnGetConvolutionBackwardFilterWorkspaceSize(device.cudnn_handle, xd, yd, cd, wd_nhwc_s, cached_bf_algo, &cached_bf_ws); }
+              if(bf_ok) cudnnGetConvolutionBackwardFilterWorkspaceSize(device.cudnn_handle, xd, yd, cd, wd, cached_bf_algo, &cached_bf_ws); }
             { constexpr int MA = 8; int ac; cudnnConvolutionBwdDataAlgoPerf_t ap[MA];
-              cudnnGetConvolutionBackwardDataAlgorithm_v7(device.cudnn_handle, wd_nhwc_s, yd, cd, xd, MA, &ac, ap);
+              cudnnGetConvolutionBackwardDataAlgorithm_v7(device.cudnn_handle, wd, yd, cd, xd, MA, &ac, ap);
               for(int i = 0; i < ac; i++){ if(ap[i].status == CUDNN_STATUS_SUCCESS){ cached_bd_algo = ap[i].algo; bd_ok = true; break; } }
-              if(bd_ok) cudnnGetConvolutionBackwardDataWorkspaceSize(device.cudnn_handle, wd_nhwc_s, yd, cd, xd, cached_bd_algo, &cached_bd_ws); }
+              if(bd_ok) cudnnGetConvolutionBackwardDataWorkspaceSize(device.cudnn_handle, wd, yd, cd, xd, cached_bd_algo, &cached_bd_ws); }
             initialized = true;
         }
 
@@ -288,27 +259,18 @@ namespace rl_tools{
         { T a = 1, b = 1;
           cudnnConvolutionBackwardBias(device.cudnn_handle, &a, yd, d_conv_out, &b, bias_d, layer.biases.gradient._data); }
 
-        T* w_nhwc; cudaMallocAsync(&w_nhwc, FILTER_SIZE * sizeof(T), device.stream);
-        nn::layers::conv2d::cuda::kernels::filter_nchw_to_nhwc<<<F_NBLOCKS, F_BLOCKSIZE, 0, device.stream>>>(
-            layer.weights.parameters._data, w_nhwc, OC, IC, KH, KW);
         if(bf_ok){
-            T* dw_nhwc; cudaMallocAsync(&dw_nhwc, FILTER_SIZE * sizeof(T), device.stream);
-            cudaMemsetAsync(dw_nhwc, 0, FILTER_SIZE * sizeof(T), device.stream);
             if(cached_bf_ws > 0) ensure_cudnn_workspace(device, cached_bf_ws);
-            T a = 1, b = 0;
+            T a = 1, b = 1;
             cudnnConvolutionBackwardFilter(device.cudnn_handle, &a, xd, input._data, yd, d_conv_out,
-                cd, cached_bf_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, wd_nhwc_s, dw_nhwc);
-            nn::layers::conv2d::cuda::kernels::filter_nhwc_to_nchw_accumulate<<<F_NBLOCKS, F_BLOCKSIZE, 0, device.stream>>>(
-                dw_nhwc, layer.weights.gradient._data, OC, IC, KH, KW);
-            cudaFreeAsync(dw_nhwc, device.stream);
+                cd, cached_bf_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, wd, layer.weights.gradient._data);
         }
         if(bd_ok){
             if(cached_bd_ws > 0) ensure_cudnn_workspace(device, cached_bd_ws);
             T a = 1, b = 0;
-            cudnnConvolutionBackwardData(device.cudnn_handle, &a, wd_nhwc_s, w_nhwc, yd, d_conv_out,
+            cudnnConvolutionBackwardData(device.cudnn_handle, &a, wd, layer.weights.parameters._data, yd, d_conv_out,
                 cd, cached_bd_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, xd, d_input._data);
         }
-        cudaFreeAsync(w_nhwc, device.stream);
         check_status(device);
     }
 
@@ -333,13 +295,10 @@ namespace rl_tools{
         constexpr TI SH = LAYER_SPEC::STRIDE_H, SW = LAYER_SPEC::STRIDE_W;
         constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
-        constexpr TI FILTER_SIZE = OC * IC * KH * KW;
-        constexpr TI F_BLOCKSIZE = 256;
-        constexpr TI F_NBLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(FILTER_SIZE, F_BLOCKSIZE);
 
         static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr;
         static cudnnConvolutionDescriptor_t cd = nullptr;
-        static cudnnFilterDescriptor_t wd_nhwc_s = nullptr;
+        static cudnnFilterDescriptor_t wd = nullptr;
         static cudnnConvolutionBwdDataAlgo_t cached_algo;
         static size_t cached_ws = 0;
         static bool algo_ok = false;
@@ -348,23 +307,19 @@ namespace rl_tools{
             cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, IC, IH, IW);
             cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, OC, OH, OW);
             cudnnCreateConvolutionDescriptor(&cd); cudnnSetConvolution2dDescriptor(cd, PH, PW, SH, SW, 1, 1, CUDNN_CROSS_CORRELATION, dt); cudnnSetConvolutionMathType(cd, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
-            cudnnCreateFilterDescriptor(&wd_nhwc_s); cudnnSetFilter4dDescriptor(wd_nhwc_s, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
+            cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
             constexpr int MA = 8; int ac; cudnnConvolutionBwdDataAlgoPerf_t ap[MA];
-            cudnnGetConvolutionBackwardDataAlgorithm_v7(device.cudnn_handle, wd_nhwc_s, yd, cd, xd, MA, &ac, ap);
+            cudnnGetConvolutionBackwardDataAlgorithm_v7(device.cudnn_handle, wd, yd, cd, xd, MA, &ac, ap);
             for(int i = 0; i < ac; i++){ if(ap[i].status == CUDNN_STATUS_SUCCESS){ cached_algo = ap[i].algo; algo_ok = true; break; } }
-            if(algo_ok) cudnnGetConvolutionBackwardDataWorkspaceSize(device.cudnn_handle, wd_nhwc_s, yd, cd, xd, cached_algo, &cached_ws);
+            if(algo_ok) cudnnGetConvolutionBackwardDataWorkspaceSize(device.cudnn_handle, wd, yd, cd, xd, cached_algo, &cached_ws);
             initialized = true;
         }
-        T* w_nhwc; cudaMallocAsync(&w_nhwc, FILTER_SIZE * sizeof(T), device.stream);
-        nn::layers::conv2d::cuda::kernels::filter_nchw_to_nhwc<<<F_NBLOCKS, F_BLOCKSIZE, 0, device.stream>>>(
-            layer.weights.parameters._data, w_nhwc, OC, IC, KH, KW);
         if(algo_ok){
             if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
             T a = 1, b = 0;
-            cudnnConvolutionBackwardData(device.cudnn_handle, &a, wd_nhwc_s, w_nhwc, yd, d_output._data,
+            cudnnConvolutionBackwardData(device.cudnn_handle, &a, wd, layer.weights.parameters._data, yd, d_output._data,
                 cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, xd, d_input._data);
         }
-        cudaFreeAsync(w_nhwc, device.stream);
         check_status(device);
     }
 
