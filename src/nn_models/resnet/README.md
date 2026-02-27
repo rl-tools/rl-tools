@@ -16,7 +16,9 @@ clang++ -I include -I /usr/include/hdf5/serial/ -I .dependencies/build/highfive-
 
 Training ImageNet
 ```
+python3 src/nn_models/resnet/prepare_imagenet.py --input-dir ~/git/imagenet-1k --output-dir /dev/shm/jonas/imagenet-1k-bin
+
 CUDACXX=$HOME/.local/opt/cuda/bin/nvcc cmake -B build -DCMAKE_PREFIX_PATH="$HOME/.local/opt/cudnn"
 cmake --build build -j8 --target nn_models_resnet_imagenet_training_cuda
-./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --dataset-dir /dev/shm/jonas/imagenet-1k --preload
+./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --binary-dir /dev/shm/jonas/imagenet-1k-bin
 ```
