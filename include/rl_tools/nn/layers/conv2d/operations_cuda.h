@@ -60,11 +60,14 @@ namespace rl_tools{
         constexpr TI SH = LAYER_SPEC::STRIDE_H, SW = LAYER_SPEC::STRIDE_W;
         constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
+        constexpr bool HAS_BN = LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM;
+        constexpr bool HAS_RELU = LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU;
+        constexpr bool FUSE_RELU = HAS_RELU && !HAS_BN;
 
         static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bd = nullptr, bnd = nullptr;
         static cudnnFilterDescriptor_t wd = nullptr;
         static cudnnConvolutionDescriptor_t cd = nullptr;
-        static cudnnActivationDescriptor_t ad = nullptr;
+        static cudnnActivationDescriptor_t fused_ad = nullptr, relu_ad = nullptr;
         static cudnnConvolutionFwdAlgo_t cached_algo;
         static size_t cached_ws = 0;
         static bool initialized = false;
@@ -73,38 +76,40 @@ namespace rl_tools{
             cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, OC, OH, OW);
             cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
             cudnnCreateConvolutionDescriptor(&cd); cudnnSetConvolution2dDescriptor(cd, PH, PW, SH, SW, 1, 1, CUDNN_CROSS_CORRELATION, dt); cudnnSetConvolutionMathType(cd, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
-            int ac; cudnnConvolutionFwdAlgoPerf_t ap;
-            cudnnGetConvolutionForwardAlgorithm_v7(device.cudnn_handle, xd, wd, cd, yd, 1, &ac, &ap);
-            cached_algo = ap.algo;
-            cudnnGetConvolutionForwardWorkspaceSize(device.cudnn_handle, xd, wd, cd, yd, cached_algo, &cached_ws);
             cudnnCreateTensorDescriptor(&bd); cudnnSetTensor4dDescriptor(bd, CUDNN_TENSOR_NHWC, dt, 1, OC, 1, 1);
-            if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
-                cudnnCreateTensorDescriptor(&bnd); cudnnDeriveBNTensorDescriptor(bnd, yd, CUDNN_BATCHNORM_SPATIAL);
+            cudnnCreateActivationDescriptor(&fused_ad);
+            if constexpr(FUSE_RELU){
+                cudnnSetActivationDescriptor(fused_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
+                cached_algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
+            } else {
+                cudnnSetActivationDescriptor(fused_ad, CUDNN_ACTIVATION_IDENTITY, CUDNN_NOT_PROPAGATE_NAN, 0.0);
+                int ac; cudnnConvolutionFwdAlgoPerf_t ap;
+                cudnnGetConvolutionForwardAlgorithm_v7(device.cudnn_handle, xd, wd, cd, yd, 1, &ac, &ap);
+                cached_algo = ap.algo;
             }
-            if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
-                cudnnCreateActivationDescriptor(&ad); cudnnSetActivationDescriptor(ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
+            cudnnGetConvolutionForwardWorkspaceSize(device.cudnn_handle, xd, wd, cd, yd, cached_algo, &cached_ws);
+            if constexpr(HAS_BN){
+                cudnnCreateTensorDescriptor(&bnd); cudnnDeriveBNTensorDescriptor(bnd, yd, CUDNN_BATCHNORM_SPATIAL);
+                if constexpr(HAS_RELU){
+                    cudnnCreateActivationDescriptor(&relu_ad); cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
+                }
             }
             initialized = true;
         }
         if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
-        { T a = 1, b = 0;
-          cudnnStatus_t stat = cudnnConvolutionForward(device.cudnn_handle, &a, xd, input._data, wd, layer.weights.parameters._data,
-              cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, yd, output._data);
-
-#ifndef __CUDA_ARCH__
-          if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN convolution forward failed: " << cudnnGetErrorString(stat) << std::endl;
-#endif
-        }
-        { T a = 1, b = 1; cudnnAddTensor(device.cudnn_handle, &a, bd, layer.biases.parameters._data, &b, yd, output._data); }
-        if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
+        { T a1 = 1, a2 = 0;
+          cudnnConvolutionBiasActivationForward(device.cudnn_handle, &a1, xd, input._data, wd, layer.weights.parameters._data,
+              cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size,
+              &a2, yd, output._data, bd, layer.biases.parameters._data, fused_ad, yd, output._data); }
+        if constexpr(HAS_BN){
             T a = 1, b = 0;
             cudnnBatchNormalizationForwardInference(device.cudnn_handle, CUDNN_BATCHNORM_SPATIAL, &a, &b,
                 yd, output._data, yd, output._data, bnd,
                 layer.norm.gamma.parameters._data, layer.norm.beta.parameters._data,
                 layer.norm.running_mean.parameters._data, layer.norm.running_var.parameters._data, (double)LAYER_SPEC::NORM_EPSILON);
-        }
-        if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
-            T a = 1, b = 0; cudnnActivationForward(device.cudnn_handle, ad, &a, yd, output._data, &b, yd, output._data);
+            if constexpr(HAS_RELU){
+                T ra = 1, rb = 0; cudnnActivationForward(device.cudnn_handle, relu_ad, &ra, yd, output._data, &rb, yd, output._data);
+            }
         }
         check_status(device);
     }
@@ -121,11 +126,14 @@ namespace rl_tools{
         constexpr TI SH = LAYER_SPEC::STRIDE_H, SW = LAYER_SPEC::STRIDE_W;
         constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
+        constexpr bool HAS_BN = LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM;
+        constexpr bool HAS_RELU = LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU;
+        constexpr bool FUSE_RELU = HAS_RELU && !HAS_BN;
 
         static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bd = nullptr, bnd = nullptr;
         static cudnnFilterDescriptor_t wd = nullptr;
         static cudnnConvolutionDescriptor_t cd = nullptr;
-        static cudnnActivationDescriptor_t ad = nullptr;
+        static cudnnActivationDescriptor_t fused_ad = nullptr, relu_ad = nullptr;
         static cudnnConvolutionFwdAlgo_t cached_algo;
         static size_t cached_ws = 0;
         static bool initialized = false;
@@ -134,24 +142,32 @@ namespace rl_tools{
             cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, OC, OH, OW);
             cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
             cudnnCreateConvolutionDescriptor(&cd); cudnnSetConvolution2dDescriptor(cd, PH, PW, SH, SW, 1, 1, CUDNN_CROSS_CORRELATION, dt); cudnnSetConvolutionMathType(cd, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
-            int ac; cudnnConvolutionFwdAlgoPerf_t ap;
-            cudnnGetConvolutionForwardAlgorithm_v7(device.cudnn_handle, xd, wd, cd, yd, 1, &ac, &ap);
-            cached_algo = ap.algo;
-            cudnnGetConvolutionForwardWorkspaceSize(device.cudnn_handle, xd, wd, cd, yd, cached_algo, &cached_ws);
             cudnnCreateTensorDescriptor(&bd); cudnnSetTensor4dDescriptor(bd, CUDNN_TENSOR_NHWC, dt, 1, OC, 1, 1);
-            if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
+            cudnnCreateActivationDescriptor(&fused_ad);
+            if constexpr(FUSE_RELU){
+                cudnnSetActivationDescriptor(fused_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
+                cached_algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
+            } else {
+                cudnnSetActivationDescriptor(fused_ad, CUDNN_ACTIVATION_IDENTITY, CUDNN_NOT_PROPAGATE_NAN, 0.0);
+                int ac; cudnnConvolutionFwdAlgoPerf_t ap;
+                cudnnGetConvolutionForwardAlgorithm_v7(device.cudnn_handle, xd, wd, cd, yd, 1, &ac, &ap);
+                cached_algo = ap.algo;
+            }
+            cudnnGetConvolutionForwardWorkspaceSize(device.cudnn_handle, xd, wd, cd, yd, cached_algo, &cached_ws);
+            if constexpr(HAS_BN){
                 cudnnCreateTensorDescriptor(&bnd); cudnnDeriveBNTensorDescriptor(bnd, yd, CUDNN_BATCHNORM_SPATIAL);
             }
-            if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
-                cudnnCreateActivationDescriptor(&ad); cudnnSetActivationDescriptor(ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
+            if constexpr(HAS_BN && HAS_RELU){
+                cudnnCreateActivationDescriptor(&relu_ad); cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
             }
             initialized = true;
         }
         if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
-        { T a = 1, b = 0; cudnnConvolutionForward(device.cudnn_handle, &a, xd, input._data, wd, layer.weights.parameters._data,
-            cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, yd, layer.pre_activations._data); }
-        { T a = 1, b = 1; cudnnAddTensor(device.cudnn_handle, &a, bd, layer.biases.parameters._data, &b, yd, layer.pre_activations._data); }
-        if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
+        if constexpr(HAS_BN){
+            { T a1 = 1, a2 = 0;
+              cudnnConvolutionBiasActivationForward(device.cudnn_handle, &a1, xd, input._data, wd, layer.weights.parameters._data,
+                  cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size,
+                  &a2, yd, layer.pre_activations._data, bd, layer.biases.parameters._data, fused_ad, yd, layer.pre_activations._data); }
             if constexpr(mode::is<MODE, mode::Evaluation>){
                 T a = 1, b = 0;
                 cudnnBatchNormalizationForwardInference(device.cudnn_handle, CUDNN_BATCHNORM_SPATIAL, &a, &b,
@@ -174,11 +190,18 @@ namespace rl_tools{
                     layer.norm.running_mean.parameters._data, layer.norm.running_var.parameters._data,
                     (double)LAYER_SPEC::NORM_EPSILON, layer.norm_cache.mean._data, layer.norm_cache.inv_std._data);
             }
+            if constexpr(HAS_RELU){
+                T a = 1, b = 0; cudnnActivationForward(device.cudnn_handle, relu_ad, &a, yd, output._data, &b, yd, output._data);
+            }
         } else {
-            cudaMemcpyAsync(output._data, layer.pre_activations._data, N*OH*OW*OC*sizeof(T), cudaMemcpyDeviceToDevice, device.stream);
-        }
-        if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
-            T a = 1, b = 0; cudnnActivationForward(device.cudnn_handle, ad, &a, yd, output._data, &b, yd, output._data);
+            T* dst = FUSE_RELU ? output._data : layer.pre_activations._data;
+            { T a1 = 1, a2 = 0;
+              cudnnConvolutionBiasActivationForward(device.cudnn_handle, &a1, xd, input._data, wd, layer.weights.parameters._data,
+                  cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size,
+                  &a2, yd, dst, bd, layer.biases.parameters._data, fused_ad, yd, dst); }
+            if constexpr(!FUSE_RELU){
+                cudaMemcpyAsync(output._data, layer.pre_activations._data, N*OH*OW*OC*sizeof(T), cudaMemcpyDeviceToDevice, device.stream);
+            }
         }
         check_status(device);
     }

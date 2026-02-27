@@ -56,7 +56,7 @@ using TI = DEVICE_CPU::index_t;
 using TI_CUDA = DEVICE_CUDA::index_t;
 
 #ifndef MICRO_BATCH_SIZE
-#define MICRO_BATCH_SIZE 64
+#define MICRO_BATCH_SIZE 1024
 #endif
 constexpr TI_CUDA GPU_BATCH = MICRO_BATCH_SIZE;
 
@@ -240,7 +240,8 @@ __global__ void reduce_metrics_kernel(
     *acc_loss += sl; *acc_correct += sc; *acc_correct5 += sc5;
 }
 
-constexpr int NJ_PIPE = 8;
+constexpr int NUM_DECODE_WORKERS = 3;
+constexpr int NJ_PIPE_PER_WORKER = 4;
 constexpr int NUM_DECODE_SLOTS = 6;
 
 template<typename U>
@@ -412,29 +413,34 @@ int main(int argc, char* argv[]) {
     cudaEventCreate(&ev_loss);  cudaEventCreate(&ev_bwd); cudaEventCreate(&ev_step);
     struct { double dec, fwd, loss, bwd, step, wall; int n; } prof = {};
 
-    // nvJPEG HARDWARE backend
-    nvjpegHandle_t nj_handle;
-    if (nvjpegCreateSimple(&nj_handle) != NVJPEG_STATUS_SUCCESS) { std::cerr << "nvJPEG init failed" << std::endl; return 1; }
-    nvjpegJpegDecoder_t nj_decoder;
-    if (nvjpegDecoderCreate(nj_handle, NVJPEG_BACKEND_HARDWARE, &nj_decoder) != NVJPEG_STATUS_SUCCESS) { std::cerr << "nvJPEG HARDWARE decoder not available" << std::endl; return 1; }
-    nvjpegDecodeParams_t nj_params;
-    nvjpegDecodeParamsCreate(nj_handle, &nj_params);
-    nvjpegDecodeParamsSetOutputFormat(nj_params, NVJPEG_OUTPUT_RGBI);
-    nvjpegJpegState_t nj_states[NJ_PIPE];
-    nvjpegBufferPinned_t nj_pinned[NJ_PIPE];
-    nvjpegBufferDevice_t nj_device_buf[NJ_PIPE];
-    nvjpegJpegStream_t nj_streams[NJ_PIPE];
-    for (int p = 0; p < NJ_PIPE; p++) {
-        nvjpegDecoderStateCreate(nj_handle, nj_decoder, &nj_states[p]);
-        nvjpegBufferPinnedCreate(nj_handle, nullptr, &nj_pinned[p]);
-        nvjpegBufferDeviceCreate(nj_handle, nullptr, &nj_device_buf[p]);
-        nvjpegJpegStreamCreate(nj_handle, &nj_streams[p]);
-        nvjpegStateAttachPinnedBuffer(nj_states[p], nj_pinned[p]);
-        nvjpegStateAttachDeviceBuffer(nj_states[p], nj_device_buf[p]);
+    // nvJPEG HARDWARE backend — one context per decode worker (nvjpeg handle is not thread-safe)
+    struct DecodeWorkerCtx {
+        nvjpegHandle_t handle;
+        nvjpegJpegDecoder_t decoder;
+        nvjpegDecodeParams_t params;
+        nvjpegJpegState_t states[NJ_PIPE_PER_WORKER];
+        nvjpegBufferPinned_t pinned[NJ_PIPE_PER_WORKER];
+        nvjpegBufferDevice_t device_buf[NJ_PIPE_PER_WORKER];
+        nvjpegJpegStream_t jpeg_streams[NJ_PIPE_PER_WORKER];
+        cudaStream_t cuda_stream;
+    };
+    DecodeWorkerCtx decode_workers[NUM_DECODE_WORKERS];
+    for (int w = 0; w < NUM_DECODE_WORKERS; w++) {
+        auto& ctx = decode_workers[w];
+        if (nvjpegCreateSimple(&ctx.handle) != NVJPEG_STATUS_SUCCESS) { std::cerr << "nvJPEG init failed for worker " << w << std::endl; return 1; }
+        if (nvjpegDecoderCreate(ctx.handle, NVJPEG_BACKEND_HARDWARE, &ctx.decoder) != NVJPEG_STATUS_SUCCESS) { std::cerr << "nvJPEG HARDWARE decoder not available (worker " << w << ")" << std::endl; return 1; }
+        nvjpegDecodeParamsCreate(ctx.handle, &ctx.params);
+        nvjpegDecodeParamsSetOutputFormat(ctx.params, NVJPEG_OUTPUT_RGBI);
+        for (int p = 0; p < NJ_PIPE_PER_WORKER; p++) {
+            nvjpegDecoderStateCreate(ctx.handle, ctx.decoder, &ctx.states[p]);
+            nvjpegBufferPinnedCreate(ctx.handle, nullptr, &ctx.pinned[p]);
+            nvjpegBufferDeviceCreate(ctx.handle, nullptr, &ctx.device_buf[p]);
+            nvjpegJpegStreamCreate(ctx.handle, &ctx.jpeg_streams[p]);
+            nvjpegStateAttachPinnedBuffer(ctx.states[p], ctx.pinned[p]);
+            nvjpegStateAttachDeviceBuffer(ctx.states[p], ctx.device_buf[p]);
+        }
+        cudaStreamCreate(&ctx.cuda_stream);
     }
-
-    cudaStream_t decode_stream;
-    cudaStreamCreate(&decode_stream);
 
     DecodeSlot slots[NUM_DECODE_SLOTS];
     for (int s = 0; s < NUM_DECODE_SLOTS; s++) {
@@ -452,7 +458,8 @@ int main(int argc, char* argv[]) {
             slots[s].nj_dest[i].pitch[0] = DECODE_PITCH;
         }
     }
-    std::cout << "nvJPEG HARDWARE: pipe=" << NJ_PIPE << " slots=" << NUM_DECODE_SLOTS << " batch=" << GPU_BATCH
+    std::cout << "nvJPEG HARDWARE: workers=" << NUM_DECODE_WORKERS << " pipe/worker=" << NJ_PIPE_PER_WORKER
+              << " slots=" << NUM_DECODE_SLOTS << " batch=" << GPU_BATCH
               << " pool=" << ((size_t)NUM_DECODE_SLOTS * GPU_BATCH * DECODE_IMG_STRIDE) / (1024*1024) << "MB total" << std::endl;
 
     TSQueue<int> submit_queue, ready_queue;
@@ -504,26 +511,30 @@ int main(int argc, char* argv[]) {
                   << nw << " threads) in " << std::fixed << std::setprecision(1) << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl;
     }
 
-    // Producer thread: decode JPEGs into slots
-    std::thread producer_thread([&]() {
-        while (true) {
-            int slot_idx = submit_queue.pop();
-            if (slot_idx < 0) break;
-            DecodeSlot& slot = slots[slot_idx];
-            cudaStreamWaitEvent(decode_stream, slot.consumed_event, 0);
-            for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
-                int p = s_i % NJ_PIPE;
-                nvjpegJpegStreamParse(nj_handle, slot.jpeg_data[s_i], slot.jpeg_size[s_i], 0, 0, nj_streams[p]);
-                nvjpegDecodeJpegHost(nj_handle, nj_decoder, nj_states[p], nj_params, nj_streams[p]);
-                nvjpegDecodeJpegTransferToDevice(nj_handle, nj_decoder, nj_states[p], nj_streams[p], decode_stream);
-                nvjpegDecodeJpegDevice(nj_handle, nj_decoder, nj_states[p], &slot.nj_dest[s_i], decode_stream);
+    // Decode worker threads: each pulls full slots from submit_queue, decodes on its own stream
+    std::thread worker_threads[NUM_DECODE_WORKERS];
+    for (int w = 0; w < NUM_DECODE_WORKERS; w++) {
+        worker_threads[w] = std::thread([w, &decode_workers, &slots, &submit_queue, &ready_queue]() {
+            auto& ctx = decode_workers[w];
+            while (true) {
+                int slot_idx = submit_queue.pop();
+                if (slot_idx < 0) { submit_queue.push(-1); break; }
+                DecodeSlot& slot = slots[slot_idx];
+                cudaStreamWaitEvent(ctx.cuda_stream, slot.consumed_event, 0);
+                for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
+                    int p = s_i % NJ_PIPE_PER_WORKER;
+                    nvjpegJpegStreamParse(ctx.handle, slot.jpeg_data[s_i], slot.jpeg_size[s_i], 0, 0, ctx.jpeg_streams[p]);
+                    nvjpegDecodeJpegHost(ctx.handle, ctx.decoder, ctx.states[p], ctx.params, ctx.jpeg_streams[p]);
+                    nvjpegDecodeJpegTransferToDevice(ctx.handle, ctx.decoder, ctx.states[p], ctx.jpeg_streams[p], ctx.cuda_stream);
+                    nvjpegDecodeJpegDevice(ctx.handle, ctx.decoder, ctx.states[p], &slot.nj_dest[s_i], ctx.cuda_stream);
+                }
+                cudaMemcpyAsync(slot.gpu_info, slot.cpu_info, GPU_BATCH * sizeof(ImageInfo), cudaMemcpyHostToDevice, ctx.cuda_stream);
+                cudaMemcpyAsync(slot.gpu_labels, slot.cpu_labels, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyHostToDevice, ctx.cuda_stream);
+                cudaEventRecord(slot.ready_event, ctx.cuda_stream);
+                ready_queue.push(slot_idx);
             }
-            cudaMemcpyAsync(slot.gpu_info, slot.cpu_info, GPU_BATCH * sizeof(ImageInfo), cudaMemcpyHostToDevice, decode_stream);
-            cudaMemcpyAsync(slot.gpu_labels, slot.cpu_labels, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyHostToDevice, decode_stream);
-            cudaEventRecord(slot.ready_event, decode_stream);
-            ready_queue.push(slot_idx);
-        }
-    });
+        });
+    }
 
     auto fill_train_slot = [&](int slot_idx, TI base_idx, const std::vector<TI>& sample_indices) {
         DecodeSlot& slot = slots[slot_idx];
@@ -752,21 +763,24 @@ int main(int argc, char* argv[]) {
         std::cout << std::endl;
     }
 
-    // Shutdown producer thread
+    // Shutdown decode workers (one sentinel cascades via re-push)
     submit_queue.push(-1);
-    producer_thread.join();
+    for (int w = 0; w < NUM_DECODE_WORKERS; w++) worker_threads[w].join();
 
     for (int s = 0; s < NUM_DECODE_SLOTS; s++) {
         cudaFree(slots[s].decode_pool); cudaFree(slots[s].gpu_info); cudaFree(slots[s].gpu_labels);
         cudaEventDestroy(slots[s].ready_event); cudaEventDestroy(slots[s].consumed_event);
         cudaFreeHost(slots[s].cpu_info); cudaFreeHost(slots[s].cpu_labels);
     }
-    cudaStreamDestroy(decode_stream);
-    for (int p = 0; p < NJ_PIPE; p++) {
-        nvjpegJpegStreamDestroy(nj_streams[p]); nvjpegBufferPinnedDestroy(nj_pinned[p]);
-        nvjpegBufferDeviceDestroy(nj_device_buf[p]); nvjpegJpegStateDestroy(nj_states[p]);
+    for (int w = 0; w < NUM_DECODE_WORKERS; w++) {
+        auto& ctx = decode_workers[w];
+        cudaStreamDestroy(ctx.cuda_stream);
+        for (int p = 0; p < NJ_PIPE_PER_WORKER; p++) {
+            nvjpegJpegStreamDestroy(ctx.jpeg_streams[p]); nvjpegBufferPinnedDestroy(ctx.pinned[p]);
+            nvjpegBufferDeviceDestroy(ctx.device_buf[p]); nvjpegJpegStateDestroy(ctx.states[p]);
+        }
+        nvjpegDecodeParamsDestroy(ctx.params); nvjpegDecoderDestroy(ctx.decoder); nvjpegDestroy(ctx.handle);
     }
-    nvjpegDecodeParamsDestroy(nj_params); nvjpegDecoderDestroy(nj_decoder); nvjpegDestroy(nj_handle);
     cudaFree(gpu_acc_loss); cudaFree(gpu_acc_correct); cudaFree(gpu_acc_correct5);
     cudaEventDestroy(ev_start); cudaEventDestroy(ev_dec); cudaEventDestroy(ev_fwd);
     cudaEventDestroy(ev_loss);  cudaEventDestroy(ev_bwd); cudaEventDestroy(ev_step);

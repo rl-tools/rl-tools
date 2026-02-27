@@ -150,8 +150,11 @@ namespace rl_tools {
         }
         cublas_stat = cublasSetStream(device.handle, device.stream);
         if (cublas_stat != CUBLAS_STATUS_SUCCESS) {
-//            log(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
             std::cout << "CUBLAS setting stream failed " << cublasGetStatusString(cublas_stat) << std::endl;
+        }
+        cublas_stat = cublasSetMathMode(device.handle, CUBLAS_TF32_TENSOR_OP_MATH);
+        if (cublas_stat != CUBLAS_STATUS_SUCCESS) {
+            std::cout << "CUBLAS setting TF32 math mode failed " << cublasGetStatusString(cublas_stat) << std::endl;
         }
 #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
         if(device.initialized){
