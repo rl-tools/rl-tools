@@ -40,6 +40,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 namespace fs = std::filesystem;
@@ -236,14 +240,30 @@ __global__ void reduce_metrics_kernel(
     *acc_loss += sl; *acc_correct += sc; *acc_correct5 += sc5;
 }
 
-// nvJPEG helper: get image dimensions from JPEG header
-bool nvjpeg_get_dims(nvjpegHandle_t handle, const uint8_t* data, size_t len, int& w, int& h) {
-    int nComp; nvjpegChromaSubsampling_t ss;
-    int ws[NVJPEG_MAX_COMPONENT], hs[NVJPEG_MAX_COMPONENT];
-    if (nvjpegGetImageInfo(handle, data, len, &nComp, &ss, ws, hs) != NVJPEG_STATUS_SUCCESS) return false;
-    w = ws[0]; h = hs[0];
-    return w > 0 && h > 0 && w <= NVJPEG_MAX_DIM && h <= NVJPEG_MAX_DIM;
-}
+constexpr int NJ_PIPE = 8;
+constexpr int NUM_DECODE_SLOTS = 6;
+
+template<typename U>
+struct TSQueue {
+    std::queue<U> q;
+    std::mutex mtx;
+    std::condition_variable cv;
+    void push(U v) { { std::lock_guard<std::mutex> lk(mtx); q.push(v); } cv.notify_one(); }
+    U pop() { std::unique_lock<std::mutex> lk(mtx); cv.wait(lk, [&]{ return !q.empty(); }); U v = q.front(); q.pop(); return v; }
+};
+
+struct DecodeSlot {
+    uint8_t* decode_pool;
+    ImageInfo* gpu_info;
+    TI_CUDA* gpu_labels;
+    cudaEvent_t ready_event;
+    cudaEvent_t consumed_event;
+    ImageInfo* cpu_info;
+    TI_CUDA* cpu_labels;
+    const uint8_t* jpeg_data[GPU_BATCH];
+    size_t jpeg_size[GPU_BATCH];
+    nvjpegImage_t nj_dest[GPU_BATCH];
+};
 
 struct Sample {
     const uint8_t* image_data;
@@ -378,38 +398,133 @@ int main(int argc, char* argv[]) {
     rlt::Tensor<GPU_D_OUTPUT_SPEC> gpu_d_output; rlt::malloc(device_cuda, gpu_d_output);
     rlt::Tensor<GPU_INPUT_SPEC> gpu_d_input; rlt::malloc(device_cuda, gpu_d_input);
 
-    // GPU buffers for loss computation (no CPU round-trip needed)
-    TI_CUDA* gpu_labels; cudaMalloc(&gpu_labels, GPU_BATCH * sizeof(TI_CUDA));
+    // GPU buffers for loss computation (shared, compute-stream only)
     T* gpu_losses; cudaMalloc(&gpu_losses, GPU_BATCH * sizeof(T));
     TI_CUDA* gpu_correct; cudaMalloc(&gpu_correct, GPU_BATCH * sizeof(TI_CUDA));
     TI_CUDA* gpu_correct5; cudaMalloc(&gpu_correct5, GPU_BATCH * sizeof(TI_CUDA));
 
-    std::vector<TI_CUDA> cpu_labels(GPU_BATCH);
-
-    // GPU-side batch metric accumulators (avoid mid-pipeline D2H sync)
     T* gpu_acc_loss; cudaMalloc(&gpu_acc_loss, sizeof(T));
     TI_CUDA* gpu_acc_correct; cudaMalloc(&gpu_acc_correct, sizeof(TI_CUDA));
     TI_CUDA* gpu_acc_correct5; cudaMalloc(&gpu_acc_correct5, sizeof(TI_CUDA));
 
-    // CUDA events for GPU-side phase timing
     cudaEvent_t ev_start, ev_dec, ev_fwd, ev_loss, ev_bwd, ev_step;
     cudaEventCreate(&ev_start); cudaEventCreate(&ev_dec); cudaEventCreate(&ev_fwd);
     cudaEventCreate(&ev_loss);  cudaEventCreate(&ev_bwd); cudaEventCreate(&ev_step);
     struct { double dec, fwd, loss, bwd, step, wall; int n; } prof = {};
 
-    // nvJPEG setup
-    nvjpegHandle_t nj_handle; nvjpegJpegState_t nj_state;
-    if (nvjpegCreateEx(NVJPEG_BACKEND_GPU_HYBRID, nullptr, nullptr, 0, &nj_handle) != NVJPEG_STATUS_SUCCESS) { std::cerr << "nvJPEG init failed" << std::endl; return 1; }
-    nvjpegJpegStateCreate(nj_handle, &nj_state);
-    nvjpegDecodeBatchedInitialize(nj_handle, nj_state, GPU_BATCH, std::min(4u, (unsigned)GPU_BATCH), NVJPEG_OUTPUT_RGBI);
-    uint8_t* decode_pool; cudaMalloc(&decode_pool, (size_t)GPU_BATCH * DECODE_IMG_STRIDE);
-    ImageInfo* gpu_info; cudaMalloc(&gpu_info, GPU_BATCH * sizeof(ImageInfo));
-    std::vector<ImageInfo> cpu_info(GPU_BATCH);
-    std::vector<nvjpegImage_t> nj_dest(GPU_BATCH);
-    std::vector<const unsigned char*> nj_ptrs(GPU_BATCH);
-    std::vector<size_t> nj_lens(GPU_BATCH);
-    for (TI_CUDA i = 0; i < GPU_BATCH; i++) { nj_dest[i] = {}; nj_dest[i].channel[0] = decode_pool + (size_t)i * DECODE_IMG_STRIDE; nj_dest[i].pitch[0] = DECODE_PITCH; }
-    std::cout << "nvJPEG: batch=" << GPU_BATCH << " max_dim=" << NVJPEG_MAX_DIM << " pool=" << ((size_t)GPU_BATCH * DECODE_IMG_STRIDE) / (1024*1024) << "MB" << std::endl;
+    // nvJPEG HARDWARE backend
+    nvjpegHandle_t nj_handle;
+    if (nvjpegCreateSimple(&nj_handle) != NVJPEG_STATUS_SUCCESS) { std::cerr << "nvJPEG init failed" << std::endl; return 1; }
+    nvjpegJpegDecoder_t nj_decoder;
+    if (nvjpegDecoderCreate(nj_handle, NVJPEG_BACKEND_HARDWARE, &nj_decoder) != NVJPEG_STATUS_SUCCESS) { std::cerr << "nvJPEG HARDWARE decoder not available" << std::endl; return 1; }
+    nvjpegDecodeParams_t nj_params;
+    nvjpegDecodeParamsCreate(nj_handle, &nj_params);
+    nvjpegDecodeParamsSetOutputFormat(nj_params, NVJPEG_OUTPUT_RGBI);
+    nvjpegJpegState_t nj_states[NJ_PIPE];
+    nvjpegBufferPinned_t nj_pinned[NJ_PIPE];
+    nvjpegBufferDevice_t nj_device_buf[NJ_PIPE];
+    nvjpegJpegStream_t nj_streams[NJ_PIPE];
+    for (int p = 0; p < NJ_PIPE; p++) {
+        nvjpegDecoderStateCreate(nj_handle, nj_decoder, &nj_states[p]);
+        nvjpegBufferPinnedCreate(nj_handle, nullptr, &nj_pinned[p]);
+        nvjpegBufferDeviceCreate(nj_handle, nullptr, &nj_device_buf[p]);
+        nvjpegJpegStreamCreate(nj_handle, &nj_streams[p]);
+        nvjpegStateAttachPinnedBuffer(nj_states[p], nj_pinned[p]);
+        nvjpegStateAttachDeviceBuffer(nj_states[p], nj_device_buf[p]);
+    }
+
+    cudaStream_t decode_stream;
+    cudaStreamCreate(&decode_stream);
+
+    DecodeSlot slots[NUM_DECODE_SLOTS];
+    for (int s = 0; s < NUM_DECODE_SLOTS; s++) {
+        cudaMalloc(&slots[s].decode_pool, (size_t)GPU_BATCH * DECODE_IMG_STRIDE);
+        cudaMalloc(&slots[s].gpu_info, GPU_BATCH * sizeof(ImageInfo));
+        cudaMalloc(&slots[s].gpu_labels, GPU_BATCH * sizeof(TI_CUDA));
+        cudaEventCreateWithFlags(&slots[s].ready_event, cudaEventDisableTiming);
+        cudaEventCreateWithFlags(&slots[s].consumed_event, cudaEventDisableTiming);
+        cudaEventRecord(slots[s].consumed_event, device_cuda.stream);
+        cudaMallocHost(&slots[s].cpu_info, GPU_BATCH * sizeof(ImageInfo));
+        cudaMallocHost(&slots[s].cpu_labels, GPU_BATCH * sizeof(TI_CUDA));
+        for (TI_CUDA i = 0; i < GPU_BATCH; i++) {
+            slots[s].nj_dest[i] = {};
+            slots[s].nj_dest[i].channel[0] = slots[s].decode_pool + (size_t)i * DECODE_IMG_STRIDE;
+            slots[s].nj_dest[i].pitch[0] = DECODE_PITCH;
+        }
+    }
+    std::cout << "nvJPEG HARDWARE: pipe=" << NJ_PIPE << " slots=" << NUM_DECODE_SLOTS << " batch=" << GPU_BATCH
+              << " pool=" << ((size_t)NUM_DECODE_SLOTS * GPU_BATCH * DECODE_IMG_STRIDE) / (1024*1024) << "MB total" << std::endl;
+
+    TSQueue<int> submit_queue, ready_queue;
+
+    // One-off: pre-extract JPEG dimensions
+    struct ImgDims { int w, h; };
+    std::vector<ImgDims> train_dims(train_samples.size()), val_dims(val_samples.size());
+    {
+        nvjpegJpegStream_t parse_stream;
+        nvjpegJpegStreamCreate(nj_handle, &parse_stream);
+        auto t0 = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < train_samples.size(); i++) {
+            nvjpegJpegStreamParse(nj_handle, train_samples[i].image_data, train_samples[i].image_size, 0, 0, parse_stream);
+            unsigned int w, h;
+            nvjpegJpegStreamGetFrameDimensions(parse_stream, &w, &h);
+            train_dims[i] = {(int)w, (int)h};
+        }
+        for (size_t i = 0; i < val_samples.size(); i++) {
+            nvjpegJpegStreamParse(nj_handle, val_samples[i].image_data, val_samples[i].image_size, 0, 0, parse_stream);
+            unsigned int w, h;
+            nvjpegJpegStreamGetFrameDimensions(parse_stream, &w, &h);
+            val_dims[i] = {(int)w, (int)h};
+        }
+        auto t1 = std::chrono::high_resolution_clock::now();
+        std::cout << "Pre-parsed JPEG dimensions: " << train_dims.size() << " train + " << val_dims.size() << " val in "
+                  << std::fixed << std::setprecision(1) << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl;
+        nvjpegJpegStreamDestroy(parse_stream);
+    }
+
+    // Producer thread: decode JPEGs into slots
+    std::thread producer_thread([&]() {
+        while (true) {
+            int slot_idx = submit_queue.pop();
+            if (slot_idx < 0) break;
+            DecodeSlot& slot = slots[slot_idx];
+            cudaStreamWaitEvent(decode_stream, slot.consumed_event, 0);
+            for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
+                int p = s_i % NJ_PIPE;
+                nvjpegJpegStreamParse(nj_handle, slot.jpeg_data[s_i], slot.jpeg_size[s_i], 0, 0, nj_streams[p]);
+                nvjpegDecodeJpegHost(nj_handle, nj_decoder, nj_states[p], nj_params, nj_streams[p]);
+                nvjpegDecodeJpegTransferToDevice(nj_handle, nj_decoder, nj_states[p], nj_streams[p], decode_stream);
+                nvjpegDecodeJpegDevice(nj_handle, nj_decoder, nj_states[p], &slot.nj_dest[s_i], decode_stream);
+            }
+            cudaMemcpyAsync(slot.gpu_info, slot.cpu_info, GPU_BATCH * sizeof(ImageInfo), cudaMemcpyHostToDevice, decode_stream);
+            cudaMemcpyAsync(slot.gpu_labels, slot.cpu_labels, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyHostToDevice, decode_stream);
+            cudaEventRecord(slot.ready_event, decode_stream);
+            ready_queue.push(slot_idx);
+        }
+    });
+
+    auto fill_train_slot = [&](int slot_idx, TI base_idx, const std::vector<TI>& sample_indices) {
+        DecodeSlot& slot = slots[slot_idx];
+        for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
+            TI si = sample_indices[base_idx + s_i];
+            auto& sample = train_samples[si];
+            slot.jpeg_data[s_i] = sample.image_data;
+            slot.jpeg_size[s_i] = sample.image_size;
+            slot.cpu_labels[s_i] = static_cast<TI_CUDA>(sample.label);
+            slot.cpu_info[s_i] = {train_dims[si].w, train_dims[si].h, (uint32_t)data_rng()};
+        }
+    };
+    auto fill_val_slot = [&](int slot_idx, TI base_idx) {
+        DecodeSlot& slot = slots[slot_idx];
+        for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
+            TI vi = base_idx + s_i;
+            auto& s = val_samples[vi];
+            slot.jpeg_data[s_i] = s.image_data;
+            slot.jpeg_size[s_i] = s.image_size;
+            slot.cpu_labels[s_i] = static_cast<TI_CUDA>(s.label);
+            slot.cpu_info[s_i] = {val_dims[vi].w, val_dims[vi].h, 0};
+        }
+    };
 
     rlt::Mode<rlt::mode::Default<>> train_mode;
     TI total_batches = total_train_samples / batch_size;
@@ -421,16 +536,28 @@ int main(int argc, char* argv[]) {
         { typename OPTIMIZER::PARAMETERS op; cudaMemcpy(&op, optimizer.parameters._data, sizeof(op), cudaMemcpyDeviceToHost); op.learning_rate = current_lr; cudaMemcpy(optimizer.parameters._data, &op, sizeof(op), cudaMemcpyHostToDevice); }
         std::cout << "=== Epoch " << epoch << " (lr=" << current_lr << ") ===" << std::endl;
 
-        T epoch_loss = 0; TI epoch_correct = 0, epoch_correct5 = 0, epoch_total = 0, epoch_failed = 0, epoch_batches = 0;
+        T epoch_loss = 0; TI epoch_correct = 0, epoch_correct5 = 0, epoch_total = 0, epoch_batches = 0;
 
         std::vector<TI> sample_indices(train_samples.size());
         std::iota(sample_indices.begin(), sample_indices.end(), 0);
         std::shuffle(sample_indices.begin(), sample_indices.end(), data_rng);
         TI num_batches = train_samples.size() / batch_size;
+        TI total_micro = num_batches * num_micro_batches;
+
+        // Pre-fill decode pipeline
+        TI submit_count = 0;
+        TI prefill = std::min((TI)NUM_DECODE_SLOTS, total_micro);
+        for (TI i = 0; i < prefill; i++) {
+            TI batch_of = submit_count / num_micro_batches;
+            TI micro_of = submit_count % num_micro_batches;
+            TI base_idx = batch_of * batch_size + micro_of * GPU_BATCH;
+            fill_train_slot(i, base_idx, sample_indices);
+            submit_queue.push(i);
+            submit_count++;
+        }
 
         for (TI batch_i = 0; batch_i < num_batches; batch_i++) {
             auto batch_wall_start = std::chrono::high_resolution_clock::now();
-            cudaDeviceSynchronize();
             rlt::zero_gradient(device_cuda, model);
             cudaMemsetAsync(gpu_acc_loss, 0, sizeof(T), device_cuda.stream);
             cudaMemsetAsync(gpu_acc_correct, 0, sizeof(TI_CUDA), device_cuda.stream);
@@ -438,31 +565,16 @@ int main(int argc, char* argv[]) {
             cudaEventRecord(ev_start, device_cuda.stream);
 
             for (TI micro_i = 0; micro_i < num_micro_batches; micro_i++) {
-                TI base_idx = batch_i * batch_size + micro_i * GPU_BATCH;
+                int slot_idx = ready_queue.pop();
+                DecodeSlot& slot = slots[slot_idx];
 
-                TI micro_failed = 0;
-                for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
-                    auto& sample = train_samples[sample_indices[base_idx + s_i]];
-                    nj_ptrs[s_i] = sample.image_data; nj_lens[s_i] = sample.image_size;
-                    cpu_labels[s_i] = static_cast<TI_CUDA>(sample.label);
-                    int w, h;
-                    if (nvjpeg_get_dims(nj_handle, sample.image_data, sample.image_size, w, h)) {
-                        cpu_info[s_i] = {w, h, (uint32_t)data_rng()};
-                    } else {
-                        cpu_info[s_i] = {0, 0, 0}; nj_ptrs[s_i] = nullptr; nj_lens[s_i] = 0;
-                        micro_failed++;
-                    }
-                }
-                nvjpegDecodeBatched(nj_handle, nj_state, nj_ptrs.data(), nj_lens.data(), nj_dest.data(), device_cuda.stream);
-                cudaMemcpyAsync(gpu_info, cpu_info.data(), GPU_BATCH * sizeof(ImageInfo), cudaMemcpyHostToDevice, device_cuda.stream);
-                cudaMemcpyAsync(gpu_labels, cpu_labels.data(), GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyHostToDevice, device_cuda.stream);
+                cudaStreamWaitEvent(device_cuda.stream, slot.ready_event, 0);
                 constexpr int BLK = 16, TGT = TrainingConfig::IMAGE_SIZE;
                 train_crop_normalize<<<dim3((TGT+BLK-1)/BLK,(TGT+BLK-1)/BLK,GPU_BATCH), dim3(BLK,BLK), 0, device_cuda.stream>>>(
-                    decode_pool, gpu_info, gpu_input._data, TGT,
+                    slot.decode_pool, slot.gpu_info, gpu_input._data, TGT,
                     TrainingConfig::CROP_SCALE_MIN, TrainingConfig::CROP_SCALE_MAX,
                     std::log(TrainingConfig::CROP_RATIO_MIN), std::log(TrainingConfig::CROP_RATIO_MAX),
                     TrainingConfig::HFLIP_PROB);
-                epoch_failed += micro_failed;
                 cudaEventRecord(ev_dec, device_cuda.stream);
 
                 rlt::forward(device_cuda, model, gpu_input, model_buffer, rng_cuda, train_mode);
@@ -470,18 +582,30 @@ int main(int argc, char* argv[]) {
                 cudaEventRecord(ev_fwd, device_cuda.stream);
 
                 cross_entropy_loss_gradient_kernel<<<GPU_BATCH, 1, 0, device_cuda.stream>>>(
-                    output_view._data, gpu_labels, gpu_d_output._data, gpu_losses, gpu_correct, gpu_correct5,
+                    output_view._data, slot.gpu_labels, gpu_d_output._data, gpu_losses, gpu_correct, gpu_correct5,
                     TrainingConfig::NUM_CLASSES, TrainingConfig::LABEL_SMOOTHING, T(1) / T(batch_size));
                 reduce_metrics_kernel<<<1, 1, 0, device_cuda.stream>>>(
                     gpu_losses, gpu_correct, gpu_correct5, gpu_acc_loss, gpu_acc_correct, gpu_acc_correct5, GPU_BATCH);
                 cudaEventRecord(ev_loss, device_cuda.stream);
 
+                // Slot data no longer needed after loss kernel reads gpu_labels
+                cudaEventRecord(slot.consumed_event, device_cuda.stream);
+
                 rlt::backward_full(device_cuda, model, gpu_input, gpu_d_output, gpu_d_input, model_buffer);
                 cudaEventRecord(ev_bwd, device_cuda.stream);
+
+                if (submit_count < total_micro) {
+                    TI batch_of = submit_count / num_micro_batches;
+                    TI micro_of = submit_count % num_micro_batches;
+                    TI base_idx = batch_of * batch_size + micro_of * GPU_BATCH;
+                    fill_train_slot(slot_idx, base_idx, sample_indices);
+                    submit_queue.push(slot_idx);
+                    submit_count++;
+                }
             }
             rlt::step(device_cuda, optimizer, model);
             cudaEventRecord(ev_step, device_cuda.stream);
-            cudaDeviceSynchronize();
+            cudaStreamSynchronize(device_cuda.stream);
 
             auto batch_wall_end = std::chrono::high_resolution_clock::now();
             double wall_ms = std::chrono::duration<double, std::milli>(batch_wall_end - batch_wall_start).count();
@@ -547,37 +671,41 @@ int main(int argc, char* argv[]) {
         rlt::add_scalar(device_cpu, device_cpu.logger, "train/img_per_sec", epoch_img_per_sec);
         rlt::add_scalar(device_cpu, device_cpu.logger, "train/epoch_time_s", ed.count());
 
-        { // Validation
+        { // Validation (pipelined through same producer)
             TI vc = 0, vc5 = 0, vt = 0; T vl = 0;
             rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
             rlt::Tensor<GPU_D_OUTPUT_SPEC> val_output; rlt::malloc(device_cuda, val_output);
             TI nvb = val_samples.size() / GPU_BATCH;
+            TI val_submit = 0;
+            TI val_prefill = std::min((TI)NUM_DECODE_SLOTS, nvb);
+            for (TI i = 0; i < val_prefill; i++) {
+                fill_val_slot(i, val_submit * GPU_BATCH);
+                submit_queue.push(i);
+                val_submit++;
+            }
             for (TI vb = 0; vb < nvb; vb++) {
-                for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
-                    auto& s = val_samples[vb * GPU_BATCH + s_i];
-                    nj_ptrs[s_i] = s.image_data; nj_lens[s_i] = s.image_size;
-                    cpu_labels[s_i] = static_cast<TI_CUDA>(s.label);
-                    int w, h;
-                    if (nvjpeg_get_dims(nj_handle, s.image_data, s.image_size, w, h))
-                        cpu_info[s_i] = {w, h, 0};
-                    else { cpu_info[s_i] = {0, 0, 0}; nj_ptrs[s_i] = nullptr; nj_lens[s_i] = 0; }
-                }
-                nvjpegDecodeBatched(nj_handle, nj_state, nj_ptrs.data(), nj_lens.data(), nj_dest.data(), device_cuda.stream);
-                cudaMemcpyAsync(gpu_info, cpu_info.data(), GPU_BATCH * sizeof(ImageInfo), cudaMemcpyHostToDevice, device_cuda.stream);
-                cudaMemcpyAsync(gpu_labels, cpu_labels.data(), GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyHostToDevice, device_cuda.stream);
+                int slot_idx = ready_queue.pop();
+                DecodeSlot& slot = slots[slot_idx];
+                cudaStreamWaitEvent(device_cuda.stream, slot.ready_event, 0);
                 constexpr int BLK = 16, TGT = TrainingConfig::IMAGE_SIZE;
                 val_crop_normalize<<<dim3((TGT+BLK-1)/BLK,(TGT+BLK-1)/BLK,GPU_BATCH), dim3(BLK,BLK), 0, device_cuda.stream>>>(
-                    decode_pool, gpu_info, gpu_input._data, TGT);
+                    slot.decode_pool, slot.gpu_info, gpu_input._data, TGT);
                 rlt::evaluate(device_cuda, model, gpu_input, val_output, model_buffer, rng_cuda, eval_mode);
                 cross_entropy_loss_gradient_kernel<<<GPU_BATCH, 1, 0, device_cuda.stream>>>(
-                    val_output._data, gpu_labels, gpu_d_output._data, gpu_losses, gpu_correct, gpu_correct5,
+                    val_output._data, slot.gpu_labels, gpu_d_output._data, gpu_losses, gpu_correct, gpu_correct5,
                     TrainingConfig::NUM_CLASSES, 0, 0);
+                cudaEventRecord(slot.consumed_event, device_cuda.stream);
                 std::vector<T> h_losses(GPU_BATCH);
                 std::vector<TI_CUDA> h_correct(GPU_BATCH), h_correct5(GPU_BATCH);
                 cudaMemcpy(h_losses.data(), gpu_losses, GPU_BATCH * sizeof(T), cudaMemcpyDeviceToHost);
                 cudaMemcpy(h_correct.data(), gpu_correct, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyDeviceToHost);
                 cudaMemcpy(h_correct5.data(), gpu_correct5, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyDeviceToHost);
                 for (TI s_i = 0; s_i < GPU_BATCH; s_i++) { vl += h_losses[s_i]; vc += h_correct[s_i]; vc5 += h_correct5[s_i]; vt++; }
+                if (val_submit < nvb) {
+                    fill_val_slot(slot_idx, val_submit * GPU_BATCH);
+                    submit_queue.push(slot_idx);
+                    val_submit++;
+                }
             }
             rlt::free(device_cuda, val_output);
             T val_loss = vt > 0 ? vl / vt : 0;
@@ -602,8 +730,21 @@ int main(int argc, char* argv[]) {
         std::cout << std::endl;
     }
 
-    nvjpegJpegStateDestroy(nj_state); nvjpegDestroy(nj_handle);
-    cudaFree(decode_pool); cudaFree(gpu_info);
+    // Shutdown producer thread
+    submit_queue.push(-1);
+    producer_thread.join();
+
+    for (int s = 0; s < NUM_DECODE_SLOTS; s++) {
+        cudaFree(slots[s].decode_pool); cudaFree(slots[s].gpu_info); cudaFree(slots[s].gpu_labels);
+        cudaEventDestroy(slots[s].ready_event); cudaEventDestroy(slots[s].consumed_event);
+        cudaFreeHost(slots[s].cpu_info); cudaFreeHost(slots[s].cpu_labels);
+    }
+    cudaStreamDestroy(decode_stream);
+    for (int p = 0; p < NJ_PIPE; p++) {
+        nvjpegJpegStreamDestroy(nj_streams[p]); nvjpegBufferPinnedDestroy(nj_pinned[p]);
+        nvjpegBufferDeviceDestroy(nj_device_buf[p]); nvjpegJpegStateDestroy(nj_states[p]);
+    }
+    nvjpegDecodeParamsDestroy(nj_params); nvjpegDecoderDestroy(nj_decoder); nvjpegDestroy(nj_handle);
     cudaFree(gpu_acc_loss); cudaFree(gpu_acc_correct); cudaFree(gpu_acc_correct5);
     cudaEventDestroy(ev_start); cudaEventDestroy(ev_dec); cudaEventDestroy(ev_fwd);
     cudaEventDestroy(ev_loss);  cudaEventDestroy(ev_bwd); cudaEventDestroy(ev_step);
@@ -611,7 +752,7 @@ int main(int argc, char* argv[]) {
     rlt::free(device_cuda, optimizer); rlt::free(device_cuda, gpu_input);
     rlt::free(device_cuda, gpu_d_output); rlt::free(device_cuda, gpu_d_input);
     rlt::free(device_cuda, rng_cuda); rlt::free(device_cpu, model_cpu);
-    cudaFree(gpu_labels); cudaFree(gpu_losses); cudaFree(gpu_correct); cudaFree(gpu_correct5);
+    cudaFree(gpu_losses); cudaFree(gpu_correct); cudaFree(gpu_correct5);
     rlt::free(device_cpu, device_cpu.logger);
     std::cout << "Training complete!" << std::endl;
     return 0;
