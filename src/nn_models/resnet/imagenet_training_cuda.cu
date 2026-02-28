@@ -117,6 +117,7 @@ using RESNET18_CUDA = rlt::nn_models::sequential::Build<GPU_CAPABILITY, rlt::nn_
 using CPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::SGD>;
 using CPU_INPUT_SHAPE = rlt::tensor::Shape<TI, GPU_BATCH, TrainingConfig::IMAGE_SIZE, TrainingConfig::IMAGE_SIZE, 3>;
 using RESNET18_CPU = rlt::nn_models::sequential::Build<CPU_CAPABILITY, rlt::nn_models::resnet18::MODULE_CHAIN<TYPE_POLICY, TI>, CPU_INPUT_SHAPE>;
+using RESNET18_CPU_INFERENCE = typename RESNET18_CPU::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
 
 // --- GPU cross-entropy loss + gradient kernel ---
 __global__ void cross_entropy_loss_gradient_kernel(
@@ -404,7 +405,9 @@ int main(int argc, char* argv[]) {
     }
 
     RESNET18_CPU model_cpu;
+    RESNET18_CPU_INFERENCE model_cpu_inference;
     rlt::malloc(device_cpu, model_cpu);
+    rlt::malloc(device_cpu, model_cpu_inference);
     if (!resume_path.empty()) {
         auto file = HighFive::File(resume_path, HighFive::File::ReadOnly);
         auto mg = rlt::get_group(device_cpu, file, "model");
@@ -944,12 +947,13 @@ int main(int argc, char* argv[]) {
 
         if ((epoch + 1) % TrainingConfig::CHECKPOINT_INTERVAL == 0 || epoch == TrainingConfig::NUM_EPOCHS - 1) {
             rlt::copy(device_cuda, device_cpu, model, model_cpu);
+            rlt::copy(device_cpu, device_cpu, model_cpu, model_cpu_inference);
             std::string ckpt_dir = logdir + "/checkpoints";
             fs::create_directories(ckpt_dir);
             std::string ckpt = ckpt_dir + "/resnet18_cuda_epoch_" + std::to_string(epoch) + ".h5";
             auto file = HighFive::File(ckpt, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
             auto mg = rlt::create_group(device_cpu, file, "model");
-            rlt::save(device_cpu, model_cpu, mg);
+            rlt::save(device_cpu, model_cpu_inference, mg);
             std::cout << "  Checkpoint: " << ckpt << std::endl;
         }
         std::cout << std::endl;
@@ -979,7 +983,7 @@ int main(int argc, char* argv[]) {
     rlt::free(device_cuda, model); rlt::free(device_cuda, model_buffer);
     rlt::free(device_cuda, optimizer); rlt::free(device_cuda, gpu_input);
     rlt::free(device_cuda, gpu_d_output); rlt::free(device_cuda, gpu_d_input);
-    rlt::free(device_cuda, rng_cuda); rlt::free(device_cpu, model_cpu);
+    rlt::free(device_cuda, rng_cuda); rlt::free(device_cpu, model_cpu); rlt::free(device_cpu, model_cpu_inference);
     CUDA_CHECK(cudaFree(gpu_losses)); CUDA_CHECK(cudaFree(gpu_correct)); CUDA_CHECK(cudaFree(gpu_correct5));
     rlt::free(device_cpu, device_cpu.logger);
     std::cout << "Training complete!" << std::endl;
