@@ -38,9 +38,9 @@ static void dumpCudaGraphDOT(cudaGraph_t graph, const char* filepath){
   std::vector<cudaGraphNode_t> nodes(nNodes);
   if (nNodes) CGCHK(cudaGraphGetNodes(graph, nodes.data(), &nNodes));
 
-  CGCHK(cudaGraphGetEdges(graph, nullptr, nullptr, &nEdges));
+  CGCHK(cudaGraphGetEdges(graph, nullptr, nullptr, nullptr, &nEdges));
   std::vector<cudaGraphNode_t> from(nEdges), to(nEdges);
-  if (nEdges) CGCHK(cudaGraphGetEdges(graph, from.data(), to.data(), &nEdges));
+  if (nEdges) CGCHK(cudaGraphGetEdges(graph, from.data(), to.data(), nullptr, &nEdges));
 
   auto idxOf = [&](cudaGraphNode_t h)->int{
     for (size_t i=0;i<nodes.size();++i) if (nodes[i]==h) return (int)i;

@@ -5,6 +5,7 @@
 #include "../../../devices/cuda.h"
 #include "../../../nn/nn.h"
 #include "../../../mode/mode.h"
+#include "../conv2d/operations_generic.h"
 #include "../conv2d/operations_cuda.h"
 #include "layer.h"
 #include <cudnn.h>
