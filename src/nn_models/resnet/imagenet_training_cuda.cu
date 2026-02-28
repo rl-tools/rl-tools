@@ -55,9 +55,7 @@ using DEVICE_CUDA = rlt::devices::DEVICE_FACTORY_CUDA<>;
 using TI = DEVICE_CPU::index_t;
 using TI_CUDA = DEVICE_CUDA::index_t;
 
-#ifndef MICRO_BATCH_SIZE
-#define MICRO_BATCH_SIZE 1024
-#endif
+#define MICRO_BATCH_SIZE 64
 constexpr TI_CUDA GPU_BATCH = MICRO_BATCH_SIZE;
 
 // --- Training hyperparameters ---

@@ -22,3 +22,8 @@ CUDACXX=$HOME/.local/opt/cuda/bin/nvcc cmake -B build -DCMAKE_PREFIX_PATH="$HOME
 cmake --build build -j8 --target nn_models_resnet_imagenet_training_cuda
 ./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --binary-dir /dev/shm/jonas/imagenet-1k-bin
 ```
+
+
+```
+nsys profile --trace=cuda,cudnn,nvtx,osrt --cuda-memory-usage=true --output=resnet18_profile --duration=60 --force-overwrite=true ./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --binary-dir /dev/shm/jonas/imagenet-1k-bin --batch-size 1024
+```

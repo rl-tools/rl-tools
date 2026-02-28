@@ -97,10 +97,26 @@ namespace rl_tools{
             initialized = true;
         }
         if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
-        { T a1 = 1, a2 = 0;
-          cudnnConvolutionBiasActivationForward(device.cudnn_handle, &a1, xd, input._data, wd, layer.weights.parameters._data,
-              cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size,
-              &a2, yd, output._data, bd, layer.biases.parameters._data, fused_ad, yd, output._data); }
+        if constexpr(HAS_BN){
+            // Keep BN paths on explicit conv+bias to avoid fragile fused-call behavior.
+            T a = 1, b = 0;
+            cudnnStatus_t stat = cudnnConvolutionForward(device.cudnn_handle, &a, xd, input._data, wd, layer.weights.parameters._data,
+                cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, yd, output._data);
+#ifndef __CUDA_ARCH__
+            if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN convolution forward failed: " << cudnnGetErrorString(stat) << std::endl;
+#endif
+            T ba = 1, bb = 1;
+            stat = cudnnAddTensor(device.cudnn_handle, &ba, bd, layer.biases.parameters._data, &bb, yd, output._data);
+#ifndef __CUDA_ARCH__
+            if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN add tensor failed: " << cudnnGetErrorString(stat) << std::endl;
+#endif
+        }
+        else{
+            T a1 = 1, a2 = 0;
+            cudnnConvolutionBiasActivationForward(device.cudnn_handle, &a1, xd, input._data, wd, layer.weights.parameters._data,
+                cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size,
+                &a2, yd, output._data, bd, layer.biases.parameters._data, fused_ad, yd, output._data);
+        }
         if constexpr(HAS_BN){
             T a = 1, b = 0;
             cudnnBatchNormalizationForwardInference(device.cudnn_handle, CUDNN_BATCHNORM_SPATIAL, &a, &b,
@@ -164,10 +180,18 @@ namespace rl_tools{
         }
         if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
         if constexpr(HAS_BN){
-            { T a1 = 1, a2 = 0;
-              cudnnConvolutionBiasActivationForward(device.cudnn_handle, &a1, xd, input._data, wd, layer.weights.parameters._data,
-                  cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size,
-                  &a2, yd, layer.pre_activations._data, bd, layer.biases.parameters._data, fused_ad, yd, layer.pre_activations._data); }
+            { T a = 1, b = 0;
+              cudnnStatus_t stat = cudnnConvolutionForward(device.cudnn_handle, &a, xd, input._data, wd, layer.weights.parameters._data,
+                  cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, yd, layer.pre_activations._data);
+#ifndef __CUDA_ARCH__
+              if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN convolution forward failed: " << cudnnGetErrorString(stat) << std::endl;
+#endif
+              T ba = 1, bb = 1;
+              stat = cudnnAddTensor(device.cudnn_handle, &ba, bd, layer.biases.parameters._data, &bb, yd, layer.pre_activations._data);
+#ifndef __CUDA_ARCH__
+              if(stat != CUDNN_STATUS_SUCCESS) std::cerr << "cuDNN add tensor failed: " << cudnnGetErrorString(stat) << std::endl;
+#endif
+            }
             if constexpr(mode::is<MODE, mode::Evaluation>){
                 T a = 1, b = 0;
                 cudnnBatchNormalizationForwardInference(device.cudnn_handle, CUDNN_BATCHNORM_SPATIAL, &a, &b,
