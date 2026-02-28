@@ -13,18 +13,164 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace nn::layers::conv2d::cuda::kernels{
-        template<typename T>
+        template<typename T, typename TI>
         __global__
-        void compute_inv_std_from_running_var(const T* running_var, T* inv_std, T* dst_mean, const T* running_mean, T eps, unsigned int n){
-            unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-            if(i < n){
-                inv_std[i] = T(1) / sqrt(running_var[i] + eps);
-                dst_mean[i] = running_mean[i];
+        void bn_stats_training(
+            const T* pre_act,
+            T* mean,
+            T* inv_std,
+            T* running_mean,
+            T* running_var,
+            T momentum,
+            T eps,
+            TI spatial,
+            TI OC
+        ){
+            TI c = (TI)blockIdx.x;
+            if(c >= OC){
+                return;
+            }
+            __shared__ T s_sum[256];
+            __shared__ T s_sq_sum[256];
+            TI tid = (TI)threadIdx.x;
+            T local_sum = 0;
+            T local_sq_sum = 0;
+            for(TI i = tid; i < spatial; i += (TI)blockDim.x){
+                TI idx = i * OC + c;
+                T v = pre_act[idx];
+                local_sum += v;
+                local_sq_sum += v * v;
+            }
+            s_sum[tid] = local_sum;
+            s_sq_sum[tid] = local_sq_sum;
+            __syncthreads();
+            for(unsigned int s = blockDim.x / 2; s > 0; s >>= 1){
+                if(threadIdx.x < s){
+                    s_sum[threadIdx.x] += s_sum[threadIdx.x + s];
+                    s_sq_sum[threadIdx.x] += s_sq_sum[threadIdx.x + s];
+                }
+                __syncthreads();
+            }
+            if(threadIdx.x == 0){
+                T m = s_sum[0] / (T)spatial;
+                T sq_m = s_sq_sum[0] / (T)spatial;
+                T var = sq_m - m * m;
+                if(var < (T)0){
+                    var = (T)0;
+                }
+                mean[c] = m;
+                inv_std[c] = (T)1 / sqrt(var + eps);
+                T rm = running_mean[c];
+                T rv = running_var[c];
+                running_mean[c] = ((T)1 - momentum) * rm + momentum * m;
+                running_var[c] = ((T)1 - momentum) * rv + momentum * var;
+            }
+        }
+        template<typename T, typename TI>
+        __global__
+        void bn_stats_eval(
+            const T* running_mean,
+            const T* running_var,
+            T* mean,
+            T* inv_std,
+            T eps,
+            TI OC
+        ){
+            TI i = (TI)blockIdx.x * (TI)blockDim.x + (TI)threadIdx.x;
+            if(i < OC){
+                mean[i] = running_mean[i];
+                inv_std[i] = (T)1 / sqrt(running_var[i] + eps);
+            }
+        }
+        template<typename T, typename TI>
+        __global__
+        void bn_forward_eval_running(
+            const T* pre_act,
+            const T* running_mean,
+            const T* running_var,
+            const T* gamma,
+            const T* beta,
+            T* output,
+            T eps,
+            TI total,
+            TI OC
+        ){
+            TI idx = (TI)blockIdx.x * (TI)blockDim.x + (TI)threadIdx.x;
+            if(idx < total){
+                TI c = idx % OC;
+                T inv_std = (T)1 / sqrt(running_var[c] + eps);
+                T z_hat = (pre_act[idx] - running_mean[c]) * inv_std;
+                output[idx] = gamma[c] * z_hat + beta[c];
+            }
+        }
+        template<typename T, typename TI>
+        __global__
+        void bn_forward_affine(
+            const T* pre_act,
+            const T* mean,
+            const T* inv_std,
+            const T* gamma,
+            const T* beta,
+            T* output,
+            TI total,
+            TI OC
+        ){
+            TI idx = (TI)blockIdx.x * (TI)blockDim.x + (TI)threadIdx.x;
+            if(idx < total){
+                TI c = idx % OC;
+                T z_hat = (pre_act[idx] - mean[c]) * inv_std[c];
+                output[idx] = gamma[c] * z_hat + beta[c];
+            }
+        }
+        template<typename T, typename TI>
+        __global__
+        void bn_eval_backward(
+            const T* d_norm_out,
+            const T* pre_act,
+            const T* mean,
+            const T* inv_std,
+            const T* gamma,
+            T* d_conv_out,
+            T* d_gamma,
+            T* d_beta,
+            TI spatial,
+            TI OC
+        ){
+            TI c = (TI)blockIdx.x;
+            if(c >= OC){
+                return;
+            }
+            __shared__ T s_d_gamma[256];
+            __shared__ T s_d_beta[256];
+            TI tid = (TI)threadIdx.x;
+            T local_d_gamma = 0;
+            T local_d_beta = 0;
+            for(TI i = tid; i < spatial; i += (TI)blockDim.x){
+                TI idx = i * OC + c;
+                T z_hat = (pre_act[idx] - mean[c]) * inv_std[c];
+                T dno = d_norm_out[idx];
+                d_conv_out[idx] = dno * gamma[c] * inv_std[c];
+                local_d_gamma += dno * z_hat;
+                local_d_beta += dno;
+            }
+            s_d_gamma[tid] = local_d_gamma;
+            s_d_beta[tid] = local_d_beta;
+            __syncthreads();
+            for(unsigned int s = blockDim.x / 2; s > 0; s >>= 1){
+                if(threadIdx.x < s){
+                    s_d_gamma[threadIdx.x] += s_d_gamma[threadIdx.x + s];
+                    s_d_beta[threadIdx.x] += s_d_beta[threadIdx.x + s];
+                }
+                __syncthreads();
+            }
+            if(threadIdx.x == 0){
+                atomicAdd(&d_gamma[c], s_d_gamma[0]);
+                atomicAdd(&d_beta[c], s_d_beta[0]);
             }
         }
         template<typename T>
         __global__
-        void bn_eval_backward(
+        void bn_training_backward(
             const T* d_norm_out,
             const T* pre_act,
             const T* mean,
@@ -36,15 +182,58 @@ namespace rl_tools{
             unsigned int spatial,
             unsigned int OC
         ){
-            unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            unsigned int total = spatial * OC;
-            if(idx < total){
-                unsigned int c = idx % OC;
-                T z_hat = (pre_act[idx] - mean[c]) * inv_std[c];
+            unsigned int c = blockIdx.x;
+            if(c >= OC){
+                return;
+            }
+            __shared__ T s_sum_dz_hat[256];
+            __shared__ T s_sum_dz_hat_z_hat[256];
+            __shared__ T s_d_gamma[256];
+            __shared__ T s_d_beta[256];
+            unsigned int tid = threadIdx.x;
+            T local_sum_dz_hat = 0;
+            T local_sum_dz_hat_z_hat = 0;
+            T local_d_gamma = 0;
+            T local_d_beta = 0;
+            T gamma_c = gamma[c];
+            T mean_c = mean[c];
+            T inv_std_c = inv_std[c];
+            for(unsigned int i = tid; i < spatial; i += blockDim.x){
+                unsigned int idx = i * OC + c;
+                T z_hat = (pre_act[idx] - mean_c) * inv_std_c;
                 T dno = d_norm_out[idx];
-                d_conv_out[idx] = dno * gamma[c] * inv_std[c];
-                atomicAdd(&d_gamma[c], dno * z_hat);
-                atomicAdd(&d_beta[c], dno);
+                T d_z_hat = dno * gamma_c;
+                local_sum_dz_hat += d_z_hat;
+                local_sum_dz_hat_z_hat += d_z_hat * z_hat;
+                local_d_gamma += dno * z_hat;
+                local_d_beta += dno;
+            }
+            s_sum_dz_hat[tid] = local_sum_dz_hat;
+            s_sum_dz_hat_z_hat[tid] = local_sum_dz_hat_z_hat;
+            s_d_gamma[tid] = local_d_gamma;
+            s_d_beta[tid] = local_d_beta;
+            __syncthreads();
+            for(unsigned int s = blockDim.x / 2; s > 0; s >>= 1){
+                if(tid < s){
+                    s_sum_dz_hat[tid] += s_sum_dz_hat[tid + s];
+                    s_sum_dz_hat_z_hat[tid] += s_sum_dz_hat_z_hat[tid + s];
+                    s_d_gamma[tid] += s_d_gamma[tid + s];
+                    s_d_beta[tid] += s_d_beta[tid + s];
+                }
+                __syncthreads();
+            }
+            T sum_dz_hat = s_sum_dz_hat[0];
+            T sum_dz_hat_z_hat = s_sum_dz_hat_z_hat[0];
+            T inv_n = (T)1 / (T)spatial;
+            for(unsigned int i = tid; i < spatial; i += blockDim.x){
+                unsigned int idx = i * OC + c;
+                T z_hat = (pre_act[idx] - mean_c) * inv_std_c;
+                T d_z_hat = d_norm_out[idx] * gamma_c;
+                d_conv_out[idx] = inv_std_c * inv_n * ((T)spatial * d_z_hat - sum_dz_hat - z_hat * sum_dz_hat_z_hat);
+            }
+            if(tid == 0){
+                atomicAdd(&d_gamma[c], s_d_gamma[0]);
+                atomicAdd(&d_beta[c], s_d_beta[0]);
             }
         }
     }
@@ -64,7 +253,7 @@ namespace rl_tools{
         constexpr bool HAS_RELU = LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU;
         constexpr bool FUSE_RELU = HAS_RELU && !HAS_BN;
 
-        static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bd = nullptr, bnd = nullptr;
+        static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bd = nullptr;
         static cudnnFilterDescriptor_t wd = nullptr;
         static cudnnConvolutionDescriptor_t cd = nullptr;
         static cudnnActivationDescriptor_t fused_ad = nullptr, relu_ad = nullptr;
@@ -88,11 +277,8 @@ namespace rl_tools{
                 cached_algo = ap.algo;
             }
             cudnnGetConvolutionForwardWorkspaceSize(device.cudnn_handle, xd, wd, cd, yd, cached_algo, &cached_ws);
-            if constexpr(HAS_BN){
-                cudnnCreateTensorDescriptor(&bnd); cudnnDeriveBNTensorDescriptor(bnd, yd, CUDNN_BATCHNORM_SPATIAL);
-                if constexpr(HAS_RELU){
-                    cudnnCreateActivationDescriptor(&relu_ad); cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
-                }
+            if constexpr(HAS_BN && HAS_RELU){
+                cudnnCreateActivationDescriptor(&relu_ad); cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
             }
             initialized = true;
         }
@@ -118,11 +304,20 @@ namespace rl_tools{
                 &a2, yd, output._data, bd, layer.biases.parameters._data, fused_ad, yd, output._data);
         }
         if constexpr(HAS_BN){
-            T a = 1, b = 0;
-            cudnnBatchNormalizationForwardInference(device.cudnn_handle, CUDNN_BATCHNORM_SPATIAL, &a, &b,
-                yd, output._data, yd, output._data, bnd,
-                layer.norm.gamma.parameters._data, layer.norm.beta.parameters._data,
-                layer.norm.running_mean.parameters._data, layer.norm.running_var.parameters._data, (double)LAYER_SPEC::NORM_EPSILON);
+            constexpr TI BN_ELEMENT_BLOCK = 256;
+            constexpr TI TOTAL = N * OH * OW * OC;
+            constexpr TI N_BLOCKS_ELEMENT = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BN_ELEMENT_BLOCK);
+            nn::layers::conv2d::cuda::kernels::bn_forward_eval_running<T, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
+                output._data,
+                layer.norm.running_mean.parameters._data,
+                layer.norm.running_var.parameters._data,
+                layer.norm.gamma.parameters._data,
+                layer.norm.beta.parameters._data,
+                output._data,
+                (T)LAYER_SPEC::NORM_EPSILON,
+                TOTAL,
+                OC
+            );
             if constexpr(HAS_RELU){
                 T ra = 1, rb = 0; cudnnActivationForward(device.cudnn_handle, relu_ad, &ra, yd, output._data, &rb, yd, output._data);
             }
@@ -146,7 +341,7 @@ namespace rl_tools{
         constexpr bool HAS_RELU = LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU;
         constexpr bool FUSE_RELU = HAS_RELU && !HAS_BN;
 
-        static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bd = nullptr, bnd = nullptr;
+        static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bd = nullptr;
         static cudnnFilterDescriptor_t wd = nullptr;
         static cudnnConvolutionDescriptor_t cd = nullptr;
         static cudnnActivationDescriptor_t fused_ad = nullptr, relu_ad = nullptr;
@@ -170,9 +365,6 @@ namespace rl_tools{
                 cached_algo = ap.algo;
             }
             cudnnGetConvolutionForwardWorkspaceSize(device.cudnn_handle, xd, wd, cd, yd, cached_algo, &cached_ws);
-            if constexpr(HAS_BN){
-                cudnnCreateTensorDescriptor(&bnd); cudnnDeriveBNTensorDescriptor(bnd, yd, CUDNN_BATCHNORM_SPATIAL);
-            }
             if constexpr(HAS_BN && HAS_RELU){
                 cudnnCreateActivationDescriptor(&relu_ad); cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
             }
@@ -180,6 +372,10 @@ namespace rl_tools{
         }
         if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
         if constexpr(HAS_BN){
+            constexpr TI BN_CHANNEL_BLOCK = 256;
+            constexpr TI BN_ELEMENT_BLOCK = 256;
+            constexpr TI SPATIAL = N * OH * OW;
+            constexpr TI TOTAL = SPATIAL * OC;
             { T a = 1, b = 0;
               cudnnStatus_t stat = cudnnConvolutionForward(device.cudnn_handle, &a, xd, input._data, wd, layer.weights.parameters._data,
                   cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, yd, layer.pre_activations._data);
@@ -193,26 +389,49 @@ namespace rl_tools{
 #endif
             }
             if constexpr(mode::is<MODE, mode::Evaluation>){
-                T a = 1, b = 0;
-                cudnnBatchNormalizationForwardInference(device.cudnn_handle, CUDNN_BATCHNORM_SPATIAL, &a, &b,
-                    yd, layer.pre_activations._data, yd, output._data, bnd,
-                    layer.norm.gamma.parameters._data, layer.norm.beta.parameters._data,
-                    layer.norm.running_mean.parameters._data, layer.norm.running_var.parameters._data, (double)LAYER_SPEC::NORM_EPSILON);
-                constexpr TI BLOCKSIZE = 256;
-                constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(OC, BLOCKSIZE);
-                devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
-                nn::layers::conv2d::cuda::kernels::compute_inv_std_from_running_var<<<N_BLOCKS, BLOCKSIZE, 0, device.stream>>>(
-                    layer.norm.running_var.parameters._data, layer.norm_cache.inv_std._data,
-                    layer.norm_cache.mean._data, layer.norm.running_mean.parameters._data,
-                    (T)LAYER_SPEC::NORM_EPSILON, OC);
+                constexpr TI N_BLOCKS_CHANNEL = RL_TOOLS_DEVICES_CUDA_CEIL(OC, BN_CHANNEL_BLOCK);
+                constexpr TI N_BLOCKS_ELEMENT = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BN_ELEMENT_BLOCK);
+                nn::layers::conv2d::cuda::kernels::bn_stats_eval<T, TI><<<N_BLOCKS_CHANNEL, BN_CHANNEL_BLOCK, 0, device.stream>>>(
+                    layer.norm.running_mean.parameters._data,
+                    layer.norm.running_var.parameters._data,
+                    layer.norm_cache.mean._data,
+                    layer.norm_cache.inv_std._data,
+                    (T)LAYER_SPEC::NORM_EPSILON,
+                    OC
+                );
+                nn::layers::conv2d::cuda::kernels::bn_forward_affine<T, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
+                    layer.pre_activations._data,
+                    layer.norm_cache.mean._data,
+                    layer.norm_cache.inv_std._data,
+                    layer.norm.gamma.parameters._data,
+                    layer.norm.beta.parameters._data,
+                    output._data,
+                    TOTAL,
+                    OC
+                );
             } else {
-                T a = 1, b = 0;
-                cudnnBatchNormalizationForwardTraining(device.cudnn_handle, CUDNN_BATCHNORM_SPATIAL, &a, &b,
-                    yd, layer.pre_activations._data, yd, output._data, bnd,
-                    layer.norm.gamma.parameters._data, layer.norm.beta.parameters._data,
-                    (double)LAYER_SPEC::BN_MOMENTUM,
-                    layer.norm.running_mean.parameters._data, layer.norm.running_var.parameters._data,
-                    (double)LAYER_SPEC::NORM_EPSILON, layer.norm_cache.mean._data, layer.norm_cache.inv_std._data);
+                nn::layers::conv2d::cuda::kernels::bn_stats_training<T, TI><<<OC, BN_CHANNEL_BLOCK, 0, device.stream>>>(
+                    layer.pre_activations._data,
+                    layer.norm_cache.mean._data,
+                    layer.norm_cache.inv_std._data,
+                    layer.norm.running_mean.parameters._data,
+                    layer.norm.running_var.parameters._data,
+                    (T)LAYER_SPEC::BN_MOMENTUM,
+                    (T)LAYER_SPEC::NORM_EPSILON,
+                    SPATIAL,
+                    OC
+                );
+                constexpr TI N_BLOCKS_ELEMENT = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BN_ELEMENT_BLOCK);
+                nn::layers::conv2d::cuda::kernels::bn_forward_affine<T, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
+                    layer.pre_activations._data,
+                    layer.norm_cache.mean._data,
+                    layer.norm_cache.inv_std._data,
+                    layer.norm.gamma.parameters._data,
+                    layer.norm.beta.parameters._data,
+                    output._data,
+                    TOTAL,
+                    OC
+                );
             }
             if constexpr(HAS_RELU){
                 T a = 1, b = 0; cudnnActivationForward(device.cudnn_handle, relu_ad, &a, yd, output._data, &b, yd, output._data);
@@ -242,7 +461,7 @@ namespace rl_tools{
         constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
 
-        static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bias_d = nullptr, bnd = nullptr;
+        static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bias_d = nullptr;
         static cudnnConvolutionDescriptor_t cd = nullptr;
         static cudnnActivationDescriptor_t relu_ad = nullptr;
         static cudnnFilterDescriptor_t wd = nullptr;
@@ -258,9 +477,6 @@ namespace rl_tools{
             cudnnCreateTensorDescriptor(&bias_d); cudnnSetTensor4dDescriptor(bias_d, CUDNN_TENSOR_NHWC, dt, 1, OC, 1, 1);
             if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
                 cudnnCreateActivationDescriptor(&relu_ad); cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0);
-            }
-            if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
-                cudnnCreateTensorDescriptor(&bnd); cudnnDeriveBNTensorDescriptor(bnd, yd, CUDNN_BATCHNORM_SPATIAL);
             }
             cudnnCreateFilterDescriptor(&wd); cudnnSetFilter4dDescriptor(wd, dt, CUDNN_TENSOR_NHWC, OC, IC, KH, KW);
             { constexpr int MA = 8; int ac; cudnnConvolutionBwdFilterAlgoPerf_t ap[MA];
@@ -283,10 +499,8 @@ namespace rl_tools{
             constexpr bool IS_EVAL = mode::is<MODE, mode::Evaluation>;
             if constexpr(IS_EVAL){
                 constexpr TI SPATIAL = N * OH * OW;
-                constexpr TI TOTAL = SPATIAL * OC;
                 constexpr TI BN_BS = 256;
-                constexpr TI BN_NB = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BN_BS);
-                nn::layers::conv2d::cuda::kernels::bn_eval_backward<<<BN_NB, BN_BS, 0, device.stream>>>(
+                nn::layers::conv2d::cuda::kernels::bn_eval_backward<T, TI><<<OC, BN_BS, 0, device.stream>>>(
                     d_output._data, layer.pre_activations._data,
                     layer.norm_cache.mean._data, layer.norm_cache.inv_std._data,
                     layer.norm.gamma.parameters._data,
@@ -294,11 +508,15 @@ namespace rl_tools{
                     layer.norm.gamma.gradient._data, layer.norm.beta.gradient._data,
                     SPATIAL, OC);
             } else {
-                T ad1 = 1, bd1 = 0, ap1 = 1, bp1 = 1;
-                cudnnBatchNormalizationBackward(device.cudnn_handle, CUDNN_BATCHNORM_SPATIAL, &ad1, &bd1, &ap1, &bp1,
-                    yd, layer.pre_activations._data, yd, d_output._data, yd, d_conv_out,
-                    bnd, layer.norm.gamma.parameters._data, layer.norm.gamma.gradient._data, layer.norm.beta.gradient._data,
-                    (double)LAYER_SPEC::NORM_EPSILON, layer.norm_cache.mean._data, layer.norm_cache.inv_std._data);
+                constexpr TI SPATIAL = N * OH * OW;
+                constexpr TI BN_BS = 256;
+                nn::layers::conv2d::cuda::kernels::bn_training_backward<<<OC, BN_BS, 0, device.stream>>>(
+                    d_output._data, layer.pre_activations._data,
+                    layer.norm_cache.mean._data, layer.norm_cache.inv_std._data,
+                    layer.norm.gamma.parameters._data,
+                    d_conv_out,
+                    layer.norm.gamma.gradient._data, layer.norm.beta.gradient._data,
+                    SPATIAL, OC);
             }
         } else {
             cudaMemcpyAsync(d_conv_out, d_output._data, N*OH*OW*OC*sizeof(T), cudaMemcpyDeviceToDevice, device.stream);
