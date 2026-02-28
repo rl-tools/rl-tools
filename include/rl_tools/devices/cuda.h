@@ -126,6 +126,9 @@ namespace rl_tools::devices{
         using LOGGING = logging::CUDA;
         static constexpr bool TAG = false;
         static constexpr bool KERNEL = false;
+        // Optional strict checking for external CUDA/cuBLAS/cuDNN calls.
+        // When enabled, each guarded call synchronizes the stream to surface async failures early.
+        static constexpr bool CHECK_EXTERNAL_CALL_STATUS = false;
     };
     using DefaultCUDA = CUDA<DefaultCUDASpecification>;
 }
@@ -134,6 +137,84 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #include <iostream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    namespace devices::cuda::detail{
+        template<typename T, typename = void>
+        struct has_check_external_call_status: std::false_type{};
+        template<typename T>
+        struct has_check_external_call_status<T, std::void_t<decltype(T::CHECK_EXTERNAL_CALL_STATUS)>>: std::true_type{};
+    }
+    template<typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr bool cuda_external_call_check_enabled(){
+        if constexpr(devices::cuda::detail::has_check_external_call_status<SPEC>::value){
+            return SPEC::CHECK_EXTERNAL_CALL_STATUS;
+        }
+        else{
+            return false;
+        }
+    }
+    template<typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void sync_external_cuda_call_if_enabled(devices::CUDA<SPEC>& device, const char* api_name, const char* call_name){
+#ifdef __CUDA_ARCH__
+        (void)device;
+        (void)api_name;
+        (void)call_name;
+#else
+        if constexpr(cuda_external_call_check_enabled<SPEC>()){
+            if(!device.graph_capture_active){
+                cudaError_t sync_stat = cudaStreamSynchronize(device.stream);
+                if(sync_stat != cudaSuccess){
+                    std::cerr << api_name << " call \"" << call_name << "\" stream sync failed: " << cudaGetErrorString(sync_stat) << std::endl;
+                    std::exit(101);
+                }
+            }
+        }
+#endif
+    }
+    template<typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void check_cuda_call(devices::CUDA<SPEC>& device, cudaError_t status, const char* call_name){
+#ifdef __CUDA_ARCH__
+        (void)device;
+        (void)status;
+        (void)call_name;
+#else
+        if(status != cudaSuccess){
+            std::cerr << "CUDA call \"" << call_name << "\" failed: " << cudaGetErrorString(status) << std::endl;
+            std::exit(101);
+        }
+        sync_external_cuda_call_if_enabled(device, "CUDA", call_name);
+#endif
+    }
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+    template<typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void check_cudnn_call(devices::CUDA<SPEC>& device, cudnnStatus_t status, const char* call_name){
+#ifdef __CUDA_ARCH__
+        (void)device;
+        (void)status;
+        (void)call_name;
+#else
+        if(status != CUDNN_STATUS_SUCCESS){
+            std::cerr << "cuDNN call \"" << call_name << "\" failed: " << cudnnGetErrorString(status) << std::endl;
+            std::exit(101);
+        }
+        sync_external_cuda_call_if_enabled(device, "cuDNN", call_name);
+#endif
+    }
+#endif
+    template<typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void check_cublas_call(devices::CUDA<SPEC>& device, cublasStatus_t status, const char* call_name){
+#ifdef __CUDA_ARCH__
+        (void)device;
+        (void)status;
+        (void)call_name;
+#else
+        if(status != CUBLAS_STATUS_SUCCESS){
+            std::cerr << "cuBLAS call \"" << call_name << "\" failed: " << cublasGetStatusString(status) << std::endl;
+            std::exit(101);
+        }
+        sync_external_cuda_call_if_enabled(device, "cuBLAS", call_name);
+#endif
+    }
+
     template <typename SPEC>
     void init(devices::CUDA<SPEC>& device){
         cudaError_t stat;

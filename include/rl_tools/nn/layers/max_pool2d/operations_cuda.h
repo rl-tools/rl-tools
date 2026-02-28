@@ -25,15 +25,18 @@ namespace rl_tools{
         constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
         cudnnTensorDescriptor_t xd, yd;
-        cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW);
-        cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, OH, OW);
+        check_cudnn_call(device, cudnnCreateTensorDescriptor(&xd), "cudnnCreateTensorDescriptor maxpool.xd");
+        check_cudnn_call(device, cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW), "cudnnSetTensor4dDescriptor maxpool.xd");
+        check_cudnn_call(device, cudnnCreateTensorDescriptor(&yd), "cudnnCreateTensorDescriptor maxpool.yd");
+        check_cudnn_call(device, cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, OH, OW), "cudnnSetTensor4dDescriptor maxpool.yd");
         cudnnPoolingDescriptor_t pd;
-        cudnnCreatePoolingDescriptor(&pd);
-        cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_MAX, CUDNN_NOT_PROPAGATE_NAN, KH, KW, PH, PW, SH, SW);
+        check_cudnn_call(device, cudnnCreatePoolingDescriptor(&pd), "cudnnCreatePoolingDescriptor maxpool.pd");
+        check_cudnn_call(device, cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_MAX, CUDNN_NOT_PROPAGATE_NAN, KH, KW, PH, PW, SH, SW), "cudnnSetPooling2dDescriptor maxpool.pd");
         T alpha = 1, beta = 0;
-        cudnnPoolingForward(device.cudnn_handle, pd, &alpha, xd, input._data, &beta, yd, output._data);
-        cudnnDestroyPoolingDescriptor(pd);
-        cudnnDestroyTensorDescriptor(xd); cudnnDestroyTensorDescriptor(yd);
+        check_cudnn_call(device, cudnnPoolingForward(device.cudnn_handle, pd, &alpha, xd, input._data, &beta, yd, output._data), "cudnnPoolingForward maxpool");
+        check_cudnn_call(device, cudnnDestroyPoolingDescriptor(pd), "cudnnDestroyPoolingDescriptor maxpool.pd");
+        check_cudnn_call(device, cudnnDestroyTensorDescriptor(xd), "cudnnDestroyTensorDescriptor maxpool.xd");
+        check_cudnn_call(device, cudnnDestroyTensorDescriptor(yd), "cudnnDestroyTensorDescriptor maxpool.yd");
         check_status(device);
     }
 
@@ -58,15 +61,18 @@ namespace rl_tools{
         constexpr TI PH = LAYER_SPEC::PADDING_H, PW = LAYER_SPEC::PADDING_W;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
         cudnnTensorDescriptor_t xd, yd;
-        cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW);
-        cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, OH, OW);
+        check_cudnn_call(device, cudnnCreateTensorDescriptor(&xd), "cudnnCreateTensorDescriptor maxpool_bwd.xd");
+        check_cudnn_call(device, cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW), "cudnnSetTensor4dDescriptor maxpool_bwd.xd");
+        check_cudnn_call(device, cudnnCreateTensorDescriptor(&yd), "cudnnCreateTensorDescriptor maxpool_bwd.yd");
+        check_cudnn_call(device, cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, OH, OW), "cudnnSetTensor4dDescriptor maxpool_bwd.yd");
         cudnnPoolingDescriptor_t pd;
-        cudnnCreatePoolingDescriptor(&pd);
-        cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_MAX, CUDNN_NOT_PROPAGATE_NAN, KH, KW, PH, PW, SH, SW);
+        check_cudnn_call(device, cudnnCreatePoolingDescriptor(&pd), "cudnnCreatePoolingDescriptor maxpool_bwd.pd");
+        check_cudnn_call(device, cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_MAX, CUDNN_NOT_PROPAGATE_NAN, KH, KW, PH, PW, SH, SW), "cudnnSetPooling2dDescriptor maxpool_bwd.pd");
         T alpha = 1, beta = 0;
-        cudnnPoolingBackward(device.cudnn_handle, pd, &alpha, yd, layer.output._data, yd, d_output._data, xd, input._data, &beta, xd, d_input._data);
-        cudnnDestroyPoolingDescriptor(pd);
-        cudnnDestroyTensorDescriptor(xd); cudnnDestroyTensorDescriptor(yd);
+        check_cudnn_call(device, cudnnPoolingBackward(device.cudnn_handle, pd, &alpha, yd, layer.output._data, yd, d_output._data, xd, input._data, &beta, xd, d_input._data), "cudnnPoolingBackward maxpool");
+        check_cudnn_call(device, cudnnDestroyPoolingDescriptor(pd), "cudnnDestroyPoolingDescriptor maxpool_bwd.pd");
+        check_cudnn_call(device, cudnnDestroyTensorDescriptor(xd), "cudnnDestroyTensorDescriptor maxpool_bwd.xd");
+        check_cudnn_call(device, cudnnDestroyTensorDescriptor(yd), "cudnnDestroyTensorDescriptor maxpool_bwd.yd");
         check_status(device);
     }
 }

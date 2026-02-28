@@ -266,11 +266,7 @@ namespace rl_tools{
             else{
                 stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
             }
-#ifndef __CUDA_ARCH__
-            if(stat != CUBLAS_STATUS_SUCCESS){
-                std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
-            }
-#endif
+            check_cublas_call(device, stat, "cublas?gemm evaluate");
             nn::dense::kernels::activation(device, layer, output, output);
         }
     }
@@ -308,11 +304,7 @@ namespace rl_tools{
         else{
             stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
         }
-#ifndef __CUDA_ARCH__
-        if(stat != CUBLAS_STATUS_SUCCESS){
-            std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
-        }
-#endif
+        check_cublas_call(device, stat, "cublas?gemm forward");
 
         copy(device, device, output, layer.pre_activations);
 
@@ -354,9 +346,7 @@ namespace rl_tools{
             else{
                 stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
             }
-            if(stat != CUBLAS_STATUS_SUCCESS){
-                std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
-            }
+            check_cublas_call(device, stat, "cublas?gemm backward_input");
         }
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
@@ -400,9 +390,7 @@ namespace rl_tools{
             else{
                 stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.weights.gradient._data, decltype(layer.weights.gradient)::SPEC::STRIDE::FIRST);
             }
-            if(stat != CUBLAS_STATUS_SUCCESS){
-                std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
-            }
+            check_cublas_call(device, stat, "cublas?gemm backward_weight");
         }
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
@@ -418,20 +406,20 @@ namespace rl_tools{
 
     template<typename DEV_SPEC, typename SPEC>
     void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
-        cudaMemsetAsync(layer.weights.gradient._data, 0, decltype(layer.weights.gradient)::SPEC::SIZE_BYTES, device.stream);
+        check_cuda_call(device, cudaMemsetAsync(layer.weights.gradient._data, 0, decltype(layer.weights.gradient)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense weights.gradient");
         check_status(device);
-        cudaMemsetAsync(layer.biases.gradient._data, 0, decltype(layer.biases.gradient)::SPEC::SIZE_BYTES, device.stream);
+        check_cuda_call(device, cudaMemsetAsync(layer.biases.gradient._data, 0, decltype(layer.biases.gradient)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense biases.gradient");
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
     void _reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
-        cudaMemsetAsync(layer.weights.gradient_first_order_moment._data, 0, decltype(layer.weights.gradient_first_order_moment)::SPEC::SIZE_BYTES, device.stream);
+        check_cuda_call(device, cudaMemsetAsync(layer.weights.gradient_first_order_moment._data, 0, decltype(layer.weights.gradient_first_order_moment)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense weights.m1");
         check_status(device);
-        cudaMemsetAsync(layer.weights.gradient_second_order_moment._data, 0, decltype(layer.weights.gradient_second_order_moment)::SPEC::SIZE_BYTES, device.stream);
+        check_cuda_call(device, cudaMemsetAsync(layer.weights.gradient_second_order_moment._data, 0, decltype(layer.weights.gradient_second_order_moment)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense weights.m2");
         check_status(device);
-        cudaMemsetAsync(layer.biases.gradient_first_order_moment._data, 0, decltype(layer.biases.gradient_first_order_moment)::SPEC::SIZE_BYTES, device.stream);
+        check_cuda_call(device, cudaMemsetAsync(layer.biases.gradient_first_order_moment._data, 0, decltype(layer.biases.gradient_first_order_moment)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense biases.m1");
         check_status(device);
-        cudaMemsetAsync(layer.biases.gradient_second_order_moment._data, 0, decltype(layer.biases.gradient_second_order_moment)::SPEC::SIZE_BYTES, device.stream);
+        check_cuda_call(device, cudaMemsetAsync(layer.biases.gradient_second_order_moment._data, 0, decltype(layer.biases.gradient_second_order_moment)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense biases.m2");
         check_status(device);
     }
 

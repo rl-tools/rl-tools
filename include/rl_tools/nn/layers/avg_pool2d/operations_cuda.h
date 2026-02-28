@@ -17,13 +17,18 @@ namespace rl_tools{
         constexpr TI N = LAYER_SPEC::INTERNAL_BATCH_SIZE, IH = LAYER_SPEC::INPUT_HEIGHT, IW = LAYER_SPEC::INPUT_WIDTH, C = LAYER_SPEC::INPUT_CHANNELS;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
         cudnnTensorDescriptor_t xd, yd;
-        cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW);
-        cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, 1, 1);
-        cudnnPoolingDescriptor_t pd; cudnnCreatePoolingDescriptor(&pd);
-        cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING, CUDNN_NOT_PROPAGATE_NAN, IH, IW, 0, 0, 1, 1);
+        check_cudnn_call(device, cudnnCreateTensorDescriptor(&xd), "cudnnCreateTensorDescriptor avgpool.xd");
+        check_cudnn_call(device, cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW), "cudnnSetTensor4dDescriptor avgpool.xd");
+        check_cudnn_call(device, cudnnCreateTensorDescriptor(&yd), "cudnnCreateTensorDescriptor avgpool.yd");
+        check_cudnn_call(device, cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, 1, 1), "cudnnSetTensor4dDescriptor avgpool.yd");
+        cudnnPoolingDescriptor_t pd;
+        check_cudnn_call(device, cudnnCreatePoolingDescriptor(&pd), "cudnnCreatePoolingDescriptor avgpool.pd");
+        check_cudnn_call(device, cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING, CUDNN_NOT_PROPAGATE_NAN, IH, IW, 0, 0, 1, 1), "cudnnSetPooling2dDescriptor avgpool.pd");
         T a = 1, b = 0;
-        cudnnPoolingForward(device.cudnn_handle, pd, &a, xd, input._data, &b, yd, output._data);
-        cudnnDestroyPoolingDescriptor(pd); cudnnDestroyTensorDescriptor(xd); cudnnDestroyTensorDescriptor(yd);
+        check_cudnn_call(device, cudnnPoolingForward(device.cudnn_handle, pd, &a, xd, input._data, &b, yd, output._data), "cudnnPoolingForward avgpool");
+        check_cudnn_call(device, cudnnDestroyPoolingDescriptor(pd), "cudnnDestroyPoolingDescriptor avgpool.pd");
+        check_cudnn_call(device, cudnnDestroyTensorDescriptor(xd), "cudnnDestroyTensorDescriptor avgpool.xd");
+        check_cudnn_call(device, cudnnDestroyTensorDescriptor(yd), "cudnnDestroyTensorDescriptor avgpool.yd");
         check_status(device);
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
@@ -40,13 +45,18 @@ namespace rl_tools{
         constexpr TI N = LAYER_SPEC::INTERNAL_BATCH_SIZE, IH = LAYER_SPEC::INPUT_HEIGHT, IW = LAYER_SPEC::INPUT_WIDTH, C = LAYER_SPEC::INPUT_CHANNELS;
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
         cudnnTensorDescriptor_t xd, yd;
-        cudnnCreateTensorDescriptor(&xd); cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW);
-        cudnnCreateTensorDescriptor(&yd); cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, 1, 1);
-        cudnnPoolingDescriptor_t pd; cudnnCreatePoolingDescriptor(&pd);
-        cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING, CUDNN_NOT_PROPAGATE_NAN, IH, IW, 0, 0, 1, 1);
+        check_cudnn_call(device, cudnnCreateTensorDescriptor(&xd), "cudnnCreateTensorDescriptor avgpool_bwd.xd");
+        check_cudnn_call(device, cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, C, IH, IW), "cudnnSetTensor4dDescriptor avgpool_bwd.xd");
+        check_cudnn_call(device, cudnnCreateTensorDescriptor(&yd), "cudnnCreateTensorDescriptor avgpool_bwd.yd");
+        check_cudnn_call(device, cudnnSetTensor4dDescriptor(yd, CUDNN_TENSOR_NHWC, dt, N, C, 1, 1), "cudnnSetTensor4dDescriptor avgpool_bwd.yd");
+        cudnnPoolingDescriptor_t pd;
+        check_cudnn_call(device, cudnnCreatePoolingDescriptor(&pd), "cudnnCreatePoolingDescriptor avgpool_bwd.pd");
+        check_cudnn_call(device, cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING, CUDNN_NOT_PROPAGATE_NAN, IH, IW, 0, 0, 1, 1), "cudnnSetPooling2dDescriptor avgpool_bwd.pd");
         T a = 1, b = 0;
-        cudnnPoolingBackward(device.cudnn_handle, pd, &a, yd, layer.output._data, yd, d_output._data, xd, input._data, &b, xd, d_input._data);
-        cudnnDestroyPoolingDescriptor(pd); cudnnDestroyTensorDescriptor(xd); cudnnDestroyTensorDescriptor(yd);
+        check_cudnn_call(device, cudnnPoolingBackward(device.cudnn_handle, pd, &a, yd, layer.output._data, yd, d_output._data, xd, input._data, &b, xd, d_input._data), "cudnnPoolingBackward avgpool");
+        check_cudnn_call(device, cudnnDestroyPoolingDescriptor(pd), "cudnnDestroyPoolingDescriptor avgpool_bwd.pd");
+        check_cudnn_call(device, cudnnDestroyTensorDescriptor(xd), "cudnnDestroyTensorDescriptor avgpool_bwd.xd");
+        check_cudnn_call(device, cudnnDestroyTensorDescriptor(yd), "cudnnDestroyTensorDescriptor avgpool_bwd.yd");
         check_status(device);
     }
 }
