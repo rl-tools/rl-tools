@@ -98,6 +98,18 @@ if(RL_TOOLS_OFFLINE_BUILD)
 endif()
 include(FetchContent)
 
+# Suppress STATUS messages from FetchContent subprojects (arch details, feature
+# summaries, proto generation lists, …) while still forwarding WARNING/ERROR.
+# Requires CMake >= 3.25; silently ignored on older versions.
+macro(rl_tools_fetchcontent_makeavailable_quiet)
+    set(_rl_tools_prev_log_level ${CMAKE_MESSAGE_LOG_LEVEL})
+    set(_rl_tools_prev_deprecation_flag ${CMAKE_WARN_DEPRECATED})
+    set(CMAKE_MESSAGE_LOG_LEVEL ERROR)
+    set(CMAKE_WARN_DEPRECATED FALSE)
+    FetchContent_MakeAvailable(${ARGN})
+    set(CMAKE_MESSAGE_LOG_LEVEL ${_rl_tools_prev_log_level})
+    set(CMAKE_WARN_DEPRECATED ${_rl_tools_prev_deprecation_flag})
+endmacro()
 
 include(cmake/autodetect/all.cmake)
 

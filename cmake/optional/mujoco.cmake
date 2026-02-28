@@ -11,7 +11,7 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
                 GIT_REPOSITORY https://github.com/google-deepmind/mujoco.git
                 GIT_TAG   2.3.5
         )
-        FetchContent_MakeAvailable(mujoco)
+        rl_tools_fetchcontent_makeavailable_quiet(mujoco)
     endif()
     target_link_libraries(rl_tools_full INTERFACE mujoco::mujoco)
     target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
@@ -24,7 +24,7 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
                 GIT_REPOSITORY https://github.com/glfw/glfw.git
                 GIT_TAG   3fa2360720eeba1964df3c0ecf4b5df8648a8e52
         )
-        FetchContent_MakeAvailable(glfw3)
+        rl_tools_fetchcontent_makeavailable_quiet(glfw3)
     endif()
     target_link_libraries(rl_tools_full INTERFACE glfw)
     set(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI ON)

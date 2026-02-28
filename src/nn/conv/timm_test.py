@@ -22,7 +22,7 @@ except ImportError:
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-SAFETENSORS_PATH = os.path.join(REPO_ROOT, "tests", "data", "model.safetensors")
+SAFETENSORS_PATH = os.path.join(REPO_ROOT, "tests", "data", "timm_resnet18.a1_in1k")
 OUTPUT_PATH = os.path.join(REPO_ROOT, "tests", "data", "resnet18_test_data.h5")
 
 print(f"Loading model from: {SAFETENSORS_PATH}")
