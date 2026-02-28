@@ -20,10 +20,17 @@ python3 src/nn_models/resnet/prepare_imagenet.py --input-dir ~/git/imagenet-1k -
 
 CUDACXX=$HOME/.local/opt/cuda/bin/nvcc cmake -B build -DCMAKE_PREFIX_PATH="$HOME/.local/opt/cudnn"
 cmake --build build -j8 --target nn_models_resnet_imagenet_training_cuda
-./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --binary-dir /dev/shm/jonas/imagenet-1k-bin
+./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --binary-dir /dev/shm/jonas/imagenet-1k-bin --logdir /scr/jonas/runs
 ```
 
 
 ```
-nsys profile --trace=cuda,cudnn,nvtx,osrt --cuda-memory-usage=true --output=resnet18_profile --duration=60 --force-overwrite=true ./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --binary-dir /dev/shm/jonas/imagenet-1k-bin --batch-size 1024
+nsys profile --trace=cuda,cudnn,nvtx,osrt --cuda-memory-usage=true --output=resnet18_profile --duration=60 --force-overwrite=true ./build/src/nn_models/resnet/cuda/nn_models_resnet_imagenet_training_cuda --binary-dir /dev/shm/jonas/imagenet-1k-bin
+```
+
+
+Resnet Inference
+```
+cmake --build build -j8 --target nn_models_resnet_inference
+./build/src/nn_models/resnet/nn_models_resnet_inference tests/data/IMG_8734_224x224.png tests/data/resnet18_test_data.h5 tests/data/imagenet-1k-classes.txt
 ```

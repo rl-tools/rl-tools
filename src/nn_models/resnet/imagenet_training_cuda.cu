@@ -83,7 +83,7 @@ constexpr TI_CUDA GPU_BATCH = MICRO_BATCH_SIZE;
 struct TrainingConfig {
     static constexpr TI IMAGE_SIZE = 224;
     static constexpr TI NUM_CLASSES = 1000;
-    static constexpr TI NUM_EPOCHS = 90;
+    static constexpr TI NUM_EPOCHS = 600;
     static constexpr T BASE_LR = 0.1;
     static constexpr TI BASE_BATCH_SIZE = 256;
     static constexpr T WARMUP_LR = 1e-5;
@@ -337,8 +337,9 @@ T cosine_lr(TI epoch, TI total_epochs, T base_lr, T min_lr, TI warmup_epochs, T 
 int main(int argc, char* argv[]) {
     auto now_tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::ostringstream ts_ss;
-    ts_ss << std::put_time(std::gmtime(&now_tt), "%Y-%m-%dT%H-%M-%SZ");
-    std::string logdir = "runs/" + ts_ss.str();
+    ts_ss << std::put_time(std::localtime(&now_tt), "%Y-%m-%dT%H-%M-%SZ");
+    const std::string timestamp_dir = ts_ss.str();
+    std::string logdir_prefix = "runs";
     std::string resume_path = "";
     std::string binary_dir = "";
     TI batch_size = 256;
@@ -346,15 +347,16 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--binary-dir" && i + 1 < argc) binary_dir = argv[++i];
-        else if (arg == "--logdir" && i + 1 < argc) logdir = argv[++i];
+        else if (arg == "--logdir" && i + 1 < argc) logdir_prefix = argv[++i];
         else if (arg == "--resume" && i + 1 < argc) resume_path = argv[++i];
         else if (arg == "--batch-size" && i + 1 < argc) batch_size = std::stoi(argv[++i]);
         else if (arg == "--log-interval" && i + 1 < argc) log_interval = std::stoi(argv[++i]);
         else if (arg == "--help") {
-            std::cout << "Usage: " << argv[0] << " --binary-dir DIR [--batch-size N] [--log-interval N] [--logdir DIR] [--resume PATH]\n";
+            std::cout << "Usage: " << argv[0] << " --binary-dir DIR [--batch-size N] [--log-interval N] [--logdir PREFIX] [--resume PATH]\n";
             return 0;
         }
     }
+    std::string logdir = (fs::path(logdir_prefix) / timestamp_dir).string();
     if (binary_dir.empty()) { std::cerr << "--binary-dir is required (use prepare_imagenet.py to create it)" << std::endl; return 1; }
     if (batch_size % GPU_BATCH != 0) { std::cerr << "batch-size must be multiple of " << GPU_BATCH << std::endl; return 1; }
     TI num_micro_batches = batch_size / GPU_BATCH;

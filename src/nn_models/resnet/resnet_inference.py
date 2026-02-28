@@ -24,7 +24,7 @@ if len(sys.argv) > 1:
     IMAGE_PATH = sys.argv[1]
 
 # Load model (downloads weights automatically if not cached)
-SAFETENSORS_PATH = os.path.join(REPO_ROOT, "tests", "data", "model.safetensors")
+SAFETENSORS_PATH = os.path.join(REPO_ROOT, "tests", "data", "timm_resnet18.a1_in1k")
 if os.path.exists(SAFETENSORS_PATH):
     from safetensors.torch import load_file
     print(f"Loading model from local: {SAFETENSORS_PATH}")
