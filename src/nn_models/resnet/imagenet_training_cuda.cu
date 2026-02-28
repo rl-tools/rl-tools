@@ -561,7 +561,7 @@ int main(int argc, char* argv[]) {
                     }
                     int h = ((int)data[pos + 1] << 8) | data[pos + 2];
                     int w = ((int)data[pos + 3] << 8) | data[pos + 4];
-                    if(w > 0 && h > 0 && w <= NVJPEG_MAX_DIM && h <= NVJPEG_MAX_DIM){
+                    if(w > 0 && h > 0){
                         return {w, h};
                     }
                     return {0, 0};
@@ -625,44 +625,93 @@ int main(int argc, char* argv[]) {
         });
     }
 
-    auto fill_train_slot = [&](int slot_idx, TI base_idx, const std::vector<TI>& sample_indices) {
+    auto is_valid_dims = [](int w, int h){
+        return w > 0 && h > 0 && w <= NVJPEG_MAX_DIM && h <= NVJPEG_MAX_DIM;
+    };
+    TI invalid_train_total = 0;
+    TI invalid_val_total = 0;
+    TI invalid_train_parse_or_nonpositive = 0;
+    TI invalid_train_oversized = 0;
+    TI invalid_val_parse_or_nonpositive = 0;
+    TI invalid_val_oversized = 0;
+    int oversized_train_max_w = 0, oversized_train_max_h = 0;
+    int oversized_val_max_w = 0, oversized_val_max_h = 0;
+    for(TI ti = 0; ti < (TI)train_samples.size(); ti++){
+        const int w = train_dims[ti].w;
+        const int h = train_dims[ti].h;
+        if(!is_valid_dims(w, h)){
+            invalid_train_total++;
+            if(w <= 0 || h <= 0){
+                invalid_train_parse_or_nonpositive++;
+            }
+            else{
+                invalid_train_oversized++;
+                oversized_train_max_w = std::max(oversized_train_max_w, w);
+                oversized_train_max_h = std::max(oversized_train_max_h, h);
+            }
+        }
+    }
+    std::vector<TI> valid_val_indices;
+    valid_val_indices.reserve(val_samples.size());
+    for(TI vi = 0; vi < (TI)val_samples.size(); vi++){
+        const int w = val_dims[vi].w;
+        const int h = val_dims[vi].h;
+        if(is_valid_dims(w, h)){
+            valid_val_indices.push_back(vi);
+        }
+        else{
+            invalid_val_total++;
+            if(w <= 0 || h <= 0){
+                invalid_val_parse_or_nonpositive++;
+            }
+            else{
+                invalid_val_oversized++;
+                oversized_val_max_w = std::max(oversized_val_max_w, w);
+                oversized_val_max_h = std::max(oversized_val_max_h, h);
+            }
+        }
+    }
+    if(invalid_train_total > 0 || invalid_val_total > 0){
+        std::cout << "Invalid/oversized images detected: train=" << invalid_train_total
+                  << " val=" << invalid_val_total << std::endl;
+        std::cout << "  train reasons: parse/non-positive=" << invalid_train_parse_or_nonpositive
+                  << " oversized=" << invalid_train_oversized;
+        if(invalid_train_oversized > 0){
+            std::cout << " (max oversized dims " << oversized_train_max_w << "x" << oversized_train_max_h << ")";
+        }
+        std::cout << std::endl;
+        std::cout << "  val reasons: parse/non-positive=" << invalid_val_parse_or_nonpositive
+                  << " oversized=" << invalid_val_oversized;
+        if(invalid_val_oversized > 0){
+            std::cout << " (max oversized dims " << oversized_val_max_w << "x" << oversized_val_max_h << ")";
+        }
+        std::cout << std::endl;
+    }
+
+    auto fill_train_slot = [&](int slot_idx, TI base_idx, const std::vector<TI>& valid_sample_indices) {
         DecodeSlot& slot = slots[slot_idx];
         for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
-            TI si = sample_indices[base_idx + s_i];
+            TI si = valid_sample_indices[base_idx + s_i];
             auto& sample = train_samples[si];
             slot.cpu_labels[s_i] = static_cast<TI_CUDA>(sample.label);
             const int w = train_dims[si].w;
             const int h = train_dims[si].h;
-            if(w > 0 && h > 0 && w <= NVJPEG_MAX_DIM && h <= NVJPEG_MAX_DIM){
-                slot.jpeg_data[s_i] = sample.image_data;
-                slot.jpeg_size[s_i] = sample.image_size;
-                slot.cpu_info[s_i] = {w, h, (uint32_t)data_rng()};
-            }
-            else{
-                slot.jpeg_data[s_i] = nullptr;
-                slot.jpeg_size[s_i] = 0;
-                slot.cpu_info[s_i] = {0, 0, (uint32_t)data_rng()};
-            }
+            slot.jpeg_data[s_i] = sample.image_data;
+            slot.jpeg_size[s_i] = sample.image_size;
+            slot.cpu_info[s_i] = {w, h, (uint32_t)data_rng()};
         }
     };
-    auto fill_val_slot = [&](int slot_idx, TI base_idx) {
+    auto fill_val_slot = [&](int slot_idx, TI base_idx, const std::vector<TI>& valid_indices) {
         DecodeSlot& slot = slots[slot_idx];
         for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
-            TI vi = base_idx + s_i;
+            TI vi = valid_indices[base_idx + s_i];
             auto& s = val_samples[vi];
             slot.cpu_labels[s_i] = static_cast<TI_CUDA>(s.label);
             const int w = val_dims[vi].w;
             const int h = val_dims[vi].h;
-            if(w > 0 && h > 0 && w <= NVJPEG_MAX_DIM && h <= NVJPEG_MAX_DIM){
-                slot.jpeg_data[s_i] = s.image_data;
-                slot.jpeg_size[s_i] = s.image_size;
-                slot.cpu_info[s_i] = {w, h, 0};
-            }
-            else{
-                slot.jpeg_data[s_i] = nullptr;
-                slot.jpeg_size[s_i] = 0;
-                slot.cpu_info[s_i] = {0, 0, 0};
-            }
+            slot.jpeg_data[s_i] = s.image_data;
+            slot.jpeg_size[s_i] = s.image_size;
+            slot.cpu_info[s_i] = {w, h, 0};
         }
     };
 
@@ -686,7 +735,26 @@ int main(int argc, char* argv[]) {
         std::vector<TI> sample_indices(train_samples.size());
         std::iota(sample_indices.begin(), sample_indices.end(), 0);
         std::shuffle(sample_indices.begin(), sample_indices.end(), data_rng);
-        TI num_batches = train_samples.size() / batch_size;
+        std::vector<TI> valid_sample_indices;
+        valid_sample_indices.reserve(sample_indices.size());
+        TI invalid_train_epoch = 0;
+        for(TI si : sample_indices){
+            if(is_valid_dims(train_dims[si].w, train_dims[si].h)){
+                valid_sample_indices.push_back(si);
+            }
+            else{
+                invalid_train_epoch++;
+            }
+        }
+        if(invalid_train_epoch > 0){
+            std::cout << "Epoch " << epoch << ": skipped " << invalid_train_epoch << " invalid/oversized training images before GPU decode" << std::endl;
+        }
+        TI num_batches = valid_sample_indices.size() / batch_size;
+        total_batches = num_batches;
+        if(num_batches == 0){
+            std::cerr << "No valid training batches available after filtering invalid/oversized images." << std::endl;
+            return 1;
+        }
         TI total_micro = num_batches * num_micro_batches;
 
         // Pre-fill decode pipeline
@@ -696,7 +764,7 @@ int main(int argc, char* argv[]) {
             TI batch_of = submit_count / num_micro_batches;
             TI micro_of = submit_count % num_micro_batches;
             TI base_idx = batch_of * batch_size + micro_of * GPU_BATCH;
-            fill_train_slot(i, base_idx, sample_indices);
+            fill_train_slot(i, base_idx, valid_sample_indices);
             submit_queue.push(i);
             submit_count++;
         }
@@ -746,7 +814,7 @@ int main(int argc, char* argv[]) {
                     TI batch_of = submit_count / num_micro_batches;
                     TI micro_of = submit_count % num_micro_batches;
                     TI base_idx = batch_of * batch_size + micro_of * GPU_BATCH;
-                    fill_train_slot(slot_idx, base_idx, sample_indices);
+                    fill_train_slot(slot_idx, base_idx, valid_sample_indices);
                     submit_queue.push(slot_idx);
                     submit_count++;
                 }
@@ -823,11 +891,16 @@ int main(int argc, char* argv[]) {
             TI vc = 0, vc5 = 0, vt = 0; T vl = 0;
             rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
             rlt::Tensor<GPU_D_OUTPUT_SPEC> val_output; rlt::malloc(device_cuda, val_output);
-            TI nvb = val_samples.size() / GPU_BATCH;
+            TI nvb = valid_val_indices.size() / GPU_BATCH;
+            if(nvb == 0){
+                std::cerr << "No valid validation batches available after filtering invalid/oversized images." << std::endl;
+                rlt::free(device_cuda, val_output);
+                return 1;
+            }
             TI val_submit = 0;
             TI val_prefill = std::min((TI)NUM_DECODE_SLOTS, nvb);
             for (TI i = 0; i < val_prefill; i++) {
-                fill_val_slot(i, val_submit * GPU_BATCH);
+                fill_val_slot(i, val_submit * GPU_BATCH, valid_val_indices);
                 submit_queue.push(i);
                 val_submit++;
             }
@@ -852,7 +925,7 @@ int main(int argc, char* argv[]) {
                 CUDA_CHECK(cudaMemcpy(h_correct5.data(), gpu_correct5, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyDeviceToHost));
                 for (TI s_i = 0; s_i < GPU_BATCH; s_i++) { vl += h_losses[s_i]; vc += h_correct[s_i]; vc5 += h_correct5[s_i]; vt++; }
                 if (val_submit < nvb) {
-                    fill_val_slot(slot_idx, val_submit * GPU_BATCH);
+                    fill_val_slot(slot_idx, val_submit * GPU_BATCH, valid_val_indices);
                     submit_queue.push(slot_idx);
                     val_submit++;
                 }
