@@ -379,7 +379,7 @@ namespace rl_tools{
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::dense::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         auto matrix_view_input = matrix_view(device, input);
-        forward(device, layer, matrix_view_input, layer.output, buffer, rng);
+        forward(device, layer, matrix_view_input, layer.output, buffer, rng, mode);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
