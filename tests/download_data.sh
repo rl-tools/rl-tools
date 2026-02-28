@@ -1,4 +1,4 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 git clone -b master https://huggingface.co/datasets/rl-tools/test-data $SCRIPT_DIR/data
 cd $SCRIPT_DIR/data
-git checkout 8dc80c4f07c00cc5b56f8b12fd4b15b80f0ae5f9
+git checkout ca1a59ff059d3d5a90d2576f6a454a7b67e8f696
