@@ -55,8 +55,8 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds, RNG& rng) { init_weights(device, ds.conv, rng); }
 
     // ======================== Buffer malloc / free ========================
-    template<typename DEVICE, bool DA, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::resnet_block::Buffer<DA, SPEC>& buffer) {
+    template<typename DEVICE, typename BUFFER_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer) {
         malloc(device, buffer.intermediate);
         malloc(device, buffer.shortcut);
         malloc(device, buffer.d_input_buffer);
@@ -64,8 +64,8 @@ namespace rl_tools{
         malloc(device, buffer.conv2_buffer);
         malloc(device, buffer.downsample_buffer);
     }
-    template<typename DEVICE, bool DA, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::resnet_block::Buffer<DA, SPEC>& buffer) {
+    template<typename DEVICE, typename BUFFER_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer) {
         free(device, buffer.intermediate);
         free(device, buffer.shortcut);
         free(device, buffer.d_input_buffer);
@@ -124,8 +124,8 @@ namespace rl_tools{
 
     // ======================== evaluate ========================
 #ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::resnet_block::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::resnet_block::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         static_assert(nn::layers::resnet_block::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
@@ -166,8 +166,8 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::resnet_block::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::resnet_block::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn::layers::resnet_block::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
@@ -208,25 +208,25 @@ namespace rl_tools{
     }
 #endif
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         forward(device, static_cast<nn::layers::resnet_block::LayerBackward<LAYER_SPEC>&>(layer), input, layer.output, buffer, rng, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         forward(device, layer, input, buffer, rng, mode);
         copy(device, device, layer.output, output);
     }
 
     // ======================== backward ========================
     // backward_input: compute d_input only (no gradient accumulation)
-    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::resnet_block::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::resnet_block::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         // Not implemented standalone (use backward_full)
     }
     // backward: accumulate parameter gradients only (no d_input)
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         constexpr TI BATCH = LAYER_SPEC::INTERNAL_BATCH_SIZE;
@@ -262,8 +262,8 @@ namespace rl_tools{
         }
     }
     // backward_full: compute d_input AND accumulate parameter gradients
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         constexpr TI BATCH = LAYER_SPEC::INTERNAL_BATCH_SIZE;

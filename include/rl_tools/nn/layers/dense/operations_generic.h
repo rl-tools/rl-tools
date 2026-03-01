@@ -152,16 +152,16 @@ namespace rl_tools{
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         using SPEC = LAYER_SPEC;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        using ACCUMULATOR_TYPE = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {
-                T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                ACCUMULATOR_TYPE d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(layer.pre_activations, batch_i, output_i)) * (ACCUMULATOR_TYPE)get(d_output, batch_i, output_i);
                 for(TI input_j = 0; input_j < SPEC::INPUT_DIM; input_j++) {
                     if(output_i == 0){
                         set(d_input, batch_i, input_j, 0);
                     }
-                    increment(d_input, batch_i, input_j, get(device, layer.weights.parameters, output_i, input_j) * d_pre_activation);
+                    increment(d_input, batch_i, input_j, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, output_i, input_j) * d_pre_activation);
                 }
             }
         }
@@ -175,15 +175,15 @@ namespace rl_tools{
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using GRADIENT_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
-                GRADIENT_TYPE d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, GRADIENT_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                ACCUMULATOR_TYPE d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(layer.pre_activations, batch_i, output_i)) * (ACCUMULATOR_TYPE)get(d_output, batch_i, output_i);
                 increment(device, layer.biases.gradient, d_pre_activation, output_i);
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
-                    increment(device, layer.weights.gradient, d_pre_activation * get(input, batch_i, input_i), output_i, input_i);
+                    increment(device, layer.weights.gradient, d_pre_activation * (ACCUMULATOR_TYPE)get(input, batch_i, input_i), output_i, input_i);
                 }
             }
         }
@@ -198,19 +198,19 @@ namespace rl_tools{
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using GRADIENT_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
-                GRADIENT_TYPE d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, GRADIENT_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                ACCUMULATOR_TYPE d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(layer.pre_activations, batch_i, output_i)) * (ACCUMULATOR_TYPE)get(d_output, batch_i, output_i);
                 increment(device, layer.biases.gradient, d_pre_activation, output_i);
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
                     if(output_i == 0){
                         set(d_input, batch_i, input_i, 0);
                     }
-                    increment(d_input, batch_i, input_i, get(device, layer.weights.parameters, output_i, input_i) * d_pre_activation);
-                    increment(device, layer.weights.gradient, d_pre_activation * get(input, batch_i, input_i), output_i, input_i);
+                    increment(d_input, batch_i, input_i, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, output_i, input_i) * d_pre_activation);
+                    increment(device, layer.weights.gradient, d_pre_activation * (ACCUMULATOR_TYPE)get(input, batch_i, input_i), output_i, input_i);
                 }
             }
         }

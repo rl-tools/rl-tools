@@ -53,7 +53,7 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 namespace fs = std::filesystem;
 
-using T = float;
+using T = __nv_bfloat16;
 using TYPE_POLICY = rlt::numeric_types::Policy<float,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, T>,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, T>,

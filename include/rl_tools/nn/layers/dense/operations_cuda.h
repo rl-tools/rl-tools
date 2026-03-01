@@ -161,6 +161,7 @@ namespace rl_tools{
         __global__ void
         d_activation_accumulate_bias_gradient_kernel(devices::CUDA<DEV_SPEC> device, const nn::layers::dense::LayerForward<SPEC> layer, Matrix<PRE_ACTIVATIONS_SPEC> pre_activations, Matrix<D_OUTPUT_SPEC> d_output, Tensor<D_BIASES_SPEC> d_biases, Matrix<D_PRE_ACTIVATIONS_SPEC> d_pre_activations) {
             using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+            using ACCUMULATOR_TYPE = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
             static_assert(containers::check_structure<PRE_ACTIVATIONS_SPEC, D_OUTPUT_SPEC>);
@@ -170,10 +171,10 @@ namespace rl_tools{
 
             TI output_i = blockIdx.x * blockDim.x + threadIdx.x;
             if(output_i < OUTPUT_DIM){
-                T acc = 0;
+                ACCUMULATOR_TYPE acc = 0;
                 for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                    T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
-                    set(d_pre_activations, batch_i, output_i, d_pre_activation_temp);
+                    ACCUMULATOR_TYPE d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, ACCUMULATOR_TYPE, SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(pre_activations, batch_i, output_i)) * (ACCUMULATOR_TYPE)get(d_output, batch_i, output_i);
+                    set(d_pre_activations, batch_i, output_i, (T)d_pre_activation_temp);
                     acc += d_pre_activation_temp;
                 }
                 increment(device, d_biases, acc, output_i);

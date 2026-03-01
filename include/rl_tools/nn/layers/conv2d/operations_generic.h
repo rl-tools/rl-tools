@@ -212,10 +212,22 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn::layers::conv2d::LayerForward<SPEC>& layer, nn::layers::conv2d::State& state, RNG&, Mode<MODE> mode = Mode<mode::Default<>>{}) { }
     template<typename DEVICE>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::State& state) { }
-    template<typename DEVICE>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::Buffer& buffer) { }
-    template<typename DEVICE>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::Buffer& buffer) { }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn::layers::conv2d::Buffer<SPEC>& buffer) {
+        malloc(device, buffer.d_weights_acc);
+        malloc(device, buffer.d_biases_acc);
+        malloc(device, buffer.d_input_acc);
+        malloc(device, buffer.d_gamma_acc);
+        malloc(device, buffer.d_beta_acc);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::layers::conv2d::Buffer<SPEC>& buffer) {
+        free(device, buffer.d_weights_acc);
+        free(device, buffer.d_biases_acc);
+        free(device, buffer.d_input_acc);
+        free(device, buffer.d_gamma_acc);
+        free(device, buffer.d_beta_acc);
+    }
 
     // ======================== init_weights ========================
     template<typename DEVICE, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
@@ -274,8 +286,8 @@ namespace rl_tools{
 
     // ======================== evaluate (LayerForward, no storage) ========================
 #ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::conv2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::conv2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer<BUFFER_SPEC>&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
@@ -401,8 +413,8 @@ namespace rl_tools{
     }
 
     // ======================== forward (LayerBackward, stores pre_activations and caches stats) ========================
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
@@ -564,12 +576,12 @@ namespace rl_tools{
     }
 #endif
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::conv2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         forward(device, static_cast<nn::layers::conv2d::LayerBackward<LAYER_SPEC>&>(layer), input, layer.output, buffer, rng, mode);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         forward(device, layer, input, buffer, rng, mode);
         copy(device, device, layer.output, output);
@@ -583,8 +595,8 @@ namespace rl_tools{
 
     // ======================== backward_input ========================
 #ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
-    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer<BUFFER_SPEC>&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
@@ -603,7 +615,7 @@ namespace rl_tools{
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(device, layer.pre_activations, bi, oh, ow, oc)) * get(device, d_output_4d, bi, oh, ow, oc);
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
                             for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                 for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                     TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -613,7 +625,7 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_pre_act, bi, ih, iw, ic);
+                                            increment(device, d_input_4d, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * d_pre_act, bi, ih, iw, ic);
                                         }
                                     }
                                 }
@@ -725,8 +737,8 @@ namespace rl_tools{
     }
 
     // ======================== backward (gradient accumulation only) ========================
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using TI = typename DEVICE::index_t;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
@@ -738,13 +750,16 @@ namespace rl_tools{
         auto input_4d = view_memory<INTERNAL_INPUT_SHAPE>(device, input);
         auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
 
+        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++) set(device, buffer.d_biases_acc, (ACCUMULATOR_TYPE)get(device, layer.biases.gradient, oc), oc);
+        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++) for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++)
+            set(device, buffer.d_weights_acc, (ACCUMULATOR_TYPE)get(device, layer.weights.gradient, oc, kh, kw, ic), oc, kh, kw, ic);
         if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::NONE) {
             for(TI bi = 0; bi < BATCH_SIZE; bi++){
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(device, layer.pre_activations, bi, oh, ow, oc)) * get(device, d_output_4d, bi, oh, ow, oc);
-                            increment(device, layer.biases.gradient, d_pre_act, oc);
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                            increment(device, buffer.d_biases_acc, d_pre_act, oc);
                             for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                 for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                     TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -754,7 +769,7 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, layer.weights.gradient, d_pre_act * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                            increment(device, buffer.d_weights_acc, d_pre_act * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                         }
                                     }
                                 }
@@ -765,8 +780,11 @@ namespace rl_tools{
             }
         } else {
             constexpr bool IS_EVAL = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) && mode::is<MODE, mode::Evaluation>;
+            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                set(device, buffer.d_gamma_acc, (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.gradient, oc), oc);
+                set(device, buffer.d_beta_acc, (ACCUMULATOR_TYPE)get(device, layer.norm.beta.gradient, oc), oc);
+            }
             if constexpr(IS_EVAL) {
-                // Evaluation mode: fixed statistics, simple backward
                 for(TI bi = 0; bi < BATCH_SIZE; bi++){
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
@@ -777,10 +795,10 @@ namespace rl_tools{
                                 ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
                                 ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
                                 ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
-                                increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
-                                increment(device, layer.norm.beta.gradient, d_norm_out, oc);
+                                increment(device, buffer.d_gamma_acc, d_norm_out * z_hat, oc);
+                                increment(device, buffer.d_beta_acc, d_norm_out, oc);
                                 ACCUMULATOR_TYPE d_conv_out = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
-                                increment(device, layer.biases.gradient, d_conv_out, oc);
+                                increment(device, buffer.d_biases_acc, d_conv_out, oc);
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                         TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -790,7 +808,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, layer.weights.gradient, d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                                increment(device, buffer.d_weights_acc, d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -819,8 +837,8 @@ namespace rl_tools{
                                 ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
                                 ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
                                 ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
-                                increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
-                                increment(device, layer.norm.beta.gradient, d_norm_out, oc);
+                                increment(device, buffer.d_gamma_acc, d_norm_out * z_hat, oc);
+                                increment(device, buffer.d_beta_acc, d_norm_out, oc);
                                 sum_dz_hat[stat_idx] += d_z_hat_val; sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                             }
                         }
@@ -838,8 +856,8 @@ namespace rl_tools{
                                 ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
                                 ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
                                 ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
-                                T d_conv_out = (T)(inv_std_val * ((ACCUMULATOR_TYPE)1 / (ACCUMULATOR_TYPE)N) * ((ACCUMULATOR_TYPE)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]));
-                                increment(device, layer.biases.gradient, (ACCUMULATOR_TYPE)d_conv_out, oc);
+                                ACCUMULATOR_TYPE d_conv_out = inv_std_val * ((ACCUMULATOR_TYPE)1 / (ACCUMULATOR_TYPE)N) * ((ACCUMULATOR_TYPE)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
+                                increment(device, buffer.d_biases_acc, d_conv_out, oc);
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                         TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -849,7 +867,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, layer.weights.gradient, (ACCUMULATOR_TYPE)d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                                increment(device, buffer.d_weights_acc, d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -859,12 +877,19 @@ namespace rl_tools{
                     }
                 }
             }
+            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                set(device, layer.norm.gamma.gradient, (T)get(device, buffer.d_gamma_acc, oc), oc);
+                set(device, layer.norm.beta.gradient, (T)get(device, buffer.d_beta_acc, oc), oc);
+            }
         }
+        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++) set(device, layer.biases.gradient, (T)get(device, buffer.d_biases_acc, oc), oc);
+        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++) for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++)
+            set(device, layer.weights.gradient, (T)get(device, buffer.d_weights_acc, oc, kh, kw, ic), oc, kh, kw, ic);
     }
 
     // ======================== backward_full (d_input + gradient accumulation) ========================
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using TI = typename DEVICE::index_t;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
@@ -878,15 +903,17 @@ namespace rl_tools{
         auto d_input_4d = view_memory<INTERNAL_D_INPUT_SHAPE>(device, d_input);
         auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
 
-        set_all(device, d_input_4d, (T)0);
-
+        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++) set(device, buffer.d_biases_acc, (ACCUMULATOR_TYPE)get(device, layer.biases.gradient, oc), oc);
+        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++) for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++)
+            set(device, buffer.d_weights_acc, (ACCUMULATOR_TYPE)get(device, layer.weights.gradient, oc, kh, kw, ic), oc, kh, kw, ic);
+        set_all(device, buffer.d_input_acc, (ACCUMULATOR_TYPE)0);
         if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::NONE) {
             for(TI bi = 0; bi < BATCH_SIZE; bi++){
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(device, layer.pre_activations, bi, oh, ow, oc)) * get(device, d_output_4d, bi, oh, ow, oc);
-                            increment(device, layer.biases.gradient, d_pre_act, oc);
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                            increment(device, buffer.d_biases_acc, d_pre_act, oc);
                             for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                 for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                     TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -896,8 +923,8 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_pre_act, bi, ih, iw, ic);
-                                            increment(device, layer.weights.gradient, d_pre_act * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                            increment(device, buffer.d_input_acc, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * d_pre_act, bi, ih, iw, ic);
+                                            increment(device, buffer.d_weights_acc, d_pre_act * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                         }
                                     }
                                 }
@@ -908,8 +935,11 @@ namespace rl_tools{
             }
         } else {
             constexpr bool IS_EVAL = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) && mode::is<MODE, mode::Evaluation>;
+            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                set(device, buffer.d_gamma_acc, (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.gradient, oc), oc);
+                set(device, buffer.d_beta_acc, (ACCUMULATOR_TYPE)get(device, layer.norm.beta.gradient, oc), oc);
+            }
             if constexpr(IS_EVAL) {
-                // Evaluation mode: fixed statistics, simple backward
                 for(TI bi = 0; bi < BATCH_SIZE; bi++){
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
@@ -920,10 +950,10 @@ namespace rl_tools{
                                 ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
                                 ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
                                 ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
-                                increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
-                                increment(device, layer.norm.beta.gradient, d_norm_out, oc);
+                                increment(device, buffer.d_gamma_acc, d_norm_out * z_hat, oc);
+                                increment(device, buffer.d_beta_acc, d_norm_out, oc);
                                 ACCUMULATOR_TYPE d_conv_out = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
-                                increment(device, layer.biases.gradient, d_conv_out, oc);
+                                increment(device, buffer.d_biases_acc, d_conv_out, oc);
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                         TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -933,8 +963,8 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
-                                                increment(device, layer.weights.gradient, d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                                increment(device, buffer.d_input_acc, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, buffer.d_weights_acc, d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -963,8 +993,8 @@ namespace rl_tools{
                                 ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
                                 ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
                                 ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
-                                increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
-                                increment(device, layer.norm.beta.gradient, d_norm_out, oc);
+                                increment(device, buffer.d_gamma_acc, d_norm_out * z_hat, oc);
+                                increment(device, buffer.d_beta_acc, d_norm_out, oc);
                                 sum_dz_hat[stat_idx] += d_z_hat_val; sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                             }
                         }
@@ -982,8 +1012,8 @@ namespace rl_tools{
                                 ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
                                 ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
                                 ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
-                                T d_conv_out = (T)(inv_std_val * ((ACCUMULATOR_TYPE)1 / (ACCUMULATOR_TYPE)N) * ((ACCUMULATOR_TYPE)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]));
-                                increment(device, layer.biases.gradient, (ACCUMULATOR_TYPE)d_conv_out, oc);
+                                ACCUMULATOR_TYPE d_conv_out = inv_std_val * ((ACCUMULATOR_TYPE)1 / (ACCUMULATOR_TYPE)N) * ((ACCUMULATOR_TYPE)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
+                                increment(device, buffer.d_biases_acc, d_conv_out, oc);
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                         TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -993,8 +1023,8 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * (ACCUMULATOR_TYPE)d_conv_out, bi, ih, iw, ic);
-                                                increment(device, layer.weights.gradient, (ACCUMULATOR_TYPE)d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                                increment(device, buffer.d_input_acc, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, buffer.d_weights_acc, d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -1004,7 +1034,16 @@ namespace rl_tools{
                     }
                 }
             }
+            for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
+                set(device, layer.norm.gamma.gradient, (T)get(device, buffer.d_gamma_acc, oc), oc);
+                set(device, layer.norm.beta.gradient, (T)get(device, buffer.d_beta_acc, oc), oc);
+            }
         }
+        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++) set(device, layer.biases.gradient, (T)get(device, buffer.d_biases_acc, oc), oc);
+        for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++) for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++)
+            set(device, layer.weights.gradient, (T)get(device, buffer.d_weights_acc, oc, kh, kw, ic), oc, kh, kw, ic);
+        for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI ih = 0; ih < LAYER_SPEC::INPUT_HEIGHT; ih++) for(TI iw = 0; iw < LAYER_SPEC::INPUT_WIDTH; iw++) for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++)
+            set(device, d_input_4d, (T)get(device, buffer.d_input_acc, bi, ih, iw, ic), bi, ih, iw, ic);
     }
 #endif
 

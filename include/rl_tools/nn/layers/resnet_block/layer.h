@@ -136,25 +136,29 @@ namespace rl_tools::nn::layers::resnet_block {
 
     struct State{};
 
-    // Buffer for evaluate and backward (holds intermediate tensors)
-    template<bool T_DYNAMIC_ALLOCATION, typename T_SPEC>
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+    struct BufferSpecification {
+        using SPEC = T_SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+    };
+    template<typename T_BUFFER_SPEC>
     struct Buffer{
-        using T = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
-        using TI = typename T_SPEC::TI;
-        // Conv1 output = Conv2 input (also used for d_conv1_out in backward)
-        using INTERMEDIATE_SHAPE = tensor::Shape<TI, T_SPEC::INTERNAL_BATCH_SIZE, T_SPEC::OUTPUT_HEIGHT, T_SPEC::OUTPUT_WIDTH, T_SPEC::OUTPUT_CHANNELS>;
-        using INTERMEDIATE_SPEC = tensor::Specification<T, TI, INTERMEDIATE_SHAPE, T_DYNAMIC_ALLOCATION>;
+        using SPEC = typename T_BUFFER_SPEC::SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION = T_BUFFER_SPEC::DYNAMIC_ALLOCATION;
+        using T = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Activation>;
+        using TI = typename SPEC::TI;
+        using INTERMEDIATE_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_HEIGHT, SPEC::OUTPUT_WIDTH, SPEC::OUTPUT_CHANNELS>;
+        using INTERMEDIATE_SPEC = tensor::Specification<T, TI, INTERMEDIATE_SHAPE, DYNAMIC_ALLOCATION>;
         Tensor<INTERMEDIATE_SPEC> intermediate;
-        // Shortcut for downsample path (also used for d_pre_relu in backward)
-        using SHORTCUT_SHAPE = tensor::Shape<TI, T_SPEC::INTERNAL_BATCH_SIZE, T_SPEC::OUTPUT_HEIGHT, T_SPEC::OUTPUT_WIDTH, T_SPEC::OUTPUT_CHANNELS>;
-        using SHORTCUT_SPEC = tensor::Specification<T, TI, SHORTCUT_SHAPE, T_DYNAMIC_ALLOCATION>;
+        using SHORTCUT_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_HEIGHT, SPEC::OUTPUT_WIDTH, SPEC::OUTPUT_CHANNELS>;
+        using SHORTCUT_SPEC = tensor::Specification<T, TI, SHORTCUT_SHAPE, DYNAMIC_ALLOCATION>;
         Tensor<SHORTCUT_SPEC> shortcut;
-        // Buffer for d_input accumulation from downsample path in backward
-        using D_INPUT_SHAPE = tensor::Shape<TI, T_SPEC::INTERNAL_BATCH_SIZE, T_SPEC::INPUT_HEIGHT, T_SPEC::INPUT_WIDTH, T_SPEC::INPUT_CHANNELS>;
-        using D_INPUT_SPEC = tensor::Specification<T, TI, D_INPUT_SHAPE, T_DYNAMIC_ALLOCATION>;
+        using D_INPUT_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::INPUT_HEIGHT, SPEC::INPUT_WIDTH, SPEC::INPUT_CHANNELS>;
+        using D_INPUT_SPEC = tensor::Specification<T, TI, D_INPUT_SHAPE, DYNAMIC_ALLOCATION>;
         Tensor<D_INPUT_SPEC> d_input_buffer;
-        // Internal conv buffers (currently empty)
-        conv2d::Buffer conv1_buffer, conv2_buffer, downsample_buffer;
+        conv2d::Buffer<conv2d::BufferSpecification<typename SPEC::CONV1_SPEC, DYNAMIC_ALLOCATION>> conv1_buffer;
+        conv2d::Buffer<conv2d::BufferSpecification<typename SPEC::CONV2_SPEC, DYNAMIC_ALLOCATION>> conv2_buffer;
+        conv2d::Buffer<conv2d::BufferSpecification<typename SPEC::DOWNSAMPLE_SPEC, DYNAMIC_ALLOCATION>> downsample_buffer;
     };
 
     template<typename T_SPEC>
@@ -182,7 +186,7 @@ namespace rl_tools::nn::layers::resnet_block {
         DownsampleStorage<SPEC::HAS_DOWNSAMPLE, typename SPEC::DOWNSAMPLE_LAYER> downsample;
 
         template<bool DYNAMIC_ALLOCATION=true>
-        using Buffer = resnet_block::Buffer<DYNAMIC_ALLOCATION, SPEC>;
+        using Buffer = resnet_block::Buffer<resnet_block::BufferSpecification<SPEC, DYNAMIC_ALLOCATION>>;
         template<bool DYNAMIC_ALLOCATION=true>
         using State = resnet_block::State;
     };

@@ -159,8 +159,7 @@ TEST(NN_LAYERS_RESNET_CUDA, FORWARD_COMPARISON){
     print_top5("CPU ", device_cpu, output_cpu_flat);
     print_top5("CUDA", device_cpu, output_cuda_flat);
 
-    // For float precision with cuDNN, allow some tolerance (cuDNN may use different algorithms)
-    EXPECT_LT(max_abs_diff, 0.1) << "CPU vs CUDA results differ too much";
+    EXPECT_LT(max_abs_diff, 0.02) << "CPU vs CUDA results differ too much";
 
     // Cleanup
     rlt::free(device_cpu, model_cpu);
@@ -477,7 +476,7 @@ TEST(NN_LAYERS_RESNET_CUDA, BACKWARD_CPU_VS_CUDA){
     // Compare model gradients
     T model_grad_diff = rlt::abs_diff(device_cpu, model_cpu, model_cuda_host);
     std::cout << "CPU vs CUDA total model abs_diff: " << model_grad_diff << std::endl;
-    EXPECT_LT(model_grad_diff / 11e6, 1.0) << "CPU vs CUDA model gradients mismatch";
+    EXPECT_LT(model_grad_diff / 5e6, 1.0) << "CPU vs CUDA model gradients mismatch";
 
     // Cleanup
     rlt::free(device_cpu, model_cpu);

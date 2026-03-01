@@ -182,7 +182,32 @@ namespace rl_tools::nn::layers::conv2d {
         get<length(typename OUTPUT_SPEC::SHAPE{})-3>(typename OUTPUT_SPEC::SHAPE{}) == LAYER_SPEC::OUTPUT_HEIGHT;
 
     struct State{};
-    struct Buffer{};
+
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+    struct BufferSpecification {
+        using SPEC = T_SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+    };
+    template<typename T_SPEC>
+    struct Buffer{
+        using SPEC = typename T_SPEC::SPEC;
+        static constexpr bool DYNAMIC_ALLOCATION = T_SPEC::DYNAMIC_ALLOCATION;
+        using ACCUMULATOR_TYPE = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
+        using TI = typename SPEC::TI;
+        using D_WEIGHTS_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS, SPEC::KERNEL_HEIGHT, SPEC::KERNEL_WIDTH, SPEC::INPUT_CHANNELS>;
+        using D_WEIGHTS_SPEC = tensor::Specification<ACCUMULATOR_TYPE, TI, D_WEIGHTS_SHAPE, DYNAMIC_ALLOCATION>;
+        Tensor<D_WEIGHTS_SPEC> d_weights_acc;
+        using D_BIASES_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
+        using D_BIASES_SPEC = tensor::Specification<ACCUMULATOR_TYPE, TI, D_BIASES_SHAPE, DYNAMIC_ALLOCATION>;
+        Tensor<D_BIASES_SPEC> d_biases_acc;
+        using D_INPUT_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::INPUT_HEIGHT, SPEC::INPUT_WIDTH, SPEC::INPUT_CHANNELS>;
+        using D_INPUT_SPEC = tensor::Specification<ACCUMULATOR_TYPE, TI, D_INPUT_SHAPE, DYNAMIC_ALLOCATION>;
+        Tensor<D_INPUT_SPEC> d_input_acc;
+        using D_NORM_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
+        using D_NORM_SPEC = tensor::Specification<ACCUMULATOR_TYPE, TI, D_NORM_SHAPE, DYNAMIC_ALLOCATION>;
+        Tensor<D_NORM_SPEC> d_gamma_acc;
+        Tensor<D_NORM_SPEC> d_beta_acc;
+    };
 
     template<typename T_SPEC>
     struct LayerForward {
@@ -223,9 +248,9 @@ namespace rl_tools::nn::layers::conv2d {
         NormForward<SPEC::NORMALIZATION, SPEC> norm;
 
         template<bool DYNAMIC_ALLOCATION=true>
-        using Buffer = conv2d::Buffer;
+        using Buffer = Buffer<BufferSpecification<SPEC, DYNAMIC_ALLOCATION>>;
         template<bool DYNAMIC_ALLOCATION=true>
-        using State = conv2d::State;
+        using State = State;
     };
 
     template<typename SPEC>

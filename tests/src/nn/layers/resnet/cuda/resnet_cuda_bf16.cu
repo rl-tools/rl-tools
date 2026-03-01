@@ -146,12 +146,7 @@ TEST(NN_LAYERS_RESNET_CUDA_BF16, FORWARD_COMPARISON){
     print_top5("timm ref ", device_cpu, output_ref_flat);
     print_top5("BF16 CUDA", device_cpu, output_cuda_flat);
 
-    // BF16 has ~7 bits mantissa; 18-layer network accumulates significant error
-    // Main check: no NaN, outputs in reasonable range (not diverged)
-    EXPECT_LT(max_abs_diff, 15.0) << "BF16 vs timm reference differs too much";
-
-    // BF16 has ~7 bits mantissa; 18-layer network accumulates significant error
-    EXPECT_LT(max_abs_diff, 15.0) << "BF16 vs timm reference differs too much";
+    EXPECT_LT(max_abs_diff, 0.5) << "BF16 vs timm reference differs too much";
 
     rlt::free(device_cpu, model_cpu); rlt::free(device_cpu, buffer_cpu);
     rlt::free(device_cpu, input_cpu); rlt::free(device_cpu, output_ref);
@@ -230,7 +225,7 @@ TEST(NN_LAYERS_RESNET_CUDA_BF16, BACKWARD){
     rlt::load(device_cpu, d_input_ref, grad_group, "d_input");
     T d_input_diff = rlt::abs_diff(device_cpu, d_input_host, d_input_ref) / decltype(d_input_ref)::SPEC::SIZE;
     std::cout << "BF16 d_input vs timm reference (per element): " << d_input_diff << std::endl;
-    EXPECT_LT(d_input_diff, 10.0) << "BF16 d_input deviates too much from timm reference";
+    EXPECT_LT(d_input_diff, 0.5) << "BF16 d_input deviates too much from timm reference";
     rlt::free(device_cpu, d_input_ref);
 
     // Spot-check a few late-layer gradients (smaller spatial dims = less error accumulation)
@@ -252,7 +247,7 @@ TEST(NN_LAYERS_RESNET_CUDA_BF16, BACKWARD){
         rlt::load(device_cpu, expected, grad_group, "layer4_block1_conv1_d_weights");
         T diff = rlt::abs_diff(device_cpu, l4b1.conv1.weights.gradient, expected) / decltype(expected)::SPEC::SIZE;
         std::cout << diff << std::endl;
-        EXPECT_LT(diff, 5.0) << "layer4_block1 conv1 d_weights too far from timm";
+        EXPECT_LT(diff, 0.05) << "layer4_block1 conv1 d_weights too far from timm";
         rlt::free(device_cpu, expected);
     }
 
@@ -265,7 +260,7 @@ TEST(NN_LAYERS_RESNET_CUDA_BF16, BACKWARD){
         rlt::load(device_cpu, expected, grad_group, "fc_d_biases");
         T diff = rlt::abs_diff(device_cpu, fc.biases.gradient, expected) / decltype(expected)::SPEC::SIZE;
         std::cout << diff << std::endl;
-        EXPECT_LT(diff, 5.0) << "FC d_biases too far from timm";
+        EXPECT_LT(diff, 0.05) << "FC d_biases too far from timm";
         rlt::free(device_cpu, expected);
     }
 
@@ -363,7 +358,7 @@ TEST(NN_LAYERS_RESNET_CUDA_BF16, AMP_COMPARISON){
             if(!std::isnan(h) && !std::isnan(r)) max_diff = std::max(max_diff, std::abs(h - r));
         }
         std::cout << "  FC output: max_abs_diff = " << max_diff << " (size=1000)" << std::endl;
-        EXPECT_LT(max_diff, 15.0) << "FC output vs AMP differs too much";
+        EXPECT_LT(max_diff, 0.5) << "FC output vs AMP differs too much";
         rlt::free(device_cpu, host_out); rlt::free(device_cpu, ref_out);
     }
 

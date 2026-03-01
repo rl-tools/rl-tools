@@ -38,8 +38,8 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::resnet_block::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::resnet_block::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn::layers::resnet_block::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename OUTPUT_SPEC::T;
@@ -58,8 +58,8 @@ namespace rl_tools{
         nn::layers::resnet_block::cuda::kernels::add_relu<<<N_BLOCKS, BLOCKSIZE, 0, device.stream>>>(tag_device, output._data, shortcut_ptr, OUTPUT_SIZE);
         check_status(device);
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::resnet_block::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::resnet_block::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(nn::layers::resnet_block::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename OUTPUT_SPEC::T;
@@ -78,8 +78,8 @@ namespace rl_tools{
         nn::layers::resnet_block::cuda::kernels::add_relu<<<N_BLOCKS, BLOCKSIZE, 0, device.stream>>>(tag_device, output._data, shortcut_ptr, OUTPUT_SIZE);
         check_status(device);
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
-    void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;
@@ -98,8 +98,8 @@ namespace rl_tools{
             backward(device, layer.downsample.conv, input, buffer.shortcut, buffer.downsample_buffer, mode);
         }
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
-    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::resnet_block::Buffer<true, LAYER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::resnet_block::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::resnet_block::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using TI = typename DEVICE::index_t;

@@ -41,10 +41,8 @@ using TYPE_POLICY = rlt::numeric_types::Policy<float,                          /
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, __nv_bfloat16>>;  // gradients
 ```
 
-- `DEFAULT` should be `float` — used for hyperparameters, scalars, accumulation, and optimizer state
-- Storage types (`Parameter`, `Activation`, `Gradient`) are set explicitly to bf16 when using mixed precision
-- `Accumulator` inherits from `DEFAULT` (float) — used for all per-element computation in BN paths, dot products, reductions
-- `OptimizerState` inherits from `DEFAULT` (float) — SGD velocity, Adam moments
+- `DEFAULT` — used for hyperparameters, scalars, accumulation, and optimizer state
+- Storage types (`Parameter`, `Activation`, `Gradient`) can e.g. be explicitly set to bf16 for mixed precision
 
 ## Generic Operations Pattern (Mixed Precision)
 
@@ -60,7 +58,38 @@ ACCUMULATOR_TYPE val = (ACCUMULATOR_TYPE)get(device, tensor, idx);
 set(device, output, (T)result, idx);
 ```
 
+## Buffer Convention
+
+Each layer defines a `BufferSpecification` + `Buffer<BUFFER_SPEC>` pair:
+
+```cpp
+// In layer.h — inside the layer's namespace
+template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+struct BufferSpecification {
+    using SPEC = T_SPEC;
+    static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+};
+template<typename T_BUFFER_SPEC>
+struct Buffer{
+    using SPEC = typename T_BUFFER_SPEC::SPEC;
+    static constexpr bool DYNAMIC_ALLOCATION = T_BUFFER_SPEC::DYNAMIC_ALLOCATION;
+    // ... tensor members using SPEC and DYNAMIC_ALLOCATION ...
+};
+```
+
+The `LayerForward::Buffer` alias wraps the two together:
+```cpp
+template<bool DYNAMIC_ALLOCATION=true>
+using Buffer = my_layer::Buffer<my_layer::BufferSpecification<SPEC, DYNAMIC_ALLOCATION>>;
+```
+
+Function signatures template on `BUFFER_SPEC` so the buffer is a "blank" parameter — dispatch is on the layer type:
+```cpp
+template<typename DEVICE, typename LAYER_SPEC, ..., typename BUFFER_SPEC, ...>
+void forward(DEVICE& device, my_layer::LayerBackward<LAYER_SPEC>& layer, ..., my_layer::Buffer<BUFFER_SPEC>& buffer, ...);
+```
+
 ## Code Style
 - Braces on same line
 - No unnecessary comments or docstrings — code should be self-explanatory
-- Compact test code: multiple statements per line when they're simple setup (malloc, init, etc.)
+- Don't abbreviate variable names or other symbols. Follow the conventions form the rest of the RLtools codebase
