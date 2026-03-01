@@ -99,7 +99,8 @@ namespace rl_tools
         using FROM_DEVICE = devices::CUDA<FROM_DEV_SPEC>;
         using TI = typename FROM_DEVICE::index_t;
         static_assert(tensor::same_dimensions<FROM_SPEC, TO_SPEC>());
-        if constexpr(tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>() && tensor::dense_row_major_layout<FROM_SPEC>()){
+        constexpr bool SAME_TYPE = utils::typing::is_same_v<typename FROM_SPEC::T, typename TO_SPEC::T>;
+        if constexpr(tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>() && tensor::dense_row_major_layout<FROM_SPEC>() && SAME_TYPE){
             cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, from_device.stream);
         }
         else{
@@ -142,30 +143,48 @@ namespace rl_tools
     }
     template<typename FROM_DEV_SPEC, typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(devices::CUDA<FROM_DEV_SPEC>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
+        using FROM_T = typename FROM_SPEC::T;
+        using TO_T = typename TO_SPEC::T;
         static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
         constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
         constexpr bool DENSE_ROW_MAJOR = tensor::dense_row_major_layout<FROM_SPEC>();
         static_assert(SAME_STRIDE && DENSE_ROW_MAJOR, "Inter-device copy not implemented for stride mismatch, yet, use a dense layout for transfer");
         if constexpr(SAME_STRIDE && DENSE_ROW_MAJOR){
-            cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, from_device.stream);
-            cudaStreamSynchronize(from_device.stream);
-        }
-        else{
-
+            if constexpr(utils::typing::is_same_v<FROM_T, TO_T>){
+                cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, from_device.stream);
+                cudaStreamSynchronize(from_device.stream);
+            }
+            else{
+                Tensor<tensor::Specification<FROM_T, typename TO_SPEC::TI, typename TO_SPEC::SHAPE, true, typename TO_SPEC::STRIDE>> temp;
+                malloc(to_device, temp);
+                cudaMemcpyAsync(temp._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, from_device.stream);
+                cudaStreamSynchronize(from_device.stream);
+                copy(to_device, to_device, temp, to);
+                free(to_device, temp);
+            }
         }
     }
     template<typename FROM_DEVICE, typename TO_DEV_SPEC, typename FROM_SPEC, typename TO_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(FROM_DEVICE& from_device, devices::CUDA<TO_DEV_SPEC>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to) {
+        using FROM_T = typename FROM_SPEC::T;
+        using TO_T = typename TO_SPEC::T;
         static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
         constexpr bool SAME_STRIDE = tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>();
         constexpr bool DENSE_ROW_MAJOR = tensor::dense_row_major_layout<FROM_SPEC>();
         static_assert(SAME_STRIDE && DENSE_ROW_MAJOR, "Inter-device copy not implemented for stride mismatch, yet, use a dense layout for transfer");
         if constexpr(SAME_STRIDE && DENSE_ROW_MAJOR){
-            cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, to_device.stream);
-            cudaStreamSynchronize(to_device.stream);
-        }
-        else{
-
+            if constexpr(utils::typing::is_same_v<FROM_T, TO_T>){
+                cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, to_device.stream);
+                cudaStreamSynchronize(to_device.stream);
+            }
+            else{
+                Tensor<tensor::Specification<TO_T, typename FROM_SPEC::TI, typename FROM_SPEC::SHAPE, true, typename FROM_SPEC::STRIDE>> temp;
+                malloc(from_device, temp);
+                copy(from_device, from_device, from, temp);
+                cudaMemcpyAsync(to._data, temp._data, TO_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, to_device.stream);
+                cudaStreamSynchronize(to_device.stream);
+                free(from_device, temp);
+            }
         }
     }
     namespace tensor::kernels {

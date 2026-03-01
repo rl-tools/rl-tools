@@ -124,6 +124,34 @@ namespace rl_tools{
         }
         template<typename T, typename TI>
         __global__
+        void bias_backward(
+            const T* d_conv_out,
+            T* d_bias,
+            TI spatial,
+            TI OC
+        ){
+            TI c = (TI)blockIdx.x;
+            if(c >= OC) return;
+            __shared__ float s_sum[256];
+            TI tid = (TI)threadIdx.x;
+            float local_sum = 0;
+            for(TI i = tid; i < spatial; i += (TI)blockDim.x){
+                local_sum += (float)d_conv_out[i * OC + c];
+            }
+            s_sum[tid] = local_sum;
+            __syncthreads();
+            for(unsigned int s = blockDim.x / 2; s > 0; s >>= 1){
+                if(threadIdx.x < s){
+                    s_sum[threadIdx.x] += s_sum[threadIdx.x + s];
+                }
+                __syncthreads();
+            }
+            if(threadIdx.x == 0){
+                d_bias[c] += (T)s_sum[0];
+            }
+        }
+        template<typename T, typename TI>
+        __global__
         void bn_eval_backward(
             const T* d_norm_out,
             const T* pre_act,
@@ -541,8 +569,12 @@ namespace rl_tools{
         } else {
             check_cuda_call(device, cudaMemcpyAsync(d_conv_out, d_output._data, N*OH*OW*OC*sizeof(T), cudaMemcpyDeviceToDevice, device.stream), "cudaMemcpyAsync conv2d_bwd d_output_to_d_conv_out");
         }
-        { float a = 1, b = 1;
-          check_cudnn_call(device, cudnnConvolutionBackwardBias(device.cudnn_handle, &a, yd, d_conv_out, &b, bias_d, layer.biases.gradient._data), "cudnnConvolutionBackwardBias conv2d_bwd"); }
+        {
+            constexpr TI SPATIAL = N * OH * OW;
+            constexpr TI BN_BS = 256;
+            nn::layers::conv2d::cuda::kernels::bias_backward<T, TI><<<OC, BN_BS, 0, device.stream>>>(
+                d_conv_out, layer.biases.gradient._data, SPATIAL, OC);
+        }
 
         if(bf_ok){
             if(cached_bf_ws > 0) ensure_cudnn_workspace(device, cached_bf_ws);

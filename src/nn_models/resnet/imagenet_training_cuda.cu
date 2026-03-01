@@ -48,6 +48,8 @@
 #include <condition_variable>
 #include <queue>
 
+#define RL_TOOLS_DEBUG_CUDA_SYNC
+
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 namespace fs = std::filesystem;
 
