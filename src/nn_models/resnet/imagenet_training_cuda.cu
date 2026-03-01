@@ -71,7 +71,11 @@ static inline void require_nvjpeg(nvjpegStatus_t status, const char* call){
 }
 static inline void require_kernel_ok(cudaStream_t stream, const char* call){
     require_cuda(cudaGetLastError(), call);
+#ifdef RL_TOOLS_DEBUG_CUDA_SYNC
     require_cuda(cudaStreamSynchronize(stream), call);
+#else
+    (void)stream;
+#endif
 }
 
 #define CUDA_CHECK(call) require_cuda((call), #call)
