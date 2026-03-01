@@ -277,6 +277,7 @@ namespace rl_tools{
         static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
         constexpr auto NORMALIZATION = LAYER_SPEC::NORMALIZATION;
         // Reshape to 4D: [INTERNAL_BATCH_SIZE, H, W, C]
@@ -291,7 +292,7 @@ namespace rl_tools{
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T acc = get(device, layer.biases.parameters, oc);
+                            ACCUMULATOR_TYPE acc = (ACCUMULATOR_TYPE)get(device, layer.biases.parameters, oc);
                             for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                 for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                     TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -301,12 +302,12 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            acc += get(device, layer.weights.parameters, oc, kh, kw, ic) * get(device, input_4d, bi, ih, iw, ic);
+                                            acc += (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic);
                                         }
                                     }
                                 }
                             }
-                            set(device, output_4d, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, oc);
+                            set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, oc);
                         }
                     }
                 }
@@ -317,7 +318,7 @@ namespace rl_tools{
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T acc = get(device, layer.biases.parameters, oc);
+                            ACCUMULATOR_TYPE acc = (ACCUMULATOR_TYPE)get(device, layer.biases.parameters, oc);
                             for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                 for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                     TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -327,18 +328,18 @@ namespace rl_tools{
                                         TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                         TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                         for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                            acc += get(device, layer.weights.parameters, oc, kh, kw, ic) * get(device, input_4d, bi, ih, iw, ic);
+                                            acc += (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic);
                                         }
                                     }
                                 }
                             }
-                            set(device, output_4d, acc, bi, oh, ow, oc);
+                            set(device, output_4d, (T)acc, bi, oh, ow, oc);
                         }
                     }
                 }
             }
 
-            constexpr T eps = (T)LAYER_SPEC::NORM_EPSILON;
+            const T eps = (T)LAYER_SPEC::NORM_EPSILON;
 
             if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
                 // Evaluate mode for BN: use running statistics
@@ -346,11 +347,11 @@ namespace rl_tools{
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, output_4d, bi, oh, ow, oc);
-                                T inv_std = (T)1 / math::sqrt(device.math, get(device, layer.norm.running_var.parameters, oc) + eps);
-                                T z_hat = (conv_out - get(device, layer.norm.running_mean.parameters, oc)) * inv_std;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                set(device, output_4d, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE inv_std = (ACCUMULATOR_TYPE)1 / math::sqrt(device.math, (ACCUMULATOR_TYPE)get(device, layer.norm.running_var.parameters, oc) + (ACCUMULATOR_TYPE)eps);
+                                ACCUMULATOR_TYPE z_hat = (conv_out - (ACCUMULATOR_TYPE)get(device, layer.norm.running_mean.parameters, oc)) * inv_std;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
                             }
                         }
                     }
@@ -360,35 +361,35 @@ namespace rl_tools{
                 constexpr TI N_LN = LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS;
                 for(TI bi = 0; bi < BATCH_SIZE; bi++){
                     // Compute mean
-                    T mean_val = 0;
+                    ACCUMULATOR_TYPE mean_val = 0;
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                mean_val += get(device, output_4d, bi, oh, ow, oc);
+                                mean_val += (ACCUMULATOR_TYPE)get(device, output_4d, bi, oh, ow, oc);
                             }
                         }
                     }
-                    mean_val /= (T)N_LN;
+                    mean_val /= (ACCUMULATOR_TYPE)N_LN;
                     // Compute variance
-                    T var_val = 0;
+                    ACCUMULATOR_TYPE var_val = 0;
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T diff = get(device, output_4d, bi, oh, ow, oc) - mean_val;
+                                ACCUMULATOR_TYPE diff = (ACCUMULATOR_TYPE)get(device, output_4d, bi, oh, ow, oc) - mean_val;
                                 var_val += diff * diff;
                             }
                         }
                     }
-                    var_val /= (T)N_LN;
-                    T inv_std = (T)1 / math::sqrt(device.math, var_val + eps);
+                    var_val /= (ACCUMULATOR_TYPE)N_LN;
+                    ACCUMULATOR_TYPE inv_std = (ACCUMULATOR_TYPE)1 / math::sqrt(device.math, var_val + (ACCUMULATOR_TYPE)eps);
                     // Normalize + activate
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, output_4d, bi, oh, ow, oc);
-                                T z_hat = (conv_out - mean_val) * inv_std;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                set(device, output_4d, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
                             }
                         }
                     }
@@ -403,6 +404,7 @@ namespace rl_tools{
         static_assert(nn::layers::conv2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
         constexpr auto NORMALIZATION = LAYER_SPEC::NORMALIZATION;
 
@@ -416,7 +418,7 @@ namespace rl_tools{
             for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                 for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                     for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                        T acc = get(device, layer.biases.parameters, oc);
+                        ACCUMULATOR_TYPE acc = (ACCUMULATOR_TYPE)get(device, layer.biases.parameters, oc);
                         for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                             for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                 TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -426,12 +428,12 @@ namespace rl_tools{
                                     TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                     TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                     for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                        acc += get(device, layer.weights.parameters, oc, kh, kw, ic) * get(device, input_4d, bi, ih, iw, ic);
+                                        acc += (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic);
                                     }
                                 }
                             }
                         }
-                        set(device, layer.pre_activations, acc, bi, oh, ow, oc);
+                        set(device, layer.pre_activations, (T)acc, bi, oh, ow, oc);
                     }
                 }
             }
@@ -450,48 +452,48 @@ namespace rl_tools{
                 }
             }
         } else if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-            constexpr T eps = (T)LAYER_SPEC::NORM_EPSILON;
+            const T eps = (T)LAYER_SPEC::NORM_EPSILON;
             if constexpr(mode::is<MODE, mode::Evaluation>) {
                 // Evaluation mode: use running statistics (like PyTorch model.eval())
                 for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
                     T mean_val = get(device, layer.norm.running_mean.parameters, oc);
-                    T var_val = get(device, layer.norm.running_var.parameters, oc);
-                    T inv_std = (T)1 / math::sqrt(device.math, var_val + eps);
+                    ACCUMULATOR_TYPE var_val = (ACCUMULATOR_TYPE)get(device, layer.norm.running_var.parameters, oc);
+                    T inv_std = (T)((ACCUMULATOR_TYPE)1 / math::sqrt(device.math, var_val + (ACCUMULATOR_TYPE)eps));
                     set(device, layer.norm_cache.mean, mean_val, oc);
                     set(device, layer.norm_cache.inv_std, inv_std, oc);
                 }
             } else {
                 // Training mode: compute batch statistics
-                constexpr T momentum = (T)LAYER_SPEC::BN_MOMENTUM;
+                const T momentum = (T)LAYER_SPEC::BN_MOMENTUM;
                 constexpr TI N_BN = BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH;
                 for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                    T mean_val = 0;
+                    ACCUMULATOR_TYPE mean_val = 0;
                     for(TI bi = 0; bi < BATCH_SIZE; bi++){
                         for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                             for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                                mean_val += get(device, layer.pre_activations, bi, oh, ow, oc);
+                                mean_val += (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
                             }
                         }
                     }
-                    mean_val /= (T)N_BN;
-                    T var_val = 0;
+                    mean_val /= (ACCUMULATOR_TYPE)N_BN;
+                    ACCUMULATOR_TYPE var_val = 0;
                     for(TI bi = 0; bi < BATCH_SIZE; bi++){
                         for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                             for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                                T diff = get(device, layer.pre_activations, bi, oh, ow, oc) - mean_val;
+                                ACCUMULATOR_TYPE diff = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc) - mean_val;
                                 var_val += diff * diff;
                             }
                         }
                     }
-                    var_val /= (T)N_BN;
-                    T inv_std = (T)1 / math::sqrt(device.math, var_val + eps);
-                    set(device, layer.norm_cache.mean, mean_val, oc);
+                    var_val /= (ACCUMULATOR_TYPE)N_BN;
+                    T inv_std = (T)((ACCUMULATOR_TYPE)1 / math::sqrt(device.math, var_val + (ACCUMULATOR_TYPE)eps));
+                    set(device, layer.norm_cache.mean, (T)mean_val, oc);
                     set(device, layer.norm_cache.inv_std, inv_std, oc);
                     // Update running statistics (EMA)
                     T running_mean = get(device, layer.norm.running_mean.parameters, oc);
                     T running_var = get(device, layer.norm.running_var.parameters, oc);
-                    set(device, layer.norm.running_mean.parameters, ((T)1 - momentum) * running_mean + momentum * mean_val, oc);
-                    set(device, layer.norm.running_var.parameters, ((T)1 - momentum) * running_var + momentum * var_val, oc);
+                    set(device, layer.norm.running_mean.parameters, (T)((ACCUMULATOR_TYPE)((ACCUMULATOR_TYPE)1 - (ACCUMULATOR_TYPE)momentum) * (ACCUMULATOR_TYPE)running_mean + (ACCUMULATOR_TYPE)momentum * mean_val), oc);
+                    set(device, layer.norm.running_var.parameters, (T)((ACCUMULATOR_TYPE)((ACCUMULATOR_TYPE)1 - (ACCUMULATOR_TYPE)momentum) * (ACCUMULATOR_TYPE)running_var + (ACCUMULATOR_TYPE)momentum * var_val), oc);
                 }
             }
 
@@ -500,57 +502,57 @@ namespace rl_tools{
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                            T z_hat = (conv_out - get(device, layer.norm_cache.mean, oc)) * get(device, layer.norm_cache.inv_std, oc);
-                            T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                            set(device, output_4d, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
+                            ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                            ACCUMULATOR_TYPE z_hat = (conv_out - (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc)) * (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc);
+                            ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                            set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
                         }
                     }
                 }
             }
         } else { // LAYER_NORM
-            constexpr T eps = (T)LAYER_SPEC::NORM_EPSILON;
+            const T eps = (T)LAYER_SPEC::NORM_EPSILON;
             constexpr TI N_LN = LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS;
 
             // Phase 2: Compute per-sample statistics
             for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                T mean_val = 0;
+                ACCUMULATOR_TYPE mean_val = 0;
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            mean_val += get(device, layer.pre_activations, bi, oh, ow, oc);
+                            mean_val += (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
                         }
                     }
                 }
-                mean_val /= (T)N_LN;
+                mean_val /= (ACCUMULATOR_TYPE)N_LN;
 
-                T var_val = 0;
+                ACCUMULATOR_TYPE var_val = 0;
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T diff = get(device, layer.pre_activations, bi, oh, ow, oc) - mean_val;
+                            ACCUMULATOR_TYPE diff = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc) - mean_val;
                             var_val += diff * diff;
                         }
                     }
                 }
-                var_val /= (T)N_LN;
-                T inv_std = (T)1 / math::sqrt(device.math, var_val + eps);
+                var_val /= (ACCUMULATOR_TYPE)N_LN;
+                T inv_std = (T)((ACCUMULATOR_TYPE)1 / math::sqrt(device.math, var_val + (ACCUMULATOR_TYPE)eps));
 
-                set(device, layer.norm_cache.mean, mean_val, bi);
+                set(device, layer.norm_cache.mean, (T)mean_val, bi);
                 set(device, layer.norm_cache.inv_std, inv_std, bi);
             }
 
             // Phase 3: Normalize + activate -> output
             for(TI bi = 0; bi < BATCH_SIZE; bi++){
-                T mean_val = get(device, layer.norm_cache.mean, bi);
-                T inv_std = get(device, layer.norm_cache.inv_std, bi);
+                ACCUMULATOR_TYPE mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, bi);
+                ACCUMULATOR_TYPE inv_std = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, bi);
                 for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                     for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                         for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                            T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                            T z_hat = (conv_out - mean_val) * inv_std;
-                            T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                            set(device, output_4d, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
+                            ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                            ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std;
+                            ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                            set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
                         }
                     }
                 }
@@ -582,6 +584,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, const nn::layers::conv2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
         constexpr auto NORMALIZATION = LAYER_SPEC::NORMALIZATION;
 
@@ -625,13 +628,13 @@ namespace rl_tools{
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                T mean_val = get(device, layer.norm_cache.mean, oc);
-                                T inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                                T d_conv_out = d_norm_out * get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc);
+                                ACCUMULATOR_TYPE inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc);
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE d_conv_out = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                         TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -641,7 +644,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, d_input_4d, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
                                             }
                                         }
                                     }
@@ -656,24 +659,24 @@ namespace rl_tools{
                 constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
                     (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
                     (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
-                T sum_dz_hat[NORM_DIM];
-                T sum_dz_hat_z_hat[NORM_DIM];
+                ACCUMULATOR_TYPE sum_dz_hat[NORM_DIM];
+                ACCUMULATOR_TYPE sum_dz_hat_z_hat[NORM_DIM];
                 for(TI i = 0; i < NORM_DIM; i++){ sum_dz_hat[i] = 0; sum_dz_hat_z_hat[i] = 0; }
                 for(TI bi = 0; bi < BATCH_SIZE; bi++){
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                TI stat_idx; T mean_val, inv_std_val;
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; ACCUMULATOR_TYPE mean_val, inv_std_val;
                                 if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                                    stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc);
+                                    stat_idx = oc; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc);
                                 } else {
-                                    stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+                                    stat_idx = bi; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, bi); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, bi);
                                 }
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
                                 sum_dz_hat[stat_idx] += d_z_hat_val;
                                 sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
                             }
@@ -684,18 +687,18 @@ namespace rl_tools{
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                TI stat_idx; T mean_val, inv_std_val;
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; ACCUMULATOR_TYPE mean_val, inv_std_val;
                                 if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                                    stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc);
+                                    stat_idx = oc; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc);
                                 } else {
-                                    stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi);
+                                    stat_idx = bi; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, bi); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, bi);
                                 }
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                                T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
+                                T d_conv_out = (T)(inv_std_val * ((ACCUMULATOR_TYPE)1 / (ACCUMULATOR_TYPE)N) * ((ACCUMULATOR_TYPE)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]));
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                         TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -705,7 +708,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, d_input_4d, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * (ACCUMULATOR_TYPE)d_conv_out, bi, ih, iw, ic);
                                             }
                                         }
                                     }
@@ -723,6 +726,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using TI = typename DEVICE::index_t;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
         constexpr auto NORMALIZATION = LAYER_SPEC::NORMALIZATION;
 
@@ -764,15 +768,15 @@ namespace rl_tools{
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                T mean_val = get(device, layer.norm_cache.mean, oc);
-                                T inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc);
+                                ACCUMULATOR_TYPE inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc);
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
                                 increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
                                 increment(device, layer.norm.beta.gradient, d_norm_out, oc);
-                                T d_conv_out = d_norm_out * get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
+                                ACCUMULATOR_TYPE d_conv_out = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
                                 increment(device, layer.biases.gradient, d_conv_out, oc);
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
@@ -783,7 +787,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                                increment(device, layer.weights.gradient, d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -798,20 +802,20 @@ namespace rl_tools{
                 constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
                     (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
                     (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
-                T sum_dz_hat[NORM_DIM]; T sum_dz_hat_z_hat[NORM_DIM];
+                ACCUMULATOR_TYPE sum_dz_hat[NORM_DIM]; ACCUMULATOR_TYPE sum_dz_hat_z_hat[NORM_DIM];
                 for(TI i = 0; i < NORM_DIM; i++){ sum_dz_hat[i] = 0; sum_dz_hat_z_hat[i] = 0; }
                 for(TI bi = 0; bi < BATCH_SIZE; bi++){
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                TI stat_idx; T mean_val, inv_std_val;
-                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc); }
-                                else { stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi); }
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; ACCUMULATOR_TYPE mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc); }
+                                else { stat_idx = bi; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, bi); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, bi); }
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
                                 increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
                                 increment(device, layer.norm.beta.gradient, d_norm_out, oc);
                                 sum_dz_hat[stat_idx] += d_z_hat_val; sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
@@ -823,16 +827,16 @@ namespace rl_tools{
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                TI stat_idx; T mean_val, inv_std_val;
-                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc); }
-                                else { stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi); }
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                                T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
-                                increment(device, layer.biases.gradient, d_conv_out, oc);
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; ACCUMULATOR_TYPE mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc); }
+                                else { stat_idx = bi; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, bi); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, bi); }
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
+                                T d_conv_out = (T)(inv_std_val * ((ACCUMULATOR_TYPE)1 / (ACCUMULATOR_TYPE)N) * ((ACCUMULATOR_TYPE)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]));
+                                increment(device, layer.biases.gradient, (ACCUMULATOR_TYPE)d_conv_out, oc);
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                         TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -842,7 +846,7 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                                increment(device, layer.weights.gradient, (ACCUMULATOR_TYPE)d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -860,6 +864,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using TI = typename DEVICE::index_t;
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
         constexpr auto NORMALIZATION = LAYER_SPEC::NORMALIZATION;
 
@@ -906,15 +911,15 @@ namespace rl_tools{
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                T mean_val = get(device, layer.norm_cache.mean, oc);
-                                T inv_std_val = get(device, layer.norm_cache.inv_std, oc);
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc);
+                                ACCUMULATOR_TYPE inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc);
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
                                 increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
                                 increment(device, layer.norm.beta.gradient, d_norm_out, oc);
-                                T d_conv_out = d_norm_out * get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
+                                ACCUMULATOR_TYPE d_conv_out = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * inv_std_val;
                                 increment(device, layer.biases.gradient, d_conv_out, oc);
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
@@ -925,8 +930,8 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
-                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                                increment(device, d_input_4d, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
+                                                increment(device, layer.weights.gradient, d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }
@@ -941,20 +946,20 @@ namespace rl_tools{
                 constexpr TI N = (NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) ?
                     (BATCH_SIZE * LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH) :
                     (LAYER_SPEC::OUTPUT_HEIGHT * LAYER_SPEC::OUTPUT_WIDTH * LAYER_SPEC::OUTPUT_CHANNELS);
-                T sum_dz_hat[NORM_DIM]; T sum_dz_hat_z_hat[NORM_DIM];
+                ACCUMULATOR_TYPE sum_dz_hat[NORM_DIM]; ACCUMULATOR_TYPE sum_dz_hat_z_hat[NORM_DIM];
                 for(TI i = 0; i < NORM_DIM; i++){ sum_dz_hat[i] = 0; sum_dz_hat_z_hat[i] = 0; }
                 for(TI bi = 0; bi < BATCH_SIZE; bi++){
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                TI stat_idx; T mean_val, inv_std_val;
-                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc); }
-                                else { stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi); }
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; ACCUMULATOR_TYPE mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc); }
+                                else { stat_idx = bi; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, bi); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, bi); }
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
                                 increment(device, layer.norm.gamma.gradient, d_norm_out * z_hat, oc);
                                 increment(device, layer.norm.beta.gradient, d_norm_out, oc);
                                 sum_dz_hat[stat_idx] += d_z_hat_val; sum_dz_hat_z_hat[stat_idx] += d_z_hat_val * z_hat;
@@ -966,16 +971,16 @@ namespace rl_tools{
                     for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                                T conv_out = get(device, layer.pre_activations, bi, oh, ow, oc);
-                                TI stat_idx; T mean_val, inv_std_val;
-                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = get(device, layer.norm_cache.mean, oc); inv_std_val = get(device, layer.norm_cache.inv_std, oc); }
-                                else { stat_idx = bi; mean_val = get(device, layer.norm_cache.mean, bi); inv_std_val = get(device, layer.norm_cache.inv_std, bi); }
-                                T z_hat = (conv_out - mean_val) * inv_std_val;
-                                T norm_out = get(device, layer.norm.gamma.parameters, oc) * z_hat + get(device, layer.norm.beta.parameters, oc);
-                                T d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * get(device, d_output_4d, bi, oh, ow, oc);
-                                T d_z_hat_val = d_norm_out * get(device, layer.norm.gamma.parameters, oc);
-                                T d_conv_out = inv_std_val * ((T)1 / (T)N) * ((T)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]);
-                                increment(device, layer.biases.gradient, d_conv_out, oc);
+                                ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, oc);
+                                TI stat_idx; ACCUMULATOR_TYPE mean_val, inv_std_val;
+                                if constexpr(NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) { stat_idx = oc; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, oc); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, oc); }
+                                else { stat_idx = bi; mean_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.mean, bi); inv_std_val = (ACCUMULATOR_TYPE)get(device, layer.norm_cache.inv_std, bi); }
+                                ACCUMULATOR_TYPE z_hat = (conv_out - mean_val) * inv_std_val;
+                                ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
+                                ACCUMULATOR_TYPE d_norm_out = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, oc);
+                                ACCUMULATOR_TYPE d_z_hat_val = d_norm_out * (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc);
+                                T d_conv_out = (T)(inv_std_val * ((ACCUMULATOR_TYPE)1 / (ACCUMULATOR_TYPE)N) * ((ACCUMULATOR_TYPE)N * d_z_hat_val - sum_dz_hat[stat_idx] - z_hat * sum_dz_hat_z_hat[stat_idx]));
+                                increment(device, layer.biases.gradient, (ACCUMULATOR_TYPE)d_conv_out, oc);
                                 for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
                                     for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
                                         TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
@@ -985,8 +990,8 @@ namespace rl_tools{
                                             TI ih = ih_padded - LAYER_SPEC::PADDING_H;
                                             TI iw = iw_padded - LAYER_SPEC::PADDING_W;
                                             for(TI ic = 0; ic < LAYER_SPEC::INPUT_CHANNELS; ic++){
-                                                increment(device, d_input_4d, get(device, layer.weights.parameters, oc, kh, kw, ic) * d_conv_out, bi, ih, iw, ic);
-                                                increment(device, layer.weights.gradient, d_conv_out * get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
+                                                increment(device, d_input_4d, (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, oc, kh, kw, ic) * (ACCUMULATOR_TYPE)d_conv_out, bi, ih, iw, ic);
+                                                increment(device, layer.weights.gradient, (ACCUMULATOR_TYPE)d_conv_out * (ACCUMULATOR_TYPE)get(device, input_4d, bi, ih, iw, ic), oc, kh, kw, ic);
                                             }
                                         }
                                     }

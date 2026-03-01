@@ -166,10 +166,10 @@ namespace rl_tools::nn_models::sequential{
         using BUFFER_SPEC = T_BUFFER_SPEC;
         using SPEC = typename BUFFER_SPEC::SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
-        using T_ACCUMULATOR = typename TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
+        using T_ACTIVATION = typename TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         using TI = typename SPEC::TI;
         using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM>;
-        using TICK_TOCK_CONTAINER_SPEC = tensor::Specification<T_ACCUMULATOR, TI, TICK_TOCK_CONTAINER_SHAPE, BUFFER_SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<TICK_TOCK_CONTAINER_SHAPE>>;
+        using TICK_TOCK_CONTAINER_SPEC = tensor::Specification<T_ACTIVATION, TI, TICK_TOCK_CONTAINER_SHAPE, BUFFER_SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<TICK_TOCK_CONTAINER_SHAPE>>;
         using TICK_TOCK_CONTAINER_TYPE = Tensor<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;

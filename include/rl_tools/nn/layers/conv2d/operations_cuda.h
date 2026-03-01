@@ -30,14 +30,14 @@ namespace rl_tools{
             if(c >= OC){
                 return;
             }
-            __shared__ T s_sum[256];
-            __shared__ T s_sq_sum[256];
+            __shared__ float s_sum[256];
+            __shared__ float s_sq_sum[256];
             TI tid = (TI)threadIdx.x;
-            T local_sum = 0;
-            T local_sq_sum = 0;
+            float local_sum = 0;
+            float local_sq_sum = 0;
             for(TI i = tid; i < spatial; i += (TI)blockDim.x){
                 TI idx = i * OC + c;
-                T v = pre_act[idx];
+                float v = (float)pre_act[idx];
                 local_sum += v;
                 local_sq_sum += v * v;
             }
@@ -52,18 +52,18 @@ namespace rl_tools{
                 __syncthreads();
             }
             if(threadIdx.x == 0){
-                T m = s_sum[0] / (T)spatial;
-                T sq_m = s_sq_sum[0] / (T)spatial;
-                T var = sq_m - m * m;
-                if(var < (T)0){
-                    var = (T)0;
+                float m = s_sum[0] / (float)spatial;
+                float sq_m = s_sq_sum[0] / (float)spatial;
+                float var = sq_m - m * m;
+                if(var < 0.0f){
+                    var = 0.0f;
                 }
-                mean[c] = m;
-                inv_std[c] = (T)((float)1 / sqrtf((float)(var + eps)));
-                T rm = running_mean[c];
-                T rv = running_var[c];
-                running_mean[c] = ((T)1 - momentum) * rm + momentum * m;
-                running_var[c] = ((T)1 - momentum) * rv + momentum * var;
+                mean[c] = (T)m;
+                inv_std[c] = (T)(1.0f / sqrtf(var + (float)eps));
+                float rm = (float)running_mean[c];
+                float rv = (float)running_var[c];
+                running_mean[c] = (T)((1.0f - (float)momentum) * rm + (float)momentum * m);
+                running_var[c] = (T)((1.0f - (float)momentum) * rv + (float)momentum * var);
             }
         }
         template<typename T, typename TI>
@@ -168,16 +168,19 @@ namespace rl_tools{
             if(c >= OC){
                 return;
             }
-            __shared__ T s_d_gamma[256];
-            __shared__ T s_d_beta[256];
+            __shared__ float s_d_gamma[256];
+            __shared__ float s_d_beta[256];
             TI tid = (TI)threadIdx.x;
-            T local_d_gamma = 0;
-            T local_d_beta = 0;
+            float local_d_gamma = 0;
+            float local_d_beta = 0;
+            float gamma_c = (float)gamma[c];
+            float mean_c = (float)mean[c];
+            float inv_std_c = (float)inv_std[c];
             for(TI i = tid; i < spatial; i += (TI)blockDim.x){
                 TI idx = i * OC + c;
-                T z_hat = (pre_act[idx] - mean[c]) * inv_std[c];
-                T dno = d_norm_out[idx];
-                d_conv_out[idx] = dno * gamma[c] * inv_std[c];
+                float z_hat = ((float)pre_act[idx] - mean_c) * inv_std_c;
+                float dno = (float)d_norm_out[idx];
+                d_conv_out[idx] = (T)(dno * gamma_c * inv_std_c);
                 local_d_gamma += dno * z_hat;
                 local_d_beta += dno;
             }
@@ -192,8 +195,8 @@ namespace rl_tools{
                 __syncthreads();
             }
             if(threadIdx.x == 0){
-                atomicAdd(&d_gamma[c], s_d_gamma[0]);
-                atomicAdd(&d_beta[c], s_d_beta[0]);
+                atomicAdd(&d_gamma[c], (T)s_d_gamma[0]);
+                atomicAdd(&d_beta[c], (T)s_d_beta[0]);
             }
         }
         template<typename T>
@@ -214,23 +217,23 @@ namespace rl_tools{
             if(c >= OC){
                 return;
             }
-            __shared__ T s_sum_dz_hat[256];
-            __shared__ T s_sum_dz_hat_z_hat[256];
-            __shared__ T s_d_gamma[256];
-            __shared__ T s_d_beta[256];
+            __shared__ float s_sum_dz_hat[256];
+            __shared__ float s_sum_dz_hat_z_hat[256];
+            __shared__ float s_d_gamma[256];
+            __shared__ float s_d_beta[256];
             unsigned int tid = threadIdx.x;
-            T local_sum_dz_hat = 0;
-            T local_sum_dz_hat_z_hat = 0;
-            T local_d_gamma = 0;
-            T local_d_beta = 0;
-            T gamma_c = gamma[c];
-            T mean_c = mean[c];
-            T inv_std_c = inv_std[c];
+            float local_sum_dz_hat = 0;
+            float local_sum_dz_hat_z_hat = 0;
+            float local_d_gamma = 0;
+            float local_d_beta = 0;
+            float gamma_c = (float)gamma[c];
+            float mean_c = (float)mean[c];
+            float inv_std_c = (float)inv_std[c];
             for(unsigned int i = tid; i < spatial; i += blockDim.x){
                 unsigned int idx = i * OC + c;
-                T z_hat = (pre_act[idx] - mean_c) * inv_std_c;
-                T dno = d_norm_out[idx];
-                T d_z_hat = dno * gamma_c;
+                float z_hat = ((float)pre_act[idx] - mean_c) * inv_std_c;
+                float dno = (float)d_norm_out[idx];
+                float d_z_hat = dno * gamma_c;
                 local_sum_dz_hat += d_z_hat;
                 local_sum_dz_hat_z_hat += d_z_hat * z_hat;
                 local_d_gamma += dno * z_hat;
@@ -250,20 +253,20 @@ namespace rl_tools{
                 }
                 __syncthreads();
             }
-            T sum_dz_hat = s_sum_dz_hat[0];
-            T sum_dz_hat_z_hat = s_sum_dz_hat_z_hat[0];
-            T inv_n = (T)1 / (T)spatial;
+            float sum_dz_hat = s_sum_dz_hat[0];
+            float sum_dz_hat_z_hat = s_sum_dz_hat_z_hat[0];
+            float inv_n = 1.0f / (float)spatial;
             for(unsigned int i = tid; i < spatial; i += blockDim.x){
                 unsigned int idx = i * OC + c;
-                T z_hat = (pre_act[idx] - mean_c) * inv_std_c;
-                T d_z_hat = d_norm_out[idx] * gamma_c;
-                d_conv_out[idx] = inv_std_c * inv_n * ((T)spatial * d_z_hat - sum_dz_hat - z_hat * sum_dz_hat_z_hat);
+                float z_hat = ((float)pre_act[idx] - mean_c) * inv_std_c;
+                float d_z_hat = (float)d_norm_out[idx] * gamma_c;
+                d_conv_out[idx] = (T)(inv_std_c * inv_n * ((float)spatial * d_z_hat - sum_dz_hat - z_hat * sum_dz_hat_z_hat));
             }
             if(tid == 0){
                 // One block owns one output channel c, so these writes are uncontended
                 // within this kernel launch and do not require atomics.
-                d_gamma[c] += s_d_gamma[0];
-                d_beta[c] += s_d_beta[0];
+                d_gamma[c] += (T)s_d_gamma[0];
+                d_beta[c] += (T)s_d_beta[0];
             }
         }
     }

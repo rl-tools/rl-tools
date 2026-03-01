@@ -8,4 +8,9 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN AND RL_TOOLS_E
     target_link_libraries(test_nn_layers_conv2d_cuda PRIVATE rl_tools_full RLtools::Test GTest::gtest_main)
     gtest_discover_tests(test_nn_layers_conv2d_cuda)
     target_compile_options(test_nn_layers_conv2d_cuda PRIVATE --diag-suppress=186)
+
+    add_executable(test_nn_layers_conv2d_cuda_bf16 conv2d_cuda_bf16.cu)
+    target_link_libraries(test_nn_layers_conv2d_cuda_bf16 PRIVATE rl_tools_full RLtools::Test GTest::gtest_main)
+    gtest_discover_tests(test_nn_layers_conv2d_cuda_bf16)
+    target_compile_options(test_nn_layers_conv2d_cuda_bf16 PRIVATE --diag-suppress=186)
 endif()

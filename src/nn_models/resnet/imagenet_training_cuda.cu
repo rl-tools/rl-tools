@@ -53,9 +53,11 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 namespace fs = std::filesystem;
 
-using T = __nv_bfloat16;
-using TYPE_POLICY = rlt::numeric_types::Policy<T,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::OptimizerState, float>>;
+using T = float; //__nv_bfloat16;
+using TYPE_POLICY = rlt::numeric_types::Policy<float,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, T>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, T>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, T>>;
 using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_CUDA = rlt::devices::DEVICE_FACTORY_CUDA<>;
 using TI = DEVICE_CPU::index_t;
@@ -380,6 +382,7 @@ int main(int argc, char* argv[]) {
     std::string resume_path = "";
     std::string binary_dir = "";
     bool mmap_populate = true;
+    bool skip_warmup = false;
     TI batch_size = 256;
     TI log_interval = 1;
     for (int i = 1; i < argc; i++) {
@@ -391,9 +394,11 @@ int main(int argc, char* argv[]) {
         else if (arg == "--log-interval" && i + 1 < argc) log_interval = std::stoi(argv[++i]);
         else if (arg == "--mmap-populate") mmap_populate = true;
         else if (arg == "--no-mmap-populate") mmap_populate = false;
+        else if (arg == "--skip-warmup") skip_warmup = true;
         else if (arg == "--help") {
-            std::cout << "Usage: " << argv[0] << " --binary-dir DIR [--batch-size N] [--log-interval N] [--logdir PREFIX] [--resume PATH] [--mmap-populate|--no-mmap-populate]\n"
-                      << "  --mmap-populate is enabled by default for maximum I/O performance.\n";
+            std::cout << "Usage: " << argv[0] << " --binary-dir DIR [--batch-size N] [--log-interval N] [--logdir PREFIX] [--resume PATH] [--mmap-populate|--no-mmap-populate] [--skip-warmup]\n"
+                      << "  --mmap-populate is enabled by default for maximum I/O performance.\n"
+                      << "  --skip-warmup skips the LR warmup epochs.\n";
             return 0;
         }
     }
@@ -768,7 +773,8 @@ int main(int argc, char* argv[]) {
 
     for (TI epoch = 0; epoch < TrainingConfig::NUM_EPOCHS; epoch++) {
         auto epoch_start = std::chrono::high_resolution_clock::now();
-        float current_lr = cosine_lr(epoch, TrainingConfig::NUM_EPOCHS, scaled_lr, TrainingConfig::MIN_LR, TrainingConfig::WARMUP_EPOCHS, TrainingConfig::WARMUP_LR);
+        TI warmup_epochs = skip_warmup ? 0 : TrainingConfig::WARMUP_EPOCHS;
+        float current_lr = cosine_lr(epoch, TrainingConfig::NUM_EPOCHS, scaled_lr, TrainingConfig::MIN_LR, warmup_epochs, TrainingConfig::WARMUP_LR);
         {
             typename OPTIMIZER::PARAMETERS op;
             CUDA_CHECK(cudaMemcpy(&op, optimizer.parameters._data, sizeof(op), cudaMemcpyDeviceToHost));

@@ -34,7 +34,7 @@ namespace rl_tools{
             return math::max(DEVICE(), x, (T)0);
         }
         else if constexpr(F == GELU){
-            constexpr T a = math::FRAC_2_SQRTPI<T> * math::SQRT1_2<T> * (T)0.5;
+            const T a = math::FRAC_2_SQRTPI<T> * math::SQRT1_2<T> * (T)0.5;
             return (T)0.5 * (x + x * math::tanh(DEVICE(), a * ((T)0.044715f * x * x * x + x)));
         }
         else if constexpr(F == TANH){
@@ -60,11 +60,11 @@ namespace rl_tools{
             return 1;
         }
         else if constexpr(F == RELU){
-            return x > 0 ? 1 : 0;
+            return x > (T)0 ? (T)1 : (T)0;
         }
         else if constexpr(F == GELU){
-            constexpr T a = math::FRAC_2_SQRTPI<T> * math::SQRT1_2<T> * (T)0.5;
-            constexpr T b = 0.044715f;
+            const T a = math::FRAC_2_SQRTPI<T> * math::SQRT1_2<T> * (T)0.5;
+            const T b = (T)0.044715f;
             T tanh_term = math::tanh(DEVICE(), a * (b * x * x * x + x));
             return (T)0.5*((T)1 + tanh_term) + (T)0.5 * x * ((T)1 - tanh_term * tanh_term) * a * ((T)3 * b * x * x + (T)1);
         }

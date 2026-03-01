@@ -243,7 +243,7 @@ namespace rl_tools{
                     for(TI c = 0; c < OC; c++){
                         T out_val = get(device, output_view, bi, h, w, c);
                         T d_val = get(device, d_output_4d, bi, h, w, c);
-                        set(device, d_pre_relu, out_val > 0 ? d_val : (T)0, bi, h, w, c);
+                        set(device, d_pre_relu, out_val > (T)0 ? d_val : (T)0, bi, h, w, c);
                     }
                 }
             }
@@ -283,7 +283,7 @@ namespace rl_tools{
                     for(TI c = 0; c < OC; c++){
                         T out_val = get(device, output_view, bi, h, w, c);
                         T d_val = get(device, d_output_4d, bi, h, w, c);
-                        set(device, d_pre_relu, out_val > 0 ? d_val : (T)0, bi, h, w, c);
+                        set(device, d_pre_relu, out_val > (T)0 ? d_val : (T)0, bi, h, w, c);
                     }
                 }
             }

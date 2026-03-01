@@ -96,15 +96,16 @@ namespace rl_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // Warning do not use the same buffer for input and output!
         using TI = typename DEVICE::index_t;
-        using ACCUMULATOR_TYPE = typename OUTPUT_SPEC::T;
+        using T = typename OUTPUT_SPEC::T;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
-                set(output, batch_i, output_i, get(device, layer.biases.parameters, output_i));
+                ACCUMULATOR_TYPE acc = (ACCUMULATOR_TYPE)get(device, layer.biases.parameters, output_i);
                 for(TI input_i = 0; input_i < LAYER_SPEC::INPUT_DIM; input_i++) {
-                    increment(output, batch_i, output_i, get(device, layer.weights.parameters, output_i, input_i) * get(input, batch_i, input_i));
+                    acc += (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, output_i, input_i) * (ACCUMULATOR_TYPE)get(input, batch_i, input_i);
                 }
-                set(output, batch_i, output_i, activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, batch_i, output_i)));
+                set(output, batch_i, output_i, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc));
             }
         }
     }
@@ -114,16 +115,18 @@ namespace rl_tools{
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        using ACCUMULATOR_TYPE = typename OUTPUT_SPEC::T;
+        using T = typename OUTPUT_SPEC::T;
+        using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI i = 0; i < LAYER_SPEC::OUTPUT_DIM; i++) {
-                set(layer.pre_activations, batch_i, i, get(device, layer.biases.parameters, i));
+                ACCUMULATOR_TYPE acc = (ACCUMULATOR_TYPE)get(device, layer.biases.parameters, i);
                 for(TI j = 0; j < LAYER_SPEC::INPUT_DIM; j++) {
-                    increment(layer.pre_activations, batch_i, i, get(device, layer.weights.parameters, i, j) * get(input, batch_i, j));
+                    acc += (ACCUMULATOR_TYPE)get(device, layer.weights.parameters, i, j) * (ACCUMULATOR_TYPE)get(input, batch_i, j);
                 }
-                set(output, batch_i, i, activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, i)));
+                set(layer.pre_activations, batch_i, i, (T)acc);
+                set(output, batch_i, i, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc));
             }
         }
     }
