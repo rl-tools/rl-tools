@@ -33,6 +33,8 @@
 #include <iomanip>
 #include <sstream>
 #include <cmath>
+#include <cerrno>
+#include <cstring>
 #include <algorithm>
 #include <numeric>
 #include <filesystem>
@@ -301,15 +303,40 @@ struct BinaryDataset {
     struct IndexEntry { uint64_t offset; uint32_t size; uint32_t label; };
     const IndexEntry* index = nullptr;
 
-    bool load(const std::string& path) {
+    bool load(const std::string& path, bool mmap_populate) {
         fd = ::open(path.c_str(), O_RDONLY);
-        if (fd < 0) { std::cerr << "Failed to open: " << path << std::endl; return false; }
+        if (fd < 0) {
+            std::cerr << "Failed to open: " << path << ": " << std::strerror(errno) << " (errno " << errno << ")" << std::endl;
+            return false;
+        }
         struct stat st;
-        if (fstat(fd, &st) < 0) { ::close(fd); fd = -1; return false; }
+        if (fstat(fd, &st) < 0) {
+            std::cerr << "fstat failed for: " << path << ": " << std::strerror(errno) << " (errno " << errno << ")" << std::endl;
+            ::close(fd);
+            fd = -1;
+            return false;
+        }
         file_size = st.st_size;
-        mapped = static_cast<uint8_t*>(mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0));
-        if (mapped == MAP_FAILED) { ::close(fd); fd = -1; mapped = nullptr; return false; }
-        madvise(mapped, file_size, MADV_RANDOM);
+        int mmap_flags = MAP_PRIVATE;
+        if (mmap_populate) {
+            mmap_flags |= MAP_POPULATE;
+        }
+        mapped = static_cast<uint8_t*>(mmap(nullptr, file_size, PROT_READ, mmap_flags, fd, 0));
+        if (mapped == MAP_FAILED) {
+            const int mmap_errno = errno;
+            std::cerr << "mmap failed for: " << path << ": " << std::strerror(mmap_errno) << " (errno " << mmap_errno << ")";
+            if (mmap_errno == ENOMEM && mmap_populate) {
+                std::cerr << " while using MAP_POPULATE";
+            }
+            std::cerr << std::endl;
+            ::close(fd);
+            fd = -1;
+            mapped = nullptr;
+            return false;
+        }
+        if (madvise(mapped, file_size, MADV_RANDOM) != 0) {
+            std::cerr << "Warning: madvise(MADV_RANDOM) failed for: " << path << ": " << std::strerror(errno) << " (errno " << errno << ")" << std::endl;
+        }
         num_samples = *reinterpret_cast<const uint64_t*>(mapped);
         index = reinterpret_cast<const IndexEntry*>(mapped + 8);
         return true;
@@ -343,6 +370,7 @@ int main(int argc, char* argv[]) {
     std::string logdir_prefix = "runs";
     std::string resume_path = "";
     std::string binary_dir = "";
+    bool mmap_populate = true;
     TI batch_size = 256;
     TI log_interval = 1;
     for (int i = 1; i < argc; i++) {
@@ -352,8 +380,11 @@ int main(int argc, char* argv[]) {
         else if (arg == "--resume" && i + 1 < argc) resume_path = argv[++i];
         else if (arg == "--batch-size" && i + 1 < argc) batch_size = std::stoi(argv[++i]);
         else if (arg == "--log-interval" && i + 1 < argc) log_interval = std::stoi(argv[++i]);
+        else if (arg == "--mmap-populate") mmap_populate = true;
+        else if (arg == "--no-mmap-populate") mmap_populate = false;
         else if (arg == "--help") {
-            std::cout << "Usage: " << argv[0] << " --binary-dir DIR [--batch-size N] [--log-interval N] [--logdir PREFIX] [--resume PATH]\n";
+            std::cout << "Usage: " << argv[0] << " --binary-dir DIR [--batch-size N] [--log-interval N] [--logdir PREFIX] [--resume PATH] [--mmap-populate|--no-mmap-populate]\n"
+                      << "  --mmap-populate is enabled by default for maximum I/O performance.\n";
             return 0;
         }
     }
@@ -367,10 +398,12 @@ int main(int argc, char* argv[]) {
     {
         auto t0 = std::chrono::high_resolution_clock::now();
         std::cout << "Loading binary dataset from " << binary_dir << "..." << std::flush;
-        if (!train_bin.load(binary_dir + "/train.bin")) { std::cerr << "\nFailed to load " << binary_dir << "/train.bin" << std::endl; return 1; }
+        if (!train_bin.load(binary_dir + "/train.bin", mmap_populate)) { std::cerr << "\nFailed to load " << binary_dir << "/train.bin" << std::endl; return 1; }
         train_bin.populate_samples(train_samples);
-        if (val_bin.load(binary_dir + "/val.bin"))
+        if (val_bin.load(binary_dir + "/val.bin", mmap_populate))
             val_bin.populate_samples(val_samples);
+        else
+            std::cerr << "\nWarning: Failed to load " << binary_dir << "/val.bin; continuing without validation set." << std::endl;
         auto t1 = std::chrono::high_resolution_clock::now();
         std::cout << " " << train_samples.size() << " train, " << val_samples.size() << " val in "
                   << std::fixed << std::setprecision(1) << std::chrono::duration<double>(t1 - t0).count() << "s" << std::endl;
