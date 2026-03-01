@@ -232,8 +232,10 @@ namespace rl_tools{
                 d_conv_out[idx] = inv_std_c * inv_n * ((T)spatial * d_z_hat - sum_dz_hat - z_hat * sum_dz_hat_z_hat);
             }
             if(tid == 0){
-                atomicAdd(&d_gamma[c], s_d_gamma[0]);
-                atomicAdd(&d_beta[c], s_d_beta[0]);
+                // One block owns one output channel c, so these writes are uncontended
+                // within this kernel launch and do not require atomics.
+                d_gamma[c] += s_d_gamma[0];
+                d_beta[c] += s_d_beta[0];
             }
         }
     }
