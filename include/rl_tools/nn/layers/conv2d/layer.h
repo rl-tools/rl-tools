@@ -65,16 +65,17 @@ namespace rl_tools::nn::layers::conv2d {
         using TI = typename SPEC::TI;
         using PARAM_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
 
-        using GAMMA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        using GAMMA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST, numeric_types::categories::NormParameter>;
         typename SPEC::PARAMETER_TYPE::template Instance<GAMMA_PARAMETER_SPEC> gamma;
 
-        using BETA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        using BETA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST, numeric_types::categories::NormParameter>;
         typename SPEC::PARAMETER_TYPE::template Instance<BETA_PARAMETER_SPEC> beta;
 
-        // Running statistics (non-learnable, always Plain)
-        using RUNNING_STAT_PARAMETER_SPEC = nn::parameters::Plain::Specification<TYPE_POLICY, TI, PARAM_SHAPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
-        nn::parameters::Plain::template Instance<RUNNING_STAT_PARAMETER_SPEC> running_mean;
-        nn::parameters::Plain::template Instance<RUNNING_STAT_PARAMETER_SPEC> running_var;
+        // Running statistics (non-learnable, plain tensors)
+        using T_NORM_STAT = typename TYPE_POLICY::template GET<numeric_types::categories::NormStatistics>;
+        using STAT_TENSOR_SPEC = tensor::Specification<T_NORM_STAT, TI, PARAM_SHAPE, SPEC::DYNAMIC_ALLOCATION>;
+        Tensor<STAT_TENSOR_SPEC> running_mean;
+        Tensor<STAT_TENSOR_SPEC> running_var;
     };
 
     template<typename SPEC>
@@ -83,10 +84,10 @@ namespace rl_tools::nn::layers::conv2d {
         using TI = typename SPEC::TI;
         using PARAM_SHAPE = tensor::Shape<TI, SPEC::OUTPUT_CHANNELS>;
 
-        using GAMMA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        using GAMMA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST, numeric_types::categories::NormParameter>;
         typename SPEC::PARAMETER_TYPE::template Instance<GAMMA_PARAMETER_SPEC> gamma;
 
-        using BETA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>;
+        using BETA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template Specification<TYPE_POLICY, TI, PARAM_SHAPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST, numeric_types::categories::NormParameter>;
         typename SPEC::PARAMETER_TYPE::template Instance<BETA_PARAMETER_SPEC> beta;
     };
 

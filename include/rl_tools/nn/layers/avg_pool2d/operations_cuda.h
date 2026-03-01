@@ -24,7 +24,7 @@ namespace rl_tools{
         cudnnPoolingDescriptor_t pd;
         check_cudnn_call(device, cudnnCreatePoolingDescriptor(&pd), "cudnnCreatePoolingDescriptor avgpool.pd");
         check_cudnn_call(device, cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING, CUDNN_NOT_PROPAGATE_NAN, IH, IW, 0, 0, 1, 1), "cudnnSetPooling2dDescriptor avgpool.pd");
-        T a = 1, b = 0;
+        float a = 1, b = 0;
         check_cudnn_call(device, cudnnPoolingForward(device.cudnn_handle, pd, &a, xd, input._data, &b, yd, output._data), "cudnnPoolingForward avgpool");
         check_cudnn_call(device, cudnnDestroyPoolingDescriptor(pd), "cudnnDestroyPoolingDescriptor avgpool.pd");
         check_cudnn_call(device, cudnnDestroyTensorDescriptor(xd), "cudnnDestroyTensorDescriptor avgpool.xd");
@@ -52,7 +52,7 @@ namespace rl_tools{
         cudnnPoolingDescriptor_t pd;
         check_cudnn_call(device, cudnnCreatePoolingDescriptor(&pd), "cudnnCreatePoolingDescriptor avgpool_bwd.pd");
         check_cudnn_call(device, cudnnSetPooling2dDescriptor(pd, CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING, CUDNN_NOT_PROPAGATE_NAN, IH, IW, 0, 0, 1, 1), "cudnnSetPooling2dDescriptor avgpool_bwd.pd");
-        T a = 1, b = 0;
+        float a = 1, b = 0;
         check_cudnn_call(device, cudnnPoolingBackward(device.cudnn_handle, pd, &a, yd, layer.output._data, yd, d_output._data, xd, input._data, &b, xd, d_input._data), "cudnnPoolingBackward avgpool");
         check_cudnn_call(device, cudnnDestroyPoolingDescriptor(pd), "cudnnDestroyPoolingDescriptor avgpool_bwd.pd");
         check_cudnn_call(device, cudnnDestroyTensorDescriptor(xd), "cudnnDestroyTensorDescriptor avgpool_bwd.xd");

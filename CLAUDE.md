@@ -2,6 +2,10 @@
 
 Please integrate additional conventions that you observe in interactions from feedback by the user automatically.
 
+## Python
+
+Please use the `.venv`.
+
 ## Build
 
 ```bash

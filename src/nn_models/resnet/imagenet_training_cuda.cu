@@ -53,7 +53,7 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 namespace fs = std::filesystem;
 
-using T = float; //__nv_bfloat16;
+using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<float,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, T>,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, T>,
@@ -784,7 +784,7 @@ int main(int argc, char* argv[]) {
             op.learning_rate = current_lr;
             CUDA_CHECK(cudaMemcpy(optimizer.parameters._data, &op, sizeof(op), cudaMemcpyHostToDevice));
         }
-        std::cout << "=== Epoch " << epoch << " (lr=" << current_lr << ") ===" << std::endl;
+        std::cout << std::defaultfloat << std::setprecision(6) << "=== Epoch " << epoch << " (lr=" << current_lr << ") ===" << std::endl;
 
         float epoch_loss = 0; TI epoch_correct = 0, epoch_correct5 = 0, epoch_total = 0, epoch_batches = 0;
 
@@ -914,12 +914,11 @@ int main(int argc, char* argv[]) {
             if (epoch_batches % log_interval == 0 && prof.n > 0) {
                 double n = prof.n;
                 double gpu_total = (prof.dec + prof.fwd + prof.loss + prof.bwd + prof.step) / n;
-                std::cout << std::fixed << std::setprecision(1)
-                    << "  [" << epoch_batches << "/" << total_batches << "] " << std::setprecision(0) << sps << " img/s"
-                    << std::setprecision(1) << " | dec=" << prof.dec/n << " fwd=" << prof.fwd/n << " loss=" << prof.loss/n
-                    << " bwd=" << prof.bwd/n << " step=" << prof.step/n
-                    << " | gpu=" << gpu_total << " wall=" << prof.wall/n << "ms"
-                    << " (avg " << prof.n << ")" << std::endl;
+                std::cout << std::fixed << std::setprecision(4)
+                    << "  [" << epoch_batches << "/" << total_batches << "] loss=" << batch_loss << " top1=" << ba << "% top5=" << ba5 << "%"
+                    << std::setprecision(0) << " " << sps << " img/s"
+                    << std::setprecision(1) << " | wall=" << prof.wall/n << "ms"
+                    << std::endl;
                 prof = {};
             }
             global_step++;

@@ -253,14 +253,16 @@ namespace rl_tools{
         }
         // Initialize normalization parameters
         if constexpr(SPEC::NORMALIZATION != nn::layers::conv2d::Normalization::NONE) {
+            using NORM_PARAM_TYPE = typename decltype(layer.norm.gamma.parameters)::SPEC::T;
             for(TI oc = 0; oc < SPEC::OUTPUT_CHANNELS; oc++) {
-                set(device, layer.norm.gamma.parameters, (PARAMETER_TYPE)1, oc);
-                set(device, layer.norm.beta.parameters, (PARAMETER_TYPE)0, oc);
+                set(device, layer.norm.gamma.parameters, (NORM_PARAM_TYPE)1, oc);
+                set(device, layer.norm.beta.parameters, (NORM_PARAM_TYPE)0, oc);
             }
             if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
+                using NORM_STAT_TYPE = typename decltype(layer.norm.running_mean)::SPEC::T;
                 for(TI oc = 0; oc < SPEC::OUTPUT_CHANNELS; oc++) {
-                    set(device, layer.norm.running_mean.parameters, (PARAMETER_TYPE)0, oc);
-                    set(device, layer.norm.running_var.parameters, (PARAMETER_TYPE)1, oc);
+                    set(device, layer.norm.running_mean, (NORM_STAT_TYPE)0, oc);
+                    set(device, layer.norm.running_var, (NORM_STAT_TYPE)1, oc);
                 }
             }
         }
@@ -348,8 +350,8 @@ namespace rl_tools{
                         for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
                             for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
                                 ACCUMULATOR_TYPE conv_out = (ACCUMULATOR_TYPE)get(device, output_4d, bi, oh, ow, oc);
-                                ACCUMULATOR_TYPE inv_std = (ACCUMULATOR_TYPE)1 / math::sqrt(device.math, (ACCUMULATOR_TYPE)get(device, layer.norm.running_var.parameters, oc) + (ACCUMULATOR_TYPE)eps);
-                                ACCUMULATOR_TYPE z_hat = (conv_out - (ACCUMULATOR_TYPE)get(device, layer.norm.running_mean.parameters, oc)) * inv_std;
+                                ACCUMULATOR_TYPE inv_std = (ACCUMULATOR_TYPE)1 / math::sqrt(device.math, (ACCUMULATOR_TYPE)get(device, layer.norm.running_var, oc) + (ACCUMULATOR_TYPE)eps);
+                                ACCUMULATOR_TYPE z_hat = (conv_out - (ACCUMULATOR_TYPE)get(device, layer.norm.running_mean, oc)) * inv_std;
                                 ACCUMULATOR_TYPE norm_out = (ACCUMULATOR_TYPE)get(device, layer.norm.gamma.parameters, oc) * z_hat + (ACCUMULATOR_TYPE)get(device, layer.norm.beta.parameters, oc);
                                 set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(norm_out), bi, oh, ow, oc);
                             }
@@ -456,8 +458,8 @@ namespace rl_tools{
             if constexpr(mode::is<MODE, mode::Evaluation>) {
                 // Evaluation mode: use running statistics (like PyTorch model.eval())
                 for(TI oc = 0; oc < LAYER_SPEC::OUTPUT_CHANNELS; oc++){
-                    T mean_val = get(device, layer.norm.running_mean.parameters, oc);
-                    ACCUMULATOR_TYPE var_val = (ACCUMULATOR_TYPE)get(device, layer.norm.running_var.parameters, oc);
+                    T mean_val = get(device, layer.norm.running_mean, oc);
+                    ACCUMULATOR_TYPE var_val = (ACCUMULATOR_TYPE)get(device, layer.norm.running_var, oc);
                     T inv_std = (T)((ACCUMULATOR_TYPE)1 / math::sqrt(device.math, var_val + (ACCUMULATOR_TYPE)eps));
                     set(device, layer.norm_cache.mean, mean_val, oc);
                     set(device, layer.norm_cache.inv_std, inv_std, oc);
@@ -490,10 +492,11 @@ namespace rl_tools{
                     set(device, layer.norm_cache.mean, (T)mean_val, oc);
                     set(device, layer.norm_cache.inv_std, inv_std, oc);
                     // Update running statistics (EMA)
-                    T running_mean = get(device, layer.norm.running_mean.parameters, oc);
-                    T running_var = get(device, layer.norm.running_var.parameters, oc);
-                    set(device, layer.norm.running_mean.parameters, (T)((ACCUMULATOR_TYPE)((ACCUMULATOR_TYPE)1 - (ACCUMULATOR_TYPE)momentum) * (ACCUMULATOR_TYPE)running_mean + (ACCUMULATOR_TYPE)momentum * mean_val), oc);
-                    set(device, layer.norm.running_var.parameters, (T)((ACCUMULATOR_TYPE)((ACCUMULATOR_TYPE)1 - (ACCUMULATOR_TYPE)momentum) * (ACCUMULATOR_TYPE)running_var + (ACCUMULATOR_TYPE)momentum * var_val), oc);
+                    using NORM_STAT_TYPE = typename decltype(layer.norm.running_mean)::SPEC::T;
+                    NORM_STAT_TYPE running_mean = get(device, layer.norm.running_mean, oc);
+                    NORM_STAT_TYPE running_var = get(device, layer.norm.running_var, oc);
+                    set(device, layer.norm.running_mean, (NORM_STAT_TYPE)((ACCUMULATOR_TYPE)((ACCUMULATOR_TYPE)1 - (ACCUMULATOR_TYPE)momentum) * (ACCUMULATOR_TYPE)running_mean + (ACCUMULATOR_TYPE)momentum * mean_val), oc);
+                    set(device, layer.norm.running_var, (NORM_STAT_TYPE)((ACCUMULATOR_TYPE)((ACCUMULATOR_TYPE)1 - (ACCUMULATOR_TYPE)momentum) * (ACCUMULATOR_TYPE)running_var + (ACCUMULATOR_TYPE)momentum * var_val), oc);
                 }
             }
 

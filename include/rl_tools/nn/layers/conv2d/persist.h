@@ -27,8 +27,8 @@ namespace rl_tools {
             save(device, layer.norm.gamma, gamma_group);
             save(device, layer.norm.beta, beta_group);
             if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
-                save(device, layer.norm.running_mean.parameters, group, "running_mean");
-                save(device, layer.norm.running_var.parameters, group, "running_var");
+                save(device, layer.norm.running_mean, group, "running_mean");
+                save(device, layer.norm.running_var, group, "running_var");
             }
         }
         write_attributes(device, group);
@@ -58,8 +58,8 @@ namespace rl_tools {
             }
             if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM) {
                 if(group_exists(device, group, "running_mean")) {
-                    success &= load(device, layer.norm.running_mean.parameters, group, "running_mean");
-                    success &= load(device, layer.norm.running_var.parameters, group, "running_var");
+                    success &= load(device, layer.norm.running_mean, group, "running_mean");
+                    success &= load(device, layer.norm.running_var, group, "running_var");
                 }
             }
         }

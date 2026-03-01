@@ -12,6 +12,8 @@ namespace rl_tools::numeric_types::categories {
     struct Activation{};
     struct Buffer{};
     struct Input{};
+    struct NormStatistics{};
+    struct NormParameter{};
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

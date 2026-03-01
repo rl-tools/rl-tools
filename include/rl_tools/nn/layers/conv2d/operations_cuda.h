@@ -13,16 +13,16 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace nn::layers::conv2d::cuda::kernels{
-        template<typename T, typename TI>
+        template<typename T, typename T_STAT, typename TI>
         __global__
         void bn_stats_training(
             const T* pre_act,
             T* mean,
             T* inv_std,
-            T* running_mean,
-            T* running_var,
-            T momentum,
-            T eps,
+            T_STAT* running_mean,
+            T_STAT* running_var,
+            float momentum,
+            float eps,
             TI spatial,
             TI OC
         ){
@@ -59,58 +59,58 @@ namespace rl_tools{
                     var = 0.0f;
                 }
                 mean[c] = (T)m;
-                inv_std[c] = (T)(1.0f / sqrtf(var + (float)eps));
+                inv_std[c] = (T)(1.0f / sqrtf(var + eps));
                 float rm = (float)running_mean[c];
                 float rv = (float)running_var[c];
-                running_mean[c] = (T)((1.0f - (float)momentum) * rm + (float)momentum * m);
-                running_var[c] = (T)((1.0f - (float)momentum) * rv + (float)momentum * var);
+                running_mean[c] = (T_STAT)((1.0f - momentum) * rm + momentum * m);
+                running_var[c] = (T_STAT)((1.0f - momentum) * rv + momentum * var);
             }
         }
-        template<typename T, typename TI>
+        template<typename T, typename T_STAT, typename TI>
         __global__
         void bn_stats_eval(
-            const T* running_mean,
-            const T* running_var,
+            const T_STAT* running_mean,
+            const T_STAT* running_var,
             T* mean,
             T* inv_std,
-            T eps,
+            float eps,
             TI OC
         ){
             TI i = (TI)blockIdx.x * (TI)blockDim.x + (TI)threadIdx.x;
             if(i < OC){
-                mean[i] = running_mean[i];
-                inv_std[i] = (T)((float)1 / sqrtf((float)(running_var[i] + eps)));
+                mean[i] = (T)(float)running_mean[i];
+                inv_std[i] = (T)(1.0f / sqrtf((float)running_var[i] + eps));
             }
         }
-        template<typename T, typename TI>
+        template<typename T, typename T_STAT, typename T_NORM_PARAM, typename TI>
         __global__
         void bn_forward_eval_running(
             const T* pre_act,
-            const T* running_mean,
-            const T* running_var,
-            const T* gamma,
-            const T* beta,
+            const T_STAT* running_mean,
+            const T_STAT* running_var,
+            const T_NORM_PARAM* gamma,
+            const T_NORM_PARAM* beta,
             T* output,
-            T eps,
+            float eps,
             TI total,
             TI OC
         ){
             TI idx = (TI)blockIdx.x * (TI)blockDim.x + (TI)threadIdx.x;
             if(idx < total){
                 TI c = idx % OC;
-                T inv_std = (T)((float)1 / sqrtf((float)(running_var[c] + eps)));
-                T z_hat = (pre_act[idx] - running_mean[c]) * inv_std;
-                output[idx] = gamma[c] * z_hat + beta[c];
+                float inv_std = 1.0f / sqrtf((float)running_var[c] + eps);
+                float z_hat = ((float)pre_act[idx] - (float)running_mean[c]) * inv_std;
+                output[idx] = (T)((float)gamma[c] * z_hat + (float)beta[c]);
             }
         }
-        template<typename T, typename TI>
+        template<typename T, typename T_NORM_PARAM, typename TI>
         __global__
         void bn_forward_affine(
             const T* pre_act,
             const T* mean,
             const T* inv_std,
-            const T* gamma,
-            const T* beta,
+            const T_NORM_PARAM* gamma,
+            const T_NORM_PARAM* beta,
             T* output,
             TI total,
             TI OC
@@ -118,8 +118,8 @@ namespace rl_tools{
             TI idx = (TI)blockIdx.x * (TI)blockDim.x + (TI)threadIdx.x;
             if(idx < total){
                 TI c = idx % OC;
-                T z_hat = (pre_act[idx] - mean[c]) * inv_std[c];
-                output[idx] = gamma[c] * z_hat + beta[c];
+                float z_hat = ((float)pre_act[idx] - (float)mean[c]) * (float)inv_std[c];
+                output[idx] = (T)((float)gamma[c] * z_hat + (float)beta[c]);
             }
         }
         template<typename T, typename TI>
@@ -150,14 +150,14 @@ namespace rl_tools{
                 d_bias[c] += (T)s_sum[0];
             }
         }
-        template<typename T, typename TI>
+        template<typename T, typename T_NORM_PARAM, typename TI>
         __global__
         void bn_eval_backward(
             const T* d_norm_out,
             const T* pre_act,
             const T* mean,
             const T* inv_std,
-            const T* gamma,
+            const T_NORM_PARAM* gamma,
             T* d_conv_out,
             T* d_gamma,
             T* d_beta,
@@ -199,14 +199,14 @@ namespace rl_tools{
                 atomicAdd(&d_beta[c], (T)s_d_beta[0]);
             }
         }
-        template<typename T>
+        template<typename T, typename T_NORM_PARAM>
         __global__
         void bn_training_backward(
             const T* d_norm_out,
             const T* pre_act,
             const T* mean,
             const T* inv_std,
-            const T* gamma,
+            const T_NORM_PARAM* gamma,
             T* d_conv_out,
             T* d_gamma,
             T* d_beta,
@@ -344,14 +344,16 @@ namespace rl_tools{
             constexpr TI BN_ELEMENT_BLOCK = 256;
             constexpr TI TOTAL = N * OH * OW * OC;
             constexpr TI N_BLOCKS_ELEMENT = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BN_ELEMENT_BLOCK);
-            nn::layers::conv2d::cuda::kernels::bn_forward_eval_running<T, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
+            using T_STAT = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormStatistics>;
+            using T_NORM_PARAM = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormParameter>;
+            nn::layers::conv2d::cuda::kernels::bn_forward_eval_running<T, T_STAT, T_NORM_PARAM, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
                 output._data,
-                layer.norm.running_mean.parameters._data,
-                layer.norm.running_var.parameters._data,
+                layer.norm.running_mean._data,
+                layer.norm.running_var._data,
                 layer.norm.gamma.parameters._data,
                 layer.norm.beta.parameters._data,
                 output._data,
-                (T)LAYER_SPEC::NORM_EPSILON,
+                (float)LAYER_SPEC::NORM_EPSILON,
                 TOTAL,
                 OC
             );
@@ -433,15 +435,17 @@ namespace rl_tools{
             if constexpr(mode::is<MODE, mode::Evaluation>){
                 constexpr TI N_BLOCKS_CHANNEL = RL_TOOLS_DEVICES_CUDA_CEIL(OC, BN_CHANNEL_BLOCK);
                 constexpr TI N_BLOCKS_ELEMENT = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BN_ELEMENT_BLOCK);
-                nn::layers::conv2d::cuda::kernels::bn_stats_eval<T, TI><<<N_BLOCKS_CHANNEL, BN_CHANNEL_BLOCK, 0, device.stream>>>(
-                    layer.norm.running_mean.parameters._data,
-                    layer.norm.running_var.parameters._data,
+                using T_STAT = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormStatistics>;
+                using T_NORM_PARAM = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormParameter>;
+                nn::layers::conv2d::cuda::kernels::bn_stats_eval<T, T_STAT, TI><<<N_BLOCKS_CHANNEL, BN_CHANNEL_BLOCK, 0, device.stream>>>(
+                    layer.norm.running_mean._data,
+                    layer.norm.running_var._data,
                     layer.norm_cache.mean._data,
                     layer.norm_cache.inv_std._data,
-                    (T)LAYER_SPEC::NORM_EPSILON,
+                    (float)LAYER_SPEC::NORM_EPSILON,
                     OC
                 );
-                nn::layers::conv2d::cuda::kernels::bn_forward_affine<T, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
+                nn::layers::conv2d::cuda::kernels::bn_forward_affine<T, T_NORM_PARAM, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
                     layer.pre_activations._data,
                     layer.norm_cache.mean._data,
                     layer.norm_cache.inv_std._data,
@@ -452,19 +456,21 @@ namespace rl_tools{
                     OC
                 );
             } else {
-                nn::layers::conv2d::cuda::kernels::bn_stats_training<T, TI><<<OC, BN_CHANNEL_BLOCK, 0, device.stream>>>(
+                using T_STAT = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormStatistics>;
+                nn::layers::conv2d::cuda::kernels::bn_stats_training<T, T_STAT, TI><<<OC, BN_CHANNEL_BLOCK, 0, device.stream>>>(
                     layer.pre_activations._data,
                     layer.norm_cache.mean._data,
                     layer.norm_cache.inv_std._data,
-                    layer.norm.running_mean.parameters._data,
-                    layer.norm.running_var.parameters._data,
-                    (T)LAYER_SPEC::BN_MOMENTUM,
-                    (T)LAYER_SPEC::NORM_EPSILON,
+                    layer.norm.running_mean._data,
+                    layer.norm.running_var._data,
+                    (float)LAYER_SPEC::BN_MOMENTUM,
+                    (float)LAYER_SPEC::NORM_EPSILON,
                     SPATIAL,
                     OC
                 );
                 constexpr TI N_BLOCKS_ELEMENT = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BN_ELEMENT_BLOCK);
-                nn::layers::conv2d::cuda::kernels::bn_forward_affine<T, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
+                using T_NORM_PARAM_TR = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormParameter>;
+                nn::layers::conv2d::cuda::kernels::bn_forward_affine<T, T_NORM_PARAM_TR, TI><<<N_BLOCKS_ELEMENT, BN_ELEMENT_BLOCK, 0, device.stream>>>(
                     layer.pre_activations._data,
                     layer.norm_cache.mean._data,
                     layer.norm_cache.inv_std._data,
@@ -551,7 +557,8 @@ namespace rl_tools{
             if constexpr(IS_EVAL){
                 constexpr TI SPATIAL = N * OH * OW;
                 constexpr TI BN_BS = 256;
-                nn::layers::conv2d::cuda::kernels::bn_eval_backward<T, TI><<<OC, BN_BS, 0, device.stream>>>(
+                using T_NORM_PARAM_BW = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormParameter>;
+                nn::layers::conv2d::cuda::kernels::bn_eval_backward<T, T_NORM_PARAM_BW, TI><<<OC, BN_BS, 0, device.stream>>>(
                     d_output._data, layer.pre_activations._data,
                     layer.norm_cache.mean._data, layer.norm_cache.inv_std._data,
                     layer.norm.gamma.parameters._data,
@@ -561,7 +568,8 @@ namespace rl_tools{
             } else {
                 constexpr TI SPATIAL = N * OH * OW;
                 constexpr TI BN_BS = 256;
-                nn::layers::conv2d::cuda::kernels::bn_training_backward<<<OC, BN_BS, 0, device.stream>>>(
+                using T_NORM_PARAM_BW = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormParameter>;
+                nn::layers::conv2d::cuda::kernels::bn_training_backward<T, T_NORM_PARAM_BW><<<OC, BN_BS, 0, device.stream>>>(
                     d_output._data, layer.pre_activations._data,
                     layer.norm_cache.mean._data, layer.norm_cache.inv_std._data,
                     layer.norm.gamma.parameters._data,
