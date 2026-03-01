@@ -58,6 +58,8 @@ using TYPE_POLICY = rlt::numeric_types::Policy<float,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, T>,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, T>,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, T>>;
+using T_ACTIVATION = TYPE_POLICY::GET<rlt::numeric_types::categories::Activation>;
+using T_GRADIENT = TYPE_POLICY::GET<rlt::numeric_types::categories::Gradient>;
 using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_CUDA = rlt::devices::DEVICE_FACTORY_CUDA<>;
 using TI = DEVICE_CPU::index_t;
@@ -134,9 +136,9 @@ using RESNET18_CPU_INFERENCE = typename RESNET18_CPU::template CHANGE_CAPABILITY
 
 // --- GPU cross-entropy loss + gradient kernel ---
 __global__ void cross_entropy_loss_gradient_kernel(
-    const T* __restrict__ logits,    // [N, C]
+    const T_ACTIVATION* __restrict__ logits,    // [N, C]
     const TI_CUDA* __restrict__ labels, // [N]
-    T* __restrict__ d_logits,        // [N, C]
+    T_GRADIENT* __restrict__ d_logits,        // [N, C]
     float* __restrict__ losses,      // [N]
     TI_CUDA* __restrict__ correct,   // [N] (1 if top-1 correct)
     TI_CUDA* __restrict__ correct5,  // [N] (1 if top-5 correct)
@@ -145,8 +147,8 @@ __global__ void cross_entropy_loss_gradient_kernel(
     float loss_weight
 ) {
     TI_CUDA i = blockIdx.x;
-    const T* row = logits + i * num_classes;
-    T* d_row = d_logits + i * num_classes;
+    const T_ACTIVATION* row = logits + i * num_classes;
+    T_GRADIENT* d_row = d_logits + i * num_classes;
     TI_CUDA target = labels[i];
 
     float max_logit = (float)row[0];
@@ -164,7 +166,7 @@ __global__ void cross_entropy_loss_gradient_kernel(
     for (TI_CUDA c = 0; c < num_classes; c++) {
         float softmax_c = expf((float)row[c] - max_logit) / sum_exp;
         float smooth_target = (c == target) ? ((1.0f - smoothing) + smooth_weight) : smooth_weight;
-        d_row[c] = (T)((softmax_c - smooth_target) * loss_weight);
+        d_row[c] = (T_GRADIENT)((softmax_c - smooth_target) * loss_weight);
     }
 
     // Top-1
@@ -195,7 +197,7 @@ __constant__ float d_imagenet_std[3]  = {0.229f, 0.224f, 0.225f};
 __device__ uint32_t xorshift32(uint32_t& s) { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
 __device__ float rand_uniform(uint32_t& s) { return (float)(xorshift32(s) & 0x7FFFFFFF) / (float)0x7FFFFFFF; }
 
-__device__ void bilinear_normalize(const uint8_t* src, int pitch, int w, int h, float sx, float sy, T* dst) {
+__device__ void bilinear_normalize(const uint8_t* src, int pitch, int w, int h, float sx, float sy, T_ACTIVATION* dst) {
     int x0 = (int)floorf(sx), y0 = (int)floorf(sy), x1 = x0 + 1, y1 = y0 + 1;
     float fx = sx - (float)x0, fy = sy - (float)y0;
     x0 = max(0, min(x0, w-1)); x1 = max(0, min(x1, w-1));
@@ -205,19 +207,19 @@ __device__ void bilinear_normalize(const uint8_t* src, int pitch, int w, int h, 
                 + fx*(1.f-fy)*(float)src[y0*pitch + x1*3 + c]
                 + (1.f-fx)*fy*(float)src[y1*pitch + x0*3 + c]
                 + fx*fy*(float)src[y1*pitch + x1*3 + c];
-        dst[c] = (T)((v / 255.f - d_imagenet_mean[c]) / d_imagenet_std[c]);
+        dst[c] = (T_ACTIVATION)((v / 255.f - d_imagenet_mean[c]) / d_imagenet_std[c]);
     }
 }
 
 __global__ void train_crop_normalize(
-    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, T* __restrict__ out,
+    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, T_ACTIVATION* __restrict__ out,
     int TGT, float s_min, float s_max, float lr_min, float lr_max, float flip_p
 ) {
     int n = blockIdx.z, oy = blockIdx.y * blockDim.y + threadIdx.y, ox = blockIdx.x * blockDim.x + threadIdx.x;
     if (oy >= TGT || ox >= TGT) return;
-    T* dst = out + ((size_t)n * TGT * TGT + oy * TGT + ox) * 3;
+    T_ACTIVATION* dst = out + ((size_t)n * TGT * TGT + oy * TGT + ox) * 3;
     const ImageInfo& im = info[n];
-    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = (T)0.f; return; }
+    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = (T_ACTIVATION)0.f; return; }
 
     uint32_t rng = im.rng_seed;
     float area = (float)(im.img_w * im.img_h);
@@ -247,13 +249,13 @@ crop_done:;
 }
 
 __global__ void val_crop_normalize(
-    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, T* __restrict__ out, int TGT
+    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, T_ACTIVATION* __restrict__ out, int TGT
 ) {
     int n = blockIdx.z, oy = blockIdx.y * blockDim.y + threadIdx.y, ox = blockIdx.x * blockDim.x + threadIdx.x;
     if (oy >= TGT || ox >= TGT) return;
-    T* dst = out + ((size_t)n * TGT * TGT + oy * TGT + ox) * 3;
+    T_ACTIVATION* dst = out + ((size_t)n * TGT * TGT + oy * TGT + ox) * 3;
     const ImageInfo& im = info[n];
-    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = (T)0.f; return; }
+    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = (T_ACTIVATION)0.f; return; }
     float scale = 256.f / (float)min(im.img_w, im.img_h);
     float cw = (float)TGT / scale, ch = (float)TGT / scale;
     float cx_f = ((float)im.img_w - cw) * 0.5f, cy_f = ((float)im.img_h - ch) * 0.5f;
@@ -468,12 +470,13 @@ int main(int argc, char* argv[]) {
     }
     rlt::reset_optimizer_state(device_cuda, optimizer, model);
 
-    using GPU_INPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_INPUT_SHAPE>;
+    using GPU_INPUT_SPEC = rlt::tensor::Specification<T_ACTIVATION, TI_CUDA, GPU_INPUT_SHAPE>;
     rlt::Tensor<GPU_INPUT_SPEC> gpu_input; rlt::malloc(device_cuda, gpu_input);
     using GPU_OUTPUT_SHAPE = typename RESNET18_CUDA::OUTPUT_SHAPE;
-    using GPU_D_OUTPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_OUTPUT_SHAPE>;
+    using GPU_D_OUTPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, GPU_OUTPUT_SHAPE>;
     rlt::Tensor<GPU_D_OUTPUT_SPEC> gpu_d_output; rlt::malloc(device_cuda, gpu_d_output);
-    rlt::Tensor<GPU_INPUT_SPEC> gpu_d_input; rlt::malloc(device_cuda, gpu_d_input);
+    using GPU_D_INPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, GPU_INPUT_SHAPE>;
+    rlt::Tensor<GPU_D_INPUT_SPEC> gpu_d_input; rlt::malloc(device_cuda, gpu_d_input);
 
     // GPU buffers for loss computation (shared, compute-stream only)
     float* gpu_losses; CUDA_CHECK(cudaMalloc(&gpu_losses, GPU_BATCH * sizeof(float)));
