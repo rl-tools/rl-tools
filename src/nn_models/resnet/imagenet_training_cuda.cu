@@ -22,6 +22,7 @@
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/resnet/resnet.h>
 
+#include <cuda_bf16.h>
 #include <nvjpeg.h>
 
 #include <iostream>
@@ -50,8 +51,9 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 namespace fs = std::filesystem;
 
-using T = float;
-using TYPE_POLICY = rlt::numeric_types::Policy<T>;
+using T = __nv_bfloat16;
+using TYPE_POLICY = rlt::numeric_types::Policy<T,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::OptimizerState, float>>;
 using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_CUDA = rlt::devices::DEVICE_FACTORY_CUDA<>;
 using TI = DEVICE_CPU::index_t;
@@ -90,27 +92,27 @@ struct TrainingConfig {
     static constexpr TI IMAGE_SIZE = 224;
     static constexpr TI NUM_CLASSES = 1000;
     static constexpr TI NUM_EPOCHS = 600;
-    static constexpr T BASE_LR = 0.1;
+    static constexpr float BASE_LR = 0.1;
     static constexpr TI BASE_BATCH_SIZE = 256;
-    static constexpr T WARMUP_LR = 1e-5;
+    static constexpr float WARMUP_LR = 1e-5;
     static constexpr TI WARMUP_EPOCHS = 5;
-    static constexpr T MIN_LR = 0.0;
-    static constexpr T MOMENTUM = 0.9;
-    static constexpr T WEIGHT_DECAY = 2e-5;
+    static constexpr float MIN_LR = 0.0;
+    static constexpr float MOMENTUM = 0.9;
+    static constexpr float WEIGHT_DECAY = 2e-5;
     static constexpr bool NESTEROV = true;
-    static constexpr T LABEL_SMOOTHING = 0.1;
-    static constexpr T CROP_SCALE_MIN = 0.08;
-    static constexpr T CROP_SCALE_MAX = 1.0;
-    static constexpr T CROP_RATIO_MIN = 0.75;
-    static constexpr T CROP_RATIO_MAX = 1.3333;
-    static constexpr T HFLIP_PROB = 0.5;
+    static constexpr float LABEL_SMOOTHING = 0.1;
+    static constexpr float CROP_SCALE_MIN = 0.08;
+    static constexpr float CROP_SCALE_MAX = 1.0;
+    static constexpr float CROP_RATIO_MIN = 0.75;
+    static constexpr float CROP_RATIO_MAX = 1.3333;
+    static constexpr float HFLIP_PROB = 0.5;
     static constexpr TI CHECKPOINT_INTERVAL = 1;
 };
 
 struct SGDParams: rlt::nn::optimizers::sgd::DefaultParameters<TYPE_POLICY>{
-    static constexpr T LEARNING_RATE = TrainingConfig::BASE_LR;
-    static constexpr T MOMENTUM = TrainingConfig::MOMENTUM;
-    static constexpr T WEIGHT_DECAY = TrainingConfig::WEIGHT_DECAY;
+    static constexpr float LEARNING_RATE = TrainingConfig::BASE_LR;
+    static constexpr float MOMENTUM = TrainingConfig::MOMENTUM;
+    static constexpr float WEIGHT_DECAY = TrainingConfig::WEIGHT_DECAY;
     static constexpr bool NESTEROV = TrainingConfig::NESTEROV;
     static constexpr bool ENABLE_WEIGHT_DECAY = true;
 };
@@ -120,9 +122,10 @@ using OPTIMIZER = rlt::nn::optimizers::SGD<OPTIMIZER_SPEC>;
 using GPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::SGD>;
 using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, GPU_BATCH, TrainingConfig::IMAGE_SIZE, TrainingConfig::IMAGE_SIZE, 3>;
 using RESNET18_CUDA = rlt::nn_models::sequential::Build<GPU_CAPABILITY, rlt::nn_models::resnet18::MODULE_CHAIN<TYPE_POLICY, TI_CUDA>, GPU_INPUT_SHAPE>;
+using CPU_TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using CPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::SGD>;
 using CPU_INPUT_SHAPE = rlt::tensor::Shape<TI, GPU_BATCH, TrainingConfig::IMAGE_SIZE, TrainingConfig::IMAGE_SIZE, 3>;
-using RESNET18_CPU = rlt::nn_models::sequential::Build<CPU_CAPABILITY, rlt::nn_models::resnet18::MODULE_CHAIN<TYPE_POLICY, TI>, CPU_INPUT_SHAPE>;
+using RESNET18_CPU = rlt::nn_models::sequential::Build<CPU_CAPABILITY, rlt::nn_models::resnet18::MODULE_CHAIN<CPU_TYPE_POLICY, TI>, CPU_INPUT_SHAPE>;
 using RESNET18_CPU_INFERENCE = typename RESNET18_CPU::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
 
 // --- GPU cross-entropy loss + gradient kernel ---
@@ -130,46 +133,46 @@ __global__ void cross_entropy_loss_gradient_kernel(
     const T* __restrict__ logits,    // [N, C]
     const TI_CUDA* __restrict__ labels, // [N]
     T* __restrict__ d_logits,        // [N, C]
-    T* __restrict__ losses,          // [N]
+    float* __restrict__ losses,      // [N]
     TI_CUDA* __restrict__ correct,   // [N] (1 if top-1 correct)
     TI_CUDA* __restrict__ correct5,  // [N] (1 if top-5 correct)
     TI_CUDA num_classes,
-    T smoothing,
-    T loss_weight
+    float smoothing,
+    float loss_weight
 ) {
     TI_CUDA i = blockIdx.x;
     const T* row = logits + i * num_classes;
     T* d_row = d_logits + i * num_classes;
     TI_CUDA target = labels[i];
 
-    T max_logit = row[0];
-    for (TI_CUDA c = 1; c < num_classes; c++) max_logit = max(max_logit, row[c]);
-    T sum_exp = 0;
-    for (TI_CUDA c = 0; c < num_classes; c++) sum_exp += expf(row[c] - max_logit);
-    T log_sum_exp = max_logit + logf(sum_exp);
+    float max_logit = (float)row[0];
+    for (TI_CUDA c = 1; c < num_classes; c++) max_logit = fmaxf(max_logit, (float)row[c]);
+    float sum_exp = 0;
+    for (TI_CUDA c = 0; c < num_classes; c++) sum_exp += expf((float)row[c] - max_logit);
+    float log_sum_exp = max_logit + logf(sum_exp);
 
-    T nll = -(row[target] - log_sum_exp);
-    T kl_uniform = log_sum_exp;
-    for (TI_CUDA c = 0; c < num_classes; c++) kl_uniform -= row[c] / static_cast<T>(num_classes);
+    float nll = -((float)row[target] - log_sum_exp);
+    float kl_uniform = log_sum_exp;
+    for (TI_CUDA c = 0; c < num_classes; c++) kl_uniform -= (float)row[c] / (float)num_classes;
     losses[i] = (1.0f - smoothing) * nll + smoothing * kl_uniform;
 
-    T smooth_weight = smoothing / static_cast<T>(num_classes);
+    float smooth_weight = smoothing / (float)num_classes;
     for (TI_CUDA c = 0; c < num_classes; c++) {
-        T softmax_c = expf(row[c] - max_logit) / sum_exp;
-        T smooth_target = (c == target) ? ((1.0f - smoothing) + smooth_weight) : smooth_weight;
-        d_row[c] = (softmax_c - smooth_target) * loss_weight;
+        float softmax_c = expf((float)row[c] - max_logit) / sum_exp;
+        float smooth_target = (c == target) ? ((1.0f - smoothing) + smooth_weight) : smooth_weight;
+        d_row[c] = (T)((softmax_c - smooth_target) * loss_weight);
     }
 
     // Top-1
     TI_CUDA predicted = 0;
-    for (TI_CUDA c = 1; c < num_classes; c++) if (row[c] > row[predicted]) predicted = c;
+    for (TI_CUDA c = 1; c < num_classes; c++) if ((float)row[c] > (float)row[predicted]) predicted = c;
     correct[i] = (predicted == target) ? 1 : 0;
 
     // Top-5
     TI_CUDA count = 0;
-    T target_logit = row[target];
+    float target_logit = (float)row[target];
     for (TI_CUDA c = 0; c < num_classes; c++) {
-        if (row[c] > target_logit) count++;
+        if ((float)row[c] > target_logit) count++;
         if (count >= 5) break;
     }
     correct5[i] = (count < 5) ? 1 : 0;
@@ -188,7 +191,7 @@ __constant__ float d_imagenet_std[3]  = {0.229f, 0.224f, 0.225f};
 __device__ uint32_t xorshift32(uint32_t& s) { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
 __device__ float rand_uniform(uint32_t& s) { return (float)(xorshift32(s) & 0x7FFFFFFF) / (float)0x7FFFFFFF; }
 
-__device__ void bilinear_normalize(const uint8_t* src, int pitch, int w, int h, float sx, float sy, float* dst) {
+__device__ void bilinear_normalize(const uint8_t* src, int pitch, int w, int h, float sx, float sy, T* dst) {
     int x0 = (int)floorf(sx), y0 = (int)floorf(sy), x1 = x0 + 1, y1 = y0 + 1;
     float fx = sx - (float)x0, fy = sy - (float)y0;
     x0 = max(0, min(x0, w-1)); x1 = max(0, min(x1, w-1));
@@ -198,19 +201,19 @@ __device__ void bilinear_normalize(const uint8_t* src, int pitch, int w, int h, 
                 + fx*(1.f-fy)*(float)src[y0*pitch + x1*3 + c]
                 + (1.f-fx)*fy*(float)src[y1*pitch + x0*3 + c]
                 + fx*fy*(float)src[y1*pitch + x1*3 + c];
-        dst[c] = (v / 255.f - d_imagenet_mean[c]) / d_imagenet_std[c];
+        dst[c] = (T)((v / 255.f - d_imagenet_mean[c]) / d_imagenet_std[c]);
     }
 }
 
 __global__ void train_crop_normalize(
-    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, float* __restrict__ out,
-    int T, float s_min, float s_max, float lr_min, float lr_max, float flip_p
+    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, T* __restrict__ out,
+    int TGT, float s_min, float s_max, float lr_min, float lr_max, float flip_p
 ) {
     int n = blockIdx.z, oy = blockIdx.y * blockDim.y + threadIdx.y, ox = blockIdx.x * blockDim.x + threadIdx.x;
-    if (oy >= T || ox >= T) return;
-    float* dst = out + ((size_t)n * T * T + oy * T + ox) * 3;
+    if (oy >= TGT || ox >= TGT) return;
+    T* dst = out + ((size_t)n * TGT * TGT + oy * TGT + ox) * 3;
     const ImageInfo& im = info[n];
-    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = 0.f; return; }
+    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = (T)0.f; return; }
 
     uint32_t rng = im.rng_seed;
     float area = (float)(im.img_w * im.img_h);
@@ -233,35 +236,35 @@ __global__ void train_crop_normalize(
       cx = (im.img_w - cw) / 2; cy = (im.img_h - ch) / 2; }
 crop_done:;
     int hflip = rand_uniform(rng) < flip_p;
-    float sx = hflip ? (float)cx + ((float)(T-1-ox) + 0.5f) * (float)cw / (float)T - 0.5f
-                     : (float)cx + ((float)ox + 0.5f) * (float)cw / (float)T - 0.5f;
-    float sy = (float)cy + ((float)oy + 0.5f) * (float)ch / (float)T - 0.5f;
+    float sx = hflip ? (float)cx + ((float)(TGT-1-ox) + 0.5f) * (float)cw / (float)TGT - 0.5f
+                     : (float)cx + ((float)ox + 0.5f) * (float)cw / (float)TGT - 0.5f;
+    float sy = (float)cy + ((float)oy + 0.5f) * (float)ch / (float)TGT - 0.5f;
     bilinear_normalize(pool + (size_t)n * DECODE_IMG_STRIDE, DECODE_PITCH, im.img_w, im.img_h, sx, sy, dst);
 }
 
 __global__ void val_crop_normalize(
-    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, float* __restrict__ out, int T
+    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, T* __restrict__ out, int TGT
 ) {
     int n = blockIdx.z, oy = blockIdx.y * blockDim.y + threadIdx.y, ox = blockIdx.x * blockDim.x + threadIdx.x;
-    if (oy >= T || ox >= T) return;
-    float* dst = out + ((size_t)n * T * T + oy * T + ox) * 3;
+    if (oy >= TGT || ox >= TGT) return;
+    T* dst = out + ((size_t)n * TGT * TGT + oy * TGT + ox) * 3;
     const ImageInfo& im = info[n];
-    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = 0.f; return; }
+    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = (T)0.f; return; }
     float scale = 256.f / (float)min(im.img_w, im.img_h);
-    float cw = (float)T / scale, ch = (float)T / scale;
+    float cw = (float)TGT / scale, ch = (float)TGT / scale;
     float cx_f = ((float)im.img_w - cw) * 0.5f, cy_f = ((float)im.img_h - ch) * 0.5f;
-    float sx = cx_f + ((float)ox + 0.5f) * cw / (float)T - 0.5f;
-    float sy = cy_f + ((float)oy + 0.5f) * ch / (float)T - 0.5f;
+    float sx = cx_f + ((float)ox + 0.5f) * cw / (float)TGT - 0.5f;
+    float sy = cy_f + ((float)oy + 0.5f) * ch / (float)TGT - 0.5f;
     bilinear_normalize(pool + (size_t)n * DECODE_IMG_STRIDE, DECODE_PITCH, im.img_w, im.img_h, sx, sy, dst);
 }
 
 // GPU-side metric reduction: sum losses and correct counts across the micro-batch
 __global__ void reduce_metrics_kernel(
-    const T* __restrict__ losses, const TI_CUDA* __restrict__ correct, const TI_CUDA* __restrict__ correct5,
-    T* __restrict__ acc_loss, TI_CUDA* __restrict__ acc_correct, TI_CUDA* __restrict__ acc_correct5,
+    const float* __restrict__ losses, const TI_CUDA* __restrict__ correct, const TI_CUDA* __restrict__ correct5,
+    float* __restrict__ acc_loss, TI_CUDA* __restrict__ acc_correct, TI_CUDA* __restrict__ acc_correct5,
     TI_CUDA n
 ) {
-    T sl = 0; TI_CUDA sc = 0, sc5 = 0;
+    float sl = 0; TI_CUDA sc = 0, sc5 = 0;
     for (TI_CUDA i = 0; i < n; i++) { sl += losses[i]; sc += correct[i]; sc5 += correct5[i]; }
     *acc_loss += sl; *acc_correct += sc; *acc_correct5 += sc5;
 }
@@ -359,11 +362,11 @@ struct BinaryDataset {
     BinaryDataset& operator=(const BinaryDataset&) = delete;
 };
 
-T cosine_lr(TI epoch, TI total_epochs, T base_lr, T min_lr, TI warmup_epochs, T warmup_lr) {
+float cosine_lr(TI epoch, TI total_epochs, float base_lr, float min_lr, TI warmup_epochs, float warmup_lr) {
     if (epoch < warmup_epochs)
-        return warmup_lr + (base_lr - warmup_lr) * static_cast<T>(epoch) / static_cast<T>(warmup_epochs);
-    T progress = static_cast<T>(epoch - warmup_epochs) / static_cast<T>(total_epochs - warmup_epochs);
-    return min_lr + (base_lr - min_lr) * 0.5f * (1.0f + std::cos(static_cast<T>(M_PI) * progress));
+        return warmup_lr + (base_lr - warmup_lr) * static_cast<float>(epoch) / static_cast<float>(warmup_epochs);
+    float progress = static_cast<float>(epoch - warmup_epochs) / static_cast<float>(total_epochs - warmup_epochs);
+    return min_lr + (base_lr - min_lr) * 0.5f * (1.0f + std::cos(static_cast<float>(M_PI) * progress));
 }
 
 int main(int argc, char* argv[]) {
@@ -414,7 +417,7 @@ int main(int argc, char* argv[]) {
     }
     TI total_train_samples = train_samples.size();
 
-    T scaled_lr = TrainingConfig::BASE_LR * static_cast<T>(batch_size) / static_cast<T>(TrainingConfig::BASE_BATCH_SIZE);
+    float scaled_lr = TrainingConfig::BASE_LR * static_cast<float>(batch_size) / static_cast<float>(TrainingConfig::BASE_BATCH_SIZE);
 
     std::cout << "=== ImageNet ResNet-18 CUDA ===" << std::endl;
     std::cout << "Batch=" << batch_size << " micro=" << GPU_BATCH << " accum=" << num_micro_batches << " LR=" << scaled_lr << std::endl;
@@ -466,11 +469,11 @@ int main(int argc, char* argv[]) {
     rlt::Tensor<GPU_INPUT_SPEC> gpu_d_input; rlt::malloc(device_cuda, gpu_d_input);
 
     // GPU buffers for loss computation (shared, compute-stream only)
-    T* gpu_losses; CUDA_CHECK(cudaMalloc(&gpu_losses, GPU_BATCH * sizeof(T)));
+    float* gpu_losses; CUDA_CHECK(cudaMalloc(&gpu_losses, GPU_BATCH * sizeof(float)));
     TI_CUDA* gpu_correct; CUDA_CHECK(cudaMalloc(&gpu_correct, GPU_BATCH * sizeof(TI_CUDA)));
     TI_CUDA* gpu_correct5; CUDA_CHECK(cudaMalloc(&gpu_correct5, GPU_BATCH * sizeof(TI_CUDA)));
 
-    T* gpu_acc_loss; CUDA_CHECK(cudaMalloc(&gpu_acc_loss, sizeof(T)));
+    float* gpu_acc_loss; CUDA_CHECK(cudaMalloc(&gpu_acc_loss, sizeof(float)));
     TI_CUDA* gpu_acc_correct; CUDA_CHECK(cudaMalloc(&gpu_acc_correct, sizeof(TI_CUDA)));
     TI_CUDA* gpu_acc_correct5; CUDA_CHECK(cudaMalloc(&gpu_acc_correct5, sizeof(TI_CUDA)));
 
@@ -763,7 +766,7 @@ int main(int argc, char* argv[]) {
 
     for (TI epoch = 0; epoch < TrainingConfig::NUM_EPOCHS; epoch++) {
         auto epoch_start = std::chrono::high_resolution_clock::now();
-        T current_lr = cosine_lr(epoch, TrainingConfig::NUM_EPOCHS, scaled_lr, TrainingConfig::MIN_LR, TrainingConfig::WARMUP_EPOCHS, TrainingConfig::WARMUP_LR);
+        float current_lr = cosine_lr(epoch, TrainingConfig::NUM_EPOCHS, scaled_lr, TrainingConfig::MIN_LR, TrainingConfig::WARMUP_EPOCHS, TrainingConfig::WARMUP_LR);
         {
             typename OPTIMIZER::PARAMETERS op;
             CUDA_CHECK(cudaMemcpy(&op, optimizer.parameters._data, sizeof(op), cudaMemcpyDeviceToHost));
@@ -772,7 +775,7 @@ int main(int argc, char* argv[]) {
         }
         std::cout << "=== Epoch " << epoch << " (lr=" << current_lr << ") ===" << std::endl;
 
-        T epoch_loss = 0; TI epoch_correct = 0, epoch_correct5 = 0, epoch_total = 0, epoch_batches = 0;
+        float epoch_loss = 0; TI epoch_correct = 0, epoch_correct5 = 0, epoch_total = 0, epoch_batches = 0;
 
         std::vector<TI> sample_indices(train_samples.size());
         std::iota(sample_indices.begin(), sample_indices.end(), 0);
@@ -814,7 +817,7 @@ int main(int argc, char* argv[]) {
         for (TI batch_i = 0; batch_i < num_batches; batch_i++) {
             auto batch_wall_start = std::chrono::high_resolution_clock::now();
             rlt::zero_gradient(device_cuda, model);
-            CUDA_CHECK(cudaMemsetAsync(gpu_acc_loss, 0, sizeof(T), device_cuda.stream));
+            CUDA_CHECK(cudaMemsetAsync(gpu_acc_loss, 0, sizeof(float), device_cuda.stream));
             CUDA_CHECK(cudaMemsetAsync(gpu_acc_correct, 0, sizeof(TI_CUDA), device_cuda.stream));
             CUDA_CHECK(cudaMemsetAsync(gpu_acc_correct5, 0, sizeof(TI_CUDA), device_cuda.stream));
             CUDA_CHECK(cudaEventRecord(ev_start, device_cuda.stream));
@@ -839,7 +842,7 @@ int main(int argc, char* argv[]) {
 
                 cross_entropy_loss_gradient_kernel<<<GPU_BATCH, 1, 0, device_cuda.stream>>>(
                     output_view._data, slot.gpu_labels, gpu_d_output._data, gpu_losses, gpu_correct, gpu_correct5,
-                    TrainingConfig::NUM_CLASSES, TrainingConfig::LABEL_SMOOTHING, T(1) / T(batch_size));
+                    TrainingConfig::NUM_CLASSES, TrainingConfig::LABEL_SMOOTHING, 1.0f / (float)batch_size);
                 CUDA_KERNEL_CHECK(device_cuda.stream, "cross_entropy_loss_gradient_kernel(train)");
                 reduce_metrics_kernel<<<1, 1, 0, device_cuda.stream>>>(
                     gpu_losses, gpu_correct, gpu_correct5, gpu_acc_loss, gpu_acc_correct, gpu_acc_correct5, GPU_BATCH);
@@ -868,8 +871,8 @@ int main(int argc, char* argv[]) {
             auto batch_wall_end = std::chrono::high_resolution_clock::now();
             double wall_ms = std::chrono::duration<double, std::milli>(batch_wall_end - batch_wall_start).count();
 
-            T batch_loss; TI_CUDA batch_correct, batch_correct5;
-            CUDA_CHECK(cudaMemcpy(&batch_loss, gpu_acc_loss, sizeof(T), cudaMemcpyDeviceToHost));
+            float batch_loss; TI_CUDA batch_correct, batch_correct5;
+            CUDA_CHECK(cudaMemcpy(&batch_loss, gpu_acc_loss, sizeof(float), cudaMemcpyDeviceToHost));
             CUDA_CHECK(cudaMemcpy(&batch_correct, gpu_acc_correct, sizeof(TI_CUDA), cudaMemcpyDeviceToHost));
             CUDA_CHECK(cudaMemcpy(&batch_correct5, gpu_acc_correct5, sizeof(TI_CUDA), cudaMemcpyDeviceToHost));
             TI batch_valid = batch_size;
@@ -877,9 +880,9 @@ int main(int argc, char* argv[]) {
             epoch_loss += batch_loss; epoch_correct += batch_correct; epoch_correct5 += batch_correct5; epoch_total += batch_valid;
             epoch_batches++;
 
-            T ba = static_cast<T>(batch_correct) / batch_valid * 100.f;
-            T ba5 = static_cast<T>(batch_correct5) / batch_valid * 100.f;
-            T sps = static_cast<T>(batch_valid) / (wall_ms * 0.001);
+            float ba = static_cast<float>(batch_correct) / batch_valid * 100.f;
+            float ba5 = static_cast<float>(batch_correct5) / batch_valid * 100.f;
+            float sps = static_cast<float>(batch_valid) / (wall_ms * 0.001);
 
             float ms_dec, ms_fwd, ms_loss, ms_bwd, ms_step;
             CUDA_CHECK(cudaEventElapsedTime(&ms_dec,  ev_start, ev_dec));
@@ -895,7 +898,7 @@ int main(int argc, char* argv[]) {
             rlt::add_scalar(device_cpu, device_cpu.logger, "batch/top1", ba);
             rlt::add_scalar(device_cpu, device_cpu.logger, "batch/top5", ba5);
             rlt::add_scalar(device_cpu, device_cpu.logger, "batch/img_per_sec", sps);
-            rlt::add_scalar(device_cpu, device_cpu.logger, "batch/epoch", static_cast<T>(epoch));
+            rlt::add_scalar(device_cpu, device_cpu.logger, "batch/epoch", static_cast<float>(epoch));
 
             if (epoch_batches % log_interval == 0 && prof.n > 0) {
                 double n = prof.n;
@@ -912,13 +915,13 @@ int main(int argc, char* argv[]) {
         }
 
         auto epoch_end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<T> ed = epoch_end - epoch_start;
-        T train_loss = epoch_batches > 0 ? epoch_loss / epoch_batches : 0;
-        T train_top1 = epoch_total > 0 ? static_cast<T>(epoch_correct) / epoch_total * 100.0f : 0;
-        T train_top5 = epoch_total > 0 ? static_cast<T>(epoch_correct5) / epoch_total * 100.0f : 0;
+        std::chrono::duration<double> ed = epoch_end - epoch_start;
+        float train_loss = epoch_batches > 0 ? epoch_loss / epoch_batches : 0;
+        float train_top1 = epoch_total > 0 ? static_cast<float>(epoch_correct) / epoch_total * 100.0f : 0;
+        float train_top5 = epoch_total > 0 ? static_cast<float>(epoch_correct5) / epoch_total * 100.0f : 0;
         std::cout << "  Train loss=" << train_loss << " top1=" << train_top1 << "% top5=" << train_top5 << "% time=" << ed.count() << "s" << std::endl;
 
-        T epoch_img_per_sec = epoch_total > 0 ? static_cast<T>(epoch_total) / ed.count() : 0;
+        float epoch_img_per_sec = epoch_total > 0 ? static_cast<float>(epoch_total) / ed.count() : 0;
         std::cout << "  " << epoch_img_per_sec << " img/s avg" << std::endl;
 
         rlt::set_step(device_cpu, device_cpu.logger, epoch);
@@ -930,7 +933,7 @@ int main(int argc, char* argv[]) {
         rlt::add_scalar(device_cpu, device_cpu.logger, "train/epoch_time_s", ed.count());
 
         { // Validation (pipelined through same producer)
-            TI vc = 0, vc5 = 0, vt = 0; T vl = 0;
+            TI vc = 0, vc5 = 0, vt = 0; float vl = 0;
             rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
             rlt::Tensor<GPU_D_OUTPUT_SPEC> val_output; rlt::malloc(device_cuda, val_output);
             TI nvb = valid_val_indices.size() / GPU_BATCH;
@@ -960,9 +963,9 @@ int main(int argc, char* argv[]) {
                     TrainingConfig::NUM_CLASSES, 0, 0);
                 CUDA_KERNEL_CHECK(device_cuda.stream, "cross_entropy_loss_gradient_kernel(val)");
                 CUDA_CHECK(cudaEventRecord(slot.consumed_event, device_cuda.stream));
-                std::vector<T> h_losses(GPU_BATCH);
+                std::vector<float> h_losses(GPU_BATCH);
                 std::vector<TI_CUDA> h_correct(GPU_BATCH), h_correct5(GPU_BATCH);
-                CUDA_CHECK(cudaMemcpy(h_losses.data(), gpu_losses, GPU_BATCH * sizeof(T), cudaMemcpyDeviceToHost));
+                CUDA_CHECK(cudaMemcpy(h_losses.data(), gpu_losses, GPU_BATCH * sizeof(float), cudaMemcpyDeviceToHost));
                 CUDA_CHECK(cudaMemcpy(h_correct.data(), gpu_correct, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyDeviceToHost));
                 CUDA_CHECK(cudaMemcpy(h_correct5.data(), gpu_correct5, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyDeviceToHost));
                 for (TI s_i = 0; s_i < GPU_BATCH; s_i++) { vl += h_losses[s_i]; vc += h_correct[s_i]; vc5 += h_correct5[s_i]; vt++; }
@@ -973,9 +976,9 @@ int main(int argc, char* argv[]) {
                 }
             }
             rlt::free(device_cuda, val_output);
-            T val_loss = vt > 0 ? vl / vt : 0;
-            T val_top1 = vt > 0 ? static_cast<T>(vc) / vt * 100.0f : 0;
-            T val_top5 = vt > 0 ? static_cast<T>(vc5) / vt * 100.0f : 0;
+            float val_loss = vt > 0 ? vl / vt : 0;
+            float val_top1 = vt > 0 ? static_cast<float>(vc) / vt * 100.0f : 0;
+            float val_top5 = vt > 0 ? static_cast<float>(vc5) / vt * 100.0f : 0;
             std::cout << "  Val loss=" << val_loss << " top1=" << val_top1 << "% top5=" << val_top5 << "%" << std::endl;
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/loss", val_loss);
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/top1", val_top1);

@@ -233,10 +233,10 @@ namespace rl_tools {
         if (cublas_stat != CUBLAS_STATUS_SUCCESS) {
             std::cout << "CUBLAS setting stream failed " << cublasGetStatusString(cublas_stat) << std::endl;
         }
-        // cublas_stat = cublasSetMathMode(device.handle, CUBLAS_TF32_TENSOR_OP_MATH);
-        // if (cublas_stat != CUBLAS_STATUS_SUCCESS) {
-        //     std::cout << "CUBLAS setting TF32 math mode failed " << cublasGetStatusString(cublas_stat) << std::endl;
-        // }
+        cublas_stat = cublasSetMathMode(device.handle, CUBLAS_TF32_TENSOR_OP_MATH);
+        if (cublas_stat != CUBLAS_STATUS_SUCCESS) {
+            std::cout << "CUBLAS setting TF32 math mode failed " << cublasGetStatusString(cublas_stat) << std::endl;
+        }
 #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
         if(device.initialized){
             std::cerr << "CUDA device already initialized" << std::endl;
@@ -263,6 +263,9 @@ namespace rl_tools {
         constexpr RL_TOOLS_FUNCTION_PLACEMENT cudnnDataType_t get_cudnn_dtype(){
             if constexpr(utils::typing::is_same_v<T, float>){
                 return CUDNN_DATA_FLOAT;
+            }
+            else if constexpr(utils::typing::is_same_v<T, __nv_bfloat16>){
+                return CUDNN_DATA_BFLOAT16;
             }
             else{
                 static_assert(utils::typing::is_same_v<T, double>);

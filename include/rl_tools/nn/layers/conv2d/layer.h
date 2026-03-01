@@ -51,8 +51,8 @@ namespace rl_tools::nn::layers::conv2d {
         static constexpr Normalization NORMALIZATION = T_NORMALIZATION;
         using INITIALIZER = T_INITIALIZER;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
-        static constexpr typename TYPE_POLICY::DEFAULT NORM_EPSILON = (typename TYPE_POLICY::DEFAULT)1e-5;
-        static constexpr typename TYPE_POLICY::DEFAULT BN_MOMENTUM = (typename TYPE_POLICY::DEFAULT)0.1;
+        static constexpr float NORM_EPSILON = 1e-5f;
+        static constexpr float BN_MOMENTUM = 0.1f;
     };
 
     // ======================== Normalization forward storage (learnable parameters + running stats) ========================

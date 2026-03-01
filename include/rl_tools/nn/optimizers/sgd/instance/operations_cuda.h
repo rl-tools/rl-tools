@@ -27,23 +27,26 @@ namespace rl_tools {
             TI col_i = blockIdx.x * blockDim.x + threadIdx.x;
             TI row_i = blockIdx.y * blockDim.y + threadIdx.y;
             if(col_i < COLS && row_i < ROWS){
+                T_VELOCITY lr = (T_VELOCITY)optimizer_parameters.learning_rate;
+                T_VELOCITY mom = (T_VELOCITY)optimizer_parameters.momentum;
+                T_VELOCITY wd = (T_VELOCITY)optimizer_parameters.weight_decay;
                 T_VELOCITY g = get(grad, row_i, col_i);
                 if constexpr(SPEC::ENABLE_WEIGHT_DECAY){
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
-                        g += get(params, row_i, col_i) * optimizer_parameters.weight_decay;
+                        g += (T_VELOCITY)get(params, row_i, col_i) * wd;
                     }
                 }
-                T_VELOCITY v = optimizer_parameters.momentum * get(vel, row_i, col_i) + g;
+                T_VELOCITY v = mom * get(vel, row_i, col_i) + g;
                 set(vel, row_i, col_i, v);
                 T_VELOCITY param_update;
                 if(optimizer_parameters.nesterov){
-                    param_update = optimizer_parameters.momentum * v + g;
+                    param_update = mom * v + g;
                 }
                 else{
                     param_update = v;
                 }
-                T_VELOCITY value = get(params, row_i, col_i);
-                value -= optimizer_parameters.learning_rate * param_update;
+                T_VELOCITY value = (T_VELOCITY)get(params, row_i, col_i);
+                value -= lr * param_update;
                 set(params, row_i, col_i, (T_PARAMETER)value);
             }
         }
