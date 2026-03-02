@@ -13,6 +13,7 @@ option(RL_TOOLS_OFFLINE_BUILD "Use the dependencies in .dependencies without che
 option(RL_TOOLS_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
 option(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
+option(RL_TOOLS_RENDERING_ENABLE_RAYTRACING "Enable raytracing" OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type")
@@ -115,6 +116,10 @@ include(cmake/autodetect/all.cmake)
 
 if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     include(cmake/optional/mujoco.cmake)
+endif()
+
+if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+    include(cmake/optional/optix.cmake)
 endif()
 
 if(RL_TOOLS_ENABLE_TARGETS)

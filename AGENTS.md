@@ -65,3 +65,21 @@ After regeneration, rebuild the compile tests before re-running `ctest`.
 ### HDF5 Test Data
 
 Some tests (`NN_LAYERS_RESNET_CUDA`, sequential persist tests) load `.h5` files from `tests/data/`. The path is set via `RL_TOOLS_TEST_DATA_PATH` (auto-detected by CMake). If these tests fail with "Object not found" HDF5 errors, check that dataset paths in the test source match the actual HDF5 group structure (inspect with `h5dump -H` or `python3 -c "import h5py; ..."`).
+
+
+## Idiomatic RLtools Architecture Principles
+
+1. Use free-function, device-first APIs (`malloc/init/step/free/copy/evaluate/train/...`) in `namespace rl_tools`; integrate new components by providing these operations.
+2. Keep the architecture split strict: `Config` (compile-time wiring/params), `State` (runtime storage), operations headers (lifecycle and algorithm behavior).
+3. Compose models at compile time (`nn_models::sequential::Module<...>`, `Build<...>`, capabilities), and enforce shape/type contracts with `static_assert`.
+4. Route math/container/nn behavior through RLtools device-dispatched operations; select backend through mux headers, not ad-hoc backend-specific code in targets.
+5. Keep memory lifecycle explicit and symmetric: allocation in `malloc`, initialization in `init`, teardown in `free`, with recursive handling for nested members.
+6. Separate concerns in data layout: parameters in models, transient tensors/scratch in `Buffer`, recurrent/rollout runtime data in `State`.
+7. Control precision and numeric semantics through `numeric_types::Policy` and category overrides, not hardcoded scalar assumptions in operations.
+8. Use `Mode<...>` tag dispatch for rollout/evaluation/variant behavior instead of boolean-driven control flow.
+9. Extend training via composable loop-step wrappers (`timing`, `evaluation`, `checkpoint`, `save_trajectories`, `nn_analytics`) rather than bloating core loop logic.
+10. Keep target wiring explicit near the top (`DEVICE`, `TYPE_POLICY`, `TI`, `RNG`, `DYNAMIC_ALLOCATION`, loop aliases); avoid scattering macro-driven type decisions.
+11. Treat include order as architectural: respect group/mux layering and prefer high-level mux includes in targets.
+12. Keep reusable algorithmic logic in `include/`; keep `src/` focused on build-matrix wiring, target selection, and executable glue.
+13. `operations_generic.h` must be strictly freestanding: no C++ standard library includes; depend only on RLtools abstractions for maximal platform/compiler portability.
+14. C++17 is the maximum compatibility standard; post-C++17 language/library features are not allowed in shared RLtools code.

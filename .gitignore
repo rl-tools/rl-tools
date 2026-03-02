@@ -77,3 +77,4 @@
 /build*
 /resnet_ast.txt
 /runs
+*.bin
