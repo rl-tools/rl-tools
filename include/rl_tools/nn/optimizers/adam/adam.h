@@ -87,12 +87,25 @@ namespace rl_tools::nn::parameters {
             static constexpr bool CONST = T_CONST;
             using NUMERIC_CATEGORY = T_NUMERIC_CATEGORY;
         };
+        template <typename T_SPEC, bool T_USE_MASTER_PARAMETERS = T_SPEC::TYPE_POLICY::template IS_SET<numeric_types::categories::MasterParameter> && !utils::typing::is_same_v<typename Gradient::Instance<T_SPEC>::PARENT::T_PARAMETER, typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::MasterParameter>>>
+        struct Instance;
         template <typename T_SPEC>
-        struct Instance: Gradient::Instance<T_SPEC>{
+        struct Instance<T_SPEC, false>: Gradient::Instance<T_SPEC>{
             using SPEC = T_SPEC;
             using T_PARAMETER = typename Gradient::Instance<T_SPEC>::PARENT::T_PARAMETER;
             using T_MASTER_PARAMETER = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::MasterParameter>;
-            static constexpr bool USE_MASTER_PARAMETERS = T_SPEC::TYPE_POLICY::template IS_SET<numeric_types::categories::MasterParameter> && !utils::typing::is_same_v<T_MASTER_PARAMETER, T_PARAMETER>;
+            static constexpr bool USE_MASTER_PARAMETERS = false;
+            using T_OPTIMIZER_STATE = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
+            using TENSOR_SPEC = tensor::Specification<T_OPTIMIZER_STATE, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
+            Tensor<TENSOR_SPEC> gradient_first_order_moment;
+            Tensor<TENSOR_SPEC> gradient_second_order_moment;
+        };
+        template <typename T_SPEC>
+        struct Instance<T_SPEC, true>: Gradient::Instance<T_SPEC>{
+            using SPEC = T_SPEC;
+            using T_PARAMETER = typename Gradient::Instance<T_SPEC>::PARENT::T_PARAMETER;
+            using T_MASTER_PARAMETER = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::MasterParameter>;
+            static constexpr bool USE_MASTER_PARAMETERS = true;
             using T_OPTIMIZER_STATE = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
             using TENSOR_SPEC = tensor::Specification<T_OPTIMIZER_STATE, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
             Tensor<TENSOR_SPEC> gradient_first_order_moment;

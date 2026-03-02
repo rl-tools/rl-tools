@@ -13,12 +13,24 @@ namespace rl_tools{
         save(device, (nn::parameters::Gradient::Instance<CONTAINER>&)parameter, group);
         save(device, parameter.gradient_first_order_moment, group, "gradient_first_order_moment");
         save(device, parameter.gradient_second_order_moment, group, "gradient_second_order_moment");
+        if constexpr(nn::parameters::Adam::Instance<CONTAINER>::USE_MASTER_PARAMETERS){
+            save(device, parameter.master_parameters, group, "master_parameters");
+        }
     }
     template<typename DEVICE, typename CONTAINER, typename GROUP>
     bool load(DEVICE& device, nn::parameters::Adam::Instance<CONTAINER>& parameter, GROUP& group) {
         bool success = load(device, (nn::parameters::Gradient::Instance<CONTAINER>&)parameter, group);
         success &= load(device, parameter.gradient_first_order_moment, group, "gradient_first_order_moment");
         success &= load(device, parameter.gradient_second_order_moment, group, "gradient_second_order_moment");
+        if constexpr(nn::parameters::Adam::Instance<CONTAINER>::USE_MASTER_PARAMETERS){
+            if(group_exists(device, group, "master_parameters")){
+                success &= load(device, parameter.master_parameters, group, "master_parameters");
+            }
+            else{
+                // Backward compatibility with checkpoints generated before master parameters existed.
+                copy(device, device, parameter.parameters, parameter.master_parameters);
+            }
+        }
         return success;
     }
 }

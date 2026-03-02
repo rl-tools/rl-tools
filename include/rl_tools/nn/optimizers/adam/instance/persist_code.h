@@ -33,6 +33,11 @@ namespace rl_tools{
         auto gradient_second_order_moment = save_code_split(device, parameter.gradient_second_order_moment, "gradient_second_order_moment_memory", const_declaration, indent+1);
         ss_header << gradient_second_order_moment.header;
         ss << gradient_second_order_moment.body;
+        if constexpr(nn::parameters::Adam::Instance<SPEC>::USE_MASTER_PARAMETERS){
+            auto master_parameters = save_code_split(device, parameter.master_parameters, "master_parameters_memory", const_declaration, indent+1);
+            ss_header << master_parameters.header;
+            ss << master_parameters.body;
+        }
         if(!output_memory_only){
             // ss << ind << "    " << "static_assert(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::typing::is_same_v<parameters_memory::CONTAINER_TYPE, gradient_memory::CONTAINER_TYPE>);\n";
             // ss << ind << "    " << "static_assert(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::typing::is_same_v<gradient_memory::CONTAINER_TYPE, gradient_first_order_moment_memory::CONTAINER_TYPE>);\n";
@@ -44,7 +49,12 @@ namespace rl_tools{
                << ", "
                << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})
                << ", true, true>;\n";
-            ss << ind << "    " << (const_declaration ? "constexpr " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Adam::Instance<PARAMETER_SPEC> parameters = {{{parameters_memory::container}, gradient_memory::container}, gradient_first_order_moment_memory::container, gradient_second_order_moment_memory::container};\n";
+            if constexpr(nn::parameters::Adam::Instance<SPEC>::USE_MASTER_PARAMETERS){
+                ss << ind << "    " << (const_declaration ? "constexpr " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Adam::Instance<PARAMETER_SPEC> parameters = {{{parameters_memory::container}, gradient_memory::container}, gradient_first_order_moment_memory::container, gradient_second_order_moment_memory::container, master_parameters_memory::container};\n";
+            }
+            else{
+                ss << ind << "    " << (const_declaration ? "constexpr " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Adam::Instance<PARAMETER_SPEC> parameters = {{{parameters_memory::container}, gradient_memory::container}, gradient_first_order_moment_memory::container, gradient_second_order_moment_memory::container};\n";
+            }
         }
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
@@ -56,6 +66,9 @@ namespace rl_tools{
         data += nn_analytics(device, static_cast<nn::parameters::Gradient::Instance<SPEC>&>(p), true) + ", ";
         data += "\"gradient_first_order_moment\": " + json(device, p.gradient_first_order_moment) + ", ";
         data += "\"gradient_second_order_moment\": " + json(device, p.gradient_second_order_moment);
+        if constexpr(nn::parameters::Adam::Instance<SPEC>::USE_MASTER_PARAMETERS){
+            data += ", \"master_parameters\": " + json(device, p.master_parameters);
+        }
         data += "}";
         return data;
     }
