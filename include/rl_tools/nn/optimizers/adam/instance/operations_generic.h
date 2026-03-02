@@ -31,50 +31,27 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void gradient_descent(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         using TI = typename DEVICE::index_t;
+        using PARAMETER_INSTANCE = nn::parameters::Adam::Instance<PARAMETER_SPEC>;
+        static constexpr bool USE_MASTER_PARAMETERS = PARAMETER_INSTANCE::USE_MASTER_PARAMETERS;
         using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
         using T_PARAMETER = typename decltype(parameter.parameters)::T;
-        using T_MASTER_PARAMETER = typename nn::parameters::Adam::Instance<PARAMETER_SPEC>::T_MASTER_PARAMETER;
+        using T_MASTER_PARAMETER = typename PARAMETER_INSTANCE::T_MASTER_PARAMETER;
         const auto& optimizer_parameters = get(device, optimizer.parameters, 0);
         auto parameters = matrix_view(device, parameter.parameters);
-        if constexpr(nn::parameters::Adam::Instance<PARAMETER_SPEC>::USE_MASTER_PARAMETERS){
-            auto master_parameters = matrix_view(device, parameter.master_parameters);
-            auto gradient_first_order_moment = matrix_view(device, parameter.gradient_first_order_moment);
-            auto gradient_second_order_moment = matrix_view(device, parameter.gradient_second_order_moment);
-            constexpr TI ROWS = decltype(parameters)::ROWS;
-            constexpr TI COLS = decltype(parameters)::COLS;
-            for(TI row_i = 0; row_i < ROWS; row_i++) {
-                for(TI col_i = 0; col_i < COLS; col_i++) {
-                    T_OPTIMIZER pre_sqrt_term = get(gradient_second_order_moment, row_i, col_i) * get(device, optimizer.second_order_moment_bias_correction, 0);
-                    pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T_OPTIMIZER)optimizer_parameters.epsilon_sqrt);
-                    T_OPTIMIZER parameter_update = optimizer_parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * get(gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer_parameters.epsilon);
-                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
-                        parameter_update *= optimizer_parameters.bias_lr_factor;
-                    }
-                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
-                        if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Normal> && SPEC::ENABLE_WEIGHT_DECAY){
-                            parameter_update += (T_OPTIMIZER)get(master_parameters, row_i, col_i) * optimizer_parameters.weight_decay / 2;
-                        }
-                        if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Input> && SPEC::ENABLE_WEIGHT_DECAY){
-                            parameter_update += (T_OPTIMIZER)get(master_parameters, row_i, col_i) * optimizer_parameters.weight_decay_input / 2;
-                        }
-                        if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Output> && SPEC::ENABLE_WEIGHT_DECAY){
-                            parameter_update += (T_OPTIMIZER)get(master_parameters, row_i, col_i) * optimizer_parameters.weight_decay_output / 2;
-                        }
-                    }
-                    T_OPTIMIZER value = (T_OPTIMIZER)get(master_parameters, row_i, col_i);
-                    value -= parameter_update;
-                    set(master_parameters, row_i, col_i, (T_MASTER_PARAMETER)value);
-                    set(parameters, row_i, col_i, (T_PARAMETER)value);
-                }
-            }
-            return;
-        }
         auto gradient_first_order_moment = matrix_view(device, parameter.gradient_first_order_moment);
         auto gradient_second_order_moment = matrix_view(device, parameter.gradient_second_order_moment);
         constexpr TI ROWS = decltype(parameters)::ROWS;
         constexpr TI COLS = decltype(parameters)::COLS;
         for(TI row_i = 0; row_i < ROWS; row_i++) {
             for(TI col_i = 0; col_i < COLS; col_i++) {
+                T_OPTIMIZER value;
+                if constexpr(USE_MASTER_PARAMETERS){
+                    auto master_parameters = matrix_view(device, parameter.master_parameters);
+                    value = (T_OPTIMIZER)get(master_parameters, row_i, col_i);
+                }
+                else{
+                    value = (T_OPTIMIZER)get(parameters, row_i, col_i);
+                }
                 T_OPTIMIZER pre_sqrt_term = get(gradient_second_order_moment, row_i, col_i) * get(device, optimizer.second_order_moment_bias_correction, 0);
                 pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T_OPTIMIZER)optimizer_parameters.epsilon_sqrt);
                 T_OPTIMIZER parameter_update = optimizer_parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * get(gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer_parameters.epsilon);
@@ -83,17 +60,20 @@ namespace rl_tools{
                 }
                 if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Normal> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameters, row_i, col_i) * optimizer_parameters.weight_decay / 2;
+                        parameter_update += value * optimizer_parameters.weight_decay / 2;
                     }
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Input> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameters, row_i, col_i) * optimizer_parameters.weight_decay_input / 2;
+                        parameter_update += value * optimizer_parameters.weight_decay_input / 2;
                     }
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Output> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameters, row_i, col_i) * optimizer_parameters.weight_decay_output / 2;
+                        parameter_update += value * optimizer_parameters.weight_decay_output / 2;
                     }
                 }
-                T_OPTIMIZER value = get(parameters, row_i, col_i);
                 value -= parameter_update;
+                if constexpr(USE_MASTER_PARAMETERS){
+                    auto master_parameters = matrix_view(device, parameter.master_parameters);
+                    set(master_parameters, row_i, col_i, (T_MASTER_PARAMETER)value);
+                }
                 set(parameters, row_i, col_i, (T_PARAMETER)value);
             }
         }

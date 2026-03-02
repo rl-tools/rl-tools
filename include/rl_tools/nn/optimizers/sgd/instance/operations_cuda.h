@@ -16,45 +16,12 @@ namespace rl_tools {
 
             const auto& optimizer_parameters = get_ref(device, optimizer.parameters, 0);
 
+            using PARAMETER_INSTANCE = nn::parameters::SGD::Instance<PARAMETER_SPEC>;
+            static constexpr bool USE_MASTER_PARAMETERS = PARAMETER_INSTANCE::USE_MASTER_PARAMETERS;
             using T_VELOCITY = typename PARAMETER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
             using T_PARAMETER = typename decltype(parameter.parameters)::T;
-            using T_MASTER_PARAMETER = typename nn::parameters::SGD::Instance<PARAMETER_SPEC>::T_MASTER_PARAMETER;
+            using T_MASTER_PARAMETER = typename PARAMETER_INSTANCE::T_MASTER_PARAMETER;
             auto params = matrix_view(device, parameter.parameters);
-            if constexpr(nn::parameters::SGD::Instance<PARAMETER_SPEC>::USE_MASTER_PARAMETERS){
-                auto master_params = matrix_view(device, parameter.master_parameters);
-                auto grad = matrix_view(device, parameter.gradient);
-                auto vel = matrix_view(device, parameter.velocity);
-                constexpr TI ROWS = decltype(params)::ROWS;
-                constexpr TI COLS = decltype(params)::COLS;
-
-                TI col_i = blockIdx.x * blockDim.x + threadIdx.x;
-                TI row_i = blockIdx.y * blockDim.y + threadIdx.y;
-                if(col_i < COLS && row_i < ROWS){
-                    T_VELOCITY lr = (T_VELOCITY)optimizer_parameters.learning_rate;
-                    T_VELOCITY mom = (T_VELOCITY)optimizer_parameters.momentum;
-                    T_VELOCITY wd = (T_VELOCITY)optimizer_parameters.weight_decay;
-                    T_VELOCITY g = get(grad, row_i, col_i);
-                    if constexpr(SPEC::ENABLE_WEIGHT_DECAY){
-                        if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
-                            g += (T_VELOCITY)get(master_params, row_i, col_i) * wd;
-                        }
-                    }
-                    T_VELOCITY v = mom * get(vel, row_i, col_i) + g;
-                    set(vel, row_i, col_i, v);
-                    T_VELOCITY param_update;
-                    if(optimizer_parameters.nesterov){
-                        param_update = mom * v + g;
-                    }
-                    else{
-                        param_update = v;
-                    }
-                    T_VELOCITY value = (T_VELOCITY)get(master_params, row_i, col_i);
-                    value -= lr * param_update;
-                    set(master_params, row_i, col_i, (T_MASTER_PARAMETER)value);
-                    set(params, row_i, col_i, (T_PARAMETER)value);
-                }
-                return;
-            }
             auto grad = matrix_view(device, parameter.gradient);
             auto vel = matrix_view(device, parameter.velocity);
             constexpr TI ROWS = decltype(params)::ROWS;
@@ -66,23 +33,28 @@ namespace rl_tools {
                 T_VELOCITY lr = (T_VELOCITY)optimizer_parameters.learning_rate;
                 T_VELOCITY mom = (T_VELOCITY)optimizer_parameters.momentum;
                 T_VELOCITY wd = (T_VELOCITY)optimizer_parameters.weight_decay;
+                T_VELOCITY value;
+                if constexpr(USE_MASTER_PARAMETERS){
+                    auto master_params = matrix_view(device, parameter.master_parameters);
+                    value = (T_VELOCITY)get(master_params, row_i, col_i);
+                }
+                else{
+                    value = (T_VELOCITY)get(params, row_i, col_i);
+                }
                 T_VELOCITY g = get(grad, row_i, col_i);
                 if constexpr(SPEC::ENABLE_WEIGHT_DECAY){
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
-                        g += (T_VELOCITY)get(params, row_i, col_i) * wd;
+                        g += value * wd;
                     }
                 }
                 T_VELOCITY v = mom * get(vel, row_i, col_i) + g;
                 set(vel, row_i, col_i, v);
-                T_VELOCITY param_update;
-                if(optimizer_parameters.nesterov){
-                    param_update = mom * v + g;
-                }
-                else{
-                    param_update = v;
-                }
-                T_VELOCITY value = (T_VELOCITY)get(params, row_i, col_i);
+                T_VELOCITY param_update = optimizer_parameters.nesterov ? mom * v + g : v;
                 value -= lr * param_update;
+                if constexpr(USE_MASTER_PARAMETERS){
+                    auto master_params = matrix_view(device, parameter.master_parameters);
+                    set(master_params, row_i, col_i, (T_MASTER_PARAMETER)value);
+                }
                 set(params, row_i, col_i, (T_PARAMETER)value);
             }
         }

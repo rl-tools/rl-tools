@@ -30,66 +30,55 @@ namespace rl_tools{
         // Nesterov: param -= lr * (momentum * v + gradient)
         // Classical: param -= lr * v
         using TI = typename DEVICE::index_t;
-        using T_VELOCITY = typename nn::parameters::SGD::Instance<PARAMETER_SPEC>::T_VELOCITY;
+        using PARAMETER_INSTANCE = nn::parameters::SGD::Instance<PARAMETER_SPEC>;
+        static constexpr bool USE_MASTER_PARAMETERS = PARAMETER_INSTANCE::USE_MASTER_PARAMETERS;
+        using T_VELOCITY = typename PARAMETER_INSTANCE::T_VELOCITY;
         using T_PARAMETER = typename decltype(parameter.parameters)::T;
-        using T_MASTER_PARAMETER = typename nn::parameters::SGD::Instance<PARAMETER_SPEC>::T_MASTER_PARAMETER;
+        using T_MASTER_PARAMETER = typename PARAMETER_INSTANCE::T_MASTER_PARAMETER;
         const auto& optimizer_parameters = get(device, optimizer.parameters, 0);
         auto params = matrix_view(device, parameter.parameters);
-        if constexpr(nn::parameters::SGD::Instance<PARAMETER_SPEC>::USE_MASTER_PARAMETERS){
+        auto grad = matrix_view(device, parameter.gradient);
+        auto vel = matrix_view(device, parameter.velocity);
+        if constexpr(USE_MASTER_PARAMETERS){
             auto master_params = matrix_view(device, parameter.master_parameters);
-            auto grad = matrix_view(device, parameter.gradient);
-            auto vel = matrix_view(device, parameter.velocity);
             constexpr TI ROWS = decltype(params)::ROWS;
             constexpr TI COLS = decltype(params)::COLS;
             for(TI row_i = 0; row_i < ROWS; row_i++){
                 for(TI col_i = 0; col_i < COLS; col_i++){
+                    T_VELOCITY value = (T_VELOCITY)get(master_params, row_i, col_i);
                     T_VELOCITY g = get(grad, row_i, col_i);
                     if constexpr(SPEC::ENABLE_WEIGHT_DECAY){
                         if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
-                            g += (T_VELOCITY)get(master_params, row_i, col_i) * optimizer_parameters.weight_decay;
+                            g += value * optimizer_parameters.weight_decay;
                         }
                     }
                     T_VELOCITY v = optimizer_parameters.momentum * get(vel, row_i, col_i) + g;
                     set(vel, row_i, col_i, v);
-                    T_VELOCITY param_update;
-                    if(optimizer_parameters.nesterov){
-                        param_update = optimizer_parameters.momentum * v + g;
-                    }
-                    else{
-                        param_update = v;
-                    }
-                    T_VELOCITY value = (T_VELOCITY)get(master_params, row_i, col_i);
+                    T_VELOCITY param_update = optimizer_parameters.nesterov ? optimizer_parameters.momentum * v + g : v;
                     value -= optimizer_parameters.learning_rate * param_update;
                     set(master_params, row_i, col_i, (T_MASTER_PARAMETER)value);
                     set(params, row_i, col_i, (T_PARAMETER)value);
                 }
             }
-            return;
         }
-        auto grad = matrix_view(device, parameter.gradient);
-        auto vel = matrix_view(device, parameter.velocity);
-        constexpr TI ROWS = decltype(params)::ROWS;
-        constexpr TI COLS = decltype(params)::COLS;
-        for(TI row_i = 0; row_i < ROWS; row_i++){
-            for(TI col_i = 0; col_i < COLS; col_i++){
-                T_VELOCITY g = get(grad, row_i, col_i);
-                if constexpr(SPEC::ENABLE_WEIGHT_DECAY){
-                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
-                        g += get(params, row_i, col_i) * optimizer_parameters.weight_decay;
+        else{
+            constexpr TI ROWS = decltype(params)::ROWS;
+            constexpr TI COLS = decltype(params)::COLS;
+            for(TI row_i = 0; row_i < ROWS; row_i++){
+                for(TI col_i = 0; col_i < COLS; col_i++){
+                    T_VELOCITY value = (T_VELOCITY)get(params, row_i, col_i);
+                    T_VELOCITY g = get(grad, row_i, col_i);
+                    if constexpr(SPEC::ENABLE_WEIGHT_DECAY){
+                        if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
+                            g += value * optimizer_parameters.weight_decay;
+                        }
                     }
+                    T_VELOCITY v = optimizer_parameters.momentum * get(vel, row_i, col_i) + g;
+                    set(vel, row_i, col_i, v);
+                    T_VELOCITY param_update = optimizer_parameters.nesterov ? optimizer_parameters.momentum * v + g : v;
+                    value -= optimizer_parameters.learning_rate * param_update;
+                    set(params, row_i, col_i, (T_PARAMETER)value);
                 }
-                T_VELOCITY v = optimizer_parameters.momentum * get(vel, row_i, col_i) + g;
-                set(vel, row_i, col_i, v);
-                T_VELOCITY param_update;
-                if(optimizer_parameters.nesterov){
-                    param_update = optimizer_parameters.momentum * v + g;
-                }
-                else{
-                    param_update = v;
-                }
-                T_VELOCITY value = get(params, row_i, col_i);
-                value -= optimizer_parameters.learning_rate * param_update;
-                set(params, row_i, col_i, (T_PARAMETER)value);
             }
         }
     }
