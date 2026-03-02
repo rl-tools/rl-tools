@@ -1,1 +1,11 @@
 add_subdirectory(lamb)
+
+add_executable(test_nn_optimizers_master_parameters master_parameters.cpp)
+target_link_libraries(test_nn_optimizers_master_parameters RLtools::Core GTest::gtest_main)
+gtest_discover_tests(test_nn_optimizers_master_parameters)
+
+if(RL_TOOLS_ENABLE_HDF5)
+    add_executable(test_nn_optimizers_master_parameters_persist_hdf5 master_parameters_persist_hdf5.cpp)
+    target_link_libraries(test_nn_optimizers_master_parameters_persist_hdf5 RLtools::RLtools GTest::gtest_main)
+    gtest_discover_tests(test_nn_optimizers_master_parameters_persist_hdf5)
+endif()

@@ -110,8 +110,8 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Adam::Instance<SPEC_1>& p1, const nn::parameters::Adam::Instance<SPEC_2>& p2){
-        typename SPEC_1::CONTAINER::T acc = 0;
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, const nn::parameters::Adam::Instance<SPEC_1>& p1, const nn::parameters::Adam::Instance<SPEC_2>& p2){
+        typename SPEC_1::TYPE_POLICY::DEFAULT acc = 0;
         acc += abs_diff(device, static_cast<const nn::parameters::Gradient::Instance<SPEC_1>&>(p1), static_cast<const nn::parameters::Gradient::Instance<SPEC_2>&>(p2));
         acc += abs_diff(device, p1.gradient_first_order_moment, p2.gradient_first_order_moment);
         acc += abs_diff(device, p1.gradient_second_order_moment, p2.gradient_second_order_moment);

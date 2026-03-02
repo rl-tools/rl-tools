@@ -50,7 +50,7 @@ endif()
 
 
 if(NOT RL_TOOLS_DISABLE_ZLIB)
-#    find_package(ZLIB QUIET)
+    find_package(ZLIB QUIET)
     if(ZLIB_FOUND)
         message(STATUS "Found existing/system ZLIB ${ZLIB_VERSION} at ${ZLIB_INCLUDE_DIRS}")
         target_link_libraries(rl_tools_full INTERFACE ZLIB::ZLIB)
@@ -68,7 +68,22 @@ if(NOT RL_TOOLS_DISABLE_ZLIB)
                     GIT_TAG   8d10c309d7d468b9b2ecfd8d5f1b063d6396af17
             )
             rl_tools_fetchcontent_makeavailable_quiet(zlib)
-            target_link_libraries(rl_tools_full INTERFACE zlibstatic)
+
+            # zlib-ng can expose different target names depending on options/platform.
+            # Resolve to an existing CMake target to avoid falling back to a raw -l flag.
+            if(TARGET zlibstatic)
+                set(RL_TOOLS_ZLIB_TARGET zlibstatic)
+            elseif(TARGET zlib)
+                set(RL_TOOLS_ZLIB_TARGET zlib)
+            elseif(TARGET zlib-ng)
+                set(RL_TOOLS_ZLIB_TARGET zlib-ng)
+            elseif(TARGET ZLIB::ZLIB)
+                set(RL_TOOLS_ZLIB_TARGET ZLIB::ZLIB)
+            else()
+                message(FATAL_ERROR "zlib FetchContent completed, but no expected zlib target exists (tried: zlibstatic, zlib, zlib-ng, ZLIB::ZLIB).")
+            endif()
+            message(STATUS "Using zlib target: ${RL_TOOLS_ZLIB_TARGET}")
+            target_link_libraries(rl_tools_full INTERFACE ${RL_TOOLS_ZLIB_TARGET})
             target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_ZLIB)
             set(RL_TOOLS_ENABLE_ZLIB ON)
         else()
@@ -77,4 +92,3 @@ if(NOT RL_TOOLS_DISABLE_ZLIB)
         endif()
     endif()
 endif()
-
