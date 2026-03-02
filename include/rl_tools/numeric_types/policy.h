@@ -26,11 +26,21 @@ namespace rl_tools::numeric_types{
             typename LookupType<TAG, DEFAULT, REST_USE_CASES...>::T
         >;
     };
+    template<typename TAG, typename... USE_CASES>
+    struct IsSet{
+        static constexpr bool VALUE = false;
+    };
+    template<typename TAG, typename FIRST_USE_CASE, typename... REST_USE_CASES>
+    struct IsSet<TAG, FIRST_USE_CASE, REST_USE_CASES...>{
+        static constexpr bool VALUE = utils::typing::is_same_v<typename FIRST_USE_CASE::TAG, TAG> || IsSet<TAG, REST_USE_CASES...>::VALUE;
+    };
     template<typename T_DEFAULT, typename... USE_CASES>
     struct Policy{
         using DEFAULT = T_DEFAULT;
         template<typename TAG>
         using GET = typename LookupType<TAG, DEFAULT, USE_CASES...>::T;
+        template<typename TAG>
+        static constexpr bool IS_SET = IsSet<TAG, USE_CASES...>::VALUE;
     };
 
 }

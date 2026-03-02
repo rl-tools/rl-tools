@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H
 
 #include "../../../nn/parameters/parameters.h"
+#include "../../../utils/generic/typing.h"
 // Note the Adam operations are divided into "./instance/operations_xxx." operations which are operations on the parameters and "./operations_xxx.h" which are operations on the optimizer (and possibly a `nn_model`).
 // So the instance operations should be imported before any imports that use parameters (particularly `nn/layers` and `nn_models`). Then the chain is `optimizer operation` (e.g. gradient descent weight update) calls `nn_model` update calls e.g. `nn::layers::dense` update calls `parameters::Adam::instance` update. Hence, the instance operations need to be included first
 
@@ -89,10 +90,15 @@ namespace rl_tools::nn::parameters {
         template <typename T_SPEC>
         struct Instance: Gradient::Instance<T_SPEC>{
             using SPEC = T_SPEC;
+            using T_PARAMETER = typename Gradient::Instance<T_SPEC>::PARENT::T_PARAMETER;
+            using T_MASTER_PARAMETER = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::MasterParameter>;
+            static constexpr bool USE_MASTER_PARAMETERS = T_SPEC::TYPE_POLICY::template IS_SET<numeric_types::categories::MasterParameter> && !utils::typing::is_same_v<T_MASTER_PARAMETER, T_PARAMETER>;
             using T_OPTIMIZER_STATE = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
             using TENSOR_SPEC = tensor::Specification<T_OPTIMIZER_STATE, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
             Tensor<TENSOR_SPEC> gradient_first_order_moment;
             Tensor<TENSOR_SPEC> gradient_second_order_moment;
+            using MASTER_TENSOR_SPEC = tensor::Specification<T_MASTER_PARAMETER, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
+            Tensor<MASTER_TENSOR_SPEC> master_parameters;
         };
     };
 }

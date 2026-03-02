@@ -6,6 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::numeric_types::categories {
     struct Parameter{};
+    struct MasterParameter{};
     struct Accumulator{};
     struct Gradient{};
     struct OptimizerState{};

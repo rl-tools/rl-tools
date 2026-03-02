@@ -14,6 +14,9 @@ namespace rl_tools{
     inline std::string get_type_string(numeric_types::categories::Parameter){
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Parameter";
     }
+    inline std::string get_type_string(numeric_types::categories::MasterParameter){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::MasterParameter";
+    }
     inline std::string get_type_string(numeric_types::categories::Accumulator){
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Accumulator";
     }

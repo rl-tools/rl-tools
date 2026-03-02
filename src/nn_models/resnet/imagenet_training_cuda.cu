@@ -57,7 +57,8 @@ using T = __nv_bfloat16;
 using TYPE_POLICY = rlt::numeric_types::Policy<float,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, T>,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, T>,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, T>>;
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, T>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::MasterParameter, float>>;
 using T_ACTIVATION = TYPE_POLICY::GET<rlt::numeric_types::categories::Activation>;
 using T_GRADIENT = TYPE_POLICY::GET<rlt::numeric_types::categories::Gradient>;
 using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<>;

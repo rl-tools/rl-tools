@@ -15,20 +15,60 @@ namespace rl_tools{
         malloc(device, (nn::parameters::Gradient::Instance<SPEC>&) p);
         malloc(device, p.gradient_first_order_moment);
         malloc(device, p.gradient_second_order_moment);
+        if constexpr(nn::parameters::Adam::Instance<SPEC>::USE_MASTER_PARAMETERS){
+            malloc(device, p.master_parameters);
+        }
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& p){
         free(device, (nn::parameters::Gradient::Instance<SPEC>&) p);
         free(device, p.gradient_first_order_moment);
         free(device, p.gradient_second_order_moment);
+        if constexpr(nn::parameters::Adam::Instance<SPEC>::USE_MASTER_PARAMETERS){
+            free(device, p.master_parameters);
+        }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void gradient_descent(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         using TI = typename DEVICE::index_t;
         using T_OPTIMIZER = typename PARAMETER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
         using T_PARAMETER = typename decltype(parameter.parameters)::T;
+        using T_MASTER_PARAMETER = typename nn::parameters::Adam::Instance<PARAMETER_SPEC>::T_MASTER_PARAMETER;
         const auto& optimizer_parameters = get(device, optimizer.parameters, 0);
         auto parameters = matrix_view(device, parameter.parameters);
+        if constexpr(nn::parameters::Adam::Instance<PARAMETER_SPEC>::USE_MASTER_PARAMETERS){
+            auto master_parameters = matrix_view(device, parameter.master_parameters);
+            auto gradient_first_order_moment = matrix_view(device, parameter.gradient_first_order_moment);
+            auto gradient_second_order_moment = matrix_view(device, parameter.gradient_second_order_moment);
+            constexpr TI ROWS = decltype(parameters)::ROWS;
+            constexpr TI COLS = decltype(parameters)::COLS;
+            for(TI row_i = 0; row_i < ROWS; row_i++) {
+                for(TI col_i = 0; col_i < COLS; col_i++) {
+                    T_OPTIMIZER pre_sqrt_term = get(gradient_second_order_moment, row_i, col_i) * get(device, optimizer.second_order_moment_bias_correction, 0);
+                    pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T_OPTIMIZER)optimizer_parameters.epsilon_sqrt);
+                    T_OPTIMIZER parameter_update = optimizer_parameters.alpha * get(device, optimizer.first_order_moment_bias_correction, 0) * get(gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer_parameters.epsilon);
+                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
+                        parameter_update *= optimizer_parameters.bias_lr_factor;
+                    }
+                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
+                        if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Normal> && SPEC::ENABLE_WEIGHT_DECAY){
+                            parameter_update += (T_OPTIMIZER)get(master_parameters, row_i, col_i) * optimizer_parameters.weight_decay / 2;
+                        }
+                        if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Input> && SPEC::ENABLE_WEIGHT_DECAY){
+                            parameter_update += (T_OPTIMIZER)get(master_parameters, row_i, col_i) * optimizer_parameters.weight_decay_input / 2;
+                        }
+                        if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Output> && SPEC::ENABLE_WEIGHT_DECAY){
+                            parameter_update += (T_OPTIMIZER)get(master_parameters, row_i, col_i) * optimizer_parameters.weight_decay_output / 2;
+                        }
+                    }
+                    T_OPTIMIZER value = (T_OPTIMIZER)get(master_parameters, row_i, col_i);
+                    value -= parameter_update;
+                    set(master_parameters, row_i, col_i, (T_MASTER_PARAMETER)value);
+                    set(parameters, row_i, col_i, (T_PARAMETER)value);
+                }
+            }
+            return;
+        }
         auto gradient_first_order_moment = matrix_view(device, parameter.gradient_first_order_moment);
         auto gradient_second_order_moment = matrix_view(device, parameter.gradient_second_order_moment);
         constexpr TI ROWS = decltype(parameters)::ROWS;
@@ -72,6 +112,9 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::Instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         set_all(device, parameter.gradient_first_order_moment, 0);
         set_all(device, parameter.gradient_second_order_moment, 0);
+        if constexpr(nn::parameters::Adam::Instance<PARAMETER_SPEC>::USE_MASTER_PARAMETERS){
+            copy(device, device, parameter.parameters, parameter.master_parameters);
+        }
     }
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
@@ -79,6 +122,12 @@ namespace rl_tools{
         copy(source_device, target_device, (nn::parameters::Gradient::Instance<SOURCE_SPEC>&) source, (nn::parameters::Gradient::Instance<TARGET_SPEC>&) target);
         copy(source_device, target_device, source.gradient_first_order_moment , target.gradient_first_order_moment);
         copy(source_device, target_device, source.gradient_second_order_moment, target.gradient_second_order_moment);
+        if constexpr(nn::parameters::Adam::Instance<SOURCE_SPEC>::USE_MASTER_PARAMETERS && nn::parameters::Adam::Instance<TARGET_SPEC>::USE_MASTER_PARAMETERS){
+            copy(source_device, target_device, source.master_parameters, target.master_parameters);
+        }
+        else if constexpr(!nn::parameters::Adam::Instance<SOURCE_SPEC>::USE_MASTER_PARAMETERS && nn::parameters::Adam::Instance<TARGET_SPEC>::USE_MASTER_PARAMETERS){
+            copy(source_device, target_device, source.parameters, target.master_parameters);
+        }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Adam::Instance<SPEC_1>& p1, const nn::parameters::Adam::Instance<SPEC_2>& p2){
@@ -86,6 +135,15 @@ namespace rl_tools{
         acc += abs_diff(device, static_cast<const nn::parameters::Gradient::Instance<SPEC_1>&>(p1), static_cast<const nn::parameters::Gradient::Instance<SPEC_2>&>(p2));
         acc += abs_diff(device, p1.gradient_first_order_moment, p2.gradient_first_order_moment);
         acc += abs_diff(device, p1.gradient_second_order_moment, p2.gradient_second_order_moment);
+        if constexpr(nn::parameters::Adam::Instance<SPEC_1>::USE_MASTER_PARAMETERS && nn::parameters::Adam::Instance<SPEC_2>::USE_MASTER_PARAMETERS){
+            acc += abs_diff(device, p1.master_parameters, p2.master_parameters);
+        }
+        else if constexpr(nn::parameters::Adam::Instance<SPEC_1>::USE_MASTER_PARAMETERS){
+            acc += abs_diff(device, p1.master_parameters, p2.parameters);
+        }
+        else if constexpr(nn::parameters::Adam::Instance<SPEC_2>::USE_MASTER_PARAMETERS){
+            acc += abs_diff(device, p1.parameters, p2.master_parameters);
+        }
         return acc;
     }
     template<typename DEVICE, typename SPEC, typename MODE = Mode<mode::Default<>>>
@@ -94,7 +152,11 @@ namespace rl_tools{
         if constexpr(mode::is<MODE, nn::parameters::mode::ParametersOnly>){
             return upstream_nan;
         }
-        return upstream_nan || is_nan(device, p.gradient_first_order_moment, mode) || is_nan(device, p.gradient_second_order_moment, mode);
+        bool downstream_nan = is_nan(device, p.gradient_first_order_moment, mode) || is_nan(device, p.gradient_second_order_moment, mode);
+        if constexpr(nn::parameters::Adam::Instance<SPEC>::USE_MASTER_PARAMETERS){
+            downstream_nan = downstream_nan || is_nan(device, p.master_parameters, mode);
+        }
+        return upstream_nan || downstream_nan;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

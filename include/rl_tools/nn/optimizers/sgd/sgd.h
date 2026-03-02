@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_OPTIMIZERS_SGD_H
 
 #include "../../../nn/parameters/parameters.h"
+#include "../../../utils/generic/typing.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::optimizers{
@@ -62,9 +63,14 @@ namespace rl_tools::nn::parameters{
         template <typename T_SPEC>
         struct Instance: Gradient::Instance<T_SPEC>{
             using SPEC = T_SPEC;
+            using T_PARAMETER = typename Gradient::Instance<T_SPEC>::PARENT::T_PARAMETER;
+            using T_MASTER_PARAMETER = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::MasterParameter>;
+            static constexpr bool USE_MASTER_PARAMETERS = T_SPEC::TYPE_POLICY::template IS_SET<numeric_types::categories::MasterParameter> && !utils::typing::is_same_v<T_MASTER_PARAMETER, T_PARAMETER>;
             using T_VELOCITY = typename T_SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
             using TENSOR_SPEC = tensor::Specification<T_VELOCITY, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
             Tensor<TENSOR_SPEC> velocity;
+            using MASTER_TENSOR_SPEC = tensor::Specification<T_MASTER_PARAMETER, typename SPEC::TI, typename SPEC::SHAPE, SPEC::DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::SHAPE>, SPEC::CONST>;
+            Tensor<MASTER_TENSOR_SPEC> master_parameters;
         };
     };
 }
