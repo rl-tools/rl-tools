@@ -20,11 +20,11 @@ struct TrianglesGeomData
   /*! array/buffer of vertex positions */
   vec3f *vertex;
   /*! array/buffer of texture coordinates (may be null) */
-  vec2f *texCoord;
+  vec2f *tex_coord;
   /*! diffuse texture (0 if none) */
   cudaTextureObject_t texture;
   /*! whether this geometry has a valid texture */
-  int hasTexture;
+  int has_texture;
 };
 
 /* per-camera parameters (shared between host and device) */
@@ -39,11 +39,11 @@ struct CameraData
 /* variables for the ray generation program */
 struct RayGenData
 {
-  uint32_t *fbPtr;
-  vec2i  fbSize;      // total framebuffer size (full grid)
-  vec2i  camSize;     // per-camera resolution
-  int    gridCols;    // number of columns in the grid
-  int    numCameras;  // total number of cameras
+  uint32_t *fb_ptr;
+  vec2i  fb_size;      // total framebuffer size (full grid)
+  vec2i  cam_size;     // per-camera resolution
+  int    grid_cols;    // number of columns in the grid
+  int    num_cameras;  // total number of cameras
   OptixTraversableHandle world;
   CameraData *cameras; // device array of all cameras
 };
@@ -51,15 +51,15 @@ struct RayGenData
 /* variables for the miss program */
 struct MissProgData
 {
-  vec3f  color0;
-  vec3f  color1;
+  vec3f  color_0;
+  vec3f  color_1;
 };
 
 // ---- Collision probing ----
 
 struct CollisionResult
 {
-  float distance; // hit distance, or maxDist on miss
+  float distance; // hit distance, or max_dist on miss
   int   hit;      // 1 = geometry, 0 = miss (skybox)
 };
 
@@ -75,11 +75,11 @@ struct CollisionMissData
 
 struct CollisionRayGenData
 {
-  CollisionResult *results;    // [numCameras * numProbes] output
-  vec3f           *probeDirections; // [numProbes] unit directions (index 0 = placeholder, overridden by camera forward)
+  CollisionResult *results;    // [num_cameras * num_probes] output
+  vec3f           *probe_directions; // [num_probes] unit directions (index 0 = placeholder, overridden by camera forward)
   CameraData      *cameras;        // reused camera array
   OptixTraversableHandle world;
-  int   numProbes;
-  int   numCameras;
-  float maxDist;
+  int   num_probes;
+  int   num_cameras;
+  float max_dist;
 };
