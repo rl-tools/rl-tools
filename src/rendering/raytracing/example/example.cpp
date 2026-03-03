@@ -14,8 +14,8 @@ namespace rlt = rl_tools;
 int main() {
     using T = float;
     using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
-    static constexpr TI NUM_ENVS = 4096;
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 128, 128, 64>;
+    static constexpr TI NUM_ENVS = 1024;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 256, 256, 64>;
 
     static_assert(std::is_standard_layout_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
     static_assert(std::is_trivially_copyable_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
@@ -91,6 +91,10 @@ int main() {
 
     auto t1 = std::chrono::high_resolution_clock::now();
     const double elapsed = std::chrono::duration<double>(t1 - t0).count();
+
+    const double fps = (static_cast<double>(NUM_ENVS) * STEPS) / elapsed;
+    std::cout << "raytracing_example: " << NUM_ENVS << " envs, " << STEPS << " batched observe steps" << std::endl;
+    std::cout << "elapsed: " << elapsed << " s, effective frame throughput: " << fps << " frames/s" << std::endl;
 
     rlt::save_image(device, *env.renderer, "raytracing_example_grid.png");
 
