@@ -213,6 +213,10 @@ namespace rl_tools{
         for(unsigned int m = 0; m < scene->mNumMeshes; m++){
             const aiMesh* mesh = scene->mMeshes[m];
             rendering::raytracing::MeshData<SPEC> md;
+            const aiMaterial* mat = nullptr;
+            if(mesh->mMaterialIndex < scene->mNumMaterials){
+                mat = scene->mMaterials[mesh->mMaterialIndex];
+            }
 
             // vertices
             for(unsigned int v = 0; v < mesh->mNumVertices; v++){
@@ -235,10 +239,28 @@ namespace rl_tools{
                 }
             }
 
-            // texture coordinates
-            if(mesh->mTextureCoords[0]){
+            // Texture coordinates: use the UV set requested by the material texture.
+            unsigned int uv_channel = 0;
+            if(mat != nullptr){
+                int uv_candidate = 0;
+                if(mat->Get(AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0), uv_candidate) == AI_SUCCESS && uv_candidate >= 0){
+                    uv_channel = (unsigned int)uv_candidate;
+                }
+                else if(mat->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE, 0), uv_candidate) == AI_SUCCESS && uv_candidate >= 0){
+                    uv_channel = (unsigned int)uv_candidate;
+                }
+            }
+            if(uv_channel >= AI_MAX_NUMBER_OF_TEXTURECOORDS || !mesh->mTextureCoords[uv_channel]){
+                for(unsigned int channel_i = 0; channel_i < AI_MAX_NUMBER_OF_TEXTURECOORDS; channel_i++){
+                    if(mesh->mTextureCoords[channel_i]){
+                        uv_channel = channel_i;
+                        break;
+                    }
+                }
+            }
+            if(mesh->mTextureCoords[uv_channel]){
                 for(unsigned int v = 0; v < mesh->mNumVertices; v++){
-                    const aiVector3D& tc = mesh->mTextureCoords[0][v];
+                    const aiVector3D& tc = mesh->mTextureCoords[uv_channel][v];
                     md.tex_coords.push_back(tc.x);
                     md.tex_coords.push_back(tc.y);
                 }
@@ -246,8 +268,7 @@ namespace rl_tools{
 
             // material / texture
             md.color[0] = 0.8f; md.color[1] = 0.8f; md.color[2] = 0.8f;
-            if(mesh->mMaterialIndex < scene->mNumMaterials){
-                const aiMaterial* mat = scene->mMaterials[mesh->mMaterialIndex];
+            if(mat != nullptr){
 
                 aiColor4D diffuse;
                 if(aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS){
