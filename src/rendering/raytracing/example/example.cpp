@@ -15,7 +15,7 @@ int main() {
     using T = float;
     using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
     static constexpr TI NUM_ENVS = 4096;
-    using SPEC = ex::Specification<T, TI, NUM_ENVS, 64, 64, 64>;
+    using SPEC = ex::Specification<T, TI, NUM_ENVS, 128, 128, 64>;
 
     static_assert(std::is_standard_layout_v<ex::Parameters<SPEC>>);
     static_assert(std::is_trivially_copyable_v<ex::Parameters<SPEC>>);
@@ -72,7 +72,7 @@ int main() {
     }
 
 
-    constexpr TI STEPS = 1024;
+    constexpr TI STEPS = 256;
     auto t0 = std::chrono::high_resolution_clock::now();
 
     for (TI step_i = 0; step_i < STEPS; step_i++) {
