@@ -83,3 +83,8 @@ Some tests (`NN_LAYERS_RESNET_CUDA`, sequential persist tests) load `.h5` files 
 12. Keep reusable algorithmic logic in `include/`; keep `src/` focused on build-matrix wiring, target selection, and executable glue.
 13. `operations_generic.h` must be strictly freestanding: no C++ standard library includes; depend only on RLtools abstractions for maximal platform/compiler portability.
 14. C++17 is the maximum compatibility standard; post-C++17 language/library features are not allowed in shared RLtools code.
+15. For environment operation headers, prefer backend-specific naming such as `operations_cpu.h` (with optional thin compatibility wrappers like `operations.h`), and keep environment types/operations under `rl_tools::...` namespaces instead of top-level project-specific namespaces.
+16. Keep public `include/` headers focused on reusable API/types/dispatch; place build artifacts and backend implementation translation units (e.g. `.cu` device programs, heavy third-party integration code) under `src/` and wire them via CMake.
+17. When backend code requires generated symbols (e.g. embedded PTX blobs), use project-unique symbol names and expose them through namespaced C++ accessors instead of depending on ambiguous global names at call sites.
+18. Preserve benchmarking comparability during refactors: keep initialization and workload semantics deterministic when measuring performance across revisions, and avoid mixing behavioral changes with structural/API migrations in the same benchmark comparison.
+19. In hot paths, keep RLtools API boundaries explicit but minimize per-element abstraction overhead (prefer contiguous-buffer iteration patterns where appropriate) so architectural cleanup does not unintentionally regress throughput.

@@ -2,7 +2,7 @@
 
 #include <rl_tools/rendering/raytracing/renderer.h>
 
-namespace raytracing_example {
+namespace rl_tools::raytracing_example {
     template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64>
     struct Specification {
         using T = T_T;
