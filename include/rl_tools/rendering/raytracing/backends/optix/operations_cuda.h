@@ -39,6 +39,10 @@ std::cerr << OWL_TERMINAL_RED;                                \
 std::cerr << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
 std::cerr << OWL_TERMINAL_DEFAULT;
 
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
+#endif
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     extern "C" char device_ptx[];
@@ -611,6 +615,10 @@ namespace rl_tools {
     // =========================================================================
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
+        return;
+#else
         using TI = typename SPEC::TI;
 
         std::vector<owl::vec3f> dirs;
@@ -640,6 +648,7 @@ namespace rl_tools {
         owlRayGenSet1i    ((OWLRayGen)renderer.collision_ray_gen, "num_probes", SPEC::NUM_PROBES);
         owlRayGenSet1i    ((OWLRayGen)renderer.collision_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
         owlRayGenSet1f    ((OWLRayGen)renderer.collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
+#endif
     }
 
     // =========================================================================
@@ -671,14 +680,26 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void render(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
-        OWLRayGen collision_ray_gen = (OWLRayGen)renderer.collision_ray_gen;
         OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
-        OWLParams coll_lp = (OWLParams)renderer.coll_launch_params;
 
         owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, rgb_lp);
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        OWLRayGen collision_ray_gen = (OWLRayGen)renderer.collision_ray_gen;
+        OWLParams coll_lp = (OWLParams)renderer.coll_launch_params;
         owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
+#endif
         owlLaunchSync(rgb_lp);
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         owlLaunchSync(coll_lp);
+#endif
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_rgb_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
+        OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
+        owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, rgb_lp);
+        owlLaunchSync(rgb_lp);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -735,6 +756,11 @@ namespace rl_tools {
     // =========================================================================
     template <typename DEVICE, typename SPEC>
     void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
+#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
+        (void)filename;
+        return;
+#else
         const CollisionResult* probe_results =
             (const CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.collision_results_buffer, 0);
 
@@ -777,6 +803,7 @@ namespace rl_tools {
                        << " results) to " << filename);
             }
         }
+#endif
     }
 
     // =========================================================================

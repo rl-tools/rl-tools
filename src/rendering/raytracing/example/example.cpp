@@ -8,14 +8,36 @@
 #include <chrono>
 #include <type_traits>
 #include <cmath>
+#include <vector>
+#include <sstream>
+#include <cstdio>
+#include <cstring>
+#include <array>
+#include <cuda_runtime.h>
 
 namespace rlt = rl_tools;
 
-int main() {
+int main(int argc, char** argv) {
+    bool output_video = false;
+    bool no_probe = false;
+    for (int i = 1; i < argc; i++) {
+        if (std::strcmp(argv[i], "--output-video") == 0) {
+            output_video = true;
+        }
+        else if (std::strcmp(argv[i], "--no-probe") == 0) {
+            no_probe = true;
+        }
+        else {
+            std::cerr << "Unknown argument: " << argv[i] << std::endl;
+            return 1;
+        }
+    }
+
     using T = float;
     using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
-    static constexpr TI NUM_ENVS = 1024;
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 256, 256, 64>;
+    static constexpr TI NUM_ENVS = 4096;
+    constexpr T PI = static_cast<T>(3.14159265358979323846);
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 128, 128, 64>;
 
     static_assert(std::is_standard_layout_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
     static_assert(std::is_trivially_copyable_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
@@ -35,19 +57,15 @@ int main() {
 
     using PARAMETERS_SPEC = rlt::tensor::Specification<rlt::rl::environments::raytracing_example::Parameters<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;
     using STATE_SPEC = rlt::tensor::Specification<rlt::rl::environments::raytracing_example::State<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;
-    using ACTIONS_SPEC = rlt::matrix::Specification<T, TI, NUM_ENVS, 3>;
     using PIXELS_SPEC = rlt::tensor::Specification<uint32_t, TI, rlt::tensor::Shape<TI, NUM_ENVS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>>;
 
     rlt::Tensor<PARAMETERS_SPEC> parameters;
     rlt::Tensor<STATE_SPEC> states;
-    rlt::Tensor<STATE_SPEC> next_states;
-    rlt::Matrix<ACTIONS_SPEC> actions;
     rlt::Tensor<PIXELS_SPEC> pixels;
+    std::vector<rlt::rl::environments::raytracing_example::State<SPEC>> base_states(NUM_ENVS);
 
     rlt::malloc(device, parameters);
     rlt::malloc(device, states);
-    rlt::malloc(device, next_states);
-    rlt::malloc(device, actions);
     rlt::malloc(device, pixels);
 
     rlt::malloc(device, env);
@@ -68,40 +86,111 @@ int main() {
         // s.yaw = angle + static_cast<T>(3.14159265358979323846) / static_cast<T>(2.0);
         rlt::set(device, parameters, p, env_i);
         rlt::set(device, states, s, env_i);
-        rlt::set(device, next_states, s, env_i);
+        base_states[env_i] = s;
     }
 
 
-    constexpr TI STEPS = 256;
-    auto t0 = std::chrono::high_resolution_clock::now();
+    constexpr TI STEPS = 1024;
+    FILE* mp4_pipe = nullptr;
+    std::vector<uint32_t> per_camera_rgba;
+    std::vector<uint32_t> megaframe_rgba;
+    if (output_video) {
+        constexpr TI GRID_WIDTH = SPEC::RAYTRACING_SPEC::GRID_COLS * SPEC::CAM_WIDTH;
+        constexpr TI GRID_HEIGHT = SPEC::RAYTRACING_SPEC::GRID_ROWS * SPEC::CAM_HEIGHT;
+        per_camera_rgba.resize(static_cast<size_t>(NUM_ENVS) * static_cast<size_t>(SPEC::CAM_WIDTH) * static_cast<size_t>(SPEC::CAM_HEIGHT));
+        megaframe_rgba.resize(static_cast<size_t>(GRID_WIDTH) * static_cast<size_t>(GRID_HEIGHT));
+
+        const double frame_rate = env.dt > 0 ? (1.0 / static_cast<double>(env.dt)) : 30.0;
+        std::ostringstream ffmpeg_cmd;
+        ffmpeg_cmd
+            << "ffmpeg -y -f rawvideo -pixel_format rgba "
+            << "-video_size " << GRID_WIDTH << "x" << GRID_HEIGHT << " "
+            << "-framerate " << frame_rate << " -i - "
+            << "-an -c:v libx264 -pix_fmt yuv420p "
+            << "raytracing_example_megaframe.mp4";
+        mp4_pipe = popen(ffmpeg_cmd.str().c_str(), "w");
+        if (mp4_pipe == nullptr) {
+            std::cerr << "Failed to start ffmpeg." << std::endl;
+            return 1;
+        }
+    }
+
+    cudaDeviceSynchronize();
+    auto t0 = std::chrono::steady_clock::now();
 
     for (TI step_i = 0; step_i < STEPS; step_i++) {
         for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
             const T phase = static_cast<T>(0.01 * env_i + 0.05 * step_i);
-            rlt::set(actions, env_i, 0, std::cos(phase));
-            rlt::set(actions, env_i, 1, std::sin(phase));
-            rlt::set(actions, env_i, 2, static_cast<T>(0.3) * std::sin(static_cast<T>(0.5) * phase));
+            const T yaw_phase = static_cast<T>(0.02 * env_i + 0.08 * step_i);
+            auto s = base_states[env_i];
+            // s.position[0] = base_states[env_i].position[0] + static_cast<T>(0.75) * std::sin(phase);
+            // s.position[2] = base_states[env_i].position[2] + static_cast<T>(0.75) * std::cos(phase);
+            s.velocity[0] = 0;
+            s.velocity[1] = 0;
+            s.velocity[2] = 0;
+            s.yaw = static_cast<T>(0.5) * PI * (static_cast<T>(1) + std::sin(yaw_phase)); // absolute 0..pi = 180° sweep
+            rlt::set(device, states, s, env_i);
         }
 
-        rlt::step_batch(device, env, parameters, states, actions, next_states, rng, NUM_ENVS);
-        rlt::observe_batch(device, env, parameters, next_states, NUM_ENVS, pixels);
+        std::array<rlt::CameraData, NUM_ENVS> cameras;
+        for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
+            cameras[env_i] = rlt::make_camera_for_state(env, rlt::get_ref(device, parameters, env_i), rlt::get_ref(device, states, env_i));
+        }
+        rlt::set_cameras(device, *env.renderer, cameras.data(), NUM_ENVS);
+        if (no_probe) {
+            rlt::render_rgb_only(device, *env.renderer);
+        }
+        else {
+            rlt::render(device, *env.renderer);
+        }
 
-        rlt::copy(device, device, states, next_states);
+        if (mp4_pipe != nullptr) {
+            rlt::read_frame_buffer(device, *env.renderer, per_camera_rgba.data(), static_cast<TI>(per_camera_rgba.size()));
+            for (TI camera_i = 0; camera_i < NUM_ENVS; camera_i++) {
+                const TI col = camera_i % SPEC::RAYTRACING_SPEC::GRID_COLS;
+                const TI row = camera_i / SPEC::RAYTRACING_SPEC::GRID_COLS;
+                const TI offset_x = col * SPEC::CAM_WIDTH;
+                const TI offset_y = row * SPEC::CAM_HEIGHT;
+                for (TI y = 0; y < SPEC::CAM_HEIGHT; y++) {
+                    const uint32_t* src = per_camera_rgba.data() + static_cast<size_t>(camera_i) * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT + static_cast<size_t>(y) * SPEC::CAM_WIDTH;
+                    uint32_t* dst = megaframe_rgba.data() + static_cast<size_t>(offset_y + y) * (SPEC::RAYTRACING_SPEC::GRID_COLS * SPEC::CAM_WIDTH) + offset_x;
+                    std::memcpy(dst, src, static_cast<size_t>(SPEC::CAM_WIDTH) * sizeof(uint32_t));
+                }
+            }
+
+            const size_t bytes = megaframe_rgba.size() * sizeof(uint32_t);
+            const size_t written = fwrite(megaframe_rgba.data(), 1, bytes, mp4_pipe);
+            if (written != bytes) {
+                std::cerr << "Failed writing frame " << step_i << " to ffmpeg." << std::endl;
+                pclose(mp4_pipe);
+                mp4_pipe = nullptr;
+                return 1;
+            }
+        }
+
     }
-
-    auto t1 = std::chrono::high_resolution_clock::now();
+    cudaDeviceSynchronize();
+    auto t1 = std::chrono::steady_clock::now();
     const double elapsed = std::chrono::duration<double>(t1 - t0).count();
 
     const double fps = (static_cast<double>(NUM_ENVS) * STEPS) / elapsed;
     std::cout << "raytracing_example: " << NUM_ENVS << " envs, " << STEPS << " batched observe steps" << std::endl;
     std::cout << "elapsed: " << elapsed << " s, effective frame throughput: " << fps << " frames/s" << std::endl;
 
+    if (mp4_pipe != nullptr) {
+        const int ffmpeg_status = pclose(mp4_pipe);
+        mp4_pipe = nullptr;
+        if (ffmpeg_status != 0) {
+            std::cerr << "ffmpeg exited with status " << ffmpeg_status << std::endl;
+            return 1;
+        }
+        std::cout << "video written: raytracing_example_megaframe.mp4" << std::endl;
+    }
+
     rlt::save_image(device, *env.renderer, "raytracing_example_grid.png");
 
     rlt::free(device, env);
     rlt::free(device, pixels);
-    rlt::free(device, actions);
-    rlt::free(device, next_states);
     rlt::free(device, states);
     rlt::free(device, parameters);
     return 0;
