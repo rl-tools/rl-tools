@@ -13,7 +13,7 @@ namespace ex = raytracing_example;
 
 int main() {
     using T = float;
-    using TI = int; //typename rlt::devices::DEVICE_FACTORY<>::index_t;
+    using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
     static constexpr TI NUM_ENVS = 4096;
     using SPEC = ex::Specification<T, TI, NUM_ENVS, 64, 64, 64>;
 
