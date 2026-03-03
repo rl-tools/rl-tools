@@ -2,7 +2,7 @@
 
 #include "environment.h"
 
-#include <rl_tools/rendering/raytracing/operations_optix.h>
+#include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
 #include <rl_tools/operations/cpu_mux.h>
 
 #include <array>
@@ -10,7 +10,7 @@
 #include <string>
 #include <cstdint>
 
-namespace raytracing_example {
+namespace rl_tools::raytracing_example {
     template <typename SPEC>
     struct ObservationRGB {
         using TI = typename SPEC::TI;
@@ -18,7 +18,7 @@ namespace raytracing_example {
     };
 }
 
-namespace raytracing_example {
+namespace rl_tools::raytracing_example {
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, Environment<SPEC>& env) {
         if (env.renderer == nullptr) {

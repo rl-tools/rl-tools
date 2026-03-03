@@ -1,5 +1,5 @@
 #include "environment/environment.h"
-#include "environment/operations.h"
+#include "environment/operations_cpu.h"
 
 #include <rl_tools/operations/cpu_mux.h>
 
@@ -9,7 +9,7 @@
 #include <cmath>
 
 namespace rlt = rl_tools;
-namespace ex = raytracing_example;
+namespace ex = rlt::raytracing_example;
 
 int main() {
     using T = float;
