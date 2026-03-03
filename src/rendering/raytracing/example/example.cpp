@@ -31,7 +31,7 @@ int main() {
     rlt::init(device, rng, 0);
 
     ex::Environment<SPEC> env;
-    env.scene_path = "/home/jonas/phd/projects/render/ProcTHOR-Test-0-new.glb";
+    env.scene_path = "ProcTHOR-Test-0-new.glb";
 
     using PARAMETERS_SPEC = rlt::tensor::Specification<ex::Parameters<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;
     using STATE_SPEC = rlt::tensor::Specification<ex::State<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;

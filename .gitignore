@@ -78,3 +78,4 @@
 /resnet_ast.txt
 /runs
 *.bin
+/**/*.glb
