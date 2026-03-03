@@ -58,14 +58,14 @@ int main() {
         rlt::sample_initial_parameters(device, env, p, rng);
         rlt::rl::environments::raytracing_example::State<SPEC> s;
         rlt::sample_initial_state(device, env, p, s, rng);
-        const T angle = static_cast<T>(env_i) * static_cast<T>(0.01);
-        s.position[0] = -0.937;
-        s.position[1] = 1.690;
-        s.position[2] = 8.410;
-        s.velocity[0] = 0;
-        s.velocity[1] = 0;
-        s.velocity[2] = 0;
-        s.yaw = angle + static_cast<T>(3.14159265358979323846) / static_cast<T>(2.0);
+        // const T angle = static_cast<T>(env_i) * static_cast<T>(0.01);
+        // s.position[0] = -0.937;
+        // s.position[1] = 1.690;
+        // s.position[2] = 8.410;
+        // s.velocity[0] = 0;
+        // s.velocity[1] = 0;
+        // s.velocity[2] = 0;
+        // s.yaw = angle + static_cast<T>(3.14159265358979323846) / static_cast<T>(2.0);
         rlt::set(device, parameters, p, env_i);
         rlt::set(device, states, s, env_i);
         rlt::set(device, next_states, s, env_i);
@@ -91,17 +91,6 @@ int main() {
 
     auto t1 = std::chrono::high_resolution_clock::now();
     const double elapsed = std::chrono::duration<double>(t1 - t0).count();
-
-    uint64_t checksum = 0;
-    constexpr TI CHECK_COUNT = 10000;
-    for (TI i = 0; i < CHECK_COUNT; i++) {
-        checksum += rlt::get_flat(device, pixels, i);
-    }
-
-    const double fps = (static_cast<double>(NUM_ENVS) * STEPS) / elapsed;
-    std::cout << "raytracing_example: " << NUM_ENVS << " envs, " << STEPS << " batched observe steps" << std::endl;
-    std::cout << "elapsed: " << elapsed << " s, effective frame throughput: " << fps << " frames/s" << std::endl;
-    std::cout << "checksum(sample): " << checksum << std::endl;
 
     rlt::save_image(device, *env.renderer, "raytracing_example_grid.png");
 
