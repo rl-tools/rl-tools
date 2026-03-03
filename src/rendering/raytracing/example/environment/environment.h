@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rl_tools/rendering/raytracing/renderer.h>
+#include <array>
 
 namespace rl_tools::rl::environments::raytracing_example {
     template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64>
@@ -55,5 +56,9 @@ namespace rl_tools::rl::environments::raytracing_example {
         T look_ahead = 1.0f;
         T eye_height = 1.6f;
         bool owns_renderer = false;
+
+        static constexpr TI NUM_INITIAL_STATES = SPEC::NUM_ENVS;
+        std::array<State<SPEC>, NUM_INITIAL_STATES> indoor_initial_states{};
+        TI num_indoor_initial_states = 0;
     };
 }
