@@ -1,4 +1,8 @@
+#include "../../../../version.h"
+#include "../../../../rl_tools.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_OPTIX_OPERATIONS_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
+#define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_OPTIX_OPERATIONS_CUDA_H
 
 #include "../../renderer.h"
 #include "device.h"
@@ -23,28 +27,28 @@
 #include <cuda_runtime.h>
 
 #define RL_TOOLS_RENDERING_RAYTRACING_LOG(message)                                            \
-  std::cout << OWL_TERMINAL_BLUE;                               \
-  std::cout << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
-  std::cout << OWL_TERMINAL_DEFAULT;
+std::cout << OWL_TERMINAL_BLUE;                               \
+std::cout << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
+std::cout << OWL_TERMINAL_DEFAULT;
 #define RL_TOOLS_RENDERING_RAYTRACING_LOG_OK(message)                                         \
-  std::cout << OWL_TERMINAL_LIGHT_BLUE;                         \
-  std::cout << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
-  std::cout << OWL_TERMINAL_DEFAULT;
+std::cout << OWL_TERMINAL_LIGHT_BLUE;                         \
+std::cout << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
+std::cout << OWL_TERMINAL_DEFAULT;
 #define RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR(message)                                        \
-  std::cerr << OWL_TERMINAL_RED;                                \
-  std::cerr << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
-  std::cerr << OWL_TERMINAL_DEFAULT;
+std::cerr << OWL_TERMINAL_RED;                                \
+std::cerr << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
+std::cerr << OWL_TERMINAL_DEFAULT;
 
-extern "C" char device_ptx[];
-
-namespace rl_tools{
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools {
+    extern "C" char device_ptx[];
 
     // =========================================================================
     // Default cube geometry
     // =========================================================================
     namespace rendering::raytracing::constants{
         const int NUM_VERTICES = 8;
-        const vec3f default_vertices[8] = {
+        const owl::vec3f default_vertices[8] = {
             { -1.f,-1.f,-1.f },
             { +1.f,-1.f,-1.f },
             { -1.f,+1.f,-1.f },
@@ -55,7 +59,7 @@ namespace rl_tools{
             { +1.f,+1.f,+1.f }
         };
         const int NUM_INDICES = 12;
-        const vec3i default_indices[12] = {
+        const owl::vec3i default_indices[12] = {
             { 0,1,3 }, { 2,3,0 },
             { 5,7,6 }, { 5,6,4 },
             { 0,4,5 }, { 0,5,1 },
@@ -199,8 +203,8 @@ namespace rl_tools{
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Loaded model with " << scene->mNumMeshes << " mesh(es)");
 
-        vec3f bbox_min(std::numeric_limits<float>::max());
-        vec3f bbox_max(std::numeric_limits<float>::lowest());
+        owl::vec3f bbox_min(std::numeric_limits<float>::max());
+        owl::vec3f bbox_max(std::numeric_limits<float>::lowest());
 
         std::map<std::string, size_t> tex_cache;
         struct DecodedTex { std::vector<uint8_t> pixels; int w, h; };
@@ -221,7 +225,7 @@ namespace rl_tools{
             // vertices
             for(unsigned int v = 0; v < mesh->mNumVertices; v++){
                 const aiVector3D& pos = mesh->mVertices[v];
-                vec3f vertex(pos.x, pos.y, pos.z);
+                owl::vec3f vertex(pos.x, pos.y, pos.z);
                 md.vertices.push_back(pos.x);
                 md.vertices.push_back(pos.y);
                 md.vertices.push_back(pos.z);
@@ -349,10 +353,10 @@ namespace rl_tools{
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << renderer.meshes.size());
 
         // Adjust camera based on bounding box
-        vec3f center = 0.5f * (bbox_min + bbox_max);
-        vec3f size = bbox_max - bbox_min;
+        owl::vec3f center = 0.5f * (bbox_min + bbox_max);
+        owl::vec3f size = bbox_max - bbox_min;
         float max_dim = std::max({size.x, size.y, size.z});
-        vec3f look_from = center + vec3f(max_dim * 1.5f, max_dim * 0.8f, max_dim * 1.5f);
+        owl::vec3f look_from = center + owl::vec3f(max_dim * 1.5f, max_dim * 0.8f, max_dim * 1.5f);
         renderer.scene_center[0] = center.x;
         renderer.scene_center[1] = center.y;
         renderer.scene_center[2] = center.z;
@@ -384,7 +388,7 @@ namespace rl_tools{
         renderer.meshes.push_back(std::move(md));
 
         // Default camera distance (matches original: lookFrom(-4,-3,-2) lookAt(0,0,0))
-        renderer.camera_radius = length(vec3f(-4.f, -3.f, -2.f));
+        renderer.camera_radius = length(owl::vec3f(-4.f, -3.f, -2.f));
     }
 
     // =========================================================================
@@ -424,8 +428,8 @@ namespace rl_tools{
             OWLBuffer ib = owlDeviceBufferCreate(context, OWL_INT3, num_indices, md.indices.data());
 
             OWLGeom geom = owlGeomCreate(context, triangles_geom_type);
-            owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(vec3f), 0);
-            owlTrianglesSetIndices(geom, ib, num_indices, sizeof(vec3i), 0);
+            owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(owl::vec3f), 0);
+            owlTrianglesSetIndices(geom, ib, num_indices, sizeof(owl::vec3i), 0);
             owlGeomSetBuffer(geom, "vertex", vb);
             owlGeomSetBuffer(geom, "index", ib);
             owlGeomSet3f(geom, "color", owl3f{md.color[0], md.color[1], md.color[2]});
@@ -492,8 +496,8 @@ namespace rl_tools{
             OWLBuffer ib = owlDeviceBufferCreate(coll_context, OWL_INT3, num_indices, md.indices.data());
 
             OWLGeom geom = owlGeomCreate(coll_context, collision_geom_type);
-            owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(vec3f), 0);
-            owlTrianglesSetIndices(geom, ib, num_indices, sizeof(vec3i), 0);
+            owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(owl::vec3f), 0);
+            owlTrianglesSetIndices(geom, ib, num_indices, sizeof(owl::vec3i), 0);
             coll_geoms.push_back(geom);
         }
 
@@ -511,14 +515,14 @@ namespace rl_tools{
     // =========================================================================
     template <typename DEVICE, typename SPEC>
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
-                          vec3f center, float radius, vec3f up, float cos_fov){
+                          owl::vec3f center, float radius, owl::vec3f up, float cos_fov){
         using TI = typename SPEC::TI;
 
         std::vector<CameraData> cameras;
         cameras.reserve(SPEC::NUM_CAMERAS);
 
         const float golden_ratio = (1.0f + sqrtf(5.0f)) / 2.0f;
-        const vec2i cam_size(SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+        const owl::vec2i cam_size(SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
         const float aspect = cam_size.x / float(cam_size.y);
 
         for(int i = 0; i < (int)SPEC::NUM_CAMERAS; i++){
@@ -527,7 +531,7 @@ namespace rl_tools{
             cos_inc = cos_inc * 0.85f;
             float sin_inc = sqrtf(1.0f - cos_inc * cos_inc);
 
-            vec3f cam_pos;
+            owl::vec3f cam_pos;
             cam_pos.x = center.x + radius * sin_inc * cosf(theta);
             cam_pos.y = center.y + radius * cos_inc;
             cam_pos.z = center.z + radius * sin_inc * sinf(theta);
@@ -535,11 +539,11 @@ namespace rl_tools{
             if(cam_pos.y < center.y - radius * 0.1f)
                 cam_pos.y = center.y + radius * 0.3f;
 
-            vec3f dir = normalize(center - cam_pos);
-            vec3f du = cos_fov * aspect * normalize(cross(dir, up));
-            vec3f dv = cos_fov * normalize(cross(du, dir));
+            owl::vec3f dir = normalize(center - cam_pos);
+            owl::vec3f du = cos_fov * aspect * normalize(cross(dir, up));
+            owl::vec3f dv = cos_fov * normalize(cross(du, dir));
 
-            vec3f dir_00 = dir - 0.5f * du + 0.5f * dv;
+            owl::vec3f dir_00 = dir - 0.5f * du + 0.5f * dv;
             dv = -dv;
 
             cameras.push_back({cam_pos, dir_00, du, dv});
@@ -564,11 +568,11 @@ namespace rl_tools{
     }
 
     template <typename T>
-    CameraData make_camera_data(const vec3f& position, const vec3f& look_at, const vec3f& up, T cos_fov, T aspect){
-        vec3f dir = normalize(look_at - position);
-        vec3f du = cos_fov * aspect * normalize(cross(dir, up));
-        vec3f dv = cos_fov * normalize(cross(du, dir));
-        vec3f dir_00 = dir - 0.5f * du + 0.5f * dv;
+    CameraData make_camera_data(const owl::vec3f& position, const owl::vec3f& look_at, const owl::vec3f& up, T cos_fov, T aspect){
+        owl::vec3f dir = normalize(look_at - position);
+        owl::vec3f du = cos_fov * aspect * normalize(cross(dir, up));
+        owl::vec3f dv = cos_fov * normalize(cross(du, dir));
+        owl::vec3f dir_00 = dir - 0.5f * du + 0.5f * dv;
         dv = -dv;
         return {position, dir_00, du, dv};
     }
@@ -609,7 +613,7 @@ namespace rl_tools{
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         using TI = typename SPEC::TI;
 
-        std::vector<vec3f> dirs;
+        std::vector<owl::vec3f> dirs;
         dirs.reserve(SPEC::NUM_PROBES);
 
         const float golden_ratio = (1.0f + sqrtf(5.0f)) / 2.0f;
@@ -619,7 +623,7 @@ namespace rl_tools{
             float cos_inc = 1.0f - 2.0f * (i + 0.5f) / SPEC::NUM_PROBES;
             float sin_inc = sqrtf(1.0f - cos_inc * cos_inc);
 
-            dirs.push_back(normalize(vec3f(sin_inc * cosf(theta),
+            dirs.push_back(normalize(owl::vec3f(sin_inc * cosf(theta),
                                            cos_inc,
                                            sin_inc * sinf(theta))));
         }
@@ -627,7 +631,7 @@ namespace rl_tools{
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << dirs.size() << " probe directions per camera");
 
         OWLContext coll_context = (OWLContext)renderer.coll_context;
-        OWLBuffer probe_dirs_buffer = owlDeviceBufferCreate(coll_context, OWL_USER_TYPE(vec3f),
+        OWLBuffer probe_dirs_buffer = owlDeviceBufferCreate(coll_context, OWL_USER_TYPE(owl::vec3f),
                                                               dirs.size(), dirs.data());
         owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "probe_directions", probe_dirs_buffer);
         renderer.probe_dirs_buffer = probe_dirs_buffer;
@@ -786,5 +790,7 @@ namespace rl_tools{
         renderer.context = nullptr;
         renderer.coll_context = nullptr;
     }
-
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif

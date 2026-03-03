@@ -1,7 +1,8 @@
+#include <rl_tools/operations/cpu_mux.h>
+
 #include "environment/environment.h"
 #include "environment/operations_cpu.h"
 
-#include <rl_tools/operations/cpu_mux.h>
 
 #include <iostream>
 #include <chrono>
@@ -9,18 +10,17 @@
 #include <cmath>
 
 namespace rlt = rl_tools;
-namespace ex = rlt::raytracing_example;
 
 int main() {
     using T = float;
     using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
     static constexpr TI NUM_ENVS = 4096;
-    using SPEC = ex::Specification<T, TI, NUM_ENVS, 128, 128, 64>;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 128, 128, 64>;
 
-    static_assert(std::is_standard_layout_v<ex::Parameters<SPEC>>);
-    static_assert(std::is_trivially_copyable_v<ex::Parameters<SPEC>>);
-    static_assert(std::is_standard_layout_v<ex::State<SPEC>>);
-    static_assert(std::is_trivially_copyable_v<ex::State<SPEC>>);
+    static_assert(std::is_standard_layout_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
+    static_assert(std::is_trivially_copyable_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
+    static_assert(std::is_standard_layout_v<rlt::rl::environments::raytracing_example::State<SPEC>>);
+    static_assert(std::is_trivially_copyable_v<rlt::rl::environments::raytracing_example::State<SPEC>>);
 
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
     using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
@@ -30,11 +30,11 @@ int main() {
     RNG rng;
     rlt::init(device, rng, 0);
 
-    ex::Environment<SPEC> env;
+    rlt::rl::environments::raytracing_example::Environment<SPEC> env;
     env.scene_path = "ProcTHOR-Test-0-new.glb";
 
-    using PARAMETERS_SPEC = rlt::tensor::Specification<ex::Parameters<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;
-    using STATE_SPEC = rlt::tensor::Specification<ex::State<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;
+    using PARAMETERS_SPEC = rlt::tensor::Specification<rlt::rl::environments::raytracing_example::Parameters<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;
+    using STATE_SPEC = rlt::tensor::Specification<rlt::rl::environments::raytracing_example::State<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;
     using ACTIONS_SPEC = rlt::matrix::Specification<T, TI, NUM_ENVS, 3>;
     using PIXELS_SPEC = rlt::tensor::Specification<uint32_t, TI, rlt::tensor::Shape<TI, NUM_ENVS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>>;
 
@@ -50,14 +50,14 @@ int main() {
     rlt::malloc(device, actions);
     rlt::malloc(device, pixels);
 
-    ex::malloc(device, env);
-    ex::init(device, env);
+    rlt::malloc(device, env);
+    rlt::init(device, env);
 
     for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
-        ex::Parameters<SPEC> p;
-        ex::sample_initial_parameters(device, env, p, rng);
-        ex::State<SPEC> s;
-        ex::sample_initial_state(device, env, p, s, rng);
+        rlt::rl::environments::raytracing_example::Parameters<SPEC> p;
+        rlt::sample_initial_parameters(device, env, p, rng);
+        rlt::rl::environments::raytracing_example::State<SPEC> s;
+        rlt::sample_initial_state(device, env, p, s, rng);
         const T angle = static_cast<T>(env_i) * static_cast<T>(0.01);
         s.position[0] = -0.937;
         s.position[1] = 1.690;
@@ -83,8 +83,8 @@ int main() {
             rlt::set(actions, env_i, 2, static_cast<T>(0.3) * std::sin(static_cast<T>(0.5) * phase));
         }
 
-        ex::step_batch(device, env, parameters, states, actions, next_states, rng, NUM_ENVS);
-        ex::observe_batch(device, env, parameters, next_states, NUM_ENVS, pixels);
+        rlt::step_batch(device, env, parameters, states, actions, next_states, rng, NUM_ENVS);
+        rlt::observe_batch(device, env, parameters, next_states, NUM_ENVS, pixels);
 
         rlt::copy(device, device, states, next_states);
     }
@@ -105,7 +105,7 @@ int main() {
 
     rlt::save_image(device, *env.renderer, "raytracing_example_grid.png");
 
-    ex::free(device, env);
+    rlt::free(device, env);
     rlt::free(device, pixels);
     rlt::free(device, actions);
     rlt::free(device, next_states);

@@ -2,7 +2,7 @@
 
 #include <rl_tools/rendering/raytracing/renderer.h>
 
-namespace rl_tools::raytracing_example {
+namespace rl_tools::rl::environments::raytracing_example {
     template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64>
     struct Specification {
         using T = T_T;
@@ -11,7 +11,7 @@ namespace rl_tools::raytracing_example {
         static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
         static constexpr TI NUM_PROBES = T_NUM_PROBES;
-        using RAYTRACING_SPEC = rl_tools::rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES>;
+        using RAYTRACING_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES>;
     };
 
     enum class ObjectID : int {
@@ -35,11 +35,17 @@ namespace rl_tools::raytracing_example {
     };
 
     template <typename SPEC>
+    struct ObservationRGB {
+        using TI = typename SPEC::TI;
+        static constexpr TI DIM = SPEC::CAM_HEIGHT * SPEC::CAM_WIDTH;
+    };
+
+    template <typename SPEC>
     struct Environment {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using RAYTRACING_SPEC = typename SPEC::RAYTRACING_SPEC;
-        using Renderer = rl_tools::rendering::raytracing::Renderer<RAYTRACING_SPEC>;
+        using Renderer = rendering::raytracing::Renderer<RAYTRACING_SPEC>;
 
         Renderer* renderer = nullptr;
         const char* scene_path = nullptr;
