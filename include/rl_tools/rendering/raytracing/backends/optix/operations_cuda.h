@@ -113,22 +113,22 @@ namespace rl_tools{
 
         // Miss program
         OWLVarDecl miss_prog_vars[] = {
-            { "color0", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color0)},
-            { "color1", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color1)},
+            { "color_0", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_0)},
+            { "color_1", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_1)},
             { /* sentinel */ }
         };
         OWLMissProg miss_prog = owlMissProgCreate(context, module, "miss",
                                                     sizeof(MissProgData), miss_prog_vars, -1);
-        owlMissProgSet3f(miss_prog, "color0", owl3f{.8f, 0.f, 0.f});
-        owlMissProgSet3f(miss_prog, "color1", owl3f{.8f, .8f, .8f});
+        owlMissProgSet3f(miss_prog, "color_0", owl3f{.8f, 0.f, 0.f});
+        owlMissProgSet3f(miss_prog, "color_1", owl3f{.8f, .8f, .8f});
 
         // Ray gen
         OWLVarDecl ray_gen_vars[] = {
-            { "fbPtr",       OWL_BUFPTR, OWL_OFFSETOF(RayGenData, fbPtr)},
-            { "fbSize",      OWL_INT2,   OWL_OFFSETOF(RayGenData, fbSize)},
-            { "camSize",     OWL_INT2,   OWL_OFFSETOF(RayGenData, camSize)},
-            { "gridCols",    OWL_INT,    OWL_OFFSETOF(RayGenData, gridCols)},
-            { "numCameras",  OWL_INT,    OWL_OFFSETOF(RayGenData, numCameras)},
+            { "fb_ptr",       OWL_BUFPTR, OWL_OFFSETOF(RayGenData, fb_ptr)},
+            { "fb_size",      OWL_INT2,   OWL_OFFSETOF(RayGenData, fb_size)},
+            { "cam_size",     OWL_INT2,   OWL_OFFSETOF(RayGenData, cam_size)},
+            { "grid_cols",    OWL_INT,    OWL_OFFSETOF(RayGenData, grid_cols)},
+            { "num_cameras",  OWL_INT,    OWL_OFFSETOF(RayGenData, num_cameras)},
             { "world",       OWL_GROUP,  OWL_OFFSETOF(RayGenData, world)},
             { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(RayGenData, cameras)},
             { /* sentinel */ }
@@ -139,11 +139,11 @@ namespace rl_tools{
         const owl2i fb_size  = {(int)SPEC::FB_WIDTH, (int)SPEC::FB_HEIGHT};
         const owl2i cam_size = {(int)SPEC::CAM_WIDTH, (int)SPEC::CAM_HEIGHT};
 
-        owlRayGenSetBuffer(ray_gen, "fbPtr", frame_buffer);
-        owlRayGenSet2i    (ray_gen, "fbSize", fb_size);
-        owlRayGenSet2i    (ray_gen, "camSize", cam_size);
-        owlRayGenSet1i    (ray_gen, "gridCols", SPEC::GRID_COLS);
-        owlRayGenSet1i    (ray_gen, "numCameras", SPEC::NUM_CAMERAS);
+        owlRayGenSetBuffer(ray_gen, "fb_ptr", frame_buffer);
+        owlRayGenSet2i    (ray_gen, "fb_size", fb_size);
+        owlRayGenSet2i    (ray_gen, "cam_size", cam_size);
+        owlRayGenSet1i    (ray_gen, "grid_cols", SPEC::GRID_COLS);
+        owlRayGenSet1i    (ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
 
         renderer.context = context;
         renderer.module = module;
@@ -156,12 +156,12 @@ namespace rl_tools{
 
         OWLVarDecl collision_ray_gen_vars[] = {
             { "results",         OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, results)},
-            { "probeDirections", OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, probeDirections)},
+            { "probe_directions", OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, probe_directions)},
             { "cameras",         OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, cameras)},
             { "world",           OWL_GROUP,  OWL_OFFSETOF(CollisionRayGenData, world)},
-            { "numProbes",       OWL_INT,    OWL_OFFSETOF(CollisionRayGenData, numProbes)},
-            { "numCameras",      OWL_INT,    OWL_OFFSETOF(CollisionRayGenData, numCameras)},
-            { "maxDist",         OWL_FLOAT,  OWL_OFFSETOF(CollisionRayGenData, maxDist)},
+            { "num_probes",       OWL_INT,    OWL_OFFSETOF(CollisionRayGenData, num_probes)},
+            { "num_cameras",      OWL_INT,    OWL_OFFSETOF(CollisionRayGenData, num_cameras)},
+            { "max_dist",         OWL_FLOAT,  OWL_OFFSETOF(CollisionRayGenData, max_dist)},
             { /* sentinel */ }
         };
         OWLRayGen collision_ray_gen = owlRayGenCreate(coll_context, coll_module, "collisionRayGen",
@@ -380,10 +380,10 @@ namespace rl_tools{
         OWLVarDecl triangles_geom_vars[] = {
             { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
             { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
-            { "texCoord",   OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, texCoord)},
+            { "tex_coord",   OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, tex_coord)},
             { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
             { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
-            { "hasTexture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, hasTexture)},
+            { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
             { /* sentinel */ }
         };
         OWLGeomType triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
@@ -412,7 +412,7 @@ namespace rl_tools{
             if(!md.tex_coords.empty()){
                 size_t num_tc = md.tex_coords.size() / 2;
                 OWLBuffer tcb = owlDeviceBufferCreate(context, OWL_FLOAT2, num_tc, md.tex_coords.data());
-                owlGeomSetBuffer(geom, "texCoord", tcb);
+                owlGeomSetBuffer(geom, "tex_coord", tcb);
             }
 
             if(md.has_texture && md.tex_width > 0 && md.tex_height > 0){
@@ -425,9 +425,9 @@ namespace rl_tools{
                                                      OWL_TEXTURE_WRAP,
                                                      OWL_COLOR_SPACE_SRGB);
                 owlGeomSetTexture(geom, "texture", tex);
-                owlGeomSet1i(geom, "hasTexture", 1);
+                owlGeomSet1i(geom, "has_texture", 1);
             } else {
-                owlGeomSet1i(geom, "hasTexture", 0);
+                owlGeomSet1i(geom, "has_texture", 0);
             }
 
             geoms.push_back(geom);
@@ -608,13 +608,13 @@ namespace rl_tools{
         OWLContext coll_context = (OWLContext)renderer.coll_context;
         OWLBuffer probe_dirs_buffer = owlDeviceBufferCreate(coll_context, OWL_USER_TYPE(vec3f),
                                                               dirs.size(), dirs.data());
-        owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "probeDirections", probe_dirs_buffer);
+        owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "probe_directions", probe_dirs_buffer);
         renderer.probe_dirs_buffer = probe_dirs_buffer;
 
         owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "results", (OWLBuffer)renderer.collision_results_buffer);
-        owlRayGenSet1i    ((OWLRayGen)renderer.collision_ray_gen, "numProbes", SPEC::NUM_PROBES);
-        owlRayGenSet1i    ((OWLRayGen)renderer.collision_ray_gen, "numCameras", SPEC::NUM_CAMERAS);
-        owlRayGenSet1f    ((OWLRayGen)renderer.collision_ray_gen, "maxDist", renderer.camera_radius * 2.0f);
+        owlRayGenSet1i    ((OWLRayGen)renderer.collision_ray_gen, "num_probes", SPEC::NUM_PROBES);
+        owlRayGenSet1i    ((OWLRayGen)renderer.collision_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+        owlRayGenSet1f    ((OWLRayGen)renderer.collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
     }
 
     // =========================================================================
