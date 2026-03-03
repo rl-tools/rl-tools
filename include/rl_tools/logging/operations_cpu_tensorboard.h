@@ -143,7 +143,7 @@ namespace rl_tools{
     }
 #else
     template <typename DEVICE, typename LOGGER_SPEC, typename SPEC>
-    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGER_SPEC>& logger, rl_tools::Matrix<SPEC> values){ }
+    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGER_SPEC>& logger, Matrix<SPEC> values){ }
 #endif
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
