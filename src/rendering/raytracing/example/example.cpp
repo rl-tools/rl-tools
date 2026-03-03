@@ -59,9 +59,9 @@ int main() {
         ex::State<SPEC> s;
         ex::sample_initial_state(device, env, p, s, rng);
         const T angle = static_cast<T>(env_i) * static_cast<T>(0.01);
-        s.position[0] = static_cast<T>(4.0) * std::cos(angle);
-        s.position[1] = p.base_height;
-        s.position[2] = static_cast<T>(4.0) * std::sin(angle);
+        s.position[0] = -0.937;
+        s.position[1] = 1.690;
+        s.position[2] = 8.410;
         s.velocity[0] = 0;
         s.velocity[1] = 0;
         s.velocity[2] = 0;
