@@ -1,7 +1,7 @@
 FetchContent_Declare(
     stb
     GIT_REPOSITORY https://github.com/nothings/stb.git
-    GIT_TAG        master
+    GIT_TAG        f1c79c02822848a9bed4315b12c8c8f3761e1296
     EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(stb)
@@ -10,5 +10,5 @@ add_library(rendering_raytracing_stb INTERFACE)
 target_include_directories(rendering_raytracing_stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
 
 add_subdirectory(backends)
-add_subdirectory(benchmark)
+#add_subdirectory(benchmark)
 add_subdirectory(example)
