@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
 
     using T = float;
     using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
-    static constexpr TI NUM_ENVS = 4096;
+    static constexpr TI NUM_ENVS = 256;
     constexpr T PI = static_cast<T>(3.14159265358979323846);
     using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 128, 128, 64>;
 
@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
     }
 
 
-    constexpr TI STEPS = 1024;
+    constexpr TI STEPS = 1024*16;
     FILE* mp4_pipe = nullptr;
     std::vector<uint32_t> per_camera_rgba;
     std::vector<uint32_t> megaframe_rgba;
