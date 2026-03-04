@@ -1,4 +1,4 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
+#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
 
 #include <rl_tools/operations/cpu_mux.h>
 
