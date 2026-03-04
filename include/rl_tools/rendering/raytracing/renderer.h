@@ -42,6 +42,7 @@ namespace rl_tools {
             std::vector<uint8_t> tex_pixels; // RGBA8
             int tex_width = 0, tex_height = 0;
             bool has_texture = false;
+            float metallic = 0.0f;
         };
 
         template <typename T_SPEC>

@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
     }
 
 
-    constexpr TI STEPS = 1024*16;
+    constexpr TI STEPS = 1024*4;
     FILE* mp4_pipe = nullptr;
     std::vector<uint32_t> per_camera_rgba;
     std::vector<uint32_t> megaframe_rgba;
