@@ -23,20 +23,18 @@ namespace rl_tools::nn_models::parallel{
     }
 
     template <typename T_CAPABILITY, typename T_MODULE_A, typename T_MODULE_B, typename T_INPUT_SHAPE_A, typename T_INPUT_SHAPE_B>
-    struct BuildSpecification{
+    struct Specification{
         using CAPABILITY = T_CAPABILITY;
         using MODULE_A = T_MODULE_A;
         using MODULE_B = T_MODULE_B;
         using INPUT_SHAPE_A = T_INPUT_SHAPE_A;
         using INPUT_SHAPE_B = T_INPUT_SHAPE_B;
 
-        using BUILD_SPEC_A = sequential::BuildSpecification<CAPABILITY, MODULE_A, INPUT_SHAPE_A>;
-        using BUILD_SPEC_B = sequential::BuildSpecification<CAPABILITY, MODULE_B, INPUT_SHAPE_B>;
-        using SPEC_A = typename BUILD_SPEC_A::type;
-        using SPEC_B = typename BUILD_SPEC_B::type;
+        using PIPELINE_TYPE_A = typename MODULE_A::template Layer<CAPABILITY, INPUT_SHAPE_A>;
+        using PIPELINE_TYPE_B = typename MODULE_B::template Layer<CAPABILITY, INPUT_SHAPE_B>;
 
-        using OUTPUT_SHAPE_A = typename SPEC_A::OUTPUT_SHAPE;
-        using OUTPUT_SHAPE_B = typename SPEC_B::OUTPUT_SHAPE;
+        using OUTPUT_SHAPE_A = typename PIPELINE_TYPE_A::OUTPUT_SHAPE;
+        using OUTPUT_SHAPE_B = typename PIPELINE_TYPE_B::OUTPUT_SHAPE;
 
         static_assert(length(OUTPUT_SHAPE_A{}) == length(OUTPUT_SHAPE_B{}), "Pipeline output shapes must have same rank");
         static_assert(detail::leading_dims_match<OUTPUT_SHAPE_A, OUTPUT_SHAPE_B>(), "Pipeline output shapes must have matching leading dimensions");
@@ -47,27 +45,8 @@ namespace rl_tools::nn_models::parallel{
         static constexpr TI LAST_DIM = LAST_DIM_A + LAST_DIM_B;
         static constexpr auto RANK = length(OUTPUT_SHAPE_A{});
         using OUTPUT_SHAPE = tensor::Replace<OUTPUT_SHAPE_A, LAST_DIM, RANK - 1>;
-    };
 
-    template <typename T_BUILD_SPEC>
-    struct Specification{
-        using BUILD_SPEC = T_BUILD_SPEC;
-        using CAPABILITY = typename BUILD_SPEC::CAPABILITY;
-        using MODULE_A = typename BUILD_SPEC::MODULE_A;
-        using MODULE_B = typename BUILD_SPEC::MODULE_B;
-        using INPUT_SHAPE_A = typename BUILD_SPEC::INPUT_SHAPE_A;
-        using INPUT_SHAPE_B = typename BUILD_SPEC::INPUT_SHAPE_B;
-        using SPEC_A = typename BUILD_SPEC::SPEC_A;
-        using SPEC_B = typename BUILD_SPEC::SPEC_B;
-        using OUTPUT_SHAPE_A = typename BUILD_SPEC::OUTPUT_SHAPE_A;
-        using OUTPUT_SHAPE_B = typename BUILD_SPEC::OUTPUT_SHAPE_B;
-        using OUTPUT_SHAPE = typename BUILD_SPEC::OUTPUT_SHAPE;
-        using TI = typename BUILD_SPEC::TI;
-
-        using PIPELINE_TYPE_A = typename sequential::BuildModuleType<CAPABILITY, SPEC_A>::type;
-        using PIPELINE_TYPE_B = typename sequential::BuildModuleType<CAPABILITY, SPEC_B>::type;
-
-        using TYPE_POLICY = typename SPEC_A::TYPE_POLICY;
+        using TYPE_POLICY = typename PIPELINE_TYPE_A::TYPE_POLICY;
     };
 
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
@@ -168,8 +147,8 @@ namespace rl_tools::nn_models::parallel{
     };
 
     template <typename CAPABILITY, typename MODULE_A, typename MODULE_B, typename INPUT_SHAPE_A, typename INPUT_SHAPE_B>
-    struct Build: BuildModuleType<CAPABILITY, Specification<BuildSpecification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>>>::type{
-        using PARALLEL_SPEC = Specification<BuildSpecification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>>;
+    struct Build: BuildModuleType<CAPABILITY, Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>>::type{
+        using PARALLEL_SPEC = Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
         template <typename NEW_CAPABILITY>
         using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
     };

@@ -30,8 +30,14 @@ namespace rl_tools::nn_models::sequential{
     template <auto INDEX, typename TUPLE>
     using tuple_element = utils::tuple_element<INDEX, TUPLE>;
 
+    template <typename CAPABILITY, typename MODULE, typename INPUT_SHAPE>
+    struct Build;
+
     template <typename... T_CONTENTS>
-    struct Module {};
+    struct Module {
+        template <typename CAPABILITY, typename INPUT_SHAPE>
+        using Layer = Build<CAPABILITY, Module<T_CONTENTS...>, INPUT_SHAPE>;
+    };
 
     template <typename CAPABILITY, typename T_MODULE, typename INPUT_SHAPE, typename ACCUMULATOR>
     struct BuildLayerSpecsImpl;
