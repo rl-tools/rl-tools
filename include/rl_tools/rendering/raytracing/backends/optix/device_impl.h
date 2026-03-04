@@ -10,6 +10,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools
 {
+  static constexpr int NUM_RAY_TYPES = 2;
+
   OPTIX_RAYGEN_PROGRAM(simpleRayGen)()
   {
     const RayGenData &self = owl::getProgramData<RayGenData>();
@@ -37,7 +39,18 @@ namespace rl_tools
                               + screen.v * cam.dir_dv);
 
     owl::vec3f color;
-    owl::traceRay(self.world, ray, color);
+    unsigned int p0 = 0, p1 = 0;
+    owl::packPointer(&color, p0, p1);
+    optixTrace(self.world,
+               (const float3&)ray.origin,
+               (const float3&)ray.direction,
+               ray.tmin,
+               ray.tmax,
+               0.0f,
+               OptixVisibilityMask(255),
+               OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+               0, NUM_RAY_TYPES, 0,
+               p0, p1);
 
     // Flat per-camera layout: camera i occupies [i*W*H .. (i+1)*W*H)
     const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y
@@ -129,8 +142,8 @@ namespace rl_tools
         self.max_dist,         // tmax
         0.0f,                 // rayTime
         OptixVisibilityMask(255),
-        OPTIX_RAY_FLAG_NONE,
-        0, 1, 0,             // SBT offset, stride, miss
+        OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+        1, NUM_RAY_TYPES, 1, // SBT offset, stride, miss (ray type 1)
         u0, u1);
 
     result.distance = __uint_as_float(u0);

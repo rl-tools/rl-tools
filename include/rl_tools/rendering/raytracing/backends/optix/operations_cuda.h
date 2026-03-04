@@ -105,21 +105,21 @@ namespace rl_tools {
     }
 
     // =========================================================================
-    // malloc: create OWL contexts and allocate buffers
+    // malloc: create OWL context and allocate buffers
     // =========================================================================
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         using TI = typename SPEC::TI;
 
-        // RGB rendering context
         OWLContext context = owlContextCreate(nullptr, 1);
+        owlContextSetRayTypeCount(context, 2);
         OWLModule module = owlModuleCreate(context, device_ptx);
 
         constexpr TI cam_pixels = SPEC::CAM_PIXELS;
         OWLBuffer frame_buffer = owlDeviceBufferCreate(context, OWL_INT,
                                                         (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
 
-        // Miss program
+        // RGB miss program (ray type 0)
         OWLVarDecl miss_prog_vars[] = {
             { "color_0", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_0)},
             { "color_1", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_1)},
@@ -130,7 +130,16 @@ namespace rl_tools {
         owlMissProgSet3f(miss_prog, "color_0", owl3f{.8f, 0.f, 0.f});
         owlMissProgSet3f(miss_prog, "color_1", owl3f{.8f, .8f, .8f});
 
-        // Ray gen
+        // Collision miss program (ray type 1) — always registered to keep SBT consistent
+        OWLVarDecl collision_miss_vars[] = {
+            { "dummy", OWL_INT, OWL_OFFSETOF(CollisionMissData, dummy)},
+            { /* sentinel */ }
+        };
+        OWLMissProg collision_miss_prog = owlMissProgCreate(context, module, "collisionMiss",
+                                                             sizeof(CollisionMissData), collision_miss_vars, -1);
+        (void)collision_miss_prog;
+
+        // RGB ray gen
         OWLVarDecl ray_gen_vars[] = {
             { "fb_ptr",       OWL_BUFPTR, OWL_OFFSETOF(RayGenData, fb_ptr)},
             { "fb_size",      OWL_INT2,   OWL_OFFSETOF(RayGenData, fb_size)},
@@ -158,10 +167,8 @@ namespace rl_tools {
         renderer.ray_gen = ray_gen;
         renderer.frame_buffer = frame_buffer;
 
-        // Collision context
-        OWLContext coll_context = owlContextCreate(nullptr, 1);
-        OWLModule coll_module = owlModuleCreate(coll_context, device_ptx);
-
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        // Collision ray gen (shares same context)
         OWLVarDecl collision_ray_gen_vars[] = {
             { "results",         OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, results)},
             { "probe_directions", OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, probe_directions)},
@@ -172,17 +179,16 @@ namespace rl_tools {
             { "max_dist",         OWL_FLOAT,  OWL_OFFSETOF(CollisionRayGenData, max_dist)},
             { /* sentinel */ }
         };
-        OWLRayGen collision_ray_gen = owlRayGenCreate(coll_context, coll_module, "collisionRayGen",
+        OWLRayGen collision_ray_gen = owlRayGenCreate(context, module, "collisionRayGen",
                                                        sizeof(CollisionRayGenData),
                                                        collision_ray_gen_vars, -1);
 
-        OWLBuffer collision_results_buffer = owlHostPinnedBufferCreate(coll_context, OWL_USER_TYPE(CollisionResult),
+        OWLBuffer collision_results_buffer = owlHostPinnedBufferCreate(context, OWL_USER_TYPE(CollisionResult),
                                                                         (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
 
-        renderer.coll_context = coll_context;
-        renderer.coll_module = coll_module;
         renderer.collision_ray_gen = collision_ray_gen;
         renderer.collision_results_buffer = collision_results_buffer;
+#endif
     }
 
     // =========================================================================
@@ -396,16 +402,13 @@ namespace rl_tools {
     }
 
     // =========================================================================
-    // upload_geometry: upload meshes to both RGB and collision OWL contexts + build BVH
+    // upload_geometry: upload meshes + build single shared BVH
     // =========================================================================
     template <typename DEVICE, typename SPEC>
     void upload_geometry(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         OWLContext context = (OWLContext)renderer.context;
         OWLModule module = (OWLModule)renderer.module;
-        OWLContext coll_context = (OWLContext)renderer.coll_context;
-        OWLModule coll_module = (OWLModule)renderer.coll_module;
 
-        // --- RGB context geometry ---
         OWLVarDecl triangles_geom_vars[] = {
             { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
             { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
@@ -419,8 +422,9 @@ namespace rl_tools {
                                                              sizeof(TrianglesGeomData),
                                                              triangles_geom_vars, -1);
         owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, "TriangleMesh");
+        owlGeomTypeSetClosestHit(triangles_geom_type, 1, module, "collisionHit");
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << renderer.meshes.size() << " geometries (render context) ...");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << renderer.meshes.size() << " geometries ...");
 
         std::vector<OWLGeom> geoms;
         for(size_t m = 0; m < renderer.meshes.size(); m++){
@@ -468,50 +472,9 @@ namespace rl_tools {
         owlGroupBuildAccel(world);
 
         owlRayGenSetGroup((OWLRayGen)renderer.ray_gen, "world", world);
+        if(renderer.collision_ray_gen)
+            owlRayGenSetGroup((OWLRayGen)renderer.collision_ray_gen, "world", world);
         renderer.world = world;
-
-        // --- Collision context geometry ---
-        OWLVarDecl collision_geom_vars[] = {
-            { "dummy", OWL_INT, OWL_OFFSETOF(CollisionGeomData, dummy)},
-            { /* sentinel */ }
-        };
-        OWLGeomType collision_geom_type = owlGeomTypeCreate(coll_context, OWL_TRIANGLES,
-                                                             sizeof(CollisionGeomData),
-                                                             collision_geom_vars, -1);
-        owlGeomTypeSetClosestHit(collision_geom_type, 0, coll_module, "collisionHit");
-
-        OWLVarDecl collision_miss_vars[] = {
-            { "dummy", OWL_INT, OWL_OFFSETOF(CollisionMissData, dummy)},
-            { /* sentinel */ }
-        };
-        OWLMissProg collision_miss_prog = owlMissProgCreate(coll_context, coll_module, "collisionMiss",
-                                                             sizeof(CollisionMissData), collision_miss_vars, -1);
-        (void)collision_miss_prog;
-
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << renderer.meshes.size() << " geometries (collision context) ...");
-
-        std::vector<OWLGeom> coll_geoms;
-        for(size_t m = 0; m < renderer.meshes.size(); m++){
-            auto& md = renderer.meshes[m];
-            size_t num_vertices = md.vertices.size() / 3;
-            size_t num_indices = md.indices.size() / 3;
-
-            OWLBuffer vb = owlDeviceBufferCreate(coll_context, OWL_FLOAT3, num_vertices, md.vertices.data());
-            OWLBuffer ib = owlDeviceBufferCreate(coll_context, OWL_INT3, num_indices, md.indices.data());
-
-            OWLGeom geom = owlGeomCreate(coll_context, collision_geom_type);
-            owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(owl::vec3f), 0);
-            owlTrianglesSetIndices(geom, ib, num_indices, sizeof(owl::vec3i), 0);
-            coll_geoms.push_back(geom);
-        }
-
-        OWLGroup coll_tri_group = owlTrianglesGeomGroupCreate(coll_context, coll_geoms.size(), coll_geoms.data());
-        owlGroupBuildAccel(coll_tri_group);
-        OWLGroup coll_world = owlInstanceGroupCreate(coll_context, 1, &coll_tri_group);
-        owlGroupBuildAccel(coll_world);
-
-        owlRayGenSetGroup((OWLRayGen)renderer.collision_ray_gen, "world", coll_world);
-        renderer.coll_world = coll_world;
     }
 
     // =========================================================================
@@ -556,19 +519,13 @@ namespace rl_tools {
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << cameras.size() << " camera positions");
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Per-camera resolution: " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT);
 
-        // Upload to RGB context
         OWLContext context = (OWLContext)renderer.context;
         OWLBuffer cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(CameraData),
                                                           cameras.size(), cameras.data());
         owlRayGenSetBuffer((OWLRayGen)renderer.ray_gen, "cameras", cameras_buffer);
+        if(renderer.collision_ray_gen)
+            owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "cameras", cameras_buffer);
         renderer.cameras_buffer = cameras_buffer;
-
-        // Upload to collision context
-        OWLContext coll_context = (OWLContext)renderer.coll_context;
-        OWLBuffer coll_cameras_buffer = owlDeviceBufferCreate(coll_context, OWL_USER_TYPE(CameraData),
-                                                               cameras.size(), cameras.data());
-        owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "cameras", coll_cameras_buffer);
-        renderer.coll_cameras_buffer = coll_cameras_buffer;
     }
 
     template <typename T>
@@ -589,24 +546,16 @@ namespace rl_tools {
         }
 
         OWLContext context = (OWLContext)renderer.context;
-        OWLContext coll_context = (OWLContext)renderer.coll_context;
         OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
-        OWLRayGen collision_ray_gen = (OWLRayGen)renderer.collision_ray_gen;
 
         if(renderer.cameras_buffer == nullptr){
             renderer.cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(CameraData), num_cameras, cameras);
             owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.cameras_buffer);
+            if(renderer.collision_ray_gen)
+                owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "cameras", (OWLBuffer)renderer.cameras_buffer);
         }
         else{
             owlBufferUpload((OWLBuffer)renderer.cameras_buffer, cameras, 0, num_cameras);
-        }
-
-        if(renderer.coll_cameras_buffer == nullptr){
-            renderer.coll_cameras_buffer = owlDeviceBufferCreate(coll_context, OWL_USER_TYPE(CameraData), num_cameras, cameras);
-            owlRayGenSetBuffer(collision_ray_gen, "cameras", (OWLBuffer)renderer.coll_cameras_buffer);
-        }
-        else{
-            owlBufferUpload((OWLBuffer)renderer.coll_cameras_buffer, cameras, 0, num_cameras);
         }
     }
 
@@ -638,8 +587,8 @@ namespace rl_tools {
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << dirs.size() << " probe directions per camera");
 
-        OWLContext coll_context = (OWLContext)renderer.coll_context;
-        OWLBuffer probe_dirs_buffer = owlDeviceBufferCreate(coll_context, OWL_USER_TYPE(owl::vec3f),
+        OWLContext context = (OWLContext)renderer.context;
+        OWLBuffer probe_dirs_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(owl::vec3f),
                                                               dirs.size(), dirs.data());
         owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "probe_directions", probe_dirs_buffer);
         renderer.probe_dirs_buffer = probe_dirs_buffer;
@@ -657,49 +606,63 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void build_pipeline(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         OWLContext context = (OWLContext)renderer.context;
-        OWLContext coll_context = (OWLContext)renderer.coll_context;
 
         owlBuildPrograms(context);
         owlBuildPipeline(context);
         owlBuildSBT(context);
 
-        owlBuildPrograms(coll_context);
-        owlBuildPipeline(coll_context);
-        owlBuildSBT(coll_context);
-
-        // Create async launch params
         OWLParams rgb_lp = owlParamsCreate(context, 0, nullptr, 0);
-        OWLParams coll_lp = owlParamsCreate(coll_context, 0, nullptr, 0);
         renderer.rgb_launch_params = rgb_lp;
-        renderer.coll_launch_params = coll_lp;
+        if(renderer.collision_ray_gen){
+            OWLParams coll_lp = owlParamsCreate(context, 0, nullptr, 0);
+            renderer.coll_launch_params = coll_lp;
+        }
     }
 
     // =========================================================================
     // render: async launch RGB + collision, then sync
     // =========================================================================
     template <typename DEVICE, typename SPEC>
-    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
         OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
-
         owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, rgb_lp);
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        OWLRayGen collision_ray_gen = (OWLRayGen)renderer.collision_ray_gen;
-        OWLParams coll_lp = (OWLParams)renderer.coll_launch_params;
-        owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
-#endif
-        owlLaunchSync(rgb_lp);
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        owlLaunchSync(coll_lp);
-#endif
+        if(renderer.collision_ray_gen){
+            OWLRayGen collision_ray_gen = (OWLRayGen)renderer.collision_ray_gen;
+            OWLParams coll_lp = (OWLParams)renderer.coll_launch_params;
+            owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        owlLaunchSync((OWLParams)renderer.rgb_launch_params);
+        if(renderer.coll_launch_params)
+            owlLaunchSync((OWLParams)renderer.coll_launch_params);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        render_launch(device, renderer);
+        render_sync(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_rgb_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
+        OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
+        owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, rgb_lp);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_rgb_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        owlLaunchSync((OWLParams)renderer.rgb_launch_params);
     }
 
     template <typename DEVICE, typename SPEC>
     void render_rgb_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
-        OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
-        owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, rgb_lp);
-        owlLaunchSync(rgb_lp);
+        render_rgb_only_launch(device, renderer);
+        render_rgb_only_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -812,10 +775,8 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
-        if(renderer.coll_context) owlContextDestroy((OWLContext)renderer.coll_context);
         if(renderer.context) owlContextDestroy((OWLContext)renderer.context);
         renderer.context = nullptr;
-        renderer.coll_context = nullptr;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

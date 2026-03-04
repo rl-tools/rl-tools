@@ -1,3 +1,5 @@
+#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
+
 #include <rl_tools/operations/cpu_mux.h>
 
 #include "environment/environment.h"
@@ -115,59 +117,79 @@ int main(int argc, char** argv) {
         }
     }
 
-    cudaDeviceSynchronize();
-    auto t0 = std::chrono::steady_clock::now();
-
-    for (TI step_i = 0; step_i < STEPS; step_i++) {
+    auto compute_states_and_cameras = [&](TI step_i, std::array<rlt::CameraData, NUM_ENVS>& cameras) {
         for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
-            const T phase = static_cast<T>(0.01 * env_i + 0.05 * step_i);
             const T yaw_phase = static_cast<T>(0.02 * env_i + 0.08 * step_i);
             auto s = base_states[env_i];
-            // s.position[0] = base_states[env_i].position[0] + static_cast<T>(0.75) * std::sin(phase);
-            // s.position[2] = base_states[env_i].position[2] + static_cast<T>(0.75) * std::cos(phase);
             s.velocity[0] = 0;
             s.velocity[1] = 0;
             s.velocity[2] = 0;
-            s.yaw = static_cast<T>(0.5) * PI * (static_cast<T>(1) + std::sin(yaw_phase)); // absolute 0..pi = 180° sweep
+            s.yaw = static_cast<T>(0.5) * PI * (static_cast<T>(1) + std::sin(yaw_phase));
             rlt::set(device, states, s, env_i);
+            cameras[env_i] = rlt::make_camera_for_state(env, rlt::get_ref(device, parameters, env_i), s);
         }
+    };
 
-        std::array<rlt::CameraData, NUM_ENVS> cameras;
-        for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
-            cameras[env_i] = rlt::make_camera_for_state(env, rlt::get_ref(device, parameters, env_i), rlt::get_ref(device, states, env_i));
+    auto do_video_output = [&](TI step_i) -> int {
+        if (mp4_pipe == nullptr) return 0;
+        rlt::read_frame_buffer(device, *env.renderer, per_camera_rgba.data(), static_cast<TI>(per_camera_rgba.size()));
+        for (TI camera_i = 0; camera_i < NUM_ENVS; camera_i++) {
+            const TI col = camera_i % SPEC::RAYTRACING_SPEC::GRID_COLS;
+            const TI row = camera_i / SPEC::RAYTRACING_SPEC::GRID_COLS;
+            const TI offset_x = col * SPEC::CAM_WIDTH;
+            const TI offset_y = row * SPEC::CAM_HEIGHT;
+            for (TI y = 0; y < SPEC::CAM_HEIGHT; y++) {
+                const uint32_t* src = per_camera_rgba.data() + static_cast<size_t>(camera_i) * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT + static_cast<size_t>(y) * SPEC::CAM_WIDTH;
+                uint32_t* dst = megaframe_rgba.data() + static_cast<size_t>(offset_y + y) * (SPEC::RAYTRACING_SPEC::GRID_COLS * SPEC::CAM_WIDTH) + offset_x;
+                std::memcpy(dst, src, static_cast<size_t>(SPEC::CAM_WIDTH) * sizeof(uint32_t));
+            }
         }
-        rlt::set_cameras(device, *env.renderer, cameras.data(), NUM_ENVS);
+        const size_t bytes = megaframe_rgba.size() * sizeof(uint32_t);
+        const size_t written = fwrite(megaframe_rgba.data(), 1, bytes, mp4_pipe);
+        if (written != bytes) {
+            std::cerr << "Failed writing frame " << step_i << " to ffmpeg." << std::endl;
+            pclose(mp4_pipe);
+            mp4_pipe = nullptr;
+            return 1;
+        }
+        return 0;
+    };
+
+    std::array<rlt::CameraData, NUM_ENVS> cameras;
+
+    cudaDeviceSynchronize();
+    auto t0 = std::chrono::steady_clock::now();
+
+    // Pipelined loop: overlap CPU camera computation with GPU rendering
+    compute_states_and_cameras(0, cameras);
+    rlt::set_cameras(device, *env.renderer, cameras.data(), NUM_ENVS);
+
+    for (TI step_i = 0; step_i < STEPS; step_i++) {
         if (no_probe) {
-            rlt::render_rgb_only(device, *env.renderer);
+            rlt::render_rgb_only_launch(device, *env.renderer);
         }
         else {
-            rlt::render(device, *env.renderer);
+            rlt::render_launch(device, *env.renderer);
         }
 
-        if (mp4_pipe != nullptr) {
-            rlt::read_frame_buffer(device, *env.renderer, per_camera_rgba.data(), static_cast<TI>(per_camera_rgba.size()));
-            for (TI camera_i = 0; camera_i < NUM_ENVS; camera_i++) {
-                const TI col = camera_i % SPEC::RAYTRACING_SPEC::GRID_COLS;
-                const TI row = camera_i / SPEC::RAYTRACING_SPEC::GRID_COLS;
-                const TI offset_x = col * SPEC::CAM_WIDTH;
-                const TI offset_y = row * SPEC::CAM_HEIGHT;
-                for (TI y = 0; y < SPEC::CAM_HEIGHT; y++) {
-                    const uint32_t* src = per_camera_rgba.data() + static_cast<size_t>(camera_i) * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT + static_cast<size_t>(y) * SPEC::CAM_WIDTH;
-                    uint32_t* dst = megaframe_rgba.data() + static_cast<size_t>(offset_y + y) * (SPEC::RAYTRACING_SPEC::GRID_COLS * SPEC::CAM_WIDTH) + offset_x;
-                    std::memcpy(dst, src, static_cast<size_t>(SPEC::CAM_WIDTH) * sizeof(uint32_t));
-                }
-            }
-
-            const size_t bytes = megaframe_rgba.size() * sizeof(uint32_t);
-            const size_t written = fwrite(megaframe_rgba.data(), 1, bytes, mp4_pipe);
-            if (written != bytes) {
-                std::cerr << "Failed writing frame " << step_i << " to ffmpeg." << std::endl;
-                pclose(mp4_pipe);
-                mp4_pipe = nullptr;
-                return 1;
-            }
+        // Overlap: compute next frame's cameras while GPU renders current frame
+        if (step_i + 1 < STEPS) {
+            compute_states_and_cameras(step_i + 1, cameras);
         }
 
+        if (no_probe) {
+            rlt::render_rgb_only_sync(device, *env.renderer);
+        }
+        else {
+            rlt::render_sync(device, *env.renderer);
+        }
+
+        if (int err = do_video_output(step_i)) return err;
+
+        // Upload next frame's cameras (GPU is idle now, buffer is safe to overwrite)
+        if (step_i + 1 < STEPS) {
+            rlt::set_cameras(device, *env.renderer, cameras.data(), NUM_ENVS);
+        }
     }
     cudaDeviceSynchronize();
     auto t1 = std::chrono::steady_clock::now();
