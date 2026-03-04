@@ -5,12 +5,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components::on_policy_runner::per_env{
-    template <typename DEVICE, typename OBSERVATIONS_PRIVILEGED_SPEC, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-    RL_TOOLS_FUNCTION_PLACEMENT void prologue(DEVICE& device, Matrix<OBSERVATIONS_PRIVILEGED_SPEC>& observations_privileged, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t env_i){
-        static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
-        static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::Observation::DIM);
-        static_assert(OBSERVATIONS_PRIVILEGED_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
-        static_assert(OBSERVATIONS_PRIVILEGED_SPEC::COLS == SPEC::ENVIRONMENT::ObservationPrivileged::DIM);
+    template <typename DEVICE, typename OBS_PRIV_SPEC, typename OBS_SPEC, typename SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void prologue(DEVICE& device, Tensor<OBS_PRIV_SPEC>& observations_privileged, Tensor<OBS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t env_i){
         auto& env = get(runner.environments, 0, env_i);
         auto& state = get(runner.states, 0, env_i);
         auto& parameters = get(runner.env_parameters, 0, env_i);
@@ -25,12 +21,12 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
             sample_initial_parameters(device, env, parameters, rng);
             sample_initial_state(device, env, parameters, state, rng);
         }
-        auto observation = row(device, observations, env_i);
-        observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, observation, rng);
-        if(SPEC::ASYMMETRIC_OBSERVATIONS){
-            auto observation_privileged = row(device, observations_privileged, env_i);
-            observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, observation_privileged, rng);
-        }
+        auto obs_slice = view(device, observations, env_i);
+        auto obs_matrix = matrix_view(device, obs_slice);
+        observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng);
+        auto obs_priv_slice = view(device, observations_privileged, env_i);
+        auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
+        observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
     RL_TOOLS_FUNCTION_PLACEMENT void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t pos, typename DEVICE::index_t env_i){
@@ -45,9 +41,6 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         T action_log_prob = 0;
         for(TI action_i = 0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++) {
             T action_mean = get(actions_mean, env_i, action_i);
-//                    std::stringstream topic;
-//                    topic << "action/" << action_i;
-//                    add_scalar(device, device.logger, topic.str(), action_mu);
 
             static_assert(ACTION_DIM == ACTION_LOG_STD_SPEC::COLS * N_AGENTS);
             static_assert(ACTION_LOG_STD_SPEC::ROWS == 1);

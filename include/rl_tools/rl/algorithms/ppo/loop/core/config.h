@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_CONFIG_H
 
+#include "../../../../../rl/environments/observation.h"
 #include "../../../../../nn/layers/standardize/layer.h"
 #include "../../../../../nn/layers/gru/layer.h"
 #include "../../../../../nn_models/sequential/model.h"
@@ -54,7 +55,8 @@ namespace rl_tools{
             static constexpr TI FORWARD_BATCH_SIZE = PARAMETERS::PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? PARAMETERS::N_ENVIRONMENTS : PARAMETERS::BATCH_SIZE;
             template <typename CAPABILITY>
             struct Actor{
-                using INPUT_SHAPE = tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+                using OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
+                using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
                 using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                 using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
@@ -65,7 +67,8 @@ namespace rl_tools{
             };
             template <typename CAPABILITY>
             struct Critic{
-                using INPUT_SHAPE = tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM>;
+                using OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::ObservationPrivileged, TI>::type;
+                using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
                 using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                 using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
@@ -93,7 +96,8 @@ namespace rl_tools{
                 static_assert(PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC == true, "When using sequence models for the actor and critic, STATEFUL_ACTOR_AND_CRITIC has to be enabled.");
                 template <typename CAPABILITY>
                 struct Actor{
-                    using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::Observation::DIM>;
+                    using OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
+                    using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, PARAMETERS::N_ENVIRONMENTS>, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV>;
                     using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                     using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                     using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>;
@@ -113,7 +117,8 @@ namespace rl_tools{
                 };
                 template <typename CAPABILITY>
                 struct Critic{
-                    using INPUT_SHAPE = tensor::Shape<TI, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, PARAMETERS::N_ENVIRONMENTS, ENVIRONMENT::ObservationPrivileged::DIM>;
+                    using OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::ObservationPrivileged, TI>::type;
+                    using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, PARAMETERS::N_ENVIRONMENTS>, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV>;
                     using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                     using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                     using INPUT_LAYER_CONFIG = nn::layers::dense::Configuration<TYPE_POLICY, TI, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>;
@@ -150,7 +155,8 @@ namespace rl_tools{
                 static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
                 static_assert(ENVIRONMENT::Observation::DIM % N_AGENTS == 0);
                 static_assert(ENVIRONMENT::ACTION_DIM % N_AGENTS == 0);
-                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
+                using OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
+                using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, PARAMETERS::BATCH_SIZE>, 1>;
                 using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                 using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
@@ -162,14 +168,12 @@ namespace rl_tools{
             };
             template <typename CAPABILITY>
             struct Critic{
-                using INPUT_SHAPE = tensor::Shape<TI, 1, PARAMETERS::BATCH_SIZE, ENVIRONMENT::ObservationPrivileged::DIM>;
+                using OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::ObservationPrivileged, TI>::type;
+                using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, PARAMETERS::BATCH_SIZE>, 1>;
                 using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;
-//                using IF = nn_models::sequential::Interface<CAPABILITY>;
-//                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
                 using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_SPEC>;
-//                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
                 using MODULE_CHAIN = nn_models::sequential::Module<STANDARDIZATION_LAYER, nn_models::sequential::Module<TYPE>>;
                 using MODEL = nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
 

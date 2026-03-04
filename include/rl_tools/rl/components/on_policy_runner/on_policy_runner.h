@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_ON_POLICY_RUNNER_H
 
 #include "../../../utils/generic/typing.h"
+#include "../../../rl/environments/observation.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
@@ -44,31 +45,36 @@ namespace rl_tools::rl::components{
             using TI = typename SPEC::TI;
             static constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = DATASET_SPEC::STEPS_TOTAL;
-            // structure: OBSERVATION_PRIVILIGED_DIM + OBSERVATION_DIM + ACTIONS + ACTIONS_MEAN + ACTION_LOG_P + REWARD + TERMINATED + TRUNCATED + RESET + VALUE + ADVANTAGE + TARGET_VALUE
-            static constexpr TI DATA_DIM = (SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::ObservationPrivileged::DIM : 0) + SPEC::ENVIRONMENT::Observation::DIM + SPEC::ENVIRONMENT::ACTION_DIM * 2 + 8;
 
-            // mem
-            // todo: evaluate transposing this / storing in column major order for better memory access in the single dimensional columns
-            Matrix<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, DATA_DIM, DATASET_SPEC::DYNAMIC_ALLOCATION>> data; // +1 * SPEC::N_ENVIRONMENTS for the final observation
+            // Observation shapes (derived from observation types via shape_of trait)
+            using OBS_SHAPE = typename rl::environments::observation::shape_of<typename SPEC::ENVIRONMENT::Observation, TI>::type;
+            using OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename SPEC::ENVIRONMENT::ObservationPrivileged, TI>::type;
 
-            // views
+            // Observation tensor storage (separate from scalar data)
+            using ALL_OBS_STORAGE_SHAPE = tensor::Prepend<OBS_SHAPE, DATASET_SPEC::STEPS_TOTAL_ALL>;
+            using ALL_OBS_PRIV_STORAGE_SHAPE = tensor::Prepend<OBS_PRIV_SHAPE, DATASET_SPEC::STEPS_TOTAL_ALL>;
+            Tensor<tensor::Specification<T, TI, ALL_OBS_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations;
+            Tensor<tensor::Specification<T, TI, ALL_OBS_PRIV_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations_privileged;
+
+            // Scalar data (actions, rewards, flags, values, advantages)
+            static constexpr TI SCALAR_DATA_DIM = SPEC::ENVIRONMENT::ACTION_DIM * 2 + 8;
+            Matrix<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, SCALAR_DATA_DIM, DATASET_SPEC::DYNAMIC_ALLOCATION>> scalar_data;
+
             template<TI VIEW_DIM, bool ALL = false>
-            using DATA_VIEW = typename decltype(data)::template VIEW<STEPS_TOTAL + (ALL ? SPEC::N_ENVIRONMENTS : 0), VIEW_DIM>;
+            using SCALAR_VIEW = typename decltype(scalar_data)::template VIEW<STEPS_TOTAL + (ALL ? SPEC::N_ENVIRONMENTS : 0), VIEW_DIM>;
 
-            DATA_VIEW<SPEC::ENVIRONMENT::ObservationPrivileged::DIM, true> all_observations_privileged;
-            DATA_VIEW<SPEC::ENVIRONMENT::Observation::DIM> observations;
-            DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions_mean;
-            DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;
-            DATA_VIEW<1> action_log_probs;
-            DATA_VIEW<1> rewards;
-            DATA_VIEW<1> terminated;
-            DATA_VIEW<1> truncated;
-            DATA_VIEW<1, true> all_reset;
-            DATA_VIEW<1> reset; // = truncation delayed by one step for the reset of stateful actors and critics
-            DATA_VIEW<1, true> all_values;
-            DATA_VIEW<1> values;
-            DATA_VIEW<1> advantages;
-            DATA_VIEW<1> target_values;
+            SCALAR_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions_mean;
+            SCALAR_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;
+            SCALAR_VIEW<1> action_log_probs;
+            SCALAR_VIEW<1> rewards;
+            SCALAR_VIEW<1> terminated;
+            SCALAR_VIEW<1> truncated;
+            SCALAR_VIEW<1, true> all_reset;
+            SCALAR_VIEW<1> reset; // = truncation delayed by one step for the reset of stateful actors and critics
+            SCALAR_VIEW<1, true> all_values;
+            SCALAR_VIEW<1> values;
+            SCALAR_VIEW<1> advantages;
+            SCALAR_VIEW<1> target_values;
         };
         template <typename TI, TI T_NUM_THREADS>
         struct ExecutionHints{
