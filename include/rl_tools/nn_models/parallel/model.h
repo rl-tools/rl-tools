@@ -20,15 +20,19 @@ namespace rl_tools::nn_models::parallel{
                 return get<INDEX>(SHAPE_A{}) == get<INDEX>(SHAPE_B{}) && leading_dims_match<SHAPE_A, SHAPE_B, INDEX + 1>();
             }
         }
+
+        // Empty struct used as placeholder when HEAD is void
+        struct Empty{};
     }
 
-    template <typename T_CAPABILITY, typename T_MODULE_A, typename T_MODULE_B, typename T_INPUT_SHAPE_A, typename T_INPUT_SHAPE_B>
+    template <typename T_CAPABILITY, typename T_MODULE_A, typename T_MODULE_B, typename T_INPUT_SHAPE_A, typename T_INPUT_SHAPE_B, typename T_HEAD = void>
     struct Specification{
         using CAPABILITY = T_CAPABILITY;
         using MODULE_A = T_MODULE_A;
         using MODULE_B = T_MODULE_B;
         using INPUT_SHAPE_A = T_INPUT_SHAPE_A;
         using INPUT_SHAPE_B = T_INPUT_SHAPE_B;
+        using HEAD_MODULE = T_HEAD;
 
         using PIPELINE_TYPE_A = typename MODULE_A::template Layer<CAPABILITY, INPUT_SHAPE_A>;
         using PIPELINE_TYPE_B = typename MODULE_B::template Layer<CAPABILITY, INPUT_SHAPE_B>;
@@ -44,7 +48,24 @@ namespace rl_tools::nn_models::parallel{
         static constexpr TI LAST_DIM_B = get_last(OUTPUT_SHAPE_B{});
         static constexpr TI LAST_DIM = LAST_DIM_A + LAST_DIM_B;
         static constexpr auto RANK = length(OUTPUT_SHAPE_A{});
-        using OUTPUT_SHAPE = tensor::Replace<OUTPUT_SHAPE_A, LAST_DIM, RANK - 1>;
+        using CONCAT_OUTPUT_SHAPE = tensor::Replace<OUTPUT_SHAPE_A, LAST_DIM, RANK - 1>;
+
+        // HEAD (optional post-processing after concatenation)
+        static constexpr bool HAS_HEAD = !utils::typing::is_same_v<HEAD_MODULE, void>;
+    private:
+        template <bool ENABLED, typename = void>
+        struct HeadResolver{
+            using HEAD_TYPE = detail::Empty;
+            using OUTPUT_SHAPE = CONCAT_OUTPUT_SHAPE;
+        };
+        template <typename DUMMY>
+        struct HeadResolver<true, DUMMY>{
+            using HEAD_TYPE = typename HEAD_MODULE::template Layer<CAPABILITY, CONCAT_OUTPUT_SHAPE>;
+            using OUTPUT_SHAPE = typename HEAD_TYPE::OUTPUT_SHAPE;
+        };
+    public:
+        using HEAD_TYPE = typename HeadResolver<HAS_HEAD>::HEAD_TYPE;
+        using OUTPUT_SHAPE = typename HeadResolver<HAS_HEAD>::OUTPUT_SHAPE;
 
         using TYPE_POLICY = typename PIPELINE_TYPE_A::TYPE_POLICY;
     };
@@ -69,6 +90,7 @@ namespace rl_tools::nn_models::parallel{
 
         typename SPEC::PIPELINE_TYPE_A pipeline_a;
         typename SPEC::PIPELINE_TYPE_B pipeline_b;
+        typename SPEC::HEAD_TYPE head;
 
         template <bool DYNAMIC_ALLOCATION=true>
         using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, DYNAMIC_ALLOCATION>>;
@@ -115,10 +137,27 @@ namespace rl_tools::nn_models::parallel{
         Tensor<INTERMEDIATE_A_SPEC> intermediate_a;
         Tensor<INTERMEDIATE_B_SPEC> intermediate_b;
 
+        // Concatenated output buffer (used as input to head when HAS_HEAD)
+        using CONCAT_OUTPUT_SPEC = tensor::Specification<T, TI, typename SPEC::CONCAT_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::CONCAT_OUTPUT_SHAPE>>;
+        Tensor<CONCAT_OUTPUT_SPEC> concatenated;
+
         using D_OUTPUT_A_SPEC = tensor::Specification<T, TI, typename SPEC::OUTPUT_SHAPE_A, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::OUTPUT_SHAPE_A>>;
         using D_OUTPUT_B_SPEC = tensor::Specification<T, TI, typename SPEC::OUTPUT_SHAPE_B, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::OUTPUT_SHAPE_B>>;
         Tensor<D_OUTPUT_A_SPEC> d_output_a;
         Tensor<D_OUTPUT_B_SPEC> d_output_b;
+
+        // Head buffer (conditionally present)
+    private:
+        template <bool ENABLED, typename = void>
+        struct HeadBufferResolver{ using type = detail::Empty; };
+        template <typename DUMMY>
+        struct HeadBufferResolver<true, DUMMY>{ using type = typename SPEC::HEAD_TYPE::template Buffer<DYNAMIC_ALLOCATION>; };
+    public:
+        typename HeadBufferResolver<SPEC::HAS_HEAD>::type head_buffer;
+
+        // d_concatenated: gradient of loss w.r.t. concatenated output (needed when head present)
+        using D_CONCAT_SPEC = tensor::Specification<T, TI, typename SPEC::CONCAT_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::CONCAT_OUTPUT_SHAPE>>;
+        Tensor<D_CONCAT_SPEC> d_concatenated;
     };
 
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
@@ -134,6 +173,13 @@ namespace rl_tools::nn_models::parallel{
         static constexpr bool DYNAMIC_ALLOCATION = STATE_SPEC::DYNAMIC_ALLOCATION;
         typename SPEC::PIPELINE_TYPE_A::template State<DYNAMIC_ALLOCATION> state_a;
         typename SPEC::PIPELINE_TYPE_B::template State<DYNAMIC_ALLOCATION> state_b;
+    private:
+        template <bool ENABLED, typename = void>
+        struct HeadStateResolver{ using type = detail::Empty; };
+        template <typename DUMMY>
+        struct HeadStateResolver<true, DUMMY>{ using type = typename SPEC::HEAD_TYPE::template State<DYNAMIC_ALLOCATION>; };
+    public:
+        typename HeadStateResolver<SPEC::HAS_HEAD>::type head_state;
     };
 
     template <typename CAPABILITY, typename SPEC>
@@ -146,11 +192,11 @@ namespace rl_tools::nn_models::parallel{
             utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, GRADIENT, void>>>;
     };
 
-    template <typename CAPABILITY, typename MODULE_A, typename MODULE_B, typename INPUT_SHAPE_A, typename INPUT_SHAPE_B>
-    struct Build: BuildModuleType<CAPABILITY, Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>>::type{
-        using PARALLEL_SPEC = Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    template <typename CAPABILITY, typename MODULE_A, typename MODULE_B, typename INPUT_SHAPE_A, typename INPUT_SHAPE_B, typename HEAD = void>
+    struct Build: BuildModuleType<CAPABILITY, Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD>>::type{
+        using PARALLEL_SPEC = Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD>;
         template <typename NEW_CAPABILITY>
-        using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+        using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -513,3 +513,205 @@ TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_TRAINING){
     rlt::free(device, target);
     rlt::free(device, d_output);
 }
+
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_HEAD_SHAPES){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = float;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
+    using TI = typename DEVICE::index_t;
+
+    constexpr TI BATCH_SIZE = 4;
+
+    using INPUT_SHAPE_A = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 5>;
+    using INPUT_SHAPE_B = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 3>;
+
+    using LAYER_A_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 8, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_A = rlt::nn::layers::dense::BindConfiguration<LAYER_A_CONFIG>;
+    using MODULE_A = rlt::nn_models::sequential::Module<LAYER_A>;
+
+    using LAYER_B_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 6, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_B = rlt::nn::layers::dense::BindConfiguration<LAYER_B_CONFIG>;
+    using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
+
+    // HEAD: dense layer that maps concatenated 14 -> 2
+    using HEAD_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using HEAD = rlt::nn::layers::dense::BindConfiguration<HEAD_CONFIG>;
+    using HEAD_MODULE = rlt::nn_models::sequential::Module<HEAD>;
+
+    using PARALLEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD_MODULE>;
+
+    // Without head: output would be [1, BATCH_SIZE, 14]
+    // With head: output is [1, BATCH_SIZE, 2]
+    static_assert(rlt::get<0>(typename PARALLEL::OUTPUT_SHAPE{}) == 1);
+    static_assert(rlt::get<1>(typename PARALLEL::OUTPUT_SHAPE{}) == BATCH_SIZE);
+    static_assert(rlt::get<2>(typename PARALLEL::OUTPUT_SHAPE{}) == 2);
+}
+
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_HEAD_EVALUATE){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
+    using TI = typename DEVICE::index_t;
+
+    constexpr TI BATCH_SIZE = 2;
+
+    using INPUT_SHAPE_A = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 3>;
+    using INPUT_SHAPE_B = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 2>;
+
+    using LAYER_A_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 4, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_A = rlt::nn::layers::dense::BindConfiguration<LAYER_A_CONFIG>;
+    using MODULE_A = rlt::nn_models::sequential::Module<LAYER_A>;
+
+    using LAYER_B_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 3, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_B = rlt::nn::layers::dense::BindConfiguration<LAYER_B_CONFIG>;
+    using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
+
+    using HEAD_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using HEAD = rlt::nn::layers::dense::BindConfiguration<HEAD_CONFIG>;
+    using HEAD_MODULE = rlt::nn_models::sequential::Module<HEAD>;
+
+    using PARALLEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD_MODULE>;
+
+    DEVICE device;
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 42);
+
+    PARALLEL model;
+    typename PARALLEL::Buffer<> buffer;
+
+    rlt::malloc(device, model);
+    rlt::malloc(device, buffer);
+    rlt::init_weights(device, model, rng);
+
+    using OUTPUT_SHAPE = typename PARALLEL::OUTPUT_SHAPE;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A, true>> input_a;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B, true>> input_b;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE, true>> output;
+
+    rlt::malloc(device, input_a);
+    rlt::malloc(device, input_b);
+    rlt::malloc(device, output);
+
+    rlt::randn(device, input_a, rng);
+    rlt::randn(device, input_b, rng);
+
+    rlt::evaluate(device, model, input_a, input_b, output, buffer, rng);
+
+    T sum = 0;
+    for(TI i = 0; i < BATCH_SIZE; i++){
+        sum += rlt::math::abs(device.math, rlt::get(device, output, 0, i, 0));
+    }
+    ASSERT_GT(sum, 0) << "Output should be non-zero after evaluation with HEAD";
+
+    rlt::free(device, model);
+    rlt::free(device, buffer);
+    rlt::free(device, input_a);
+    rlt::free(device, input_b);
+    rlt::free(device, output);
+}
+
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_HEAD_TRAINING){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
+    using TI = typename DEVICE::index_t;
+
+    constexpr TI BATCH_SIZE = 4;
+    constexpr TI NUM_STEPS = 1000;
+
+    using INPUT_SHAPE_A = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 2>;
+    using INPUT_SHAPE_B = rlt::tensor::Shape<TI, 1, BATCH_SIZE, 2>;
+
+    using LAYER_A_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 16, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_A = rlt::nn::layers::dense::BindConfiguration<LAYER_A_CONFIG>;
+    using MODULE_A = rlt::nn_models::sequential::Module<LAYER_A>;
+
+    using LAYER_B_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 16, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_B = rlt::nn::layers::dense::BindConfiguration<LAYER_B_CONFIG>;
+    using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
+
+    // HEAD processes concatenated [32] -> [1]
+    using HEAD_LAYER_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using HEAD_LAYER = rlt::nn::layers::dense::BindConfiguration<HEAD_LAYER_CONFIG>;
+    using HEAD_MODULE = rlt::nn_models::sequential::Module<HEAD_LAYER>;
+
+    using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+    using PARALLEL = rlt::nn_models::parallel::Build<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD_MODULE>;
+
+    DEVICE device;
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 1);
+
+    PARALLEL model;
+    typename PARALLEL::Buffer<> buffer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>> optimizer;
+
+    rlt::malloc(device, model);
+    rlt::malloc(device, buffer);
+    rlt::malloc(device, optimizer);
+    rlt::init(device, optimizer);
+    rlt::init_weights(device, model, rng);
+    rlt::reset_optimizer_state(device, optimizer, model);
+
+    using OUTPUT_SHAPE = typename PARALLEL::OUTPUT_SHAPE;
+    static_assert(rlt::get<2>(OUTPUT_SHAPE{}) == 1);
+
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A, true>> input_a;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B, true>> input_b;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE, true>> target;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE, true>> d_output;
+
+    rlt::malloc(device, input_a);
+    rlt::malloc(device, input_b);
+    rlt::malloc(device, target);
+    rlt::malloc(device, d_output);
+
+    T initial_loss = 0;
+    T final_loss = 0;
+
+    for(TI step = 0; step < NUM_STEPS; step++){
+        rlt::randn(device, input_a, rng);
+        rlt::randn(device, input_b, rng);
+
+        // Target: output = sum(input_a) + sum(input_b)
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            T sum_all = 0;
+            for(TI j = 0; j < 2; j++){
+                sum_all += rlt::get(device, input_a, 0, bi, j);
+                sum_all += rlt::get(device, input_b, 0, bi, j);
+            }
+            rlt::set(device, target, sum_all, 0, bi, 0);
+        }
+
+        rlt::forward(device, model, input_a, input_b, buffer, rng);
+        auto model_output = rlt::output(device, model);
+
+        T loss = 0;
+        for(TI bi = 0; bi < BATCH_SIZE; bi++){
+            T diff = rlt::get(device, model_output, 0, bi, 0) - rlt::get(device, target, 0, bi, 0);
+            loss += diff * diff;
+            rlt::set(device, d_output, 2 * diff / BATCH_SIZE, 0, bi, 0);
+        }
+        loss /= BATCH_SIZE;
+
+        if(step == 0) initial_loss = loss;
+        if(step == NUM_STEPS - 1) final_loss = loss;
+
+        rlt::zero_gradient(device, model);
+        rlt::backward(device, model, input_a, input_b, d_output, buffer);
+        rlt::step(device, optimizer, model);
+    }
+
+    std::cout << "HEAD Training loss: " << initial_loss << " -> " << final_loss << std::endl;
+    ASSERT_LT(final_loss, initial_loss * 0.2) << "HEAD training should reduce loss significantly";
+
+    rlt::free(device, model);
+    rlt::free(device, buffer);
+    rlt::free(device, optimizer);
+    rlt::free(device, input_a);
+    rlt::free(device, input_b);
+    rlt::free(device, target);
+    rlt::free(device, d_output);
+}

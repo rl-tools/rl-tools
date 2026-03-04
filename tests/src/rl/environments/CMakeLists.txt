@@ -5,6 +5,7 @@ endif()
 add_subdirectory(car)
 add_subdirectory(acrobot)
 add_subdirectory(pendulum)
+add_subdirectory(reacher)
 add_subdirectory(l2f)
 add_subdirectory(memory)
 
