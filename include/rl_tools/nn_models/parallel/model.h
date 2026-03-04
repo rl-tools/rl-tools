@@ -1,12 +1,12 @@
 #include "../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_DUAL_PIPELINE_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_PARALLEL_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_MODELS_DUAL_PIPELINE_MODEL_H
+#define RL_TOOLS_NN_MODELS_PARALLEL_MODEL_H
 
 #include "../sequential/model.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::nn_models::dual_pipeline{
+namespace rl_tools::nn_models::parallel{
 
     namespace detail{
         template <typename SHAPE_A, typename SHAPE_B, auto INDEX = 0>
@@ -169,7 +169,7 @@ namespace rl_tools::nn_models::dual_pipeline{
 
     template <typename CAPABILITY, typename MODULE_A, typename MODULE_B, typename INPUT_SHAPE_A, typename INPUT_SHAPE_B>
     struct Build: BuildModuleType<CAPABILITY, Specification<BuildSpecification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>>>::type{
-        using DUAL_SPEC = Specification<BuildSpecification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>>;
+        using PARALLEL_SPEC = Specification<BuildSpecification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>>;
         template <typename NEW_CAPABILITY>
         using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
     };
