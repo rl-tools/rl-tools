@@ -2,14 +2,14 @@
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/nn_models/dual_pipeline/operations_generic.h>
+#include <rl_tools/nn_models/parallel/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 
-TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_STATIC_SHAPES){
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_STATIC_SHAPES){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -28,14 +28,14 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_STATIC_SHAPES){
     using LAYER_B = rlt::nn::layers::dense::BindConfiguration<LAYER_B_CONFIG>;
     using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
 
-    using DUAL = rlt::nn_models::dual_pipeline::Build<rlt::nn::capability::Forward<>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    using PARALLEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
 
-    static_assert(rlt::get<0>(typename DUAL::OUTPUT_SHAPE{}) == 1);
-    static_assert(rlt::get<1>(typename DUAL::OUTPUT_SHAPE{}) == BATCH_SIZE);
-    static_assert(rlt::get<2>(typename DUAL::OUTPUT_SHAPE{}) == 14); // 8 + 6
+    static_assert(rlt::get<0>(typename PARALLEL::OUTPUT_SHAPE{}) == 1);
+    static_assert(rlt::get<1>(typename PARALLEL::OUTPUT_SHAPE{}) == BATCH_SIZE);
+    static_assert(rlt::get<2>(typename PARALLEL::OUTPUT_SHAPE{}) == 14); // 8 + 6
 }
 
-TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_STATIC_SHAPES_MULTI_LAYER){
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_STATIC_SHAPES_MULTI_LAYER){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -58,12 +58,12 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_STATIC_SHAPES_MULTI_LAYER){
     using LAYER_B2 = rlt::nn::layers::dense::BindConfiguration<LAYER_B2_CONFIG>;
     using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B1, rlt::nn_models::sequential::Module<LAYER_B2>>;
 
-    using DUAL = rlt::nn_models::dual_pipeline::Build<rlt::nn::capability::Forward<>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    using PARALLEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
 
-    static_assert(rlt::get<2>(typename DUAL::OUTPUT_SHAPE{}) == 7); // 4 + 3
+    static_assert(rlt::get<2>(typename PARALLEL::OUTPUT_SHAPE{}) == 7); // 4 + 3
 }
 
-TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_EVALUATE){
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_EVALUATE){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -82,21 +82,21 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_EVALUATE){
     using LAYER_B = rlt::nn::layers::dense::BindConfiguration<LAYER_B_CONFIG>;
     using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
 
-    using DUAL = rlt::nn_models::dual_pipeline::Build<rlt::nn::capability::Forward<>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    using PARALLEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
 
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 1);
 
-    DUAL model;
-    typename DUAL::Buffer<> buffer;
+    PARALLEL model;
+    typename PARALLEL::Buffer<> buffer;
 
     rlt::malloc(device, model);
     rlt::malloc(device, buffer);
     rlt::init_weights(device, model, rng);
 
-    using OUTPUT_SHAPE = typename DUAL::OUTPUT_SHAPE;
+    using OUTPUT_SHAPE = typename PARALLEL::OUTPUT_SHAPE;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A, true>> input_a;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B, true>> input_b;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE, true>> output;
@@ -126,7 +126,7 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_EVALUATE){
     rlt::free(device, output);
 }
 
-TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_FORWARD){
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_FORWARD){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -146,21 +146,21 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_FORWARD){
     using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
 
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-    using DUAL = rlt::nn_models::dual_pipeline::Build<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    using PARALLEL = rlt::nn_models::parallel::Build<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
 
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 1);
 
-    DUAL model;
-    typename DUAL::Buffer<> buffer;
+    PARALLEL model;
+    typename PARALLEL::Buffer<> buffer;
 
     rlt::malloc(device, model);
     rlt::malloc(device, buffer);
     rlt::init_weights(device, model, rng);
 
-    using OUTPUT_SHAPE = typename DUAL::OUTPUT_SHAPE;
+    using OUTPUT_SHAPE = typename PARALLEL::OUTPUT_SHAPE;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A, true>> input_a;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B, true>> input_b;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE, true>> output_forward;
@@ -177,9 +177,9 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_FORWARD){
     rlt::forward(device, model, input_a, input_b, output_forward, buffer, rng);
 
     // Also run evaluate on a Forward-capability copy to compare
-    using DUAL_FORWARD = typename DUAL::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
-    DUAL_FORWARD model_forward;
-    typename DUAL_FORWARD::Buffer<> buffer_forward;
+    using PARALLEL_FORWARD = typename PARALLEL::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
+    PARALLEL_FORWARD model_forward;
+    typename PARALLEL_FORWARD::Buffer<> buffer_forward;
     rlt::malloc(device, model_forward);
     rlt::malloc(device, buffer_forward);
     rlt::copy(device, device, model, model_forward);
@@ -200,7 +200,7 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_FORWARD){
     rlt::free(device, output_evaluate);
 }
 
-TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_GRADIENT_CHECK){
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_GRADIENT_CHECK){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -224,22 +224,22 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_GRADIENT_CHECK){
     using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
 
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-    using DUAL = rlt::nn_models::dual_pipeline::Build<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    using PARALLEL = rlt::nn_models::parallel::Build<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
 
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 1);
 
-    DUAL model, model_pert;
-    typename DUAL::Buffer<> buffer;
+    PARALLEL model, model_pert;
+    typename PARALLEL::Buffer<> buffer;
 
     rlt::malloc(device, model);
     rlt::malloc(device, model_pert);
     rlt::malloc(device, buffer);
     rlt::init_weights(device, model, rng);
 
-    using OUTPUT_SHAPE = typename DUAL::OUTPUT_SHAPE;
+    using OUTPUT_SHAPE = typename PARALLEL::OUTPUT_SHAPE;
     constexpr TI OUTPUT_DIM = rlt::get<2>(OUTPUT_SHAPE{});
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A, true>> input_a;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B, true>> input_b;
@@ -267,7 +267,7 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_GRADIENT_CHECK){
     rlt::backward_full(device, model, input_a, input_b, d_output, d_input_a, d_input_b, buffer);
 
     // Finite-difference check for d_input_a
-    auto compute_loss = [&](DUAL& m, auto& ia, auto& ib) -> T {
+    auto compute_loss = [&](PARALLEL& m, auto& ia, auto& ib) -> T {
         rlt::forward(device, m, ia, ib, buffer, rng);
         auto out = rlt::output(device, m);
         T loss = 0;
@@ -336,7 +336,7 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_GRADIENT_CHECK){
     rlt::free(device, d_input_b);
 }
 
-TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_COPY_ABS_DIFF){
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_COPY_ABS_DIFF){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -353,14 +353,14 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_COPY_ABS_DIFF){
     using LAYER_B = rlt::nn::layers::dense::BindConfiguration<LAYER_B_CONFIG>;
     using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
 
-    using DUAL = rlt::nn_models::dual_pipeline::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    using PARALLEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
 
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 1);
 
-    DUAL model_a, model_b;
+    PARALLEL model_a, model_b;
     rlt::malloc(device, model_a);
     rlt::malloc(device, model_b);
     rlt::init_weights(device, model_a, rng);
@@ -373,7 +373,7 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_COPY_ABS_DIFF){
     rlt::free(device, model_b);
 }
 
-TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_IS_NAN){
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_IS_NAN){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -390,14 +390,14 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_IS_NAN){
     using LAYER_B = rlt::nn::layers::dense::BindConfiguration<LAYER_B_CONFIG>;
     using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B>;
 
-    using DUAL = rlt::nn_models::dual_pipeline::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    using PARALLEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
 
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 1);
 
-    DUAL model;
+    PARALLEL model;
     rlt::malloc(device, model);
     rlt::init_weights(device, model, rng);
 
@@ -406,7 +406,7 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_IS_NAN){
     rlt::free(device, model);
 }
 
-TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_TRAINING){
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, TEST_TRAINING){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -431,15 +431,15 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_TRAINING){
     using MODULE_B = rlt::nn_models::sequential::Module<LAYER_B, rlt::nn_models::sequential::Module<LAYER_B2>>;
 
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-    using DUAL = rlt::nn_models::dual_pipeline::Build<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
+    using PARALLEL = rlt::nn_models::parallel::Build<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
 
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 1);
 
-    DUAL model;
-    typename DUAL::Buffer<> buffer;
+    PARALLEL model;
+    typename PARALLEL::Buffer<> buffer;
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>> optimizer;
 
     rlt::malloc(device, model);
@@ -449,7 +449,7 @@ TEST(RL_TOOLS_NN_MODELS_DUAL_PIPELINE, TEST_TRAINING){
     rlt::init_weights(device, model, rng);
     rlt::reset_optimizer_state(device, optimizer, model);
 
-    using OUTPUT_SHAPE = typename DUAL::OUTPUT_SHAPE;
+    using OUTPUT_SHAPE = typename PARALLEL::OUTPUT_SHAPE;
     static_assert(rlt::get<2>(OUTPUT_SHAPE{}) == 2); // 1 + 1
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A, true>> input_a;
