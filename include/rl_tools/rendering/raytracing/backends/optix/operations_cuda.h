@@ -113,6 +113,7 @@ namespace rl_tools {
 
         OWLContext context = owlContextCreate(nullptr, 1);
         owlContextSetRayTypeCount(context, 2);
+        owlContextSetNumPayloadValues(context, 3);
         OWLModule module = owlModuleCreate(context, device_ptx);
 
         constexpr TI cam_pixels = SPEC::CAM_PIXELS;
@@ -331,6 +332,10 @@ namespace rl_tools {
                     }
                 }
 
+                float metallic_factor = 0.0f;
+                mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor);
+                md.metallic = metallic_factor;
+
                 if(!md.has_texture && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
                     aiString tex_path;
                     if(mat->GetTexture(aiTextureType_BASE_COLOR, 0, &tex_path) == AI_SUCCESS){
@@ -359,8 +364,13 @@ namespace rl_tools {
               << bbox_max.x << "," << bbox_max.y << "," << bbox_max.z << "]");
 
         int textured_count = 0;
-        for(auto& m : renderer.meshes) if(m.has_texture) textured_count++;
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << renderer.meshes.size());
+        int metallic_count = 0;
+        for(auto& m : renderer.meshes){
+            if(m.has_texture) textured_count++;
+            if(m.metallic > 0.f) metallic_count++;
+        }
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << renderer.meshes.size()
+              << ", metallic: " << metallic_count << "/" << renderer.meshes.size());
 
         // Adjust camera based on bounding box
         owl::vec3f center = 0.5f * (bbox_min + bbox_max);
@@ -416,6 +426,8 @@ namespace rl_tools {
             { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
             { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
             { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
+            { "metallic",    OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, metallic)},
+            { "world",       OWL_GROUP,   OWL_OFFSETOF(TrianglesGeomData, world)},
             { /* sentinel */ }
         };
         OWLGeomType triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
@@ -463,6 +475,8 @@ namespace rl_tools {
                 owlGeomSet1i(geom, "has_texture", 0);
             }
 
+            owlGeomSet1f(geom, "metallic", md.metallic);
+
             geoms.push_back(geom);
         }
 
@@ -470,6 +484,10 @@ namespace rl_tools {
         owlGroupBuildAccel(triangles_group);
         OWLGroup world = owlInstanceGroupCreate(context, 1, &triangles_group);
         owlGroupBuildAccel(world);
+
+        for(size_t m = 0; m < geoms.size(); m++){
+            owlGeomSetGroup(geoms[m], "world", world);
+        }
 
         owlRayGenSetGroup((OWLRayGen)renderer.ray_gen, "world", world);
         if(renderer.collision_ray_gen)

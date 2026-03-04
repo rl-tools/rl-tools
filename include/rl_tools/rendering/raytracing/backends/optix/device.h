@@ -24,6 +24,8 @@ namespace rl_tools {
         cudaTextureObject_t texture;
         /*! whether this geometry has a valid texture */
         int has_texture;
+        float metallic;
+        OptixTraversableHandle world;
     };
 
     /* per-camera parameters (shared between host and device) */

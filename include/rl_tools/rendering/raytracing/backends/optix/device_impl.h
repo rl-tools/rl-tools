@@ -41,6 +41,7 @@ namespace rl_tools
     owl::vec3f color;
     unsigned int p0 = 0, p1 = 0;
     owl::packPointer(&color, p0, p1);
+    unsigned int p2 = 0;
     optixTrace(self.world,
                (const float3&)ray.origin,
                (const float3&)ray.direction,
@@ -50,7 +51,7 @@ namespace rl_tools
                OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_DISABLE_ANYHIT,
                0, NUM_RAY_TYPES, 0,
-               p0, p1);
+               p0, p1, p2);
 
     // Flat per-camera layout: camera i occupies [i*W*H .. (i+1)*W*H)
     const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y
@@ -87,7 +88,38 @@ namespace rl_tools
     }
 
     const owl::vec3f ray_dir = optixGetWorldRayDirection();
-    prd = (.2f + .8f * fabs(dot(ray_dir, normal_geometric))) * base_color;
+    owl::vec3f direct = (.2f + .8f * fabs(dot(ray_dir, normal_geometric))) * base_color;
+
+    unsigned int depth = optixGetPayload_2();
+    if (depth < 1 && self.metallic > 0.f) {
+      owl::vec3f hit_point = ray_dir * optixGetRayTmax();
+      hit_point.x += optixGetWorldRayOrigin().x;
+      hit_point.y += optixGetWorldRayOrigin().y;
+      hit_point.z += optixGetWorldRayOrigin().z;
+      owl::vec3f n = dot(ray_dir, normal_geometric) > 0.f ? -normal_geometric : normal_geometric;
+      owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, n) * n;
+
+      owl::vec3f reflected_color;
+      unsigned int rp0 = 0, rp1 = 0;
+      owl::packPointer(&reflected_color, rp0, rp1);
+      unsigned int rp2 = depth + 1;
+      optixTrace(self.world,
+                 (const float3&)hit_point,
+                 (const float3&)reflect_dir,
+                 1e-3f,
+                 1e20f,
+                 0.0f,
+                 OptixVisibilityMask(255),
+                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+                 0, NUM_RAY_TYPES, 0,
+                 rp0, rp1, rp2);
+
+      float cos_theta = fabs(dot(ray_dir, n));
+      float fresnel = self.metallic * (0.04f + 0.96f * powf(1.f - cos_theta, 5.f));
+      prd = direct * ((1.f - fresnel) + fresnel * reflected_color);
+    } else {
+      prd = direct;
+    }
   }
 
   OPTIX_MISS_PROGRAM(miss)()
