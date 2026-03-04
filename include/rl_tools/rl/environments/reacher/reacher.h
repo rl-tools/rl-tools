@@ -1,0 +1,76 @@
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_REACHER_REACHER_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_REACHER_REACHER_H
+
+#include "../../../math/operations_generic.h"
+#include "../environments.h"
+#include "../observation.h"
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rl::environments::reacher{
+    template <typename T>
+    struct DefaultParameters{
+        static constexpr T DT = 0.05;
+        static constexpr T ARENA_SIZE = 1.0;
+        static constexpr T MAX_VELOCITY = 0.5;
+        static constexpr T TARGET_RADIUS = 0.05;
+        static constexpr T ACTION_LIMIT = 1.0;
+        static constexpr auto IMAGE_HEIGHT = 32;
+        static constexpr auto IMAGE_WIDTH = 32;
+    };
+
+    template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
+    struct Specification{
+        using T = T_T;
+        using TI = T_TI;
+        using PARAMETERS = T_PARAMETERS;
+    };
+
+    template <typename T_T, typename T_TI>
+    struct StateSpecification{
+        using T = T_T;
+        using TI = T_TI;
+    };
+
+    template <typename T_SPEC>
+    struct State{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI DIM = 4;
+        T x;
+        T y;
+        T target_x;
+        T target_y;
+    };
+
+    template <typename TI>
+    struct ObservationDense{
+        static constexpr TI DIM = 4;
+    };
+
+    template <typename T_TI, T_TI T_HEIGHT, T_TI T_WIDTH>
+    struct ObservationImage : observation::Image<T_TI, T_HEIGHT, T_WIDTH, 3>{};
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rl::environments{
+    template <typename T_SPEC>
+    struct Reacher: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using State = reacher::State<reacher::StateSpecification<T, TI>>;
+        using Parameters = typename SPEC::PARAMETERS;
+        using Observation = reacher::ObservationDense<TI>;
+        using ObservationPrivileged = Observation;
+        static constexpr TI N_AGENTS = 1;
+        static constexpr TI ACTION_DIM = 2;
+        static constexpr TI EPISODE_STEP_LIMIT = 200;
+    };
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif

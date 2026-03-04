@@ -107,6 +107,9 @@ namespace rl_tools::utils::typing {
 
     template <typename Base, typename Derived>
     constexpr bool is_base_of_v = IsSubclass<Base, Derived>::value;
+
+    template <typename...>
+    using void_t = void;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
