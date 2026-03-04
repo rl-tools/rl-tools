@@ -89,7 +89,83 @@ template<typename DEVICE, typename LAYER_SPEC, ..., typename BUFFER_SPEC, ...>
 void forward(DEVICE& device, my_layer::LayerBackward<LAYER_SPEC>& layer, ..., my_layer::Buffer<BUFFER_SPEC>& buffer, ...);
 ```
 
+## Capability System
+
+Layers and models use a capability tag (`Forward`, `Backward`, `Gradient`) to control what data they store:
+- `ModuleForward<SPEC>` — weights only (for inference)
+- `ModuleBackward<SPEC>` — inherits Forward (for backward_input without gradient accumulation)
+- `ModuleGradient<SPEC>` — inherits Backward, adds output tensor (for training with gradient accumulation)
+
+A `BuildModuleType<CAPABILITY, SPEC>` struct selects the appropriate module type based on the capability tag. The `Build` entry point inherits from the resolved type and provides `CHANGE_CAPABILITY`.
+
+## Composable Model Pattern (BindConfiguration / Layer alias)
+
+Any type that can be used as a building block in `sequential::Module` or `parallel::Build` must expose:
+```cpp
+template <typename CAPABILITY, typename INPUT_SHAPE>
+using Layer = ConcreteBuiltType<CAPABILITY, INPUT_SHAPE>;
+```
+
+This is how sequential resolves each layer: `HEAD::template Layer<CAPABILITY, INPUT_SHAPE>`. Examples:
+- `nn::layers::dense::BindConfiguration<CONFIG>` — wraps a dense layer config, `Layer` resolves to the built dense layer
+- `nn_models::mlp::BindConfiguration<CONFIG>` — wraps an MLP config, `Layer` resolves to the built MLP
+- `nn_models::sequential::Module<LAYERS...>` — `Layer` resolves to `sequential::Build<CAPABILITY, Module<LAYERS...>, INPUT_SHAPE>`
+
+This means `parallel::Build` accepts any such type (dense, MLP, sequential, other composites) on either side.
+
+## nn_models Structure
+
+Models live in `include/rl_tools/nn_models/<model_name>/`:
+- `model.h` — type definitions (Specification, ModuleForward/Backward/Gradient, Buffer, State, Build)
+- `operations_generic.h` — all operations (malloc/free, init_weights, evaluate, forward, backward variants, zero_gradient, update, _reset_optimizer_state, copy, abs_diff, is_nan, output)
+
+## Delegating Operations for Composite Models
+
+Composite models (sequential, parallel, resnet_block) delegate all operations to their sub-modules. The pattern:
+```cpp
+template <typename DEVICE, typename SPEC, typename RNG>
+void init_weights(DEVICE& device, nn_models::my_model::ModuleForward<SPEC>& module, RNG& rng){
+    init_weights(device, module.sub_a, rng);
+    init_weights(device, module.sub_b, rng);
+}
+```
+
+All standard operations must be implemented: `malloc`, `free`, `init_weights`, `evaluate`, `forward`, `backward_full`, `backward`, `backward_input`, `zero_gradient`, `update`, `_reset_optimizer_state`, `reset_forward_state`, `copy`, `abs_diff`, `is_nan`, `output`.
+
+## Include Guard Convention
+
+Headers use a two-part guard:
+```cpp
+#include "../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_<PATH>_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_<PATH>_H
+// ...
+#endif
+```
+Where `<PATH>` follows the directory structure in `SCREAMING_SNAKE_CASE` (e.g. `RL_TOOLS_NN_MODELS_PARALLEL_MODEL_H`).
+
+## Adam Optimizer Usage
+
+To use the Adam optimizer in tests/training:
+1. `rlt::malloc(device, optimizer)` — allocates internal tensors (age, bias corrections, parameters)
+2. `rlt::init(device, optimizer)` — sets hyperparameters (alpha, beta_1, beta_2, etc.) from defaults
+3. `rlt::reset_optimizer_state(device, optimizer, model)` — zeros momentum tensors, sets age to 1
+4. Training loop: `rlt::step(device, optimizer, model)` — calls `_step` (updates bias corrections, increments age) then `update`
+
+Include order matters: `adam/instance/operations_generic.h` must be included before layer operations that call `update`/`_reset_optimizer_state` on Adam parameter instances. The top-level `adam/operations_generic.h` (with `reset_optimizer_state`, `step`) should be included after model operations so ADL finds the model's `_reset_optimizer_state`.
+
+## Tensor Operations
+
+- `get(device, tensor, indices...)` / `set(device, tensor, value, indices...)` — element access
+- `get_flat(device, tensor, flat_index)` — flat index access (requires contiguous row-major layout)
+- `data(tensor)` — raw pointer to tensor data
+- `view_memory<SHAPE>(device, tensor)` — reshape view (shape rank must match stride rank)
+- `copy(device, device, src, dst)` — copy between tensors (handles non-contiguous strides)
+- When concatenating/splitting tensors from model outputs (which may be non-contiguous views), copy to contiguous intermediates first
+
 ## Code Style
 - Braces on same line
 - No unnecessary comments or docstrings — code should be self-explanatory
-- Don't abbreviate variable names or other symbols. Follow the conventions form the rest of the RLtools codebase
+- Don't abbreviate variable names or other symbols. Follow the conventions from the rest of the RLtools codebase
+- All functions are marked with `RL_TOOLS_FUNCTION_PLACEMENT` for CUDA compatibility
