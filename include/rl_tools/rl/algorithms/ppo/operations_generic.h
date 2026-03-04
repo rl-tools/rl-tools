@@ -52,9 +52,6 @@ namespace rl_tools{
         reset_forward_state(device, ppo.actor);
         zero_gradient(device, ppo.actor);
         reset_optimizer_state(device, critic_optimizer, ppo.critic);
-//        set_all(device, ppo.actor.input_layer.biases.parameters, 0);
-//        set_all(device, ppo.actor.hidden_layers[0].biases.parameters, 0);
-//        set_all(device, ppo.actor.output_layer.biases.parameters, 0);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename PPO_PARAMETERS>
     RL_TOOLS_FUNCTION_PLACEMENT void estimate_generalized_advantages(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, PPO_PARAMETERS ppo_parameters_tag){
@@ -109,11 +106,13 @@ namespace rl_tools{
         constexpr TI N_BATCHES = DATASET::STEPS_TOTAL/BATCH_SIZE;
         static_assert(N_BATCHES > 0);
         constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
-        constexpr TI OBSERVATION_DIM = ENVIRONMENT::Observation::DIM;
-        constexpr TI OBSERVATION_PRIVILEGED_DIM = ENVIRONMENT::ObservationPrivileged::DIM;
         constexpr TI N_AGENTS = PPO_SPEC::ENVIRONMENT::N_AGENTS;
         static_assert(ACTION_DIM % N_AGENTS == 0);
         constexpr TI PER_AGENT_ACTION_DIM = PPO_SPEC::ENVIRONMENT::ACTION_DIM/N_AGENTS;
+
+        using OBS_SHAPE = typename DATASET::OBS_SHAPE;
+        using OBS_PRIV_SHAPE = typename DATASET::OBS_PRIV_SHAPE;
+
         // batch needs observations, original log-probs, advantages
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
@@ -127,16 +126,19 @@ namespace rl_tools{
             static_assert(!PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC || (BATCH_SIZE == DATASET_SPEC::STEPS_PER_ENV * DATASET_SPEC::SPEC::N_ENVIRONMENTS), "Stateful actor and critic implies single batch");
             static_assert(!PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC || !PPO_SPEC::PARAMETERS::SHUFFLE_EPOCH, "Stateful actor and critic implies epoch shuffling");
             if constexpr(PPO_SPEC::PARAMETERS::SHUFFLE_EPOCH){ // shuffling
+                // Create matrix views of observation tensors for shuffling
+                auto observations_matrix = matrix_view(device, dataset.all_observations);
+                auto observations_privileged_matrix = matrix_view(device, dataset.all_observations_privileged);
                 for(TI dataset_i = 0; dataset_i < DATASET::STEPS_TOTAL; dataset_i++){
                     TI sample_index = random::uniform_int_distribution(device.random, dataset_i, DATASET::STEPS_TOTAL-1, rng);
                     {
-                        auto target_row = row(device, dataset.observations, dataset_i);
-                        auto source_row = row(device, dataset.observations, sample_index);
+                        auto target_row = row(device, observations_matrix, dataset_i);
+                        auto source_row = row(device, observations_matrix, sample_index);
                         swap(device, target_row, source_row);
                     }
                     if(PPO_SPEC::ASYMMETRIC_OBSERVATIONS){
-                        auto target_row = row(device, dataset.all_observations_privileged, dataset_i);
-                        auto source_row = row(device, dataset.all_observations_privileged, sample_index);
+                        auto target_row = row(device, observations_privileged_matrix, dataset_i);
+                        auto source_row = row(device, observations_privileged_matrix, sample_index);
                         swap(device, target_row, source_row);
                     }
                     if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
@@ -161,8 +163,8 @@ namespace rl_tools{
                 zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
 
                 auto batch_offset = batch_i * BATCH_SIZE;
-                auto batch_observations            = view(device, dataset.observations               , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM           >(), batch_offset, 0);
-                auto batch_observations_privileged = view(device, dataset.all_observations_privileged, matrix::ViewSpec<BATCH_SIZE, OBSERVATION_PRIVILEGED_DIM>(), batch_offset, 0);
+                auto batch_observations            = view_range(device, dataset.all_observations              , batch_offset, tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto batch_observations_privileged = view_range(device, dataset.all_observations_privileged   , batch_offset, tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto batch_actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM                >(), batch_offset, 0);
                 auto batch_actions                 = view(device, dataset.actions                    , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM                >(), batch_offset, 0);
                 auto batch_action_log_probs        = view(device, dataset.action_log_probs           , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
@@ -182,34 +184,18 @@ namespace rl_tools{
                     advantage_std /= BATCH_SIZE;
                     advantage_std = math::sqrt(device.math, math::max(device.math, (T)0, advantage_std - advantage_mean * advantage_mean));
                 }
-//                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
-//                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
-                auto batch_observations_tensor = to_tensor(device, batch_observations);
                 static constexpr TI STEPS = PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? DATASET_SPEC::STEPS_PER_ENV : 1;
                 static constexpr TI FORWARD_BATCH_SIZE = PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? DATASET_SPEC::SPEC::N_ENVIRONMENTS : BATCH_SIZE;
-                auto batch_observations_tensor_reshaped = reshape_row_major(device, batch_observations_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, OBSERVATION_DIM>{});
+                using ACTOR_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
+                auto batch_observations_reshaped = reshape_row_major(device, batch_observations, ACTOR_INPUT_SHAPE{});
                 auto current_batch_actions_tensor = to_tensor(device, ppo_buffers.current_batch_actions);
                 auto current_batch_actions_tensor_reshaped = reshape_row_major(device, current_batch_actions_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
                 auto batch_reset_tensor_flat = to_tensor(device, batch_reset);
                 auto batch_reset_tensor = reshape_row_major(device, batch_reset_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-                // if(PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC){
-                //     // STATEFUL_ACTOR_AND_CRITIC implies N_EPOCHS == 1, hence we can shift the truncated flags in place. Long term we should add a buffer that we copy to such that we don't have a side-effect on the dataset.
-                //     static_assert(STEPS >= 1);
-                //     for (TI step_i = STEPS - 1; step_i > 0 ; step_i--){
-                //         for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
-                //             bool truncated = get(device, batch_truncated_tensor, step_i-1, env_i, 0);
-                //             set(device, batch_truncated_tensor, truncated, step_i, env_i, 0);
-                //         }
-                //     }
-                //     for (TI env_i = 0; env_i < FORWARD_BATCH_SIZE; env_i++){
-                //         set(device, batch_truncated_tensor, true, 0, env_i, 0);
-                //     }
-                // }
                 Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_reset_tensor)>>> mode;
                 mode.reset_container = batch_reset_tensor;
-                forward(device, ppo.actor, batch_observations_tensor_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng, mode);
-//                auto abs_diff = abs_diff(device, batch_actions, dataset.actions);
+                forward(device, ppo.actor, batch_observations_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng, mode);
 
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;
@@ -233,28 +219,15 @@ namespace rl_tools{
                             batch_policy_kl_divergence += kl;
                         }
 
-//                        T action_diff_by_action_std = (current_action - rollout_action) / current_action_std;
-//                        action_log_prob += -0.5 * action_diff_by_action_std * action_diff_by_action_std - current_action_log_std - 0.5 * math::log(device.math, 2 * math::PI<T>);
-                        // probability of the old actions under the new policy
                         action_log_prob += random::normal_distribution::log_prob(device.random, current_action, current_action_log_std, rollout_action);
-//                        set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, - action_diff_by_action_std / current_action_std);
                         set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, random::normal_distribution::d_log_prob_d_mean(device.random, current_action, current_action_log_std, rollout_action));
 
                         T current_entropy = current_action_log_std + math::log(device.math, 2 * math::PI<T>)/(T)2 + (T)1/(T)2;
                         T current_entropy_loss = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT * current_entropy;
-                        // todo: think about possible implementation detail: clipping entropy bonus as well (because it changes the distribution)
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
                             auto& last_layer = get_last_layer(ppo.actor);
                             increment(device, last_layer.log_std.gradient, d_entropy_loss_d_current_action_log_std, action_i % PER_AGENT_ACTION_DIM);
-//                          derivation: d_current_action_log_prob_d_action_log_std
-//                          d_current_action_log_prob_d_action_std =  (-action_diff_by_action_std) * (-action_diff_by_action_std)      / action_std - 1 / action_std)
-//                          d_current_action_log_prob_d_action_std = ((-action_diff_by_action_std) * (-action_diff_by_action_std) - 1) / action_std)
-//                          d_current_action_log_prob_d_action_std = (action_diff_by_action_std * action_diff_by_action_std - 1) / action_std
-//                          d_current_action_log_prob_d_action_log_std = (action_diff_by_action_std * action_diff_by_action_std - 1) / action_std * exp(action_log_std)
-//                          d_current_action_log_prob_d_action_log_std = (action_diff_by_action_std * action_diff_by_action_std - 1) / action_std * action_std
-//                          d_current_action_log_prob_d_action_log_std =  action_diff_by_action_std * action_diff_by_action_std - 1
-//                            T d_current_action_log_prob_d_action_log_std = action_diff_by_action_std * action_diff_by_action_std - 1;
                             T d_action_log_prob_d_current_action_log_std = random::normal_distribution::d_log_prob_d_log_std(device.random, current_action, current_action_log_std, rollout_action);
                             set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, d_action_log_prob_d_current_action_log_std);
                         }
@@ -266,7 +239,6 @@ namespace rl_tools{
                     }
                     T log_ratio = action_log_prob - rollout_action_log_prob;
                     T ratio = math::exp(device.math, log_ratio);
-                    // todo: test relative clipping (clipping in log space makes more sense thatn clipping in exp space)
                     T clipped_ratio = math::clamp(device.math, ratio, 1 - PPO_SPEC::PARAMETERS::EPSILON_CLIP, 1 + PPO_SPEC::PARAMETERS::EPSILON_CLIP);
                     bool clipped = ratio != clipped_ratio;
                     T normal_advantage = ratio * advantage;
@@ -306,20 +278,19 @@ namespace rl_tools{
                 }
                 auto d_action_d_log_prob_action_tensor = to_tensor(device, ppo_buffers.d_action_log_prob_d_action);
                 auto d_action_d_log_prob_action_tensor_reshaped = reshape_row_major(device, d_action_d_log_prob_action_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
-                backward(device, ppo.actor, batch_observations_tensor_reshaped, d_action_d_log_prob_action_tensor_reshaped, actor_buffers, mode);
-//                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
+                backward(device, ppo.actor, batch_observations_reshaped, d_action_d_log_prob_action_tensor_reshaped, actor_buffers, mode);
 
-                auto batch_observations_privileged_tensor = to_tensor(device, batch_observations_privileged);
-                auto batch_observations_privileged_tensor_reshaped = reshape_row_major(device, batch_observations_privileged_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, OBSERVATION_PRIVILEGED_DIM>{});
+                using CRITIC_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
+                auto batch_observations_privileged_reshaped = reshape_row_major(device, batch_observations_privileged, CRITIC_INPUT_SHAPE{});
                 {
-                    forward(device, ppo.critic, batch_observations_privileged_tensor_reshaped, critic_buffers, rng, mode);
+                    forward(device, ppo.critic, batch_observations_privileged_reshaped, critic_buffers, rng, mode);
                     auto output_tensor = output(device, ppo.critic);
                     static_assert(sizeof(output_tensor) <= sizeof(void*));
                     auto output_matrix_view = matrix_view(device, output_tensor);
                     nn::loss_functions::mse::gradient(device, output_matrix_view, batch_target_values, ppo_buffers.d_critic_output, 0.5);
                     auto d_critic_output_tensor = to_tensor(device, ppo_buffers.d_critic_output);
                     auto d_critic_output_tensor_reshaped = reshape_row_major(device, d_critic_output_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-                    backward(device, ppo.critic, batch_observations_privileged_tensor_reshaped, d_critic_output_tensor_reshaped, critic_buffers, mode);
+                    backward(device, ppo.critic, batch_observations_privileged_reshaped, d_critic_output_tensor_reshaped, critic_buffers, mode);
                 }
                 auto output_tensor = output(device, ppo.critic);
                 auto output_matrix_view = matrix_view(device, output_tensor);

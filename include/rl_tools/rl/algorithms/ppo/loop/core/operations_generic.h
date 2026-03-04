@@ -91,18 +91,23 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         constexpr TI CADENCE_PRE = CONFIG::CORE_PARAMETERS::STEP_LIMIT / 1000;
         constexpr TI CADENCE = CADENCE_PRE > 0 ? CADENCE_PRE : 1;
-        using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
         constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
+        constexpr TI STEPS_TOTAL = CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
+        constexpr TI OBS_DIM = T_CONFIG::ENVIRONMENT::Observation::DIM;
         set_step(device, device.logger, ts.step * CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS * CONFIG::CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
         bool finished = false;
 
-        auto per_agent_observations = reshape<OBS_SPEC::ROWS*N_AGENTS, OBS_SPEC::COLS/N_AGENTS>(device, ts.observations_dense);
+        auto per_agent_observations = reshape<STEPS_TOTAL*N_AGENTS, OBS_DIM/N_AGENTS>(device, ts.observations_dense);
         if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && ts.step == 0){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
                 collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
-                copy(device, device, ts.on_policy_runner_dataset.observations, ts.observations_dense);
+                // Copy observations from tensor to matrix for normalization
+                auto obs_subset = view_range(device, ts.on_policy_runner_dataset.all_observations, 0, tensor::ViewSpec<0, STEPS_TOTAL>{});
+                auto obs_matrix = matrix_view(device, obs_subset);
+                copy(device, device, obs_matrix, ts.observations_dense);
                 update(device, ts.observation_normalizer, per_agent_observations);
-                update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
+                auto obs_priv_matrix = matrix_view(device, ts.on_policy_runner_dataset.all_observations_privileged);
+                update(device, ts.observation_privileged_normalizer, obs_priv_matrix);
             }
             init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
             set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
@@ -110,23 +115,27 @@ namespace rl_tools{
         }
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
         if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
-            copy(device, device, ts.on_policy_runner_dataset.observations, ts.observations_dense);
+            auto obs_subset = view_range(device, ts.on_policy_runner_dataset.all_observations, 0, tensor::ViewSpec<0, STEPS_TOTAL>{});
+            auto obs_matrix = matrix_view(device, obs_subset);
+            copy(device, device, obs_matrix, ts.observations_dense);
             update(device, ts.observation_normalizer, per_agent_observations);
             set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
-            update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
+            auto obs_priv_matrix = matrix_view(device, ts.on_policy_runner_dataset.all_observations_privileged);
+            update(device, ts.observation_privileged_normalizer, obs_priv_matrix);
             set_statistics(device, get_first_layer(ts.ppo.critic), ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
         static constexpr TI STEPS = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_PER_ENV+1 : 1;
         static constexpr TI FORWARD_BATCH_SIZE = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::SPEC::N_ENVIRONMENTS : CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL;
-        auto all_observations_privileged_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_observations_privileged);
-        auto all_observations_privileged_tensor_reshaped = reshape_row_major(device, all_observations_privileged_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, decltype(all_observations_privileged_tensor)::SHAPE::LAST>{});
+        using OBS_PRIV_SHAPE = typename CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
+        using CRITIC_GAE_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
+        auto all_observations_privileged_reshaped = reshape_row_major(device, ts.on_policy_runner_dataset.all_observations_privileged, CRITIC_GAE_INPUT_SHAPE{});
         auto all_values_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_values);
         auto all_values_tensor_reshaped = reshape_row_major(device, all_values_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
         auto all_reset_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_reset);
         auto all_reset_tensor_reshaped = reshape_row_major(device, all_reset_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
         Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(all_reset_tensor_reshaped)>>> critic_reset_mode;
         critic_reset_mode.reset_container = all_reset_tensor_reshaped;
-        evaluate(device, ts.ppo.critic, all_observations_privileged_tensor_reshaped, all_values_tensor_reshaped, ts.critic_buffers_gae, ts.rng, critic_reset_mode);
+        evaluate(device, ts.ppo.critic, all_observations_privileged_reshaped, all_values_tensor_reshaped, ts.critic_buffers_gae, ts.rng, critic_reset_mode);
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
@@ -141,7 +150,6 @@ namespace rl_tools{
             }
         }
 
-//        log(device, device.logger, "log_std: ", get(ts.ppo.actor.log_std.parameters, 0, 0));
         add_scalar(device, device.logger, "ppo/step", ts.step, CADENCE);
 
         ts.step++;
@@ -169,7 +177,6 @@ namespace rl_tools{
     template <typename DEVICE, typename CONFIG, typename utils::typing::enable_if<utils::typing::is_same_v<typename CONFIG::TAG, rl::algorithms::ppo::loop::core::ConfigTag>>::type* = nullptr>
     RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, CONFIG){
         log(device, typename CONFIG::CORE_PARAMETERS{});
-//        log(device, typename CONFIG::NEXT{});
     }
 
     // the following operations are for nn_analytics iterating the neural networks

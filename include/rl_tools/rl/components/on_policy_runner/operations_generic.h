@@ -10,30 +10,30 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
-        malloc(device, dataset.data);
-        using DATA_SPEC = typename decltype(dataset.data)::SPEC;
+        malloc(device, dataset.all_observations);
+        malloc(device, dataset.all_observations_privileged);
+        malloc(device, dataset.scalar_data);
+        using SCALAR_DATA_SPEC = typename decltype(dataset.scalar_data)::SPEC;
         using TI = typename SPEC::SPEC::TI;
         TI pos = 0;
-        dataset.all_observations_privileged = view<DEVICE, DATA_SPEC, decltype(dataset.all_observations_privileged)::ROWS, decltype(dataset.all_observations_privileged)::COLS>(device, dataset.data, 0, pos); pos += (SPEC::ASYMMETRIC_OBSERVATIONS ? decltype(dataset.all_observations_privileged)::COLS : 0);
-        dataset.observations                = view<DEVICE, DATA_SPEC, decltype(dataset.observations               )::ROWS, decltype(dataset.observations               )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.observations           )::COLS;
-        dataset.actions_mean                = view<DEVICE, DATA_SPEC, decltype(dataset.actions_mean               )::ROWS, decltype(dataset.actions_mean               )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions_mean           )::COLS;
-        dataset.actions                     = view<DEVICE, DATA_SPEC, decltype(dataset.actions                    )::ROWS, decltype(dataset.actions                    )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions                )::COLS;
-        dataset.action_log_probs            = view<DEVICE, DATA_SPEC, decltype(dataset.action_log_probs           )::ROWS, decltype(dataset.action_log_probs           )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.action_log_probs       )::COLS;
-        dataset.rewards                     = view<DEVICE, DATA_SPEC, decltype(dataset.rewards                    )::ROWS, decltype(dataset.rewards                    )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.rewards                )::COLS;
-        dataset.terminated                  = view<DEVICE, DATA_SPEC, decltype(dataset.terminated                 )::ROWS, decltype(dataset.terminated                 )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.terminated             )::COLS;
-        dataset.truncated                   = view<DEVICE, DATA_SPEC, decltype(dataset.truncated                  )::ROWS, decltype(dataset.truncated                  )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.truncated              )::COLS;
-        dataset.all_reset                   = view<DEVICE, DATA_SPEC, decltype(dataset.all_reset                  )::ROWS, decltype(dataset.all_reset                  )::COLS>(device, dataset.data, 0, pos);
-        dataset.reset                       = view<DEVICE, DATA_SPEC, decltype(dataset.reset                      )::ROWS, decltype(dataset.reset                      )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.reset                  )::COLS;
-        dataset.all_values                  = view<DEVICE, DATA_SPEC, decltype(dataset.all_values                 )::ROWS, decltype(dataset.all_values                 )::COLS>(device, dataset.data, 0, pos);
-        dataset.values                      = view<DEVICE, DATA_SPEC, decltype(dataset.values                     )::ROWS, decltype(dataset.values                     )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.values                 )::COLS;
-        dataset.advantages                  = view<DEVICE, DATA_SPEC, decltype(dataset.advantages                 )::ROWS, decltype(dataset.advantages                 )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.advantages             )::COLS;
-        dataset.target_values               = view<DEVICE, DATA_SPEC, decltype(dataset.target_values              )::ROWS, decltype(dataset.target_values              )::COLS>(device, dataset.data, 0, pos);
+        dataset.actions_mean     = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.actions_mean    )::ROWS, decltype(dataset.actions_mean    )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.actions_mean    )::COLS;
+        dataset.actions          = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.actions         )::ROWS, decltype(dataset.actions         )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.actions         )::COLS;
+        dataset.action_log_probs = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.action_log_probs)::ROWS, decltype(dataset.action_log_probs)::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.action_log_probs)::COLS;
+        dataset.rewards          = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.rewards         )::ROWS, decltype(dataset.rewards         )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.rewards         )::COLS;
+        dataset.terminated       = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.terminated      )::ROWS, decltype(dataset.terminated      )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.terminated      )::COLS;
+        dataset.truncated        = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.truncated       )::ROWS, decltype(dataset.truncated       )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.truncated       )::COLS;
+        dataset.all_reset        = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.all_reset       )::ROWS, decltype(dataset.all_reset       )::COLS>(device, dataset.scalar_data, 0, pos);
+        dataset.reset            = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.reset           )::ROWS, decltype(dataset.reset           )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.reset           )::COLS;
+        dataset.all_values       = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.all_values      )::ROWS, decltype(dataset.all_values      )::COLS>(device, dataset.scalar_data, 0, pos);
+        dataset.values           = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.values          )::ROWS, decltype(dataset.values          )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.values          )::COLS;
+        dataset.advantages       = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.advantages      )::ROWS, decltype(dataset.advantages      )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.advantages      )::COLS;
+        dataset.target_values    = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.target_values   )::ROWS, decltype(dataset.target_values   )::COLS>(device, dataset.scalar_data, 0, pos);
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
-        free(device, dataset.data);
-        dataset.all_observations_privileged._data = nullptr;
-        dataset.observations               ._data = nullptr;
+        free(device, dataset.all_observations);
+        free(device, dataset.all_observations_privileged);
+        free(device, dataset.scalar_data);
         dataset.actions_mean               ._data = nullptr;
         dataset.actions                    ._data = nullptr;
         dataset.action_log_probs           ._data = nullptr;
@@ -81,10 +81,8 @@ namespace rl_tools{
 #endif
     }
     namespace rl::components::on_policy_runner{
-        template <typename DEVICE, typename OBSERVATIONS_PRIVILEGED_SPEC, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-        RL_TOOLS_FUNCTION_PLACEMENT void prologue(DEVICE& device, Matrix<OBSERVATIONS_PRIVILEGED_SPEC>& observations_privileged, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
-            static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
-            static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::Observation::DIM);
+        template <typename DEVICE, typename OBS_PRIV_SPEC, typename OBS_SPEC, typename SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void prologue(DEVICE& device, Tensor<OBS_PRIV_SPEC>& observations_privileged, Tensor<OBS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
             using TI = typename SPEC::TI;
             for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
@@ -118,14 +116,15 @@ namespace rl_tools{
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             auto actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto actions                 = view(device, dataset.actions                    , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto observations_privileged = view(device, dataset.all_observations_privileged, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto observations            = view(device, dataset.observations               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>()          , step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto observations_privileged = view_range(device, dataset.all_observations_privileged, step_i*SPEC::N_ENVIRONMENTS, tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});
+            auto observations            = view_range(device, dataset.all_observations          , step_i*SPEC::N_ENVIRONMENTS, tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});
             auto truncated_view = view(device, runner.truncated);
             Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(truncated_view)>>> mode_reset_mask;
             mode_reset_mask.mask = truncated_view;
             reset(device, actor, runner.policy_state, rng, mode_reset_mask); // it is important that this happens before prologue because prologue resets the truncated flags on the runner
             rl::components::on_policy_runner::prologue(device, observations_privileged, observations, runner, rng, step_i);
-            auto observations_tensor = to_tensor(device, observations);
+            auto observations_matrix = matrix_view(device, observations);
+            auto observations_tensor = to_tensor(device, observations_matrix);
             auto actions_mean_tensor = to_tensor(device, actions_mean);
             Mode<mode::Rollout<>> mode;
             evaluate_step(device, actor, observations_tensor, runner.policy_state, actions_mean_tensor, policy_eval_buffers, rng, mode);
@@ -138,9 +137,9 @@ namespace rl_tools{
             auto& env = get(runner.environments, 0, env_i);
             auto& state = get(runner.states, 0, env_i);
             auto& parameters = get(runner.env_parameters, 0, env_i);
-            TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
-            auto observation = row(device, dataset.all_observations_privileged, row_i);
-            observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::ObservationPrivileged{}, observation, rng);
+            auto obs_priv_slice = view(device, dataset.all_observations_privileged, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
+            auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
+            observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
@@ -148,8 +147,8 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC_1>& d1, rl::components::on_policy_runner::Dataset<SPEC_2>& d2){
         using T = typename SPEC_1::SPEC::TYPE_POLICY::DEFAULT;
         T acc = 0;
+        acc += abs_diff(device, d1.all_observations, d2.all_observations);
         acc += abs_diff(device, d1.all_observations_privileged, d2.all_observations_privileged);
-        acc += abs_diff(device, d1.observations, d2.observations);
         acc += abs_diff(device, d1.actions_mean, d2.actions_mean);
         acc += abs_diff(device, d1.actions, d2.actions);
         acc += abs_diff(device, d1.action_log_probs, d2.action_log_probs);
