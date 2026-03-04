@@ -59,14 +59,10 @@ namespace rl_tools {
             void* world = nullptr;             // OWLGroup (instance group)
             void* rgb_launch_params = nullptr; // OWLParams
 
-            // Collision context
-            void* coll_context = nullptr;
-            void* coll_module = nullptr;
+            // Collision (shares context/module/world with RGB)
             void* collision_ray_gen = nullptr;
             void* collision_results_buffer = nullptr; // OWLBuffer (host-pinned)
-            void* coll_cameras_buffer = nullptr;
             void* probe_dirs_buffer = nullptr;
-            void* coll_world = nullptr;
             void* coll_launch_params = nullptr;
 
             // Scene parameters

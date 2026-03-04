@@ -38,6 +38,32 @@ namespace rl_tools {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
+        if(env.renderer->collision_results_buffer == nullptr){
+            constexpr T PI = static_cast<T>(3.14159265358979323846);
+            const T center_x = env.renderer->scene_center[0];
+            const T center_z = env.renderer->scene_center[2];
+            const T search_radius = env.renderer->camera_radius > static_cast<T>(1)
+                ? static_cast<T>(0.95) * env.renderer->camera_radius
+                : static_cast<T>(8);
+            for (TI i = 0; i < rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES; i++) {
+                const T u = raytracing_example_radical_inverse<T>(i + 1, static_cast<TI>(2));
+                const T v = raytracing_example_radical_inverse<T>(i + 1, static_cast<TI>(3));
+                const T radius = search_radius * std::sqrt(u);
+                const T angle = static_cast<T>(2) * PI * v;
+
+                auto& s = env.indoor_initial_states[i];
+                s.position[0] = center_x + radius * std::cos(angle);
+                s.position[1] = static_cast<T>(0);
+                s.position[2] = center_z + radius * std::sin(angle);
+                s.velocity[0] = static_cast<T>(0);
+                s.velocity[1] = static_cast<T>(0);
+                s.velocity[2] = static_cast<T>(0);
+                s.yaw = static_cast<T>(2) * PI * raytracing_example_frac(static_cast<T>(0.61803398875) * static_cast<T>(i + 1));
+            }
+            env.num_indoor_initial_states = rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES;
+            return;
+        }
+
         struct Candidate {
             rl::environments::raytracing_example::State<SPEC> state;
             T score;
