@@ -2,6 +2,10 @@ add_executable(test_nn_models_sequential sequential.cpp)
 target_link_libraries(test_nn_models_sequential RLtools::Core GTest::gtest_main)
 gtest_discover_tests(test_nn_models_sequential)
 
+add_executable(test_nn_models_dual_pipeline dual_pipeline.cpp)
+target_link_libraries(test_nn_models_dual_pipeline RLtools::Core GTest::gtest_main)
+gtest_discover_tests(test_nn_models_dual_pipeline)
+
 if(RL_TOOLS_ENABLE_HDF5)
     if(RL_TOOLS_TEST_DATA_PATH)
         # Neural Network Test MLP
