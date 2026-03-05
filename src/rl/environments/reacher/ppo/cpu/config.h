@@ -32,7 +32,7 @@ struct CONFIG_FACTORY{
         static constexpr TI FORWARD_BATCH_SIZE = PARAMETERS::BATCH_SIZE;
         template <typename CAPABILITY>
         struct Actor{
-            using OBS_SHAPE = typename rlt::rl::environments::observation::shape_of<typename T_ENVIRONMENT::Observation, T_TI>::type;
+            using OBS_SHAPE = typename T_ENVIRONMENT::Observation::SHAPE;
             using INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
             using CONV1_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 16, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
             using CONV1 = rlt::nn::layers::conv2d::BindConfiguration<CONV1_CONFIG>;
@@ -48,7 +48,7 @@ struct CONFIG_FACTORY{
         };
         template <typename CAPABILITY>
         struct Critic{
-            using OBS_PRIV_SHAPE = typename rlt::rl::environments::observation::shape_of<typename T_ENVIRONMENT::ObservationPrivileged, T_TI>::type;
+            using OBS_PRIV_SHAPE = typename T_ENVIRONMENT::ObservationPrivileged::SHAPE;
             using INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
             using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<T_TYPE_POLICY, T_TI>;
             using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;

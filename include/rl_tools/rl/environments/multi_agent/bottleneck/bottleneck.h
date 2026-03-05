@@ -5,6 +5,7 @@
 
 #include "../../../../math/operations_generic.h"
 #include "../environments.h"
+#include "../../observation.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multi_agent::bottleneck {
@@ -37,6 +38,7 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         using TI = typename PARAMETERS::TI;
         static constexpr TI PER_AGENT_DIM = 7 + PARAMETERS::LIDAR_RESOLUTION;
         static constexpr TI DIM = PARAMETERS::N_AGENTS * PER_AGENT_DIM;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename T_PARAMETERS>
     struct ObservationPrivileged{
@@ -45,6 +47,7 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         using TI = typename PARAMETERS::TI;
         static constexpr TI PER_AGENT_DIM = 7 + PARAMETERS::LIDAR_RESOLUTION;
         static constexpr TI DIM = PARAMETERS::N_AGENTS * PER_AGENT_DIM;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename T_TYPE_POLICY, typename T_TI, typename T_PARAMETERS = DefaultParameters<typename T_TYPE_POLICY::DEFAULT, T_TI>, typename T_OBSERVATION = Observation<T_PARAMETERS>, typename T_OBSERVATION_PRIVILEGED = ObservationPrivileged<T_PARAMETERS>>
     struct Specification{

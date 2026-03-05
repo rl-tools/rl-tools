@@ -6,6 +6,7 @@
 #include "../../../utils/generic/typing.h"
 
 #include "../environments.h"
+#include "../observation.h"
 // #include "./parameters/reward_functions/default.h"
 // #include "./parameters/registry.h"
 #include "./parameters/trajectories/trajectory.h"
@@ -236,8 +237,10 @@ namespace rl_tools::rl::environments::l2f{
     namespace observation{
         template <typename T_TI>
         struct LastComponent{
-            static constexpr T_TI CURRENT_DIM = 0;
-            static constexpr T_TI DIM = 0;
+            using TI = T_TI;
+            static constexpr TI CURRENT_DIM = 0;
+            static constexpr TI DIM = 0;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_TI, bool T_ENABLE, typename T_CURRENT_COMPONENT, typename T_NEXT_COMPONENT=LastComponent<T_TI>>
         struct MultiplexSpecification{
@@ -254,10 +257,13 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = ENABLE ? CURRENT_COMPONENT::CURRENT_DIM : 0;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_TI>
         struct NONE{
-            static constexpr T_TI DIM = 0;
+            using TI = T_TI;
+            static constexpr TI DIM = 0;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
 
 
@@ -280,6 +286,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct OrientationQuaternionSpecification{
@@ -300,6 +307,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 4;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
 
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
@@ -321,6 +329,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 9;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct LinearVelocitySpecification{
@@ -341,6 +350,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct AngularVelocitySpecification {
@@ -361,6 +371,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct IMUAccelerometerSpecification{
@@ -381,6 +392,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct MagnetometerSpecification{
@@ -401,6 +413,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 2;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, T_TI T_DELAY, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct AngularVelocityDelayedSpecification {
@@ -422,6 +435,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, T_TI T_DELAY, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct LinearVelocityDelayedSpecification {
@@ -443,6 +457,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct PoseIntegralSpecification {
@@ -459,6 +474,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 3 + 1;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct RotorSpeedsSpecification {
@@ -473,6 +489,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 4;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct ActionHistorySpecification {
@@ -490,6 +507,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr TI ACTION_DIM = 4;
             static constexpr TI CURRENT_DIM = ACTION_DIM * HISTORY_LENGTH;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct RandomForceSpecification {
@@ -504,6 +522,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 6;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, T_TI T_N, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct ParametersMotorPositionSpecification {
@@ -519,6 +538,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = SPEC::N * 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, T_TI T_N, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct ParametersThrustCurvesSpecification {
@@ -534,6 +554,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = SPEC::N * 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct ParametersMassSpecification {
@@ -548,6 +569,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 1;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct ParametersInertiaSpecification {
@@ -562,6 +584,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 9;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct TrajectoryTrackingPositionSpecification{
@@ -577,6 +600,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct TrajectoryTrackingLinearVelocitySpecification{
@@ -592,6 +616,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 3;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, T_TI T_N_STEPS, T_TI T_INTERVAL, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct TrajectoryTrackingLookaheadSpecification{
@@ -611,6 +636,7 @@ namespace rl_tools::rl::environments::l2f{
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
             static constexpr TI CURRENT_DIM = 6 * SPEC::N_STEPS;
             static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
     }
 

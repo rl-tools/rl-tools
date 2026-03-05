@@ -7,14 +7,16 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, GROUP& group){
-        // All fields (observations, actions, rewards, etc.) are views into dataset.data
-        // So saving dataset.data is sufficient
-        save(device, dataset.data, group, "data");
+        save(device, dataset.all_observations, group, "all_observations");
+        save(device, dataset.all_observations_privileged, group, "all_observations_privileged");
+        save(device, dataset.scalar_data, group, "data");
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
     bool load(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, GROUP& group){
-        // All fields are views into dataset.data, so loading data restores everything
-        return load(device, dataset.data, group, "data");
+        bool success = load(device, dataset.all_observations, group, "all_observations");
+        success &= load(device, dataset.all_observations_privileged, group, "all_observations_privileged");
+        success &= load(device, dataset.scalar_data, group, "data");
+        return success;
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, GROUP& group){

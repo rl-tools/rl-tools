@@ -54,8 +54,8 @@ namespace rl_tools::rl::algorithms{
             using PARAMETERS = T_PARAMETERS;
             static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
 
-            using _OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
-            using _OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::ObservationPrivileged, TI>::type;
+            using _OBS_SHAPE = typename ENVIRONMENT::Observation::SHAPE;
+            using _OBS_PRIV_SHAPE = typename ENVIRONMENT::ObservationPrivileged::SHAPE;
             static_assert(get_last(typename ACTOR_TYPE::INPUT_SHAPE{}) == get_last(_OBS_SHAPE{}));
             static_assert(get_last(typename CRITIC_TYPE::INPUT_SHAPE{}) == get_last(_OBS_PRIV_SHAPE{}));
             static_assert(get_last(typename ACTOR_TYPE::OUTPUT_SHAPE{}) == ENVIRONMENT::ACTION_DIM);

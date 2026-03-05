@@ -46,9 +46,8 @@ namespace rl_tools::rl::components{
             static constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = DATASET_SPEC::STEPS_TOTAL;
 
-            // Observation shapes (derived from observation types via shape_of trait)
-            using OBS_SHAPE = typename rl::environments::observation::shape_of<typename SPEC::ENVIRONMENT::Observation, TI>::type;
-            using OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename SPEC::ENVIRONMENT::ObservationPrivileged, TI>::type;
+            using OBS_SHAPE = typename SPEC::ENVIRONMENT::Observation::SHAPE;
+            using OBS_PRIV_SHAPE = typename SPEC::ENVIRONMENT::ObservationPrivileged::SHAPE;
 
             // Observation tensor storage (separate from scalar data)
             using ALL_OBS_STORAGE_SHAPE = tensor::Prepend<OBS_SHAPE, DATASET_SPEC::STEPS_TOTAL_ALL>;

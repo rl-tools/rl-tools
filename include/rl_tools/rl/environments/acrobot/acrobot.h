@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_ACROBOT_H
 
 #include "../environments.h"
+#include "../observation.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::acrobot {
@@ -51,6 +52,7 @@ namespace rl_tools::rl::environments::acrobot {
     template <typename TI>
     struct Observation{
         static constexpr TI DIM = 6;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
 
 }

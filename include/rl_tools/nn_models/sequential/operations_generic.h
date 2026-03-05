@@ -72,7 +72,10 @@ namespace rl_tools{
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_impl(DEVICE& device, const ModuleForward<MODULE_SPEC>& model, const INPUT& input, OUTPUT& output, ModuleBuffer<BUFFER_SPEC>& buffers, ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffers, RNG& rng, const Mode<MODE>& mode){
             constexpr auto LAST = MODULE_SPEC::NUM_LAYERS - 1;
             if constexpr(LAYER_I == LAST){
-                evaluate(device, layer<LAYER_I>(model), input, output, content_buffer<LAYER_I>(content_buffers), rng, mode);
+                using LAYER_TYPE = utils::typing::remove_reference_t<decltype(layer<LAYER_I>(model))>;
+                using OUTPUT_SHAPE = typename LAYER_TYPE::template OUTPUT_SHAPE_FACTORY<typename INPUT::SPEC::SHAPE>;
+                auto output_view = _content_output_helper<OUTPUT_SHAPE>(device, output);
+                evaluate(device, layer<LAYER_I>(model), input, output_view, content_buffer<LAYER_I>(content_buffers), rng, mode);
             }
             else{
                 auto& output_buffer = TICK ? buffers.tick : buffers.tock;
@@ -88,7 +91,10 @@ namespace rl_tools{
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step_impl(DEVICE& device, const ModuleForward<MODULE_SPEC>& model, const INPUT& input, ModuleState<STATE_SPEC>& state, ContentState<CONTENT_STATE_SPEC>& content_state_container, OUTPUT& output, ModuleBuffer<BUFFER_SPEC>& buffers, ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffers, RNG& rng, const Mode<MODE>& mode){
             constexpr auto LAST = MODULE_SPEC::NUM_LAYERS - 1;
             if constexpr(LAYER_I == LAST){
-                evaluate_step(device, layer<LAYER_I>(model), input, content_state<LAYER_I>(content_state_container), output, content_buffer<LAYER_I>(content_buffers), rng, mode);
+                using LAYER_TYPE = utils::typing::remove_reference_t<decltype(layer<LAYER_I>(model))>;
+                using OUTPUT_SHAPE = typename LAYER_TYPE::template OUTPUT_SHAPE_FACTORY<typename INPUT::SPEC::SHAPE>;
+                auto output_view = _content_output_helper<OUTPUT_SHAPE>(device, output);
+                evaluate_step(device, layer<LAYER_I>(model), input, content_state<LAYER_I>(content_state_container), output_view, content_buffer<LAYER_I>(content_buffers), rng, mode);
             }
             else{
                 auto& output_buffer = TICK ? buffers.tick : buffers.tock;
