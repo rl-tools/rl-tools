@@ -116,9 +116,7 @@ namespace rl_tools{
         static_assert(utils::typing::is_same_v<SPEC, typename DATA_SPEC::SPEC>);
         using T = typename POLICY::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
-        constexpr TI INPUT_DIM = get_last(typename POLICY::INPUT_SHAPE{});
         constexpr TI OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
-        static_assert(ENVIRONMENT::Observation::DIM == INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == OUTPUT_DIM), "Action and policy output dimensions must match");
         results.returns_mean = 0;
         results.returns_std = 0;
@@ -166,7 +164,10 @@ namespace rl_tools{
             }
             auto observations_chunk = view(device, evaluation_buffers.observations, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>{}, 0, 0);
             auto actions_buffer_chunk = view(device, evaluation_buffers.actions, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{}, 0, 0);
-            auto input_tensor = to_tensor(device, observations_chunk);
+            auto input_tensor_flat = to_tensor(device, observations_chunk);
+            using OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
+            using INPUT_SHAPE = tensor::Prepend<OBS_SHAPE, SPEC::N_EPISODES>;
+            auto input_tensor = view_memory<INPUT_SHAPE>(device, input_tensor_flat);
             auto output_tensor = to_tensor(device, actions_buffer_chunk);
 
             evaluate_step(device, policy, input_tensor, policy_state, output_tensor, policy_evaluation_buffers, rng, mode);

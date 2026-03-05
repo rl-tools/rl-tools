@@ -22,10 +22,12 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
             sample_initial_state(device, env, parameters, state, rng);
         }
         auto obs_slice = view(device, observations, env_i);
-        auto obs_matrix = matrix_view(device, obs_slice);
+        auto obs_flat = view_memory<tensor::Shape<typename DEVICE::index_t, SPEC::ENVIRONMENT::Observation::DIM>>(device, obs_slice);
+        auto obs_matrix = matrix_view(device, obs_flat);
         observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng);
         auto obs_priv_slice = view(device, observations_privileged, env_i);
-        auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
+        auto obs_priv_flat = view_memory<tensor::Shape<typename DEVICE::index_t, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>>(device, obs_priv_slice);
+        auto obs_priv_matrix = matrix_view(device, obs_priv_flat);
         observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution

@@ -70,6 +70,19 @@ namespace rl_tools::rl::environments{
         static constexpr TI ACTION_DIM = 2;
         static constexpr TI EPISODE_STEP_LIMIT = 200;
     };
+    template <typename T_SPEC>
+    struct ReacherVisual: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using State = reacher::State<reacher::StateSpecification<T, TI>>;
+        using Parameters = typename SPEC::PARAMETERS;
+        using Observation = reacher::ObservationImage<TI, SPEC::PARAMETERS::IMAGE_HEIGHT, SPEC::PARAMETERS::IMAGE_WIDTH>;
+        using ObservationPrivileged = reacher::ObservationDense<TI>;
+        static constexpr TI N_AGENTS = 1;
+        static constexpr TI ACTION_DIM = 2;
+        static constexpr TI EPISODE_STEP_LIMIT = 200;
+    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

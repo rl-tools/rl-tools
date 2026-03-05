@@ -398,8 +398,6 @@ namespace rl_tools{
 
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename STATE_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, const INPUT& input, nn_models::sequential::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        static_assert(length(typename INPUT::SPEC::SHAPE{}) == 2, "evaluate_step input must be rank 2 (batch x features)");
-        static_assert(length(typename OUTPUT::SPEC::SHAPE{}) == 2, "evaluate_step output must be rank 2 (batch x features)");
         _evaluate_step<TICK>(device, model, input, state, state.content_state, output, buffers, buffers.content_buffer, rng, mode);
     }
 
