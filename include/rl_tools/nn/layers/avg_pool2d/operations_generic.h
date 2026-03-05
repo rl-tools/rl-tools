@@ -50,10 +50,10 @@ namespace rl_tools{
         static_assert(nn::layers::avg_pool2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
-        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
         constexpr TI IH = LAYER_SPEC::INPUT_HEIGHT;
         constexpr TI IW = LAYER_SPEC::INPUT_WIDTH;
         constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
+        constexpr TI BATCH_SIZE = product(typename INPUT_SPEC::SHAPE{}) / (IH * IW * C);
         using INTERNAL_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, IH, IW, C>;
         using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, C>;
         auto input_4d = view_memory<INTERNAL_INPUT_SHAPE>(device, input);
@@ -70,6 +70,11 @@ namespace rl_tools{
                 set(device, output_2d, acc * scale, bi, c_i);
             }
         }
+    }
+
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const nn::layers::avg_pool2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::avg_pool2d::State& state, Tensor<OUTPUT_SPEC>& output, nn::layers::avg_pool2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        evaluate(device, layer, input, output, buffer, rng, mode);
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>

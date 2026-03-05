@@ -46,7 +46,9 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT auto view_memory(DEVICE& device, const Tensor<SPEC>& tensor){
         static_assert(product(SHAPE{}) <= SPEC::SIZE);
         static_assert(tensor::dense_row_major_layout<SPEC, true>());
-        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, true, typename SPEC::STRIDE, true>; // note the last boolean signals constness and needs to be flipped for the non-const version of this function
+        using DENSE_STRIDE = tensor::RowMajorStride<SHAPE>;
+        using STRIDE = tensor::Append<tensor::PopBack<DENSE_STRIDE>, get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{})>;
+        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, true, STRIDE, true>; // note the last boolean signals constness and needs to be flipped for the non-const version of this function
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
         const VIEW_TYPE view{{data(tensor)}};
         return view;

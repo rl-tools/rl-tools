@@ -93,28 +93,31 @@ namespace rl_tools{
         constexpr TI CADENCE = CADENCE_PRE > 0 ? CADENCE_PRE : 1;
         constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
         constexpr TI STEPS_TOTAL = CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
-        constexpr TI OBS_DIM = T_CONFIG::ENVIRONMENT::Observation::DIM;
         set_step(device, device.logger, ts.step * CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS * CONFIG::CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
         bool finished = false;
 
-        auto per_agent_observations = reshape<STEPS_TOTAL*N_AGENTS, OBS_DIM/N_AGENTS>(device, ts.observations_dense);
-        if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && ts.step == 0){
-            for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
-                // Copy observations from tensor to matrix for normalization
-                auto obs_subset = view_range(device, ts.on_policy_runner_dataset.all_observations, 0, tensor::ViewSpec<0, STEPS_TOTAL>{});
-                auto obs_matrix = matrix_view(device, obs_subset);
-                copy(device, device, obs_matrix, ts.observations_dense);
-                update(device, ts.observation_normalizer, per_agent_observations);
-                auto obs_priv_matrix = matrix_view(device, ts.on_policy_runner_dataset.all_observations_privileged);
-                update(device, ts.observation_privileged_normalizer, obs_priv_matrix);
+        if constexpr(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS){
+            constexpr TI OBS_DIM = T_CONFIG::ENVIRONMENT::Observation::DIM;
+            auto per_agent_observations = reshape<STEPS_TOTAL*N_AGENTS, OBS_DIM/N_AGENTS>(device, ts.observations_dense);
+            if(ts.step == 0){
+                for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
+                    collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
+                    auto obs_subset = view_range(device, ts.on_policy_runner_dataset.all_observations, 0, tensor::ViewSpec<0, STEPS_TOTAL>{});
+                    auto obs_matrix = matrix_view(device, obs_subset);
+                    copy(device, device, obs_matrix, ts.observations_dense);
+                    update(device, ts.observation_normalizer, per_agent_observations);
+                    auto obs_priv_matrix = matrix_view(device, ts.on_policy_runner_dataset.all_observations_privileged);
+                    update(device, ts.observation_privileged_normalizer, obs_priv_matrix);
+                }
+                init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
+                set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
+                set_statistics(device, get_first_layer(ts.ppo.critic), ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
             }
-            init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
-            set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
-            set_statistics(device, get_first_layer(ts.ppo.critic), ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
-        if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
+        if constexpr(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
+            constexpr TI OBS_DIM = T_CONFIG::ENVIRONMENT::Observation::DIM;
+            auto per_agent_observations = reshape<STEPS_TOTAL*N_AGENTS, OBS_DIM/N_AGENTS>(device, ts.observations_dense);
             auto obs_subset = view_range(device, ts.on_policy_runner_dataset.all_observations, 0, tensor::ViewSpec<0, STEPS_TOTAL>{});
             auto obs_matrix = matrix_view(device, obs_subset);
             copy(device, device, obs_matrix, ts.observations_dense);

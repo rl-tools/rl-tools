@@ -292,7 +292,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using T = typename OUTPUT_SPEC::T;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
-        constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr TI BATCH_SIZE = product(typename INPUT_SPEC::SHAPE{}) / (LAYER_SPEC::INPUT_HEIGHT * LAYER_SPEC::INPUT_WIDTH * LAYER_SPEC::INPUT_CHANNELS);
         constexpr auto NORMALIZATION = LAYER_SPEC::NORMALIZATION;
         // Reshape to 4D: [INTERNAL_BATCH_SIZE, H, W, C]
         using INTERNAL_INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
@@ -410,6 +410,12 @@ namespace rl_tools{
                 }
             }
         }
+    }
+
+    // ======================== evaluate_step (stateless, delegates to evaluate) ========================
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const nn::layers::conv2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::conv2d::State& state, Tensor<OUTPUT_SPEC>& output, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        evaluate(device, layer, input, output, buffer, rng, mode);
     }
 
     // ======================== forward (LayerBackward, stores pre_activations and caches stats) ========================
