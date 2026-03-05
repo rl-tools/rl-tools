@@ -36,10 +36,10 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE, STORE) {
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     using T = double;
-    using USE_CASE = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Accumulator, float>;
-    using USE_CASE2 = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Input, float>;
-    using TYPE_POLICY = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::Policy<double, RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::UseCase<RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Accumulator, float>, RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::UseCase<RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Input, float>>;
-    // using TYPE_POLICY = rlt::numeric_types::Policy<T, USE_CASE, USE_CASE2>;
+    // using USE_CASE = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Accumulator, float>;
+    // using USE_CASE2 = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Input, float>;
+    // using TYPE_POLICY = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::Policy<double, RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::UseCase<RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Accumulator, float>, RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::UseCase<RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::numeric_types::categories::Input, float>>;
+    using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     std::cout << rlt::to_string(TYPE_POLICY{}) << std::endl;
     constexpr TI INPUT_DIM = 10;
     constexpr TI OUTPUT_DIM = 20;
