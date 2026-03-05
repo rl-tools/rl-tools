@@ -5,6 +5,7 @@
 
 #include "../../../math/operations_generic.h"
 #include "../environments.h"
+#include "../observation.h"
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -73,10 +74,12 @@ namespace rl_tools::rl::environments::car {
     template <typename TI>
     struct ObservationCar{
         static constexpr TI DIM = 6;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename TI>
     struct ObservationCarTrack{
         static constexpr TI DIM = 6 + 3;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
 
 }

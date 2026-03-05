@@ -48,6 +48,7 @@ namespace rl_tools::rl::environments::reacher{
     template <typename TI>
     struct ObservationDense{
         static constexpr TI DIM = 4;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
 
     template <typename T_TI, T_TI T_HEIGHT, T_TI T_WIDTH>

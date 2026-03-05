@@ -165,7 +165,7 @@ namespace rl_tools{
             auto observations_chunk = view(device, evaluation_buffers.observations, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>{}, 0, 0);
             auto actions_buffer_chunk = view(device, evaluation_buffers.actions, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{}, 0, 0);
             auto input_tensor_flat = to_tensor(device, observations_chunk);
-            using OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
+            using OBS_SHAPE = typename ENVIRONMENT::Observation::SHAPE;
             using INPUT_SHAPE = tensor::Prepend<OBS_SHAPE, SPEC::N_EPISODES>;
             auto input_tensor = view_memory<INPUT_SHAPE>(device, input_tensor_flat);
             auto output_tensor = to_tensor(device, actions_buffer_chunk);

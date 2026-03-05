@@ -180,7 +180,7 @@ void run(){
         rlt::malloc(device, evaluation_env);
 
 //        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
-//        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
+//        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
 
         rlt::init(device);
         rlt::init(device, rng, seed);
@@ -195,7 +195,8 @@ void run(){
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
                 rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
-                rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                auto obs_matrix = rlt::matrix_view(device, on_policy_runner_dataset.all_observations);
+                rlt::update(device, observation_normalizer, obs_matrix);
             }
             std::cout << "Observation means: " << std::endl;
             rlt::print(device, observation_normalizer.mean);
@@ -268,8 +269,9 @@ void run(){
             }
             auto start = std::chrono::high_resolution_clock::now();
             rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+            auto obs_matrix = rlt::matrix_view(device, on_policy_runner_dataset.all_observations);
             if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
-                rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                rlt::update(device, observation_normalizer, obs_matrix);
                 rlt::set_statistics(device, rlt::get_first_layer(ppo.actor), observation_normalizer.mean, observation_normalizer.std);
                 rlt::set_statistics(device, rlt::get_first_layer(ppo.critic), observation_normalizer.mean, observation_normalizer.std);
                 for(TI state_i = 0; state_i < penv::ENVIRONMENT::Observation::DIM; state_i++){
@@ -277,14 +279,13 @@ void run(){
                     rlt::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
                 }
             }
-            rlt::add_scalar(device, device.logger, "opr/observation/mean", rlt::mean(device, on_policy_runner_dataset.observations));
-            rlt::add_scalar(device, device.logger, "opr/observation/std", rlt::std(device, on_policy_runner_dataset.observations));
+            rlt::add_scalar(device, device.logger, "opr/observation/mean", rlt::mean(device, obs_matrix));
+            rlt::add_scalar(device, device.logger, "opr/observation/std", rlt::std(device, obs_matrix));
             rlt::add_scalar(device, device.logger, "opr/action/mean", rlt::mean(device, on_policy_runner_dataset.actions));
             rlt::add_scalar(device, device.logger, "opr/action/std", rlt::std(device, on_policy_runner_dataset.actions));
             rlt::add_scalar(device, device.logger, "opr/rewards/mean", rlt::mean(device, on_policy_runner_dataset.rewards));
             rlt::add_scalar(device, device.logger, "opr/rewards/std", rlt::std(device, on_policy_runner_dataset.rewards));
-            auto all_observations_privileged_tensor = to_tensor(device, on_policy_runner_dataset.all_observations_privileged);
-            auto all_observations_privileged_tensor_unsqueezed = unsqueeze(device, all_observations_privileged_tensor);
+            auto all_observations_privileged_tensor_unsqueezed = unsqueeze(device, on_policy_runner_dataset.all_observations_privileged);
             auto all_values_tensor = to_tensor(device, on_policy_runner_dataset.all_values);
             auto all_values_tensor_unsqueezed = unsqueeze(device, all_values_tensor);
             evaluate(device, ppo.critic, all_observations_privileged_tensor_unsqueezed, all_values_tensor_unsqueezed, critic_buffers_gae, rng);

@@ -55,7 +55,7 @@ namespace rl_tools{
             static constexpr TI FORWARD_BATCH_SIZE = PARAMETERS::PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? PARAMETERS::N_ENVIRONMENTS : PARAMETERS::BATCH_SIZE;
             template <typename CAPABILITY>
             struct Actor{
-                using OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
+                using OBS_SHAPE = typename ENVIRONMENT::Observation::SHAPE;
                 using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
                 using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
@@ -67,7 +67,7 @@ namespace rl_tools{
             };
             template <typename CAPABILITY>
             struct Critic{
-                using OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::ObservationPrivileged, TI>::type;
+                using OBS_PRIV_SHAPE = typename ENVIRONMENT::ObservationPrivileged::SHAPE;
                 using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
                 using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
@@ -96,7 +96,7 @@ namespace rl_tools{
                 static_assert(PPO_PARAMETERS::STATEFUL_ACTOR_AND_CRITIC == true, "When using sequence models for the actor and critic, STATEFUL_ACTOR_AND_CRITIC has to be enabled.");
                 template <typename CAPABILITY>
                 struct Actor{
-                    using OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
+                    using OBS_SHAPE = typename ENVIRONMENT::Observation::SHAPE;
                     using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, PARAMETERS::N_ENVIRONMENTS>, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV>;
                     using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                     using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
@@ -117,7 +117,7 @@ namespace rl_tools{
                 };
                 template <typename CAPABILITY>
                 struct Critic{
-                    using OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::ObservationPrivileged, TI>::type;
+                    using OBS_PRIV_SHAPE = typename ENVIRONMENT::ObservationPrivileged::SHAPE;
                     using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, PARAMETERS::N_ENVIRONMENTS>, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV>;
                     using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                     using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
@@ -155,7 +155,7 @@ namespace rl_tools{
                 static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
                 static_assert(ENVIRONMENT::Observation::DIM % N_AGENTS == 0);
                 static_assert(ENVIRONMENT::ACTION_DIM % N_AGENTS == 0);
-                using OBS_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::Observation, TI>::type;
+                using OBS_SHAPE = typename ENVIRONMENT::Observation::SHAPE;
                 using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, PARAMETERS::BATCH_SIZE>, 1>;
                 using STANDARDIZATION_LAYER_CONFIG = nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
@@ -168,7 +168,7 @@ namespace rl_tools{
             };
             template <typename CAPABILITY>
             struct Critic{
-                using OBS_PRIV_SHAPE = typename rl::environments::observation::shape_of<typename ENVIRONMENT::ObservationPrivileged, TI>::type;
+                using OBS_PRIV_SHAPE = typename ENVIRONMENT::ObservationPrivileged::SHAPE;
                 using INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, PARAMETERS::BATCH_SIZE>, 1>;
                 using CONFIG = nn_models::mlp::Configuration<TYPE_POLICY, TI, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;

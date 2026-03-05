@@ -5,6 +5,7 @@
 
 #include "../../../math/operations_generic.h"
 #include "../environments.h"
+#include "../observation.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::pendulum {
@@ -33,30 +34,37 @@ namespace rl_tools::rl::environments::pendulum {
     template <typename TI>
     struct ObservationFourier{
         static constexpr TI DIM = 3;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename TI>
     struct ObservationRaw{
         static constexpr TI DIM = 2;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename TI>
     struct ObservationPosition{
         static constexpr TI DIM = 2;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename TI>
     struct ObservationVelocity{
         static constexpr TI DIM = 1;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename TI>
     struct ObservationVelocityLastAction{
         static constexpr TI DIM = 2;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename TI>
     struct ObservationMultiTask{
         static constexpr TI DIM = 3 + 1;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
     template <typename TI>
     struct ObservationMeta{
         static constexpr TI DIM = 3 + 1;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
 
 

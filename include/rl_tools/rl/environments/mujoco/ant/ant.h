@@ -5,6 +5,7 @@
 
 #include "../../../../utils/generic/typing.h"
 #include "../../environments.h"
+#include "../../observation.h"
 
 #include <mujoco/mujoco.h>
 
@@ -46,7 +47,9 @@ namespace rl_tools::rl::environments::mujoco{
         };
         template <typename SPEC>
         struct Observation{
-            static constexpr typename SPEC::TI DIM = SPEC::STATE_DIM_Q - 2 + SPEC::STATE_DIM_Q_DOT;
+            using TI = typename SPEC::TI;
+            static constexpr TI DIM = SPEC::STATE_DIM_Q - 2 + SPEC::STATE_DIM_Q_DOT;
+            using SHAPE = tensor::Shape<TI, DIM>;
         };
     }
     template <typename T_SPEC>

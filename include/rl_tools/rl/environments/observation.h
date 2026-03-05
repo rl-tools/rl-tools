@@ -9,23 +9,6 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::observation{
 
-    // Trait: derive SHAPE from DIM when SHAPE isn't explicitly defined
-    namespace detail{
-        template <typename T, typename = void>
-        struct has_shape : utils::typing::false_type {};
-        template <typename T>
-        struct has_shape<T, utils::typing::void_t<typename T::SHAPE>> : utils::typing::true_type {};
-    }
-
-    template <typename OBS, typename TI, typename = void>
-    struct shape_of{
-        using type = tensor::Shape<TI, OBS::DIM>;
-    };
-    template <typename OBS, typename TI>
-    struct shape_of<OBS, TI, utils::typing::enable_if_t<detail::has_shape<OBS>::value>>{
-        using type = typename OBS::SHAPE;
-    };
-
     // Image observation base
     template <typename T_TI, T_TI T_HEIGHT, T_TI T_WIDTH, T_TI T_CHANNELS>
     struct Image{

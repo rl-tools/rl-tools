@@ -5,6 +5,7 @@
 
 #include "../../../math/operations_generic.h"
 #include "../environments.h"
+#include "../observation.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::flag{
@@ -33,11 +34,13 @@ namespace rl_tools::rl::environments::flag{
     template <typename TI>
     struct Observation{
         static constexpr TI DIM = 4 + 3 + 4;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
 
     template <typename TI>
     struct ObservationPrivileged{
         static constexpr TI DIM = 4 + 3 + 4;
+        using SHAPE = tensor::Shape<TI, DIM>;
     };
 
     template <typename T, typename TI>

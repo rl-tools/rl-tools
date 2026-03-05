@@ -62,17 +62,17 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     rlt::malloc(device, actor_buffers);
     rlt::malloc(device, dataset);
     rlt::init_weights(device, actor, rng);
-    rlt::set_all(device, dataset.data, 0);
+    rlt::set_all(device, dataset.scalar_data, 0);
     rlt::init(device, rng, 199);
     rlt::init(device, runner, envs, parameters, actor, rng);
 
 
     rlt::collect(device, dataset, runner, actor, actor_buffers, rng);
-    rlt::print(device, dataset.data);
+    rlt::print(device, dataset.scalar_data);
     rlt::collect(device, dataset, runner, actor, actor_buffers, rng);
-    rlt::print(device, dataset.data);
+    rlt::print(device, dataset.scalar_data);
     rlt::collect(device, dataset, runner, actor, actor_buffers, rng);
-    rlt::print(device, dataset.data);
+    rlt::print(device, dataset.scalar_data);
     ENVIRONMENT::State states[ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS];
     ENVIRONMENT::Parameters env_parameters[ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS];
     for(TI env_i = 0; env_i < ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; env_i++){
@@ -87,7 +87,8 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
                 rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
                 rlt::malloc(device, observation);
                 rlt::observe(device, get(runner.environments, 0, env_i), env_parameters[env_i], states[env_i], typename ENVIRONMENT::Observation{}, observation, rng);
-                auto observation_runner = rlt::view<DEVICE, decltype(dataset.observations)::SPEC, 1, ENVIRONMENT::Observation::DIM>(device, dataset.observations, pos, 0);
+                auto all_obs_matrix = rlt::matrix_view(device, dataset.all_observations);
+                auto observation_runner = rlt::view<DEVICE, decltype(all_obs_matrix)::SPEC, 1, ENVIRONMENT::Observation::DIM>(device, all_obs_matrix, pos, 0);
                 auto abs_diff = rlt::abs_diff(device, observation, observation_runner);
                 if(!get(dataset.truncated, pos, 0)){
 //                    ASSERT_FLOAT_EQ(abs_diff, 0);
@@ -113,7 +114,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
         rlt::malloc(device, loaded);
         rlt::persist::backends::hdf5::Group<> dataset_group = {file.getGroup("dataset")};
         rlt::load(device, loaded, dataset_group);
-        auto abs_diff = rlt::abs_diff(device, loaded.data, dataset.data);
+        auto abs_diff = rlt::abs_diff(device, loaded.scalar_data, dataset.scalar_data);
         ASSERT_FLOAT_EQ(0, abs_diff);
     }
 

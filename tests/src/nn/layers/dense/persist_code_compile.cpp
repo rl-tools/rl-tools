@@ -25,6 +25,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE, COMPILE) {
     layer::TYPE::Buffer<> buffer;
     using TYPE_POLICY = decltype(layer::module)::TYPE_POLICY;
     using T = typename TYPE_POLICY::DEFAULT;
+    static_assert(rlt::utils::typing::is_same_v<T, double>);
     rlt::Tensor<rlt::tensor::Specification<T, TI, layer::TYPE::OUTPUT_SHAPE>> output;
 
     rlt::init(device);

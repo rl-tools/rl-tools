@@ -112,14 +112,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_REACHER, TERMINATED){
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_REACHER, OBSERVATION_SHAPE_TRAIT){
     using OBS = ENVIRONMENT::Observation;
-    using SHAPE = rlt::rl::environments::observation::shape_of<OBS, TI>::type;
+    using SHAPE = OBS::SHAPE;
     static_assert(rlt::length(SHAPE{}) == 1, "Dense observation should have rank 1");
     static_assert(rlt::get<0>(SHAPE{}) == 4, "Dense observation dim should be 4");
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_REACHER, IMAGE_OBSERVATION_SHAPE_TRAIT){
     using IMAGE_OBS = rlt::rl::environments::reacher::ObservationImage<TI, 32, 32>;
-    using SHAPE = rlt::rl::environments::observation::shape_of<IMAGE_OBS, TI>::type;
+    using SHAPE = IMAGE_OBS::SHAPE;
     static_assert(rlt::length(SHAPE{}) == 3, "Image observation should have rank 3");
     static_assert(rlt::get<0>(SHAPE{}) == 32, "Height should be 32");
     static_assert(rlt::get<1>(SHAPE{}) == 32, "Width should be 32");
