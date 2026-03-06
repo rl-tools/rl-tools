@@ -81,7 +81,7 @@ namespace rl_tools{
         static constexpr TI W = OBS_WIDTH;
         static constexpr TI C = 3;
         static_assert(OBS_SPEC::COLS == H * W * C);
-        T sigma_sq = (T)4.0;
+        T sigma_sq = (T)(H * H) / (T)64;
         T agent_px = (state.x + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * H;
         T agent_py = (state.y + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * W;
         T target_px = (state.target_x + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * H;
@@ -192,7 +192,37 @@ namespace rl_tools{
         static constexpr TI W = OBS_WIDTH;
         static constexpr TI C = 3;
         static_assert(OBS_SPEC::COLS == H * W * C);
-        T sigma_sq = (T)4.0;
+        T sigma_sq = (T)(H * H) / (T)64;
+        T agent_px = (state.x + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * H;
+        T agent_py = (state.y + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * W;
+        T target_px = (state.target_x + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * H;
+        T target_py = (state.target_y + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * W;
+        for(TI h = 0; h < H; h++){
+            for(TI w = 0; w < W; w++){
+                T dh_agent = (T)h + (T)0.5 - agent_px;
+                T dw_agent = (T)w + (T)0.5 - agent_py;
+                T agent_intensity = math::exp(device.math, -(dh_agent * dh_agent + dw_agent * dw_agent) / sigma_sq);
+                T dh_target = (T)h + (T)0.5 - target_px;
+                T dw_target = (T)w + (T)0.5 - target_py;
+                T target_intensity = math::exp(device.math, -(dh_target * dh_target + dw_target * dw_target) / sigma_sq);
+                TI base = h * W * C + w * C;
+                set(observation, 0, base + 0, target_intensity);
+                set(observation, 0, base + 1, (T)0);
+                set(observation, 0, base + 2, agent_intensity);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_TI, OBS_TYPE_TI OBS_HEIGHT, OBS_TYPE_TI OBS_WIDTH, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::ReacherVisual<SPEC>& env, const typename rl::environments::ReacherVisual<SPEC>::Parameters& parameters, const typename rl::environments::reacher::State<STATE_SPEC>& state, const typename rl::environments::reacher::ObservationImageFlat<OBS_TYPE_TI, OBS_HEIGHT, OBS_WIDTH>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using PARAMS = typename SPEC::PARAMETERS;
+        static_assert(OBS_SPEC::ROWS == 1);
+        static constexpr TI H = OBS_HEIGHT;
+        static constexpr TI W = OBS_WIDTH;
+        static constexpr TI C = 3;
+        static_assert(OBS_SPEC::COLS == H * W * C);
+        T sigma_sq = (T)(H * H) / (T)64;
         T agent_px = (state.x + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * H;
         T agent_py = (state.y + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * W;
         T target_px = (state.target_x + PARAMS::ARENA_SIZE) / ((T)2 * PARAMS::ARENA_SIZE) * H;

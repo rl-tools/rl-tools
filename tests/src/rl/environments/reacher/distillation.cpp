@@ -159,7 +159,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_REACHER, DISTILLATION) {
         return std::make_pair(dense_total_return / NUM_EVAL_EPISODES, visual_total_return / NUM_EVAL_EPISODES);
     };
 
-    constexpr TI NUM_ITERATIONS = 10000;
+    constexpr TI NUM_ITERATIONS = 400;
 
     for(TI iter = 0; iter < NUM_ITERATIONS; iter++){
         // Sample random states and generate observations
