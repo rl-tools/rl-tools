@@ -14,7 +14,7 @@ namespace rl_tools::rl::zoo::reacher_visual_v0::ppo{
             static constexpr TI CRITIC_HIDDEN_DIM = 512;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 50;
             static constexpr TI N_ENVIRONMENTS = 512;
-            static constexpr TI TOTAL_STEP_LIMIT = 10000000;
+            static constexpr TI TOTAL_STEP_LIMIT = 1000000;
             static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT / (ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>{

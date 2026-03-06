@@ -11,10 +11,10 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::reacher{
     template <typename T>
     struct DefaultParameters{
-        static constexpr T DT = 0.05;
+        static constexpr T DT = 0.1;
         static constexpr T ARENA_SIZE = 1.0;
-        static constexpr T MAX_VELOCITY = 0.5;
-        static constexpr T TARGET_RADIUS = 0.05;
+        static constexpr T MAX_VELOCITY = 1.5;
+        static constexpr T TARGET_RADIUS = 0.1;
         static constexpr T ACTION_LIMIT = 1.0;
         static constexpr auto IMAGE_HEIGHT = 32;
         static constexpr auto IMAGE_WIDTH = 32;
@@ -69,7 +69,7 @@ namespace rl_tools::rl::environments{
         using ObservationPrivileged = Observation;
         static constexpr TI N_AGENTS = 1;
         static constexpr TI ACTION_DIM = 2;
-        static constexpr TI EPISODE_STEP_LIMIT = 200;
+        static constexpr TI EPISODE_STEP_LIMIT = 40;
     };
     template <typename T_SPEC>
     struct ReacherVisual: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
@@ -82,7 +82,7 @@ namespace rl_tools::rl::environments{
         using ObservationPrivileged = reacher::ObservationDense<TI>;
         static constexpr TI N_AGENTS = 1;
         static constexpr TI ACTION_DIM = 2;
-        static constexpr TI EPISODE_STEP_LIMIT = 200;
+        static constexpr TI EPISODE_STEP_LIMIT = 40;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
