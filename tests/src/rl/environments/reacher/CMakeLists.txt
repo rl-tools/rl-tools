@@ -1,3 +1,7 @@
 add_executable(test_rl_environments_reacher reacher.cpp)
 target_link_libraries(test_rl_environments_reacher RLtools::RLtools GTest::gtest_main)
 gtest_discover_tests(test_rl_environments_reacher)
+
+add_executable(test_rl_environments_reacher_distillation distillation.cpp)
+target_link_libraries(test_rl_environments_reacher_distillation RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_environments_reacher_distillation)
