@@ -10,7 +10,7 @@
 #ifdef RL_TOOLS_BACKEND_ENABLE_MKL
 #include <rl_tools/nn/layers/operations_cpu_mkl.h>
 #endif
-#include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
+#include <rl_tools/nn/layers/flatten/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>

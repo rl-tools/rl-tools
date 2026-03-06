@@ -3,7 +3,12 @@ struct CONFIG_FACTORY{
     using TI = typename DEVICE::index_t;
     using T = typename TYPE_POLICY::DEFAULT;
     using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
-    using REACHER_SPEC = rlt::rl::environments::reacher::Specification<typename TYPE_POLICY::DEFAULT, TI, rlt::rl::environments::reacher::DefaultParameters<typename TYPE_POLICY::DEFAULT>>;
+
+    struct REACHER_PARAMETERS: rlt::rl::environments::reacher::DefaultParameters<typename TYPE_POLICY::DEFAULT>{
+        static constexpr auto IMAGE_HEIGHT = 84;
+        static constexpr auto IMAGE_WIDTH = 84;
+    };
+    using REACHER_SPEC = rlt::rl::environments::reacher::Specification<typename TYPE_POLICY::DEFAULT, TI, REACHER_PARAMETERS>;
     using ENVIRONMENT = rlt::rl::environments::ReacherVisual<REACHER_SPEC>;
 
     struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>{
@@ -42,24 +47,24 @@ struct CONFIG_FACTORY{
         struct Actor{
             using OBS_SHAPE = typename T_ENVIRONMENT::Observation::SHAPE;
             using INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
-            // NatureCNN conv layers (adapted for 32x32 with padding)
-            // Conv1: 32x32x3 → 8x8x32
-            using CONV1_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 32, 8, 8, 4, 4, 2, 2, rlt::nn::activation_functions::ActivationFunction::RELU>;
+            // NatureCNN (DQN conv architecture) for 84x84 input, no padding
+            // Conv1: 84x84x3 → 20x20x32
+            using CONV1_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 32, 8, 8, 4, 4, 0, 0, rlt::nn::activation_functions::ActivationFunction::RELU>;
             using CONV1 = rlt::nn::layers::conv2d::BindConfiguration<CONV1_CONFIG>;
-            // Conv2: 8x8x32 → 4x4x64
-            using CONV2_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 64, 4, 4, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+            // Conv2: 20x20x32 → 9x9x64
+            using CONV2_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 64, 4, 4, 2, 2, 0, 0, rlt::nn::activation_functions::ActivationFunction::RELU>;
             using CONV2 = rlt::nn::layers::conv2d::BindConfiguration<CONV2_CONFIG>;
-            // Conv3: 4x4x64 → 4x4x64
-            using CONV3_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 64, 3, 3, 1, 1, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+            // Conv3: 9x9x64 → 7x7x64
+            using CONV3_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 64, 3, 3, 1, 1, 0, 0, rlt::nn::activation_functions::ActivationFunction::RELU>;
             using CONV3 = rlt::nn::layers::conv2d::BindConfiguration<CONV3_CONFIG>;
-            // AvgPool: 4x4x64 → 64
-            using AVG_POOL_CONFIG = rlt::nn::layers::avg_pool2d::Configuration<T_TYPE_POLICY, T_TI>;
-            using AVG_POOL = rlt::nn::layers::avg_pool2d::BindConfiguration<AVG_POOL_CONFIG>;
-            // MLP head: 64 → 512 → action_dim (+ learned log_std)
+            // Flatten: 7x7x64 → 3136
+            using FLATTEN_CONFIG = rlt::nn::layers::flatten::Configuration<T_TYPE_POLICY, T_TI>;
+            using FLATTEN = rlt::nn::layers::flatten::BindConfiguration<FLATTEN_CONFIG>;
+            // FC: 3136 → 512 → action_dim (+ learned log_std)
             using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T_TYPE_POLICY, T_TI, T_ENVIRONMENT::ACTION_DIM, 2, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY>;
             using MLP = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<MLP_CONFIG>;
 
-            using MODULE_CHAIN = rlt::nn_models::sequential::Module<CONV1, rlt::nn_models::sequential::Module<CONV2, rlt::nn_models::sequential::Module<CONV3, rlt::nn_models::sequential::Module<AVG_POOL, rlt::nn_models::sequential::Module<MLP>>>>>;
+            using MODULE_CHAIN = rlt::nn_models::sequential::Module<CONV1, rlt::nn_models::sequential::Module<CONV2, rlt::nn_models::sequential::Module<CONV3, rlt::nn_models::sequential::Module<FLATTEN, rlt::nn_models::sequential::Module<MLP>>>>>;
             using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
         };
         template <typename CAPABILITY>
