@@ -10,6 +10,28 @@
 #include <rl_tools/nn/layers/dense/layer.h>
 #include <rl_tools/nn_models/sequential/model.h>
 
+namespace rl_tools::nn_models::sequential {
+    namespace detail {
+        template <int N, typename REMAINING, typename ACC>
+        struct TakeFirstImpl;
+        template <typename HEAD, typename... TAIL, typename... ACC>
+        struct TakeFirstImpl<0, Module<HEAD, TAIL...>, Module<ACC...>> {
+            using type = Module<ACC...>;
+        };
+        template <typename... ACC>
+        struct TakeFirstImpl<0, Module<>, Module<ACC...>> {
+            using type = Module<ACC...>;
+        };
+        template <int N, typename HEAD, typename... TAIL, typename... ACC>
+        struct TakeFirstImpl<N, Module<HEAD, TAIL...>, Module<ACC...>> {
+            static_assert(N > 0);
+            using type = typename TakeFirstImpl<N-1, Module<TAIL...>, Module<ACC..., HEAD>>::type;
+        };
+    }
+    template <int N, typename MODULE>
+    using TakeFirst = typename detail::TakeFirstImpl<N, MODULE, Module<>>::type;
+}
+
 namespace rl_tools::nn_models::resnet18 {
     // Stem: 7x7 conv, stride=2, pad=3, 64 channels, BN+ReLU
     template<typename TYPE_POLICY, typename TI>
