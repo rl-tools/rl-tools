@@ -21,6 +21,7 @@
 #include <rl_tools/nn/layers/operations_cpu_mkl.h>
 #endif
 #include <rl_tools/nn/layers/flatten/operations_generic.h>
+#include <rl_tools/nn/layers/unflatten/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/random_uniform/operations_generic.h>
@@ -46,6 +47,7 @@
 #include <rl_tools/nn/layers/td3_sampling/persist.h>
 #include <rl_tools/nn/layers/conv2d/persist.h>
 #include <rl_tools/nn/layers/flatten/persist.h>
+#include <rl_tools/nn/layers/unflatten/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
@@ -73,6 +75,7 @@
 #include <rl_tools/nn/layers/td3_sampling/persist_code.h>
 #include <rl_tools/nn/layers/conv2d/persist_code.h>
 #include <rl_tools/nn/layers/flatten/persist_code.h>
+#include <rl_tools/nn/layers/unflatten/persist_code.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
 #include <rl_tools/nn_models/sequential/persist_code.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
