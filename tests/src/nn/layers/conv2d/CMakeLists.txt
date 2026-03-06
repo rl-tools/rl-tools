@@ -6,6 +6,17 @@ if(RL_TOOLS_ENABLE_HDF5)
     endif()
 endif()
 
+if(RL_TOOLS_BACKEND_ENABLE_MKL AND RL_TOOLS_BACKEND_ENABLE_DNNL AND RL_TOOLS_TEST_DATA_PATH)
+    add_executable(test_nn_layers_conv2d_mkl mkl.cpp)
+    target_link_libraries(test_nn_layers_conv2d_mkl PRIVATE RLtools::RLtools RLtools::Test GTest::gtest_main)
+    gtest_discover_tests(test_nn_layers_conv2d_mkl DISCOVERY_MODE PRE_TEST)
+endif()
+
+if(RL_TOOLS_BACKEND_ENABLE_MKL AND RL_TOOLS_BACKEND_ENABLE_DNNL)
+    add_executable(test_nn_layers_conv2d_benchmark benchmark.cpp)
+    target_link_libraries(test_nn_layers_conv2d_benchmark PRIVATE RLtools::RLtools)
+endif()
+
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     add_subdirectory(cuda)
 endif()

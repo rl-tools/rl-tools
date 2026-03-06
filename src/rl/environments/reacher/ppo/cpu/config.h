@@ -12,7 +12,7 @@ struct CONFIG_FACTORY{
         static constexpr TI CRITIC_HIDDEN_DIM = 64;
         static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 512;
         static constexpr TI N_ENVIRONMENTS = 8;
-        static constexpr TI TOTAL_STEP_LIMIT = 200000;
+        static constexpr TI TOTAL_STEP_LIMIT = 1000000;
         static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
         static constexpr TI EPISODE_STEP_LIMIT = 200;
         using ACTOR_OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>;

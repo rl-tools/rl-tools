@@ -207,6 +207,7 @@ namespace rl_tools::nn::layers::conv2d {
         using D_NORM_SPEC = tensor::Specification<ACCUMULATOR_TYPE, TI, D_NORM_SHAPE, DYNAMIC_ALLOCATION>;
         Tensor<D_NORM_SPEC> d_gamma_acc;
         Tensor<D_NORM_SPEC> d_beta_acc;
+        void* backend_state = nullptr;
     };
 
     template<typename T_SPEC>

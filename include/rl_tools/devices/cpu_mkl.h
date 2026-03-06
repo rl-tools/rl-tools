@@ -15,6 +15,7 @@ namespace rl_tools{
         template <typename T_SPEC>
         struct CPU_MKL: CPU_BLAS<T_SPEC>{
             static constexpr DeviceId DEVICE_ID = DeviceId::CPU_MKL;
+            void* dnnl_context = nullptr;
         };
         using DefaultCPU_MKL = CPU_MKL<DefaultCPUSpecification>;
     }

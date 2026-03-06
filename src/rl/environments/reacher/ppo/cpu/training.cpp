@@ -1,3 +1,5 @@
+#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+
 #include <rl_tools/operations/cpu_mux.h>
 
 #include <rl_tools/rl/environments/reacher/operations_generic.h>
@@ -5,6 +7,9 @@
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/conv2d/operations_generic.h>
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
+#include <rl_tools/nn/layers/operations_cpu_mkl.h>
+#endif
 #include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
