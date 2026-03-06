@@ -1,0 +1,3 @@
+add_executable(test_nn_layers_flatten flatten.cpp)
+target_link_libraries(test_nn_layers_flatten PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_nn_layers_flatten)
