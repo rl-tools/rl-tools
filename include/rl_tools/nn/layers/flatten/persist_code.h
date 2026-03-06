@@ -45,7 +45,7 @@ namespace rl_tools {
                 initializer_list = "{{}}";
             }
             else{
-                initializer_list = "{{{}, output::container}}";
+                initializer_list = "{{}, output::container}";
             }
             ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = " << initializer_list << ";\n";
             ss << ind << "    template <typename T_TYPE = TYPE>\n";
