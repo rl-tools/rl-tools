@@ -6,6 +6,7 @@
 #include <rl_tools/nn/layers/conv2d/operations_generic.h>
 #include <rl_tools/nn/layers/max_pool2d/operations_generic.h>
 #include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
+#include <rl_tools/nn/layers/upsample2d/operations_generic.h>
 #include <rl_tools/nn/layers/resnet_block/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/operations_cuda.h>
@@ -125,68 +126,73 @@ using FULL_MODEL_CPU = rlt::nn_models::sequential::Build<FULL_CPU_CAPABILITY, FU
 using ENCODER_CHAIN_CPU = rlt::nn_models::sequential::TakeFirst<CUT_LAYER_IDX + 1, FULL_MODULE_CHAIN_CPU>;
 using ENCODER_CPU = rlt::nn_models::sequential::Build<FULL_CPU_CAPABILITY, ENCODER_CHAIN_CPU, CPU_INPUT_SHAPE>;
 
-// --- Decoder: conv2d head that maps encoder features to 3-channel reconstruction ---
+// --- Decoder: upsample2d + conv2d blocks mapping encoder features back to 224x224x3 ---
 
 using ENCODER_OUTPUT_SHAPE = typename ENCODER_CUDA::OUTPUT_SHAPE;
 static constexpr TI_CUDA REPR_HEIGHT = rlt::get<rlt::length(ENCODER_OUTPUT_SHAPE{}) - 3>(ENCODER_OUTPUT_SHAPE{});
 static constexpr TI_CUDA REPR_WIDTH = rlt::get<rlt::length(ENCODER_OUTPUT_SHAPE{}) - 2>(ENCODER_OUTPUT_SHAPE{});
 static constexpr TI_CUDA REPR_CHANNELS = rlt::get_last(ENCODER_OUTPUT_SHAPE{});
 
-template<typename TP, typename TI_T>
-using DECODER_CONV1_CONFIG = rlt::nn::layers::conv2d::Configuration<
-    TP, TI_T, 64, 3, 3, 1, 1, 1, 1,
-    rlt::nn::activation_functions::ActivationFunction::RELU,
-    rlt::nn::layers::conv2d::Normalization::BATCH_NORM>;
-template<typename TP, typename TI_T>
-using DECODER_CONV2_CONFIG = rlt::nn::layers::conv2d::Configuration<
-    TP, TI_T, 32, 3, 3, 1, 1, 1, 1,
-    rlt::nn::activation_functions::ActivationFunction::RELU,
-    rlt::nn::layers::conv2d::Normalization::BATCH_NORM>;
-template<typename TP, typename TI_T>
-using DECODER_CONV3_CONFIG = rlt::nn::layers::conv2d::Configuration<
-    TP, TI_T, 3, 3, 3, 1, 1, 1, 1,
-    rlt::nn::activation_functions::ActivationFunction::IDENTITY,
-    rlt::nn::layers::conv2d::Normalization::NONE>;
+constexpr TI_CUDA compute_upsample_stages(TI_CUDA repr_h, TI_CUDA target_h) {
+    TI_CUDA stages = 0;
+    TI_CUDA h = repr_h;
+    while (h < target_h) { h *= 2; stages++; }
+    return stages;
+}
+static constexpr TI_CUDA NUM_UPSAMPLE_STAGES = compute_upsample_stages(REPR_HEIGHT, IMAGE_SIZE);
+static_assert(REPR_HEIGHT * (1 << NUM_UPSAMPLE_STAGES) == IMAGE_SIZE, "Encoder spatial dim must be a power-of-2 divisor of IMAGE_SIZE");
 
-using DECODER_CHAIN = rlt::nn_models::sequential::Module<
-    rlt::nn::layers::conv2d::BindConfiguration<DECODER_CONV1_CONFIG<TYPE_POLICY, TI_CUDA>>,
-    rlt::nn::layers::conv2d::BindConfiguration<DECODER_CONV2_CONFIG<TYPE_POLICY, TI_CUDA>>,
-    rlt::nn::layers::conv2d::BindConfiguration<DECODER_CONV3_CONFIG<TYPE_POLICY, TI_CUDA>>
->;
+namespace decoder_detail {
+    template<typename A, typename B>
+    struct ConcatModules;
+    template<typename... As, typename... Bs>
+    struct ConcatModules<rlt::nn_models::sequential::Module<As...>, rlt::nn_models::sequential::Module<Bs...>> {
+        using type = rlt::nn_models::sequential::Module<As..., Bs...>;
+    };
+}
+
+// Recursive decoder chain builder: generates (upsample2d + conv2d) blocks
+// Uses int for STAGES/CHANNELS to avoid nvcc issues with dependent NTTPs in partial specializations
+// STAGES_REMAINING=1 is the final block (outputs 3 channels, no norm, identity)
+// STAGES_REMAINING>1 are intermediate blocks (halve channels, BN, ReLU)
+// STAGES_REMAINING=0 means encoder is already at target resolution (just a 1x1 conv to 3ch)
+template<typename TP, typename TI_T, int STAGES_REMAINING, int IN_CHANNELS>
+struct DecoderChainBuilder {
+    static_assert(STAGES_REMAINING > 1);
+    static constexpr int OUT_CHANNELS = IN_CHANNELS / 2 < 32 ? 32 : IN_CHANNELS / 2;
+    using BLOCK = rlt::nn_models::sequential::Module<
+        rlt::nn::layers::upsample2d::BindConfiguration<rlt::nn::layers::upsample2d::Configuration<TP, TI_T, (TI_T)2, (TI_T)2>>,
+        rlt::nn::layers::conv2d::BindConfiguration<rlt::nn::layers::conv2d::Configuration<
+            TP, TI_T, (TI_T)OUT_CHANNELS, (TI_T)3, (TI_T)3, (TI_T)1, (TI_T)1, (TI_T)1, (TI_T)1,
+            rlt::nn::activation_functions::ActivationFunction::RELU,
+            rlt::nn::layers::conv2d::Normalization::BATCH_NORM>>>;
+    using REST = typename DecoderChainBuilder<TP, TI_T, STAGES_REMAINING - 1, OUT_CHANNELS>::CHAIN;
+    using CHAIN = typename decoder_detail::ConcatModules<BLOCK, REST>::type;
+};
+
+template<typename TP, typename TI_T, int IN_CHANNELS>
+struct DecoderChainBuilder<TP, TI_T, 1, IN_CHANNELS> {
+    using CHAIN = rlt::nn_models::sequential::Module<
+        rlt::nn::layers::upsample2d::BindConfiguration<rlt::nn::layers::upsample2d::Configuration<TP, TI_T, (TI_T)2, (TI_T)2>>,
+        rlt::nn::layers::conv2d::BindConfiguration<rlt::nn::layers::conv2d::Configuration<
+            TP, TI_T, (TI_T)3, (TI_T)3, (TI_T)3, (TI_T)1, (TI_T)1, (TI_T)1, (TI_T)1,
+            rlt::nn::activation_functions::ActivationFunction::IDENTITY,
+            rlt::nn::layers::conv2d::Normalization::NONE>>>;
+};
+
+template<typename TP, typename TI_T, int IN_CHANNELS>
+struct DecoderChainBuilder<TP, TI_T, 0, IN_CHANNELS> {
+    using CHAIN = rlt::nn_models::sequential::Module<
+        rlt::nn::layers::conv2d::BindConfiguration<rlt::nn::layers::conv2d::Configuration<
+            TP, TI_T, (TI_T)3, (TI_T)1, (TI_T)1, (TI_T)1, (TI_T)1, (TI_T)0, (TI_T)0,
+            rlt::nn::activation_functions::ActivationFunction::IDENTITY,
+            rlt::nn::layers::conv2d::Normalization::NONE>>>;
+};
+
+using DECODER_CHAIN = typename DecoderChainBuilder<TYPE_POLICY, TI_CUDA, (int)NUM_UPSAMPLE_STAGES, (int)REPR_CHANNELS>::CHAIN;
 using DECODER_CUDA = rlt::nn_models::sequential::Build<GPU_CAPABILITY, DECODER_CHAIN, ENCODER_OUTPUT_SHAPE>;
 
 // --- CUDA kernels ---
-
-template<typename T_SRC>
-__global__ void bilinear_downsample_kernel(
-    const T_SRC* __restrict__ src, T_SRC* __restrict__ dst,
-    int src_h, int src_w, int dst_h, int dst_w
-) {
-    int n = blockIdx.z;
-    int oy = blockIdx.y * blockDim.y + threadIdx.y;
-    int ox = blockIdx.x * blockDim.x + threadIdx.x;
-    if (oy >= dst_h || ox >= dst_w) return;
-
-    float sy = ((float)oy + 0.5f) * (float)src_h / (float)dst_h - 0.5f;
-    float sx = ((float)ox + 0.5f) * (float)src_w / (float)dst_w - 0.5f;
-
-    int x0 = (int)floorf(sx), y0 = (int)floorf(sy);
-    int x1 = x0 + 1, y1 = y0 + 1;
-    float fx = sx - (float)x0, fy = sy - (float)y0;
-    x0 = max(0, min(x0, src_w-1)); x1 = max(0, min(x1, src_w-1));
-    y0 = max(0, min(y0, src_h-1)); y1 = max(0, min(y1, src_h-1));
-
-    const T_SRC* src_base = src + (size_t)n * src_h * src_w * 3;
-    T_SRC* dst_pixel = dst + ((size_t)n * dst_h * dst_w + oy * dst_w + ox) * 3;
-
-    for (int c = 0; c < 3; c++) {
-        float v = (1.f-fx)*(1.f-fy)*(float)src_base[(y0*src_w + x0)*3 + c]
-                + fx*(1.f-fy)*(float)src_base[(y0*src_w + x1)*3 + c]
-                + (1.f-fx)*fy*(float)src_base[(y1*src_w + x0)*3 + c]
-                + fx*fy*(float)src_base[(y1*src_w + x1)*3 + c];
-        dst_pixel[c] = (T_SRC)v;
-    }
-}
 
 template<typename T_ACT, typename T_GRAD, typename TI_T>
 __global__ void mse_loss_gradient_kernel(
@@ -257,7 +263,8 @@ int main(int argc, char* argv[]) {
         else if (arg == "--help") {
             std::cout << "Usage: " << argv[0] << " --binary-dir DIR --checkpoint PATH [--batch-size N] [--log-interval N] [--logdir PREFIX]\n"
                       << "  Trains a reconstruction decoder on frozen ResNet18 representations.\n"
-                      << "  CUT_LAYER=" << CUT_LAYER_IDX << " (compile-time, repr " << REPR_HEIGHT << "x" << REPR_WIDTH << "x" << REPR_CHANNELS << ")\n";
+                      << "  CUT_LAYER=" << CUT_LAYER_IDX << " (repr " << REPR_HEIGHT << "x" << REPR_WIDTH << "x" << REPR_CHANNELS
+                      << ", " << NUM_UPSAMPLE_STAGES << " upsample stages)\n";
             return 0;
         }
     }
@@ -268,7 +275,8 @@ int main(int argc, char* argv[]) {
     TI num_micro_batches = batch_size / GPU_BATCH;
 
     std::cout << "=== ImageNet ResNet-18 Reconstruction ===" << std::endl;
-    std::cout << "CUT_LAYER=" << CUT_LAYER_IDX << " repr=" << REPR_HEIGHT << "x" << REPR_WIDTH << "x" << REPR_CHANNELS << std::endl;
+    std::cout << "CUT_LAYER=" << CUT_LAYER_IDX << " repr=" << REPR_HEIGHT << "x" << REPR_WIDTH << "x" << REPR_CHANNELS
+              << " upsample_stages=" << NUM_UPSAMPLE_STAGES << std::endl;
     std::cout << "Batch=" << batch_size << " micro=" << GPU_BATCH << " accum=" << num_micro_batches << std::endl;
 
     // --- Load binary dataset ---
@@ -324,11 +332,7 @@ int main(int argc, char* argv[]) {
     rlt::init(device_cuda, optimizer);
     {
         // Init decoder weights on CPU, transfer to GPU
-        using DECODER_CHAIN_CPU = rlt::nn_models::sequential::Module<
-            rlt::nn::layers::conv2d::BindConfiguration<DECODER_CONV1_CONFIG<CPU_TYPE_POLICY, TI>>,
-            rlt::nn::layers::conv2d::BindConfiguration<DECODER_CONV2_CONFIG<CPU_TYPE_POLICY, TI>>,
-            rlt::nn::layers::conv2d::BindConfiguration<DECODER_CONV3_CONFIG<CPU_TYPE_POLICY, TI>>
-        >;
+        using DECODER_CHAIN_CPU = typename DecoderChainBuilder<CPU_TYPE_POLICY, TI, (int)NUM_UPSAMPLE_STAGES, (int)REPR_CHANNELS>::CHAIN;
         using ENCODER_CPU_OUTPUT_SHAPE = typename ENCODER_CPU::OUTPUT_SHAPE;
         using DECODER_CPU_TYPE = rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::SGD>, DECODER_CHAIN_CPU, ENCODER_CPU_OUTPUT_SHAPE>;
         DECODER_CPU_TYPE decoder_cpu;
@@ -348,17 +352,14 @@ int main(int argc, char* argv[]) {
     using REPR_SPEC = rlt::tensor::Specification<T_ACTIVATION, TI_CUDA, ENCODER_OUTPUT_SHAPE>;
     rlt::Tensor<REPR_SPEC> repr; rlt::malloc(device_cuda, repr);
 
-    using TARGET_SHAPE = rlt::tensor::Shape<TI_CUDA, GPU_BATCH, REPR_HEIGHT, REPR_WIDTH, 3>;
-    using TARGET_SPEC = rlt::tensor::Specification<T_ACTIVATION, TI_CUDA, TARGET_SHAPE>;
-    rlt::Tensor<TARGET_SPEC> gpu_target; rlt::malloc(device_cuda, gpu_target);
-
-    using D_OUTPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, TARGET_SHAPE>;
+    using DECODER_OUTPUT_SHAPE = typename DECODER_CUDA::OUTPUT_SHAPE;
+    using D_OUTPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, DECODER_OUTPUT_SHAPE>;
     rlt::Tensor<D_OUTPUT_SPEC> gpu_d_output; rlt::malloc(device_cuda, gpu_d_output);
 
     using D_REPR_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, ENCODER_OUTPUT_SHAPE>;
     rlt::Tensor<D_REPR_SPEC> gpu_d_repr; rlt::malloc(device_cuda, gpu_d_repr);
 
-    constexpr TI_CUDA REPR_ELEMENTS = REPR_HEIGHT * REPR_WIDTH * 3;
+    constexpr TI_CUDA OUTPUT_ELEMENTS = IMAGE_SIZE * IMAGE_SIZE * 3;
 
     float* gpu_losses; CUDA_CHECK(cudaMalloc(&gpu_losses, GPU_BATCH * sizeof(float)));
     float* gpu_acc_loss; CUDA_CHECK(cudaMalloc(&gpu_acc_loss, sizeof(float)));
@@ -538,12 +539,6 @@ int main(int argc, char* argv[]) {
                 // Slot data no longer needed
                 CUDA_CHECK(cudaEventRecord(slot.consumed_event, device_cuda.stream));
 
-                // Downsample input to target resolution
-                constexpr int BLK_DS = 16;
-                bilinear_downsample_kernel<<<dim3((REPR_WIDTH+BLK_DS-1)/BLK_DS,(REPR_HEIGHT+BLK_DS-1)/BLK_DS,GPU_BATCH), dim3(BLK_DS,BLK_DS), 0, device_cuda.stream>>>(
-                    gpu_input._data, gpu_target._data, TGT, TGT, REPR_HEIGHT, REPR_WIDTH);
-                CUDA_KERNEL_CHECK(device_cuda.stream, "bilinear_downsample");
-
                 // Encoder forward (frozen)
                 rlt::evaluate(device_cuda, encoder, gpu_input, repr, encoder_buffer, rng_cuda, eval_mode);
 
@@ -551,10 +546,10 @@ int main(int argc, char* argv[]) {
                 rlt::forward(device_cuda, decoder, repr, decoder_buffer, rng_cuda, train_mode);
                 auto decoder_output = rlt::output(device_cuda, decoder);
 
-                // MSE loss + gradient
+                // MSE loss + gradient (reconstruct the input image)
                 mse_loss_gradient_kernel<<<GPU_BATCH, 1, 0, device_cuda.stream>>>(
-                    decoder_output._data, gpu_target._data, gpu_d_output._data, gpu_losses,
-                    REPR_ELEMENTS, 1.0f / (float)batch_size);
+                    decoder_output._data, gpu_input._data, gpu_d_output._data, gpu_losses,
+                    OUTPUT_ELEMENTS, 1.0f / (float)batch_size);
                 CUDA_KERNEL_CHECK(device_cuda.stream, "mse_loss_gradient");
                 reduce_loss_kernel<<<1, 1, 0, device_cuda.stream>>>(gpu_losses, gpu_acc_loss, GPU_BATCH);
                 CUDA_KERNEL_CHECK(device_cuda.stream, "reduce_loss");
@@ -636,7 +631,7 @@ int main(int argc, char* argv[]) {
     rlt::free(device_cuda, decoder); rlt::free(device_cuda, decoder_buffer);
     rlt::free(device_cuda, optimizer);
     rlt::free(device_cuda, gpu_input); rlt::free(device_cuda, repr);
-    rlt::free(device_cuda, gpu_target); rlt::free(device_cuda, gpu_d_output); rlt::free(device_cuda, gpu_d_repr);
+    rlt::free(device_cuda, gpu_d_output); rlt::free(device_cuda, gpu_d_repr);
     rlt::free(device_cuda, rng_cuda);
     rlt::free(device_cpu, device_cpu.logger);
 
