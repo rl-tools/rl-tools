@@ -53,6 +53,16 @@ namespace rl_tools::rl::environments::reacher{
 
     template <typename T_TI, T_TI T_HEIGHT, T_TI T_WIDTH>
     struct ObservationImage : observation::Image<T_TI, T_HEIGHT, T_WIDTH, 3>{};
+
+    template <typename T_TI, T_TI T_HEIGHT, T_TI T_WIDTH>
+    struct ObservationImageFlat{
+        using TI = T_TI;
+        static constexpr TI HEIGHT = T_HEIGHT;
+        static constexpr TI WIDTH = T_WIDTH;
+        static constexpr TI CHANNELS = 3;
+        static constexpr TI DIM = HEIGHT * WIDTH * CHANNELS;
+        using SHAPE = tensor::Shape<TI, DIM>;
+    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
@@ -78,7 +88,7 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = reacher::State<reacher::StateSpecification<T, TI>>;
         using Parameters = typename SPEC::PARAMETERS;
-        using Observation = reacher::ObservationImage<TI, SPEC::PARAMETERS::IMAGE_HEIGHT, SPEC::PARAMETERS::IMAGE_WIDTH>;
+        using Observation = reacher::ObservationImageFlat<TI, SPEC::PARAMETERS::IMAGE_HEIGHT, SPEC::PARAMETERS::IMAGE_WIDTH>;
         using ObservationPrivileged = reacher::ObservationDense<TI>;
         static constexpr TI N_AGENTS = 1;
         static constexpr TI ACTION_DIM = 2;

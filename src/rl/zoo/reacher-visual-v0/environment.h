@@ -12,8 +12,8 @@ namespace rl_tools::rl::zoo::reacher_visual_v0{
     struct ENVIRONMENT_FACTORY{
         using T = typename TYPE_POLICY::DEFAULT;
         struct REACHER_PARAMETERS: rlt::rl::environments::reacher::DefaultParameters<T>{
-            static constexpr auto IMAGE_HEIGHT = 84;
-            static constexpr auto IMAGE_WIDTH = 84;
+            static constexpr auto IMAGE_HEIGHT = 16;
+            static constexpr auto IMAGE_WIDTH = 16;
         };
         using ENVIRONMENT_SPEC = rlt::rl::environments::reacher::Specification<T, TI, REACHER_PARAMETERS>;
         using ENVIRONMENT = rlt::rl::environments::ReacherVisual<ENVIRONMENT_SPEC>;
