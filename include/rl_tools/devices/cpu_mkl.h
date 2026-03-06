@@ -23,20 +23,21 @@ namespace rl_tools{
     void init(devices::CPU_MKL<T_SPEC>& device){
         init(static_cast<devices::CPU_BLAS<T_SPEC>&>(device));
         using DEVICE = devices::CPU_MKL<T_SPEC>;
-        const char *env_var_name = "MKL_NUM_THREADS";
-        const char *value = getenv(env_var_name);
-        bool warn = true;
-        if (value != NULL) {
-            char *endptr;
-            typename DEVICE::index_t num_threads = strtol(value, &endptr, 10);
-            if (*endptr == '\0') {
-                warn = num_threads != 1;
+        const char* env_var_names[] = {"MKL_NUM_THREADS", "OMP_NUM_THREADS"};
+        for(const char* env_var_name : env_var_names){
+            const char *value = getenv(env_var_name);
+            bool warn = true;
+            if (value != NULL) {
+                char *endptr;
+                typename DEVICE::index_t num_threads = strtol(value, &endptr, 10);
+                if (*endptr == '\0') {
+                    warn = num_threads != 1;
+                }
+            }
+            if(warn){
+                std::cerr << "Warning: " << env_var_name << " is not set to 1. This may degrade performance." << std::endl;
             }
         }
-        if(warn){
-            std::cerr << "Warning: " << env_var_name << " is not set to 1. This may degrade performance." << std::endl;
-        }
-
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
