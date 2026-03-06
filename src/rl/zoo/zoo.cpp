@@ -16,6 +16,11 @@
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn/layers/td3_sampling/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
+#include <rl_tools/nn/layers/conv2d/operations_generic.h>
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
+#include <rl_tools/nn/layers/operations_cpu_mkl.h>
+#endif
+#include <rl_tools/nn/layers/flatten/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/random_uniform/operations_generic.h>
@@ -39,6 +44,8 @@
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/td3_sampling/persist.h>
+#include <rl_tools/nn/layers/conv2d/persist.h>
+#include <rl_tools/nn/layers/flatten/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
@@ -64,6 +71,8 @@
 #include <rl_tools/nn/layers/gru/persist_code.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist_code.h>
 #include <rl_tools/nn/layers/td3_sampling/persist_code.h>
+#include <rl_tools/nn/layers/conv2d/persist_code.h>
+#include <rl_tools/nn/layers/flatten/persist_code.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
 #include <rl_tools/nn_models/sequential/persist_code.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist_code.h>
@@ -94,6 +103,7 @@
 #endif
 #include "l2f/td3.h"
 #include "l2f/ppo.h"
+#include "reacher-visual-v0/ppo.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ant-v4/ppo.h"
 #include "ant-v4/td3.h"
@@ -246,6 +256,10 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_VISUAL_V0)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::reacher_visual_v0::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #else
 #error "RLtools Zoo PPO: Environment not defined"
 #endif
@@ -328,6 +342,8 @@ std::string environment = "bottleneck-v0";
 std::string environment = "ant-v4";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 std::string environment = "l2f";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_VISUAL_V0)
+std::string environment = "reacher-visual-v0";
 #else
 #error "RLtools Zoo: Environment not defined"
 #endif
