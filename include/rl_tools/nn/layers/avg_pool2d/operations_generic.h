@@ -44,7 +44,6 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn::layers::avg_pool2d::LayerForward<SPEC>& layer, RNG& rng) {}
 
     // ======================== evaluate ========================
-#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::avg_pool2d::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::avg_pool2d::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         static_assert(nn::layers::avg_pool2d::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -81,7 +80,6 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::avg_pool2d::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::avg_pool2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         evaluate(device, static_cast<const nn::layers::avg_pool2d::LayerForward<LAYER_SPEC>&>(layer), input, output, buffer, rng, mode);
     }
-#endif
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::avg_pool2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::avg_pool2d::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         forward(device, static_cast<nn::layers::avg_pool2d::LayerBackward<LAYER_SPEC>&>(layer), input, layer.output, buffer, rng, mode);
