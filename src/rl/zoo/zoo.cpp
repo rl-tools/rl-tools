@@ -103,6 +103,7 @@
 #endif
 #include "l2f/td3.h"
 #include "l2f/ppo.h"
+#include "reacher-v0/ppo.h"
 #include "reacher-visual-v0/ppo.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ant-v4/ppo.h"
@@ -256,6 +257,10 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_V0)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::reacher_v0::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_VISUAL_V0)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::reacher_visual_v0::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
@@ -342,6 +347,8 @@ std::string environment = "bottleneck-v0";
 std::string environment = "ant-v4";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 std::string environment = "l2f";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_V0)
+std::string environment = "reacher-v0";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_VISUAL_V0)
 std::string environment = "reacher-visual-v0";
 #else

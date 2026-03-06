@@ -37,8 +37,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_REACHER, BASIC_STEP){
 
     rlt::step(device, env, parameters, state, action, next_state, rng);
 
-    T expected_dx = 0.5f * 0.05f;
-    EXPECT_NEAR(next_state.x, state.x + expected_dx, 1e-5f);
+    T expected_dx = ENVIRONMENT::Parameters::MAX_VELOCITY * ENVIRONMENT::Parameters::DT;
+    T expected_x = rlt::rl::environments::reacher::clip(state.x + expected_dx, -ENVIRONMENT::Parameters::ARENA_SIZE, ENVIRONMENT::Parameters::ARENA_SIZE);
+    EXPECT_NEAR(next_state.x, expected_x, 1e-5f);
     EXPECT_NEAR(next_state.y, state.y, 1e-5f);
     EXPECT_EQ(next_state.target_x, state.target_x);
     EXPECT_EQ(next_state.target_y, state.target_y);
