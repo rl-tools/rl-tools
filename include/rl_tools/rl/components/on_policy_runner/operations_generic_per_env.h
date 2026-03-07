@@ -25,10 +25,16 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         auto obs_flat = view_memory<tensor::Shape<typename DEVICE::index_t, SPEC::ENVIRONMENT::Observation::DIM>>(device, obs_slice);
         auto obs_matrix = matrix_view(device, obs_flat);
         observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng);
+
         auto obs_priv_slice = view(device, observations_privileged, env_i);
-        auto obs_priv_flat = view_memory<tensor::Shape<typename DEVICE::index_t, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>>(device, obs_priv_slice);
-        auto obs_priv_matrix = matrix_view(device, obs_priv_flat);
-        observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
+        if constexpr(utils::typing::is_same_v<typename SPEC::ENVIRONMENT::Observation, typename SPEC::ENVIRONMENT::ObservationPrivileged>){
+            auto obs_priv_flat = view_memory<tensor::Shape<typename DEVICE::index_t, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>>(device, obs_priv_slice);
+            auto obs_priv_matrix = matrix_view(device, obs_priv_flat);
+            observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
+        }
+        else{
+            rlt::copy(device, device, obs_slice, obs_priv_slice);
+        }
     }
     template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
     RL_TOOLS_FUNCTION_PLACEMENT void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t pos, typename DEVICE::index_t env_i){
