@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_LAYERS_FLATTEN_PERSIST_CODE_H
 #include "layer.h"
 #include <sstream>
+#include "../../../containers/tensor/persist_code.h"
 #include "../../../persist/code.h"
 #include "../../../nn/capability/persist_code.h"
 
@@ -28,11 +29,7 @@ namespace rl_tools {
             ss << ind << "    using CONFIG = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::flatten::Configuration<TYPE_POLICY, " << TI_string << ">;\n";
             ss << ind << "    using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::flatten::BindConfiguration<CONFIG>;\n";
             ss << ind << "    using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string;
-            constexpr auto RANK = length(typename SPEC::INPUT_SHAPE{});
-            // emit each dim
-            [&]<auto... Is>(std::index_sequence<Is...>){
-                ((ss << ", " << get<Is>(typename SPEC::INPUT_SHAPE{})), ...);
-            }(std::make_index_sequence<RANK>{});
+            tensor::persist_code::emit_values<typename SPEC::INPUT_SHAPE>(ss);
             ss << ">;\n";
             using CONST_CAPABILITY = typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>;
             ss << ind << "    using CAPABILITY = " << to_string(CONST_CAPABILITY{}) << ";\n";

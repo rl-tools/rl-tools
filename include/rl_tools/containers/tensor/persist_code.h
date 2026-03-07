@@ -10,6 +10,19 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    namespace tensor::persist_code{
+        template <typename TUPLE, int I, int N>
+        void emit_values_impl(std::stringstream& ss){
+            if constexpr(I < N){
+                ss << ", " << get<I>(TUPLE{});
+                emit_values_impl<TUPLE, I + 1, N>(ss);
+            }
+        }
+        template <typename TUPLE>
+        void emit_values(std::stringstream& ss){
+            emit_values_impl<TUPLE, 0, length(TUPLE{})>(ss);
+        }
+    }
     template<typename DEVICE, typename SPEC>
     persist::Code save_code_split(DEVICE& device, Tensor<SPEC>& tensor, std::string name, bool const_declaration=true, typename DEVICE::index_t indent=0){
         using T = typename SPEC::T;

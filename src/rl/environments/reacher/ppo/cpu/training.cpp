@@ -1,4 +1,4 @@
-#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+// #define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 
 #include <rl_tools/operations/cpu_mux.h>
 
