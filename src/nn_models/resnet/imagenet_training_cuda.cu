@@ -50,6 +50,9 @@
 
 #define RL_TOOLS_DEBUG_CUDA_SYNC
 
+#include "imagenet_pipeline.h"
+#include "imagenet_kernels.cuh"
+
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 namespace fs = std::filesystem;
 
@@ -65,31 +68,6 @@ using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_CUDA = rlt::devices::DEVICE_FACTORY_CUDA<>;
 using TI = DEVICE_CPU::index_t;
 using TI_CUDA = DEVICE_CUDA::index_t;
-
-static inline void require_cuda(cudaError_t status, const char* call){
-    if(status != cudaSuccess){
-        std::cerr << "CUDA call \"" << call << "\" failed: " << cudaGetErrorString(status) << std::endl;
-        std::exit(1);
-    }
-}
-static inline void require_nvjpeg(nvjpegStatus_t status, const char* call){
-    if(status != NVJPEG_STATUS_SUCCESS){
-        std::cerr << "nvJPEG call \"" << call << "\" failed with status " << static_cast<int>(status) << std::endl;
-        std::exit(1);
-    }
-}
-static inline void require_kernel_ok(cudaStream_t stream, const char* call){
-    require_cuda(cudaGetLastError(), call);
-#ifdef RL_TOOLS_DEBUG_CUDA_SYNC
-    require_cuda(cudaStreamSynchronize(stream), call);
-#else
-    (void)stream;
-#endif
-}
-
-#define CUDA_CHECK(call) require_cuda((call), #call)
-#define NVJPEG_CHECK(call) require_nvjpeg((call), #call)
-#define CUDA_KERNEL_CHECK(stream, call_name) require_kernel_ok((stream), (call_name))
 
 #define MICRO_BATCH_SIZE 64
 constexpr TI_CUDA GPU_BATCH = MICRO_BATCH_SIZE;
@@ -185,86 +163,6 @@ __global__ void cross_entropy_loss_gradient_kernel(
     correct5[i] = (count < 5) ? 1 : 0;
 }
 
-// --- nvJPEG decode + crop/resize/normalize ---
-constexpr int NVJPEG_MAX_DIM = 2048;
-constexpr int DECODE_PITCH = NVJPEG_MAX_DIM * 3;
-constexpr size_t DECODE_IMG_STRIDE = (size_t)NVJPEG_MAX_DIM * NVJPEG_MAX_DIM * 3;
-
-struct ImageInfo { int img_w, img_h; uint32_t rng_seed; };
-
-__constant__ float d_imagenet_mean[3] = {0.485f, 0.456f, 0.406f};
-__constant__ float d_imagenet_std[3]  = {0.229f, 0.224f, 0.225f};
-
-__device__ uint32_t xorshift32(uint32_t& s) { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
-__device__ float rand_uniform(uint32_t& s) { return (float)(xorshift32(s) & 0x7FFFFFFF) / (float)0x7FFFFFFF; }
-
-__device__ void bilinear_normalize(const uint8_t* src, int pitch, int w, int h, float sx, float sy, T_ACTIVATION* dst) {
-    int x0 = (int)floorf(sx), y0 = (int)floorf(sy), x1 = x0 + 1, y1 = y0 + 1;
-    float fx = sx - (float)x0, fy = sy - (float)y0;
-    x0 = max(0, min(x0, w-1)); x1 = max(0, min(x1, w-1));
-    y0 = max(0, min(y0, h-1)); y1 = max(0, min(y1, h-1));
-    for (int c = 0; c < 3; c++) {
-        float v = (1.f-fx)*(1.f-fy)*(float)src[y0*pitch + x0*3 + c]
-                + fx*(1.f-fy)*(float)src[y0*pitch + x1*3 + c]
-                + (1.f-fx)*fy*(float)src[y1*pitch + x0*3 + c]
-                + fx*fy*(float)src[y1*pitch + x1*3 + c];
-        dst[c] = (T_ACTIVATION)((v / 255.f - d_imagenet_mean[c]) / d_imagenet_std[c]);
-    }
-}
-
-__global__ void train_crop_normalize(
-    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, T_ACTIVATION* __restrict__ out,
-    int TGT, float s_min, float s_max, float lr_min, float lr_max, float flip_p
-) {
-    int n = blockIdx.z, oy = blockIdx.y * blockDim.y + threadIdx.y, ox = blockIdx.x * blockDim.x + threadIdx.x;
-    if (oy >= TGT || ox >= TGT) return;
-    T_ACTIVATION* dst = out + ((size_t)n * TGT * TGT + oy * TGT + ox) * 3;
-    const ImageInfo& im = info[n];
-    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = (T_ACTIVATION)0.f; return; }
-
-    uint32_t rng = im.rng_seed;
-    float area = (float)(im.img_w * im.img_h);
-    int cx = 0, cy = 0, cw = im.img_w, ch = im.img_h;
-    for (int a = 0; a < 10; a++) {
-        float ta = (s_min + rand_uniform(rng) * (s_max - s_min)) * area;
-        float ratio = expf(lr_min + rand_uniform(rng) * (lr_max - lr_min));
-        int tw = (int)(sqrtf(ta * ratio) + 0.5f), th = (int)(sqrtf(ta / ratio) + 0.5f);
-        if (tw > 0 && tw <= im.img_w && th > 0 && th <= im.img_h) {
-            cx = (int)(rand_uniform(rng) * (float)(im.img_w - tw));
-            cy = (int)(rand_uniform(rng) * (float)(im.img_h - th));
-            cw = tw; ch = th; goto crop_done;
-        }
-        rand_uniform(rng); rand_uniform(rng);
-    }
-    { float r = (float)im.img_w / (float)im.img_h;
-      if (r < expf(lr_min)) { cw = im.img_w; ch = (int)((float)im.img_w / expf(lr_min)); }
-      else if (r > expf(lr_max)) { ch = im.img_h; cw = (int)((float)im.img_h * expf(lr_max)); }
-      cw = min(cw, im.img_w); ch = min(ch, im.img_h);
-      cx = (im.img_w - cw) / 2; cy = (im.img_h - ch) / 2; }
-crop_done:;
-    int hflip = rand_uniform(rng) < flip_p;
-    float sx = hflip ? (float)cx + ((float)(TGT-1-ox) + 0.5f) * (float)cw / (float)TGT - 0.5f
-                     : (float)cx + ((float)ox + 0.5f) * (float)cw / (float)TGT - 0.5f;
-    float sy = (float)cy + ((float)oy + 0.5f) * (float)ch / (float)TGT - 0.5f;
-    bilinear_normalize(pool + (size_t)n * DECODE_IMG_STRIDE, DECODE_PITCH, im.img_w, im.img_h, sx, sy, dst);
-}
-
-__global__ void val_crop_normalize(
-    const uint8_t* __restrict__ pool, const ImageInfo* __restrict__ info, T_ACTIVATION* __restrict__ out, int TGT
-) {
-    int n = blockIdx.z, oy = blockIdx.y * blockDim.y + threadIdx.y, ox = blockIdx.x * blockDim.x + threadIdx.x;
-    if (oy >= TGT || ox >= TGT) return;
-    T_ACTIVATION* dst = out + ((size_t)n * TGT * TGT + oy * TGT + ox) * 3;
-    const ImageInfo& im = info[n];
-    if (im.img_w <= 0) { dst[0] = dst[1] = dst[2] = (T_ACTIVATION)0.f; return; }
-    float scale = 256.f / (float)min(im.img_w, im.img_h);
-    float cw = (float)TGT / scale, ch = (float)TGT / scale;
-    float cx_f = ((float)im.img_w - cw) * 0.5f, cy_f = ((float)im.img_h - ch) * 0.5f;
-    float sx = cx_f + ((float)ox + 0.5f) * cw / (float)TGT - 0.5f;
-    float sy = cy_f + ((float)oy + 0.5f) * ch / (float)TGT - 0.5f;
-    bilinear_normalize(pool + (size_t)n * DECODE_IMG_STRIDE, DECODE_PITCH, im.img_w, im.img_h, sx, sy, dst);
-}
-
 // GPU-side metric reduction: sum losses and correct counts across the micro-batch
 __global__ void reduce_metrics_kernel(
     const float* __restrict__ losses, const TI_CUDA* __restrict__ correct, const TI_CUDA* __restrict__ correct5,
@@ -279,102 +177,6 @@ __global__ void reduce_metrics_kernel(
 constexpr int NUM_DECODE_WORKERS = 3;
 constexpr int NJ_PIPE_PER_WORKER = 4;
 constexpr int NUM_DECODE_SLOTS = 6;
-
-template<typename U>
-struct TSQueue {
-    std::queue<U> q;
-    std::mutex mtx;
-    std::condition_variable cv;
-    void push(U v) { { std::lock_guard<std::mutex> lk(mtx); q.push(v); } cv.notify_one(); }
-    U pop() { std::unique_lock<std::mutex> lk(mtx); cv.wait(lk, [&]{ return !q.empty(); }); U v = q.front(); q.pop(); return v; }
-};
-
-struct DecodeSlot {
-    uint8_t* decode_pool;
-    ImageInfo* gpu_info;
-    TI_CUDA* gpu_labels;
-    cudaEvent_t ready_event;
-    cudaEvent_t consumed_event;
-    ImageInfo* cpu_info;
-    TI_CUDA* cpu_labels;
-    const uint8_t* jpeg_data[GPU_BATCH];
-    size_t jpeg_size[GPU_BATCH];
-    nvjpegImage_t nj_dest[GPU_BATCH];
-};
-
-struct Sample {
-    const uint8_t* image_data;
-    size_t image_size;
-    int64_t label;
-};
-
-// --- mmap-based binary dataset (produced by prepare_imagenet.py) ---
-struct BinaryDataset {
-    int fd = -1;
-    uint8_t* mapped = nullptr;
-    size_t file_size = 0;
-    uint64_t num_samples = 0;
-    struct IndexEntry { uint64_t offset; uint32_t size; uint32_t label; };
-    const IndexEntry* index = nullptr;
-
-    bool load(const std::string& path, bool mmap_populate) {
-        fd = ::open(path.c_str(), O_RDONLY);
-        if (fd < 0) {
-            std::cerr << "Failed to open: " << path << ": " << std::strerror(errno) << " (errno " << errno << ")" << std::endl;
-            return false;
-        }
-        struct stat st;
-        if (fstat(fd, &st) < 0) {
-            std::cerr << "fstat failed for: " << path << ": " << std::strerror(errno) << " (errno " << errno << ")" << std::endl;
-            ::close(fd);
-            fd = -1;
-            return false;
-        }
-        file_size = st.st_size;
-        int mmap_flags = MAP_PRIVATE;
-        if (mmap_populate) {
-            mmap_flags |= MAP_POPULATE;
-        }
-        mapped = static_cast<uint8_t*>(mmap(nullptr, file_size, PROT_READ, mmap_flags, fd, 0));
-        if (mapped == MAP_FAILED) {
-            const int mmap_errno = errno;
-            std::cerr << "mmap failed for: " << path << ": " << std::strerror(mmap_errno) << " (errno " << mmap_errno << ")";
-            if (mmap_errno == ENOMEM && mmap_populate) {
-                std::cerr << " while using MAP_POPULATE";
-            }
-            std::cerr << std::endl;
-            ::close(fd);
-            fd = -1;
-            mapped = nullptr;
-            return false;
-        }
-        if (madvise(mapped, file_size, MADV_RANDOM) != 0) {
-            std::cerr << "Warning: madvise(MADV_RANDOM) failed for: " << path << ": " << std::strerror(errno) << " (errno " << errno << ")" << std::endl;
-        }
-        num_samples = *reinterpret_cast<const uint64_t*>(mapped);
-        index = reinterpret_cast<const IndexEntry*>(mapped + 8);
-        return true;
-    }
-    void populate_samples(std::vector<Sample>& out) const {
-        out.resize(num_samples);
-        for (uint64_t i = 0; i < num_samples; i++)
-            out[i] = {mapped + index[i].offset, index[i].size, static_cast<int64_t>(index[i].label)};
-    }
-    ~BinaryDataset() {
-        if (mapped && mapped != MAP_FAILED) munmap(mapped, file_size);
-        if (fd >= 0) ::close(fd);
-    }
-    BinaryDataset() = default;
-    BinaryDataset(const BinaryDataset&) = delete;
-    BinaryDataset& operator=(const BinaryDataset&) = delete;
-};
-
-float cosine_lr(TI epoch, TI total_epochs, float base_lr, float min_lr, TI warmup_epochs, float warmup_lr) {
-    if (epoch < warmup_epochs)
-        return warmup_lr + (base_lr - warmup_lr) * static_cast<float>(epoch) / static_cast<float>(warmup_epochs);
-    float progress = static_cast<float>(epoch - warmup_epochs) / static_cast<float>(total_epochs - warmup_epochs);
-    return min_lr + (base_lr - min_lr) * 0.5f * (1.0f + std::cos(static_cast<float>(M_PI) * progress));
-}
 
 int main(int argc, char* argv[]) {
     auto now_tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -494,17 +296,7 @@ int main(int argc, char* argv[]) {
     struct { double dec, fwd, loss, bwd, step, wall; int n; } prof = {};
 
     // nvJPEG HARDWARE backend — one context per decode worker (nvjpeg handle is not thread-safe)
-    struct DecodeWorkerCtx {
-        nvjpegHandle_t handle;
-        nvjpegJpegDecoder_t decoder;
-        nvjpegDecodeParams_t params;
-        nvjpegJpegState_t states[NJ_PIPE_PER_WORKER];
-        nvjpegBufferPinned_t pinned[NJ_PIPE_PER_WORKER];
-        nvjpegBufferDevice_t device_buf[NJ_PIPE_PER_WORKER];
-        nvjpegJpegStream_t jpeg_streams[NJ_PIPE_PER_WORKER];
-        cudaStream_t cuda_stream;
-    };
-    DecodeWorkerCtx decode_workers[NUM_DECODE_WORKERS];
+    DecodeWorkerCtx<NJ_PIPE_PER_WORKER> decode_workers[NUM_DECODE_WORKERS];
     for (int w = 0; w < NUM_DECODE_WORKERS; w++) {
         auto& ctx = decode_workers[w];
         NVJPEG_CHECK(nvjpegCreateSimple(&ctx.handle));
@@ -522,7 +314,7 @@ int main(int argc, char* argv[]) {
         CUDA_CHECK(cudaStreamCreate(&ctx.cuda_stream));
     }
 
-    DecodeSlot slots[NUM_DECODE_SLOTS];
+    DecodeSlot<TI_CUDA, GPU_BATCH> slots[NUM_DECODE_SLOTS];
     for (int s = 0; s < NUM_DECODE_SLOTS; s++) {
         CUDA_CHECK(cudaMalloc(&slots[s].decode_pool, (size_t)GPU_BATCH * DECODE_IMG_STRIDE));
         CUDA_CHECK(cudaMalloc(&slots[s].gpu_info, GPU_BATCH * sizeof(ImageInfo)));
@@ -545,87 +337,9 @@ int main(int argc, char* argv[]) {
     TSQueue<int> submit_queue, ready_queue;
 
     // One-off: pre-extract JPEG dimensions (multithreaded, raw SOF parse)
-    struct ImgDims { int w, h; };
     std::vector<ImgDims> train_dims(train_samples.size()), val_dims(val_samples.size());
     {
         auto t0 = std::chrono::high_resolution_clock::now();
-        auto jpeg_dimensions = [](const uint8_t* data, size_t len) -> ImgDims {
-            if(data == nullptr || len < 4){
-                return {0, 0};
-            }
-            // JPEG SOI
-            if(data[0] != 0xFF || data[1] != 0xD8){
-                return {0, 0};
-            }
-            auto is_sof = [](uint8_t marker){
-                switch(marker){
-                    case 0xC0: case 0xC1: case 0xC2: case 0xC3:
-                    case 0xC5: case 0xC6: case 0xC7:
-                    case 0xC9: case 0xCA: case 0xCB:
-                    case 0xCD: case 0xCE: case 0xCF:
-                        return true;
-                    default:
-                        return false;
-                }
-            };
-
-            size_t pos = 2;
-            while(pos + 1 < len){
-                // Find next marker prefix.
-                while(pos < len && data[pos] != 0xFF){
-                    pos++;
-                }
-                if(pos + 1 >= len){
-                    break;
-                }
-                // Skip fill bytes 0xFF.
-                while(pos < len && data[pos] == 0xFF){
-                    pos++;
-                }
-                if(pos >= len){
-                    break;
-                }
-                uint8_t marker = data[pos++];
-
-                // Standalone markers (no length field).
-                if(marker == 0xD8 || marker == 0xD9 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)){
-                    if(marker == 0xD9){
-                        break;
-                    }
-                    continue;
-                }
-                // Start of Scan: encoded data follows; stop strict header parsing.
-                if(marker == 0xDA){
-                    break;
-                }
-                if(pos + 1 >= len){
-                    break;
-                }
-                uint16_t seg_len = ((uint16_t)data[pos] << 8) | data[pos + 1];
-                if(seg_len < 2){
-                    return {0, 0};
-                }
-                size_t seg_payload = (size_t)seg_len - 2;
-                pos += 2;
-                if(pos + seg_payload > len){
-                    return {0, 0};
-                }
-                if(is_sof(marker)){
-                    // SOF payload: [precision][height:2][width:2]...
-                    if(seg_payload < 5){
-                        return {0, 0};
-                    }
-                    int h = ((int)data[pos + 1] << 8) | data[pos + 2];
-                    int w = ((int)data[pos + 3] << 8) | data[pos + 4];
-                    if(w > 0 && h > 0){
-                        return {w, h};
-                    }
-                    return {0, 0};
-                }
-                pos += seg_payload;
-            }
-            return {0, 0};
-        };
         auto parse_range = [&](const std::vector<Sample>& samples, ImgDims* dims, size_t begin, size_t end) {
             for (size_t i = begin; i < end; i++) {
                 dims[i] = jpeg_dimensions(samples[i].image_data, samples[i].image_size);
@@ -660,7 +374,7 @@ int main(int argc, char* argv[]) {
             while (true) {
                 int slot_idx = submit_queue.pop();
                 if (slot_idx < 0) { submit_queue.push(-1); break; }
-                DecodeSlot& slot = slots[slot_idx];
+                auto& slot = slots[slot_idx];
                 CUDA_CHECK(cudaStreamWaitEvent(ctx.cuda_stream, slot.consumed_event, 0));
                 for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
                     const ImageInfo& im = slot.cpu_info[s_i];
@@ -745,7 +459,7 @@ int main(int argc, char* argv[]) {
     }
 
     auto fill_train_slot = [&](int slot_idx, TI base_idx, const std::vector<TI>& valid_sample_indices) {
-        DecodeSlot& slot = slots[slot_idx];
+        auto& slot = slots[slot_idx];
         for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
             TI si = valid_sample_indices[base_idx + s_i];
             auto& sample = train_samples[si];
@@ -758,7 +472,7 @@ int main(int argc, char* argv[]) {
         }
     };
     auto fill_val_slot = [&](int slot_idx, TI base_idx, const std::vector<TI>& valid_indices) {
-        DecodeSlot& slot = slots[slot_idx];
+        auto& slot = slots[slot_idx];
         for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
             TI vi = valid_indices[base_idx + s_i];
             auto& s = val_samples[vi];
@@ -836,7 +550,7 @@ int main(int argc, char* argv[]) {
 
             for (TI micro_i = 0; micro_i < num_micro_batches; micro_i++) {
                 int slot_idx = ready_queue.pop();
-                DecodeSlot& slot = slots[slot_idx];
+                auto& slot = slots[slot_idx];
 
                 CUDA_CHECK(cudaStreamWaitEvent(device_cuda.stream, slot.ready_event, 0));
                 constexpr int BLK = 16, TGT = TrainingConfig::IMAGE_SIZE;
@@ -962,7 +676,7 @@ int main(int argc, char* argv[]) {
             }
             for (TI vb = 0; vb < nvb; vb++) {
                 int slot_idx = ready_queue.pop();
-                DecodeSlot& slot = slots[slot_idx];
+                auto& slot = slots[slot_idx];
                 CUDA_CHECK(cudaStreamWaitEvent(device_cuda.stream, slot.ready_event, 0));
                 constexpr int BLK = 16, TGT = TrainingConfig::IMAGE_SIZE;
                 val_crop_normalize<<<dim3((TGT+BLK-1)/BLK,(TGT+BLK-1)/BLK,GPU_BATCH), dim3(BLK,BLK), 0, device_cuda.stream>>>(
