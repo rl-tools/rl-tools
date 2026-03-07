@@ -47,10 +47,12 @@ namespace rl_tools::rl::zoo::reacher_visual_v0::ppo{
             struct Actor{
                 using OBS_SHAPE = typename T_ENVIRONMENT::Observation::SHAPE;
                 using INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
-                // Standardize(H*W*C) -> Unflatten(H,W,C) -> Conv1 -> Conv2 -> Flatten -> MLP
+                // Flatten(H,W,C -> H*W*C) -> Standardize(H*W*C) -> Unflatten(H*W*C -> H,W,C) -> Conv1 -> Conv2 -> Flatten -> MLP
                 static constexpr T_TI IMG_H = T_ENVIRONMENT::Observation::HEIGHT;
                 static constexpr T_TI IMG_W = T_ENVIRONMENT::Observation::WIDTH;
                 static constexpr T_TI IMG_C = T_ENVIRONMENT::Observation::CHANNELS;
+                using INPUT_FLATTEN_CONFIG = rlt::nn::layers::flatten::Configuration<T_TYPE_POLICY, T_TI>;
+                using INPUT_FLATTEN = rlt::nn::layers::flatten::BindConfiguration<INPUT_FLATTEN_CONFIG>;
                 using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<T_TYPE_POLICY, T_TI>;
                 using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
                 using UNFLATTEN_CONFIG = rlt::nn::layers::unflatten::Configuration<T_TYPE_POLICY, T_TI, IMG_H, IMG_W, IMG_C>;
@@ -59,12 +61,12 @@ namespace rl_tools::rl::zoo::reacher_visual_v0::ppo{
                 using CONV1 = rlt::nn::layers::conv2d::BindConfiguration<CONV1_CONFIG>;
                 using CONV2_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 32, 3, 3, 1, 1, 0, 0, rlt::nn::activation_functions::ActivationFunction::RELU>;
                 using CONV2 = rlt::nn::layers::conv2d::BindConfiguration<CONV2_CONFIG>;
-                using FLATTEN_CONFIG = rlt::nn::layers::flatten::Configuration<T_TYPE_POLICY, T_TI>;
-                using FLATTEN = rlt::nn::layers::flatten::BindConfiguration<FLATTEN_CONFIG>;
+                using OUTPUT_FLATTEN_CONFIG = rlt::nn::layers::flatten::Configuration<T_TYPE_POLICY, T_TI>;
+                using OUTPUT_FLATTEN = rlt::nn::layers::flatten::BindConfiguration<OUTPUT_FLATTEN_CONFIG>;
                 using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T_TYPE_POLICY, T_TI, T_ENVIRONMENT::ACTION_DIM, 2, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY>;
                 using MLP = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<MLP_CONFIG>;
 
-                using MODULE_CHAIN = rlt::nn_models::sequential::Module<STANDARDIZATION_LAYER, rlt::nn_models::sequential::Module<UNFLATTEN, rlt::nn_models::sequential::Module<CONV1, rlt::nn_models::sequential::Module<CONV2, rlt::nn_models::sequential::Module<FLATTEN, rlt::nn_models::sequential::Module<MLP>>>>>>;
+                using MODULE_CHAIN = rlt::nn_models::sequential::Module<INPUT_FLATTEN, STANDARDIZATION_LAYER, UNFLATTEN, CONV1, CONV2, OUTPUT_FLATTEN, MLP>;
                 using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
             };
             template <typename CAPABILITY>

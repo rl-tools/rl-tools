@@ -9,7 +9,6 @@
 #include "../../../../../nn_models/sequential/persist.h"
 #include "../../../../../rl/algorithms/ppo/persist.h"
 #include "../../../../../rl/components/on_policy_runner/persist.h"
-#include "../../../../../rl/components/running_normalizer/persist.h"
 #include "../../../../../random/persist.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -27,10 +26,6 @@ namespace rl_tools{
         save(device, ts.on_policy_runner, on_policy_runner_group);
         auto on_policy_runner_dataset_group = create_group(device, group, "on_policy_runner_dataset");
         save(device, ts.on_policy_runner_dataset, on_policy_runner_dataset_group);
-        auto observation_normalizer_group = create_group(device, group, "observation_normalizer");
-        save(device, ts.observation_normalizer, observation_normalizer_group);
-        auto observation_privileged_normalizer_group = create_group(device, group, "observation_privileged_normalizer");
-        save(device, ts.observation_privileged_normalizer, observation_privileged_normalizer_group);
         auto rng_group = create_group(device, group, "rng");
         save(device, ts.rng, rng_group);
         Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, 1>>> step_tensor;
@@ -74,14 +69,6 @@ namespace rl_tools{
         auto on_policy_runner_dataset_group = get_group(device, group, "on_policy_runner_dataset");
         step_result = load(device, ts.on_policy_runner_dataset, on_policy_runner_dataset_group);
         if(!step_result){ log(device, device.logger, "PPO loop load failed: on_policy_runner_dataset"); }
-        success &= step_result;
-        auto observation_normalizer_group = get_group(device, group, "observation_normalizer");
-        step_result = load(device, ts.observation_normalizer, observation_normalizer_group);
-        if(!step_result){ log(device, device.logger, "PPO loop load failed: observation_normalizer"); }
-        success &= step_result;
-        auto observation_privileged_normalizer_group = get_group(device, group, "observation_privileged_normalizer");
-        step_result = load(device, ts.observation_privileged_normalizer, observation_privileged_normalizer_group);
-        if(!step_result){ log(device, device.logger, "PPO loop load failed: observation_privileged_normalizer"); }
         success &= step_result;
         auto rng_group = get_group(device, group, "rng");
         step_result = load(device, ts.rng, rng_group);

@@ -41,7 +41,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     constexpr TI BATCH_SIZE = 1000000;
     using CONFIG = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, DIM>;
-    using CAPABILITY = rlt::nn::capability::Forward<>;
+    using CAPABILITY = rlt::nn::capability::Backward<>;
     rlt::nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE> layer;
     typename decltype(layer)::template Buffer<> buffer;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, DIM>> mean, std, bias, variance;
@@ -73,9 +73,8 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
             rlt::set(input, input_i, dim_i, bias_value + value * variance_value);
         }
     }
-    rlt::mean_std_colwise(device, input, mean, std);
-    rlt::set_statistics(device, layer, mean, std);
-    rlt::evaluate(device, layer, input, output, buffer, rng);
+    rlt::Mode<rlt::nn::layers::standardize::AccumulateMode<>> accumulate_mode;
+    rlt::forward(device, layer, input, output, buffer, rng, accumulate_mode);
     T output_mean = rlt::mean(device, output);
     T output_std = rlt::std(device, output);
     std::cout << "output_mean: " << output_mean << std::endl;

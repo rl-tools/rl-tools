@@ -10,7 +10,6 @@
 #include "../../../../../nn/optimizers/adam/operations_generic.h"
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"
 #include "../../../../../rl/components/on_policy_runner/operations_generic.h"
-#include "../../../../../rl/components/running_normalizer/operations_generic.h"
 
 #include "config.h"
 
@@ -29,9 +28,6 @@ namespace rl_tools{
         malloc(device, ts.critic_buffers_gae);
         malloc(device, ts.actor_optimizer);
         malloc(device, ts.critic_optimizer);
-        malloc(device, ts.observations_dense);
-        malloc(device, ts.observation_normalizer);
-        malloc(device, ts.observation_privileged_normalizer);
         malloc(device, ts.envs);
         malloc(device, ts.env_parameters);
         for(TI env_i=0; env_i < T_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
@@ -51,11 +47,8 @@ namespace rl_tools{
         free(device, ts.actor_buffers);
         free(device, ts.critic_buffers);
         free(device, ts.critic_buffers_gae);
-        free(device, ts.observations_dense);
         free(device, ts.actor_optimizer);
         free(device, ts.critic_optimizer);
-        free(device, ts.observation_normalizer);
-        free(device, ts.observation_privileged_normalizer);
         free(device, ts.envs);
         free(device, ts.env_parameters);
         for(TI env_i=0; env_i < T_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
@@ -78,8 +71,6 @@ namespace rl_tools{
 
         init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng); // this needs to be initialized before the on_policy_runner because the initial hidden state (might be learnable) might be used to set the initial policy state in the OnPolicyRunner
         init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
-        init(device, ts.observation_normalizer);
-        init(device, ts.observation_privileged_normalizer);
 
         ts.step = 0;
     }
@@ -97,35 +88,50 @@ namespace rl_tools{
         bool finished = false;
 
         if constexpr(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS){
-            constexpr TI OBS_DIM = T_CONFIG::ENVIRONMENT::Observation::DIM;
-            auto per_agent_observations = reshape<STEPS_TOTAL*N_AGENTS, OBS_DIM/N_AGENTS>(device, ts.observations_dense);
+            constexpr TI BATCH_SIZE = CONFIG::CORE_PARAMETERS::BATCH_SIZE;
+            constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
+            static_assert(N_BATCHES > 0);
+            static constexpr TI ACCUMULATE_STEPS = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_PER_ENV : 1;
+            static constexpr TI ACCUMULATE_FORWARD_BATCH_SIZE = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::SPEC::N_ENVIRONMENTS : BATCH_SIZE;
+            using OBS_SHAPE = typename T_CONFIG::ENVIRONMENT::Observation::SHAPE;
+            using OBS_PRIV_SHAPE = typename T_CONFIG::ENVIRONMENT::ObservationPrivileged::SHAPE;
+            using ACTOR_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, ACCUMULATE_FORWARD_BATCH_SIZE>, ACCUMULATE_STEPS>;
+            using CRITIC_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, ACCUMULATE_FORWARD_BATCH_SIZE>, ACCUMULATE_STEPS>;
+            Mode<nn::layers::standardize::AccumulateMode<>> accumulate_mode;
             if(ts.step == 0){
                 for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
                     collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
-                    auto obs_subset = view_range(device, ts.on_policy_runner_dataset.all_observations, 0, tensor::ViewSpec<0, STEPS_TOTAL>{});
-                    auto obs_matrix = matrix_view(device, obs_subset);
-                    copy(device, device, obs_matrix, ts.observations_dense);
-                    update(device, ts.observation_normalizer, per_agent_observations);
-                    auto obs_priv_matrix = matrix_view(device, ts.on_policy_runner_dataset.all_observations_privileged);
-                    update(device, ts.observation_privileged_normalizer, obs_priv_matrix);
+                    for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
+                        auto batch_observations = view_range(device, ts.on_policy_runner_dataset.all_observations, batch_i * BATCH_SIZE, tensor::ViewSpec<0, BATCH_SIZE>{});
+                        auto batch_observations_reshaped = reshape_row_major(device, batch_observations, ACTOR_INPUT_SHAPE{});
+                        forward(device, ts.ppo.actor, batch_observations_reshaped, ts.actor_buffers, ts.rng, accumulate_mode);
+                        auto batch_observations_privileged = view_range(device, ts.on_policy_runner_dataset.all_observations_privileged, batch_i * BATCH_SIZE, tensor::ViewSpec<0, BATCH_SIZE>{});
+                        auto batch_observations_privileged_reshaped = reshape_row_major(device, batch_observations_privileged, CRITIC_INPUT_SHAPE{});
+                        forward(device, ts.ppo.critic, batch_observations_privileged_reshaped, ts.critic_buffers, ts.rng, accumulate_mode);
+                    }
                 }
                 init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
-                set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
-                set_statistics(device, get_first_layer(ts.ppo.critic), ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
             }
         }
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
         if constexpr(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
-            constexpr TI OBS_DIM = T_CONFIG::ENVIRONMENT::Observation::DIM;
-            auto per_agent_observations = reshape<STEPS_TOTAL*N_AGENTS, OBS_DIM/N_AGENTS>(device, ts.observations_dense);
-            auto obs_subset = view_range(device, ts.on_policy_runner_dataset.all_observations, 0, tensor::ViewSpec<0, STEPS_TOTAL>{});
-            auto obs_matrix = matrix_view(device, obs_subset);
-            copy(device, device, obs_matrix, ts.observations_dense);
-            update(device, ts.observation_normalizer, per_agent_observations);
-            set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
-            auto obs_priv_matrix = matrix_view(device, ts.on_policy_runner_dataset.all_observations_privileged);
-            update(device, ts.observation_privileged_normalizer, obs_priv_matrix);
-            set_statistics(device, get_first_layer(ts.ppo.critic), ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
+            constexpr TI BATCH_SIZE = CONFIG::CORE_PARAMETERS::BATCH_SIZE;
+            constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
+            static constexpr TI ACCUMULATE_STEPS = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_PER_ENV : 1;
+            static constexpr TI ACCUMULATE_FORWARD_BATCH_SIZE = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::SPEC::N_ENVIRONMENTS : BATCH_SIZE;
+            using OBS_SHAPE = typename T_CONFIG::ENVIRONMENT::Observation::SHAPE;
+            using OBS_PRIV_SHAPE = typename T_CONFIG::ENVIRONMENT::ObservationPrivileged::SHAPE;
+            using ACTOR_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, ACCUMULATE_FORWARD_BATCH_SIZE>, ACCUMULATE_STEPS>;
+            using CRITIC_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, ACCUMULATE_FORWARD_BATCH_SIZE>, ACCUMULATE_STEPS>;
+            Mode<nn::layers::standardize::AccumulateMode<>> accumulate_mode;
+            for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
+                auto batch_observations = view_range(device, ts.on_policy_runner_dataset.all_observations, batch_i * BATCH_SIZE, tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto batch_observations_reshaped = reshape_row_major(device, batch_observations, ACTOR_INPUT_SHAPE{});
+                forward(device, ts.ppo.actor, batch_observations_reshaped, ts.actor_buffers, ts.rng, accumulate_mode);
+                auto batch_observations_privileged = view_range(device, ts.on_policy_runner_dataset.all_observations_privileged, batch_i * BATCH_SIZE, tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto batch_observations_privileged_reshaped = reshape_row_major(device, batch_observations_privileged, CRITIC_INPUT_SHAPE{});
+                forward(device, ts.ppo.critic, batch_observations_privileged_reshaped, ts.critic_buffers, ts.rng, accumulate_mode);
+            }
         }
         static constexpr TI STEPS = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_PER_ENV+1 : 1;
         static constexpr TI FORWARD_BATCH_SIZE = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::SPEC::N_ENVIRONMENTS : CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL;
@@ -212,8 +218,6 @@ namespace rl_tools{
         acc += abs_diff(device, s1.ppo, s2.ppo);
         acc += abs_diff(device, s1.on_policy_runner, s2.on_policy_runner);
         acc += abs_diff(device, s1.on_policy_runner_dataset, s2.on_policy_runner_dataset);
-        acc += abs_diff(device, s1.observation_normalizer, s2.observation_normalizer);
-        acc += abs_diff(device, s1.observation_privileged_normalizer, s2.observation_privileged_normalizer);
         acc += math::abs(device.math, (T)s1.step - (T)s2.step);
         acc += math::abs(device.math, (T)s1.next_checkpoint_id - (T)s2.next_checkpoint_id);
         acc += math::abs(device.math, (T)s1.next_evaluation_id - (T)s2.next_evaluation_id);

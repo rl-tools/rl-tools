@@ -58,8 +58,6 @@ struct StateComparison {
     T critic_optimizer_diff = 0;
     T on_policy_runner_diff = 0;
     T dataset_diff = 0;
-    T obs_normalizer_diff = 0;
-    T obs_priv_normalizer_diff = 0;
     TI step_diff = 0;
     TI next_checkpoint_id_diff = 0;
     TI next_evaluation_id_diff = 0;
@@ -72,8 +70,6 @@ struct StateComparison {
         critic_optimizer_diff = rlt::abs_diff(device, s1.critic_optimizer, s2.critic_optimizer);
         on_policy_runner_diff = rlt::abs_diff(device, s1.on_policy_runner, s2.on_policy_runner);
         dataset_diff = rlt::abs_diff(device, s1.on_policy_runner_dataset, s2.on_policy_runner_dataset);
-        obs_normalizer_diff = rlt::abs_diff(device, s1.observation_normalizer, s2.observation_normalizer);
-        obs_priv_normalizer_diff = rlt::abs_diff(device, s1.observation_privileged_normalizer, s2.observation_privileged_normalizer);
         step_diff = (s1.step > s2.step) ? (s1.step - s2.step) : (s2.step - s1.step);
         next_checkpoint_id_diff = (s1.next_checkpoint_id > s2.next_checkpoint_id) ? (s1.next_checkpoint_id - s2.next_checkpoint_id) : (s2.next_checkpoint_id - s1.next_checkpoint_id);
         next_evaluation_id_diff = (s1.next_evaluation_id > s2.next_evaluation_id) ? (s1.next_evaluation_id - s2.next_evaluation_id) : (s2.next_evaluation_id - s1.next_evaluation_id);
@@ -83,7 +79,7 @@ struct StateComparison {
         rng_match = (ss1.str() == ss2.str());
     }
     T total_diff() const {
-        return ppo_diff + actor_optimizer_diff + critic_optimizer_diff + on_policy_runner_diff + dataset_diff + obs_normalizer_diff + obs_priv_normalizer_diff + (T)step_diff + (T)next_checkpoint_id_diff + (T)next_evaluation_id_diff + (rng_match ? 0 : 1);
+        return ppo_diff + actor_optimizer_diff + critic_optimizer_diff + on_policy_runner_diff + dataset_diff + (T)step_diff + (T)next_checkpoint_id_diff + (T)next_evaluation_id_diff + (rng_match ? 0 : 1);
     }
     void print(const std::string& label) const {
         std::cout << "=== " << label << " ===" << std::endl;
@@ -94,8 +90,6 @@ struct StateComparison {
         std::cout << "  critic_optimizer_diff: " << critic_optimizer_diff << std::endl;
         std::cout << "  on_policy_runner_diff: " << on_policy_runner_diff << std::endl;
         std::cout << "  dataset_diff: " << dataset_diff << std::endl;
-        std::cout << "  obs_normalizer_diff: " << obs_normalizer_diff << std::endl;
-        std::cout << "  obs_priv_normalizer_diff: " << obs_priv_normalizer_diff << std::endl;
         std::cout << "  step_diff: " << step_diff << std::endl;
         std::cout << "  next_checkpoint_id_diff: " << next_checkpoint_id_diff << std::endl;
         std::cout << "  next_evaluation_id_diff: " << next_evaluation_id_diff << std::endl;
@@ -321,8 +315,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD) {
     ASSERT_EQ(ts.step, ts_loaded_hdf5.step);
     ASSERT_EQ(ts.next_checkpoint_id, ts_loaded_hdf5.next_checkpoint_id);
     ASSERT_EQ(ts.next_evaluation_id, ts_loaded_hdf5.next_evaluation_id);
-    ASSERT_EQ(ts.observation_normalizer.age, ts_loaded_hdf5.observation_normalizer.age);
-    ASSERT_EQ(ts.observation_privileged_normalizer.age, ts_loaded_hdf5.observation_privileged_normalizer.age);
     // Compare TAR
     StateComparison<DEVICE, LOOP_CORE_CONFIG> comp_tar;
     comp_tar.compare(device, ts, ts_loaded_tar);
@@ -331,8 +323,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD) {
     ASSERT_EQ(ts.step, ts_loaded_tar.step);
     ASSERT_EQ(ts.next_checkpoint_id, ts_loaded_tar.next_checkpoint_id);
     ASSERT_EQ(ts.next_evaluation_id, ts_loaded_tar.next_evaluation_id);
-    ASSERT_EQ(ts.observation_normalizer.age, ts_loaded_tar.observation_normalizer.age);
-    ASSERT_EQ(ts.observation_privileged_normalizer.age, ts_loaded_tar.observation_privileged_normalizer.age);
     // Compare HDF5 vs TAR
     StateComparison<DEVICE, LOOP_CORE_CONFIG> comp_cross;
     comp_cross.compare(device, ts_loaded_hdf5, ts_loaded_tar);

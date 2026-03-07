@@ -8,11 +8,24 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, GROUP& group) {
-        // todo: forward implementation to Parameter struct
         auto mean_group = create_group(device, group, "mean");
         save(device, layer.mean, mean_group);
         auto precision_group = create_group(device, group, "precision");
         save(device, layer.precision, precision_group);
+        auto running_mean_group = create_group(device, group, "running_mean");
+        save(device, layer.running_mean, running_mean_group);
+        write_attributes(device, running_mean_group);
+        auto running_std_group = create_group(device, group, "running_std");
+        save(device, layer.running_std, running_std_group);
+        write_attributes(device, running_std_group);
+        {
+            using T = typename SPEC::TYPE_POLICY::DEFAULT;
+            auto age_group = create_group(device, group, "age");
+            Matrix<matrix::Specification<T, typename SPEC::TI, 1, 1, false>> age_matrix;
+            set(age_matrix, 0, 0, layer.age);
+            save(device, age_matrix, age_group, "value");
+            write_attributes(device, age_group);
+        }
         set_attribute(device, group, "type", "standardize");
         write_attributes(device, group);
     }
@@ -31,6 +44,22 @@ namespace rl_tools {
         bool success = load(device, layer.mean, mean_group);
         auto precision_group = get_group(device, group, "precision");
         success &= load(device, layer.precision, precision_group);
+        if(group_exists(device, group, "running_mean")){
+            auto running_mean_group = get_group(device, group, "running_mean");
+            success &= load(device, layer.running_mean, running_mean_group);
+        }
+        if(group_exists(device, group, "running_std")){
+            auto running_std_group = get_group(device, group, "running_std");
+            success &= load(device, layer.running_std, running_std_group);
+        }
+        if(group_exists(device, group, "age")){
+            using T = typename SPEC::TYPE_POLICY::DEFAULT;
+            auto age_group = get_group(device, group, "age");
+            Matrix<matrix::Specification<T, typename SPEC::TI, 1, 1, false>> age_matrix;
+            set(age_matrix, 0, 0, (T)0);
+            load(device, age_matrix, age_group, "value");
+            layer.age = get(age_matrix, 0, 0);
+        }
         return success;
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
