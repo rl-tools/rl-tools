@@ -32,6 +32,18 @@
 // Scene management (compiled separately as .cpp to avoid NVCC issues with environment code)
 #include "scene.h"
 
+// Checkpointing (optional, requires HDF5)
+#ifdef RL_TOOLS_ENABLE_HDF5
+#include <rl_tools/utils/extrack/extrack.h>
+#include <rl_tools/utils/extrack/operations_cpu.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#include <rl_tools/nn/layers/dense/persist.h>
+#include <rl_tools/nn/layers/conv2d/persist.h>
+#include <rl_tools/nn/layers/avg_pool2d/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/parallel/persist.h>
+#endif
+
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -59,6 +71,7 @@ struct TrainingConfig {
     static constexpr float LEARNING_RATE = 1e-3f;
     static constexpr float MAX_ANGLE = 3.14159265358979323846f / 6.0f; // 30 degrees
     static constexpr TI LOG_INTERVAL = 100;
+    static constexpr TI CHECKPOINT_INTERVAL = 10000;
 };
 
 using TYPE_POLICY = rlt::numeric_types::Policy<float>;
@@ -270,6 +283,14 @@ int main(int argc, char** argv) {
     std::vector<float> cpu_delta_yaws(BATCH_SIZE);
     std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
 
+    // ---- Extrack setup (checkpointing) ----
+#ifdef RL_TOOLS_ENABLE_HDF5
+    rlt::utils::extrack::Config<TI> extrack_config;
+    rlt::utils::extrack::Paths extrack_paths;
+    extrack_config.name = "yaw-prediction";
+    rlt::init(device_cpu, extrack_config, extrack_paths, 0);
+#endif
+
     // ---- Training loop ----
     auto train_mode = rlt::Mode<rlt::mode::Default<>>{};
     auto total_start = std::chrono::high_resolution_clock::now();
@@ -365,6 +386,19 @@ int main(int argc, char** argv) {
 
         // ---- Optimizer step ----
         rlt::step(device_cuda, optimizer, model);
+
+        // ---- Checkpointing ----
+#ifdef RL_TOOLS_ENABLE_HDF5
+        if (iteration % TrainingConfig::CHECKPOINT_INTERVAL == 0 || iteration == NUM_ITERATIONS - 1) {
+            cudaStreamSynchronize(device_cuda.stream);
+            rlt::copy(device_cuda, device_cpu, model, model_cpu);
+            auto step_folder = rlt::get_step_folder(device_cpu, extrack_config, extrack_paths, iteration);
+            auto file = HighFive::File((step_folder / "checkpoint.h5").string(), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+            auto mg = rlt::create_group(device_cpu, file, "model");
+            rlt::save(device_cpu, model_cpu, mg);
+            std::cout << "  Checkpoint: " << (step_folder / "checkpoint.h5").string() << std::endl;
+        }
+#endif
 
         // ---- Logging ----
         if (iteration % TrainingConfig::LOG_INTERVAL == 0 || iteration == NUM_ITERATIONS - 1) {
