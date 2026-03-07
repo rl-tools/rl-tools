@@ -14,6 +14,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN AND RL_TOOLS_E
     add_executable(nn_models_resnet_imagenet_reconstruction_cuda ../imagenet_reconstruction_cuda.cu)
     set_target_properties(nn_models_resnet_imagenet_reconstruction_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
     target_link_libraries(nn_models_resnet_imagenet_reconstruction_cuda PRIVATE rl_tools_full nvjpeg)
+    target_include_directories(nn_models_resnet_imagenet_reconstruction_cuda PRIVATE ${stb_SOURCE_DIR})
     target_compile_options(nn_models_resnet_imagenet_reconstruction_cuda PRIVATE -O3)
     target_link_directories(nn_models_resnet_imagenet_reconstruction_cuda PRIVATE ${CMAKE_BINARY_DIR}/lib-workaround)
     target_link_options(nn_models_resnet_imagenet_reconstruction_cuda PRIVATE "LINKER:--disable-new-dtags")

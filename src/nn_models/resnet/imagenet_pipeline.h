@@ -105,6 +105,8 @@ struct DecodeWorkerCtx {
     nvjpegBufferDevice_t device_buf[T_PIPES_PER_WORKER];
     nvjpegJpegStream_t jpeg_streams[T_PIPES_PER_WORKER];
     cudaStream_t cuda_stream;
+    bool use_multiphase = true; // false = single-phase nvjpegDecode fallback
+    nvjpegJpegState_t simple_state = nullptr; // for single-phase decode
 };
 
 // --- mmap-based binary dataset (produced by prepare_imagenet.py) ---
