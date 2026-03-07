@@ -73,7 +73,7 @@ jobs:
           $MUJOCO_OPTION
 
       - name: Build
-        run: cmake --build build --target rl_zoo_pendulum_v1_sac rl_zoo_pendulum_v1_td3 rl_zoo_pendulum_v1_ppo
+        run: cmake --build build --target rl_zoo_pendulum_v1_sac rl_zoo_pendulum_v1_td3 rl_zoo_pendulum_v1_ppo rl_zoo_reacher_visual_v0_ppo
       - name: Build Acrobot
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.acrobot == 'true'
         run: cmake --build build --target rl_zoo_acrobot_swingup_v0_sac
@@ -91,6 +91,10 @@ jobs:
       - name: Run Zoo (PPO Pendulum-v1)
         working-directory: ${{ github.workspace }}
         run: ./build/src/rl/zoo/rl_zoo_pendulum_v1_ppo -n $NUM_SEEDS
+
+      - name: Run Zoo (PPO Reacher-Visual-v0)
+        working-directory: ${{ github.workspace }}
+        run: ./build/src/rl/zoo/rl_zoo_reacher_visual_v0_ppo -n $NUM_SEEDS
 
       - name: Run Zoo (SAC AcrobotSwingup-v0)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.acrobot == 'true'

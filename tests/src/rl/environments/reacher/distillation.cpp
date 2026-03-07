@@ -11,7 +11,7 @@
 #include <rl_tools/rl/environments/reacher/operations_generic.h>
 
 // Dense reacher checkpoint
-#include "../../../../experiments/2026-03-06_09-24-11/ac6f68c_zoo_environment_algorithm/reacher-v0_ppo/0000/steps/000000000000240/checkpoint.h"
+#include "../../../../tests/data/reacher_checkpoint.h"
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
