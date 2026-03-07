@@ -32,17 +32,14 @@
 // Scene management
 #include "scene.h"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
 #include <iostream>
 #include <vector>
 #include <cmath>
 #include <cstring>
-#include <filesystem>
 #include <sstream>
 #include <iomanip>
 #include <cuda_runtime.h>
+#include <cstdio>
 
 namespace rlt = rl_tools;
 
@@ -149,7 +146,7 @@ void draw_bead(std::vector<uint8_t>& image, int image_width, int tile_x, int til
 int main(int argc, char** argv) {
     const char* scene_path = nullptr;
     const char* checkpoint_path = nullptr;
-    const char* output_dir = "frames";
+    const char* output_path = "yaw_prediction_viewer.mp4";
     int num_frames = 120;
 
     for (int i = 1; i < argc; i++) {
@@ -157,14 +154,14 @@ int main(int argc, char** argv) {
             scene_path = argv[++i];
         } else if (std::strcmp(argv[i], "--checkpoint") == 0 && i + 1 < argc) {
             checkpoint_path = argv[++i];
-        } else if (std::strcmp(argv[i], "--output-dir") == 0 && i + 1 < argc) {
-            output_dir = argv[++i];
+        } else if (std::strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
+            output_path = argv[++i];
         } else if (std::strcmp(argv[i], "--num-frames") == 0 && i + 1 < argc) {
             num_frames = std::atoi(argv[++i]);
         } else {
             std::cerr << "Usage: " << argv[0]
                       << " --scene <path.glb> --checkpoint <path.h5>"
-                      << " [--output-dir <dir>] [--num-frames <N>]" << std::endl;
+                      << " [--output <path.mp4>] [--num-frames <N>]" << std::endl;
             return 1;
         }
     }
@@ -177,7 +174,7 @@ int main(int argc, char** argv) {
     std::cout << "Yaw prediction viewer" << std::endl;
     std::cout << "  Scene: " << scene_path << std::endl;
     std::cout << "  Checkpoint: " << checkpoint_path << std::endl;
-    std::cout << "  Output dir: " << output_dir << std::endl;
+    std::cout << "  Output: " << output_path << std::endl;
     std::cout << "  Num frames: " << num_frames << std::endl;
 
     // ---- Scene setup ----
@@ -249,8 +246,21 @@ int main(int argc, char** argv) {
         return rotated;
     };
 
-    // Create output directory
-    std::filesystem::create_directories(output_dir);
+    // ---- Open ffmpeg pipe ----
+    static constexpr TI IMAGE_WIDTH = GRID_DIM * CAM_WIDTH;
+    static constexpr TI IMAGE_HEIGHT = GRID_DIM * CAM_HEIGHT;
+    std::ostringstream ffmpeg_cmd;
+    ffmpeg_cmd
+        << "ffmpeg -y -f rawvideo -pixel_format rgb24 "
+        << "-video_size " << IMAGE_WIDTH << "x" << IMAGE_HEIGHT << " "
+        << "-framerate 30 -i - "
+        << "-an -c:v libx264 -pix_fmt yuv420p "
+        << output_path;
+    FILE* mp4_pipe = popen(ffmpeg_cmd.str().c_str(), "w");
+    if (!mp4_pipe) {
+        std::cerr << "Failed to start ffmpeg" << std::endl;
+        return 1;
+    }
 
     // ---- Frame generation loop ----
     auto eval_mode = rlt::Mode<rlt::mode::Default<>>{};
@@ -261,8 +271,6 @@ int main(int argc, char** argv) {
     static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
     std::vector<uint32_t> host_fb(NUM_CAMERAS * CAM_PIXELS);
 
-    static constexpr TI IMAGE_WIDTH = GRID_DIM * CAM_WIDTH;
-    static constexpr TI IMAGE_HEIGHT = GRID_DIM * CAM_HEIGHT;
     std::vector<uint8_t> output_image(IMAGE_WIDTH * IMAGE_HEIGHT * 3);
 
     std::vector<float> pred_buf(BATCH_SIZE * 2);
@@ -356,10 +364,15 @@ int main(int argc, char** argv) {
             draw_bead(output_image, IMAGE_WIDTH, tile_x, tile_y, pred_angle, MAX_ANGLE, 5, 200, 0, 0);     // Pred red
         }
 
-        // Save frame
-        std::ostringstream filename;
-        filename << output_dir << "/frame_" << std::setw(4) << std::setfill('0') << frame << ".png";
-        stbi_write_png(filename.str().c_str(), IMAGE_WIDTH, IMAGE_HEIGHT, 3, output_image.data(), IMAGE_WIDTH * 3);
+        // Write frame to ffmpeg pipe
+        size_t frame_bytes = output_image.size();
+        size_t written = fwrite(output_image.data(), 1, frame_bytes, mp4_pipe);
+        if (written != frame_bytes) {
+            std::cerr << "Failed writing frame " << frame << " to ffmpeg" << std::endl;
+            pclose(mp4_pipe);
+            mp4_pipe = nullptr;
+            break;
+        }
 
         if (frame % 10 == 0 || frame == num_frames - 1) {
             std::cout << "Frame " << frame << "/" << num_frames
@@ -367,7 +380,14 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::cout << "Done. Frames saved to " << output_dir << "/" << std::endl;
+    if (mp4_pipe) {
+        int ffmpeg_status = pclose(mp4_pipe);
+        if (ffmpeg_status != 0) {
+            std::cerr << "ffmpeg exited with status " << ffmpeg_status << std::endl;
+        } else {
+            std::cout << "Video written: " << output_path << std::endl;
+        }
+    }
 
     // ---- Cleanup ----
     rlt::free(device_cuda, gpu_head_output);

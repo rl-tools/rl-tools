@@ -42,7 +42,6 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
                 owl::owl
                 rendering_raytracing_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
                 rendering_raytracing_yaw_prediction_scene
         )
     endif()
