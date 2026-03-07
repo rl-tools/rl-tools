@@ -12,7 +12,7 @@ namespace rl_tools::rl::zoo::reacher_v0::ppo{
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
             static constexpr TI BATCH_SIZE = 512;
-            static constexpr TI TOTAL_STEP_LIMIT = 1000000;
+            static constexpr TI TOTAL_STEP_LIMIT = 300000;
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
