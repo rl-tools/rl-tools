@@ -10,8 +10,8 @@ Always use the `.venv` virtual environment. If it does not exist, create it with
 ### CMake Configuration
 
 ```bash
-mkdir -p build && cd build
-CUDACXX=/usr/local/cuda-13.1/bin/nvcc cmake .. \
+CUDACXX=/usr/local/cuda-13.1/bin/nvcc cmake -B build \
+  -DCMAKE_BUILD_TYPE=Release \
   -DRL_TOOLS_ENABLE_TESTS=ON \
   -DRL_TOOLS_EXPERIMENTAL=ON \
   -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON \

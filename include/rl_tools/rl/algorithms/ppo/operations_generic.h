@@ -136,7 +136,7 @@ namespace rl_tools{
                         auto source_row = row(device, observations_matrix, sample_index);
                         swap(device, target_row, source_row);
                     }
-                    if(PPO_SPEC::ASYMMETRIC_OBSERVATIONS){
+                    {
                         auto target_row = row(device, observations_privileged_matrix, dataset_i);
                         auto source_row = row(device, observations_privileged_matrix, sample_index);
                         swap(device, target_row, source_row);
