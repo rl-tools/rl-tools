@@ -49,9 +49,9 @@ namespace rl_tools::rl::components{
             using OBS_SHAPE = typename SPEC::ENVIRONMENT::Observation::SHAPE;
             using OBS_PRIV_SHAPE = typename SPEC::ENVIRONMENT::ObservationPrivileged::SHAPE;
 
-            // Observation tensor storage (separate from scalar data)
-            using ALL_OBS_STORAGE_SHAPE = tensor::Prepend<OBS_SHAPE, DATASET_SPEC::STEPS_TOTAL_ALL>;
-            using ALL_OBS_PRIV_STORAGE_SHAPE = tensor::Prepend<OBS_PRIV_SHAPE, DATASET_SPEC::STEPS_TOTAL_ALL>;
+            // Observation tensor storage (always flat to ensure matrix_view gives (N, DIM) rows)
+            using ALL_OBS_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::ENVIRONMENT::Observation::DIM>;
+            using ALL_OBS_PRIV_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>;
             Tensor<tensor::Specification<T, TI, ALL_OBS_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations;
             Tensor<tensor::Specification<T, TI, ALL_OBS_PRIV_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations_privileged;
 
