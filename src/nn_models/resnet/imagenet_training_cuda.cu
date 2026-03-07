@@ -295,21 +295,29 @@ int main(int argc, char* argv[]) {
     CUDA_CHECK(cudaEventCreate(&ev_loss));  CUDA_CHECK(cudaEventCreate(&ev_bwd)); CUDA_CHECK(cudaEventCreate(&ev_step));
     struct { double dec, fwd, loss, bwd, step, wall; int n; } prof = {};
 
-    // nvJPEG HARDWARE backend — one context per decode worker (nvjpeg handle is not thread-safe)
+    // nvJPEG decode — try HARDWARE backend, fall back to single-phase nvjpegDecode
     DecodeWorkerCtx<NJ_PIPE_PER_WORKER> decode_workers[NUM_DECODE_WORKERS];
     for (int w = 0; w < NUM_DECODE_WORKERS; w++) {
         auto& ctx = decode_workers[w];
         NVJPEG_CHECK(nvjpegCreateSimple(&ctx.handle));
-        NVJPEG_CHECK(nvjpegDecoderCreate(ctx.handle, NVJPEG_BACKEND_HARDWARE, &ctx.decoder));
+        if (nvjpegDecoderCreate(ctx.handle, NVJPEG_BACKEND_HARDWARE, &ctx.decoder) != NVJPEG_STATUS_SUCCESS) {
+            ctx.use_multiphase = false;
+            ctx.decoder = nullptr;
+            if (w == 0) std::cout << "nvJPEG: HARDWARE backend not available, using single-phase decode" << std::endl;
+        }
         NVJPEG_CHECK(nvjpegDecodeParamsCreate(ctx.handle, &ctx.params));
         NVJPEG_CHECK(nvjpegDecodeParamsSetOutputFormat(ctx.params, NVJPEG_OUTPUT_RGBI));
-        for (int p = 0; p < NJ_PIPE_PER_WORKER; p++) {
-            NVJPEG_CHECK(nvjpegDecoderStateCreate(ctx.handle, ctx.decoder, &ctx.states[p]));
-            NVJPEG_CHECK(nvjpegBufferPinnedCreate(ctx.handle, nullptr, &ctx.pinned[p]));
-            NVJPEG_CHECK(nvjpegBufferDeviceCreate(ctx.handle, nullptr, &ctx.device_buf[p]));
-            NVJPEG_CHECK(nvjpegJpegStreamCreate(ctx.handle, &ctx.jpeg_streams[p]));
-            NVJPEG_CHECK(nvjpegStateAttachPinnedBuffer(ctx.states[p], ctx.pinned[p]));
-            NVJPEG_CHECK(nvjpegStateAttachDeviceBuffer(ctx.states[p], ctx.device_buf[p]));
+        if (ctx.use_multiphase) {
+            for (int p = 0; p < NJ_PIPE_PER_WORKER; p++) {
+                NVJPEG_CHECK(nvjpegDecoderStateCreate(ctx.handle, ctx.decoder, &ctx.states[p]));
+                NVJPEG_CHECK(nvjpegBufferPinnedCreate(ctx.handle, nullptr, &ctx.pinned[p]));
+                NVJPEG_CHECK(nvjpegBufferDeviceCreate(ctx.handle, nullptr, &ctx.device_buf[p]));
+                NVJPEG_CHECK(nvjpegJpegStreamCreate(ctx.handle, &ctx.jpeg_streams[p]));
+                NVJPEG_CHECK(nvjpegStateAttachPinnedBuffer(ctx.states[p], ctx.pinned[p]));
+                NVJPEG_CHECK(nvjpegStateAttachDeviceBuffer(ctx.states[p], ctx.device_buf[p]));
+            }
+        } else {
+            NVJPEG_CHECK(nvjpegJpegStateCreate(ctx.handle, &ctx.simple_state));
         }
         CUDA_CHECK(cudaStreamCreate(&ctx.cuda_stream));
     }
@@ -377,15 +385,19 @@ int main(int argc, char* argv[]) {
                 auto& slot = slots[slot_idx];
                 CUDA_CHECK(cudaStreamWaitEvent(ctx.cuda_stream, slot.consumed_event, 0));
                 for (TI_CUDA s_i = 0; s_i < GPU_BATCH; s_i++) {
-                    const ImageInfo& im = slot.cpu_info[s_i];
+                    ImageInfo& im = slot.cpu_info[s_i];
                     if(im.img_w <= 0 || im.img_h <= 0 || im.img_w > NVJPEG_MAX_DIM || im.img_h > NVJPEG_MAX_DIM){
                         continue;
                     }
-                    int p = s_i % NJ_PIPE_PER_WORKER;
-                    NVJPEG_CHECK(nvjpegJpegStreamParse(ctx.handle, slot.jpeg_data[s_i], slot.jpeg_size[s_i], 0, 0, ctx.jpeg_streams[p]));
-                    NVJPEG_CHECK(nvjpegDecodeJpegHost(ctx.handle, ctx.decoder, ctx.states[p], ctx.params, ctx.jpeg_streams[p]));
-                    NVJPEG_CHECK(nvjpegDecodeJpegTransferToDevice(ctx.handle, ctx.decoder, ctx.states[p], ctx.jpeg_streams[p], ctx.cuda_stream));
-                    NVJPEG_CHECK(nvjpegDecodeJpegDevice(ctx.handle, ctx.decoder, ctx.states[p], &slot.nj_dest[s_i], ctx.cuda_stream));
+                    if (ctx.use_multiphase) {
+                        int p = s_i % NJ_PIPE_PER_WORKER;
+                        NVJPEG_CHECK(nvjpegJpegStreamParse(ctx.handle, slot.jpeg_data[s_i], slot.jpeg_size[s_i], 0, 0, ctx.jpeg_streams[p]));
+                        NVJPEG_CHECK(nvjpegDecodeJpegHost(ctx.handle, ctx.decoder, ctx.states[p], ctx.params, ctx.jpeg_streams[p]));
+                        NVJPEG_CHECK(nvjpegDecodeJpegTransferToDevice(ctx.handle, ctx.decoder, ctx.states[p], ctx.jpeg_streams[p], ctx.cuda_stream));
+                        NVJPEG_CHECK(nvjpegDecodeJpegDevice(ctx.handle, ctx.decoder, ctx.states[p], &slot.nj_dest[s_i], ctx.cuda_stream));
+                    } else {
+                        NVJPEG_CHECK(nvjpegDecode(ctx.handle, ctx.simple_state, slot.jpeg_data[s_i], slot.jpeg_size[s_i], NVJPEG_OUTPUT_RGBI, &slot.nj_dest[s_i], ctx.cuda_stream));
+                    }
                 }
                 CUDA_CHECK(cudaMemcpyAsync(slot.gpu_info, slot.cpu_info, GPU_BATCH * sizeof(ImageInfo), cudaMemcpyHostToDevice, ctx.cuda_stream));
                 CUDA_CHECK(cudaMemcpyAsync(slot.gpu_labels, slot.cpu_labels, GPU_BATCH * sizeof(TI_CUDA), cudaMemcpyHostToDevice, ctx.cuda_stream));
@@ -736,11 +748,16 @@ int main(int argc, char* argv[]) {
     for (int w = 0; w < NUM_DECODE_WORKERS; w++) {
         auto& ctx = decode_workers[w];
         CUDA_CHECK(cudaStreamDestroy(ctx.cuda_stream));
-        for (int p = 0; p < NJ_PIPE_PER_WORKER; p++) {
-            NVJPEG_CHECK(nvjpegJpegStreamDestroy(ctx.jpeg_streams[p])); NVJPEG_CHECK(nvjpegBufferPinnedDestroy(ctx.pinned[p]));
-            NVJPEG_CHECK(nvjpegBufferDeviceDestroy(ctx.device_buf[p])); NVJPEG_CHECK(nvjpegJpegStateDestroy(ctx.states[p]));
+        if (ctx.use_multiphase) {
+            for (int p = 0; p < NJ_PIPE_PER_WORKER; p++) {
+                NVJPEG_CHECK(nvjpegJpegStreamDestroy(ctx.jpeg_streams[p])); NVJPEG_CHECK(nvjpegBufferPinnedDestroy(ctx.pinned[p]));
+                NVJPEG_CHECK(nvjpegBufferDeviceDestroy(ctx.device_buf[p])); NVJPEG_CHECK(nvjpegJpegStateDestroy(ctx.states[p]));
+            }
+            NVJPEG_CHECK(nvjpegDecoderDestroy(ctx.decoder));
+        } else {
+            NVJPEG_CHECK(nvjpegJpegStateDestroy(ctx.simple_state));
         }
-        NVJPEG_CHECK(nvjpegDecodeParamsDestroy(ctx.params)); NVJPEG_CHECK(nvjpegDecoderDestroy(ctx.decoder)); NVJPEG_CHECK(nvjpegDestroy(ctx.handle));
+        NVJPEG_CHECK(nvjpegDecodeParamsDestroy(ctx.params)); NVJPEG_CHECK(nvjpegDestroy(ctx.handle));
     }
     CUDA_CHECK(cudaFree(gpu_acc_loss)); CUDA_CHECK(cudaFree(gpu_acc_correct)); CUDA_CHECK(cudaFree(gpu_acc_correct5));
     CUDA_CHECK(cudaEventDestroy(ev_start)); CUDA_CHECK(cudaEventDestroy(ev_dec)); CUDA_CHECK(cudaEventDestroy(ev_fwd));
