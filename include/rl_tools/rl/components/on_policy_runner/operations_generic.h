@@ -136,12 +136,10 @@ namespace rl_tools{
             auto& state = get(runner.states, 0, env_i);
             auto& parameters = get(runner.env_parameters, 0, env_i);
             auto obs_slice = view(device, dataset.all_observations, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
-            auto obs_flat = view_memory<tensor::Shape<TI, SPEC::ENVIRONMENT::Observation::DIM>>(device, obs_slice);
-            auto obs_matrix = matrix_view(device, obs_flat);
+            auto obs_matrix = matrix_view(device, obs_slice);
             observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng);
             auto obs_priv_slice = view(device, dataset.all_observations_privileged, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
-            auto obs_priv_flat = view_memory<tensor::Shape<TI, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>>(device, obs_priv_slice);
-            auto obs_priv_matrix = matrix_view(device, obs_priv_flat);
+            auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
             observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
