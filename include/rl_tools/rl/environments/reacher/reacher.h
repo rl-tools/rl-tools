@@ -88,7 +88,7 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = reacher::State<reacher::StateSpecification<T, TI>>;
         using Parameters = typename SPEC::PARAMETERS;
-        using Observation = reacher::ObservationImageFlat<TI, SPEC::PARAMETERS::IMAGE_HEIGHT, SPEC::PARAMETERS::IMAGE_WIDTH>;
+        using Observation = reacher::ObservationImage<TI, SPEC::PARAMETERS::IMAGE_HEIGHT, SPEC::PARAMETERS::IMAGE_WIDTH>;
         using ObservationPrivileged = reacher::ObservationDense<TI>;
         static constexpr TI N_AGENTS = 1;
         static constexpr TI ACTION_DIM = 2;

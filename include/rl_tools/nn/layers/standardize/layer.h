@@ -7,9 +7,15 @@
 
 #include "../../../nn/nn.h"
 #include "../../../nn/parameters/parameters.h"
+#include "../../../mode/mode.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::standardize {
+    template <typename T_BASE = mode::Final, typename T_SPEC = bool>
+    struct AccumulateMode: T_BASE{
+        using SPEC = T_SPEC;
+        using BASE = T_BASE;
+    };
     template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     constexpr bool check_input_output_f(){
         static_assert(INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM);
@@ -73,6 +79,10 @@ namespace rl_tools::nn::layers::standardize {
         using STATISTICS_SHAPE = tensor::Shape<TI, INPUT_DIM>;
         using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::Specification<typename SPEC::TYPE_POLICY, TI, STATISTICS_SHAPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant, SPEC::DYNAMIC_ALLOCATION, SPEC::CONST>; // Constant from the view of a forward or backward pass
         typename nn::parameters::Plain::template Instance<STATISTICS_PARAMETER_SPEC> mean, precision; // precision = 1/std
+
+        // Running statistics for accumulation (same algorithm as RunningNormalizer)
+        typename SPEC::TYPE_POLICY::DEFAULT age = 0;
+        typename nn::parameters::Plain::template Instance<STATISTICS_PARAMETER_SPEC> running_mean, running_std;
 
         template<bool DYNAMIC_ALLOCATION=true>
         using State = standardize::State;
