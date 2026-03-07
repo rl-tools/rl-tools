@@ -47,10 +47,7 @@ namespace rl_tools {
                << ">;\n";
             ss << ind << "    using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::conv2d::BindConfiguration<CONFIG>;\n";
             ss << ind << "    using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string;
-            constexpr auto RANK = length(typename SPEC::INPUT_SHAPE{});
-            [&]<auto... Is>(std::index_sequence<Is...>){
-                ((ss << ", " << get<Is>(typename SPEC::INPUT_SHAPE{})), ...);
-            }(std::make_index_sequence<RANK>{});
+            tensor::persist_code::emit_values<typename SPEC::INPUT_SHAPE>(ss);
             ss << ">;\n";
             using CONST_CAPABILITY = typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>;
             ss << ind << "    using CAPABILITY = " << to_string(CONST_CAPABILITY{}) << ";\n";

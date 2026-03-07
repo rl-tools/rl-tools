@@ -2,7 +2,7 @@ template <typename DEVICE, typename TYPE_POLICY, bool DYNAMIC_ALLOCATION>
 struct CONFIG_FACTORY{
     using TI = typename DEVICE::index_t;
     using T = typename TYPE_POLICY::DEFAULT;
-    using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
+    using RNG = typename DEVICE::SPEC::RANDOM::template ENGINE<>;
 
     struct REACHER_PARAMETERS: rlt::rl::environments::reacher::DefaultParameters<typename TYPE_POLICY::DEFAULT>{
         static constexpr auto IMAGE_HEIGHT = 84;
