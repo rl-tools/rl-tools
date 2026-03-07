@@ -209,7 +209,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_REACHER, DISTILLATION) {
 
     auto [final_dense_return, final_visual_return] = evaluate_closed_loop();
     std::cout << "Final: Dense return = " << final_dense_return << ", Visual return = " << final_visual_return << std::endl;
-    EXPECT_GT(final_visual_return, final_dense_return * 0.5);
+    EXPECT_GT(final_visual_return, final_dense_return * 2);
 
     rlt::free(device, dense_obs_single);
     rlt::free(device, dense_action_single);

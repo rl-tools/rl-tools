@@ -39,15 +39,15 @@ namespace rl_tools {
             ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::Layer<CONFIG, CAPABILITY, INPUT_SHAPE>;" << "\n";
             std::string initializer_list;
             if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
-                initializer_list = "{mean::parameters, precision::parameters}";
+                initializer_list = "{mean::parameters, precision::parameters, age, running_mean::parameters, running_std::parameters}";
             }
             else{
                 if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Backward){
-                    initializer_list = "{{mean::parameters, precision::parameters}}";
+                    initializer_list = "{{mean::parameters, precision::parameters, age, running_mean::parameters, running_std::parameters}}";
                 }
                 else{
                     if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Gradient){
-                        initializer_list = "{{{mean::parameters, precision::parameters}}, output::container}";
+                        initializer_list = "{{{mean::parameters, precision::parameters, age, running_mean::parameters, running_std::parameters}}, output::container}";
                     }
                     else{
                         utils::assert_exit(device, false, "Unknown capability");
@@ -82,6 +82,16 @@ namespace rl_tools {
         auto precision = save_code_split(device, layer.precision, "precision", const_declaration, indent+1);
         ss_header << precision.header;
         ss << precision.body;
+        {
+            std::string T_string = containers::persist::get_type_string<typename SPEC::TYPE_POLICY::DEFAULT>();
+            ss << ind << "    " << (const_declaration ? "constexpr " : "") << T_string << " age = " << layer.age << ";\n";
+        }
+        auto running_mean = save_code_split(device, layer.running_mean, "running_mean", const_declaration, indent+1);
+        ss_header << running_mean.header;
+        ss << running_mean.body;
+        auto running_std = save_code_split(device, layer.running_std, "running_std", const_declaration, indent+1);
+        ss_header << running_std.header;
+        ss << running_std.body;
         ss << ind << "}\n";
         if(finish){
             return nn::layers::standardize::persist_code::finish(device, layer, name, {ss_header.str(), ss.str()}, const_declaration, indent);
