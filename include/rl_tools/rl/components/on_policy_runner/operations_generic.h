@@ -123,9 +123,12 @@ namespace rl_tools{
             mode_reset_mask.mask = truncated_view;
             reset(device, actor, runner.policy_state, rng, mode_reset_mask); // it is important that this happens before prologue because prologue resets the truncated flags on the runner
             rl::components::on_policy_runner::prologue(device, observations_privileged, observations, runner, rng, step_i);
+            using OBS_SHAPE = typename SPEC::ENVIRONMENT::Observation::SHAPE;
+            using EVAL_INPUT_SHAPE = tensor::Prepend<OBS_SHAPE, SPEC::N_ENVIRONMENTS>;
+            auto observations_reshaped = reshape_row_major(device, observations, EVAL_INPUT_SHAPE{});
             auto actions_mean_tensor = to_tensor(device, actions_mean);
             Mode<mode::Rollout<>> mode;
-            evaluate_step(device, actor, observations, runner.policy_state, actions_mean_tensor, policy_eval_buffers, rng, mode);
+            evaluate_step(device, actor, observations_reshaped, runner.policy_state, actions_mean_tensor, policy_eval_buffers, rng, mode);
             auto& last_layer = get_last_layer(actor);
             auto log_std = matrix_view(device, last_layer.log_std.parameters);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, log_std, rng, step_i);
