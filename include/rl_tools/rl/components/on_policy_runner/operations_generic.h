@@ -135,6 +135,9 @@ namespace rl_tools{
             auto& env = get(runner.environments, 0, env_i);
             auto& state = get(runner.states, 0, env_i);
             auto& parameters = get(runner.env_parameters, 0, env_i);
+            auto obs_slice = view(device, dataset.all_observations, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
+            auto obs_matrix = matrix_view(device, obs_slice);
+            observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng);
             auto obs_priv_slice = view(device, dataset.all_observations_privileged, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
             auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
             observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
