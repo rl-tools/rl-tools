@@ -32,10 +32,12 @@
 // Scene management (compiled separately as .cpp to avoid NVCC issues with environment code)
 #include "scene.h"
 
-// Checkpointing (optional, requires HDF5)
-#ifdef RL_TOOLS_ENABLE_HDF5
+// Experiment tracking (logging, tensorboard)
 #include <rl_tools/utils/extrack/extrack.h>
 #include <rl_tools/utils/extrack/operations_cpu.h>
+
+// Checkpointing (optional, requires HDF5)
+#ifdef RL_TOOLS_ENABLE_HDF5
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/conv2d/persist.h>
@@ -378,21 +380,11 @@ int main(int argc, char** argv) {
     std::vector<float> cpu_delta_yaws(BATCH_SIZE);
     std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
 
-    // ---- Extrack setup (checkpointing + tensorboard) ----
-#ifdef RL_TOOLS_ENABLE_HDF5
+    // ---- Extrack setup (experiment tracking, tensorboard logging) ----
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
     extrack_config.name = "yaw-prediction";
     rlt::init(device_cpu, extrack_config, extrack_paths, 0);
-#endif
-    rlt::init(device_cpu, device_cpu.logger, fs::path(
-#ifdef RL_TOOLS_ENABLE_HDF5
-        extrack_paths.seed
-#else
-        "logs/yaw-prediction"
-#endif
-    ));
-    std::cout << "TensorBoard logging initialized" << std::endl;
 
     // ---- Training loop ----
     auto train_mode = rlt::Mode<rlt::mode::Default<>>{};
