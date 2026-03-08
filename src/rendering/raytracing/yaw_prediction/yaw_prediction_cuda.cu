@@ -101,9 +101,12 @@ using GPU_INPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_INPUT_SHAPE>;
 using GPU_OUTPUT_SHAPE = typename GPU_MODEL::OUTPUT_SHAPE;
 using GPU_D_OUTPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_OUTPUT_SHAPE>;
 
-// Encoder output dimension (256 from global avgpool of 4x4x256)
+// Encoder output: last dim is channel count, leading dims are spatial
 static constexpr int ENCODER_DIM = GPU_MODEL::SPEC::LAST_DIM_A;
 static constexpr int CONCAT_DIM = GPU_MODEL::SPEC::LAST_DIM;
+// Number of rows for concatenation (product of all dims / last dim)
+static constexpr int ENCODER_TOTAL = rlt::product(typename GPU_MODEL::SPEC::OUTPUT_SHAPE_A{});
+static constexpr int CONCAT_ROWS = ENCODER_TOTAL / ENCODER_DIM;
 
 // ---- CUDA kernels ----
 
@@ -451,13 +454,13 @@ int main(int argc, char** argv) {
         rlt::copy(device_cuda, device_cuda, output_b, model_buffer.intermediate_b);
 
         {
-            constexpr int total = BATCH_SIZE * CONCAT_DIM;
+            constexpr int total = CONCAT_ROWS * CONCAT_DIM;
             constexpr int threads = 256;
             constexpr int blocks = (total + threads - 1) / threads;
             concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
                 model_buffer.intermediate_a._data, ENCODER_DIM,
                 model_buffer.intermediate_b._data, ENCODER_DIM,
-                model_buffer.concatenated._data, BATCH_SIZE
+                model_buffer.concatenated._data, CONCAT_ROWS
             );
         }
 
@@ -481,14 +484,14 @@ int main(int argc, char** argv) {
         rlt::backward_full(device_cuda, model.head, model_buffer.concatenated, gpu_d_output, model_buffer.d_concatenated, model_buffer.head_buffer);
 
         {
-            constexpr int total = BATCH_SIZE * CONCAT_DIM;
+            constexpr int total = CONCAT_ROWS * CONCAT_DIM;
             constexpr int threads = 256;
             constexpr int blocks = (total + threads - 1) / threads;
             split_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
                 model_buffer.d_concatenated._data, ENCODER_DIM, ENCODER_DIM,
                 model_buffer.d_output_a._data,
                 model_buffer.d_output_b._data,
-                BATCH_SIZE
+                CONCAT_ROWS
             );
         }
 
@@ -585,13 +588,13 @@ int main(int argc, char** argv) {
                 rlt::copy(device_cuda, device_cuda, val_output_b, model_buffer.intermediate_b);
 
                 {
-                    constexpr int total = BATCH_SIZE * CONCAT_DIM;
+                    constexpr int total = CONCAT_ROWS * CONCAT_DIM;
                     constexpr int threads = 256;
                     constexpr int blocks = (total + threads - 1) / threads;
                     concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
                         model_buffer.intermediate_a._data, ENCODER_DIM,
                         model_buffer.intermediate_b._data, ENCODER_DIM,
-                        model_buffer.concatenated._data, BATCH_SIZE
+                        model_buffer.concatenated._data, CONCAT_ROWS
                     );
                 }
 

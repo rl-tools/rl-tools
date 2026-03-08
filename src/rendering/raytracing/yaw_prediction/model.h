@@ -35,21 +35,26 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
-    // Global average pool -> 256
-    template<typename TYPE_POLICY, typename TI>
-    using AVGPOOL_CONFIG = nn::layers::avg_pool2d::Configuration<TYPE_POLICY, TI>;
-
-    // CNN encoder branch: 4 conv layers + global avgpool
+    // CNN encoder branch: 4 conv layers (output is 4x4x256, spatial preserved)
     template<typename TYPE_POLICY, typename TI>
     using ENCODER_MODULE = nn_models::sequential::Module<
         nn::layers::conv2d::BindConfiguration<CONV_32_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_64_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_128_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::conv2d::BindConfiguration<CONV_256_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG<TYPE_POLICY, TI>>
+        nn::layers::conv2d::BindConfiguration<CONV_256_CONFIG<TYPE_POLICY, TI>>
     >;
 
-    // MLP head: Dense 512->128 ReLU, Dense 128->1 Identity
+    // Head: Conv2d 1x1 to reduce 512->256, then avgpool, then dense layers
+    // The 1x1 conv processes the concatenated 4x4x512 feature maps (cross-image interaction)
+    template<typename TYPE_POLICY, typename TI>
+    using CONV_1x1_CONFIG = nn::layers::conv2d::Configuration<
+        TYPE_POLICY, TI, 256, 1, 1, 1, 1, 0, 0,
+        nn::activation_functions::ActivationFunction::RELU,
+        nn::layers::conv2d::Normalization::BATCH_NORM>;
+
+    template<typename TYPE_POLICY, typename TI>
+    using AVGPOOL_CONFIG = nn::layers::avg_pool2d::Configuration<TYPE_POLICY, TI>;
+
     template<typename TYPE_POLICY, typename TI>
     using DENSE_128_CONFIG = nn::layers::dense::Configuration<
         TYPE_POLICY, TI, 128, nn::activation_functions::ActivationFunction::RELU>;
@@ -58,13 +63,16 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     using DENSE_1_CONFIG = nn::layers::dense::Configuration<
         TYPE_POLICY, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY>;
 
+    // Head: 1x1 conv on concatenated spatial features -> avgpool -> dense MLP
     template<typename TYPE_POLICY, typename TI>
     using HEAD_MODULE = nn_models::sequential::Module<
+        nn::layers::conv2d::BindConfiguration<CONV_1x1_CONFIG<TYPE_POLICY, TI>>,
+        nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::dense::BindConfiguration<DENSE_128_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::dense::BindConfiguration<DENSE_1_CONFIG<TYPE_POLICY, TI>>
     >;
 
-    // Full parallel model: two CNN encoders + MLP head
+    // Full parallel model: two CNN encoders + head with cross-image conv
     template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE>
     using MODEL = nn_models::parallel::Build<CAPABILITY,
         ENCODER_MODULE<TYPE_POLICY, TI>,

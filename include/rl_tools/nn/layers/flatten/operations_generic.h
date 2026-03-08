@@ -51,13 +51,8 @@ namespace rl_tools{
         static_assert(nn::layers::flatten::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(tensor::dense_row_major_layout<INPUT_SPEC>(), "Flatten requires contiguous row-major input");
         static_assert(tensor::dense_row_major_layout<OUTPUT_SPEC>(), "Flatten requires contiguous row-major output");
-        using TI = typename DEVICE::index_t;
-        constexpr TI TOTAL = product(typename INPUT_SPEC::SHAPE{});
-        auto* src = data(input);
-        auto* dst = data(output);
-        for(TI i = 0; i < TOTAL; i++){
-            dst[i] = src[i];
-        }
+        auto input_viewed = view_memory<typename OUTPUT_SPEC::SHAPE>(device, input);
+        copy(device, device, input_viewed, output);
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
@@ -86,13 +81,8 @@ namespace rl_tools{
         static_assert(nn::layers::flatten::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(tensor::dense_row_major_layout<D_OUTPUT_SPEC>(), "Flatten requires contiguous row-major d_output");
         static_assert(tensor::dense_row_major_layout<D_INPUT_SPEC>(), "Flatten requires contiguous row-major d_input");
-        using TI = typename DEVICE::index_t;
-        constexpr TI TOTAL = product(typename D_OUTPUT_SPEC::SHAPE{});
-        auto* src = data(d_output);
-        auto* dst = data(d_input);
-        for(TI i = 0; i < TOTAL; i++){
-            dst[i] = src[i];
-        }
+        auto d_output_viewed = view_memory<typename D_INPUT_SPEC::SHAPE>(device, d_output);
+        copy(device, device, d_output_viewed, d_input);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::flatten::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::flatten::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
