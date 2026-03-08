@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.rltools.yaw-predictor</string>
+    <key>CFBundleName</key>
+    <string>YawPredictor</string>
+    <key>CFBundleExecutable</key>
+    <string>YawPredictor</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Camera access is needed to capture images for yaw angle prediction.</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
