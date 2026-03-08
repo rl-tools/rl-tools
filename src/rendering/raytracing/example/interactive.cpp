@@ -88,12 +88,12 @@ int main(int argc, char** argv) {
     DEVICE device;
     rlt::init(device);
 
-    rlt::rl::environments::raytracing_example::Environment<SPEC> env;
-    const char* scene_path = "ProcTHOR-Test-0-new.glb";
-    for (int i = 1; i < argc; i++) {
-        scene_path = argv[i];
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <scene.glb>" << std::endl;
+        return 1;
     }
-    env.scene_path = scene_path;
+    rlt::rl::environments::raytracing_example::Environment<SPEC> env;
+    env.scene_path = argv[1];
 
     rlt::malloc(device, env);
     rlt::init(device, env);
