@@ -133,6 +133,7 @@ static MergeResult mergeModel(tinygltf::Model& dst,
     const int texOff   = (int)dst.textures.size();
     const int matOff   = (int)dst.materials.size();
     const int meshOff  = (int)dst.meshes.size();
+    const int lightOff = (int)dst.lights.size();
     const int nodeOff  = (int)dst.nodes.size();
 
     // --- Buffers ---
@@ -211,11 +212,22 @@ static MergeResult mergeModel(tinygltf::Model& dst,
         dst.meshes.push_back(mesh);
     }
 
+    // --- Lights (KHR_lights_punctual) ---
+    for (auto& l : src.lights) dst.lights.push_back(l);
+
     // --- Nodes ---
     for (auto node : src.nodes) {
         if (node.mesh >= 0) node.mesh += meshOff;
         if (node.skin >= 0) node.skin = -1;  // drop skins for now
         for (auto& c : node.children) c += nodeOff;
+        // Remap KHR_lights_punctual light index
+        auto extIt = node.extensions.find("KHR_lights_punctual");
+        if (extIt != node.extensions.end() && extIt->second.Has("light")) {
+            int lightIdx = extIt->second.Get("light").Get<int>();
+            tinygltf::Value::Object obj;
+            obj["light"] = tinygltf::Value(lightIdx + lightOff);
+            extIt->second = tinygltf::Value(obj);
+        }
         dst.nodes.push_back(node);
     }
 
@@ -1241,6 +1253,26 @@ int main(int argc, char* argv[]) {
             "KHR_texture_basisu",
             "KHR_texture_transform",
         });
+    }
+
+    // -- Deduplicate light node names (assimp requires unique names) --
+    {
+        std::map<std::string, int> lightNodeNameCount;
+        for (auto& node : outModel.nodes) {
+            if (node.extensions.count("KHR_lights_punctual")) {
+                auto& name = node.name;
+                int count = lightNodeNameCount[name]++;
+                if (count > 0) {
+                    name += "_" + std::to_string(count);
+                }
+            }
+        }
+        for (int i = 0; i < (int)outModel.lights.size(); i++) {
+            auto& light = outModel.lights[i];
+            if (light.name.empty()) {
+                light.name = "light_" + std::to_string(i);
+            }
+        }
     }
 
     // -- Consolidate buffers --
