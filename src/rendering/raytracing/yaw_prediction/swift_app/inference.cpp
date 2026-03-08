@@ -87,10 +87,9 @@ YawPredictorHandle* yaw_predictor_create(const char* h5_path) {
     return handle;
 }
 
-void yaw_predictor_evaluate(YawPredictorHandle* handle,
-                            const float* image_a,
-                            const float* image_b,
-                            float* sin_cos_out) {
+float yaw_predictor_evaluate(YawPredictorHandle* handle,
+                             const float* image_a,
+                             const float* image_b) {
     constexpr TI IMAGE_SIZE = BATCH_SIZE * CAM_HEIGHT * CAM_WIDTH * 3;
     std::memcpy(rlt::data(handle->input_a), image_a, IMAGE_SIZE * sizeof(float));
     std::memcpy(rlt::data(handle->input_b), image_b, IMAGE_SIZE * sizeof(float));
@@ -101,8 +100,7 @@ void yaw_predictor_evaluate(YawPredictorHandle* handle,
                   handle->output, handle->buffer,
                   handle->rng, mode);
 
-    sin_cos_out[0] = rlt::get(handle->device, handle->output, 0, 0);
-    sin_cos_out[1] = rlt::get(handle->device, handle->output, 0, 1);
+    return rlt::get(handle->device, handle->output, 0, 0);
 }
 
 void yaw_predictor_destroy(YawPredictorHandle* handle) {
