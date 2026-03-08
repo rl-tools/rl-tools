@@ -75,8 +75,8 @@ swiftc \
     -framework CoreVideo \
     -o "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
-# --- Sign ---
-codesign --force --sign - "$APP_BUNDLE"
+# --- Sign with entitlements ---
+codesign --force --sign - --entitlements "$SCRIPT_DIR/YawPredictor.entitlements" "$APP_BUNDLE"
 
 echo ""
 echo "Built: $APP_BUNDLE"
