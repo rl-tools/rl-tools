@@ -235,9 +235,9 @@ int main(int argc, char** argv) {
         float sy = std::sin(delta_yaw);
         auto rotate_y = [cy, sy](owl::vec3f v) -> owl::vec3f {
             return owl::vec3f{
-                cy * v.x + sy * v.z,
+                cy * v.x - sy * v.z,
                 v.y,
-                -sy * v.x + cy * v.z
+                sy * v.x + cy * v.z
             };
         };
         rotated.dir_00 = rotate_y(cam.dir_00);
