@@ -20,14 +20,17 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     //   [0..batch_size-1] = image A cameras (base_yaw)
     //   [batch_size..2*batch_size-1] = image B cameras (base_yaw + delta_yaw)
     // delta_yaws_out: array of batch_size delta_yaw values (after swap augmentation)
-    // sin_cos_targets_out: array of batch_size*2 values [sin(delta), cos(delta), ...]
+    // targets_out: array of batch_size normalized displacement values (delta_yaw / half_hfov)
+    // cos_fov_range: [min, max] range for random FOV (cos_fov parameter)
     void sample_camera_batch(
         SceneHandle* handle,
         CameraData* cameras_out,
         float* delta_yaws_out,
-        float* sin_cos_targets_out,
+        float* targets_out,
         unsigned long batch_size,
-        float max_angle
+        float max_angle,
+        float cos_fov_min,
+        float cos_fov_max
     );
 
     // Set cameras and render (blocking)

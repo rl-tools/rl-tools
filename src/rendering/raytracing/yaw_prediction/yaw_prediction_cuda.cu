@@ -75,6 +75,8 @@ static constexpr TI NUM_ITERATIONS = 10000;
 struct TrainingConfig {
     static constexpr float LEARNING_RATE = 1e-3f;
     static constexpr float MAX_ANGLE = 3.14159265358979323846f / 6.0f; // 30 degrees
+    static constexpr float COS_FOV_MIN = 0.3f;  // wide FOV
+    static constexpr float COS_FOV_MAX = 1.2f;   // narrow FOV
     static constexpr TI LOG_INTERVAL = 100;
     static constexpr TI CHECKPOINT_INTERVAL = 10000;
 };
@@ -171,7 +173,7 @@ __global__ void rgba_to_float_kernel(
     }
 }
 
-// MSE loss on sin/cos outputs and write gradient to d_output
+// MSE loss on scalar output and write gradient to d_output
 __global__ void mse_loss_gradient_kernel(
     const float* __restrict__ predictions,
     const float* __restrict__ targets,
@@ -182,19 +184,14 @@ __global__ void mse_loss_gradient_kernel(
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= batch_size) return;
 
-    const float pred_sin = predictions[idx * 2 + 0];
-    const float pred_cos = predictions[idx * 2 + 1];
-    const float tgt_sin = targets[idx * 2 + 0];
-    const float tgt_cos = targets[idx * 2 + 1];
+    const float pred = predictions[idx];
+    const float tgt = targets[idx];
+    const float diff = pred - tgt;
 
-    const float diff_sin = pred_sin - tgt_sin;
-    const float diff_cos = pred_cos - tgt_cos;
-
-    losses[idx] = diff_sin * diff_sin + diff_cos * diff_cos;
+    losses[idx] = diff * diff;
 
     const float scale = 2.0f / static_cast<float>(batch_size);
-    d_output[idx * 2 + 0] = scale * diff_sin;
-    d_output[idx * 2 + 1] = scale * diff_cos;
+    d_output[idx] = scale * diff;
 }
 
 __global__ void reduce_loss_kernel(
@@ -342,7 +339,7 @@ int main(int argc, char** argv) {
     rlt::malloc(device_cuda, gpu_d_output);
 
     float* gpu_targets;
-    cudaMalloc(&gpu_targets, BATCH_SIZE * 2 * sizeof(float));
+    cudaMalloc(&gpu_targets, BATCH_SIZE * sizeof(float));
 
     float* gpu_losses;
     cudaMalloc(&gpu_losses, BATCH_SIZE * sizeof(float));
@@ -351,7 +348,7 @@ int main(int argc, char** argv) {
     cudaMalloc(&gpu_total_loss, sizeof(float));
 
     // CPU-side buffers
-    std::vector<float> cpu_targets(BATCH_SIZE * 2);
+    std::vector<float> cpu_targets(BATCH_SIZE);
     std::vector<float> cpu_delta_yaws(BATCH_SIZE);
     std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
 
@@ -385,9 +382,11 @@ int main(int argc, char** argv) {
                 loaded_scenes[scene_idx].handle,
                 cameras.data(),
                 cpu_delta_yaws.data() + batch_offset,
-                cpu_targets.data() + batch_offset * 2,
+                cpu_targets.data() + batch_offset,
                 samples_per_scene,
-                TrainingConfig::MAX_ANGLE
+                TrainingConfig::MAX_ANGLE,
+                TrainingConfig::COS_FOV_MIN,
+                TrainingConfig::COS_FOV_MAX
             );
 
             // Render (uses all NUM_CAMERAS slots but only first 2*samples_per_scene are meaningful)
@@ -404,7 +403,7 @@ int main(int argc, char** argv) {
             );
         }
 
-        cudaMemcpyAsync(gpu_targets, cpu_targets.data(), BATCH_SIZE * 2 * sizeof(float),
+        cudaMemcpyAsync(gpu_targets, cpu_targets.data(), BATCH_SIZE * sizeof(float),
                         cudaMemcpyHostToDevice, device_cuda.stream);
 
         // ---- Forward ----
@@ -489,23 +488,21 @@ int main(int argc, char** argv) {
             float loss_val;
             cudaMemcpy(&loss_val, gpu_total_loss, sizeof(float), cudaMemcpyDeviceToHost);
 
-            std::vector<float> pred_buf(BATCH_SIZE * 2);
-            cudaMemcpy(pred_buf.data(), output_view._data, BATCH_SIZE * 2 * sizeof(float), cudaMemcpyDeviceToHost);
+            std::vector<float> pred_buf(BATCH_SIZE);
+            cudaMemcpy(pred_buf.data(), output_view._data, BATCH_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
 
-            float total_angle_error = 0.0f;
+            float total_disp_error = 0.0f;
             for (TI_CUDA i = 0; i < BATCH_SIZE; i++) {
-                const float pred_angle = std::atan2(pred_buf[i * 2 + 0], pred_buf[i * 2 + 1]);
-                const float angle_error = std::abs(pred_angle - cpu_delta_yaws[i]);
-                total_angle_error += angle_error;
+                total_disp_error += std::abs(pred_buf[i] - cpu_targets[i]);
             }
-            const float mean_angle_error_deg = (total_angle_error / BATCH_SIZE) * 180.0f / PI;
+            const float mean_disp_error = total_disp_error / BATCH_SIZE;
 
             auto now = std::chrono::high_resolution_clock::now();
             double elapsed_s = std::chrono::duration<double>(now - total_start).count();
 
             std::cout << "[iter " << iteration << "/" << num_iterations << "]"
                       << "  loss=" << loss_val
-                      << "  angle_err=" << mean_angle_error_deg << " deg"
+                      << "  disp_err=" << mean_disp_error
                       << "  time=" << elapsed_s << "s"
                       << std::endl;
         }

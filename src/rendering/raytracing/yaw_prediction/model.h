@@ -49,19 +49,19 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG<TYPE_POLICY, TI>>
     >;
 
-    // MLP head: Dense 512->128 ReLU, Dense 128->2 Identity
+    // MLP head: Dense 512->128 ReLU, Dense 128->1 Identity
     template<typename TYPE_POLICY, typename TI>
     using DENSE_128_CONFIG = nn::layers::dense::Configuration<
         TYPE_POLICY, TI, 128, nn::activation_functions::ActivationFunction::RELU>;
 
     template<typename TYPE_POLICY, typename TI>
-    using DENSE_2_CONFIG = nn::layers::dense::Configuration<
-        TYPE_POLICY, TI, 2, nn::activation_functions::ActivationFunction::IDENTITY>;
+    using DENSE_1_CONFIG = nn::layers::dense::Configuration<
+        TYPE_POLICY, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY>;
 
     template<typename TYPE_POLICY, typename TI>
     using HEAD_MODULE = nn_models::sequential::Module<
         nn::layers::dense::BindConfiguration<DENSE_128_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::dense::BindConfiguration<DENSE_2_CONFIG<TYPE_POLICY, TI>>
+        nn::layers::dense::BindConfiguration<DENSE_1_CONFIG<TYPE_POLICY, TI>>
     >;
 
     // Full parallel model: two CNN encoders + MLP head

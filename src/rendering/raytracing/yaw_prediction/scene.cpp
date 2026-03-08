@@ -58,38 +58,62 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         SceneHandle* handle,
         CameraData* cameras_out,
         float* delta_yaws_out,
-        float* sin_cos_targets_out,
+        float* targets_out,
         unsigned long batch_size,
-        float max_angle
+        float max_angle,
+        float cos_fov_min,
+        float cos_fov_max
     ) {
         using T = float;
         constexpr T PI = static_cast<T>(3.14159265358979323846);
 
         std::uniform_real_distribution<T> yaw_dist(0.0f, 2.0f * PI);
-        std::uniform_real_distribution<T> delta_dist(-max_angle, max_angle);
+        std::uniform_real_distribution<T> unit_dist(-1.0f, 1.0f);
         std::uniform_real_distribution<T> swap_dist(0.0f, 1.0f);
+        std::uniform_real_distribution<T> fov_dist(cos_fov_min, cos_fov_max);
+
+        const T aspect = static_cast<T>(SCENE_CAM_WIDTH) / static_cast<T>(SCENE_CAM_HEIGHT);
 
         for (unsigned long i = 0; i < batch_size; i++) {
             rlt::rl::environments::raytracing_example::State<SceneHandle::SPEC> state;
             auto params = handle->default_params;
             rlt::sample_initial_state(handle->device, handle->env, params, state, handle->sampling_rng);
 
+            const T cos_fov = fov_dist(handle->data_rng);
+            const T half_hfov = std::atan(static_cast<T>(0.5) * cos_fov * aspect);
+            const T sample_max_angle = std::min(max_angle, half_hfov);
+
             const T base_yaw = yaw_dist(handle->data_rng);
-            T delta_yaw = delta_dist(handle->data_rng);
+            T delta_yaw = unit_dist(handle->data_rng) * sample_max_angle;
 
             const bool do_swap = swap_dist(handle->data_rng) < 0.5f;
             const T yaw_a = do_swap ? base_yaw + delta_yaw : base_yaw;
             const T yaw_b = do_swap ? base_yaw : base_yaw + delta_yaw;
             const T effective_delta = do_swap ? -delta_yaw : delta_yaw;
 
-            state.yaw = yaw_a;
-            cameras_out[i] = rlt::make_camera_for_state(handle->env, params, state);
+            // Build cameras with randomized FOV
+            const owl::vec3f position(
+                params.scene_translation[0] + state.position[0],
+                params.scene_translation[1] + state.position[1] + handle->env.eye_height,
+                params.scene_translation[2] + state.position[2]
+            );
+            const owl::vec3f up(0.f, 1.f, 0.f);
 
-            state.yaw = yaw_b;
-            cameras_out[batch_size + i] = rlt::make_camera_for_state(handle->env, params, state);
+            auto make_cam = [&](T yaw) -> CameraData {
+                const T cy = std::cos(yaw);
+                const T sy = std::sin(yaw);
+                const owl::vec3f look_at(
+                    position.x + handle->env.look_ahead * cy,
+                    position.y,
+                    position.z + handle->env.look_ahead * sy
+                );
+                return rlt::make_camera_data(position, look_at, up, cos_fov, aspect);
+            };
 
-            sin_cos_targets_out[i * 2 + 0] = std::sin(effective_delta);
-            sin_cos_targets_out[i * 2 + 1] = std::cos(effective_delta);
+            cameras_out[i] = make_cam(yaw_a);
+            cameras_out[batch_size + i] = make_cam(yaw_b);
+
+            targets_out[i] = effective_delta / half_hfov;
             delta_yaws_out[i] = effective_delta;
         }
     }
