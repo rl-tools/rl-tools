@@ -78,6 +78,7 @@ struct TrainingConfig {
     static constexpr float COS_FOV_MIN = 0.3f;  // wide FOV
     static constexpr float COS_FOV_MAX = 1.2f;   // narrow FOV
     static constexpr TI LOG_INTERVAL = 100;
+    static constexpr TI VAL_INTERVAL = 1000;
     static constexpr TI CHECKPOINT_INTERVAL = 10000;
 };
 
@@ -213,6 +214,8 @@ int main(int argc, char** argv) {
     TI num_scenes_per_batch = 8;
     TI num_iterations = 100000;
 
+    TI num_val_scenes = 10;
+
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--scene-dir" && i + 1 < argc) {
@@ -225,34 +228,44 @@ int main(int argc, char** argv) {
             num_scenes_per_batch = std::atoi(argv[++i]);
         } else if (arg == "--num-iterations" && i + 1 < argc) {
             num_iterations = std::atoi(argv[++i]);
+        } else if (arg == "--num-val-scenes" && i + 1 < argc) {
+            num_val_scenes = std::atoi(argv[++i]);
         } else {
             std::cerr << "Usage: " << argv[0]
                       << " [--scene-dir <dir> | --scene <path.glb>]"
                       << " [--num-scenes N] [--num-scenes-per-batch M]"
-                      << " [--num-iterations N]" << std::endl;
+                      << " [--num-iterations N] [--num-val-scenes N]" << std::endl;
             return 1;
         }
     }
 
-    // Collect available scene paths (sorted, then take first --num-scenes)
+    // Collect available scene paths (sorted, then split into train + val)
     std::vector<std::string> all_scene_paths;
+    std::vector<std::string> val_scene_paths;
     if (!scene_dir.empty()) {
+        std::vector<std::string> found_paths;
         for (auto& entry : fs::directory_iterator(scene_dir)) {
             if (entry.path().extension() == ".glb") {
-                all_scene_paths.push_back(entry.path().string());
+                found_paths.push_back(entry.path().string());
             }
         }
-        std::sort(all_scene_paths.begin(), all_scene_paths.end());
-        if (all_scene_paths.empty()) {
+        std::sort(found_paths.begin(), found_paths.end());
+        if (found_paths.empty()) {
             std::cerr << "No .glb files found in " << scene_dir << std::endl;
             return 1;
         }
-        if (num_scenes < all_scene_paths.size()) {
-            all_scene_paths.resize(num_scenes);
+        // First num_scenes for training, next num_val_scenes for validation
+        TI total_needed = num_scenes + num_val_scenes;
+        if (total_needed > found_paths.size()) {
+            std::cerr << "Need " << total_needed << " scenes (train=" << num_scenes << " + val=" << num_val_scenes << ") but only found " << found_paths.size() << std::endl;
+            return 1;
         }
+        all_scene_paths.assign(found_paths.begin(), found_paths.begin() + num_scenes);
+        val_scene_paths.assign(found_paths.begin() + num_scenes, found_paths.begin() + total_needed);
     } else if (!single_scene.empty()) {
         all_scene_paths.push_back(single_scene);
         num_scenes_per_batch = 1;
+        num_val_scenes = 0;
     } else {
         std::cerr << "Must specify --scene-dir or --scene" << std::endl;
         return 1;
@@ -271,7 +284,8 @@ int main(int argc, char** argv) {
     constexpr float PI = 3.14159265358979323846f;
 
     std::cout << "Yaw prediction training (multi-scene)" << std::endl;
-    std::cout << "  Total scenes to load: " << all_scene_paths.size() << std::endl;
+    std::cout << "  Training scenes: " << all_scene_paths.size() << std::endl;
+    std::cout << "  Validation scenes: " << val_scene_paths.size() << std::endl;
     std::cout << "  Scenes per batch: " << num_scenes_per_batch << std::endl;
     std::cout << "  Samples per scene: " << samples_per_scene << std::endl;
     std::cout << "  Batch size: " << BATCH_SIZE << std::endl;
@@ -289,9 +303,18 @@ int main(int argc, char** argv) {
 
     for (TI s = 0; s < all_scene_paths.size(); s++) {
         loaded_scenes[s].path = all_scene_paths[s];
-        std::cout << "Loading scene " << s << "/" << all_scene_paths.size() << ": " << fs::path(loaded_scenes[s].path).filename().string() << std::endl;
+        std::cout << "Loading train scene " << s << "/" << all_scene_paths.size() << ": " << fs::path(loaded_scenes[s].path).filename().string() << std::endl;
         loaded_scenes[s].handle = yp::create_scene(loaded_scenes[s].path.c_str());
         std::cout << "  Indoor states: " << yp::get_num_indoor_states(loaded_scenes[s].handle) << std::endl;
+    }
+
+    // ---- Load validation scenes ----
+    std::vector<LoadedScene> val_scenes(val_scene_paths.size());
+    for (TI s = 0; s < val_scene_paths.size(); s++) {
+        val_scenes[s].path = val_scene_paths[s];
+        std::cout << "Loading val scene " << s << "/" << val_scene_paths.size() << ": " << fs::path(val_scenes[s].path).filename().string() << std::endl;
+        val_scenes[s].handle = yp::create_scene(val_scenes[s].path.c_str());
+        std::cout << "  Indoor states: " << yp::get_num_indoor_states(val_scenes[s].handle) << std::endl;
     }
 
     // RNG for selecting scenes per batch
@@ -352,13 +375,21 @@ int main(int argc, char** argv) {
     std::vector<float> cpu_delta_yaws(BATCH_SIZE);
     std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
 
-    // ---- Extrack setup (checkpointing) ----
+    // ---- Extrack setup (checkpointing + tensorboard) ----
 #ifdef RL_TOOLS_ENABLE_HDF5
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
     extrack_config.name = "yaw-prediction";
     rlt::init(device_cpu, extrack_config, extrack_paths, 0);
 #endif
+    rlt::init(device_cpu, device_cpu.logger, fs::path(
+#ifdef RL_TOOLS_ENABLE_HDF5
+        extrack_paths.seed
+#else
+        "logs/yaw-prediction"
+#endif
+    ));
+    std::cout << "TensorBoard logging initialized" << std::endl;
 
     // ---- Training loop ----
     auto train_mode = rlt::Mode<rlt::mode::Default<>>{};
@@ -500,11 +531,114 @@ int main(int argc, char** argv) {
             auto now = std::chrono::high_resolution_clock::now();
             double elapsed_s = std::chrono::duration<double>(now - total_start).count();
 
+            rlt::set_step(device_cpu, device_cpu.logger, iteration);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss", loss_val);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/disp_err", mean_disp_error);
+
             std::cout << "[iter " << iteration << "/" << num_iterations << "]"
                       << "  loss=" << loss_val
                       << "  disp_err=" << mean_disp_error
                       << "  time=" << elapsed_s << "s"
                       << std::endl;
+        }
+
+        // ---- Validation ----
+        if (val_scenes.size() > 0 && (iteration % TrainingConfig::VAL_INTERVAL == 0 || iteration == num_iterations - 1)) {
+            auto eval_mode = rlt::Mode<rlt::mode::Evaluation<>>{};
+            float val_loss_sum = 0.0f;
+            float val_disp_err_sum = 0.0f;
+            TI val_total_samples = 0;
+
+            for (TI vs = 0; vs < val_scenes.size(); vs++) {
+                // Sample a full batch from this validation scene
+                yp::sample_camera_batch(
+                    val_scenes[vs].handle,
+                    cameras.data(),
+                    cpu_delta_yaws.data(),
+                    cpu_targets.data(),
+                    BATCH_SIZE,
+                    TrainingConfig::MAX_ANGLE,
+                    TrainingConfig::COS_FOV_MIN,
+                    TrainingConfig::COS_FOV_MAX
+                );
+                yp::render_batch(val_scenes[vs].handle, cameras.data());
+                uint32_t* device_fb = yp::get_framebuffer_device_ptr(val_scenes[vs].handle);
+
+                rgba_to_float_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+                    device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, 0, 0
+                );
+                rgba_to_float_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+                    device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, BATCH_SIZE, 0
+                );
+
+                cudaMemcpyAsync(gpu_targets, cpu_targets.data(), BATCH_SIZE * sizeof(float),
+                                cudaMemcpyHostToDevice, device_cuda.stream);
+
+                // Forward pass (evaluation mode, no gradient)
+                rlt::forward(device_cuda, model.pipeline_a, gpu_input_a, model_buffer.buffer_a, rng_cuda, eval_mode);
+                rlt::forward(device_cuda, model.pipeline_b, gpu_input_b, model_buffer.buffer_b, rng_cuda, eval_mode);
+
+                auto val_output_a = rlt::output(device_cuda, model.pipeline_a);
+                auto val_output_b = rlt::output(device_cuda, model.pipeline_b);
+                rlt::copy(device_cuda, device_cuda, val_output_a, model_buffer.intermediate_a);
+                rlt::copy(device_cuda, device_cuda, val_output_b, model_buffer.intermediate_b);
+
+                {
+                    constexpr int total = BATCH_SIZE * CONCAT_DIM;
+                    constexpr int threads = 256;
+                    constexpr int blocks = (total + threads - 1) / threads;
+                    concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
+                        model_buffer.intermediate_a._data, ENCODER_DIM,
+                        model_buffer.intermediate_b._data, ENCODER_DIM,
+                        model_buffer.concatenated._data, BATCH_SIZE
+                    );
+                }
+
+                rlt::forward(device_cuda, model.head, model_buffer.concatenated, model_buffer.head_buffer, rng_cuda, eval_mode);
+                {
+                    auto head_output = rlt::output(device_cuda, model.head);
+                    rlt::copy(device_cuda, device_cuda, head_output, model.output);
+                }
+                auto val_output_view = rlt::output(device_cuda, model);
+
+                // Compute loss and disp_err
+                {
+                    constexpr int threads = 256;
+                    constexpr int blocks = (BATCH_SIZE + threads - 1) / threads;
+                    mse_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
+                        val_output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, BATCH_SIZE
+                    );
+                }
+                reduce_loss_kernel<<<1, 1, 0, device_cuda.stream>>>(
+                    gpu_losses, gpu_total_loss, BATCH_SIZE
+                );
+                cudaStreamSynchronize(device_cuda.stream);
+
+                float scene_loss;
+                cudaMemcpy(&scene_loss, gpu_total_loss, sizeof(float), cudaMemcpyDeviceToHost);
+
+                std::vector<float> val_pred_buf(BATCH_SIZE);
+                cudaMemcpy(val_pred_buf.data(), val_output_view._data, BATCH_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+
+                float scene_disp_err = 0.0f;
+                for (TI_CUDA i = 0; i < BATCH_SIZE; i++) {
+                    scene_disp_err += std::abs(val_pred_buf[i] - cpu_targets[i]);
+                }
+
+                val_loss_sum += scene_loss * BATCH_SIZE;
+                val_disp_err_sum += scene_disp_err;
+                val_total_samples += BATCH_SIZE;
+            }
+
+            float val_loss = val_loss_sum / val_total_samples;
+            float val_disp_err = val_disp_err_sum / val_total_samples;
+
+            rlt::set_step(device_cpu, device_cpu.logger, iteration);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/loss", val_loss);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/disp_err", val_disp_err);
+
+            std::cout << "[iter " << iteration << "] VAL loss=" << val_loss
+                      << "  disp_err=" << val_disp_err << std::endl;
         }
     }
 
@@ -525,6 +659,10 @@ int main(int argc, char** argv) {
     for (auto& s : loaded_scenes) {
         yp::destroy_scene(s.handle);
     }
+    for (auto& s : val_scenes) {
+        yp::destroy_scene(s.handle);
+    }
+    rlt::free(device_cpu, device_cpu.logger);
 
     return 0;
 }
