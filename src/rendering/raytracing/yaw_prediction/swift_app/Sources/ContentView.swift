@@ -8,8 +8,6 @@ struct ContentView: View {
     @State private var inferenceTimer: Timer?
 
     private let imageSize = 64
-    // Training FOV: cos_fov=0.66, half-angle = atan(0.66/2), full FOV in degrees
-    private let trainingFOV = 2.0 * atan(0.33) * 180.0 / .pi // ~36.5°
 
     var body: some View {
         VStack(spacing: 16) {
@@ -31,11 +29,10 @@ struct ContentView: View {
                 .clipped()
                 .border(Color.blue, width: 2)
 
-                // Right: live camera (cropped to training FOV)
+                // Right: live camera
                 ZStack {
                     if let frame = camera.currentFrame {
-                        let cropped = cropToTrainingFOV(frame)
-                        Image(cropped, scale: 1, label: Text("Live"))
+                        Image(frame, scale: 1, label: Text("Live"))
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                     } else {
@@ -61,7 +58,7 @@ struct ContentView: View {
                     .foregroundColor(.secondary)
             }
 
-            Text("Space: capture reference | Esc: quit | Camera FOV: \(String(format: "%.0f", camera.horizontalFOV))\u{00B0} \u{2192} crop to \(String(format: "%.0f", trainingFOV))\u{00B0}")
+            Text("Space: capture reference | Esc: quit | Camera FOV: \(String(format: "%.0f", camera.horizontalFOV))\u{00B0}")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -84,7 +81,7 @@ struct ContentView: View {
     private func loadModel() {
         let args = CommandLine.arguments
         guard args.count > 1 else {
-            print("Usage: YawPredictor <path/to/yaw-predictor.h5> [--fov <degrees>]")
+            print("Usage: YawPredictor <path/to/yaw-predictor2.h5> [--fov <degrees>]")
             return
         }
         let h5Path = args[1]
@@ -96,7 +93,7 @@ struct ContentView: View {
         }
 
         print("Loading model from: \(h5Path)")
-        print("Training FOV: \(String(format: "%.1f", trainingFOV))\u{00B0}, Camera FOV: \(String(format: "%.1f", camera.horizontalFOV))\u{00B0}")
+        print("Camera FOV: \(String(format: "%.1f", camera.horizontalFOV))\u{00B0}")
         predictor = yaw_predictor_create(h5Path)
         if predictor == nil {
             print("Failed to load model")
@@ -106,34 +103,21 @@ struct ContentView: View {
     private func captureFrame() {
         guard let frame = camera.currentFrame else { return }
         // Deep copy: CGImage from CIContext may share backing CVPixelBuffer that gets recycled
-        frozenFrame = deepCopyCGImage(cropToTrainingFOV(frame))
+        frozenFrame = centerSquareCrop(deepCopyCGImage(frame))
         inferenceTimer?.invalidate()
         inferenceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             runInference()
         }
     }
 
-    // Center-crop the camera image so its angular extent matches the training FOV
-    private func cropToTrainingFOV(_ image: CGImage) -> CGImage {
-        let cameraFOV = camera.horizontalFOV
-        guard cameraFOV > 0, trainingFOV < cameraFOV else { return image }
-
-        let w = Double(image.width)
-        let h = Double(image.height)
-        let cameraHalfRad = cameraFOV * .pi / 360.0
-        let trainingHalfRad = trainingFOV * .pi / 360.0
-
-        // Fraction of frame width that corresponds to training FOV
-        let cropFraction = tan(trainingHalfRad) / tan(cameraHalfRad)
-        let cropW = w * cropFraction
-        // Square crop: use same angular extent vertically
-        let cropH = cropW  // square output
-        let cropSide = min(cropW, min(cropH, min(w, h)))
-
-        let x = (w - cropSide) / 2.0
-        let y = (h - cropSide) / 2.0
-        let rect = CGRect(x: x, y: y, width: cropSide, height: cropSide)
-
+    // Center square crop (no FOV adjustment — model was trained with randomized FOVs)
+    private func centerSquareCrop(_ image: CGImage) -> CGImage {
+        let w = image.width
+        let h = image.height
+        let side = min(w, h)
+        let x = (w - side) / 2
+        let y = (h - side) / 2
+        let rect = CGRect(x: x, y: y, width: side, height: side)
         return image.cropping(to: rect) ?? image
     }
 
@@ -142,21 +126,20 @@ struct ContentView: View {
               let live = camera.currentFrame,
               let p = predictor else { return }
 
-        let croppedLive = cropToTrainingFOV(live)
+        let croppedLive = centerSquareCrop(live)
 
         let pixelsA = cgImageToFloatRGB(frozen, size: imageSize)
         let pixelsB = cgImageToFloatRGB(croppedLive, size: imageSize)
 
-        var sinCos: [Float] = [0, 0]
-        pixelsA.withUnsafeBufferPointer { a in
+        let displacement: Float = pixelsA.withUnsafeBufferPointer { a in
             pixelsB.withUnsafeBufferPointer { b in
-                sinCos.withUnsafeMutableBufferPointer { out in
-                    yaw_predictor_evaluate(p, a.baseAddress, b.baseAddress, out.baseAddress)
-                }
+                yaw_predictor_evaluate(p, a.baseAddress, b.baseAddress)
             }
         }
 
-        let angle = atan2(Double(sinCos[0]), Double(sinCos[1])) * 180.0 / .pi
+        // displacement is normalized: delta_yaw / half_hfov
+        // Convert to degrees: displacement * (camera_hfov / 2)
+        let angle = Double(displacement) * camera.horizontalFOV / 2.0
         predictedAngle = angle
     }
 
