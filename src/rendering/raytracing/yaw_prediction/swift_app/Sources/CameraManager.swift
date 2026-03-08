@@ -4,6 +4,7 @@ import AppKit
 
 final class CameraManager: NSObject, ObservableObject {
     @Published var currentFrame: CGImage?
+    @Published var horizontalFOV: Double = 65.0
 
     private let session = AVCaptureSession()
     private let output = AVCaptureVideoDataOutput()
@@ -17,6 +18,7 @@ final class CameraManager: NSObject, ObservableObject {
             print("No camera available")
             return
         }
+        print("Camera: \(camera.localizedName)")
         if session.canAddInput(input) {
             session.addInput(input)
         }
@@ -27,7 +29,10 @@ final class CameraManager: NSObject, ObservableObject {
         if session.canAddOutput(output) {
             session.addOutput(output)
         }
-        session.startRunning()
+        DispatchQueue(label: "camera.start").async {
+            self.session.startRunning()
+            print("Camera session running: \(self.session.isRunning)")
+        }
     }
 
     func stop() {
@@ -41,6 +46,8 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                        from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+            .transformed(by: CGAffineTransform(scaleX: -1, y: 1)
+            .translatedBy(x: -CIImage(cvPixelBuffer: pixelBuffer).extent.width, y: 0))
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
         DispatchQueue.main.async {
             self.currentFrame = cgImage
