@@ -400,6 +400,8 @@ int main(int argc, char** argv) {
     std::iota(scene_indices.begin(), scene_indices.end(), 0);
 
     for (TI iteration = 0; iteration < num_iterations; iteration++) {
+        rlt::set_step(device_cpu, device_cpu.logger, iteration);
+
         // ---- Select random scenes for this batch ----
         std::shuffle(scene_indices.begin(), scene_indices.end(), scene_rng);
 
@@ -531,7 +533,6 @@ int main(int argc, char** argv) {
             auto now = std::chrono::high_resolution_clock::now();
             double elapsed_s = std::chrono::duration<double>(now - total_start).count();
 
-            rlt::set_step(device_cpu, device_cpu.logger, iteration);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss", loss_val);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/disp_err", mean_disp_error);
 
@@ -633,7 +634,6 @@ int main(int argc, char** argv) {
             float val_loss = val_loss_sum / val_total_samples;
             float val_disp_err = val_disp_err_sum / val_total_samples;
 
-            rlt::set_step(device_cpu, device_cpu.logger, iteration);
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/loss", val_loss);
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/disp_err", val_disp_err);
 
