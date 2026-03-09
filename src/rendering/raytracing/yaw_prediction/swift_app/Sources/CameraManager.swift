@@ -7,8 +7,10 @@ import ARKit
 final class CameraManager: NSObject, ObservableObject {
     @Published var currentFrame: CGImage?
     @Published var horizontalFOV: Double = 65.0
-    @Published var currentYaw: Double?
     @Published var trackingReady = false
+    #if os(iOS)
+    var currentTransform: simd_float4x4?
+    #endif
 
     private let context = CIContext()
 
@@ -62,8 +64,6 @@ final class CameraManager: NSObject, ObservableObject {
 extension CameraManager: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         let tracking = frame.camera.trackingState
-        let transform = frame.camera.transform
-        let yaw = Double(-atan2(transform.columns.2.x, transform.columns.2.z))
 
         let pixelBuffer = frame.capturedImage
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
@@ -73,7 +73,7 @@ extension CameraManager: ARSessionDelegate {
         DispatchQueue.main.async {
             if case .normal = tracking {
                 self.trackingReady = true
-                self.currentYaw = yaw
+                self.currentTransform = frame.camera.transform
             }
             if self.trackingReady {
                 self.currentFrame = cgImage

@@ -1,6 +1,7 @@
 import SwiftUI
 #if os(iOS)
 import UniformTypeIdentifiers
+import simd
 #endif
 
 struct ContentView: View {
@@ -11,8 +12,8 @@ struct ContentView: View {
     @State private var inferenceTimer: Timer?
     @State private var showNativeResolution = false
     @State private var modelLoaded = false
-    @State private var referenceYaw: Double?
     #if os(iOS)
+    @State private var referenceTransform: simd_float4x4?
     @State private var showFilePicker = false
     #endif
 
@@ -68,9 +69,9 @@ struct ContentView: View {
                         .font(.system(size: 24, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
-                if let refYaw = referenceYaw, let curYaw = camera.currentYaw {
-                    let groundTruth = (curYaw - refYaw) * 180.0 / .pi
-                    Text(String(format: "IMU:       %.1f\u{00B0}", groundTruth))
+                #if os(iOS)
+                if let groundTruth = computeGroundTruth() {
+                    Text(String(format: "ARKit:     %.1f\u{00B0}", groundTruth))
                         .font(.system(size: 24, weight: .bold, design: .monospaced))
                         .foregroundColor(.blue)
                     if let angle = predictedAngle {
@@ -79,6 +80,7 @@ struct ContentView: View {
                             .foregroundColor(.red)
                     }
                 }
+                #endif
             }
 
             HStack {
@@ -162,6 +164,19 @@ struct ContentView: View {
         }
     }
 
+    #if os(iOS)
+    private func computeGroundTruth() -> Double? {
+        guard let refT = referenceTransform, let curT = camera.currentTransform else { return nil }
+        // Relative transform in the reference frame's coordinate system
+        let rel = simd_inverse(refT) * curT
+        // Camera forward (-Z) in reference frame: -column2
+        // Rotation around reference X axis (phone's long/up axis in portrait)
+        // projects forward onto YZ plane: angle = atan2(-col2.y, col2.z)
+        let angle = atan2(-rel.columns.2.y, rel.columns.2.z)
+        return Double(angle) * 180.0 / .pi
+    }
+    #endif
+
     private func displayImage(_ image: CGImage) -> CGImage {
         let cropped = centerSquareCrop(image)
         if showNativeResolution {
@@ -173,7 +188,9 @@ struct ContentView: View {
     private func captureFrame() {
         guard let frame = camera.currentFrame else { return }
         frozenFrame = centerSquareCrop(deepCopyCGImage(frame))
-        referenceYaw = camera.currentYaw
+        #if os(iOS)
+        referenceTransform = camera.currentTransform
+        #endif
         inferenceTimer?.invalidate()
         inferenceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             DispatchQueue.global(qos: .userInitiated).async {
