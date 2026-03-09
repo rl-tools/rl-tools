@@ -1,4 +1,8 @@
 import SwiftUI
+#if os(iOS)
+import UniformTypeIdentifiers
+import simd
+#endif
 
 struct ContentView: View {
     @StateObject private var camera = CameraManager()
@@ -7,6 +11,11 @@ struct ContentView: View {
     @State private var predictor: OpaquePointer?
     @State private var inferenceTimer: Timer?
     @State private var showNativeResolution = false
+    @State private var modelLoaded = false
+    #if os(iOS)
+    @State private var referenceTransform: simd_float4x4?
+    @State private var showFilePicker = false
+    #endif
 
     private let imageSize = 64
 
@@ -43,7 +52,7 @@ struct ContentView: View {
                         } else {
                             Rectangle()
                                 .fill(Color.gray.opacity(0.3))
-                                .overlay(Text("Camera starting...").foregroundColor(.secondary))
+                                .overlay(Text(camera.trackingReady ? "Camera starting..." : "Initializing AR...").foregroundColor(.secondary))
                         }
                     }
                     .frame(width: 240, height: 240)
@@ -51,28 +60,54 @@ struct ContentView: View {
                 }
             }
 
-            if let angle = predictedAngle {
-                Text(String(format: "Predicted yaw: %.1f\u{00B0}", angle))
-                    .font(.system(size: 28, weight: .bold, design: .monospaced))
-            } else {
-                Text("No prediction yet")
-                    .font(.system(size: 28, weight: .bold, design: .monospaced))
-                    .foregroundColor(.secondary)
+            VStack(spacing: 4) {
+                if let angle = predictedAngle {
+                    Text(String(format: "Predicted: %.1f\u{00B0}", angle))
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                } else {
+                    Text("No prediction yet")
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                #if os(iOS)
+                if let groundTruth = computeGroundTruth() {
+                    Text(String(format: "ARKit:     %.1f\u{00B0}", groundTruth))
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .foregroundColor(.blue)
+                    if let angle = predictedAngle {
+                        Text(String(format: "Error:     %.1f\u{00B0}", angle - groundTruth))
+                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .foregroundColor(.red)
+                    }
+                }
+                #endif
             }
 
             HStack {
                 Button("Capture Reference") {
                     captureFrame()
                 }
+                #if os(macOS)
                 .keyboardShortcut(.space, modifiers: [])
+                #endif
 
                 Toggle("64\u{00D7}64", isOn: $showNativeResolution)
+
+                #if os(iOS)
+                Button("Load Model") {
+                    showFilePicker = true
+                }
+                #endif
             }
         }
         .padding()
         .onAppear {
             camera.start()
-            loadModel()
+            #if os(macOS)
+            loadModelFromArgs()
+            #else
+            loadBundledModel()
+            #endif
         }
         .onDisappear {
             inferenceTimer?.invalidate()
@@ -81,26 +116,66 @@ struct ContentView: View {
                 yaw_predictor_destroy(p)
             }
         }
+        #if os(iOS)
+        .fileImporter(isPresented: $showFilePicker,
+                      allowedContentTypes: [UTType(filenameExtension: "h5") ?? .data],
+                      allowsMultipleSelection: false) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                loadModel(from: url.path)
+            }
+        }
+        #endif
     }
 
-    private func loadModel() {
+    #if os(macOS)
+    private func loadModelFromArgs() {
         let args = CommandLine.arguments
         guard args.count > 1 else {
-            print("Usage: YawPredictor <path/to/yaw-predictor2.h5> [--fov <degrees>]")
+            print("Usage: YawPredictor <path/to/model.h5> [--fov <degrees>]")
             return
         }
-        let h5Path = args[1]
-
         if let fovIdx = args.firstIndex(of: "--fov"), fovIdx + 1 < args.count,
            let fov = Double(args[fovIdx + 1]) {
             camera.horizontalFOV = fov
         }
+        loadModel(from: args[1])
+    }
+    #endif
 
-        predictor = yaw_predictor_create(h5Path)
-        if predictor == nil {
-            print("Failed to load model from: \(h5Path)")
+    #if os(iOS)
+    private func loadBundledModel() {
+        if let url = Bundle.main.url(forResource: "yaw-predictor3", withExtension: "tar") {
+            loadModel(from: url.path)
+        } else {
+            print("Bundled model not found")
         }
     }
+    #endif
+
+    private func loadModel(from path: String) {
+        if let p = predictor {
+            yaw_predictor_destroy(p)
+            predictor = nil
+        }
+        predictor = yaw_predictor_create(path)
+        modelLoaded = predictor != nil
+        if !modelLoaded {
+            print("Failed to load model from: \(path)")
+        }
+    }
+
+    #if os(iOS)
+    private func computeGroundTruth() -> Double? {
+        guard let refT = referenceTransform, let curT = camera.currentTransform else { return nil }
+        // Relative transform in the reference frame's coordinate system
+        let rel = simd_inverse(refT) * curT
+        // Camera forward (-Z) in reference frame: -column2
+        // Rotation around reference X axis (phone's long/up axis in portrait)
+        // projects forward onto YZ plane: angle = atan2(-col2.y, col2.z)
+        let angle = atan2(-rel.columns.2.y, rel.columns.2.z)
+        return Double(angle) * 180.0 / .pi
+    }
+    #endif
 
     private func displayImage(_ image: CGImage) -> CGImage {
         let cropped = centerSquareCrop(image)
@@ -113,9 +188,17 @@ struct ContentView: View {
     private func captureFrame() {
         guard let frame = camera.currentFrame else { return }
         frozenFrame = centerSquareCrop(deepCopyCGImage(frame))
+        #if os(iOS)
+        referenceTransform = camera.currentTransform
+        #endif
         inferenceTimer?.invalidate()
         inferenceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            runInference()
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = computeInference()
+                DispatchQueue.main.async {
+                    predictedAngle = result
+                }
+            }
         }
     }
 
@@ -142,10 +225,10 @@ struct ContentView: View {
         return ctx.makeImage() ?? image
     }
 
-    private func runInference() {
+    private func computeInference() -> Double? {
         guard let frozen = frozenFrame,
               let live = camera.currentFrame,
-              let p = predictor else { return }
+              let p = predictor else { return nil }
 
         let croppedLive = centerSquareCrop(live)
         let pixelsA = cgImageToFloatRGB(frozen, size: imageSize)
@@ -157,7 +240,7 @@ struct ContentView: View {
             }
         }
 
-        predictedAngle = Double(displacement) * camera.horizontalFOV / 2.0
+        return Double(displacement) * camera.horizontalFOV / 2.0
     }
 }
 

@@ -1,0 +1,30 @@
+name: YawPredictor
+options:
+  bundleIdPrefix: com.rltools
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  DEVELOPMENT_TEAM: Q32Y75LZ3G
+targets:
+  YawPredictor:
+    type: application
+    supportedDestinations: [iOS]
+    sources:
+      - path: Sources
+        type: group
+      - path: inference.cpp
+        type: file
+        buildPhase: sources
+        compilerFlags: ["-std=c++20", "-O3"]
+      - path: ../../../../../tests/data/yaw-predictor3.tar
+        type: file
+        buildPhase: resources
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.rltools.yaw-predictor
+      SWIFT_OBJC_BRIDGING_HEADER: inference.h
+      CLANG_CXX_LANGUAGE_STANDARD: c++20
+      INFOPLIST_FILE: Info_ios.plist
+      CODE_SIGN_STYLE: Automatic
+      CODE_SIGN_ENTITLEMENTS: YawPredictor.entitlements
+      HEADER_SEARCH_PATHS:
+        - "$(SRCROOT)/../../../../../include"

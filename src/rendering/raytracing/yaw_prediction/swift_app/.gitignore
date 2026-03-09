@@ -1,2 +1,4 @@
 .build/
 YawPredictor.app/
+build
+YawPredictor.xcodeproj
