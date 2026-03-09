@@ -54,11 +54,17 @@
 #include <random>
 #include <algorithm>
 #include <filesystem>
+#include <csignal>
 #include <cuda_runtime.h>
 
 namespace fs = std::filesystem;
 
 namespace rlt = rl_tools;
+
+static volatile std::sig_atomic_t signal_received = 0;
+static void signal_handler(int signal) {
+    signal_received = signal;
+}
 
 // ---- Configuration ----
 using T = float;
@@ -81,7 +87,7 @@ struct TrainingConfig {
     static constexpr float COS_FOV_MAX = 1.2f;   // narrow FOV
     static constexpr TI LOG_INTERVAL = 100;
     static constexpr TI VAL_INTERVAL = 1000;
-    static constexpr TI CHECKPOINT_INTERVAL = 10000;
+    static constexpr TI CHECKPOINT_INTERVAL = 100000;
 };
 
 using TYPE_POLICY = rlt::numeric_types::Policy<float>;
@@ -97,6 +103,7 @@ using GPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<GPU_CAPABILI
 
 using CPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using CPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<CPU_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE>;
+using CPU_MODEL_INFERENCE = typename CPU_MODEL::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
 
 using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH, 3>;
 using GPU_INPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_INPUT_SHAPE>;
@@ -346,7 +353,9 @@ int main(int argc, char** argv) {
 
     // Init weights on CPU, then copy to GPU
     CPU_MODEL model_cpu;
+    CPU_MODEL_INFERENCE model_cpu_inference;
     rlt::malloc(device_cpu, model_cpu);
+    rlt::malloc(device_cpu, model_cpu_inference);
     {
         DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng_cpu;
         rlt::malloc(device_cpu, rng_cpu);
@@ -386,6 +395,9 @@ int main(int argc, char** argv) {
     extrack_config.name = "yaw-prediction";
     rlt::init(device_cpu, extrack_config, extrack_paths, 0);
 
+    // ---- Signal handler for clean shutdown ----
+    std::signal(SIGINT, signal_handler);
+
     // ---- Training loop ----
     auto train_mode = rlt::Mode<rlt::mode::Default<>>{};
     auto total_start = std::chrono::high_resolution_clock::now();
@@ -394,7 +406,7 @@ int main(int argc, char** argv) {
     std::vector<TI> scene_indices(loaded_scenes.size());
     std::iota(scene_indices.begin(), scene_indices.end(), 0);
 
-    for (TI iteration = 0; iteration < num_iterations; iteration++) {
+    for (TI iteration = 0; iteration < num_iterations && !signal_received; iteration++) {
         rlt::set_step(device_cpu, device_cpu.logger, iteration);
 
         // ---- Select random scenes for this batch ----
@@ -498,10 +510,11 @@ int main(int argc, char** argv) {
         if (iteration % TrainingConfig::CHECKPOINT_INTERVAL == 0 || iteration == num_iterations - 1) {
             cudaStreamSynchronize(device_cuda.stream);
             rlt::copy(device_cuda, device_cpu, model, model_cpu);
+            rlt::copy(device_cpu, device_cpu, model_cpu, model_cpu_inference);
             auto step_folder = rlt::get_step_folder(device_cpu, extrack_config, extrack_paths, iteration);
             auto file = HighFive::File((step_folder / "checkpoint.h5").string(), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
             auto mg = rlt::create_group(device_cpu, file, "model");
-            rlt::save(device_cpu, model_cpu, mg);
+            rlt::save(device_cpu, model_cpu_inference, mg);
             std::cout << "  Checkpoint: " << (step_folder / "checkpoint.h5").string() << std::endl;
         }
 #endif
@@ -637,7 +650,11 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::cout << "Training complete." << std::endl;
+    if (signal_received) {
+        std::cout << "Training interrupted by signal " << signal_received << "." << std::endl;
+    } else {
+        std::cout << "Training complete." << std::endl;
+    }
 
     // ---- Cleanup ----
     cudaFree(gpu_targets);
@@ -651,6 +668,7 @@ int main(int argc, char** argv) {
     rlt::free(device_cuda, optimizer);
     rlt::free(device_cuda, rng_cuda);
     rlt::free(device_cpu, model_cpu);
+    rlt::free(device_cpu, model_cpu_inference);
     for (auto& s : loaded_scenes) {
         yp::destroy_scene(s.handle);
     }
