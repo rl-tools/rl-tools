@@ -1,24 +1,40 @@
 import AVFoundation
 import CoreImage
-import AppKit
+#if os(iOS)
+import ARKit
+#endif
 
 final class CameraManager: NSObject, ObservableObject {
     @Published var currentFrame: CGImage?
     @Published var horizontalFOV: Double = 65.0
+    @Published var trackingReady = false
+    #if os(iOS)
+    var currentTransform: simd_float4x4?
+    #endif
 
+    private let context = CIContext()
+
+    #if os(iOS)
+    private let arSession = ARSession()
+    #else
     private let session = AVCaptureSession()
     private let output = AVCaptureVideoDataOutput()
     private let queue = DispatchQueue(label: "camera.queue")
-    private let context = CIContext()
+    #endif
 
     func start() {
+        #if os(iOS)
+        arSession.delegate = self
+        let config = ARWorldTrackingConfiguration()
+        config.isAutoFocusEnabled = true
+        arSession.run(config)
+        #else
         session.sessionPreset = .medium
         guard let camera = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: camera) else {
             print("No camera available")
             return
         }
-        print("Camera: \(camera.localizedName)")
         if session.canAddInput(input) {
             session.addInput(input)
         }
@@ -32,12 +48,40 @@ final class CameraManager: NSObject, ObservableObject {
         queue.async {
             self.session.startRunning()
         }
+        #endif
     }
 
     func stop() {
+        #if os(iOS)
+        arSession.pause()
+        #else
         session.stopRunning()
+        #endif
     }
 }
+
+#if os(iOS)
+extension CameraManager: ARSessionDelegate {
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        let tracking = frame.camera.trackingState
+
+        let pixelBuffer = frame.capturedImage
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+            .oriented(.right)
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
+
+        DispatchQueue.main.async {
+            if case .normal = tracking {
+                self.trackingReady = true
+                self.currentTransform = frame.camera.transform
+            }
+            if self.trackingReady {
+                self.currentFrame = cgImage
+            }
+        }
+    }
+}
+#endif
 
 extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput,
@@ -45,9 +89,15 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                        from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+
+        #if os(macOS)
         let mirrored = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1)
             .translatedBy(x: -ciImage.extent.width, y: 0))
         guard let cgImage = context.createCGImage(mirrored, from: mirrored.extent) else { return }
+        #else
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
+        #endif
+
         DispatchQueue.main.async {
             self.currentFrame = cgImage
         }

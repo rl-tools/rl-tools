@@ -18,7 +18,6 @@ fi
 echo "HDF5: $HDF5_PREFIX"
 
 # --- Find HighFive headers ---
-# Check cmake build dirs first, then brew
 HIGHFIVE_INCLUDE=""
 for candidate in \
     "$REPO_ROOT/.dependencies"/*/highfive-src/include \
@@ -38,19 +37,18 @@ if [ -z "$HIGHFIVE_INCLUDE" ]; then
 fi
 echo "HighFive: $HIGHFIVE_INCLUDE"
 
+CXX_FLAGS="-std=c++20 -Ofast -I $REPO_ROOT/include -I $HDF5_PREFIX/include -I $HIGHFIVE_INCLUDE -DRL_TOOLS_ENABLE_HDF5"
+
 # --- Compile C++ inference library ---
 echo "Compiling inference.cpp..."
-clang++ -std=c++20 -O3 -c \
-    -I "$REPO_ROOT/include" \
-    -I "$HDF5_PREFIX/include" \
-    -I "$HIGHFIVE_INCLUDE" \
-    -DRL_TOOLS_ENABLE_HDF5 \
-    "$SCRIPT_DIR/inference.cpp" \
-    -o "$BUILD_TMP/inference.o"
-
-# Create static library
+clang++ $CXX_FLAGS -c "$SCRIPT_DIR/inference.cpp" -o "$BUILD_TMP/inference.o"
 ar rcs "$BUILD_TMP/libinference.a" "$BUILD_TMP/inference.o"
 echo "Built: $BUILD_TMP/libinference.a"
+
+# --- Build h5_to_tar converter ---
+echo "Compiling h5_to_tar..."
+clang++ $CXX_FLAGS "$SCRIPT_DIR/h5_to_tar.cpp" -L "$HDF5_PREFIX/lib" -lhdf5 -lc++ -o "$BUILD_TMP/h5_to_tar"
+echo "Built: $BUILD_TMP/h5_to_tar"
 
 # --- Create .app bundle ---
 rm -rf "$APP_BUNDLE"
@@ -81,7 +79,8 @@ codesign --force --sign - --entitlements "$SCRIPT_DIR/YawPredictor.entitlements"
 echo ""
 echo "Built: $APP_BUNDLE"
 echo ""
+echo "To convert HDF5 to tar format (for iOS):"
+echo "  $BUILD_TMP/h5_to_tar <input.h5> <output.tar>"
+echo ""
 echo "Run:"
-echo "  open $APP_BUNDLE --args $REPO_ROOT/tests/data/yaw-predictor2.h5"
-echo "  or:"
-echo "  $APP_BUNDLE/Contents/MacOS/$APP_NAME $REPO_ROOT/tests/data/yaw-predictor2.h5"
+echo "  open $APP_BUNDLE --args <model.h5 or model.tar>"
