@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var inferenceTimer: Timer?
     @State private var showNativeResolution = false
     @State private var modelLoaded = false
+    @State private var referenceYaw: Double?
     #if os(iOS)
     @State private var showFilePicker = false
     #endif
@@ -50,7 +51,7 @@ struct ContentView: View {
                         } else {
                             Rectangle()
                                 .fill(Color.gray.opacity(0.3))
-                                .overlay(Text("Camera starting...").foregroundColor(.secondary))
+                                .overlay(Text(camera.trackingReady ? "Camera starting..." : "Initializing AR...").foregroundColor(.secondary))
                         }
                     }
                     .frame(width: 240, height: 240)
@@ -58,13 +59,26 @@ struct ContentView: View {
                 }
             }
 
-            if let angle = predictedAngle {
-                Text(String(format: "Predicted yaw: %.1f\u{00B0}", angle))
-                    .font(.system(size: 28, weight: .bold, design: .monospaced))
-            } else {
-                Text("No prediction yet")
-                    .font(.system(size: 28, weight: .bold, design: .monospaced))
-                    .foregroundColor(.secondary)
+            VStack(spacing: 4) {
+                if let angle = predictedAngle {
+                    Text(String(format: "Predicted: %.1f\u{00B0}", angle))
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                } else {
+                    Text("No prediction yet")
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                if let refYaw = referenceYaw, let curYaw = camera.currentYaw {
+                    let groundTruth = (curYaw - refYaw) * 180.0 / .pi
+                    Text(String(format: "IMU:       %.1f\u{00B0}", groundTruth))
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .foregroundColor(.blue)
+                    if let angle = predictedAngle {
+                        Text(String(format: "Error:     %.1f\u{00B0}", angle - groundTruth))
+                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .foregroundColor(.red)
+                    }
+                }
             }
 
             HStack {
@@ -159,6 +173,7 @@ struct ContentView: View {
     private func captureFrame() {
         guard let frame = camera.currentFrame else { return }
         frozenFrame = centerSquareCrop(deepCopyCGImage(frame))
+        referenceYaw = camera.currentYaw
         inferenceTimer?.invalidate()
         inferenceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             DispatchQueue.global(qos: .userInitiated).async {
