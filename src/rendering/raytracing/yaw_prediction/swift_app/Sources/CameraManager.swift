@@ -29,9 +29,8 @@ final class CameraManager: NSObject, ObservableObject {
         if session.canAddOutput(output) {
             session.addOutput(output)
         }
-        DispatchQueue(label: "camera.start").async {
+        queue.async {
             self.session.startRunning()
-            print("Camera session running: \(self.session.isRunning)")
         }
     }
 
@@ -46,9 +45,9 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                        from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-            .transformed(by: CGAffineTransform(scaleX: -1, y: 1)
-            .translatedBy(x: -CIImage(cvPixelBuffer: pixelBuffer).extent.width, y: 0))
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
+        let mirrored = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1)
+            .translatedBy(x: -ciImage.extent.width, y: 0))
+        guard let cgImage = context.createCGImage(mirrored, from: mirrored.extent) else { return }
         DispatchQueue.main.async {
             self.currentFrame = cgImage
         }
