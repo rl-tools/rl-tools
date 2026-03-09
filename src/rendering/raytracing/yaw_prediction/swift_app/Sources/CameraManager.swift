@@ -1,6 +1,5 @@
 import AVFoundation
 import CoreImage
-import AppKit
 
 final class CameraManager: NSObject, ObservableObject {
     @Published var currentFrame: CGImage?
@@ -18,7 +17,6 @@ final class CameraManager: NSObject, ObservableObject {
             print("No camera available")
             return
         }
-        print("Camera: \(camera.localizedName)")
         if session.canAddInput(input) {
             session.addInput(input)
         }
@@ -29,6 +27,20 @@ final class CameraManager: NSObject, ObservableObject {
         if session.canAddOutput(output) {
             session.addOutput(output)
         }
+
+        #if os(iOS)
+        if let connection = output.connection(with: .video) {
+            if #available(iOS 17.0, *) {
+                connection.videoRotationAngle = 90
+            } else {
+                connection.videoOrientation = .portrait
+            }
+            if camera.position == .front {
+                connection.isVideoMirrored = true
+            }
+        }
+        #endif
+
         queue.async {
             self.session.startRunning()
         }
@@ -45,9 +57,15 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                        from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+
+        #if os(macOS)
         let mirrored = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1)
             .translatedBy(x: -ciImage.extent.width, y: 0))
         guard let cgImage = context.createCGImage(mirrored, from: mirrored.extent) else { return }
+        #else
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
+        #endif
+
         DispatchQueue.main.async {
             self.currentFrame = cgImage
         }

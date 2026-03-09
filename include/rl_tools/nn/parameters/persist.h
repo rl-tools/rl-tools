@@ -10,6 +10,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::parameters::Plain::Instance<SPEC>& parameter, GROUP& group) {
         save(device, parameter.parameters, group, "parameters");
+        write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::parameters::Gradient::Instance<SPEC>& parameter, GROUP& group) {
