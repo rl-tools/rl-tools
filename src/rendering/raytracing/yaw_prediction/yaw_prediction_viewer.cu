@@ -77,7 +77,7 @@ using CPU_MODEL = yp::MODEL<CPU_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE>;
 using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH, 3>;
 using GPU_INPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_INPUT_SHAPE>;
 
-// Head output tensor: [BATCH_SIZE, 2]
+// Head output tensor: [BATCH_SIZE, 3]
 using HEAD_OUTPUT_SHAPE = typename GPU_MODEL::SPEC::HEAD_TYPE::OUTPUT_SHAPE;
 using HEAD_OUTPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, HEAD_OUTPUT_SHAPE>;
 
@@ -288,16 +288,15 @@ int main(int argc, char** argv) {
     std::vector<rlt::CameraData> base_cameras(NUM_GRID_CAMERAS);
     {
         std::vector<rlt::CameraData> setup_cameras(NUM_CAMERAS);
-        std::vector<float> setup_deltas(BATCH_SIZE);
-        std::vector<float> setup_targets(BATCH_SIZE);
+        std::vector<float> setup_targets(BATCH_SIZE * 3);
 
         for (TI s = 0; s < loaded_scenes.size(); s++) {
             auto& tiles = scene_tiles[s];
             if (tiles.empty()) continue;
 
-            // Sample enough cameras from this scene (fixed FOV for viewer)
+            // Sample enough cameras from this scene (fixed FOV for viewer, zero displacement)
             yp::sample_camera_batch(loaded_scenes[s].handle, setup_cameras.data(),
-                                    setup_deltas.data(), setup_targets.data(),
+                                    setup_targets.data(),
                                     BATCH_SIZE, 0.0f,
                                     VIEWER_COS_FOV, VIEWER_COS_FOV);
 
@@ -345,7 +344,8 @@ int main(int argc, char** argv) {
     static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
     std::vector<uint32_t> host_fb(NUM_CAMERAS * CAM_PIXELS);
     std::vector<uint8_t> output_image(IMAGE_WIDTH * IMAGE_HEIGHT * 3);
-    std::vector<float> pred_buf(BATCH_SIZE);
+    static constexpr TI OUTPUT_DIM = 3;
+    std::vector<float> pred_buf(BATCH_SIZE * OUTPUT_DIM);
     std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
 
     // Per-tile host framebuffer for swept views (read back per scene)
@@ -442,11 +442,12 @@ int main(int argc, char** argv) {
         rlt::evaluate(device_cuda, model.head, model_buffer.concatenated, gpu_head_output, model_buffer.head_buffer, rng_cuda, eval_mode);
         cudaStreamSynchronize(device_cuda.stream);
 
-        // Read predictions (normalized displacement)
-        cudaMemcpy(pred_buf.data(), gpu_head_output._data, BATCH_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+        // Read predictions (p_x, p_y, phi/pi per sample)
+        cudaMemcpy(pred_buf.data(), gpu_head_output._data, BATCH_SIZE * OUTPUT_DIM * sizeof(float), cudaMemcpyDeviceToHost);
 
-        // Convert normalized displacement to angle: delta_yaw = prediction * half_hfov
+        // Convert p_x to angle: delta_yaw = atan(p_x * tan(half_hfov))
         const float half_hfov = std::atan(0.5f * VIEWER_COS_FOV * VIEWER_ASPECT);
+        const float tan_half_hfov = std::tan(half_hfov);
 
         // ---- Composite 8x8 grid ----
         std::memset(output_image.data(), 0, output_image.size());
@@ -469,7 +470,7 @@ int main(int argc, char** argv) {
                 }
             }
 
-            float pred_angle = pred_buf[i] * half_hfov;
+            float pred_angle = std::atan(pred_buf[i * OUTPUT_DIM + 0] * tan_half_hfov);
 
             draw_bead(output_image, IMAGE_WIDTH, tile_x, tile_y, delta_yaw, MAX_ANGLE, 2, 0, 200, 0);
             draw_bead(output_image, IMAGE_WIDTH, tile_x, tile_y, pred_angle, MAX_ANGLE, 5, 200, 0, 0);

@@ -60,8 +60,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         TYPE_POLICY, TI, 128, nn::activation_functions::ActivationFunction::RELU>;
 
     template<typename TYPE_POLICY, typename TI>
-    using DENSE_1_CONFIG = nn::layers::dense::Configuration<
-        TYPE_POLICY, TI, 1, nn::activation_functions::ActivationFunction::IDENTITY>;
+    using DENSE_3_CONFIG = nn::layers::dense::Configuration<
+        TYPE_POLICY, TI, 3, nn::activation_functions::ActivationFunction::IDENTITY>;
 
     // Head: 1x1 conv on concatenated spatial features -> avgpool -> dense MLP
     template<typename TYPE_POLICY, typename TI>
@@ -69,7 +69,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         nn::layers::conv2d::BindConfiguration<CONV_1x1_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::dense::BindConfiguration<DENSE_128_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::dense::BindConfiguration<DENSE_1_CONFIG<TYPE_POLICY, TI>>
+        nn::layers::dense::BindConfiguration<DENSE_3_CONFIG<TYPE_POLICY, TI>>
     >;
 
     // Full parallel model: two CNN encoders + head with cross-image conv

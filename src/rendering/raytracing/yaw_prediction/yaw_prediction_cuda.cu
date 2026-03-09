@@ -186,16 +186,16 @@ __global__ void rgba_to_float_kernel(
     }
 }
 
-// MSE loss on scalar output and write gradient to d_output
+// Element-wise MSE loss and gradient (operates on all BATCH_SIZE * OUTPUT_DIM elements)
 __global__ void mse_loss_gradient_kernel(
     const float* __restrict__ predictions,
     const float* __restrict__ targets,
     float* __restrict__ d_output,
     float* __restrict__ losses,
-    int batch_size
+    int total_elements
 ) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= batch_size) return;
+    if (idx >= total_elements) return;
 
     const float pred = predictions[idx];
     const float tgt = targets[idx];
@@ -203,20 +203,20 @@ __global__ void mse_loss_gradient_kernel(
 
     losses[idx] = diff * diff;
 
-    const float scale = 2.0f / static_cast<float>(batch_size);
+    const float scale = 2.0f / static_cast<float>(total_elements);
     d_output[idx] = scale * diff;
 }
 
 __global__ void reduce_loss_kernel(
     const float* __restrict__ losses,
     float* __restrict__ total_loss,
-    int batch_size
+    int total_elements
 ) {
     float sum = 0.0f;
-    for (int i = 0; i < batch_size; i++) {
+    for (int i = 0; i < total_elements; i++) {
         sum += losses[i];
     }
-    *total_loss = sum / static_cast<float>(batch_size);
+    *total_loss = sum / static_cast<float>(total_elements);
 }
 
 int main(int argc, char** argv) {
@@ -295,7 +295,7 @@ int main(int argc, char** argv) {
 
     constexpr float PI = 3.14159265358979323846f;
 
-    std::cout << "Yaw prediction training (multi-scene)" << std::endl;
+    std::cout << "Rotation prediction training (multi-scene)" << std::endl;
     std::cout << "  Training scenes: " << all_scene_paths.size() << std::endl;
     std::cout << "  Validation scenes: " << val_scene_paths.size() << std::endl;
     std::cout << "  Scenes per batch: " << num_scenes_per_batch << std::endl;
@@ -375,18 +375,20 @@ int main(int argc, char** argv) {
     rlt::Tensor<GPU_D_OUTPUT_SPEC> gpu_d_output;
     rlt::malloc(device_cuda, gpu_d_output);
 
+    static constexpr TI OUTPUT_DIM = 3;
+    static constexpr TI TOTAL_OUTPUT_ELEMENTS = BATCH_SIZE * OUTPUT_DIM;
+
     float* gpu_targets;
-    cudaMalloc(&gpu_targets, BATCH_SIZE * sizeof(float));
+    cudaMalloc(&gpu_targets, TOTAL_OUTPUT_ELEMENTS * sizeof(float));
 
     float* gpu_losses;
-    cudaMalloc(&gpu_losses, BATCH_SIZE * sizeof(float));
+    cudaMalloc(&gpu_losses, TOTAL_OUTPUT_ELEMENTS * sizeof(float));
 
     float* gpu_total_loss;
     cudaMalloc(&gpu_total_loss, sizeof(float));
 
     // CPU-side buffers
-    std::vector<float> cpu_targets(BATCH_SIZE);
-    std::vector<float> cpu_delta_yaws(BATCH_SIZE);
+    std::vector<float> cpu_targets(TOTAL_OUTPUT_ELEMENTS);
     std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
 
     // ---- Extrack setup (experiment tracking, tensorboard logging) ----
@@ -421,8 +423,7 @@ int main(int argc, char** argv) {
             yp::sample_camera_batch(
                 loaded_scenes[scene_idx].handle,
                 cameras.data(),
-                cpu_delta_yaws.data() + batch_offset,
-                cpu_targets.data() + batch_offset,
+                cpu_targets.data() + batch_offset * OUTPUT_DIM,
                 samples_per_scene,
                 TrainingConfig::MAX_ANGLE,
                 TrainingConfig::COS_FOV_MIN,
@@ -443,7 +444,7 @@ int main(int argc, char** argv) {
             );
         }
 
-        cudaMemcpyAsync(gpu_targets, cpu_targets.data(), BATCH_SIZE * sizeof(float),
+        cudaMemcpyAsync(gpu_targets, cpu_targets.data(), TOTAL_OUTPUT_ELEMENTS * sizeof(float),
                         cudaMemcpyHostToDevice, device_cuda.stream);
 
         // ---- Forward ----
@@ -478,9 +479,9 @@ int main(int argc, char** argv) {
         // ---- Loss + gradient ----
         {
             constexpr int threads = 256;
-            constexpr int blocks = (BATCH_SIZE + threads - 1) / threads;
+            constexpr int blocks = (TOTAL_OUTPUT_ELEMENTS + threads - 1) / threads;
             mse_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, BATCH_SIZE
+                output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS
             );
         }
 
@@ -522,31 +523,39 @@ int main(int argc, char** argv) {
         // ---- Logging ----
         if (iteration % TrainingConfig::LOG_INTERVAL == 0 || iteration == num_iterations - 1) {
             reduce_loss_kernel<<<1, 1, 0, device_cuda.stream>>>(
-                gpu_losses, gpu_total_loss, BATCH_SIZE
+                gpu_losses, gpu_total_loss, TOTAL_OUTPUT_ELEMENTS
             );
             cudaStreamSynchronize(device_cuda.stream);
 
             float loss_val;
             cudaMemcpy(&loss_val, gpu_total_loss, sizeof(float), cudaMemcpyDeviceToHost);
 
-            std::vector<float> pred_buf(BATCH_SIZE);
-            cudaMemcpy(pred_buf.data(), output_view._data, BATCH_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+            std::vector<float> pred_buf(TOTAL_OUTPUT_ELEMENTS);
+            cudaMemcpy(pred_buf.data(), output_view._data, TOTAL_OUTPUT_ELEMENTS * sizeof(float), cudaMemcpyDeviceToHost);
 
-            float total_disp_error = 0.0f;
+            float err_px = 0.0f, err_py = 0.0f, err_roll = 0.0f;
             for (TI_CUDA i = 0; i < BATCH_SIZE; i++) {
-                total_disp_error += std::abs(pred_buf[i] - cpu_targets[i]);
+                err_px   += std::abs(pred_buf[i * OUTPUT_DIM + 0] - cpu_targets[i * OUTPUT_DIM + 0]);
+                err_py   += std::abs(pred_buf[i * OUTPUT_DIM + 1] - cpu_targets[i * OUTPUT_DIM + 1]);
+                err_roll += std::abs(pred_buf[i * OUTPUT_DIM + 2] - cpu_targets[i * OUTPUT_DIM + 2]);
             }
-            const float mean_disp_error = total_disp_error / BATCH_SIZE;
+            err_px /= BATCH_SIZE;
+            err_py /= BATCH_SIZE;
+            err_roll /= BATCH_SIZE;
 
             auto now = std::chrono::high_resolution_clock::now();
             double elapsed_s = std::chrono::duration<double>(now - total_start).count();
 
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss", loss_val);
-            rlt::add_scalar(device_cpu, device_cpu.logger, "train/disp_err", mean_disp_error);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_px", err_px);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_py", err_py);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_roll", err_roll);
 
             std::cout << "[iter " << iteration << "/" << num_iterations << "]"
                       << "  loss=" << loss_val
-                      << "  disp_err=" << mean_disp_error
+                      << "  err_px=" << err_px
+                      << "  err_py=" << err_py
+                      << "  err_roll=" << err_roll
                       << "  time=" << elapsed_s << "s"
                       << std::endl;
         }
@@ -555,7 +564,7 @@ int main(int argc, char** argv) {
         if (val_scenes.size() > 0 && (iteration % TrainingConfig::VAL_INTERVAL == 0 || iteration == num_iterations - 1)) {
             auto eval_mode = rlt::Mode<rlt::mode::Evaluation<>>{};
             float val_loss_sum = 0.0f;
-            float val_disp_err_sum = 0.0f;
+            float val_err_px_sum = 0.0f, val_err_py_sum = 0.0f, val_err_roll_sum = 0.0f;
             TI val_total_samples = 0;
 
             for (TI vs = 0; vs < val_scenes.size(); vs++) {
@@ -563,7 +572,6 @@ int main(int argc, char** argv) {
                 yp::sample_camera_batch(
                     val_scenes[vs].handle,
                     cameras.data(),
-                    cpu_delta_yaws.data(),
                     cpu_targets.data(),
                     BATCH_SIZE,
                     TrainingConfig::MAX_ANGLE,
@@ -580,7 +588,7 @@ int main(int argc, char** argv) {
                     device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, BATCH_SIZE, 0
                 );
 
-                cudaMemcpyAsync(gpu_targets, cpu_targets.data(), BATCH_SIZE * sizeof(float),
+                cudaMemcpyAsync(gpu_targets, cpu_targets.data(), TOTAL_OUTPUT_ELEMENTS * sizeof(float),
                                 cudaMemcpyHostToDevice, device_cuda.stream);
 
                 // Forward pass (evaluation mode, no gradient)
@@ -610,43 +618,53 @@ int main(int argc, char** argv) {
                 }
                 auto val_output_view = rlt::output(device_cuda, model);
 
-                // Compute loss and disp_err
+                // Compute loss
                 {
                     constexpr int threads = 256;
-                    constexpr int blocks = (BATCH_SIZE + threads - 1) / threads;
+                    constexpr int blocks = (TOTAL_OUTPUT_ELEMENTS + threads - 1) / threads;
                     mse_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                        val_output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, BATCH_SIZE
+                        val_output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS
                     );
                 }
                 reduce_loss_kernel<<<1, 1, 0, device_cuda.stream>>>(
-                    gpu_losses, gpu_total_loss, BATCH_SIZE
+                    gpu_losses, gpu_total_loss, TOTAL_OUTPUT_ELEMENTS
                 );
                 cudaStreamSynchronize(device_cuda.stream);
 
                 float scene_loss;
                 cudaMemcpy(&scene_loss, gpu_total_loss, sizeof(float), cudaMemcpyDeviceToHost);
 
-                std::vector<float> val_pred_buf(BATCH_SIZE);
-                cudaMemcpy(val_pred_buf.data(), val_output_view._data, BATCH_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+                std::vector<float> val_pred_buf(TOTAL_OUTPUT_ELEMENTS);
+                cudaMemcpy(val_pred_buf.data(), val_output_view._data, TOTAL_OUTPUT_ELEMENTS * sizeof(float), cudaMemcpyDeviceToHost);
 
-                float scene_disp_err = 0.0f;
+                float scene_err_px = 0.0f, scene_err_py = 0.0f, scene_err_roll = 0.0f;
                 for (TI_CUDA i = 0; i < BATCH_SIZE; i++) {
-                    scene_disp_err += std::abs(val_pred_buf[i] - cpu_targets[i]);
+                    scene_err_px   += std::abs(val_pred_buf[i * OUTPUT_DIM + 0] - cpu_targets[i * OUTPUT_DIM + 0]);
+                    scene_err_py   += std::abs(val_pred_buf[i * OUTPUT_DIM + 1] - cpu_targets[i * OUTPUT_DIM + 1]);
+                    scene_err_roll += std::abs(val_pred_buf[i * OUTPUT_DIM + 2] - cpu_targets[i * OUTPUT_DIM + 2]);
                 }
 
-                val_loss_sum += scene_loss * BATCH_SIZE;
-                val_disp_err_sum += scene_disp_err;
+                val_loss_sum += scene_loss * TOTAL_OUTPUT_ELEMENTS;
+                val_err_px_sum += scene_err_px;
+                val_err_py_sum += scene_err_py;
+                val_err_roll_sum += scene_err_roll;
                 val_total_samples += BATCH_SIZE;
             }
 
-            float val_loss = val_loss_sum / val_total_samples;
-            float val_disp_err = val_disp_err_sum / val_total_samples;
+            float val_loss = val_loss_sum / (val_total_samples * OUTPUT_DIM);
+            float val_err_px = val_err_px_sum / val_total_samples;
+            float val_err_py = val_err_py_sum / val_total_samples;
+            float val_err_roll = val_err_roll_sum / val_total_samples;
 
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/loss", val_loss);
-            rlt::add_scalar(device_cpu, device_cpu.logger, "val/disp_err", val_disp_err);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_px", val_err_px);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_py", val_err_py);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_roll", val_err_roll);
 
             std::cout << "[iter " << iteration << "] VAL loss=" << val_loss
-                      << "  disp_err=" << val_disp_err << std::endl;
+                      << "  err_px=" << val_err_px
+                      << "  err_py=" << val_err_py
+                      << "  err_roll=" << val_err_roll << std::endl;
         }
     }
 
