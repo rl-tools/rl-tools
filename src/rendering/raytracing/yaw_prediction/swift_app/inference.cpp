@@ -69,13 +69,15 @@ YawPredictorHandle* yaw_predictor_create(const char* h5_path) {
     rlt::malloc(handle->device, handle->output);
 
     try {
-        auto file = HighFive::File(std::string(h5_path), HighFive::File::ReadOnly);
-        auto model_group = rlt::get_group(handle->device, file, "model");
-        bool success = rlt::load(handle->device, handle->model, model_group);
-        if (!success) {
-            std::cerr << "Failed to load model from " << h5_path << std::endl;
-            yaw_predictor_destroy(handle);
-            return nullptr;
+        {
+            auto file = HighFive::File(std::string(h5_path), HighFive::File::ReadOnly);
+            auto model_group = rlt::get_group(handle->device, file, "model");
+            bool success = rlt::load(handle->device, handle->model, model_group);
+            if (!success) {
+                std::cerr << "Failed to load model from " << h5_path << std::endl;
+                yaw_predictor_destroy(handle);
+                return nullptr;
+            }
         }
     } catch (const std::exception& e) {
         std::cerr << "Error loading HDF5: " << e.what() << std::endl;
