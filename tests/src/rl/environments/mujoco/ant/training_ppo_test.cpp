@@ -3,5 +3,5 @@
 #include <gtest/gtest.h>
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
-    run();
+    run(600);
 }

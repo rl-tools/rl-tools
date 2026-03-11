@@ -63,7 +63,7 @@ using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
 
 
-constexpr TI BASE_SEED = 600;
+// constexpr TI BASE_SEED = 600;
 constexpr DEVICE::index_t NUM_RUNS = 1;
 #if !defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST)
 constexpr DEVICE::index_t NUM_STEPS = 2500;
@@ -98,7 +98,7 @@ std::string sanitize_file_name(const std::string &input) {
     return output;
 }
 
-void run(){
+void run(TI BASE_SEED){
     for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;
         using prl = parameters::rl<TYPE_POLICY, TI, penv::ENVIRONMENT>;
