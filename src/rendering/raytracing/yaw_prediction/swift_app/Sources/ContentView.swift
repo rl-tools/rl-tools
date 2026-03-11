@@ -7,7 +7,7 @@ import simd
 struct ContentView: View {
     @StateObject private var camera = CameraManager()
     @State private var frozenFrame: CGImage?
-    @State private var predictedAngle: Double?
+    @State private var prediction: (px: Double, py: Double, roll: Double)?
     @State private var predictor: OpaquePointer?
     @State private var inferenceTimer: Timer?
     @State private var showNativeResolution = false
@@ -61,22 +61,30 @@ struct ContentView: View {
             }
 
             VStack(spacing: 4) {
-                if let angle = predictedAngle {
-                    Text(String(format: "Predicted: %.1f\u{00B0}", angle))
-                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                if let pred = prediction {
+                    let hfov = camera.horizontalFOV
+                    let pxDeg = pred.px * hfov / 2.0
+                    let pyDeg = pred.py * hfov / 2.0
+                    let rollDeg = pred.roll * 180.0
+                    Text(String(format: "H: %+.1f\u{00B0}  V: %+.1f\u{00B0}  R: %+.1f\u{00B0}", pxDeg, pyDeg, rollDeg))
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
                 } else {
                     Text("No prediction yet")
-                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
                 #if os(iOS)
-                if let groundTruth = computeGroundTruth() {
-                    Text(String(format: "ARKit:     %.1f\u{00B0}", groundTruth))
-                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                if let gt = computeGroundTruth() {
+                    Text(String(format: "GT H: %+.1f\u{00B0}  V: %+.1f\u{00B0}  R: %+.1f\u{00B0}", gt.px, gt.py, gt.roll))
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
                         .foregroundColor(.blue)
-                    if let angle = predictedAngle {
-                        Text(String(format: "Error:     %.1f\u{00B0}", angle - groundTruth))
-                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                    if let pred = prediction {
+                        let hfov = camera.horizontalFOV
+                        let errH = pred.px * hfov / 2.0 - gt.px
+                        let errV = pred.py * hfov / 2.0 - gt.py
+                        let errR = pred.roll * 180.0 - gt.roll
+                        Text(String(format: "Err: %+.1f\u{00B0}  %+.1f\u{00B0}  %+.1f\u{00B0}", errH, errV, errR))
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
                             .foregroundColor(.red)
                     }
                 }
@@ -144,7 +152,7 @@ struct ContentView: View {
 
     #if os(iOS)
     private func loadBundledModel() {
-        if let url = Bundle.main.url(forResource: "yaw-predictor3", withExtension: "tar") {
+        if let url = Bundle.main.url(forResource: "yaw-predictor4", withExtension: "tar") {
             loadModel(from: url.path)
         } else {
             print("Bundled model not found")
@@ -165,15 +173,26 @@ struct ContentView: View {
     }
 
     #if os(iOS)
-    private func computeGroundTruth() -> Double? {
+    private func computeGroundTruth() -> (px: Double, py: Double, roll: Double)? {
         guard let refT = referenceTransform, let curT = camera.currentTransform else { return nil }
-        // Relative transform in the reference frame's coordinate system
         let rel = simd_inverse(refT) * curT
-        // Camera forward (-Z) in reference frame: -column2
-        // Rotation around reference X axis (phone's long/up axis in portrait)
-        // projects forward onto YZ plane: angle = atan2(-col2.y, col2.z)
-        let angle = atan2(-rel.columns.2.y, rel.columns.2.z)
-        return Double(angle) * 180.0 / .pi
+        // Camera B's forward (-Z) projected into camera A's frame
+        // z2 = -rel.columns.2 (third column negated = forward direction)
+        let z2x = -rel.columns.2.x
+        let z2y = -rel.columns.2.y
+        let z2z = -rel.columns.2.z
+        let hfov = camera.horizontalFOV * .pi / 180.0
+        let tanHalfH = tan(hfov / 2.0)
+        let tanHalfV = tanHalfH // square crop => same fov
+        let px = Double(z2x / (z2z * Float(tanHalfH))) * hfov / 2.0 * 180.0 / .pi
+        let py = Double(z2y / (z2z * Float(tanHalfV))) * hfov / 2.0 * 180.0 / .pi
+        // Roll: rotation around forward axis
+        // Shortest-arc decomposition: align (0,0,1) to z2, then extract remaining roll
+        // Simplified: use atan2 on the rotated x-axis projected onto the plane perpendicular to z2
+        let re00 = rel.columns.0.x
+        let re10 = rel.columns.1.x
+        let roll = Double(atan2(re10, re00)) * 180.0 / .pi
+        return (-py, px, -roll)
     }
     #endif
 
@@ -196,7 +215,7 @@ struct ContentView: View {
             DispatchQueue.global(qos: .userInitiated).async {
                 let result = computeInference()
                 DispatchQueue.main.async {
-                    predictedAngle = result
+                    prediction = result
                 }
             }
         }
@@ -225,7 +244,7 @@ struct ContentView: View {
         return ctx.makeImage() ?? image
     }
 
-    private func computeInference() -> Double? {
+    private func computeInference() -> (px: Double, py: Double, roll: Double)? {
         guard let frozen = frozenFrame,
               let live = camera.currentFrame,
               let p = predictor else { return nil }
@@ -234,13 +253,16 @@ struct ContentView: View {
         let pixelsA = cgImageToFloatRGB(frozen, size: imageSize)
         let pixelsB = cgImageToFloatRGB(croppedLive, size: imageSize)
 
-        let displacement: Float = pixelsA.withUnsafeBufferPointer { a in
+        var output: [Float] = [0, 0, 0]
+        pixelsA.withUnsafeBufferPointer { a in
             pixelsB.withUnsafeBufferPointer { b in
-                yaw_predictor_evaluate(p, a.baseAddress, b.baseAddress)
+                output.withUnsafeMutableBufferPointer { o in
+                    yaw_predictor_evaluate(p, a.baseAddress, b.baseAddress, o.baseAddress)
+                }
             }
         }
 
-        return Double(displacement) * camera.horizontalFOV / 2.0
+        return (Double(output[0]), Double(output[1]), Double(output[2]))
     }
 }
 
