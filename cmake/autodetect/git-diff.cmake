@@ -202,21 +202,31 @@ file(WRITE \"\${OUTPUT_FILE}\" \"\${CONTENT}\")
 
 set(GIT_DIFF_DEPENDENCIES "")
 if(RL_TOOLS_IS_GIT_REPO)
-    file(GLOB_RECURSE RL_TOOLS_SOURCES
-        CONFIGURE_DEPENDS
-        "${RL_TOOLS_ROOT_DIR}/src/*"
-        "${RL_TOOLS_ROOT_DIR}/include/*"
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} ls-files --full-name src include
+        WORKING_DIRECTORY ${RL_TOOLS_ROOT_DIR}
+        OUTPUT_VARIABLE RL_TOOLS_GIT_FILES
+        OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-    list(APPEND GIT_DIFF_DEPENDENCIES ${RL_TOOLS_SOURCES})
+    if(RL_TOOLS_GIT_FILES)
+        string(REPLACE "\n" ";" RL_TOOLS_GIT_FILES "${RL_TOOLS_GIT_FILES}")
+        list(TRANSFORM RL_TOOLS_GIT_FILES PREPEND "${RL_TOOLS_ROOT_DIR}/")
+        list(APPEND GIT_DIFF_DEPENDENCIES ${RL_TOOLS_GIT_FILES})
+    endif()
 endif()
 
 if(RL_TOOLS_PARENT_IS_GIT_REPO)
-    file(GLOB_RECURSE PARENT_SOURCES
-        CONFIGURE_DEPENDS
-        "${RL_TOOLS_PARENT_DIR}/src/*"
-        "${RL_TOOLS_PARENT_DIR}/include/*"
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} ls-files --full-name src include
+        WORKING_DIRECTORY ${RL_TOOLS_PARENT_DIR}
+        OUTPUT_VARIABLE PARENT_GIT_FILES
+        OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-    list(APPEND GIT_DIFF_DEPENDENCIES ${PARENT_SOURCES})
+    if(PARENT_GIT_FILES)
+        string(REPLACE "\n" ";" PARENT_GIT_FILES "${PARENT_GIT_FILES}")
+        list(TRANSFORM PARENT_GIT_FILES PREPEND "${RL_TOOLS_PARENT_DIR}/")
+        list(APPEND GIT_DIFF_DEPENDENCIES ${PARENT_GIT_FILES})
+    endif()
 endif()
 
 add_custom_command(
