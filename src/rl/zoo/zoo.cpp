@@ -522,7 +522,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
         std::filesystem::create_directories(ts.extrack_paths.seed);
         std::ofstream return_file(ts.extrack_paths.seed / "return.json");
-        return_file << "[";
+        return_file << "{\"format\": \"zoo-v1\", ";
+        return_file << "\"data\": [";
         for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
             auto& result = rlt::get(ts.evaluation_results, 0, evaluation_i);
             return_file << rlt::json(device, result, LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i);
@@ -531,6 +532,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             }
         }
         return_file << "]";
+        return_file << "}";
         std::ofstream return_file_confirmation(ts.extrack_paths.seed / "return.json.set");
         return_file_confirmation.close();
 #else
