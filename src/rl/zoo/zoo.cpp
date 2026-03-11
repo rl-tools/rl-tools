@@ -253,9 +253,10 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::bottleneck_v0::ppo::FACTORY<DEVICE, TYPE_
 template <typename BASE>
 using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::bottleneck_v0::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::ant_v4::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+using PPO_ANT_V4_FACTORY = rlt::rl::zoo::ant_v4::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>;
+using LOOP_CORE_CONFIG = PPO_ANT_V4_FACTORY::LOOP_CORE_CONFIG;
 template <typename BASE>
-struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+using LOOP_EVALUATION_PARAMETER_OVERWRITES = PPO_ANT_V4_FACTORY::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
@@ -404,9 +405,10 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         rlt::add_hparams(device, device.logger, {{"dummy", 1}}, {});
 #endif
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
-        std::cout << "Evaluation Interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
-        std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
-        std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
+        std::cout << "Evaluation interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
+        std::cout << "Checkpoint interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
+        std::cout << "Save trajectories interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
+        std::cout << "NN analytics interval: " << LOOP_CONFIG::NN_ANALYTICS_PARAMETERS::INTERVAL << std::endl;
         using T = typename TYPE_POLICY::DEFAULT;
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
         T difficulty = 0; // [0, 1]
