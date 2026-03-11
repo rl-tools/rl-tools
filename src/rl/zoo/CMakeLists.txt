@@ -196,5 +196,30 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     target_compile_definitions(rl_zoo_ant_v4_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
 endif()
 
+if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
+    set(RL_ZOO_NIGHTLY_TARGETS
+      rl_zoo_acrobot_swingup_v0_sac
+      rl_zoo_ant_v4_ppo
+      rl_zoo_ant_v4_td3
+      rl_zoo_bottleneck_v0_ppo
+      rl_zoo_flag_ppo
+      rl_zoo_flag_ppo_gru
+      rl_zoo_flag_ppo_gru_asymmetric
+      rl_zoo_flag_sac
+      rl_zoo_flag_td3
+      rl_zoo_l2f_ppo
+      rl_zoo_l2f_sac
+      rl_zoo_l2f_td3
+      rl_zoo_pendulum_v1_ppo
+      rl_zoo_pendulum_v1_sac
+      rl_zoo_pendulum_v1_td3
+      rl_zoo_reacher_v0_ppo
+      rl_zoo_reacher_visual_v0_ppo
+    )
+    add_custom_target(rl_zoo_nightly DEPENDS ${RL_ZOO_NIGHTLY_TARGETS})
+    string(REPLACE ";" "\n" RL_ZOO_NIGHTLY_TARGETS_NEWLINE "${RL_ZOO_NIGHTLY_TARGETS}")
+    file(WRITE "${CMAKE_BINARY_DIR}/rl_zoo_nightly_targets.txt" "${RL_ZOO_NIGHTLY_TARGETS_NEWLINE}\n")
+endif()
+
 #add_executable(rl_zoo_load_checkpoint_code load_checkpoint_code.cpp)
 #target_link_libraries(rl_zoo_load_checkpoint_code PRIVATE RLtools::RLtools)

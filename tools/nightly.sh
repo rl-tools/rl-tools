@@ -11,30 +11,15 @@ export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 
-TARGETS=(
-  rl_zoo_acrobot_swingup_v0_sac
-  rl_zoo_ant_v4_ppo
-  rl_zoo_ant_v4_td3
-  rl_zoo_bottleneck_v0_ppo
-  rl_zoo_flag_ppo
-  rl_zoo_flag_ppo_gru
-  rl_zoo_flag_ppo_gru_asymmetric
-  rl_zoo_flag_sac
-  rl_zoo_flag_td3
-  rl_zoo_l2f_ppo
-  rl_zoo_l2f_sac
-  rl_zoo_l2f_td3
-  rl_zoo_pendulum_v1_ppo
-  rl_zoo_pendulum_v1_sac
-  rl_zoo_pendulum_v1_td3
-  rl_zoo_reacher_v0_ppo
-  rl_zoo_reacher_visual_v0_ppo
-)
+mapfile -t TARGETS < build/rl_zoo_nightly_targets.txt
+echo "Nightly targets:"
+printf '  %s\n' "${TARGETS[@]}"
+echo "Total: ${#TARGETS[@]} targets"
 
-cmake --build build -j $N_PROC --target "${TARGETS[@]}"
+cmake --build build -j $N_PROC --target rl_zoo_nightly
 
 run() {
-  echo "tmux send-keys -t \$TMUX_PANE '$*' C-m || exec bash -i"
+  echo "tmux send-keys -t \$TMUX_PANE '$* && sleep 10 && exit' C-m; exec bash -i"
 }
 
 map() {
@@ -48,10 +33,12 @@ map() {
   done
 }
 
+N_SEEDS=10
+
 TMPF=$(mktemp)
 {
   for t in "${TARGETS[@]}"; do
-    for s in $(seq 0 9); do
+    for s in $(seq 0 $((N_SEEDS - 1))); do
       run "./build/src/rl/zoo/$t" -s "$s"
     done
   done
