@@ -11,10 +11,11 @@ typedef struct YawPredictorHandle YawPredictorHandle;
 YawPredictorHandle* yaw_predictor_create(const char* h5_path);
 
 // Run inference on two 64x64x3 NHWC float images (values in [0,1]).
-// Returns the normalized displacement (delta_yaw / half_hfov) in [-1, 1].
-float yaw_predictor_evaluate(YawPredictorHandle* handle,
-                             const float* image_a,
-                             const float* image_b);
+// Writes 3 floats to output: [px, py, roll] (FOV-normalized).
+void yaw_predictor_evaluate(YawPredictorHandle* handle,
+                            const float* image_a,
+                            const float* image_b,
+                            float* output);
 
 void yaw_predictor_destroy(YawPredictorHandle* handle);
 
