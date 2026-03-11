@@ -19,6 +19,11 @@ struct ContentView: View {
 
     private let imageSize = 64
 
+    private func normalizedDisplacementToDegrees(_ value: Double, fovDegrees: Double) -> Double {
+        let halfFOVRadians = fovDegrees * .pi / 360.0
+        return atan(value * tan(halfFOVRadians)) * 180.0 / .pi
+    }
+
     var body: some View {
         VStack(spacing: 16) {
             HStack(spacing: 16) {
@@ -63,8 +68,8 @@ struct ContentView: View {
             VStack(spacing: 4) {
                 if let pred = prediction {
                     let hfov = camera.horizontalFOV
-                    let pxDeg = pred.px * hfov / 2.0
-                    let pyDeg = pred.py * hfov / 2.0
+                    let pxDeg = normalizedDisplacementToDegrees(pred.px, fovDegrees: hfov)
+                    let pyDeg = normalizedDisplacementToDegrees(pred.py, fovDegrees: hfov)
                     let rollDeg = pred.roll * 180.0
                     Text(String(format: "H: %+.1f\u{00B0}  V: %+.1f\u{00B0}  R: %+.1f\u{00B0}", pxDeg, pyDeg, rollDeg))
                         .font(.system(size: 18, weight: .bold, design: .monospaced))
@@ -80,8 +85,8 @@ struct ContentView: View {
                         .foregroundColor(.blue)
                     if let pred = prediction {
                         let hfov = camera.horizontalFOV
-                        let errH = pred.px * hfov / 2.0 - gt.px
-                        let errV = pred.py * hfov / 2.0 - gt.py
+                        let errH = normalizedDisplacementToDegrees(pred.px, fovDegrees: hfov) - gt.px
+                        let errV = normalizedDisplacementToDegrees(pred.py, fovDegrees: hfov) - gt.py
                         let errR = pred.roll * 180.0 - gt.roll
                         Text(String(format: "Err: %+.1f\u{00B0}  %+.1f\u{00B0}  %+.1f\u{00B0}", errH, errV, errR))
                             .font(.system(size: 18, weight: .bold, design: .monospaced))
@@ -184,8 +189,8 @@ struct ContentView: View {
         let hfov = camera.horizontalFOV * .pi / 180.0
         let tanHalfH = tan(hfov / 2.0)
         let tanHalfV = tanHalfH // square crop => same fov
-        let px = Double(z2x / (z2z * Float(tanHalfH))) * hfov / 2.0 * 180.0 / .pi
-        let py = Double(z2y / (z2z * Float(tanHalfV))) * hfov / 2.0 * 180.0 / .pi
+        let px = normalizedDisplacementToDegrees(Double(z2x / (z2z * Float(tanHalfH))), fovDegrees: camera.horizontalFOV)
+        let py = normalizedDisplacementToDegrees(Double(z2y / (z2z * Float(tanHalfV))), fovDegrees: camera.horizontalFOV)
         // Roll: rotation around forward axis
         // Shortest-arc decomposition: align (0,0,1) to z2, then extract remaining roll
         // Simplified: use atan2 on the rotated x-axis projected onto the plane perpendicular to z2
