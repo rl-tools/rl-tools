@@ -17,7 +17,7 @@ namespace rl_tools::rl::zoo::ant_v4::ppo{
         using ENVIRONMENT = typename ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI>::ENVIRONMENT;
 
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
-            static constexpr TI STEP_LIMIT = 600; // ~2.5M env steps
+            static constexpr TI STEP_LIMIT = 2500; // ~2.5M env steps
 
             static constexpr TI ACTOR_HIDDEN_DIM = 256;
             static constexpr TI CRITIC_HIDDEN_DIM = 256;
@@ -40,6 +40,10 @@ namespace rl_tools::rl::zoo::ant_v4::ppo{
             };
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential, DYNAMIC_ALLOCATION>;
+        template <typename BASE>
+        struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{
+
+        };
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
