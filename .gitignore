@@ -81,3 +81,4 @@
 /**/*.glb
 /**/*.mp4
 .cache
+/regression-study

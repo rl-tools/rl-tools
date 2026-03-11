@@ -6,11 +6,14 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SESSION="rl-tools-bisect"
 
 usage() {
-    echo "Usage: $0 <commit1> <commit2> [commit3 ...] [-- <target>]"
+    echo "Usage: $0 [--patch <patch_file>] <commit1> <commit2> [commit3 ...] [-- <target>]"
     echo ""
     echo "Clones the repo at each commit into /tmp/rl-tools-<hash>,"
     echo "runs ./tools/init.sh in each, and optionally builds+runs <target>."
     echo "Each commit runs in its own tmux window."
+    echo ""
+    echo "Options:"
+    echo "  --patch <file>  Apply a patch file to each checked-out repo"
     exit 1
 }
 
@@ -20,16 +23,22 @@ fi
 
 COMMITS=()
 TARGET=""
+PATCH_FILE=""
 
 while [ $# -gt 0 ]; do
-    if [ "$1" = "--" ]; then
+    if [ "$1" = "--patch" ]; then
+        shift
+        PATCH_FILE="$(realpath "$1")"
+        shift
+    elif [ "$1" = "--" ]; then
         shift
         TARGET="$1"
         shift
         break
+    else
+        COMMITS+=("$1")
+        shift
     fi
-    COMMITS+=("$1")
-    shift
 done
 
 if [ ${#COMMITS[@]} -lt 1 ]; then
@@ -45,6 +54,9 @@ for COMMIT in "${COMMITS[@]}"; do
     echo "Cloning $COMMIT into $DIR"
     git clone "$REPO_ROOT" "$DIR"
     git -C "$DIR" checkout "$COMMIT"
+    if [ -n "$PATCH_FILE" ]; then
+        git -C "$DIR" apply "$PATCH_FILE"
+    fi
 done
 
 tmux kill-session -t "$SESSION" 2>/dev/null || true
@@ -55,9 +67,9 @@ for i in "${!COMMITS[@]}"; do
     SHORT="${COMMIT:0:8}"
 
     if [ -n "$TARGET" ]; then
-        CMD="cd $DIR && export RL_TOOLS_TEST_DATA_SOURCE=$REPO_ROOT/tests/data && bash ./tools/init.sh && cmake --build build --target $TARGET -j\$(nproc); exec bash"
+        CMD="cd $DIR && export RL_TOOLS_TEST_DATA_SOURCE=$REPO_ROOT/tests/data && cp $REPO_ROOT/tools/init.sh tools/init.sh && cp $REPO_ROOT/tests/download_data.sh ./tests/download_data.sh && bash ./tools/init.sh && cmake --build build --target $TARGET -j\$(nproc); exec bash"
     else
-        CMD="cd $DIR && export RL_TOOLS_TEST_DATA_SOURCE=$REPO_ROOT/tests/data && bash ./tools/init.sh; exec bash"
+        CMD="cd $DIR && export RL_TOOLS_TEST_DATA_SOURCE=$REPO_ROOT/tests/data && cp $REPO_ROOT/tools/init.sh tools/init.sh && cp $REPO_ROOT/tests/download_data.sh ./tests/download_data.sh && bash ./tools/init.sh; exec bash"
     fi
 
     if [ "$i" -eq 0 ]; then
