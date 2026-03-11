@@ -58,16 +58,18 @@ TMPF=$(mktemp)
 #  map "./build/src/rl/zoo/rl_zoo_ant_v4_ppo" "$(seq 0 9 | xargs -I{} echo -s {})"
 #  map "./build/src/rl/zoo/rl_zoo_pendulum_v1_sac" "$(seq 0 5 | xargs -I{} echo -s {})"
 #  run "./build/src/rl/zoo/rl_zoo_pendulum_v1_sac -s 1337"
-} | tee /dev/stderr | parallel --tmux -j $N_PROC 2>"$TMPF" &
-PARALLEL_PID=$!
-sleep 0.5
+} | tee /dev/stderr | parallel --tmux -j $N_PROC
+# 2>"$TMPF" 
+# &
+# PARALLEL_PID=$!
+# sleep 0.5
 
 
-ATTACH_CMD=$(grep -oP 'tmux -S \S+ attach' "$TMPF" | head -n 1)
-SOCKET=$(echo "$ATTACH_CMD" | grep -oP '(?<=-S )\S+')
-rm "$TMPF"
+# ATTACH_CMD=$(grep -oP 'tmux -S \S+ attach' "$TMPF" | head -n 1)
+# SOCKET=$(echo "$ATTACH_CMD" | grep -oP '(?<=-S )\S+')
+# rm "$TMPF"
 
-trap "tmux -S \"$SOCKET\" kill-session 2>/dev/null; kill $PARALLEL_PID 2>/dev/null" EXIT INT TERM
+# trap "tmux -S \"$SOCKET\" kill-session 2>/dev/null; kill $PARALLEL_PID 2>/dev/null" EXIT INT TERM
 
-tmux -S "$SOCKET" attach
-wait $PARALLEL_PID
+# tmux -S "$SOCKET" attach
+# wait $PARALLEL_PID
