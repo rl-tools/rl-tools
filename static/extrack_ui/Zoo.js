@@ -9,18 +9,19 @@ function aggregate(evaluation_data){
     const returns_std = []
     let first_run = true
     for(const run of evaluation_data){
+        const run_data = "format" in run.data ? run.data.data : run.data;
         if(first_run){
-            steps.push(...run.data.map(entry => entry.step))
+            steps.push(...run_data.map(entry => entry.step))
             first_run = false
-            returns_mean.push(...run.data.map(entry => entry.returns_mean))
-            returns_std.push(...run.data.map(entry => entry.returns_mean * entry.returns_mean))
+            returns_mean.push(...run_data.map(entry => entry.returns_mean))
+            returns_std.push(...run_data.map(entry => entry.returns_mean * entry.returns_mean))
         }
         else{
-            console.assert(steps.length === run.data.length, "Steps are not the same")
-            console.assert(JSON.stringify(steps) == JSON.stringify(run.data.map(entry => entry.step)), "Steps are not the same")
-            for(const i in run.data){
-                returns_mean[i] += run.data[i].returns_mean
-                returns_std[i] += run.data[i].returns_mean * run.data[i].returns_mean
+            console.assert(steps.length === run_data.length, "Steps are not the same")
+            console.assert(JSON.stringify(steps) == JSON.stringify(run_data.map(entry => entry.step)), "Steps are not the same")
+            for(const i in run_data){
+                returns_mean[i] += run_data[i].returns_mean
+                returns_std[i] += run_data[i].returns_mean * run_data[i].returns_mean
             }
         }
     }

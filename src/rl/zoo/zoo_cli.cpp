@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     int n_seeds = 1;
     int n_jobs = 1;
     std::string extrack_base_path = "";
-    std::string extrack_experiment = rl_tools::utils::extrack::get_timestamp_string();
+    std::string extrack_experiment = "";
     std::string extrack_experiment_path = "";
     std::string config_path = "";
     std::string loop_state_path = "";
