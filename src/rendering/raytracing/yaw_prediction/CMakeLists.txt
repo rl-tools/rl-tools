@@ -29,6 +29,23 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
     )
 
     if(RL_TOOLS_ENABLE_HDF5)
+        add_executable(rendering_raytracing_yaw_prediction_eval yaw_prediction_eval.cu)
+        set_target_properties(rendering_raytracing_yaw_prediction_eval PROPERTIES CUDA_STANDARD 20)
+        set_property(TARGET rendering_raytracing_yaw_prediction_eval PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+        target_compile_options(rendering_raytracing_yaw_prediction_eval PRIVATE -O3)
+        if(NOT APPLE)
+            target_link_options(rendering_raytracing_yaw_prediction_eval PRIVATE -Wl,--allow-multiple-definition)
+        endif()
+        target_link_libraries(rendering_raytracing_yaw_prediction_eval
+            PRIVATE
+                rl_tools_full
+                owl::owl
+                rendering_raytracing_device_ptx
+                assimp::assimp
+                rendering_raytracing_stb
+                rendering_raytracing_yaw_prediction_scene
+        )
+
         add_executable(rendering_raytracing_yaw_prediction_viewer yaw_prediction_viewer.cu)
         set_target_properties(rendering_raytracing_yaw_prediction_viewer PROPERTIES CUDA_STANDARD 20)
         set_property(TARGET rendering_raytracing_yaw_prediction_viewer PROPERTY CUDA_SEPARABLE_COMPILATION ON)
@@ -46,4 +63,3 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
         )
     endif()
 endif()
-
