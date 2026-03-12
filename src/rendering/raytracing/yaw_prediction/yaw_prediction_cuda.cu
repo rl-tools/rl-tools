@@ -85,6 +85,7 @@ struct TrainingConfig {
     static constexpr float MAX_ANGLE = 3.14159265358979323846f / 6.0f; // 30 degrees
     static constexpr float COS_FOV_MIN = 0.3f;  // wide FOV
     static constexpr float COS_FOV_MAX = 1.2f;   // narrow FOV
+    static constexpr float HUBER_DELTA = 0.1f;
     static constexpr TI LOG_INTERVAL = 100;
     static constexpr TI VAL_INTERVAL = 1000;
     static constexpr TI CHECKPOINT_INTERVAL = 100000;
@@ -186,13 +187,14 @@ __global__ void rgba_to_float_kernel(
     }
 }
 
-// Element-wise MSE loss and gradient (operates on all BATCH_SIZE * OUTPUT_DIM elements)
-__global__ void mse_loss_gradient_kernel(
+// Element-wise Huber loss and gradient (operates on all BATCH_SIZE * OUTPUT_DIM elements)
+__global__ void huber_loss_gradient_kernel(
     const float* __restrict__ predictions,
     const float* __restrict__ targets,
     float* __restrict__ d_output,
     float* __restrict__ losses,
-    int total_elements
+    int total_elements,
+    float delta
 ) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= total_elements) return;
@@ -200,11 +202,16 @@ __global__ void mse_loss_gradient_kernel(
     const float pred = predictions[idx];
     const float tgt = targets[idx];
     const float diff = pred - tgt;
+    const float abs_diff = abs(diff);
 
-    losses[idx] = diff * diff;
-
-    const float scale = 2.0f / static_cast<float>(total_elements);
-    d_output[idx] = scale * diff;
+    const float scale = 1.0f / static_cast<float>(total_elements);
+    if (abs_diff <= delta) {
+        losses[idx] = 0.5f * diff * diff;
+        d_output[idx] = scale * diff;
+    } else {
+        losses[idx] = delta * (abs_diff - 0.5f * delta);
+        d_output[idx] = scale * delta * ((diff > 0.0f) - (diff < 0.0f));
+    }
 }
 
 __global__ void reduce_loss_kernel(
@@ -480,8 +487,8 @@ int main(int argc, char** argv) {
         {
             constexpr int threads = 256;
             constexpr int blocks = (TOTAL_OUTPUT_ELEMENTS + threads - 1) / threads;
-            mse_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS
+            huber_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
+                output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS, TrainingConfig::HUBER_DELTA
             );
         }
 
@@ -622,8 +629,8 @@ int main(int argc, char** argv) {
                 {
                     constexpr int threads = 256;
                     constexpr int blocks = (TOTAL_OUTPUT_ELEMENTS + threads - 1) / threads;
-                    mse_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                        val_output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS
+                    huber_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
+                        val_output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS, TrainingConfig::HUBER_DELTA
                     );
                 }
                 reduce_loss_kernel<<<1, 1, 0, device_cuda.stream>>>(
