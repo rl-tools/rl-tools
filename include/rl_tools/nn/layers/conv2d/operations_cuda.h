@@ -6,6 +6,7 @@
 #include "../../../devices/cuda.h"
 #include "../../../nn/nn.h"
 #include "../../../mode/mode.h"
+#include "../../../utils/assert/operations_cuda.h"
 #include "layer.h"
 
 #include <cudnn.h>
@@ -323,7 +324,10 @@ namespace rl_tools{
             }
             initialized = true;
         }
-        if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
+        if(cached_ws > 0){
+            utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
+            ensure_cudnn_workspace(device, cached_ws);
+        }
         if constexpr(HAS_BN){
             // Keep BN paths on explicit conv+bias to avoid fragile fused-call behavior.
             float a = 1, b = 0;
@@ -418,7 +422,10 @@ namespace rl_tools{
             }
             initialized = true;
         }
-        if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
+        if(cached_ws > 0){
+            utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
+            ensure_cudnn_workspace(device, cached_ws);
+        }
         if constexpr(HAS_BN){
             constexpr TI BN_CHANNEL_BLOCK = 256;
             constexpr TI BN_ELEMENT_BLOCK = 256;
@@ -588,13 +595,19 @@ namespace rl_tools{
         }
 
         if(bf_ok){
-            if(cached_bf_ws > 0) ensure_cudnn_workspace(device, cached_bf_ws);
+            if(cached_bf_ws > 0){
+                utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_bf_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
+                ensure_cudnn_workspace(device, cached_bf_ws);
+            }
             float a = 1, b = 1;
             check_cudnn_call(device, cudnnConvolutionBackwardFilter(device.cudnn_handle, &a, xd, input._data, yd, d_conv_out,
                 cd, cached_bf_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, wd, layer.weights.gradient._data), "cudnnConvolutionBackwardFilter conv2d_bwd");
         }
         if(bd_ok){
-            if(cached_bd_ws > 0) ensure_cudnn_workspace(device, cached_bd_ws);
+            if(cached_bd_ws > 0){
+                utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_bd_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
+                ensure_cudnn_workspace(device, cached_bd_ws);
+            }
             float a = 1, b = 0;
             check_cudnn_call(device, cudnnConvolutionBackwardData(device.cudnn_handle, &a, wd, layer.weights.parameters._data, yd, d_conv_out,
                 cd, cached_bd_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, xd, d_input._data), "cudnnConvolutionBackwardData conv2d_bwd");
@@ -649,7 +662,10 @@ namespace rl_tools{
             initialized = true;
         }
         if(algo_ok){
-            if(cached_ws > 0) ensure_cudnn_workspace(device, cached_ws);
+            if(cached_ws > 0){
+                utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
+                ensure_cudnn_workspace(device, cached_ws);
+            }
             float a = 1, b = 0;
             check_cudnn_call(device, cudnnConvolutionBackwardData(device.cudnn_handle, &a, wd, layer.weights.parameters._data, yd, d_output._data,
                 cd, cached_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, xd, d_input._data), "cudnnConvolutionBackwardData conv2d_bwd_input");

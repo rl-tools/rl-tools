@@ -61,6 +61,7 @@ namespace rl_tools::devices{
             cublasHandle_t handle;
             bool graph_capture_active = false;
             cudaStream_t stream;
+            bool dynamic_memory_allocation_allowed = true;
 #ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
             cudnnHandle_t cudnn_handle;
             void* cudnn_workspace = nullptr;
@@ -313,6 +314,18 @@ namespace rl_tools {
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         device.malloc_counter += size;
 #endif
+    }
+    template <typename DEV_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void set_dynamic_memory_allocation_allowed(devices::CUDA<DEV_SPEC>& device, bool allowed){
+        device.dynamic_memory_allocation_allowed = allowed;
+    }
+    template <typename DEV_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void disable_dynamic_memory_allocation(devices::CUDA<DEV_SPEC>& device){
+        set_dynamic_memory_allocation_allowed(device, false);
+    }
+    template <typename DEV_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void enable_dynamic_memory_allocation(devices::CUDA<DEV_SPEC>& device){
+        set_dynamic_memory_allocation_allowed(device, true);
     }
 
     void print_graph(cudaGraph_t graph){
