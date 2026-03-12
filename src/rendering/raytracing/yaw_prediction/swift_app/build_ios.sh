@@ -24,16 +24,27 @@ xcrun clang++ -std=c++20 -O3 -c \
 ar rcs "$BUILD_TMP/libinference_ios.a" "$BUILD_TMP/inference_ios.o"
 echo "Built: $BUILD_TMP/libinference_ios.a"
 
-# --- Find development team ---
+# --- Find signing identity / team ---
 TEAM_ID="${DEVELOPMENT_TEAM:-}"
-if [ -z "$TEAM_ID" ]; then
-    TEAM_ID=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | sed 's/.*(\(.*\))/\1/' | tr -d '"' || true)
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
+
+if [ -z "$SIGNING_IDENTITY" ]; then
+    SIGNING_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | awk '{print $2}' || true)
 fi
+if [ -z "$TEAM_ID" ] && [ -n "$SIGNING_IDENTITY" ]; then
+    TEAM_ID=$(security find-identity -v -p codesigning 2>/dev/null | grep "$SIGNING_IDENTITY" | sed -n 's/.*(\(.*\)).*/\1/p' | head -1 || true)
+fi
+
 if [ -z "$TEAM_ID" ]; then
-    echo "Error: No development team found. Set DEVELOPMENT_TEAM=<team_id>"
+    echo "Error: No development team found. Set DEVELOPMENT_TEAM=<team_id>."
+    exit 1
+fi
+if [ -z "$SIGNING_IDENTITY" ]; then
+    echo "Error: No signing identity found. Set SIGNING_IDENTITY=<sha1 fingerprint>."
     exit 1
 fi
 echo "Team: $TEAM_ID"
+echo "Signing identity: $SIGNING_IDENTITY"
 
 # --- Compile Swift for iOS ---
 echo "Compiling Swift sources for iOS..."
@@ -91,12 +102,16 @@ cat > "$APP_BUNDLE/Info.plist" << 'PLIST'
     </array>
     <key>UILaunchScreen</key>
     <dict/>
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
 </dict>
 </plist>
 PLIST
 
 # --- Sign ---
-codesign --force --sign "Apple Development" --entitlements "$SCRIPT_DIR/YawPredictor.entitlements" "$APP_BUNDLE"
+codesign --force --sign "$SIGNING_IDENTITY" --entitlements "$SCRIPT_DIR/YawPredictor.entitlements" "$APP_BUNDLE"
 
 echo ""
 echo "Built: $APP_BUNDLE"
