@@ -413,13 +413,19 @@ int main(int argc, char** argv) {
 
     // ---- Training loop ----
     auto train_mode = rlt::Mode<rlt::mode::Default<>>{};
-    auto total_start = std::chrono::high_resolution_clock::now();
+    using CLOCK = std::chrono::high_resolution_clock;
+    CLOCK::time_point total_start;
+    bool throughput_timer_started = false;
 
     // Indices for shuffled scene selection
     std::vector<TI> scene_indices(loaded_scenes.size());
     std::iota(scene_indices.begin(), scene_indices.end(), 0);
 
     for (TI iteration = 0; iteration < num_iterations && !signal_received; iteration++) {
+        if (!throughput_timer_started && iteration == 1) {
+            total_start = CLOCK::now();
+            throughput_timer_started = true;
+        }
         rlt::set_step(device_cpu, device_cpu.logger, iteration);
 
         // ---- Select random scenes for this batch ----
@@ -554,16 +560,19 @@ int main(int argc, char** argv) {
             err_py /= BATCH_SIZE;
             err_roll /= BATCH_SIZE;
 
-            auto now = std::chrono::high_resolution_clock::now();
-            double elapsed_s = std::chrono::duration<double>(now - total_start).count();
-            double samples_per_s = elapsed_s > 0.0
-                ? static_cast<double>((iteration + 1) * BATCH_SIZE) / elapsed_s
+            auto now = CLOCK::now();
+            double elapsed_s = throughput_timer_started
+                ? std::chrono::duration<double>(now - total_start).count()
+                : 0.0;
+            double samples_per_s = elapsed_s > 0.0 && iteration > 0
+                ? static_cast<double>(iteration * BATCH_SIZE) / elapsed_s
                 : 0.0;
 
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss", loss_val);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_px", err_px);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_py", err_py);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_roll", err_roll);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/samples_per_s", samples_per_s);
 
             std::cout << "[iter " << iteration << "/" << num_iterations << "]"
                       << "  loss=" << loss_val
