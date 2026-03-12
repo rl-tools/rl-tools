@@ -6,6 +6,7 @@
 #include "matrix.h"
 #include "../../devices/cuda.h"
 #include "operations_generic.h"
+#include "../../utils/assert/operations_cuda.h"
 
 #include <cuda_runtime.h>
 #include <cuda.h>
@@ -25,6 +26,7 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
+        utils::assert_exit(device, device.dynamic_memory_allocation_allowed, "Dynamic CUDA memory allocations are disabled");
         T *temp = nullptr;
         // auto result = cudaMalloc(&temp, SIZE_BYTES);
         auto result = cudaMalloc(&temp, SIZE_BYTES);

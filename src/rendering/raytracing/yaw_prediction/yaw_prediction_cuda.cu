@@ -378,9 +378,13 @@ int main(int argc, char** argv) {
     rlt::Tensor<GPU_INPUT_SPEC> gpu_input_a, gpu_input_b;
     rlt::malloc(device_cuda, gpu_input_a);
     rlt::malloc(device_cuda, gpu_input_b);
+    rlt::Tensor<GPU_INPUT_SPEC> gpu_d_input_a, gpu_d_input_b;
+    rlt::malloc(device_cuda, gpu_d_input_a);
+    rlt::malloc(device_cuda, gpu_d_input_b);
 
     rlt::Tensor<GPU_D_OUTPUT_SPEC> gpu_d_output;
     rlt::malloc(device_cuda, gpu_d_output);
+    rlt::disable_dynamic_memory_allocation(device_cuda);
 
     static constexpr TI OUTPUT_DIM = 3;
     static constexpr TI TOTAL_OUTPUT_ELEMENTS = BATCH_SIZE * OUTPUT_DIM;
@@ -507,8 +511,8 @@ int main(int argc, char** argv) {
             );
         }
 
-        rlt::backward(device_cuda, model.pipeline_a, gpu_input_a, model_buffer.d_output_a, model_buffer.buffer_a);
-        rlt::backward(device_cuda, model.pipeline_b, gpu_input_b, model_buffer.d_output_b, model_buffer.buffer_b);
+        rlt::backward_full(device_cuda, model.pipeline_a, gpu_input_a, model_buffer.d_output_a, gpu_d_input_a, model_buffer.buffer_a);
+        rlt::backward_full(device_cuda, model.pipeline_b, gpu_input_b, model_buffer.d_output_b, gpu_d_input_b, model_buffer.buffer_b);
 
         // ---- Optimizer step ----
         rlt::step(device_cuda, optimizer, model);
@@ -691,6 +695,8 @@ int main(int argc, char** argv) {
     cudaFree(gpu_total_loss);
     rlt::free(device_cuda, gpu_input_a);
     rlt::free(device_cuda, gpu_input_b);
+    rlt::free(device_cuda, gpu_d_input_a);
+    rlt::free(device_cuda, gpu_d_input_b);
     rlt::free(device_cuda, gpu_d_output);
     rlt::free(device_cuda, model_buffer);
     rlt::free(device_cuda, model);

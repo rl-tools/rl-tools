@@ -7,6 +7,7 @@
 #include "../../mode/mode.h"
 
 #include "operations_generic.h"
+#include "../../utils/assert/operations_cuda.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools
@@ -19,6 +20,7 @@ namespace rl_tools
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, tensor._data == nullptr, "Tensor is already allocated");
 #endif
+        utils::assert_exit(device, device.dynamic_memory_allocation_allowed, "Dynamic CUDA memory allocations are disabled");
         T *temp = nullptr;
         // auto result = cudaMalloc(&temp, SIZE_BYTES);
         constexpr TI SIZE_BYTES = SIZE * sizeof(T);
