@@ -552,6 +552,9 @@ int main(int argc, char** argv) {
 
             auto now = std::chrono::high_resolution_clock::now();
             double elapsed_s = std::chrono::duration<double>(now - total_start).count();
+            double samples_per_s = elapsed_s > 0.0
+                ? static_cast<double>((iteration + 1) * BATCH_SIZE) / elapsed_s
+                : 0.0;
 
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss", loss_val);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_px", err_px);
@@ -563,6 +566,7 @@ int main(int argc, char** argv) {
                       << "  err_px=" << err_px
                       << "  err_py=" << err_py
                       << "  err_roll=" << err_roll
+                      << "  samples_per_s=" << samples_per_s
                       << "  time=" << elapsed_s << "s"
                       << std::endl;
         }
