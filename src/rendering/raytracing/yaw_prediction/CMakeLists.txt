@@ -33,6 +33,10 @@ target_link_libraries(rendering_raytracing_yaw_prediction_dataset_overlay
         ${OpenCV_LIBS}
 )
 
+if(RL_TOOLS_ENABLE_HDF5)
+    add_subdirectory(swift_app)
+endif()
+
 if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
     add_library(rendering_raytracing_yaw_prediction_scene STATIC scene.cpp)
     set_target_properties(rendering_raytracing_yaw_prediction_scene PROPERTIES CXX_STANDARD 20)

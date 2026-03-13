@@ -295,7 +295,7 @@ int main(int argc, char** argv) {
     }
 
     fs::path dataset_dir = argv[1];
-    std::string model_path = "tests/data/yaw-predictor4.h5";
+    std::string model_path = "tests/data/yaw-predictor5-beta.h5";
     fs::path output_path = dataset_dir / "overlay_markers.mp4";
     double fps = 12.0;
     int scale = -1;

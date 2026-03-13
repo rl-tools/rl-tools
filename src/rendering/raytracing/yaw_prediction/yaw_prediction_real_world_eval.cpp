@@ -386,7 +386,7 @@ static std::array<double, 3> evaluate_pair(ModelHandle& handle, const FrameRecor
 
 int main(int argc, char** argv) {
     std::vector<std::string> dataset_paths;
-    std::string model_path = "tests/data/yaw-predictor4.tar";
+    std::string model_path = "tests/data/yaw-predictor5-beta.tar";
     double max_relative_translation_meters = 0.05;
     double min_relative_rotation_degrees = 1.0;
     double horizontal_fov_degrees = 65.0;
