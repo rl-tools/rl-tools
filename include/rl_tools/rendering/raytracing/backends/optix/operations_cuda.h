@@ -683,6 +683,39 @@ namespace rl_tools {
         render_rgb_only_sync(device, renderer);
     }
 
+    // Async camera upload that bypasses owlBufferUpload (which calls cudaDeviceSynchronize).
+    // Uploads directly on the launch params' CUDA stream so it is ordered before the next optixLaunch.
+    template <typename DEVICE, typename SPEC>
+    void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const CameraData* cameras, typename SPEC::TI num_cameras){
+        if(num_cameras != SPEC::NUM_CAMERAS){
+            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("set_cameras_async called with " << num_cameras << " cameras, expected " << SPEC::NUM_CAMERAS);
+            return;
+        }
+
+        OWLContext context = (OWLContext)renderer.context;
+        OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
+
+        if(renderer.cameras_buffer == nullptr){
+            renderer.cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(CameraData), num_cameras, cameras);
+            owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.cameras_buffer);
+            if(renderer.collision_ray_gen)
+                owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "cameras", (OWLBuffer)renderer.cameras_buffer);
+        } else {
+            OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
+            cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+            void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.cameras_buffer, 0);
+            cudaMemcpyAsync(d_ptr, cameras, num_cameras * sizeof(CameraData), cudaMemcpyHostToDevice, stream);
+        }
+    }
+
+    // Fully async render: uploads cameras and launches render without any device synchronization.
+    // Call render_rgb_only_sync later to wait for completion.
+    template <typename DEVICE, typename SPEC>
+    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const CameraData* cameras, typename SPEC::TI num_cameras){
+        set_cameras_async(device, renderer, cameras, num_cameras);
+        render_rgb_only_launch(device, renderer);
+    }
+
     template <typename DEVICE, typename SPEC>
     void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, uint32_t* out_pixels, typename SPEC::TI out_count){
         const typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;

@@ -1,8 +1,5 @@
 #include <rl_tools/operations/cpu_mux.h>
 
-#include "../example/environment/environment.h"
-#include "../example/environment/operations_cpu.h"
-
 #include "scene.h"
 
 #include <random>
@@ -11,22 +8,6 @@
 namespace rlt = rl_tools;
 
 namespace rl_tools::rendering::raytracing::yaw_prediction {
-
-    struct SceneHandle {
-        using T = float;
-        using TI = unsigned long;
-
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, SCENE_NUM_CAMERAS, SCENE_CAM_WIDTH, SCENE_CAM_HEIGHT, 64>;
-        using ENV = rlt::rl::environments::raytracing_example::Environment<SPEC>;
-        using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-
-        DEVICE device;
-        ENV env;
-
-        std::mt19937 data_rng;
-        DEVICE::SPEC::RANDOM::ENGINE<> sampling_rng;
-        rlt::rl::environments::raytracing_example::Parameters<SPEC> default_params;
-    };
 
     SceneHandle* create_scene(const char* scene_path) {
         auto* handle = new SceneHandle();
@@ -211,10 +192,18 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         }
     }
 
+    template <bool ASYNC>
     void render_batch(SceneHandle* handle, const CameraData* cameras) {
-        rlt::set_cameras(handle->device, *handle->env.renderer, cameras, SCENE_NUM_CAMERAS);
-        rlt::render_rgb_only(handle->device, *handle->env.renderer);
+        if constexpr (ASYNC){
+            rlt::set_cameras_async(handle->device, *handle->env.renderer, cameras, SCENE_NUM_CAMERAS);
+            rlt::render_rgb_only_async(handle->device, *handle->env.renderer, cameras, SCENE_NUM_CAMERAS);
+        } else {
+            rlt::set_cameras(handle->device, *handle->env.renderer, cameras, SCENE_NUM_CAMERAS);
+            rlt::render_rgb_only(handle->device, *handle->env.renderer);
+        }
     }
+    template void render_batch<true>(SceneHandle* handle, const CameraData* cameras);
+    template void render_batch<false>(SceneHandle* handle, const CameraData* cameras);
 
     unsigned long get_num_indoor_states(SceneHandle* handle) {
         return handle->env.num_indoor_initial_states;
