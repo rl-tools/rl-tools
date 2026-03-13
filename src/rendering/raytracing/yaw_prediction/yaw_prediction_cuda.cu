@@ -249,6 +249,7 @@ int main(int argc, char** argv) {
     TI num_iterations = 100000;
 
     TI num_val_scenes = 10;
+    TI num_load_threads = 8;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -264,11 +265,14 @@ int main(int argc, char** argv) {
             num_iterations = std::atoi(argv[++i]);
         } else if (arg == "--num-val-scenes" && i + 1 < argc) {
             num_val_scenes = std::atoi(argv[++i]);
+        } else if (arg == "--num-load-threads" && i + 1 < argc) {
+            num_load_threads = std::atoi(argv[++i]);
         } else {
             std::cerr << "Usage: " << argv[0]
                       << " [--scene-dir <dir> | --scene <path.glb>]"
                       << " [--num-scenes N] [--num-scenes-per-batch M]"
-                      << " [--num-iterations N] [--num-val-scenes N]" << std::endl;
+                      << " [--num-iterations N] [--num-val-scenes N]"
+                      << " [--num-load-threads N]" << std::endl;
             return 1;
         }
     }
@@ -339,8 +343,7 @@ int main(int argc, char** argv) {
     {
         std::mutex cout_mutex;
         TI total_scenes = all_scene_paths.size() + val_scene_paths.size();
-        constexpr TI MAX_LOAD_THREADS = 8;
-        TI num_load_threads = std::min((TI)MAX_LOAD_THREADS, total_scenes);
+        TI actual_load_threads = std::min(num_load_threads, total_scenes);
 
         // Build a flat list of load tasks (train first, then val)
         struct LoadTask {
@@ -363,8 +366,8 @@ int main(int argc, char** argv) {
 
         std::atomic<TI> next_task{0};
         std::vector<std::thread> load_threads;
-        load_threads.reserve(num_load_threads);
-        for (TI t = 0; t < num_load_threads; t++) {
+        load_threads.reserve(actual_load_threads);
+        for (TI t = 0; t < actual_load_threads; t++) {
             load_threads.emplace_back([&]() {
                 while (true) {
                     TI task_idx = next_task.fetch_add(1);
@@ -380,7 +383,7 @@ int main(int argc, char** argv) {
             });
         }
         for (auto& t : load_threads) t.join();
-        std::cout << "All " << total_scenes << " scenes loaded (" << num_load_threads << " threads)." << std::endl;
+        std::cout << "All " << total_scenes << " scenes loaded (" << actual_load_threads << " threads)." << std::endl;
     }
 
     // RNG for selecting scenes per batch
