@@ -30,7 +30,11 @@
 #include "model.h"
 
 // Scene management (compiled separately as .cpp to avoid NVCC issues with environment code)
+
 #include "scene.h"
+
+#include "../example/environment/environment.h"
+#include "../example/environment/operations_cpu.h"
 
 // Experiment tracking (logging, tensorboard)
 #include <rl_tools/utils/extrack/extrack.h>
@@ -431,12 +435,11 @@ int main(int argc, char** argv) {
         // ---- Select random scenes for this batch ----
         std::shuffle(scene_indices.begin(), scene_indices.end(), scene_rng);
 
-        // ---- Sample and render from selected scenes ----
+        // ---- Sample and launch async renders for all scenes ----
         for (TI s = 0; s < num_scenes_per_batch; s++) {
             TI scene_idx = scene_indices[s];
             const TI batch_offset = s * samples_per_scene;
 
-            // Sample camera pairs for this scene's portion
             yp::sample_camera_batch(
                 loaded_scenes[scene_idx].handle,
                 cameras.data(),
@@ -447,10 +450,20 @@ int main(int argc, char** argv) {
                 TrainingConfig::COS_FOV_MAX
             );
 
-            // Render (uses all NUM_CAMERAS slots but only first 2*samples_per_scene are meaningful)
-            yp::render_batch(loaded_scenes[scene_idx].handle, cameras.data());
+            yp::render_batch<true>(loaded_scenes[scene_idx].handle, cameras.data());
+        }
 
-            // Convert rendered pixels to float tensors at the right batch offset
+        // ---- Sync all renders ----
+        for (TI s = 0; s < num_scenes_per_batch; s++) {
+            TI scene_idx = scene_indices[s];
+            auto& handle = loaded_scenes[scene_idx].handle;
+            rlt::render_rgb_only_sync(handle->device, *handle->env.renderer);
+        }
+
+        // ---- Convert rendered framebuffers to float tensors ----
+        for (TI s = 0; s < num_scenes_per_batch; s++) {
+            TI scene_idx = scene_indices[s];
+            const TI batch_offset = s * samples_per_scene;
             uint32_t* device_fb = yp::get_framebuffer_device_ptr(loaded_scenes[scene_idx].handle);
 
             rgba_to_float_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
@@ -460,12 +473,12 @@ int main(int argc, char** argv) {
                 device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, samples_per_scene, batch_offset
             );
         }
-
-        cudaMemcpyAsync(gpu_targets, cpu_targets.data(), TOTAL_OUTPUT_ELEMENTS * sizeof(float),
-                        cudaMemcpyHostToDevice, device_cuda.stream);
+        cudaMemcpyAsync(gpu_targets, cpu_targets.data(), TOTAL_OUTPUT_ELEMENTS * sizeof(float), cudaMemcpyHostToDevice, device_cuda.stream);
 
         // ---- Forward ----
         rlt::zero_gradient(device_cuda, model);
+
+
 
         rlt::forward(device_cuda, model.pipeline_a, gpu_input_a, model_buffer.buffer_a, rng_cuda, train_mode);
         rlt::forward(device_cuda, model.pipeline_b, gpu_input_b, model_buffer.buffer_b, rng_cuda, train_mode);
@@ -602,7 +615,7 @@ int main(int argc, char** argv) {
                     TrainingConfig::COS_FOV_MIN,
                     TrainingConfig::COS_FOV_MAX
                 );
-                yp::render_batch(val_scenes[vs].handle, cameras.data());
+                yp::render_batch<false>(val_scenes[vs].handle, cameras.data());
                 uint32_t* device_fb = yp::get_framebuffer_device_ptr(val_scenes[vs].handle);
 
                 rgba_to_float_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(

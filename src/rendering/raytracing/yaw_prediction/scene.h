@@ -3,6 +3,10 @@
 #include <rl_tools/rendering/raytracing/backends/optix/device.h>
 #include <cstdint>
 
+#include "../example/environment/environment.h"
+#include "../example/environment/operations_cpu.h"
+
+
 namespace rl_tools::rendering::raytracing::yaw_prediction {
 
     // Shared configuration constants
@@ -10,7 +14,22 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     static constexpr unsigned long SCENE_CAM_WIDTH = 64;
     static constexpr unsigned long SCENE_CAM_HEIGHT = 64;
 
-    struct SceneHandle;
+    struct SceneHandle {
+        using T = float;
+        using TI = unsigned long;
+
+        using SPEC = rl_tools::rl::environments::raytracing_example::Specification<T, TI, SCENE_NUM_CAMERAS, SCENE_CAM_WIDTH, SCENE_CAM_HEIGHT, 64>;
+        using ENV = rl_tools::rl::environments::raytracing_example::Environment<SPEC>;
+        using DEVICE = rl_tools::devices::DEVICE_FACTORY<>;
+
+        DEVICE device;
+        ENV env;
+
+        std::mt19937 data_rng;
+        DEVICE::SPEC::RANDOM::ENGINE<> sampling_rng;
+        rl_tools::rl::environments::raytracing_example::Parameters<SPEC> default_params;
+    };
+
 
     SceneHandle* create_scene(const char* scene_path);
     void destroy_scene(SceneHandle* handle);
@@ -35,6 +54,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     );
 
     // Set cameras and render (blocking)
+    template <bool ASYNC>
     void render_batch(SceneHandle* handle, const CameraData* cameras);
 
     // Get number of indoor initial states found
