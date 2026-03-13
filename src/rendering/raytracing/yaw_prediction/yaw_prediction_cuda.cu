@@ -59,6 +59,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <csignal>
+#include <thread>
+#include <mutex>
 #include <cuda_runtime.h>
 #include <cuda_bf16.h>
 
@@ -326,27 +328,59 @@ int main(int argc, char** argv) {
     std::cout << "  Learning rate: " << TrainingConfig::LEARNING_RATE << std::endl;
     std::cout << "  Num iterations: " << num_iterations << std::endl;
 
-    // ---- Load all scenes upfront ----
+    // ---- Load all scenes in parallel ----
     struct LoadedScene {
         yp::SceneHandle* handle = nullptr;
         std::string path;
     };
     std::vector<LoadedScene> loaded_scenes(all_scene_paths.size());
-
-    for (TI s = 0; s < all_scene_paths.size(); s++) {
-        loaded_scenes[s].path = all_scene_paths[s];
-        std::cout << "Loading train scene " << s << "/" << all_scene_paths.size() << ": " << fs::path(loaded_scenes[s].path).filename().string() << std::endl;
-        loaded_scenes[s].handle = yp::create_scene(loaded_scenes[s].path.c_str());
-        std::cout << "  Indoor states: " << yp::get_num_indoor_states(loaded_scenes[s].handle) << std::endl;
-    }
-
-    // ---- Load validation scenes ----
     std::vector<LoadedScene> val_scenes(val_scene_paths.size());
-    for (TI s = 0; s < val_scene_paths.size(); s++) {
-        val_scenes[s].path = val_scene_paths[s];
-        std::cout << "Loading val scene " << s << "/" << val_scene_paths.size() << ": " << fs::path(val_scenes[s].path).filename().string() << std::endl;
-        val_scenes[s].handle = yp::create_scene(val_scenes[s].path.c_str());
-        std::cout << "  Indoor states: " << yp::get_num_indoor_states(val_scenes[s].handle) << std::endl;
+
+    {
+        std::mutex cout_mutex;
+        TI total_scenes = all_scene_paths.size() + val_scene_paths.size();
+        constexpr TI MAX_LOAD_THREADS = 8;
+        TI num_load_threads = std::min((TI)MAX_LOAD_THREADS, total_scenes);
+
+        // Build a flat list of load tasks (train first, then val)
+        struct LoadTask {
+            LoadedScene* target;
+            const std::string* path;
+            const char* label;
+            TI index;
+            TI count;
+        };
+        std::vector<LoadTask> tasks;
+        tasks.reserve(total_scenes);
+        for (TI s = 0; s < all_scene_paths.size(); s++) {
+            loaded_scenes[s].path = all_scene_paths[s];
+            tasks.push_back({&loaded_scenes[s], &loaded_scenes[s].path, "train", s, (TI)all_scene_paths.size()});
+        }
+        for (TI s = 0; s < val_scene_paths.size(); s++) {
+            val_scenes[s].path = val_scene_paths[s];
+            tasks.push_back({&val_scenes[s], &val_scenes[s].path, "val", s, (TI)val_scene_paths.size()});
+        }
+
+        std::atomic<TI> next_task{0};
+        std::vector<std::thread> load_threads;
+        load_threads.reserve(num_load_threads);
+        for (TI t = 0; t < num_load_threads; t++) {
+            load_threads.emplace_back([&]() {
+                while (true) {
+                    TI task_idx = next_task.fetch_add(1);
+                    if (task_idx >= tasks.size()) break;
+                    auto& task = tasks[task_idx];
+                    auto* handle = yp::create_scene(task.path->c_str());
+                    task.target->handle = handle;
+                    std::lock_guard<std::mutex> lock(cout_mutex);
+                    std::cout << "Loaded " << task.label << " scene " << task.index << "/" << task.count << ": "
+                              << fs::path(*task.path).filename().string()
+                              << " (" << yp::get_num_indoor_states(handle) << " indoor states)" << std::endl;
+                }
+            });
+        }
+        for (auto& t : load_threads) t.join();
+        std::cout << "All " << total_scenes << " scenes loaded (" << num_load_threads << " threads)." << std::endl;
     }
 
     // RNG for selecting scenes per batch
