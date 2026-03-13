@@ -1,3 +1,5 @@
+find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc videoio)
+
 if(NOT TARGET rendering_raytracing_stb)
     include(FetchContent)
     FetchContent_Declare(
@@ -19,6 +21,16 @@ target_link_libraries(rendering_raytracing_yaw_prediction_real_world_eval
         nlohmann_json::nlohmann_json
         rendering_raytracing_stb
         HighFive
+)
+
+add_executable(rendering_raytracing_yaw_prediction_dataset_overlay yaw_prediction_dataset_overlay.cpp)
+set_target_properties(rendering_raytracing_yaw_prediction_dataset_overlay PROPERTIES CXX_STANDARD 17)
+target_include_directories(rendering_raytracing_yaw_prediction_dataset_overlay PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rendering_raytracing_yaw_prediction_dataset_overlay
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        HighFive
+        ${OpenCV_LIBS}
 )
 
 if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
