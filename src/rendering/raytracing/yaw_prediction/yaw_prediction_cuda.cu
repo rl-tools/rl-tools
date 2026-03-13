@@ -60,6 +60,7 @@
 #include <filesystem>
 #include <csignal>
 #include <cuda_runtime.h>
+#include <cuda_bf16.h>
 
 namespace fs = std::filesystem;
 
@@ -71,7 +72,7 @@ static void signal_handler(int signal) {
 }
 
 // ---- Configuration ----
-using T = float;
+using T = __nv_bfloat16;
 using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_CUDA = rlt::devices::DEVICE_FACTORY_CUDA<>;
 using TI = DEVICE_CPU::index_t;
@@ -95,7 +96,13 @@ struct TrainingConfig {
     static constexpr TI CHECKPOINT_INTERVAL = 100000;
 };
 
-using TYPE_POLICY = rlt::numeric_types::Policy<float>;
+using TYPE_POLICY = rlt::numeric_types::Policy<float,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, T>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, T>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, T>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::MasterParameter, float>>;
+using T_ACTIVATION = TYPE_POLICY::GET<rlt::numeric_types::categories::Activation>;
+using T_GRADIENT = TYPE_POLICY::GET<rlt::numeric_types::categories::Gradient>;
 
 struct AdamParams : rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY> {
     static constexpr float ALPHA = TrainingConfig::LEARNING_RATE;
@@ -106,14 +113,15 @@ using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using GPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using GPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<GPU_CAPABILITY, TYPE_POLICY, TI_CUDA, BATCH_SIZE>;
 
+using CPU_TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using CPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-using CPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<CPU_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE>;
+using CPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<CPU_CAPABILITY, CPU_TYPE_POLICY, TI, BATCH_SIZE>;
 using CPU_MODEL_INFERENCE = typename CPU_MODEL::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
 
 using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH, 3>;
-using GPU_INPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_INPUT_SHAPE>;
+using GPU_INPUT_SPEC = rlt::tensor::Specification<T_ACTIVATION, TI_CUDA, GPU_INPUT_SHAPE>;
 using GPU_OUTPUT_SHAPE = typename GPU_MODEL::OUTPUT_SHAPE;
-using GPU_D_OUTPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_OUTPUT_SHAPE>;
+using GPU_D_OUTPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, GPU_OUTPUT_SHAPE>;
 
 // Encoder output: last dim is channel count, leading dims are spatial
 static constexpr int ENCODER_DIM = GPU_MODEL::SPEC::LAST_DIM_A;
@@ -126,9 +134,9 @@ static constexpr int CONCAT_ROWS = ENCODER_TOTAL / ENCODER_DIM;
 
 // Concatenate two 2D tensors [N, D_A] and [N, D_B] into [N, D_A + D_B] along last dim
 __global__ void concatenate_kernel(
-    const float* __restrict__ a, int d_a,
-    const float* __restrict__ b, int d_b,
-    float* __restrict__ output,
+    const T_ACTIVATION* __restrict__ a, int d_a,
+    const T_ACTIVATION* __restrict__ b, int d_b,
+    T_ACTIVATION* __restrict__ output,
     int n
 ) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -146,9 +154,9 @@ __global__ void concatenate_kernel(
 
 // Split [N, D_A + D_B] into [N, D_A] and [N, D_B] along last dim
 __global__ void split_kernel(
-    const float* __restrict__ input, int d_a, int d_b,
-    float* __restrict__ a,
-    float* __restrict__ b,
+    const T_ACTIVATION* __restrict__ input, int d_a, int d_b,
+    T_ACTIVATION* __restrict__ a,
+    T_ACTIVATION* __restrict__ b,
     int n
 ) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -164,11 +172,11 @@ __global__ void split_kernel(
     }
 }
 
-// Convert RGBA uint32 framebuffer pixels to float RGB tensor [BATCH, H, W, 3] normalized to [0,1]
+// Convert RGBA uint32 framebuffer pixels to bf16 RGB tensor [BATCH, H, W, 3] normalized to [0,1]
 // dst_offset: write starting at output[(dst_offset + sample_idx) * H * W * 3]
-__global__ void rgba_to_float_kernel(
+__global__ void rgba_to_activation_kernel(
     const uint32_t* __restrict__ framebuffer,
-    float* __restrict__ output,
+    T_ACTIVATION* __restrict__ output,
     int cam_width, int cam_height, int camera_offset, int dst_offset
 ) {
     const int sample_idx = blockIdx.x;
@@ -176,7 +184,7 @@ __global__ void rgba_to_float_kernel(
     const int cam_pixels = cam_width * cam_height;
 
     const uint32_t* src = framebuffer + camera_idx * cam_pixels;
-    float* dst = output + (dst_offset + sample_idx) * cam_height * cam_width * 3;
+    T_ACTIVATION* dst = output + (dst_offset + sample_idx) * cam_height * cam_width * 3;
 
     for (int pixel = threadIdx.x; pixel < cam_pixels; pixel += blockDim.x) {
         const uint32_t rgba = src[pixel];
@@ -185,17 +193,18 @@ __global__ void rgba_to_float_kernel(
         const float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
 
         const int out_base = pixel * 3;
-        dst[out_base + 0] = r;
-        dst[out_base + 1] = g;
-        dst[out_base + 2] = b;
+        dst[out_base + 0] = (T_ACTIVATION)r;
+        dst[out_base + 1] = (T_ACTIVATION)g;
+        dst[out_base + 2] = (T_ACTIVATION)b;
     }
 }
 
 // Element-wise Huber loss and gradient (operates on all BATCH_SIZE * OUTPUT_DIM elements)
+// Reads bf16 predictions, float targets; writes bf16 gradient, float losses
 __global__ void huber_loss_gradient_kernel(
-    const float* __restrict__ predictions,
+    const T_ACTIVATION* __restrict__ predictions,
     const float* __restrict__ targets,
-    float* __restrict__ d_output,
+    T_GRADIENT* __restrict__ d_output,
     float* __restrict__ losses,
     int total_elements,
     float delta
@@ -203,7 +212,7 @@ __global__ void huber_loss_gradient_kernel(
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= total_elements) return;
 
-    const float pred = predictions[idx];
+    const float pred = (float)predictions[idx];
     const float tgt = targets[idx];
     const float diff = pred - tgt;
     const float abs_diff = abs(diff);
@@ -211,10 +220,10 @@ __global__ void huber_loss_gradient_kernel(
     const float scale = 1.0f / static_cast<float>(total_elements);
     if (abs_diff <= delta) {
         losses[idx] = 0.5f * diff * diff;
-        d_output[idx] = scale * diff;
+        d_output[idx] = (T_GRADIENT)(scale * diff);
     } else {
         losses[idx] = delta * (abs_diff - 0.5f * delta);
-        d_output[idx] = scale * delta * ((diff > 0.0f) - (diff < 0.0f));
+        d_output[idx] = (T_GRADIENT)(scale * delta * ((diff > 0.0f) - (diff < 0.0f)));
     }
 }
 
@@ -382,7 +391,8 @@ int main(int argc, char** argv) {
     rlt::Tensor<GPU_INPUT_SPEC> gpu_input_a, gpu_input_b;
     rlt::malloc(device_cuda, gpu_input_a);
     rlt::malloc(device_cuda, gpu_input_b);
-    rlt::Tensor<GPU_INPUT_SPEC> gpu_d_input_a, gpu_d_input_b;
+    using GPU_D_INPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, GPU_INPUT_SHAPE>;
+    rlt::Tensor<GPU_D_INPUT_SPEC> gpu_d_input_a, gpu_d_input_b;
     rlt::malloc(device_cuda, gpu_d_input_a);
     rlt::malloc(device_cuda, gpu_d_input_b);
 
@@ -466,10 +476,10 @@ int main(int argc, char** argv) {
             const TI batch_offset = s * samples_per_scene;
             uint32_t* device_fb = yp::get_framebuffer_device_ptr(loaded_scenes[scene_idx].handle);
 
-            rgba_to_float_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
+            rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
                 device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, 0, batch_offset
             );
-            rgba_to_float_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
+            rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
                 device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, samples_per_scene, batch_offset
             );
         }
@@ -560,14 +570,14 @@ int main(int argc, char** argv) {
             float loss_val;
             cudaMemcpy(&loss_val, gpu_total_loss, sizeof(float), cudaMemcpyDeviceToHost);
 
-            std::vector<float> pred_buf(TOTAL_OUTPUT_ELEMENTS);
-            cudaMemcpy(pred_buf.data(), output_view._data, TOTAL_OUTPUT_ELEMENTS * sizeof(float), cudaMemcpyDeviceToHost);
+            std::vector<T_ACTIVATION> pred_buf_raw(TOTAL_OUTPUT_ELEMENTS);
+            cudaMemcpy(pred_buf_raw.data(), output_view._data, TOTAL_OUTPUT_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost);
 
             float err_px = 0.0f, err_py = 0.0f, err_roll = 0.0f;
             for (TI_CUDA i = 0; i < BATCH_SIZE; i++) {
-                err_px   += std::abs(pred_buf[i * OUTPUT_DIM + 0] - cpu_targets[i * OUTPUT_DIM + 0]);
-                err_py   += std::abs(pred_buf[i * OUTPUT_DIM + 1] - cpu_targets[i * OUTPUT_DIM + 1]);
-                err_roll += std::abs(pred_buf[i * OUTPUT_DIM + 2] - cpu_targets[i * OUTPUT_DIM + 2]);
+                err_px   += std::abs((float)pred_buf_raw[i * OUTPUT_DIM + 0] - cpu_targets[i * OUTPUT_DIM + 0]);
+                err_py   += std::abs((float)pred_buf_raw[i * OUTPUT_DIM + 1] - cpu_targets[i * OUTPUT_DIM + 1]);
+                err_roll += std::abs((float)pred_buf_raw[i * OUTPUT_DIM + 2] - cpu_targets[i * OUTPUT_DIM + 2]);
             }
             err_px /= BATCH_SIZE;
             err_py /= BATCH_SIZE;
@@ -618,10 +628,10 @@ int main(int argc, char** argv) {
                 yp::render_batch<false>(val_scenes[vs].handle, cameras.data());
                 uint32_t* device_fb = yp::get_framebuffer_device_ptr(val_scenes[vs].handle);
 
-                rgba_to_float_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+                rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
                     device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, 0, 0
                 );
-                rgba_to_float_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+                rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
                     device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, BATCH_SIZE, 0
                 );
 
@@ -671,14 +681,14 @@ int main(int argc, char** argv) {
                 float scene_loss;
                 cudaMemcpy(&scene_loss, gpu_total_loss, sizeof(float), cudaMemcpyDeviceToHost);
 
-                std::vector<float> val_pred_buf(TOTAL_OUTPUT_ELEMENTS);
-                cudaMemcpy(val_pred_buf.data(), val_output_view._data, TOTAL_OUTPUT_ELEMENTS * sizeof(float), cudaMemcpyDeviceToHost);
+                std::vector<T_ACTIVATION> val_pred_buf_raw(TOTAL_OUTPUT_ELEMENTS);
+                cudaMemcpy(val_pred_buf_raw.data(), val_output_view._data, TOTAL_OUTPUT_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost);
 
                 float scene_err_px = 0.0f, scene_err_py = 0.0f, scene_err_roll = 0.0f;
                 for (TI_CUDA i = 0; i < BATCH_SIZE; i++) {
-                    scene_err_px   += std::abs(val_pred_buf[i * OUTPUT_DIM + 0] - cpu_targets[i * OUTPUT_DIM + 0]);
-                    scene_err_py   += std::abs(val_pred_buf[i * OUTPUT_DIM + 1] - cpu_targets[i * OUTPUT_DIM + 1]);
-                    scene_err_roll += std::abs(val_pred_buf[i * OUTPUT_DIM + 2] - cpu_targets[i * OUTPUT_DIM + 2]);
+                    scene_err_px   += std::abs((float)val_pred_buf_raw[i * OUTPUT_DIM + 0] - cpu_targets[i * OUTPUT_DIM + 0]);
+                    scene_err_py   += std::abs((float)val_pred_buf_raw[i * OUTPUT_DIM + 1] - cpu_targets[i * OUTPUT_DIM + 1]);
+                    scene_err_roll += std::abs((float)val_pred_buf_raw[i * OUTPUT_DIM + 2] - cpu_targets[i * OUTPUT_DIM + 2]);
                 }
 
                 val_loss_sum += scene_loss * TOTAL_OUTPUT_ELEMENTS;
