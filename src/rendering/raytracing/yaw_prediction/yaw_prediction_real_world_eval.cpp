@@ -96,6 +96,9 @@ struct FrameRecord {
 };
 
 struct TargetAngles {
+    double horizontal_norm;
+    double vertical_norm;
+    double roll_norm;
     double horizontal_degrees;
     double vertical_degrees;
     double roll_degrees;
@@ -105,6 +108,9 @@ struct Metrics {
     TI datasets = 0;
     TI frames = 0;
     TI evaluated_pairs = 0;
+    double mae_horizontal_norm = 0.0;
+    double mae_vertical_norm = 0.0;
+    double mae_roll_norm = 0.0;
     double mae_horizontal_deg = 0.0;
     double mae_vertical_deg = 0.0;
     double mae_roll_deg = 0.0;
@@ -240,10 +246,16 @@ static TargetAngles compute_ground_truth(const Mat4& reference, const Mat4& curr
     const double z2y = -rel(1, 2);
     const double z2z = -rel(2, 2);
     const double tan_half_h = std::tan(horizontal_fov_degrees * PI / 360.0);
+    const double horizontal_norm = -z2y / (z2z * tan_half_h);
+    const double vertical_norm = z2x / (z2z * tan_half_h);
+    const double roll_degrees = -std::atan2(rel(0, 1), rel(0, 0)) * 180.0 / PI;
     return {
-        -normalized_displacement_to_degrees(z2y / (z2z * tan_half_h), horizontal_fov_degrees),
-        normalized_displacement_to_degrees(z2x / (z2z * tan_half_h), horizontal_fov_degrees),
-        -std::atan2(rel(0, 1), rel(0, 0)) * 180.0 / PI
+        horizontal_norm,
+        vertical_norm,
+        roll_degrees / 180.0,
+        normalized_displacement_to_degrees(horizontal_norm, horizontal_fov_degrees),
+        normalized_displacement_to_degrees(vertical_norm, horizontal_fov_degrees),
+        roll_degrees
     };
 }
 
@@ -477,10 +489,22 @@ int main(int argc, char** argv) {
                     all_pairs.push_back({relative, prediction});
                 }
 
+                const double prediction_horizontal_norm = std::tan(prediction[0] * PI / 180.0) /
+                                                         std::tan(horizontal_fov_degrees * PI / 360.0);
+                const double prediction_vertical_norm = std::tan(prediction[1] * PI / 180.0) /
+                                                       std::tan(horizontal_fov_degrees * PI / 360.0);
+                const double prediction_roll_norm = prediction[2] / 180.0;
+
+                const double err_h_norm = std::abs(prediction_horizontal_norm - target.horizontal_norm);
+                const double err_v_norm = std::abs(prediction_vertical_norm - target.vertical_norm);
+                const double err_r_norm = std::abs(prediction_roll_norm - target.roll_norm);
                 const double err_h = std::abs(prediction[0] - target.horizontal_degrees);
                 const double err_v = std::abs(prediction[1] - target.vertical_degrees);
                 const double err_r = std::abs(prediction[2] - target.roll_degrees);
 
+                metrics.mae_horizontal_norm += err_h_norm;
+                metrics.mae_vertical_norm += err_v_norm;
+                metrics.mae_roll_norm += err_r_norm;
                 metrics.mae_horizontal_deg += err_h;
                 metrics.mae_vertical_deg += err_v;
                 metrics.mae_roll_deg += err_r;
@@ -501,6 +525,9 @@ int main(int argc, char** argv) {
     }
 
     const double pair_count = static_cast<double>(metrics.evaluated_pairs);
+    metrics.mae_horizontal_norm /= pair_count;
+    metrics.mae_vertical_norm /= pair_count;
+    metrics.mae_roll_norm /= pair_count;
     metrics.mae_horizontal_deg /= pair_count;
     metrics.mae_vertical_deg /= pair_count;
     metrics.mae_roll_deg /= pair_count;
@@ -515,6 +542,9 @@ int main(int argc, char** argv) {
     std::cout << "  Pair filter: translation <= " << max_relative_translation_meters
               << " m, rotation >= " << min_relative_rotation_degrees
               << " deg, |target| <= " << max_target_angle_degrees << " deg" << std::endl;
+    std::cout << "  Train-style MAE err_px:   " << metrics.mae_horizontal_norm << std::endl;
+    std::cout << "  Train-style MAE err_py:   " << metrics.mae_vertical_norm << std::endl;
+    std::cout << "  Train-style MAE err_roll: " << metrics.mae_roll_norm << std::endl;
     if (anchor_index >= 0) {
         std::cout << "  Anchor index:   " << anchor_index << std::endl;
     }
