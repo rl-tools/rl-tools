@@ -7,37 +7,45 @@
 #include <rl_tools/nn_models/parallel/model.h>
 
 namespace rl_tools::rendering::raytracing::yaw_prediction {
+    // Conv2d: 3x3, stride=2, pad=1, 16ch, BN+ReLU -> 64x64x64
+    template<typename TYPE_POLICY, typename TI>
+    using CONV_16_CONFIG = nn::layers::conv2d::Configuration<
+        TYPE_POLICY, TI, 16, 3, 3, 2, 2, 1, 1,
+        nn::activation_functions::ActivationFunction::RELU,
+        nn::layers::conv2d::Normalization::BATCH_NORM>;
+
     // Conv2d: 3x3, stride=2, pad=1, 32ch, BN+ReLU -> 32x32x32
     template<typename TYPE_POLICY, typename TI>
     using CONV_32_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 32*8, 3, 3, 2, 2, 1, 1,
+        TYPE_POLICY, TI, 32, 3, 3, 2, 2, 1, 1,
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
     // Conv2d: 3x3, stride=2, pad=1, 64ch, BN+ReLU -> 16x16x64
     template<typename TYPE_POLICY, typename TI>
     using CONV_64_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 64*8, 3, 3, 2, 2, 1, 1,
+        TYPE_POLICY, TI, 64, 3, 3, 2, 2, 1, 1,
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
     // Conv2d: 3x3, stride=2, pad=1, 128ch, BN+ReLU -> 8x8x128
     template<typename TYPE_POLICY, typename TI>
     using CONV_128_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 128*8, 3, 3, 2, 2, 1, 1,
+        TYPE_POLICY, TI, 128, 3, 3, 2, 2, 1, 1,
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
     // Conv2d: 3x3, stride=2, pad=1, 256ch, BN+ReLU -> 4x4x256
     template<typename TYPE_POLICY, typename TI>
     using CONV_256_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 256*8, 3, 3, 2, 2, 1, 1,
+        TYPE_POLICY, TI, 256, 3, 3, 2, 2, 1, 1,
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
     // CNN encoder branch: 4 conv layers (output is 4x4x256, spatial preserved)
     template<typename TYPE_POLICY, typename TI>
     using ENCODER_MODULE = nn_models::sequential::Module<
+        nn::layers::conv2d::BindConfiguration<CONV_16_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_32_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_64_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_128_CONFIG<TYPE_POLICY, TI>>,
