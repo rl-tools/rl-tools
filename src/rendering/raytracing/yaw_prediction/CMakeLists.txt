@@ -1,3 +1,42 @@
+find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc videoio)
+
+if(NOT TARGET rendering_raytracing_stb)
+    include(FetchContent)
+    FetchContent_Declare(
+        yaw_prediction_stb
+        GIT_REPOSITORY https://github.com/nothings/stb.git
+        GIT_TAG        f1c79c02822848a9bed4315b12c8c8f3761e1296
+        EXCLUDE_FROM_ALL
+    )
+    FetchContent_MakeAvailable(yaw_prediction_stb)
+    add_library(rendering_raytracing_stb INTERFACE)
+    target_include_directories(rendering_raytracing_stb SYSTEM INTERFACE ${yaw_prediction_stb_SOURCE_DIR})
+endif()
+
+add_executable(rendering_raytracing_yaw_prediction_real_world_eval yaw_prediction_real_world_eval.cpp)
+set_target_properties(rendering_raytracing_yaw_prediction_real_world_eval PROPERTIES CXX_STANDARD 17)
+target_include_directories(rendering_raytracing_yaw_prediction_real_world_eval PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rendering_raytracing_yaw_prediction_real_world_eval
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        rendering_raytracing_stb
+        HighFive
+)
+
+add_executable(rendering_raytracing_yaw_prediction_dataset_overlay yaw_prediction_dataset_overlay.cpp)
+set_target_properties(rendering_raytracing_yaw_prediction_dataset_overlay PROPERTIES CXX_STANDARD 17)
+target_include_directories(rendering_raytracing_yaw_prediction_dataset_overlay PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rendering_raytracing_yaw_prediction_dataset_overlay
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        HighFive
+        ${OpenCV_LIBS}
+)
+
+if(RL_TOOLS_ENABLE_HDF5)
+    add_subdirectory(swift_app)
+endif()
+
 if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
     add_library(rendering_raytracing_yaw_prediction_scene STATIC scene.cpp)
     set_target_properties(rendering_raytracing_yaw_prediction_scene PROPERTIES CXX_STANDARD 20)
