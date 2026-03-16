@@ -70,9 +70,9 @@ using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 
 // Inference-only model
 using GPU_CAPABILITY = rlt::nn::capability::Forward<>;
-using GPU_MODEL = yp::MODEL<GPU_CAPABILITY, TYPE_POLICY, TI_CUDA, BATCH_SIZE>;
+using GPU_MODEL = yp::MODEL<GPU_CAPABILITY, TYPE_POLICY, TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH>;
 using CPU_CAPABILITY = rlt::nn::capability::Forward<>;
-using CPU_MODEL = yp::MODEL<CPU_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE>;
+using CPU_MODEL = yp::MODEL<CPU_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH>;
 
 using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH, 3>;
 using GPU_INPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_INPUT_SHAPE>;
