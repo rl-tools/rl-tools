@@ -137,7 +137,7 @@ void yaw_predictor_evaluate(YawPredictorHandle* handle,
     std::memcpy(rlt::data(handle->input_a), image_a, IMAGE_SIZE * sizeof(float));
     std::memcpy(rlt::data(handle->input_b), image_b, IMAGE_SIZE * sizeof(float));
 
-    auto mode = rlt::Mode<rlt::mode::Default<>>{};
+    auto mode = rlt::Mode<rlt::mode::Evaluation<>>{};
     rlt::evaluate(handle->device, handle->model,
                   handle->input_a, handle->input_b,
                   handle->output, handle->buffer,
