@@ -113,11 +113,11 @@ struct AdamParams : rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_P
 using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI_CUDA, AdamParams>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using GPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-using GPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<GPU_CAPABILITY, TYPE_POLICY, TI_CUDA, BATCH_SIZE>;
+using GPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<GPU_CAPABILITY, TYPE_POLICY, TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH>;
 
 using CPU_TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using CPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-using CPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<CPU_CAPABILITY, CPU_TYPE_POLICY, TI, BATCH_SIZE>;
+using CPU_MODEL = rlt::rendering::raytracing::yaw_prediction::MODEL<CPU_CAPABILITY, CPU_TYPE_POLICY, TI, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH>;
 using CPU_MODEL_INFERENCE = typename CPU_MODEL::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
 
 using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH, 3>;

@@ -81,12 +81,12 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     >;
 
     // Full parallel model: two CNN encoders + head with cross-image conv
-    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE>
+    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64>
     using MODEL = nn_models::parallel::Build<CAPABILITY,
         ENCODER_MODULE<TYPE_POLICY, TI>,
         ENCODER_MODULE<TYPE_POLICY, TI>,
-        tensor::Shape<TI, BATCH_SIZE, 64, 64, 3>,
-        tensor::Shape<TI, BATCH_SIZE, 64, 64, 3>,
+        tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>,
+        tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>,
         HEAD_MODULE<TYPE_POLICY, TI>
     >;
 }
