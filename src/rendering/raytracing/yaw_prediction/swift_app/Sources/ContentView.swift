@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var inferenceTimer: Timer?
     @State private var showNativeResolution = false
     @State private var modelLoaded = false
+    @State private var modelStatusText = "Model not loaded"
     #if os(iOS)
     @State private var datasetRecorder = DatasetRecorder(imageSize: 64)
     @State private var referenceTransform: simd_float4x4?
@@ -24,6 +25,9 @@ struct ContentView: View {
     #endif
 
     private let imageSize = 64
+    #if os(iOS)
+    private let bundledModelName = "yaw-predictor5-beta"
+    #endif
 
     var body: some View {
         VStack(spacing: 16) {
@@ -67,6 +71,9 @@ struct ContentView: View {
             }
 
             VStack(spacing: 4) {
+                Text(modelStatusText)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundColor(modelLoaded ? .green : .secondary)
                 if let pred = prediction {
                     let hfov = camera.horizontalFOV
                     let pxDeg = normalizedDisplacementToDegrees(pred.px, fovDegrees: hfov)
@@ -169,7 +176,10 @@ struct ContentView: View {
         #endif
         #if os(iOS)
         .fileImporter(isPresented: $showFilePicker,
-                      allowedContentTypes: [UTType(filenameExtension: "h5") ?? .data],
+                      allowedContentTypes: [
+                        UTType(filenameExtension: "tar") ?? .data,
+                        UTType(filenameExtension: "h5") ?? .data
+                      ],
                       allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first {
                 loadModel(from: url.path)
@@ -195,24 +205,32 @@ struct ContentView: View {
 
     #if os(iOS)
     private func loadBundledModel() {
-        if let url = Bundle.main.url(forResource: "yaw-predictor4", withExtension: "tar") {
-            loadModel(from: url.path)
+        if let url = Bundle.main.url(forResource: bundledModelName, withExtension: "tar") {
+            _ = loadModel(from: url.path)
         } else {
-            print("Bundled model not found")
+            modelLoaded = false
+            modelStatusText = "Bundled model missing: \(bundledModelName).tar"
+            print("Bundled model not found: \(bundledModelName).tar")
         }
     }
     #endif
 
-    private func loadModel(from path: String) {
+    @discardableResult
+    private func loadModel(from path: String) -> Bool {
         if let p = predictor {
             yaw_predictor_destroy(p)
             predictor = nil
         }
         predictor = yaw_predictor_create(path)
         modelLoaded = predictor != nil
-        if !modelLoaded {
+        if modelLoaded {
+            modelStatusText = "Model loaded: \((path as NSString).lastPathComponent)"
+            print("Loaded model from: \(path)")
+        } else {
+            modelStatusText = "Failed to load: \((path as NSString).lastPathComponent)"
             print("Failed to load model from: \(path)")
         }
+        return modelLoaded
     }
 
     #if os(iOS)

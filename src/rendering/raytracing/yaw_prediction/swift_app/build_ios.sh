@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 BUILD_TMP="$SCRIPT_DIR/.build"
+MODEL_BASENAME="yaw-predictor5-beta"
+MODEL_SOURCE="$REPO_ROOT/tests/data/${MODEL_BASENAME}.tar"
 
 mkdir -p "$BUILD_TMP"
 
@@ -71,6 +73,11 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE"
 
 cp "$BUILD_TMP/YawPredictor_ios" "$APP_BUNDLE/YawPredictor"
+if [ -f "$MODEL_SOURCE" ]; then
+    cp "$MODEL_SOURCE" "$APP_BUNDLE/${MODEL_BASENAME}.tar"
+else
+    echo "Warning: bundled model not found at $MODEL_SOURCE"
+fi
 cat > "$APP_BUNDLE/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
