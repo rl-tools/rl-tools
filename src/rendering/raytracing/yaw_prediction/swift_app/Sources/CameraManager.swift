@@ -2,6 +2,15 @@ import AVFoundation
 import CoreImage
 #if os(iOS)
 import ARKit
+import simd
+#endif
+
+#if os(iOS)
+struct CapturedARFrame {
+    let image: CGImage
+    let transform: simd_float4x4
+    let timestamp: TimeInterval
+}
 #endif
 
 final class CameraManager: NSObject, ObservableObject {
@@ -9,6 +18,7 @@ final class CameraManager: NSObject, ObservableObject {
     @Published var horizontalFOV: Double = 65.0
     @Published var trackingReady = false
     #if os(iOS)
+    @Published var latestARFrame: CapturedARFrame?
     var currentTransform: simd_float4x4?
     #endif
 
@@ -74,6 +84,11 @@ extension CameraManager: ARSessionDelegate {
             if case .normal = tracking {
                 self.trackingReady = true
                 self.currentTransform = frame.camera.transform
+                self.latestARFrame = CapturedARFrame(
+                    image: cgImage,
+                    transform: frame.camera.transform,
+                    timestamp: frame.timestamp
+                )
             }
             if self.trackingReady {
                 self.currentFrame = cgImage
