@@ -2,6 +2,7 @@ import SwiftUI
 #if os(iOS)
 import UniformTypeIdentifiers
 import simd
+import UIKit
 #endif
 
 struct ContentView: View {
@@ -12,17 +13,21 @@ struct ContentView: View {
     @State private var inferenceTimer: Timer?
     @State private var showNativeResolution = false
     @State private var modelLoaded = false
+    @State private var modelStatusText = "Model not loaded"
     #if os(iOS)
+    @State private var datasetRecorder = DatasetRecorder(imageSize: 64)
     @State private var referenceTransform: simd_float4x4?
+    @State private var datasetStatusText = "Dataset capture idle"
+    @State private var datasetDirectory: URL?
+    @State private var isDatasetRecording = false
+    @State private var isExportPresented = false
     @State private var showFilePicker = false
     #endif
 
     private let imageSize = 64
-
-    private func normalizedDisplacementToDegrees(_ value: Double, fovDegrees: Double) -> Double {
-        let halfFOVRadians = fovDegrees * .pi / 360.0
-        return atan(value * tan(halfFOVRadians)) * 180.0 / .pi
-    }
+    #if os(iOS)
+    private let bundledModelName = "yaw-predictor5-beta"
+    #endif
 
     var body: some View {
         VStack(spacing: 16) {
@@ -66,6 +71,9 @@ struct ContentView: View {
             }
 
             VStack(spacing: 4) {
+                Text(modelStatusText)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundColor(modelLoaded ? .green : .secondary)
                 if let pred = prediction {
                     let hfov = camera.horizontalFOV
                     let pxDeg = normalizedDisplacementToDegrees(pred.px, fovDegrees: hfov)
@@ -80,14 +88,14 @@ struct ContentView: View {
                 }
                 #if os(iOS)
                 if let gt = computeGroundTruth() {
-                    Text(String(format: "GT H: %+.1f\u{00B0}  V: %+.1f\u{00B0}  R: %+.1f\u{00B0}", gt.px, gt.py, gt.roll))
+                    Text(String(format: "GT H: %+.1f\u{00B0}  V: %+.1f\u{00B0}  R: %+.1f\u{00B0}", gt.horizontalDegrees, gt.verticalDegrees, gt.rollDegrees))
                         .font(.system(size: 18, weight: .bold, design: .monospaced))
                         .foregroundColor(.blue)
                     if let pred = prediction {
                         let hfov = camera.horizontalFOV
-                        let errH = normalizedDisplacementToDegrees(pred.px, fovDegrees: hfov) - gt.px
-                        let errV = normalizedDisplacementToDegrees(pred.py, fovDegrees: hfov) - gt.py
-                        let errR = pred.roll * 180.0 - gt.roll
+                        let errH = normalizedDisplacementToDegrees(pred.px, fovDegrees: hfov) - gt.horizontalDegrees
+                        let errV = normalizedDisplacementToDegrees(pred.py, fovDegrees: hfov) - gt.verticalDegrees
+                        let errR = pred.roll * 180.0 - gt.rollDegrees
                         Text(String(format: "Err: %+.1f\u{00B0}  %+.1f\u{00B0}  %+.1f\u{00B0}", errH, errV, errR))
                             .font(.system(size: 18, weight: .bold, design: .monospaced))
                             .foregroundColor(.red)
@@ -112,6 +120,24 @@ struct ContentView: View {
                 }
                 #endif
             }
+
+            #if os(iOS)
+            VStack(spacing: 8) {
+                HStack {
+                    Button(isDatasetRecording ? "Stop Dataset" : "Start Dataset") {
+                        toggleDatasetRecording()
+                    }
+                    Button("Export Dataset") {
+                        isExportPresented = true
+                    }
+                    .disabled(datasetDirectory == nil)
+                }
+                Text(datasetStatusText)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            #endif
         }
         .padding()
         .onAppear {
@@ -130,8 +156,30 @@ struct ContentView: View {
             }
         }
         #if os(iOS)
+        .onReceive(camera.$latestARFrame.compactMap { $0 }) { frame in
+            guard isDatasetRecording else { return }
+            updateDatasetStatus(with: frame)
+            do {
+                if try datasetRecorder.considerSample(frame: frame, horizontalFOVDegrees: camera.horizontalFOV) {
+                    updateDatasetStatus(with: frame, didCapture: true)
+                }
+            } catch {
+                datasetStatusText = "Dataset write failed: \(error.localizedDescription)"
+                isDatasetRecording = false
+            }
+        }
+        .sheet(isPresented: $isExportPresented) {
+            if let datasetDirectory {
+                ActivityViewController(activityItems: [datasetDirectory])
+            }
+        }
+        #endif
+        #if os(iOS)
         .fileImporter(isPresented: $showFilePicker,
-                      allowedContentTypes: [UTType(filenameExtension: "h5") ?? .data],
+                      allowedContentTypes: [
+                        UTType(filenameExtension: "tar") ?? .data,
+                        UTType(filenameExtension: "h5") ?? .data
+                      ],
                       allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first {
                 loadModel(from: url.path)
@@ -157,47 +205,38 @@ struct ContentView: View {
 
     #if os(iOS)
     private func loadBundledModel() {
-        if let url = Bundle.main.url(forResource: "yaw-predictor4", withExtension: "tar") {
-            loadModel(from: url.path)
+        if let url = Bundle.main.url(forResource: bundledModelName, withExtension: "tar") {
+            _ = loadModel(from: url.path)
         } else {
-            print("Bundled model not found")
+            modelLoaded = false
+            modelStatusText = "Bundled model missing: \(bundledModelName).tar"
+            print("Bundled model not found: \(bundledModelName).tar")
         }
     }
     #endif
 
-    private func loadModel(from path: String) {
+    @discardableResult
+    private func loadModel(from path: String) -> Bool {
         if let p = predictor {
             yaw_predictor_destroy(p)
             predictor = nil
         }
         predictor = yaw_predictor_create(path)
         modelLoaded = predictor != nil
-        if !modelLoaded {
+        if modelLoaded {
+            modelStatusText = "Model loaded: \((path as NSString).lastPathComponent)"
+            print("Loaded model from: \(path)")
+        } else {
+            modelStatusText = "Failed to load: \((path as NSString).lastPathComponent)"
             print("Failed to load model from: \(path)")
         }
+        return modelLoaded
     }
 
     #if os(iOS)
-    private func computeGroundTruth() -> (px: Double, py: Double, roll: Double)? {
+    private func computeGroundTruth() -> AttitudeGroundTruth? {
         guard let refT = referenceTransform, let curT = camera.currentTransform else { return nil }
-        let rel = simd_inverse(refT) * curT
-        // Camera B's forward (-Z) projected into camera A's frame
-        // z2 = -rel.columns.2 (third column negated = forward direction)
-        let z2x = -rel.columns.2.x
-        let z2y = -rel.columns.2.y
-        let z2z = -rel.columns.2.z
-        let hfov = camera.horizontalFOV * .pi / 180.0
-        let tanHalfH = tan(hfov / 2.0)
-        let tanHalfV = tanHalfH // square crop => same fov
-        let px = normalizedDisplacementToDegrees(Double(z2x / (z2z * Float(tanHalfH))), fovDegrees: camera.horizontalFOV)
-        let py = normalizedDisplacementToDegrees(Double(z2y / (z2z * Float(tanHalfV))), fovDegrees: camera.horizontalFOV)
-        // Roll: rotation around forward axis
-        // Shortest-arc decomposition: align (0,0,1) to z2, then extract remaining roll
-        // Simplified: use atan2 on the rotated x-axis projected onto the plane perpendicular to z2
-        let re00 = rel.columns.0.x
-        let re10 = rel.columns.1.x
-        let roll = Double(atan2(re10, re00)) * 180.0 / .pi
-        return (-py, px, -roll)
+        return computeGroundTruthDegrees(reference: refT, current: curT, horizontalFOVDegrees: camera.horizontalFOV)
     }
     #endif
 
@@ -225,6 +264,71 @@ struct ContentView: View {
             }
         }
     }
+
+    #if os(iOS)
+    private func toggleDatasetRecording() {
+        if isDatasetRecording {
+            do {
+                datasetDirectory = try datasetRecorder.stop(horizontalFOVDegrees: camera.horizontalFOV)
+                isDatasetRecording = false
+                let count = datasetRecorder.sampleCount
+                datasetStatusText = "Dataset stopped. Saved \(count) samples."
+            } catch {
+                datasetStatusText = "Failed to finalize dataset: \(error.localizedDescription)"
+                isDatasetRecording = false
+            }
+            return
+        }
+
+        guard let frame = camera.latestARFrame else {
+            datasetStatusText = "AR frame unavailable. Wait for tracking."
+            return
+        }
+
+        do {
+            try datasetRecorder.start(frame: frame, horizontalFOVDegrees: camera.horizontalFOV)
+            frozenFrame = centerSquareCrop(deepCopyCGImage(frame.image))
+            referenceTransform = frame.transform
+            prediction = nil
+            datasetDirectory = datasetRecorder.sessionPaths?.root
+            isDatasetRecording = true
+            datasetStatusText = "Dataset started. Saved frame 0. Rotate while keeping translation low."
+        } catch {
+            datasetStatusText = "Failed to start dataset: \(error.localizedDescription)"
+        }
+    }
+
+    private func updateDatasetStatus(with frame: CapturedARFrame, didCapture: Bool = false) {
+        guard let status = datasetRecorder.status(for: frame) else { return }
+        let driftMM = status.translationDriftMeters * 1000.0
+        let gate = status.isTranslationAcceptable ? "stable" : "drifting"
+        if didCapture {
+            datasetStatusText = String(
+                format: "Captured %d samples. Drift %.0f mm (%@).",
+                status.sampleCount + 1,
+                driftMM,
+                gate
+            )
+            return
+        }
+        if let age = status.lastCaptureAgeSeconds {
+            datasetStatusText = String(
+                format: "Dataset live: %d samples, drift %.0f mm (%@), %.2fs since last save.",
+                status.sampleCount,
+                driftMM,
+                gate,
+                age
+            )
+        } else {
+            datasetStatusText = String(
+                format: "Dataset live: %d samples, drift %.0f mm (%@).",
+                status.sampleCount,
+                driftMM,
+                gate
+            )
+        }
+    }
+    #endif
 
     private func centerSquareCrop(_ image: CGImage) -> CGImage {
         let w = image.width
@@ -270,6 +374,18 @@ struct ContentView: View {
         return (Double(output[0]), Double(output[1]), Double(output[2]))
     }
 }
+
+#if os(iOS)
+struct ActivityViewController: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+#endif
 
 private func deepCopyCGImage(_ image: CGImage) -> CGImage {
     let w = image.width
