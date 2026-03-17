@@ -45,7 +45,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     // CNN encoder branch: 4 conv layers (output is 4x4x256, spatial preserved)
     template<typename TYPE_POLICY, typename TI>
     using ENCODER_MODULE = nn_models::sequential::Module<
-        nn::layers::conv2d::BindConfiguration<CONV_16_CONFIG<TYPE_POLICY, TI>>,
+        // nn::layers::conv2d::BindConfiguration<CONV_16_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_32_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_64_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_128_CONFIG<TYPE_POLICY, TI>>,
