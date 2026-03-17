@@ -960,8 +960,8 @@ int main(int argc, char** argv) {
                     );
                 }
 
-                // Through teacher head (eval using the frozen teacher head)
-                rlt::evaluate(device_cuda, teacher.head, student_buffer.concatenated, gpu_teacher_predictions, teacher_buffer.head_buffer, rng_cuda, eval_mode);
+                // Through teacher head (eval mode, using teacher_head_bw whose BN running stats track student features)
+                rlt::evaluate(device_cuda, teacher_head_bw, student_buffer.concatenated, gpu_teacher_predictions, teacher_head_bw_buffer, rng_cuda, eval_mode);
 
                 cudaStreamSynchronize(device_cuda.stream);
 
