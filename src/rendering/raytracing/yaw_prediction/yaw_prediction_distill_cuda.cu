@@ -916,6 +916,7 @@ int main(int argc, char** argv) {
         // ---- Validation ----
         if (val_scenes.size() > 0 && (iteration % DistillConfig::VAL_INTERVAL == 0 || iteration == num_iterations - 1)) {
             float val_err_px_sum = 0.0f, val_err_py_sum = 0.0f, val_err_roll_sum = 0.0f;
+            float teacher_err_px_sum = 0.0f, teacher_err_py_sum = 0.0f, teacher_err_roll_sum = 0.0f;
             TI val_total_samples = 0;
 
             for (TI vs = 0; vs < val_scenes.size(); vs++) {
@@ -963,6 +964,35 @@ int main(int argc, char** argv) {
                 // Through teacher head (eval mode, using teacher_head_bw whose BN running stats track student features)
                 rlt::evaluate(device_cuda, teacher_head_bw, student_buffer.concatenated, gpu_teacher_predictions, teacher_head_bw_buffer, rng_cuda, eval_mode);
 
+                // Teacher forward (eval mode) for expert baseline
+                rlt::evaluate(device_cuda, teacher.pipeline_a, gpu_input_a, teacher_buffer.intermediate_a, teacher_buffer.buffer_a, rng_cuda, eval_mode);
+                rlt::evaluate(device_cuda, teacher.pipeline_b, gpu_input_b, teacher_buffer.intermediate_b, teacher_buffer.buffer_b, rng_cuda, eval_mode);
+                {
+                    constexpr int total = ENCODER_SPATIAL * TEACHER_CONCAT_DIM;
+                    constexpr int threads = 256;
+                    constexpr int blocks = (total + threads - 1) / threads;
+                    concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
+                        teacher_buffer.intermediate_a._data, TEACHER_ENCODER_DIM_VAL,
+                        teacher_buffer.intermediate_b._data, TEACHER_ENCODER_DIM_VAL,
+                        teacher_buffer.concatenated._data, ENCODER_SPATIAL
+                    );
+                }
+                rlt::evaluate(device_cuda, teacher.head, teacher_buffer.concatenated, gpu_teacher_predictions, teacher_buffer.head_buffer, rng_cuda, eval_mode);
+
+                cudaStreamSynchronize(device_cuda.stream);
+
+                std::vector<T_ACTIVATION> teacher_pred_buf_raw(TOTAL_OUTPUT_ELEMENTS);
+                cudaMemcpy(teacher_pred_buf_raw.data(), gpu_teacher_predictions._data, TOTAL_OUTPUT_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost);
+
+                for (TI_CUDA i = 0; i < BATCH_SIZE; i++) {
+                    teacher_err_px_sum   += std::abs((float)teacher_pred_buf_raw[i * OUTPUT_DIM + 0] - cpu_targets[i * OUTPUT_DIM + 0]);
+                    teacher_err_py_sum   += std::abs((float)teacher_pred_buf_raw[i * OUTPUT_DIM + 1] - cpu_targets[i * OUTPUT_DIM + 1]);
+                    teacher_err_roll_sum += std::abs((float)teacher_pred_buf_raw[i * OUTPUT_DIM + 2] - cpu_targets[i * OUTPUT_DIM + 2]);
+                }
+
+                // Rerun student through head for student error (reuse gpu_teacher_predictions buffer)
+                rlt::evaluate(device_cuda, teacher_head_bw, student_buffer.concatenated, gpu_teacher_predictions, teacher_head_bw_buffer, rng_cuda, eval_mode);
+
                 cudaStreamSynchronize(device_cuda.stream);
 
                 std::vector<T_ACTIVATION> val_pred_buf_raw(TOTAL_OUTPUT_ELEMENTS);
@@ -979,15 +1009,24 @@ int main(int argc, char** argv) {
             float val_err_px = val_err_px_sum / val_total_samples;
             float val_err_py = val_err_py_sum / val_total_samples;
             float val_err_roll = val_err_roll_sum / val_total_samples;
+            float teacher_err_px = teacher_err_px_sum / val_total_samples;
+            float teacher_err_py = teacher_err_py_sum / val_total_samples;
+            float teacher_err_roll = teacher_err_roll_sum / val_total_samples;
 
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_px", val_err_px);
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_py", val_err_py);
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_roll", val_err_roll);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/teacher_err_px", teacher_err_px);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/teacher_err_py", teacher_err_py);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/teacher_err_roll", teacher_err_roll);
 
             std::cout << "[iter " << iteration << "] VAL"
                       << "  err_px=" << val_err_px
                       << "  err_py=" << val_err_py
-                      << "  err_roll=" << val_err_roll << std::endl;
+                      << "  err_roll=" << val_err_roll
+                      << "  teacher_px=" << teacher_err_px
+                      << "  teacher_py=" << teacher_err_py
+                      << "  teacher_roll=" << teacher_err_roll << std::endl;
         }
     }
 
