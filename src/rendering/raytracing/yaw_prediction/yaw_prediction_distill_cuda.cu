@@ -141,6 +141,7 @@ static constexpr int TEACHER_ENCODER_DIM_VAL = TEACHER_GPU_MODEL::SPEC::LAST_DIM
 static constexpr int TEACHER_CONCAT_DIM = TEACHER_GPU_MODEL::SPEC::LAST_DIM;
 static constexpr int TEACHER_ENCODER_TOTAL = rlt::product(typename TEACHER_GPU_MODEL::SPEC::OUTPUT_SHAPE_A{});
 static constexpr int ENCODER_SPATIAL = TEACHER_ENCODER_TOTAL / TEACHER_ENCODER_DIM_VAL;
+static constexpr int SPATIAL_PER_SAMPLE = ENCODER_SPATIAL / BATCH_SIZE;
 
 // Student encoder output dimensions (should match teacher after projection)
 static constexpr int STUDENT_ENCODER_DIM_VAL = STUDENT_GPU_MODEL::SPEC::LAST_DIM_A;
@@ -626,7 +627,7 @@ int main(int argc, char** argv) {
     float* gpu_task_losses;
     cudaMalloc(&gpu_task_losses, TOTAL_OUTPUT_ELEMENTS * sizeof(float));
     float* gpu_cos_losses;
-    cudaMalloc(&gpu_cos_losses, ENCODER_SPATIAL * BATCH_SIZE * sizeof(float));
+    cudaMalloc(&gpu_cos_losses, ENCODER_SPATIAL * sizeof(float));
     float* gpu_total_loss;
     cudaMalloc(&gpu_total_loss, 2 * sizeof(float));
 
@@ -737,7 +738,7 @@ int main(int argc, char** argv) {
 
         // ---- Dense supervision: cosine similarity loss on encoder features ----
         {
-            constexpr int total_positions = BATCH_SIZE * ENCODER_SPATIAL;
+            constexpr int total_positions = ENCODER_SPATIAL;
             constexpr int threads = 256;
             constexpr int blocks = (total_positions + threads - 1) / threads;
             cosine_similarity_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
@@ -747,7 +748,7 @@ int main(int argc, char** argv) {
                 gpu_cos_losses,
                 gpu_mask,
                 BATCH_SIZE,
-                ENCODER_SPATIAL,
+                SPATIAL_PER_SAMPLE,
                 TEACHER_ENCODER_DIM_VAL,
                 DistillConfig::LOSS_WEIGHT_COSINE
             );
@@ -758,7 +759,7 @@ int main(int argc, char** argv) {
                 gpu_cos_losses,
                 gpu_mask,
                 BATCH_SIZE,
-                ENCODER_SPATIAL,
+                SPATIAL_PER_SAMPLE,
                 TEACHER_ENCODER_DIM_VAL,
                 DistillConfig::LOSS_WEIGHT_COSINE
             );
@@ -794,6 +795,13 @@ int main(int argc, char** argv) {
 
         // Backward through teacher head to get d_student_concatenated
         // Using backward_full (accumulates unused gradients in teacher head, but avoids bf16 constexpr issue in backward_input)
+        {
+            cudaStreamSynchronize(device_cuda.stream);
+            cudaError_t pre_err = cudaGetLastError();
+            if (pre_err != cudaSuccess) {
+                std::cerr << "CUDA error before teacher head backward: " << cudaGetErrorString(pre_err) << std::endl;
+            }
+        }
         rlt::backward_full(device_cuda, teacher_head_bw, student_buffer.concatenated, gpu_d_head_output, gpu_d_student_concat_task, teacher_head_bw_buffer);
 
         // Split task gradient into per-branch gradients and add cosine similarity gradients
@@ -811,7 +819,7 @@ int main(int argc, char** argv) {
 
         // Add cosine similarity gradients to task gradients
         {
-            constexpr int total = BATCH_SIZE * ENCODER_SPATIAL * STUDENT_ENCODER_DIM_VAL;
+            constexpr int total = ENCODER_SPATIAL * STUDENT_ENCODER_DIM_VAL;
             constexpr int threads = 256;
             constexpr int blocks = (total + threads - 1) / threads;
             add_gradients_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
@@ -849,7 +857,7 @@ int main(int argc, char** argv) {
                 gpu_task_losses, gpu_total_loss, TOTAL_OUTPUT_ELEMENTS
             );
             reduce_loss_kernel<<<1, 1, 0, device_cuda.stream>>>(
-                gpu_cos_losses, gpu_total_loss + 1, BATCH_SIZE * ENCODER_SPATIAL
+                gpu_cos_losses, gpu_total_loss + 1, ENCODER_SPATIAL
             );
             cudaStreamSynchronize(device_cuda.stream);
 
