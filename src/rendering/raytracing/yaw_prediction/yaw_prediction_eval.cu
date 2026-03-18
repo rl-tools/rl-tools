@@ -23,9 +23,6 @@
 #include "model.h"
 #include "scene.h"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
