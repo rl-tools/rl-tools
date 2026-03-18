@@ -133,6 +133,17 @@ static constexpr int CONCAT_DIM = LATE_DIM * 2;
 static constexpr int LATE_TOTAL = rlt::product(typename GPU_MODEL::SPEC::LATE_OUTPUT_SHAPE{});
 static constexpr int CONCAT_ROWS = LATE_TOTAL / LATE_DIM;
 static constexpr int FEATURES_TOTAL = rlt::product(typename GPU_MODEL::SPEC::EARLY_OUTPUT_SHAPE{});
+static constexpr int KW_ELEMENTS = GPU_MODEL::SPEC::KERNEL_WEIGHTS_ELEMENTS;
+
+// Dynamic conv2d spatial/kernel constants
+static constexpr int CROSS_IH = rlt::get<1>(typename GPU_MODEL::SPEC::EARLY_OUTPUT_SHAPE{});
+static constexpr int CROSS_IW = rlt::get<2>(typename GPU_MODEL::SPEC::EARLY_OUTPUT_SHAPE{});
+static constexpr int CROSS_C = GPU_MODEL::SPEC::EARLY_CHANNELS;
+static constexpr int CROSS_OH = rlt::get<1>(typename GPU_MODEL::SPEC::CROSS_CONV_OUTPUT_SHAPE{});
+static constexpr int CROSS_OW = rlt::get<2>(typename GPU_MODEL::SPEC::CROSS_CONV_OUTPUT_SHAPE{});
+static constexpr int CROSS_KH = GPU_MODEL::SPEC::KERNEL_HEIGHT;
+static constexpr int CROSS_KW = GPU_MODEL::SPEC::KERNEL_WIDTH;
+static constexpr int CROSS_OUTPUT_TOTAL = (int)BATCH_SIZE * CROSS_OH * CROSS_OW * CROSS_C;
 
 // ---- CUDA kernels ----
 
@@ -185,6 +196,86 @@ __global__ void add_tensors_kernel(
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= n) return;
     dst[idx] = (T_ACTIVATION)((float)dst[idx] + (float)src[idx]);
+}
+
+// Dynamic depthwise conv2d forward: data [BS,IH,IW,C] + kernel_weights [BS,C,KH,KW] -> pre_activations & output [BS,OH,OW,C]
+// One thread per output element. Activation is ReLU.
+template <int IH, int IW, int C, int OH, int OW, int KH, int KW, int SH, int SW, int PH, int PW>
+__global__ void dynamic_conv2d_forward_kernel(
+    const T_ACTIVATION* __restrict__ data,
+    const T_ACTIVATION* __restrict__ kernel_weights,
+    T_ACTIVATION* __restrict__ pre_activations,
+    T_ACTIVATION* __restrict__ output,
+    int batch_size
+) {
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int total = batch_size * OH * OW * C;
+    if (idx >= total) return;
+    const int c = idx % C;
+    const int ow = (idx / C) % OW;
+    const int oh = (idx / C / OW) % OH;
+    const int bi = idx / C / OW / OH;
+    float acc = 0.0f;
+    for (int kh = 0; kh < KH; kh++) {
+        for (int kw = 0; kw < KW; kw++) {
+            const int ih = oh * SH + kh - PH;
+            const int iw = ow * SW + kw - PW;
+            if (ih >= 0 && ih < IH && iw >= 0 && iw < IW) {
+                float d = (float)data[bi * IH * IW * C + ih * IW * C + iw * C + c];
+                float w = (float)kernel_weights[bi * C * KH * KW + c * KH * KW + kh * KW + kw];
+                acc += d * w;
+            }
+        }
+    }
+    pre_activations[idx] = (T_ACTIVATION)acc;
+    output[idx] = (T_ACTIVATION)(acc > 0.0f ? acc : 0.0f); // ReLU
+}
+
+// Dynamic depthwise conv2d backward: computes d_data [BS,IH,IW,C] and d_kernel_weights [BS,C,KH,KW]
+// One thread per output element, atomicAdd to d_data and d_kernel_weights
+template <int IH, int IW, int C, int OH, int OW, int KH, int KW, int SH, int SW, int PH, int PW>
+__global__ void dynamic_conv2d_backward_kernel(
+    const T_ACTIVATION* __restrict__ data,
+    const T_ACTIVATION* __restrict__ kernel_weights,
+    const T_ACTIVATION* __restrict__ pre_activations,
+    const T_ACTIVATION* __restrict__ d_output,
+    float* __restrict__ d_data_acc,
+    float* __restrict__ d_kw_acc,
+    int batch_size
+) {
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int total = batch_size * OH * OW * C;
+    if (idx >= total) return;
+    const int c = idx % C;
+    const int ow = (idx / C) % OW;
+    const int oh = (idx / C / OW) % OH;
+    const int bi = idx / C / OW / OH;
+    float pre_act = (float)pre_activations[idx];
+    float d_relu = pre_act > 0.0f ? 1.0f : 0.0f; // ReLU derivative
+    float d_pre = d_relu * (float)d_output[idx];
+    for (int kh = 0; kh < KH; kh++) {
+        for (int kw = 0; kw < KW; kw++) {
+            const int ih = oh * SH + kh - PH;
+            const int iw = ow * SW + kw - PW;
+            if (ih >= 0 && ih < IH && iw >= 0 && iw < IW) {
+                float d_val = (float)data[bi * IH * IW * C + ih * IW * C + iw * C + c];
+                float w_val = (float)kernel_weights[bi * C * KH * KW + c * KH * KW + kh * KW + kw];
+                atomicAdd(&d_data_acc[bi * IH * IW * C + ih * IW * C + iw * C + c], w_val * d_pre);
+                atomicAdd(&d_kw_acc[bi * C * KH * KW + c * KH * KW + kh * KW + kw], d_val * d_pre);
+            }
+        }
+    }
+}
+
+// Cast float accumulator to bf16 output (for d_data and d_kw after backward)
+__global__ void cast_float_to_bf16_kernel(
+    const float* __restrict__ src,
+    T_ACTIVATION* __restrict__ dst,
+    int n
+) {
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= n) return;
+    dst[idx] = (T_ACTIVATION)src[idx];
 }
 
 // Convert RGBA uint32 framebuffer pixels to bf16 RGB tensor [BATCH, H, W, 3] normalized to [0,1]
@@ -462,6 +553,12 @@ int main(int argc, char** argv) {
     float* gpu_total_loss;
     cudaMalloc(&gpu_total_loss, sizeof(float));
 
+    // Float accumulators for dynamic_conv2d backward (atomicAdd requires float)
+    float* gpu_d_data_acc;
+    float* gpu_d_kw_acc;
+    cudaMalloc(&gpu_d_data_acc, FEATURES_TOTAL * sizeof(float));
+    cudaMalloc(&gpu_d_kw_acc, KW_ELEMENTS * sizeof(float));
+
     // CPU-side buffers
     std::vector<float> cpu_targets(TOTAL_OUTPUT_ELEMENTS);
     std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
@@ -554,17 +651,30 @@ int main(int argc, char** argv) {
         rlt::forward(device_cuda, model.kernel_gen_a, model_buffer.features_b, model_buffer.buffer_kg_a, rng_cuda, train_mode);
         rlt::forward(device_cuda, model.kernel_gen_b, model_buffer.features_a, model_buffer.buffer_kg_b, rng_cuda, train_mode);
 
-        // 4. Save kernel weights (contiguous copies for backward)
+        // 4. Save kernel weights: kernel gen output is rank-2 [BS,576], buffer is rank-4 [BS,64,3,3]
+        //    Same flat memory layout, so use raw memcpy
         {
             auto kga = rlt::output(device_cuda, model.kernel_gen_a);
             auto kgb = rlt::output(device_cuda, model.kernel_gen_b);
-            rlt::copy(device_cuda, device_cuda, kga, model_buffer.kernel_weights_for_a);
-            rlt::copy(device_cuda, device_cuda, kgb, model_buffer.kernel_weights_for_b);
+            cudaMemcpyAsync(model_buffer.kernel_weights_for_a._data, kga._data,
+                KW_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToDevice, device_cuda.stream);
+            cudaMemcpyAsync(model_buffer.kernel_weights_for_b._data, kgb._data,
+                KW_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToDevice, device_cuda.stream);
         }
 
-        // 5. Cross-convolutions (dynamic_conv2d: data + kernel_weights -> output)
-        rlt::forward(device_cuda, model.cross_conv_a, model_buffer.features_a, model_buffer.kernel_weights_for_a, model_buffer.buffer_cross_a, rng_cuda, train_mode);
-        rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, model_buffer.kernel_weights_for_b, model_buffer.buffer_cross_b, rng_cuda, train_mode);
+        // 5. Cross-convolutions via CUDA kernel (generic ops segfault on device memory)
+        {
+            constexpr int threads = 256;
+            constexpr int blocks = (CROSS_OUTPUT_TOTAL + threads - 1) / threads;
+            dynamic_conv2d_forward_kernel<CROSS_IH, CROSS_IW, CROSS_C, CROSS_OH, CROSS_OW, CROSS_KH, CROSS_KW, 2, 2, 1, 1>
+                <<<blocks, threads, 0, device_cuda.stream>>>(
+                model_buffer.features_a._data, model_buffer.kernel_weights_for_a._data,
+                model.cross_conv_a.pre_activations._data, model.cross_conv_a.output._data, BATCH_SIZE);
+            dynamic_conv2d_forward_kernel<CROSS_IH, CROSS_IW, CROSS_C, CROSS_OH, CROSS_OW, CROSS_KH, CROSS_KW, 2, 2, 1, 1>
+                <<<blocks, threads, 0, device_cuda.stream>>>(
+                model_buffer.features_b._data, model_buffer.kernel_weights_for_b._data,
+                model.cross_conv_b.pre_activations._data, model.cross_conv_b.output._data, BATCH_SIZE);
+        }
 
         // 6. Late encoders (input is cross_conv output)
         {
@@ -635,19 +745,46 @@ int main(int argc, char** argv) {
             rlt::backward_full(device_cuda, model.late_encoder_b, cross_b_out, model_buffer.d_output_b, model_buffer.d_cross_b, model_buffer.buffer_late_b);
         }
 
-        // 4. Backward cross-convolutions -> d_features_{a,b}_direct, d_kw_for_{a,b}
-        rlt::backward_full(device_cuda, model.cross_conv_a,
-            model_buffer.features_a, model_buffer.kernel_weights_for_a,
-            model_buffer.d_cross_a, model_buffer.d_features_a, model_buffer.d_kw_for_a,
-            model_buffer.buffer_cross_a);
-        rlt::backward_full(device_cuda, model.cross_conv_b,
-            model_buffer.features_b, model_buffer.kernel_weights_for_b,
-            model_buffer.d_cross_b, model_buffer.d_features_b, model_buffer.d_kw_for_b,
-            model_buffer.buffer_cross_b);
+        // 4. Backward cross-convolutions via CUDA kernel -> d_features_{a,b}_direct, d_kw_for_{a,b}
+        {
+            constexpr int threads = 256;
+            constexpr int output_blocks = (CROSS_OUTPUT_TOTAL + threads - 1) / threads;
+            constexpr int feat_blocks = (FEATURES_TOTAL + threads - 1) / threads;
+            constexpr int kw_blocks = (KW_ELEMENTS + threads - 1) / threads;
+
+            // Cross-conv A backward
+            cudaMemsetAsync(gpu_d_data_acc, 0, FEATURES_TOTAL * sizeof(float), device_cuda.stream);
+            cudaMemsetAsync(gpu_d_kw_acc, 0, KW_ELEMENTS * sizeof(float), device_cuda.stream);
+            dynamic_conv2d_backward_kernel<CROSS_IH, CROSS_IW, CROSS_C, CROSS_OH, CROSS_OW, CROSS_KH, CROSS_KW, 2, 2, 1, 1>
+                <<<output_blocks, threads, 0, device_cuda.stream>>>(
+                model_buffer.features_a._data, model_buffer.kernel_weights_for_a._data,
+                model.cross_conv_a.pre_activations._data, model_buffer.d_cross_a._data,
+                gpu_d_data_acc, gpu_d_kw_acc, BATCH_SIZE);
+            cast_float_to_bf16_kernel<<<feat_blocks, threads, 0, device_cuda.stream>>>(
+                gpu_d_data_acc, model_buffer.d_features_a._data, FEATURES_TOTAL);
+            cast_float_to_bf16_kernel<<<kw_blocks, threads, 0, device_cuda.stream>>>(
+                gpu_d_kw_acc, model_buffer.d_kw_for_a._data, KW_ELEMENTS);
+
+            // Cross-conv B backward
+            cudaMemsetAsync(gpu_d_data_acc, 0, FEATURES_TOTAL * sizeof(float), device_cuda.stream);
+            cudaMemsetAsync(gpu_d_kw_acc, 0, KW_ELEMENTS * sizeof(float), device_cuda.stream);
+            dynamic_conv2d_backward_kernel<CROSS_IH, CROSS_IW, CROSS_C, CROSS_OH, CROSS_OW, CROSS_KH, CROSS_KW, 2, 2, 1, 1>
+                <<<output_blocks, threads, 0, device_cuda.stream>>>(
+                model_buffer.features_b._data, model_buffer.kernel_weights_for_b._data,
+                model.cross_conv_b.pre_activations._data, model_buffer.d_cross_b._data,
+                gpu_d_data_acc, gpu_d_kw_acc, BATCH_SIZE);
+            cast_float_to_bf16_kernel<<<feat_blocks, threads, 0, device_cuda.stream>>>(
+                gpu_d_data_acc, model_buffer.d_features_b._data, FEATURES_TOTAL);
+            cast_float_to_bf16_kernel<<<kw_blocks, threads, 0, device_cuda.stream>>>(
+                gpu_d_kw_acc, model_buffer.d_kw_for_b._data, KW_ELEMENTS);
+        }
 
         // 5. Backward kernel gens + accumulate gradients (diamond pattern)
+        // d_kw_for_a/b are rank-4 [BS,64,3,3] from cross-conv backward; kernel gen backward needs rank-2 [BS,576]
         // kernel_gen_a processes features_b -> d_kw_for_a flows back -> d_features_b_from_kgen
-        rlt::backward_full(device_cuda, model.kernel_gen_a, model_buffer.features_b, model_buffer.d_kw_for_a, model_buffer.d_features_temp, model_buffer.buffer_kg_a);
+        cudaMemcpyAsync(model_buffer.d_kw_for_kgen._data, model_buffer.d_kw_for_a._data,
+            KW_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToDevice, device_cuda.stream);
+        rlt::backward_full(device_cuda, model.kernel_gen_a, model_buffer.features_b, model_buffer.d_kw_for_kgen, model_buffer.d_features_temp, model_buffer.buffer_kg_a);
         {
             constexpr int threads = 256;
             constexpr int blocks = (FEATURES_TOTAL + threads - 1) / threads;
@@ -655,7 +792,9 @@ int main(int argc, char** argv) {
                 model_buffer.d_features_temp._data, model_buffer.d_features_b._data, FEATURES_TOTAL);
         }
         // kernel_gen_b processes features_a -> d_kw_for_b flows back -> d_features_a_from_kgen
-        rlt::backward_full(device_cuda, model.kernel_gen_b, model_buffer.features_a, model_buffer.d_kw_for_b, model_buffer.d_features_temp, model_buffer.buffer_kg_b);
+        cudaMemcpyAsync(model_buffer.d_kw_for_kgen._data, model_buffer.d_kw_for_b._data,
+            KW_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToDevice, device_cuda.stream);
+        rlt::backward_full(device_cuda, model.kernel_gen_b, model_buffer.features_a, model_buffer.d_kw_for_kgen, model_buffer.d_features_temp, model_buffer.buffer_kg_b);
         {
             constexpr int threads = 256;
             constexpr int blocks = (FEATURES_TOTAL + threads - 1) / threads;
@@ -776,11 +915,23 @@ int main(int argc, char** argv) {
                 {
                     auto kga = rlt::output(device_cuda, model.kernel_gen_a);
                     auto kgb = rlt::output(device_cuda, model.kernel_gen_b);
-                    rlt::copy(device_cuda, device_cuda, kga, model_buffer.kernel_weights_for_a);
-                    rlt::copy(device_cuda, device_cuda, kgb, model_buffer.kernel_weights_for_b);
+                    cudaMemcpyAsync(model_buffer.kernel_weights_for_a._data, kga._data,
+                        KW_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToDevice, device_cuda.stream);
+                    cudaMemcpyAsync(model_buffer.kernel_weights_for_b._data, kgb._data,
+                        KW_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToDevice, device_cuda.stream);
                 }
-                rlt::forward(device_cuda, model.cross_conv_a, model_buffer.features_a, model_buffer.kernel_weights_for_a, model_buffer.buffer_cross_a, rng_cuda, eval_mode);
-                rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, model_buffer.kernel_weights_for_b, model_buffer.buffer_cross_b, rng_cuda, eval_mode);
+                {
+                    constexpr int threads = 256;
+                    constexpr int blocks = (CROSS_OUTPUT_TOTAL + threads - 1) / threads;
+                    dynamic_conv2d_forward_kernel<CROSS_IH, CROSS_IW, CROSS_C, CROSS_OH, CROSS_OW, CROSS_KH, CROSS_KW, 2, 2, 1, 1>
+                        <<<blocks, threads, 0, device_cuda.stream>>>(
+                        model_buffer.features_a._data, model_buffer.kernel_weights_for_a._data,
+                        model.cross_conv_a.pre_activations._data, model.cross_conv_a.output._data, BATCH_SIZE);
+                    dynamic_conv2d_forward_kernel<CROSS_IH, CROSS_IW, CROSS_C, CROSS_OH, CROSS_OW, CROSS_KH, CROSS_KW, 2, 2, 1, 1>
+                        <<<blocks, threads, 0, device_cuda.stream>>>(
+                        model_buffer.features_b._data, model_buffer.kernel_weights_for_b._data,
+                        model.cross_conv_b.pre_activations._data, model.cross_conv_b.output._data, BATCH_SIZE);
+                }
                 {
                     auto cross_a_out = rlt::output(device_cuda, model.cross_conv_a);
                     auto cross_b_out = rlt::output(device_cuda, model.cross_conv_b);
@@ -870,6 +1021,8 @@ int main(int argc, char** argv) {
     cudaFree(gpu_targets);
     cudaFree(gpu_losses);
     cudaFree(gpu_total_loss);
+    cudaFree(gpu_d_data_acc);
+    cudaFree(gpu_d_kw_acc);
     rlt::free(device_cuda, gpu_input_a);
     rlt::free(device_cuda, gpu_input_b);
     rlt::free(device_cuda, gpu_d_input_a);

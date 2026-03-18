@@ -126,6 +126,11 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
         using CROSS_CONV_TYPE = nn::layers::dynamic_conv2d::Layer<CROSS_CONV_CONFIG<TYPE_POLICY, TI>, CAPABILITY, EARLY_OUTPUT_SHAPE>;
         using CROSS_CONV_OUTPUT_SHAPE = typename CROSS_CONV_TYPE::OUTPUT_SHAPE;
+        static constexpr TI KERNEL_HEIGHT = CROSS_CONV_CONFIG<TYPE_POLICY, TI>::KERNEL_HEIGHT;
+        static constexpr TI KERNEL_WIDTH = CROSS_CONV_CONFIG<TYPE_POLICY, TI>::KERNEL_WIDTH;
+        // Rank-4 shape for dynamic_conv2d kernel weights (view_memory requires matching rank)
+        using KERNEL_WEIGHTS_4D_SHAPE = tensor::Shape<TI, BATCH_SIZE, EARLY_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH>;
+        static constexpr TI KERNEL_WEIGHTS_ELEMENTS = BATCH_SIZE * EARLY_CHANNELS * KERNEL_HEIGHT * KERNEL_WIDTH;
 
         using LATE_ENCODER_TYPE = typename LATE_ENCODER_MODULE<TYPE_POLICY, TI>::template Layer<CAPABILITY, CROSS_CONV_OUTPUT_SHAPE>;
         using LATE_OUTPUT_SHAPE = typename LATE_ENCODER_TYPE::OUTPUT_SHAPE;
@@ -217,9 +222,10 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         Tensor<FEATURES_SPEC> features_a;
         Tensor<FEATURES_SPEC> features_b;
 
-        using KERNEL_WEIGHTS_BUFFER_SPEC = tensor::Specification<T, TI, typename SPEC::KERNEL_GEN_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::KERNEL_GEN_OUTPUT_SHAPE>>;
-        Tensor<KERNEL_WEIGHTS_BUFFER_SPEC> kernel_weights_for_a;
-        Tensor<KERNEL_WEIGHTS_BUFFER_SPEC> kernel_weights_for_b;
+        // Rank-4 [BS,C,KH,KW] for dynamic_conv2d (view_memory requires rank match)
+        using KERNEL_WEIGHTS_4D_SPEC = tensor::Specification<T, TI, typename SPEC::KERNEL_WEIGHTS_4D_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::KERNEL_WEIGHTS_4D_SHAPE>>;
+        Tensor<KERNEL_WEIGHTS_4D_SPEC> kernel_weights_for_a;
+        Tensor<KERNEL_WEIGHTS_4D_SPEC> kernel_weights_for_b;
 
         // Forward intermediates (for concat)
         using LATE_OUTPUT_TENSOR_SPEC = tensor::Specification<T, TI, typename SPEC::LATE_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::LATE_OUTPUT_SHAPE>>;
@@ -234,8 +240,12 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         Tensor<FEATURES_SPEC> d_features_b;
         Tensor<FEATURES_SPEC> d_features_temp;
 
-        Tensor<KERNEL_WEIGHTS_BUFFER_SPEC> d_kw_for_a;
-        Tensor<KERNEL_WEIGHTS_BUFFER_SPEC> d_kw_for_b;
+        Tensor<KERNEL_WEIGHTS_4D_SPEC> d_kw_for_a;
+        Tensor<KERNEL_WEIGHTS_4D_SPEC> d_kw_for_b;
+
+        // Rank-2 temp [BS, C*KH*KW] matching kernel gen output shape for backward d_output
+        using KERNEL_GEN_D_OUTPUT_SPEC = tensor::Specification<T, TI, typename SPEC::KERNEL_GEN_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::KERNEL_GEN_OUTPUT_SHAPE>>;
+        Tensor<KERNEL_GEN_D_OUTPUT_SPEC> d_kw_for_kgen;
 
         using CROSS_OUTPUT_TENSOR_SPEC = tensor::Specification<T, TI, typename SPEC::CROSS_CONV_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::CROSS_CONV_OUTPUT_SHAPE>>;
         Tensor<CROSS_OUTPUT_TENSOR_SPEC> d_cross_a;
