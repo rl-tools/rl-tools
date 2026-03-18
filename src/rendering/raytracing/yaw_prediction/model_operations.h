@@ -65,8 +65,6 @@ namespace rl_tools {
         malloc(device, buffer.buffer_head);
         malloc(device, buffer.features_a);
         malloc(device, buffer.features_b);
-        malloc(device, buffer.kernel_weights_for_a);
-        malloc(device, buffer.kernel_weights_for_b);
         malloc(device, buffer.intermediate_a);
         malloc(device, buffer.intermediate_b);
         malloc(device, buffer.concatenated);
@@ -75,7 +73,6 @@ namespace rl_tools {
         malloc(device, buffer.d_features_temp);
         malloc(device, buffer.d_kw_for_a);
         malloc(device, buffer.d_kw_for_b);
-        malloc(device, buffer.d_kw_for_kgen);
         malloc(device, buffer.d_cross_a);
         malloc(device, buffer.d_cross_b);
         malloc(device, buffer.d_concatenated);
@@ -95,8 +92,6 @@ namespace rl_tools {
         free(device, buffer.buffer_head);
         free(device, buffer.features_a);
         free(device, buffer.features_b);
-        free(device, buffer.kernel_weights_for_a);
-        free(device, buffer.kernel_weights_for_b);
         free(device, buffer.intermediate_a);
         free(device, buffer.intermediate_b);
         free(device, buffer.concatenated);
@@ -105,7 +100,6 @@ namespace rl_tools {
         free(device, buffer.d_features_temp);
         free(device, buffer.d_kw_for_a);
         free(device, buffer.d_kw_for_b);
-        free(device, buffer.d_kw_for_kgen);
         free(device, buffer.d_cross_a);
         free(device, buffer.d_cross_b);
         free(device, buffer.d_concatenated);
