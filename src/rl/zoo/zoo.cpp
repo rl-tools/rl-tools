@@ -108,6 +108,7 @@
 #include "l2f/ppo.h"
 #include "reacher-v0/ppo.h"
 #include "reacher-visual-v0/ppo.h"
+#include "reacher-memory-v0-visual/ppo.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ant-v4/ppo.h"
 #include "ant-v4/td3.h"
@@ -269,6 +270,10 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 using LOOP_CORE_CONFIG = rlt::rl::zoo::reacher_visual_v0::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_MEMORY_V0_VISUAL)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::reacher_memory_v0_visual::ppo::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #else
 #error "RLtools Zoo PPO: Environment not defined"
 #endif
@@ -355,6 +360,8 @@ std::string environment = "l2f";
 std::string environment = "reacher-v0";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_VISUAL_V0)
 std::string environment = "reacher-visual-v0";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_MEMORY_V0_VISUAL)
+std::string environment = "reacher-memory-v0-visual";
 #else
 #error "RLtools Zoo: Environment not defined"
 #endif
