@@ -110,15 +110,6 @@ using TEACHER_CPU_MODEL_FWD = yp::MODEL<TEACHER_CPU_FWD_CAPABILITY, CPU_TYPE_POL
 using TEACHER_GPU_CAPABILITY = rlt::nn::capability::Forward<>;
 using TEACHER_GPU_MODEL = yp::MODEL<TEACHER_GPU_CAPABILITY, TYPE_POLICY, TI_CUDA, BATCH_SIZE>;
 
-// Teacher head with Gradient capability on GPU for forward() + backward_input()
-using TEACHER_HEAD_BW_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>;
-using TEACHER_HEAD_CONCAT_SHAPE = typename TEACHER_GPU_MODEL::SPEC::CONCAT_OUTPUT_SHAPE;
-using TEACHER_HEAD_BW = typename yp::HEAD_MODULE<TYPE_POLICY, TI_CUDA>::template Layer<TEACHER_HEAD_BW_CAPABILITY, TEACHER_HEAD_CONCAT_SHAPE>;
-
-// CPU teacher head with Gradient capability (intermediate for copying to GPU)
-using TEACHER_HEAD_CPU_CONCAT_SHAPE = typename TEACHER_CPU_MODEL_GRAD::SPEC::CONCAT_OUTPUT_SHAPE;
-using TEACHER_HEAD_CPU_BW = typename yp::HEAD_MODULE<CPU_TYPE_POLICY, TI>::template Layer<TEACHER_CPU_GRAD_CAPABILITY, TEACHER_HEAD_CPU_CONCAT_SHAPE>;
-
 // ---- Student model (trainable) ----
 struct AdamParams : rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY> {
     static constexpr float ALPHA = DistillConfig::LEARNING_RATE;
@@ -131,6 +122,13 @@ using STUDENT_GPU_MODEL = yp::STUDENT_MODEL<STUDENT_GPU_CAPABILITY, TYPE_POLICY,
 using STUDENT_CPU_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using STUDENT_CPU_MODEL = yp::STUDENT_MODEL<STUDENT_CPU_CAPABILITY, CPU_TYPE_POLICY, TI, BATCH_SIZE>;
 using STUDENT_CPU_MODEL_INFERENCE = typename STUDENT_CPU_MODEL::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
+
+// Student head (trainable, same architecture as teacher head)
+using STUDENT_CONCAT_SHAPE = typename STUDENT_GPU_MODEL::SPEC::CONCAT_OUTPUT_SHAPE;
+using STUDENT_HEAD_GPU = typename yp::HEAD_MODULE<TYPE_POLICY, TI_CUDA>::template Layer<STUDENT_GPU_CAPABILITY, STUDENT_CONCAT_SHAPE>;
+using STUDENT_HEAD_CPU_CONCAT_SHAPE = typename STUDENT_CPU_MODEL::SPEC::CONCAT_OUTPUT_SHAPE;
+using STUDENT_HEAD_CPU = typename yp::HEAD_MODULE<CPU_TYPE_POLICY, TI>::template Layer<STUDENT_CPU_CAPABILITY, STUDENT_HEAD_CPU_CONCAT_SHAPE>;
+using STUDENT_HEAD_CPU_INFERENCE = typename STUDENT_HEAD_CPU::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
 
 // ---- Tensor shapes ----
 using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_WIDTH, 3>;
@@ -149,8 +147,8 @@ static constexpr int STUDENT_CONCAT_DIM = STUDENT_GPU_MODEL::SPEC::LAST_DIM;
 static_assert(STUDENT_ENCODER_DIM_VAL == TEACHER_ENCODER_DIM_VAL, "Student projection must match teacher encoder dim");
 static_assert(STUDENT_CONCAT_DIM == TEACHER_CONCAT_DIM, "Student concatenated dim must match teacher");
 
-// Teacher head output shape (3 values: px, py, roll)
-using TEACHER_HEAD_OUTPUT_SHAPE = typename TEACHER_HEAD_BW::OUTPUT_SHAPE;
+// Head output shape (3 values: px, py, roll)
+using HEAD_OUTPUT_SHAPE = typename STUDENT_HEAD_GPU::OUTPUT_SHAPE;
 static constexpr TI OUTPUT_DIM = 3;
 static constexpr TI TOTAL_OUTPUT_ELEMENTS = BATCH_SIZE * OUTPUT_DIM;
 
@@ -541,19 +539,6 @@ int main(int argc, char** argv) {
     rlt::copy(device_cpu, device_cuda, teacher_cpu_fwd, teacher);
     rlt::free(device_cpu, teacher_cpu_fwd);
 
-    // Teacher head with Gradient capability on GPU (for forward() + backward_input())
-    TEACHER_HEAD_BW teacher_head_bw;
-    typename TEACHER_HEAD_BW::template Buffer<true> teacher_head_bw_buffer;
-    rlt::malloc(device_cuda, teacher_head_bw);
-    rlt::malloc(device_cuda, teacher_head_bw_buffer);
-
-    // Copy head: CPU Gradient → GPU Gradient (same capability, cross-device)
-    // Extract head from CPU Gradient model as a standalone CPU head
-    TEACHER_HEAD_CPU_BW teacher_head_cpu_bw;
-    rlt::malloc(device_cpu, teacher_head_cpu_bw);
-    rlt::copy(device_cpu, device_cpu, teacher_cpu_grad.head, teacher_head_cpu_bw);
-    rlt::copy(device_cpu, device_cuda, teacher_head_cpu_bw, teacher_head_bw);
-    rlt::free(device_cpu, teacher_head_cpu_bw);
     rlt::free(device_cpu, teacher_cpu_grad);
 #else
     std::cerr << "Error: HDF5 support required for loading teacher checkpoint" << std::endl;
@@ -569,19 +554,31 @@ int main(int argc, char** argv) {
     rlt::malloc(device_cuda, student_buffer);
     rlt::init(device_cuda, optimizer);
 
+    STUDENT_HEAD_GPU student_head;
+    typename STUDENT_HEAD_GPU::template Buffer<true> student_head_buffer;
+    rlt::malloc(device_cuda, student_head);
+    rlt::malloc(device_cuda, student_head_buffer);
+
     STUDENT_CPU_MODEL student_cpu;
     STUDENT_CPU_MODEL_INFERENCE student_cpu_inference;
+    STUDENT_HEAD_CPU student_head_cpu;
+    STUDENT_HEAD_CPU_INFERENCE student_head_cpu_inference;
     rlt::malloc(device_cpu, student_cpu);
     rlt::malloc(device_cpu, student_cpu_inference);
+    rlt::malloc(device_cpu, student_head_cpu);
+    rlt::malloc(device_cpu, student_head_cpu_inference);
     {
         DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng_cpu;
         rlt::malloc(device_cpu, rng_cpu);
         rlt::init(device_cpu, rng_cpu, 42);
         rlt::init_weights(device_cpu, student_cpu, rng_cpu);
+        rlt::init_weights(device_cpu, student_head_cpu, rng_cpu);
         rlt::free(device_cpu, rng_cpu);
     }
     rlt::copy(device_cpu, device_cuda, student_cpu, student);
+    rlt::copy(device_cpu, device_cuda, student_head_cpu, student_head);
     rlt::reset_optimizer_state(device_cuda, optimizer, student);
+    rlt::reset_optimizer_state(device_cuda, optimizer, student_head);
     std::cout << "Student model initialized" << std::endl;
 
     // ---- GPU tensors ----
@@ -594,9 +591,9 @@ int main(int argc, char** argv) {
     rlt::malloc(device_cuda, gpu_d_input_a);
     rlt::malloc(device_cuda, gpu_d_input_b);
 
-    // Teacher head output gradient
-    using TEACHER_HEAD_D_OUTPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, TEACHER_HEAD_OUTPUT_SHAPE>;
-    rlt::Tensor<TEACHER_HEAD_D_OUTPUT_SPEC> gpu_d_head_output;
+    // Head output gradient
+    using HEAD_D_OUTPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, HEAD_OUTPUT_SHAPE>;
+    rlt::Tensor<HEAD_D_OUTPUT_SPEC> gpu_d_head_output;
     rlt::malloc(device_cuda, gpu_d_head_output);
 
     // d_concatenated from teacher head backward_input
@@ -727,6 +724,7 @@ int main(int argc, char** argv) {
 
         // ---- Student forward (train mode) ----
         rlt::zero_gradient(device_cuda, student);
+        rlt::zero_gradient(device_cuda, student_head);
 
         rlt::forward(device_cuda, student.pipeline_a, gpu_input_a, student_buffer.buffer_a, rng_cuda, train_mode);
         rlt::forward(device_cuda, student.pipeline_b, gpu_input_b, student_buffer.buffer_b, rng_cuda, train_mode);
@@ -777,11 +775,10 @@ int main(int argc, char** argv) {
             );
         }
 
-        // Forward through teacher head (backward-capable copy) with student features
-        rlt::zero_gradient(device_cuda, teacher_head_bw);
-        rlt::forward(device_cuda, teacher_head_bw, student_buffer.concatenated, teacher_head_bw_buffer, rng_cuda, train_mode);
+        // Forward through student head
+        rlt::forward(device_cuda, student_head, student_buffer.concatenated, student_head_buffer, rng_cuda, train_mode);
         {
-            auto head_output = rlt::output(device_cuda, teacher_head_bw);
+            auto head_output = rlt::output(device_cuda, student_head);
             // Compute Huber loss against ground truth targets
             {
                 constexpr int threads = 256;
@@ -793,16 +790,8 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Backward through teacher head to get d_student_concatenated
-        // Using backward_full (accumulates unused gradients in teacher head, but avoids bf16 constexpr issue in backward_input)
-        {
-            cudaStreamSynchronize(device_cuda.stream);
-            cudaError_t pre_err = cudaGetLastError();
-            if (pre_err != cudaSuccess) {
-                std::cerr << "CUDA error before teacher head backward: " << cudaGetErrorString(pre_err) << std::endl;
-            }
-        }
-        rlt::backward_full(device_cuda, teacher_head_bw, student_buffer.concatenated, gpu_d_head_output, gpu_d_student_concat_task, teacher_head_bw_buffer);
+        // Backward through student head to get d_student_concatenated
+        rlt::backward_full(device_cuda, student_head, student_buffer.concatenated, gpu_d_head_output, gpu_d_student_concat_task, student_head_buffer);
 
         // Split task gradient into per-branch gradients and add cosine similarity gradients
         {
@@ -836,6 +825,7 @@ int main(int argc, char** argv) {
 
         // ---- Optimizer step ----
         rlt::step(device_cuda, optimizer, student);
+        rlt::step(device_cuda, optimizer, student_head);
 
         // ---- Checkpointing ----
 #ifdef RL_TOOLS_ENABLE_HDF5
@@ -843,10 +833,14 @@ int main(int argc, char** argv) {
             cudaStreamSynchronize(device_cuda.stream);
             rlt::copy(device_cuda, device_cpu, student, student_cpu);
             rlt::copy(device_cpu, device_cpu, student_cpu, student_cpu_inference);
+            rlt::copy(device_cuda, device_cpu, student_head, student_head_cpu);
+            rlt::copy(device_cpu, device_cpu, student_head_cpu, student_head_cpu_inference);
             auto step_folder = rlt::get_step_folder(device_cpu, extrack_config, extrack_paths, iteration);
             auto file = HighFive::File((step_folder / "checkpoint.h5").string(), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
             auto mg = rlt::create_group(device_cpu, file, "student");
             rlt::save(device_cpu, student_cpu_inference, mg);
+            auto mg_head = rlt::create_group(device_cpu, file, "student_head");
+            rlt::save(device_cpu, student_head_cpu_inference, mg_head);
             std::cout << "  Checkpoint: " << (step_folder / "checkpoint.h5").string() << std::endl;
         }
 #endif
@@ -864,7 +858,7 @@ int main(int argc, char** argv) {
             float loss_vals[2];
             cudaMemcpy(loss_vals, gpu_total_loss, 2 * sizeof(float), cudaMemcpyDeviceToHost);
 
-            auto head_output = rlt::output(device_cuda, teacher_head_bw);
+            auto head_output = rlt::output(device_cuda, student_head);
             std::vector<T_ACTIVATION> pred_buf_raw(TOTAL_OUTPUT_ELEMENTS);
             cudaMemcpy(pred_buf_raw.data(), head_output._data, TOTAL_OUTPUT_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost);
 
@@ -961,8 +955,8 @@ int main(int argc, char** argv) {
                     );
                 }
 
-                // Through teacher head (eval mode, using teacher_head_bw whose BN running stats track student features)
-                rlt::evaluate(device_cuda, teacher_head_bw, student_buffer.concatenated, gpu_teacher_predictions, teacher_head_bw_buffer, rng_cuda, eval_mode);
+                // Through student head (eval mode)
+                rlt::evaluate(device_cuda, student_head, student_buffer.concatenated, gpu_teacher_predictions, student_head_buffer, rng_cuda, eval_mode);
 
                 // Teacher forward (eval mode) for expert baseline
                 rlt::evaluate(device_cuda, teacher.pipeline_a, gpu_input_a, teacher_buffer.intermediate_a, teacher_buffer.buffer_a, rng_cuda, eval_mode);
@@ -991,7 +985,7 @@ int main(int argc, char** argv) {
                 }
 
                 // Rerun student through head for student error (reuse gpu_teacher_predictions buffer)
-                rlt::evaluate(device_cuda, teacher_head_bw, student_buffer.concatenated, gpu_teacher_predictions, teacher_head_bw_buffer, rng_cuda, eval_mode);
+                rlt::evaluate(device_cuda, student_head, student_buffer.concatenated, gpu_teacher_predictions, student_head_buffer, rng_cuda, eval_mode);
 
                 cudaStreamSynchronize(device_cuda.stream);
 
@@ -1054,13 +1048,15 @@ int main(int argc, char** argv) {
     rlt::free(device_cuda, student_buffer);
     rlt::free(device_cuda, student);
     rlt::free(device_cuda, optimizer);
-    rlt::free(device_cuda, teacher_head_bw_buffer);
-    rlt::free(device_cuda, teacher_head_bw);
+    rlt::free(device_cuda, student_head_buffer);
+    rlt::free(device_cuda, student_head);
     rlt::free(device_cuda, teacher_buffer);
     rlt::free(device_cuda, teacher);
     rlt::free(device_cuda, rng_cuda);
     rlt::free(device_cpu, student_cpu);
     rlt::free(device_cpu, student_cpu_inference);
+    rlt::free(device_cpu, student_head_cpu);
+    rlt::free(device_cpu, student_head_cpu_inference);
     for (auto& s : loaded_scenes) {
         yp::destroy_scene(s.handle);
     }
