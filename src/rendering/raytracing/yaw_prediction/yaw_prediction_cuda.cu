@@ -96,6 +96,9 @@ struct TrainingConfig {
     static constexpr float COS_FOV_MIN = 0.3f;  // wide FOV
     static constexpr float COS_FOV_MAX = 1.2f;   // narrow FOV
     static constexpr float HUBER_DELTA = 0.1f;
+    static constexpr float LOSS_WEIGHT_PX = 1.0f;
+    static constexpr float LOSS_WEIGHT_PY = 1.0f;
+    static constexpr float LOSS_WEIGHT_ROLL = 1.0f;
     static constexpr TI LOG_INTERVAL = 100;
     static constexpr TI VAL_INTERVAL = 1000;
     static constexpr TI CHECKPOINT_INTERVAL = 100000;
@@ -223,22 +226,29 @@ __global__ void huber_loss_gradient_kernel(
     T_GRADIENT* __restrict__ d_output,
     float* __restrict__ losses,
     int total_elements,
-    float delta
+    int output_dim,
+    float delta,
+    float weight_px,
+    float weight_py,
+    float weight_roll
 ) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= total_elements) return;
+
+    const int component = idx % output_dim;
+    const float weight = (component == 0) ? weight_px : (component == 1) ? weight_py : weight_roll;
 
     const float pred = (float)predictions[idx];
     const float tgt = targets[idx];
     const float diff = pred - tgt;
     const float abs_diff = abs(diff);
 
-    const float scale = 1.0f / static_cast<float>(total_elements);
+    const float scale = weight / static_cast<float>(total_elements);
     if (abs_diff <= delta) {
-        losses[idx] = 0.5f * diff * diff;
+        losses[idx] = weight * 0.5f * diff * diff;
         d_output[idx] = (T_GRADIENT)(scale * diff);
     } else {
-        losses[idx] = delta * (abs_diff - 0.5f * delta);
+        losses[idx] = weight * delta * (abs_diff - 0.5f * delta);
         d_output[idx] = (T_GRADIENT)(scale * delta * ((diff > 0.0f) - (diff < 0.0f)));
     }
 }
@@ -246,13 +256,20 @@ __global__ void huber_loss_gradient_kernel(
 __global__ void reduce_loss_kernel(
     const float* __restrict__ losses,
     float* __restrict__ total_loss,
-    int total_elements
+    float* __restrict__ component_losses,
+    int batch_size,
+    int output_dim
 ) {
-    float sum = 0.0f;
-    for (int i = 0; i < total_elements; i++) {
-        sum += losses[i];
+    float total = 0.0f;
+    for (int c = 0; c < output_dim; c++) {
+        float sum = 0.0f;
+        for (int b = 0; b < batch_size; b++) {
+            sum += losses[b * output_dim + c];
+        }
+        component_losses[c] = sum / static_cast<float>(batch_size);
+        total += sum;
     }
-    *total_loss = sum / static_cast<float>(total_elements);
+    *total_loss = total / static_cast<float>(batch_size * output_dim);
 }
 
 int main(int argc, char** argv) {
@@ -463,6 +480,9 @@ int main(int argc, char** argv) {
     float* gpu_total_loss;
     cudaMalloc(&gpu_total_loss, sizeof(float));
 
+    float* gpu_component_losses;
+    cudaMalloc(&gpu_component_losses, OUTPUT_DIM * sizeof(float));
+
     // CPU-side buffers
     std::vector<float> cpu_targets(TOTAL_OUTPUT_ELEMENTS);
     std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
@@ -604,7 +624,8 @@ int main(int argc, char** argv) {
             constexpr int threads = 256;
             constexpr int blocks = (TOTAL_OUTPUT_ELEMENTS + threads - 1) / threads;
             huber_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS, TrainingConfig::HUBER_DELTA
+                output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS, OUTPUT_DIM,
+                TrainingConfig::HUBER_DELTA, TrainingConfig::LOSS_WEIGHT_PX, TrainingConfig::LOSS_WEIGHT_PY, TrainingConfig::LOSS_WEIGHT_ROLL
             );
         }
 
@@ -683,12 +704,14 @@ int main(int argc, char** argv) {
         // ---- Logging ----
         if (iteration % TrainingConfig::LOG_INTERVAL == 0 || iteration == num_iterations - 1) {
             reduce_loss_kernel<<<1, 1, 0, device_cuda.stream>>>(
-                gpu_losses, gpu_total_loss, TOTAL_OUTPUT_ELEMENTS
+                gpu_losses, gpu_total_loss, gpu_component_losses, BATCH_SIZE, OUTPUT_DIM
             );
             cudaStreamSynchronize(device_cuda.stream);
 
             float loss_val;
             cudaMemcpy(&loss_val, gpu_total_loss, sizeof(float), cudaMemcpyDeviceToHost);
+            float component_losses[OUTPUT_DIM];
+            cudaMemcpy(component_losses, gpu_component_losses, OUTPUT_DIM * sizeof(float), cudaMemcpyDeviceToHost);
 
             std::vector<T_ACTIVATION> pred_buf_raw(TOTAL_OUTPUT_ELEMENTS);
             cudaMemcpy(pred_buf_raw.data(), output_view._data, TOTAL_OUTPUT_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost);
@@ -712,6 +735,9 @@ int main(int argc, char** argv) {
                 : 0.0;
 
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss", loss_val);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss_px", component_losses[0]);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss_py", component_losses[1]);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "train/loss_roll", component_losses[2]);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_px", err_px);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_py", err_py);
             rlt::add_scalar(device_cpu, device_cpu.logger, "train/err_roll", err_roll);
@@ -719,6 +745,9 @@ int main(int argc, char** argv) {
 
             std::cout << "[iter " << iteration << "/" << num_iterations << "]"
                       << "  loss=" << loss_val
+                      << "  loss_px=" << component_losses[0]
+                      << "  loss_py=" << component_losses[1]
+                      << "  loss_roll=" << component_losses[2]
                       << "  err_px=" << err_px
                       << "  err_py=" << err_py
                       << "  err_roll=" << err_roll
@@ -731,6 +760,7 @@ int main(int argc, char** argv) {
         if (val_scenes.size() > 0 && (iteration % TrainingConfig::VAL_INTERVAL == 0 || iteration == num_iterations - 1)) {
             auto eval_mode = rlt::Mode<rlt::mode::Evaluation<>>{};
             float val_loss_sum = 0.0f;
+            float val_loss_px_sum = 0.0f, val_loss_py_sum = 0.0f, val_loss_roll_sum = 0.0f;
             float val_err_px_sum = 0.0f, val_err_py_sum = 0.0f, val_err_roll_sum = 0.0f;
             TI val_total_samples = 0;
 
@@ -809,16 +839,19 @@ int main(int argc, char** argv) {
                     constexpr int threads = 256;
                     constexpr int blocks = (TOTAL_OUTPUT_ELEMENTS + threads - 1) / threads;
                     huber_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                        val_output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS, TrainingConfig::HUBER_DELTA
+                        val_output_view._data, gpu_targets, gpu_d_output._data, gpu_losses, TOTAL_OUTPUT_ELEMENTS, OUTPUT_DIM,
+                        TrainingConfig::HUBER_DELTA, TrainingConfig::LOSS_WEIGHT_PX, TrainingConfig::LOSS_WEIGHT_PY, TrainingConfig::LOSS_WEIGHT_ROLL
                     );
                 }
                 reduce_loss_kernel<<<1, 1, 0, device_cuda.stream>>>(
-                    gpu_losses, gpu_total_loss, TOTAL_OUTPUT_ELEMENTS
+                    gpu_losses, gpu_total_loss, gpu_component_losses, BATCH_SIZE, OUTPUT_DIM
                 );
                 cudaStreamSynchronize(device_cuda.stream);
 
                 float scene_loss;
                 cudaMemcpy(&scene_loss, gpu_total_loss, sizeof(float), cudaMemcpyDeviceToHost);
+                float scene_component_losses[OUTPUT_DIM];
+                cudaMemcpy(scene_component_losses, gpu_component_losses, OUTPUT_DIM * sizeof(float), cudaMemcpyDeviceToHost);
 
                 std::vector<T_ACTIVATION> val_pred_buf_raw(TOTAL_OUTPUT_ELEMENTS);
                 cudaMemcpy(val_pred_buf_raw.data(), val_output_view._data, TOTAL_OUTPUT_ELEMENTS * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost);
@@ -831,6 +864,9 @@ int main(int argc, char** argv) {
                 }
 
                 val_loss_sum += scene_loss * TOTAL_OUTPUT_ELEMENTS;
+                val_loss_px_sum += scene_component_losses[0] * BATCH_SIZE;
+                val_loss_py_sum += scene_component_losses[1] * BATCH_SIZE;
+                val_loss_roll_sum += scene_component_losses[2] * BATCH_SIZE;
                 val_err_px_sum += scene_err_px;
                 val_err_py_sum += scene_err_py;
                 val_err_roll_sum += scene_err_roll;
@@ -838,16 +874,25 @@ int main(int argc, char** argv) {
             }
 
             float val_loss = val_loss_sum / (val_total_samples * OUTPUT_DIM);
+            float val_loss_px = val_loss_px_sum / val_total_samples;
+            float val_loss_py = val_loss_py_sum / val_total_samples;
+            float val_loss_roll = val_loss_roll_sum / val_total_samples;
             float val_err_px = val_err_px_sum / val_total_samples;
             float val_err_py = val_err_py_sum / val_total_samples;
             float val_err_roll = val_err_roll_sum / val_total_samples;
 
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/loss", val_loss);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/loss_px", val_loss_px);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/loss_py", val_loss_py);
+            rlt::add_scalar(device_cpu, device_cpu.logger, "val/loss_roll", val_loss_roll);
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_px", val_err_px);
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_py", val_err_py);
             rlt::add_scalar(device_cpu, device_cpu.logger, "val/err_roll", val_err_roll);
 
             std::cout << "[iter " << iteration << "] VAL loss=" << val_loss
+                      << "  loss_px=" << val_loss_px
+                      << "  loss_py=" << val_loss_py
+                      << "  loss_roll=" << val_loss_roll
                       << "  err_px=" << val_err_px
                       << "  err_py=" << val_err_py
                       << "  err_roll=" << val_err_roll << std::endl;
@@ -864,6 +909,7 @@ int main(int argc, char** argv) {
     cudaFree(gpu_targets);
     cudaFree(gpu_losses);
     cudaFree(gpu_total_loss);
+    cudaFree(gpu_component_losses);
     rlt::free(device_cuda, gpu_input_a);
     rlt::free(device_cuda, gpu_input_b);
     rlt::free(device_cuda, gpu_d_input_a);
