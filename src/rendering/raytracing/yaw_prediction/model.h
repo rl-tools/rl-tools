@@ -40,10 +40,9 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
     // --- Sub-module configs ---
 
-    // Early encoder: CONV_16 -> CONV_32 -> CONV_64 (128x128x3 -> 16x16x64)
+    // Early encoder: CONV_32 -> CONV_64 (64x64x3 -> 16x16x64)
     template<typename TYPE_POLICY, typename TI>
     using EARLY_ENCODER_MODULE = nn_models::sequential::Module<
-        nn::layers::conv2d::BindConfiguration<CONV_16_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_32_CONFIG<TYPE_POLICY, TI>>,
         nn::layers::conv2d::BindConfiguration<CONV_64_CONFIG<TYPE_POLICY, TI>>
     >;
@@ -268,7 +267,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
             utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, GRADIENT, void>>>;
     };
 
-    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 128, TI WIDTH = 128>
+    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64>
     struct MODEL : BuildModuleType<CAPABILITY, Specification<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH>>::type {
         template <typename NEW_CAPABILITY>
         using CHANGE_CAPABILITY = MODEL<NEW_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH>;
