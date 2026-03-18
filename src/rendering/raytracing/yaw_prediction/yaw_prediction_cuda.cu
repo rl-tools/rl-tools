@@ -551,26 +551,25 @@ int main(int argc, char** argv) {
             rlt::copy(device_cuda, device_cuda, fb, model_buffer.features_b);
         }
 
-        // 3. Kernel gens (cross inputs: a processes b's features, b processes a's features)
-        rlt::forward(device_cuda, model.kernel_gen_a, model_buffer.features_b, model_buffer.buffer_kg_a, rng_cuda, train_mode);
+        // 3. Kernel gen (branch B: a's features → kernel for cross-conv on b)
         rlt::forward(device_cuda, model.kernel_gen_b, model_buffer.features_a, model_buffer.buffer_kg_b, rng_cuda, train_mode);
 
-        // 4-5. Cross-convolutions via operations_cuda.h
+        // 4. Standard conv A (self-contained branch)
+        rlt::forward(device_cuda, model.standard_conv_a, model_buffer.features_a, model_buffer.buffer_standard_conv_a, rng_cuda, train_mode);
+
+        // 5. Cross-convolution B via operations_cuda.h
         {
             using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-            auto kga_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_a));
             auto kgb_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_b));
-            rlt::forward(device_cuda, model.cross_conv_a, model_buffer.features_a, kga_4d,
-                model_buffer.buffer_cross_a, rng_cuda, train_mode);
             rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, kgb_4d,
                 model_buffer.buffer_cross_b, rng_cuda, train_mode);
         }
 
-        // 6. Late encoders (input is cross_conv output)
+        // 6. Late encoders
         {
-            auto cross_a_out = rlt::output(device_cuda, model.cross_conv_a);
+            auto standard_a_out = rlt::output(device_cuda, model.standard_conv_a);
             auto cross_b_out = rlt::output(device_cuda, model.cross_conv_b);
-            rlt::forward(device_cuda, model.late_encoder_a, cross_a_out, model_buffer.buffer_late_a, rng_cuda, train_mode);
+            rlt::forward(device_cuda, model.late_encoder_a, standard_a_out, model_buffer.buffer_late_a, rng_cuda, train_mode);
             rlt::forward(device_cuda, model.late_encoder_b, cross_b_out, model_buffer.buffer_late_b, rng_cuda, train_mode);
         }
 
@@ -629,36 +628,29 @@ int main(int argc, char** argv) {
 
         // 3. Backward late encoders
         {
-            auto cross_a_out = rlt::output(device_cuda, model.cross_conv_a);
+            auto standard_a_out = rlt::output(device_cuda, model.standard_conv_a);
             auto cross_b_out = rlt::output(device_cuda, model.cross_conv_b);
-            rlt::backward_full(device_cuda, model.late_encoder_a, cross_a_out, model_buffer.d_output_a, model_buffer.d_cross_a, model_buffer.buffer_late_a);
+            rlt::backward_full(device_cuda, model.late_encoder_a, standard_a_out, model_buffer.d_output_a, model_buffer.d_cross_a, model_buffer.buffer_late_a);
             rlt::backward_full(device_cuda, model.late_encoder_b, cross_b_out, model_buffer.d_output_b, model_buffer.d_cross_b, model_buffer.buffer_late_b);
         }
 
-        // 4. Backward cross-convolutions via operations_cuda.h
+        // 4. Backward standard conv A + cross-conv B
+        rlt::backward_full(device_cuda, model.standard_conv_a,
+            model_buffer.features_a, model_buffer.d_cross_a,
+            model_buffer.d_features_a, model_buffer.buffer_standard_conv_a);
         {
             using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-            auto kga_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_a));
             auto kgb_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_b));
-            rlt::backward_full(device_cuda, model.cross_conv_a,
-                model_buffer.features_a, kga_4d, model_buffer.d_cross_a,
-                model_buffer.d_features_a, model_buffer.d_kw_for_a, model_buffer.buffer_cross_a);
             rlt::backward_full(device_cuda, model.cross_conv_b,
                 model_buffer.features_b, kgb_4d, model_buffer.d_cross_b,
                 model_buffer.d_features_b, model_buffer.d_kw_for_b, model_buffer.buffer_cross_b);
         }
 
-        // 5. Backward kernel gens + accumulate gradients (diamond pattern)
+        // 5. Backward kernel gen B + accumulate into d_features_a
         {
             using KG_OUT = typename GPU_MODEL::SPEC::KERNEL_GEN_OUTPUT_SHAPE;
             constexpr int threads = 256;
             constexpr int blocks = (FEATURES_TOTAL + threads - 1) / threads;
-
-            // kernel_gen_a processes features_b -> d_kw_for_a flows back -> d_features_b_from_kgen
-            auto d_kw_a_2d = rlt::view_memory<KG_OUT>(device_cuda, model_buffer.d_kw_for_a);
-            rlt::backward_full(device_cuda, model.kernel_gen_a, model_buffer.features_b, d_kw_a_2d, model_buffer.d_features_temp, model_buffer.buffer_kg_a);
-            add_tensors_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                model_buffer.d_features_temp._data, model_buffer.d_features_b._data, FEATURES_TOTAL);
 
             // kernel_gen_b processes features_a -> d_kw_for_b flows back -> d_features_a_from_kgen
             auto d_kw_b_2d = rlt::view_memory<KG_OUT>(device_cuda, model_buffer.d_kw_for_b);
@@ -775,21 +767,18 @@ int main(int argc, char** argv) {
                     rlt::copy(device_cuda, device_cuda, fa, model_buffer.features_a);
                     rlt::copy(device_cuda, device_cuda, fb, model_buffer.features_b);
                 }
-                rlt::forward(device_cuda, model.kernel_gen_a, model_buffer.features_b, model_buffer.buffer_kg_a, rng_cuda, eval_mode);
                 rlt::forward(device_cuda, model.kernel_gen_b, model_buffer.features_a, model_buffer.buffer_kg_b, rng_cuda, eval_mode);
+                rlt::forward(device_cuda, model.standard_conv_a, model_buffer.features_a, model_buffer.buffer_standard_conv_a, rng_cuda, eval_mode);
                 {
                     using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-                    auto kga_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_a));
                     auto kgb_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_b));
-                    rlt::forward(device_cuda, model.cross_conv_a, model_buffer.features_a, kga_4d,
-                        model_buffer.buffer_cross_a, rng_cuda, eval_mode);
                     rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, kgb_4d,
                         model_buffer.buffer_cross_b, rng_cuda, eval_mode);
                 }
                 {
-                    auto cross_a_out = rlt::output(device_cuda, model.cross_conv_a);
+                    auto standard_a_out = rlt::output(device_cuda, model.standard_conv_a);
                     auto cross_b_out = rlt::output(device_cuda, model.cross_conv_b);
-                    rlt::forward(device_cuda, model.late_encoder_a, cross_a_out, model_buffer.buffer_late_a, rng_cuda, eval_mode);
+                    rlt::forward(device_cuda, model.late_encoder_a, standard_a_out, model_buffer.buffer_late_a, rng_cuda, eval_mode);
                     rlt::forward(device_cuda, model.late_encoder_b, cross_b_out, model_buffer.buffer_late_b, rng_cuda, eval_mode);
                 }
                 {
