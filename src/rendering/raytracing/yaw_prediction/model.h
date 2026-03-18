@@ -20,14 +20,14 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     // Conv2d: 3x3, stride=2, pad=1, 32ch, BN+ReLU -> 32x32x32
     template<typename TYPE_POLICY, typename TI>
     using CONV_32_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 32, 3, 3, 2, 2, 1, 1,
+        TYPE_POLICY, TI, 32*2, 3, 3, 2, 2, 1, 1,
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
     // Conv2d: 3x3, stride=2, pad=1, 64ch, BN+ReLU -> 16x16x64
     template<typename TYPE_POLICY, typename TI>
     using CONV_64_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 64, 3, 3, 2, 2, 1, 1,
+        TYPE_POLICY, TI, 64*2, 3, 3, 2, 2, 1, 1,
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
