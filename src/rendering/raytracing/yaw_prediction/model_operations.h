@@ -75,6 +75,7 @@ namespace rl_tools {
         malloc(device, buffer.d_features_temp);
         malloc(device, buffer.d_kw_for_a);
         malloc(device, buffer.d_kw_for_b);
+        malloc(device, buffer.d_kw_for_kgen);
         malloc(device, buffer.d_cross_a);
         malloc(device, buffer.d_cross_b);
         malloc(device, buffer.d_concatenated);
@@ -104,6 +105,7 @@ namespace rl_tools {
         free(device, buffer.d_features_temp);
         free(device, buffer.d_kw_for_a);
         free(device, buffer.d_kw_for_b);
+        free(device, buffer.d_kw_for_kgen);
         free(device, buffer.d_cross_a);
         free(device, buffer.d_cross_b);
         free(device, buffer.d_concatenated);
