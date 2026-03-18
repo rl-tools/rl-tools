@@ -180,6 +180,14 @@ RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_reacher_visual_v0_ppo)
 target_compile_definitions(rl_zoo_reacher_visual_v0_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 target_compile_definitions(rl_zoo_reacher_visual_v0_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_VISUAL_V0)
 
+# Reacher-Memory-v0-Visual
+# PPO
+add_executable(rl_zoo_reacher_memory_v0_visual_ppo zoo_cli.cpp zoo.cpp)
+target_link_libraries(rl_zoo_reacher_memory_v0_visual_ppo PRIVATE RLtools::RLtools)
+RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_reacher_memory_v0_visual_ppo)
+target_compile_definitions(rl_zoo_reacher_memory_v0_visual_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
+target_compile_definitions(rl_zoo_reacher_memory_v0_visual_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_MEMORY_V0_VISUAL)
+
 if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     # Ant-v4
     # PPO

@@ -45,6 +45,19 @@ namespace rl_tools::rl::environments::reacher{
         T target_y;
     };
 
+    template <typename T_SPEC>
+    struct StateWithStep{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI DIM = 5;
+        T x;
+        T y;
+        T target_x;
+        T target_y;
+        TI step;
+    };
+
     template <typename TI>
     struct ObservationDense{
         static constexpr TI DIM = 4;
@@ -87,6 +100,19 @@ namespace rl_tools::rl::environments{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using State = reacher::State<reacher::StateSpecification<T, TI>>;
+        using Parameters = typename SPEC::PARAMETERS;
+        using Observation = reacher::ObservationImage<TI, SPEC::PARAMETERS::IMAGE_HEIGHT, SPEC::PARAMETERS::IMAGE_WIDTH>;
+        using ObservationPrivileged = reacher::ObservationDense<TI>;
+        static constexpr TI N_AGENTS = 1;
+        static constexpr TI ACTION_DIM = 2;
+        static constexpr TI EPISODE_STEP_LIMIT = 40;
+    };
+    template <typename T_SPEC>
+    struct ReacherMemoryVisual: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using State = reacher::StateWithStep<reacher::StateSpecification<T, TI>>;
         using Parameters = typename SPEC::PARAMETERS;
         using Observation = reacher::ObservationImage<TI, SPEC::PARAMETERS::IMAGE_HEIGHT, SPEC::PARAMETERS::IMAGE_WIDTH>;
         using ObservationPrivileged = reacher::ObservationDense<TI>;
