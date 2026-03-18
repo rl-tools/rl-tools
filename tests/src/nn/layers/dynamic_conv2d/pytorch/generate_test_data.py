@@ -1,11 +1,12 @@
 """
 Generate test data for DynamicConv2d layer verification.
-Per-sample depthwise convolution with runtime-provided kernel weights.
+Per-sample depthwise or full convolution with runtime-provided kernel weights.
 
 Data layout:
-  - data: NHWC [batch_size, height, width, channels]
-  - kernel_weights: [batch_size, channels, kernel_h, kernel_w]
-  - output: NHWC [batch_size, output_h, output_w, channels]
+  - data: NHWC [batch_size, height, width, channels_in]
+  - kernel_weights (depthwise): [batch_size, channels, kernel_h, kernel_w]
+  - kernel_weights (full conv): [batch_size, channels_out, channels_in, kernel_h, kernel_w]
+  - output: NHWC [batch_size, output_h, output_w, channels_out]
 """
 
 import torch
@@ -79,6 +80,42 @@ test_cases = [
         "height": 8, "width": 8, "batch_size": 2,
         "activation": "identity",
     },
+    # Full (non-depthwise) convolution test cases
+    {
+        "name": "full_basic_3x3",
+        "channels_in": 8, "channels_out": 16, "kernel_size": (3, 3),
+        "stride": (1, 1), "padding": (0, 0),
+        "height": 8, "width": 8, "batch_size": 2,
+        "activation": "identity", "full_conv": True,
+    },
+    {
+        "name": "full_padded_3x3",
+        "channels_in": 8, "channels_out": 4, "kernel_size": (3, 3),
+        "stride": (1, 1), "padding": (1, 1),
+        "height": 8, "width": 8, "batch_size": 2,
+        "activation": "identity", "full_conv": True,
+    },
+    {
+        "name": "full_strided_3x3",
+        "channels_in": 16, "channels_out": 32, "kernel_size": (3, 3),
+        "stride": (2, 2), "padding": (1, 1),
+        "height": 16, "width": 16, "batch_size": 2,
+        "activation": "identity", "full_conv": True,
+    },
+    {
+        "name": "full_relu_3x3",
+        "channels_in": 8, "channels_out": 16, "kernel_size": (3, 3),
+        "stride": (1, 1), "padding": (1, 1),
+        "height": 8, "width": 8, "batch_size": 2,
+        "activation": "relu", "full_conv": True,
+    },
+    {
+        "name": "full_strided_relu",
+        "channels_in": 16, "channels_out": 8, "kernel_size": (3, 3),
+        "stride": (2, 2), "padding": (1, 1),
+        "height": 16, "width": 16, "batch_size": 2,
+        "activation": "relu", "full_conv": True,
+    },
 ]
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -95,26 +132,45 @@ with h5py.File(output_path, "w") as f:
         g = f.create_group(tc["name"])
 
         BS = tc["batch_size"]
-        C = tc["channels"]
         H = tc["height"]
         W = tc["width"]
         KH, KW = tc["kernel_size"]
         stride = tc["stride"]
         padding = tc["padding"]
+        is_full_conv = tc.get("full_conv", False)
+
+        if is_full_conv:
+            C_IN = tc["channels_in"]
+            C_OUT = tc["channels_out"]
+        else:
+            C_IN = tc["channels"]
+            C_OUT = C_IN
 
         # Input data in NCHW (for PyTorch conv2d)
-        data_nchw = torch.randn(BS, C, H, W, dtype=torch.float64, requires_grad=True)
-        # Per-sample kernel weights: [BS, C, KH, KW]
-        kernel_weights = torch.randn(BS, C, KH, KW, dtype=torch.float64, requires_grad=True)
+        data_nchw = torch.randn(BS, C_IN, H, W, dtype=torch.float64, requires_grad=True)
 
-        # Per-sample depthwise convolution
-        output_parts = []
-        for b in range(BS):
-            # input: [1, C, H, W], weight: [C, 1, KH, KW] for depthwise
-            out = F.conv2d(data_nchw[b:b+1], kernel_weights[b].unsqueeze(1),
-                           stride=stride, padding=padding, groups=C)
-            output_parts.append(out)
-        output_nchw = torch.cat(output_parts, dim=0)  # [BS, C, OH, OW]
+        if is_full_conv:
+            # Per-sample full convolution kernel: [BS, C_OUT, C_IN, KH, KW]
+            kernel_weights = torch.randn(BS, C_OUT, C_IN, KH, KW, dtype=torch.float64, requires_grad=True)
+
+            output_parts = []
+            for b in range(BS):
+                # input: [1, C_IN, H, W], weight: [C_OUT, C_IN, KH, KW]
+                out = F.conv2d(data_nchw[b:b+1], kernel_weights[b],
+                               stride=stride, padding=padding)
+                output_parts.append(out)
+            output_nchw = torch.cat(output_parts, dim=0)  # [BS, C_OUT, OH, OW]
+        else:
+            # Per-sample depthwise kernel: [BS, C_IN, KH, KW]
+            kernel_weights = torch.randn(BS, C_IN, KH, KW, dtype=torch.float64, requires_grad=True)
+
+            output_parts = []
+            for b in range(BS):
+                # input: [1, C, H, W], weight: [C, 1, KH, KW] for depthwise
+                out = F.conv2d(data_nchw[b:b+1], kernel_weights[b].unsqueeze(1),
+                               stride=stride, padding=padding, groups=C_IN)
+                output_parts.append(out)
+            output_nchw = torch.cat(output_parts, dim=0)  # [BS, C_IN, OH, OW]
 
         # Apply activation
         if tc["activation"] == "relu":
@@ -135,7 +191,7 @@ with h5py.File(output_path, "w") as f:
         d_output_nhwc = d_output_nchw.detach().permute(0, 2, 3, 1).contiguous().numpy()
         d_data_nhwc = d_data_nchw.detach().permute(0, 2, 3, 1).contiguous().numpy()
 
-        # kernel_weights and d_kernel_weights stay as [BS, C, KH, KW]
+        # kernel_weights and d_kernel_weights: [BS, C, KH, KW] or [BS, C_OUT, C_IN, KH, KW]
         kw_np = kernel_weights.detach().numpy()
         d_kw_np = d_kernel_weights.detach().numpy()
 
@@ -147,7 +203,8 @@ with h5py.File(output_path, "w") as f:
         g.create_dataset("d_kernel_weights", data=d_kw_np)
 
         # Store config as attributes
-        g.attrs["channels"] = C
+        g.attrs["channels_in"] = C_IN
+        g.attrs["channels_out"] = C_OUT
         g.attrs["kernel_h"] = KH
         g.attrs["kernel_w"] = KW
         g.attrs["stride_h"] = stride[0]
@@ -158,6 +215,7 @@ with h5py.File(output_path, "w") as f:
         g.attrs["width"] = W
         g.attrs["batch_size"] = BS
         g.attrs["activation"] = tc["activation"]
+        g.attrs["full_conv"] = is_full_conv
 
         print(f"  Data:  {data_nhwc.shape}")
         print(f"  KernelWeights: {kw_np.shape}")

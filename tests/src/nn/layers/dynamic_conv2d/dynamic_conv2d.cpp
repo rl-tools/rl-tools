@@ -16,14 +16,15 @@ using TI = DEVICE::index_t;
 
 static constexpr T EPSILON = 1e-10;
 
-template <typename CONV_CONFIG, TI BATCH_SIZE, TI HEIGHT, TI WIDTH, TI CHANNELS>
+template <typename CONV_CONFIG, TI BATCH_SIZE, TI HEIGHT, TI WIDTH, TI CHANNELS_IN>
 void test_dynamic_conv2d_case(const std::string& test_case_name) {
+    constexpr TI CHANNELS_OUT = CONV_CONFIG::OUTPUT_CHANNELS != 0 ? CONV_CONFIG::OUTPUT_CHANNELS : CHANNELS_IN;
     DEVICE device;
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
 
-    using INPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, CHANNELS>;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, CHANNELS_IN>;
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Gradient>;
     using LAYER_TYPE = rlt::nn::layers::dynamic_conv2d::Layer<CONV_CONFIG, CAPABILITY, INPUT_SHAPE>;
 
@@ -37,8 +38,10 @@ void test_dynamic_conv2d_case(const std::string& test_case_name) {
     constexpr TI KERNEL_HEIGHT = CONV_CONFIG::KERNEL_HEIGHT;
     constexpr TI KERNEL_WIDTH = CONV_CONFIG::KERNEL_WIDTH;
 
-    using OUTPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, OUTPUT_HEIGHT, OUTPUT_WIDTH, CHANNELS>;
-    using KERNEL_WEIGHTS_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH>;
+    using OUTPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, OUTPUT_HEIGHT, OUTPUT_WIDTH, CHANNELS_OUT>;
+    using KERNEL_WEIGHTS_SHAPE = std::conditional_t<CONV_CONFIG::OUTPUT_CHANNELS != 0,
+        rlt::tensor::Shape<TI, BATCH_SIZE, CHANNELS_OUT, CHANNELS_IN, KERNEL_HEIGHT, KERNEL_WIDTH>,
+        rlt::tensor::Shape<TI, BATCH_SIZE, CHANNELS_IN, KERNEL_HEIGHT, KERNEL_WIDTH>>;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> data, d_data, d_data_expected;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> expected_output, d_output;
@@ -140,4 +143,31 @@ TEST(RL_TOOLS_NN_LAYERS_DYNAMIC_CONV2D, NONSQUARE_3X5) {
 TEST(RL_TOOLS_NN_LAYERS_DYNAMIC_CONV2D, SINGLE_CHANNEL) {
     using CONFIG = rlt::nn::layers::dynamic_conv2d::Configuration<TYPE_POLICY, TI, 3, 3, 1, 1, 1, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     test_dynamic_conv2d_case<CONFIG, 2, 8, 8, 1>("single_channel");
+}
+
+// ======================== Full (non-depthwise) convolution tests ========================
+
+TEST(RL_TOOLS_NN_LAYERS_DYNAMIC_CONV2D, FULL_BASIC_3X3) {
+    using CONFIG = rlt::nn::layers::dynamic_conv2d::Configuration<TYPE_POLICY, TI, 3, 3, 1, 1, 0, 0, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 16>;
+    test_dynamic_conv2d_case<CONFIG, 2, 8, 8, 8>("full_basic_3x3");
+}
+
+TEST(RL_TOOLS_NN_LAYERS_DYNAMIC_CONV2D, FULL_PADDED_3X3) {
+    using CONFIG = rlt::nn::layers::dynamic_conv2d::Configuration<TYPE_POLICY, TI, 3, 3, 1, 1, 1, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 4>;
+    test_dynamic_conv2d_case<CONFIG, 2, 8, 8, 8>("full_padded_3x3");
+}
+
+TEST(RL_TOOLS_NN_LAYERS_DYNAMIC_CONV2D, FULL_STRIDED_3X3) {
+    using CONFIG = rlt::nn::layers::dynamic_conv2d::Configuration<TYPE_POLICY, TI, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 32>;
+    test_dynamic_conv2d_case<CONFIG, 2, 16, 16, 16>("full_strided_3x3");
+}
+
+TEST(RL_TOOLS_NN_LAYERS_DYNAMIC_CONV2D, FULL_RELU_3X3) {
+    using CONFIG = rlt::nn::layers::dynamic_conv2d::Configuration<TYPE_POLICY, TI, 3, 3, 1, 1, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU, 16>;
+    test_dynamic_conv2d_case<CONFIG, 2, 8, 8, 8>("full_relu_3x3");
+}
+
+TEST(RL_TOOLS_NN_LAYERS_DYNAMIC_CONV2D, FULL_STRIDED_RELU) {
+    using CONFIG = rlt::nn::layers::dynamic_conv2d::Configuration<TYPE_POLICY, TI, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU, 8>;
+    test_dynamic_conv2d_case<CONFIG, 2, 16, 16, 16>("full_strided_relu");
 }
