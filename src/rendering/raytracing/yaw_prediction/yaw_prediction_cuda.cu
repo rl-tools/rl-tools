@@ -26,6 +26,7 @@
 // Model definition + operations (must come before Adam optimizer operations)
 #include "model.h"
 #include "model_operations.h"
+#include "model_forward_cuda.h"
 
 // Adam optimizer operations (after model operations so ADL finds model's _reset_optimizer_state)
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
@@ -131,95 +132,9 @@ using GPU_INPUT_SPEC = rlt::tensor::Specification<T_ACTIVATION, TI_CUDA, GPU_INP
 using GPU_OUTPUT_SHAPE = typename GPU_MODEL::OUTPUT_SHAPE;
 using GPU_D_OUTPUT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, GPU_OUTPUT_SHAPE>;
 
-// Late encoder output: last dim is channel count
-static constexpr int LATE_DIM = GPU_MODEL::SPEC::LATE_LAST_DIM;
-static constexpr int CONCAT_DIM = LATE_DIM * 2;
-static constexpr int LATE_TOTAL = rlt::product(typename GPU_MODEL::SPEC::LATE_OUTPUT_SHAPE{});
-static constexpr int CONCAT_ROWS = LATE_TOTAL / LATE_DIM;
-static constexpr int CROSS_CONV_OUTPUT_TOTAL = rlt::product(typename GPU_MODEL::SPEC::CROSS_CONV_OUTPUT_SHAPE{});
-
-// ---- CUDA kernels ----
-
-// Concatenate two 2D tensors [N, D_A] and [N, D_B] into [N, D_A + D_B] along last dim
-__global__ void concatenate_kernel(
-    const T_ACTIVATION* __restrict__ a, int d_a,
-    const T_ACTIVATION* __restrict__ b, int d_b,
-    T_ACTIVATION* __restrict__ output,
-    int n
-) {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    const int d_out = d_a + d_b;
-    const int total = n * d_out;
-    if (idx >= total) return;
-    const int row = idx / d_out;
-    const int col = idx % d_out;
-    if (col < d_a) {
-        output[idx] = a[row * d_a + col];
-    } else {
-        output[idx] = b[row * d_b + (col - d_a)];
-    }
-}
-
-// Split [N, D_A + D_B] into [N, D_A] and [N, D_B] along last dim
-__global__ void split_kernel(
-    const T_ACTIVATION* __restrict__ input, int d_a, int d_b,
-    T_ACTIVATION* __restrict__ a,
-    T_ACTIVATION* __restrict__ b,
-    int n
-) {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    const int d_in = d_a + d_b;
-    const int total = n * d_in;
-    if (idx >= total) return;
-    const int row = idx / d_in;
-    const int col = idx % d_in;
-    if (col < d_a) {
-        a[row * d_a + col] = input[idx];
-    } else {
-        b[row * d_b + (col - d_a)] = input[idx];
-    }
-}
-
-// Element-wise add: dst[i] += src[i] (in float accumulation, cast back to bf16)
-__global__ void add_tensors_kernel(
-    const T_ACTIVATION* __restrict__ src,
-    T_ACTIVATION* __restrict__ dst,
-    int n
-) {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= n) return;
-    dst[idx] = (T_ACTIVATION)((float)dst[idx] + (float)src[idx]);
-}
-
-// Convert RGBA uint32 framebuffer pixels to bf16 RGB tensor [BATCH, H, W, 3] normalized to [0,1]
-// dst_offset: write starting at output[(dst_offset + sample_idx) * H * W * 3]
-__global__ void rgba_to_activation_kernel(
-    const uint32_t* __restrict__ framebuffer,
-    T_ACTIVATION* __restrict__ output,
-    int cam_width, int cam_height, int camera_offset, int dst_offset
-) {
-    const int sample_idx = blockIdx.x;
-    const int camera_idx = camera_offset + sample_idx;
-    const int cam_pixels = cam_width * cam_height;
-
-    const uint32_t* src = framebuffer + camera_idx * cam_pixels;
-    T_ACTIVATION* dst = output + (dst_offset + sample_idx) * cam_height * cam_width * 3;
-
-    for (int pixel = threadIdx.x; pixel < cam_pixels; pixel += blockDim.x) {
-        const uint32_t rgba = src[pixel];
-        const float r = static_cast<float>((rgba >>  0) & 0xFF) / 255.0f;
-        const float g = static_cast<float>((rgba >>  8) & 0xFF) / 255.0f;
-        const float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
-
-        const int out_base = pixel * 3;
-        dst[out_base + 0] = (T_ACTIVATION)r;
-        dst[out_base + 1] = (T_ACTIVATION)g;
-        dst[out_base + 2] = (T_ACTIVATION)b;
-    }
-}
+// ---- CUDA kernels (loss only — model forward/backward moved to model_forward_cuda.h) ----
 
 // Element-wise Huber loss and gradient (operates on all BATCH_SIZE * OUTPUT_DIM elements)
-// Reads bf16 predictions, float targets; writes bf16 gradient, float losses
 __global__ void huber_loss_gradient_kernel(
     const T_ACTIVATION* __restrict__ predictions,
     const float* __restrict__ targets,
@@ -547,10 +462,10 @@ int main(int argc, char** argv) {
             const TI batch_offset = s * samples_per_scene;
             uint32_t* device_fb = yp::get_framebuffer_device_ptr(loaded_scenes[scene_idx].handle);
 
-            rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
+            yp::cuda_kernels::rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
                 device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, 0, batch_offset
             );
-            rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
+            yp::cuda_kernels::rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
                 device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, samples_per_scene, batch_offset
             );
         }
@@ -558,62 +473,7 @@ int main(int argc, char** argv) {
 
         // ---- Forward ----
         rlt::zero_gradient(device_cuda, model);
-
-        // 1. Early encoders
-        rlt::forward(device_cuda, model.early_encoder_a, gpu_input_a, model_buffer.buffer_early_a, rng_cuda, train_mode);
-        rlt::forward(device_cuda, model.early_encoder_b, gpu_input_b, model_buffer.buffer_early_b, rng_cuda, train_mode);
-
-        // 2. Save features (contiguous copies for backward)
-        {
-            auto fa = rlt::output(device_cuda, model.early_encoder_a);
-            auto fb = rlt::output(device_cuda, model.early_encoder_b);
-            rlt::copy(device_cuda, device_cuda, fa, model_buffer.features_a);
-            rlt::copy(device_cuda, device_cuda, fb, model_buffer.features_b);
-        }
-
-        // 3. Standard conv A (self-contained branch, output also used as cross-conv kernel weights)
-        rlt::forward(device_cuda, model.standard_conv_a, model_buffer.features_a, model_buffer.buffer_standard_conv_a, rng_cuda, train_mode);
-
-        // 4. Cross-convolution B (using standard_conv_a output as 8x8 kernel weights)
-        {
-            using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-            auto kw_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.standard_conv_a));
-            rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, kw_4d,
-                model_buffer.buffer_cross_b, rng_cuda, train_mode);
-        }
-
-        // 6. Late encoders
-        {
-            auto standard_a_out = rlt::output(device_cuda, model.standard_conv_a);
-            auto cross_b_out = rlt::output(device_cuda, model.cross_conv_b);
-            rlt::forward(device_cuda, model.late_encoder_a, standard_a_out, model_buffer.buffer_late_a, rng_cuda, train_mode);
-            rlt::forward(device_cuda, model.late_encoder_b, cross_b_out, model_buffer.buffer_late_b, rng_cuda, train_mode);
-        }
-
-        // 7. Copy late encoder outputs and concatenate
-        {
-            auto la = rlt::output(device_cuda, model.late_encoder_a);
-            auto lb = rlt::output(device_cuda, model.late_encoder_b);
-            rlt::copy(device_cuda, device_cuda, la, model_buffer.intermediate_a);
-            rlt::copy(device_cuda, device_cuda, lb, model_buffer.intermediate_b);
-        }
-        {
-            constexpr int total = CONCAT_ROWS * CONCAT_DIM;
-            constexpr int threads = 256;
-            constexpr int blocks = (total + threads - 1) / threads;
-            concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                model_buffer.intermediate_a._data, LATE_DIM,
-                model_buffer.intermediate_b._data, LATE_DIM,
-                model_buffer.concatenated._data, CONCAT_ROWS
-            );
-        }
-
-        // 8. Head
-        rlt::forward(device_cuda, model.head, model_buffer.concatenated, model_buffer.buffer_head, rng_cuda, train_mode);
-        {
-            auto head_output = rlt::output(device_cuda, model.head);
-            rlt::copy(device_cuda, device_cuda, head_output, model.output);
-        }
+        rlt::forward_cuda(device_cuda, model, gpu_input_a, gpu_input_b, model_buffer, rng_cuda, train_mode);
         auto output_view = rlt::output(device_cuda, model);
 
         // ---- Loss + gradient ----
@@ -627,54 +487,7 @@ int main(int argc, char** argv) {
         }
 
         // ---- Backward ----
-
-        // 1. Backward head
-        rlt::backward_full(device_cuda, model.head, model_buffer.concatenated, gpu_d_output, model_buffer.d_concatenated, model_buffer.buffer_head);
-
-        // 2. Split d_concatenated -> d_output_a, d_output_b
-        {
-            constexpr int total = CONCAT_ROWS * CONCAT_DIM;
-            constexpr int threads = 256;
-            constexpr int blocks = (total + threads - 1) / threads;
-            split_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                model_buffer.d_concatenated._data, LATE_DIM, LATE_DIM,
-                model_buffer.d_output_a._data,
-                model_buffer.d_output_b._data,
-                CONCAT_ROWS
-            );
-        }
-
-        // 3. Backward late encoders
-        {
-            auto standard_a_out = rlt::output(device_cuda, model.standard_conv_a);
-            auto cross_b_out = rlt::output(device_cuda, model.cross_conv_b);
-            rlt::backward_full(device_cuda, model.late_encoder_a, standard_a_out, model_buffer.d_output_a, model_buffer.d_cross_a, model_buffer.buffer_late_a);
-            rlt::backward_full(device_cuda, model.late_encoder_b, cross_b_out, model_buffer.d_output_b, model_buffer.d_cross_b, model_buffer.buffer_late_b);
-        }
-
-        // 4. Backward cross-conv B (using standard_conv_a output as kernel weights)
-        {
-            using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-            auto kw_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.standard_conv_a));
-            rlt::backward_full(device_cuda, model.cross_conv_b,
-                model_buffer.features_b, kw_4d, model_buffer.d_cross_b,
-                model_buffer.d_features_b, model_buffer.d_kw_for_b, model_buffer.buffer_cross_b);
-        }
-
-        // 5. Accumulate cross-path kernel weight gradient into d_cross_a, then backward standard_conv_a
-        {
-            constexpr int threads = 256;
-            constexpr int blocks = (CROSS_CONV_OUTPUT_TOTAL + threads - 1) / threads;
-            add_tensors_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                model_buffer.d_kw_for_b._data, model_buffer.d_cross_a._data, CROSS_CONV_OUTPUT_TOTAL);
-        }
-        rlt::backward_full(device_cuda, model.standard_conv_a,
-            model_buffer.features_a, model_buffer.d_cross_a,
-            model_buffer.d_features_a, model_buffer.buffer_standard_conv_a);
-
-        // 6. Backward early encoders
-        rlt::backward_full(device_cuda, model.early_encoder_a, gpu_input_a, model_buffer.d_features_a, gpu_d_input_a, model_buffer.buffer_early_a);
-        rlt::backward_full(device_cuda, model.early_encoder_b, gpu_input_b, model_buffer.d_features_b, gpu_d_input_b, model_buffer.buffer_early_b);
+        rlt::backward_full_cuda(device_cuda, model, gpu_input_a, gpu_input_b, gpu_d_output, gpu_d_input_a, gpu_d_input_b, model_buffer);
 
         // ---- Optimizer step ----
         rlt::step(device_cuda, optimizer, model);
@@ -770,59 +583,18 @@ int main(int argc, char** argv) {
                 yp::render_batch<false>(val_scenes[vs].handle, cameras.data());
                 uint32_t* device_fb = yp::get_framebuffer_device_ptr(val_scenes[vs].handle);
 
-                rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+                yp::cuda_kernels::rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
                     device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, 0, 0
                 );
-                rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+                yp::cuda_kernels::rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
                     device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, BATCH_SIZE, 0
                 );
 
                 cudaMemcpyAsync(gpu_targets, cpu_targets.data(), TOTAL_OUTPUT_ELEMENTS * sizeof(float),
                                 cudaMemcpyHostToDevice, device_cuda.stream);
 
-                // Forward pass (evaluation mode, no gradient)
-                rlt::forward(device_cuda, model.early_encoder_a, gpu_input_a, model_buffer.buffer_early_a, rng_cuda, eval_mode);
-                rlt::forward(device_cuda, model.early_encoder_b, gpu_input_b, model_buffer.buffer_early_b, rng_cuda, eval_mode);
-                {
-                    auto fa = rlt::output(device_cuda, model.early_encoder_a);
-                    auto fb = rlt::output(device_cuda, model.early_encoder_b);
-                    rlt::copy(device_cuda, device_cuda, fa, model_buffer.features_a);
-                    rlt::copy(device_cuda, device_cuda, fb, model_buffer.features_b);
-                }
-                rlt::forward(device_cuda, model.standard_conv_a, model_buffer.features_a, model_buffer.buffer_standard_conv_a, rng_cuda, eval_mode);
-                {
-                    using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-                    auto kw_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.standard_conv_a));
-                    rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, kw_4d,
-                        model_buffer.buffer_cross_b, rng_cuda, eval_mode);
-                }
-                {
-                    auto standard_a_out = rlt::output(device_cuda, model.standard_conv_a);
-                    auto cross_b_out = rlt::output(device_cuda, model.cross_conv_b);
-                    rlt::forward(device_cuda, model.late_encoder_a, standard_a_out, model_buffer.buffer_late_a, rng_cuda, eval_mode);
-                    rlt::forward(device_cuda, model.late_encoder_b, cross_b_out, model_buffer.buffer_late_b, rng_cuda, eval_mode);
-                }
-                {
-                    auto la = rlt::output(device_cuda, model.late_encoder_a);
-                    auto lb = rlt::output(device_cuda, model.late_encoder_b);
-                    rlt::copy(device_cuda, device_cuda, la, model_buffer.intermediate_a);
-                    rlt::copy(device_cuda, device_cuda, lb, model_buffer.intermediate_b);
-                }
-                {
-                    constexpr int total = CONCAT_ROWS * CONCAT_DIM;
-                    constexpr int threads = 256;
-                    constexpr int blocks = (total + threads - 1) / threads;
-                    concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                        model_buffer.intermediate_a._data, LATE_DIM,
-                        model_buffer.intermediate_b._data, LATE_DIM,
-                        model_buffer.concatenated._data, CONCAT_ROWS
-                    );
-                }
-                rlt::forward(device_cuda, model.head, model_buffer.concatenated, model_buffer.buffer_head, rng_cuda, eval_mode);
-                {
-                    auto head_output = rlt::output(device_cuda, model.head);
-                    rlt::copy(device_cuda, device_cuda, head_output, model.output);
-                }
+                // Forward pass (evaluation mode)
+                rlt::forward_cuda(device_cuda, model, gpu_input_a, gpu_input_b, model_buffer, rng_cuda, eval_mode);
                 auto val_output_view = rlt::output(device_cuda, model);
 
                 // Compute loss
