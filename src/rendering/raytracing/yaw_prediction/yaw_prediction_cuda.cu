@@ -136,7 +136,7 @@ static constexpr int LATE_DIM = GPU_MODEL::SPEC::LATE_LAST_DIM;
 static constexpr int CONCAT_DIM = LATE_DIM * 2;
 static constexpr int LATE_TOTAL = rlt::product(typename GPU_MODEL::SPEC::LATE_OUTPUT_SHAPE{});
 static constexpr int CONCAT_ROWS = LATE_TOTAL / LATE_DIM;
-static constexpr int FEATURES_TOTAL = rlt::product(typename GPU_MODEL::SPEC::EARLY_OUTPUT_SHAPE{});
+static constexpr int CROSS_CONV_OUTPUT_TOTAL = rlt::product(typename GPU_MODEL::SPEC::CROSS_CONV_OUTPUT_SHAPE{});
 
 // ---- CUDA kernels ----
 
@@ -571,17 +571,14 @@ int main(int argc, char** argv) {
             rlt::copy(device_cuda, device_cuda, fb, model_buffer.features_b);
         }
 
-        // 3. Kernel gen (branch B: a's features → kernel for cross-conv on b)
-        rlt::forward(device_cuda, model.kernel_gen_b, model_buffer.features_a, model_buffer.buffer_kg_b, rng_cuda, train_mode);
-
-        // 4. Standard conv A (self-contained branch)
+        // 3. Standard conv A (self-contained branch, output also used as cross-conv kernel weights)
         rlt::forward(device_cuda, model.standard_conv_a, model_buffer.features_a, model_buffer.buffer_standard_conv_a, rng_cuda, train_mode);
 
-        // 5. Cross-convolution B via operations_cuda.h
+        // 4. Cross-convolution B (using standard_conv_a output as 8x8 kernel weights)
         {
             using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-            auto kgb_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_b));
-            rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, kgb_4d,
+            auto kw_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.standard_conv_a));
+            rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, kw_4d,
                 model_buffer.buffer_cross_b, rng_cuda, train_mode);
         }
 
@@ -655,30 +652,25 @@ int main(int argc, char** argv) {
             rlt::backward_full(device_cuda, model.late_encoder_b, cross_b_out, model_buffer.d_output_b, model_buffer.d_cross_b, model_buffer.buffer_late_b);
         }
 
-        // 4. Backward standard conv A + cross-conv B
-        rlt::backward_full(device_cuda, model.standard_conv_a,
-            model_buffer.features_a, model_buffer.d_cross_a,
-            model_buffer.d_features_a, model_buffer.buffer_standard_conv_a);
+        // 4. Backward cross-conv B (using standard_conv_a output as kernel weights)
         {
             using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-            auto kgb_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_b));
+            auto kw_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.standard_conv_a));
             rlt::backward_full(device_cuda, model.cross_conv_b,
-                model_buffer.features_b, kgb_4d, model_buffer.d_cross_b,
+                model_buffer.features_b, kw_4d, model_buffer.d_cross_b,
                 model_buffer.d_features_b, model_buffer.d_kw_for_b, model_buffer.buffer_cross_b);
         }
 
-        // 5. Backward kernel gen B + accumulate into d_features_a
+        // 5. Accumulate cross-path kernel weight gradient into d_cross_a, then backward standard_conv_a
         {
-            using KG_OUT = typename GPU_MODEL::SPEC::KERNEL_GEN_OUTPUT_SHAPE;
             constexpr int threads = 256;
-            constexpr int blocks = (FEATURES_TOTAL + threads - 1) / threads;
-
-            // kernel_gen_b processes features_a -> d_kw_for_b flows back -> d_features_a_from_kgen
-            auto d_kw_b_2d = rlt::view_memory<KG_OUT>(device_cuda, model_buffer.d_kw_for_b);
-            rlt::backward_full(device_cuda, model.kernel_gen_b, model_buffer.features_a, d_kw_b_2d, model_buffer.d_features_temp, model_buffer.buffer_kg_b);
+            constexpr int blocks = (CROSS_CONV_OUTPUT_TOTAL + threads - 1) / threads;
             add_tensors_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                model_buffer.d_features_temp._data, model_buffer.d_features_a._data, FEATURES_TOTAL);
+                model_buffer.d_kw_for_b._data, model_buffer.d_cross_a._data, CROSS_CONV_OUTPUT_TOTAL);
         }
+        rlt::backward_full(device_cuda, model.standard_conv_a,
+            model_buffer.features_a, model_buffer.d_cross_a,
+            model_buffer.d_features_a, model_buffer.buffer_standard_conv_a);
 
         // 6. Backward early encoders
         rlt::backward_full(device_cuda, model.early_encoder_a, gpu_input_a, model_buffer.d_features_a, gpu_d_input_a, model_buffer.buffer_early_a);
@@ -797,12 +789,11 @@ int main(int argc, char** argv) {
                     rlt::copy(device_cuda, device_cuda, fa, model_buffer.features_a);
                     rlt::copy(device_cuda, device_cuda, fb, model_buffer.features_b);
                 }
-                rlt::forward(device_cuda, model.kernel_gen_b, model_buffer.features_a, model_buffer.buffer_kg_b, rng_cuda, eval_mode);
                 rlt::forward(device_cuda, model.standard_conv_a, model_buffer.features_a, model_buffer.buffer_standard_conv_a, rng_cuda, eval_mode);
                 {
                     using KW_4D = typename GPU_MODEL::SPEC::KERNEL_WEIGHTS_4D_SHAPE;
-                    auto kgb_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.kernel_gen_b));
-                    rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, kgb_4d,
+                    auto kw_4d = rlt::view_memory<KW_4D>(device_cuda, rlt::output(device_cuda, model.standard_conv_a));
+                    rlt::forward(device_cuda, model.cross_conv_b, model_buffer.features_b, kw_4d,
                         model_buffer.buffer_cross_b, rng_cuda, eval_mode);
                 }
                 {

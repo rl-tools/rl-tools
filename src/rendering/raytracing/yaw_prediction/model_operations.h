@@ -10,7 +10,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rendering::raytracing::yaw_prediction::ModuleForward<SPEC>& model) {
         malloc(device, model.early_encoder_a);
         malloc(device, model.early_encoder_b);
-        malloc(device, model.kernel_gen_b);
+
         malloc(device, model.standard_conv_a);
         malloc(device, model.cross_conv_b);
         malloc(device, model.late_encoder_a);
@@ -26,7 +26,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rendering::raytracing::yaw_prediction::ModuleForward<SPEC>& model) {
         free(device, model.early_encoder_a);
         free(device, model.early_encoder_b);
-        free(device, model.kernel_gen_b);
+
         free(device, model.standard_conv_a);
         free(device, model.cross_conv_b);
         free(device, model.late_encoder_a);
@@ -54,7 +54,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rendering::raytracing::yaw_prediction::Buffer<BUFFER_SPEC>& buffer) {
         malloc(device, buffer.buffer_early_a);
         malloc(device, buffer.buffer_early_b);
-        malloc(device, buffer.buffer_kg_b);
+
         malloc(device, buffer.buffer_standard_conv_a);
         malloc(device, buffer.buffer_cross_b);
         malloc(device, buffer.buffer_late_a);
@@ -67,7 +67,7 @@ namespace rl_tools {
         malloc(device, buffer.concatenated);
         malloc(device, buffer.d_features_a);
         malloc(device, buffer.d_features_b);
-        malloc(device, buffer.d_features_temp);
+
         malloc(device, buffer.d_kw_for_b);
         malloc(device, buffer.d_cross_a);
         malloc(device, buffer.d_cross_b);
@@ -79,7 +79,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rendering::raytracing::yaw_prediction::Buffer<BUFFER_SPEC>& buffer) {
         free(device, buffer.buffer_early_a);
         free(device, buffer.buffer_early_b);
-        free(device, buffer.buffer_kg_b);
+
         free(device, buffer.buffer_standard_conv_a);
         free(device, buffer.buffer_cross_b);
         free(device, buffer.buffer_late_a);
@@ -92,7 +92,7 @@ namespace rl_tools {
         free(device, buffer.concatenated);
         free(device, buffer.d_features_a);
         free(device, buffer.d_features_b);
-        free(device, buffer.d_features_temp);
+
         free(device, buffer.d_kw_for_b);
         free(device, buffer.d_cross_a);
         free(device, buffer.d_cross_b);
@@ -107,7 +107,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void init_weights(DEVICE& device, rendering::raytracing::yaw_prediction::ModuleForward<SPEC>& model, RNG& rng) {
         init_weights(device, model.early_encoder_a, rng);
         init_weights(device, model.early_encoder_b, rng);
-        init_weights(device, model.kernel_gen_b, rng);
+
         init_weights(device, model.standard_conv_a, rng);
         init_weights(device, model.cross_conv_b, rng);
         init_weights(device, model.late_encoder_a, rng);
@@ -121,7 +121,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, rendering::raytracing::yaw_prediction::ModuleGradient<SPEC>& model) {
         zero_gradient(device, model.early_encoder_a);
         zero_gradient(device, model.early_encoder_b);
-        zero_gradient(device, model.kernel_gen_b);
+
         zero_gradient(device, model.standard_conv_a);
         zero_gradient(device, model.cross_conv_b);
         zero_gradient(device, model.late_encoder_a);
@@ -135,7 +135,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, rendering::raytracing::yaw_prediction::ModuleGradient<SPEC>& model, OPTIMIZER& optimizer) {
         update(device, model.early_encoder_a, optimizer);
         update(device, model.early_encoder_b, optimizer);
-        update(device, model.kernel_gen_b, optimizer);
+
         update(device, model.standard_conv_a, optimizer);
         update(device, model.cross_conv_b, optimizer);
         update(device, model.late_encoder_a, optimizer);
@@ -149,7 +149,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, rendering::raytracing::yaw_prediction::ModuleGradient<SPEC>& model, OPTIMIZER& optimizer) {
         _reset_optimizer_state(device, model.early_encoder_a, optimizer);
         _reset_optimizer_state(device, model.early_encoder_b, optimizer);
-        _reset_optimizer_state(device, model.kernel_gen_b, optimizer);
+
         _reset_optimizer_state(device, model.standard_conv_a, optimizer);
         _reset_optimizer_state(device, model.cross_conv_b, optimizer);
         _reset_optimizer_state(device, model.late_encoder_a, optimizer);
@@ -163,7 +163,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rendering::raytracing::yaw_prediction::ModuleForward<SPEC>& model) {
         reset_forward_state(device, model.early_encoder_a);
         reset_forward_state(device, model.early_encoder_b);
-        reset_forward_state(device, model.kernel_gen_b);
+
         reset_forward_state(device, model.standard_conv_a);
         reset_forward_state(device, model.cross_conv_b);
         reset_forward_state(device, model.late_encoder_a);
@@ -184,7 +184,7 @@ namespace rl_tools {
             rendering::raytracing::yaw_prediction::ModuleForward<TARGET_SPEC>& target) {
         copy(source_device, target_device, source.early_encoder_a, target.early_encoder_a);
         copy(source_device, target_device, source.early_encoder_b, target.early_encoder_b);
-        copy(source_device, target_device, source.kernel_gen_b, target.kernel_gen_b);
+
         copy(source_device, target_device, source.standard_conv_a, target.standard_conv_a);
         copy(source_device, target_device, source.cross_conv_b, target.cross_conv_b);
         copy(source_device, target_device, source.late_encoder_a, target.late_encoder_a);
@@ -217,7 +217,7 @@ namespace rl_tools {
             const rendering::raytracing::yaw_prediction::ModuleForward<S2>& b) {
         auto diff = abs_diff(device, a.early_encoder_a, b.early_encoder_a);
         diff += abs_diff(device, a.early_encoder_b, b.early_encoder_b);
-        diff += abs_diff(device, a.kernel_gen_b, b.kernel_gen_b);
+
         diff += abs_diff(device, a.standard_conv_a, b.standard_conv_a);
         diff += abs_diff(device, a.cross_conv_b, b.cross_conv_b);
         diff += abs_diff(device, a.late_encoder_a, b.late_encoder_a);
@@ -243,7 +243,7 @@ namespace rl_tools {
             const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         return is_nan(device, model.early_encoder_a, mode)
             || is_nan(device, model.early_encoder_b, mode)
-            || is_nan(device, model.kernel_gen_b, mode)
+
             || is_nan(device, model.standard_conv_a, mode)
             || is_nan(device, model.cross_conv_b, mode)
             || is_nan(device, model.late_encoder_a, mode)

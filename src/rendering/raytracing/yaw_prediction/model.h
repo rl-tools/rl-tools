@@ -47,24 +47,14 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         nn::layers::conv2d::BindConfiguration<CONV_64_CONFIG<TYPE_POLICY, TI>>
     >;
 
-    // Kernel gen: AvgPool -> Dense(64 -> 576, identity)
     template<typename TYPE_POLICY, typename TI>
     using AVGPOOL_CONFIG = nn::layers::avg_pool2d::Configuration<TYPE_POLICY, TI>;
 
-    template<typename TYPE_POLICY, typename TI>
-    using KERNEL_GEN_DENSE_CONFIG = nn::layers::dense::Configuration<
-        TYPE_POLICY, TI, 576, nn::activation_functions::ActivationFunction::IDENTITY>;
-
-    template<typename TYPE_POLICY, typename TI>
-    using KERNEL_GEN_MODULE = nn_models::sequential::Module<
-        nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::dense::BindConfiguration<KERNEL_GEN_DENSE_CONFIG<TYPE_POLICY, TI>>
-    >;
-
-    // Cross-conv: dynamic_conv2d (3x3, stride 2, pad 1, ReLU)
+    // Cross-conv: dynamic_conv2d (8x8, stride 2, pad 3, ReLU)
+    // Kernel weights are the standard_conv_a output viewed as [BS, C, 8, 8]
     template<typename TYPE_POLICY, typename TI>
     using CROSS_CONV_CONFIG = nn::layers::dynamic_conv2d::Configuration<
-        TYPE_POLICY, TI, 3, 3, 2, 2, 1, 1,
+        TYPE_POLICY, TI, 8, 8, 2, 2, 3, 3,
         nn::activation_functions::ActivationFunction::RELU>;
 
     // Late encoder: 1x1 Conv(64->128, BN+ReLU) -> CONV_256(128->256, stride 2, BN+ReLU)
@@ -120,9 +110,6 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         using EARLY_OUTPUT_SHAPE = typename EARLY_ENCODER_TYPE::OUTPUT_SHAPE;
         static constexpr TI EARLY_CHANNELS = get_last(EARLY_OUTPUT_SHAPE{});
 
-        using KERNEL_GEN_TYPE = typename KERNEL_GEN_MODULE<TYPE_POLICY, TI>::template Layer<CAPABILITY, EARLY_OUTPUT_SHAPE>;
-        using KERNEL_GEN_OUTPUT_SHAPE = typename KERNEL_GEN_TYPE::OUTPUT_SHAPE;
-
         using CROSS_CONV_TYPE = nn::layers::dynamic_conv2d::Layer<CROSS_CONV_CONFIG<TYPE_POLICY, TI>, CAPABILITY, EARLY_OUTPUT_SHAPE>;
         using CROSS_CONV_OUTPUT_SHAPE = typename CROSS_CONV_TYPE::OUTPUT_SHAPE;
 
@@ -162,7 +149,6 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
         typename SPEC::EARLY_ENCODER_TYPE early_encoder_a;
         typename SPEC::EARLY_ENCODER_TYPE early_encoder_b;
-        typename SPEC::KERNEL_GEN_TYPE kernel_gen_b;
         typename SPEC::STANDARD_CONV_A_TYPE standard_conv_a;
         typename SPEC::CROSS_CONV_TYPE cross_conv_b;
         typename SPEC::LATE_ENCODER_TYPE late_encoder_a;
@@ -208,7 +194,6 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         // Sub-module buffers
         typename SPEC::EARLY_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_early_a;
         typename SPEC::EARLY_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_early_b;
-        typename SPEC::KERNEL_GEN_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_kg_b;
         typename SPEC::STANDARD_CONV_A_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_standard_conv_a;
         typename SPEC::CROSS_CONV_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_cross_b;
         typename SPEC::LATE_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_late_a;
@@ -231,7 +216,6 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         // Backward temporaries
         Tensor<FEATURES_SPEC> d_features_a;
         Tensor<FEATURES_SPEC> d_features_b;
-        Tensor<FEATURES_SPEC> d_features_temp;
 
         using KERNEL_WEIGHTS_4D_SPEC = tensor::Specification<T, TI, typename SPEC::KERNEL_WEIGHTS_4D_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::KERNEL_WEIGHTS_4D_SHAPE>>;
         Tensor<KERNEL_WEIGHTS_4D_SPEC> d_kw_for_b;
