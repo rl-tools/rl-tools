@@ -125,6 +125,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
         using CROSS_CONV_TYPE = nn::layers::dynamic_conv2d::Layer<CROSS_CONV_CONFIG<TYPE_POLICY, TI>, CAPABILITY, EARLY_OUTPUT_SHAPE>;
         using CROSS_CONV_OUTPUT_SHAPE = typename CROSS_CONV_TYPE::OUTPUT_SHAPE;
+
+        using STANDARD_CONV_A_TYPE = typename nn::layers::conv2d::BindConfiguration<CONV_64_CONFIG<TYPE_POLICY, TI>>::template Layer<CAPABILITY, EARLY_OUTPUT_SHAPE>;
         static constexpr TI KERNEL_HEIGHT = CROSS_CONV_CONFIG<TYPE_POLICY, TI>::KERNEL_HEIGHT;
         static constexpr TI KERNEL_WIDTH = CROSS_CONV_CONFIG<TYPE_POLICY, TI>::KERNEL_WIDTH;
         // Rank-4 shape for dynamic_conv2d kernel weights (view_memory requires matching rank)
@@ -160,9 +162,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
         typename SPEC::EARLY_ENCODER_TYPE early_encoder_a;
         typename SPEC::EARLY_ENCODER_TYPE early_encoder_b;
-        typename SPEC::KERNEL_GEN_TYPE kernel_gen_a;
         typename SPEC::KERNEL_GEN_TYPE kernel_gen_b;
-        typename SPEC::CROSS_CONV_TYPE cross_conv_a;
+        typename SPEC::STANDARD_CONV_A_TYPE standard_conv_a;
         typename SPEC::CROSS_CONV_TYPE cross_conv_b;
         typename SPEC::LATE_ENCODER_TYPE late_encoder_a;
         typename SPEC::LATE_ENCODER_TYPE late_encoder_b;
@@ -207,9 +208,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         // Sub-module buffers
         typename SPEC::EARLY_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_early_a;
         typename SPEC::EARLY_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_early_b;
-        typename SPEC::KERNEL_GEN_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_kg_a;
         typename SPEC::KERNEL_GEN_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_kg_b;
-        typename SPEC::CROSS_CONV_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_cross_a;
+        typename SPEC::STANDARD_CONV_A_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_standard_conv_a;
         typename SPEC::CROSS_CONV_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_cross_b;
         typename SPEC::LATE_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_late_a;
         typename SPEC::LATE_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_late_b;
@@ -234,7 +234,6 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         Tensor<FEATURES_SPEC> d_features_temp;
 
         using KERNEL_WEIGHTS_4D_SPEC = tensor::Specification<T, TI, typename SPEC::KERNEL_WEIGHTS_4D_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::KERNEL_WEIGHTS_4D_SHAPE>>;
-        Tensor<KERNEL_WEIGHTS_4D_SPEC> d_kw_for_a;
         Tensor<KERNEL_WEIGHTS_4D_SPEC> d_kw_for_b;
 
         using CROSS_OUTPUT_TENSOR_SPEC = tensor::Specification<T, TI, typename SPEC::CROSS_CONV_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::CROSS_CONV_OUTPUT_SHAPE>>;
