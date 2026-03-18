@@ -21,6 +21,8 @@
 #include <rl_tools/nn_models/parallel/persist.h>
 
 #include "model.h"
+#include "model_operations.h"
+#include "model_persist.h"
 
 #include <nlohmann/json.hpp>
 
