@@ -12,7 +12,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace nn::layers::dynamic_conv2d::cuda::kernels{
-        template <bool STORE_PRE_ACTIVATIONS, nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, typename T, int IH, int IW, int C, int OH, int OW, int KH, int KW, int SH, int SW, int PH, int PW>
+        template <bool STORE_PRE_ACTIVATIONS, bool IS_FULL_CONV, nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, typename T, int IH, int IW, int OC, int IC, int OH, int OW, int KH, int KW, int SH, int SW, int PH, int PW>
         __global__ void dynamic_conv2d_forward_kernel(
             const T* __restrict__ input_data,
             const T* __restrict__ kernel_weights,
@@ -21,21 +21,37 @@ namespace rl_tools{
             int batch_size
         ){
             const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            const int total = batch_size * OH * OW * C;
+            const int total = batch_size * OH * OW * OC;
             if(idx >= total) return;
-            const int c = idx % C;
-            const int ow = (idx / C) % OW;
-            const int oh = (idx / C / OW) % OH;
-            const int bi = idx / C / OW / OH;
+            const int c_out = idx % OC;
+            const int ow = (idx / OC) % OW;
+            const int oh = (idx / OC / OW) % OH;
+            const int bi = idx / OC / OW / OH;
             float acc = 0.0f;
-            for(int kh = 0; kh < KH; kh++){
-                for(int kw = 0; kw < KW; kw++){
-                    const int ih = oh * SH + kh - PH;
-                    const int iw = ow * SW + kw - PW;
-                    if(ih >= 0 && ih < IH && iw >= 0 && iw < IW){
-                        float d = (float)input_data[bi * IH * IW * C + ih * IW * C + iw * C + c];
-                        float w = (float)kernel_weights[bi * C * KH * KW + c * KH * KW + kh * KW + kw];
-                        acc += d * w;
+            if constexpr(IS_FULL_CONV){
+                for(int c_in = 0; c_in < IC; c_in++){
+                    for(int kh = 0; kh < KH; kh++){
+                        for(int kw = 0; kw < KW; kw++){
+                            const int ih = oh * SH + kh - PH;
+                            const int iw = ow * SW + kw - PW;
+                            if(ih >= 0 && ih < IH && iw >= 0 && iw < IW){
+                                float d = (float)input_data[bi * IH * IW * IC + ih * IW * IC + iw * IC + c_in];
+                                float w = (float)kernel_weights[bi * OC * IC * KH * KW + c_out * IC * KH * KW + c_in * KH * KW + kh * KW + kw];
+                                acc += d * w;
+                            }
+                        }
+                    }
+                }
+            } else {
+                for(int kh = 0; kh < KH; kh++){
+                    for(int kw = 0; kw < KW; kw++){
+                        const int ih = oh * SH + kh - PH;
+                        const int iw = ow * SW + kw - PW;
+                        if(ih >= 0 && ih < IH && iw >= 0 && iw < IW){
+                            float d = (float)input_data[bi * IH * IW * OC + ih * IW * OC + iw * OC + c_out];
+                            float w = (float)kernel_weights[bi * OC * KH * KW + c_out * KH * KW + kh * KW + kw];
+                            acc += d * w;
+                        }
                     }
                 }
             }
@@ -51,7 +67,7 @@ namespace rl_tools{
             }
         }
 
-        template <bool COMPUTE_D_DATA, bool COMPUTE_D_KW, nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, typename T, int IH, int IW, int C, int OH, int OW, int KH, int KW, int SH, int SW, int PH, int PW>
+        template <bool COMPUTE_D_DATA, bool COMPUTE_D_KW, bool IS_FULL_CONV, nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, typename T, int IH, int IW, int OC, int IC, int OH, int OW, int KH, int KW, int SH, int SW, int PH, int PW>
         __global__ void dynamic_conv2d_backward_kernel(
             const T* __restrict__ input_data,
             const T* __restrict__ kernel_weights,
@@ -62,27 +78,48 @@ namespace rl_tools{
             int batch_size
         ){
             const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            const int total = batch_size * OH * OW * C;
+            const int total = batch_size * OH * OW * OC;
             if(idx >= total) return;
-            const int c = idx % C;
-            const int ow = (idx / C) % OW;
-            const int oh = (idx / C / OW) % OH;
-            const int bi = idx / C / OW / OH;
+            const int c_out = idx % OC;
+            const int ow = (idx / OC) % OW;
+            const int oh = (idx / OC / OW) % OH;
+            const int bi = idx / OC / OW / OH;
             float pre_act = (float)pre_activations[idx];
             float d_act = d_activation_d_x<devices::math::CUDA, float, ACTIVATION_FUNCTION>(pre_act);
             float d_pre = d_act * (float)d_output[idx];
-            for(int kh = 0; kh < KH; kh++){
-                for(int kw = 0; kw < KW; kw++){
-                    const int ih = oh * SH + kh - PH;
-                    const int iw = ow * SW + kw - PW;
-                    if(ih >= 0 && ih < IH && iw >= 0 && iw < IW){
-                        if constexpr(COMPUTE_D_DATA){
-                            float w_val = (float)kernel_weights[bi * C * KH * KW + c * KH * KW + kh * KW + kw];
-                            atomicAdd(&d_data_acc[bi * IH * IW * C + ih * IW * C + iw * C + c], w_val * d_pre);
+            if constexpr(IS_FULL_CONV){
+                for(int c_in = 0; c_in < IC; c_in++){
+                    for(int kh = 0; kh < KH; kh++){
+                        for(int kw = 0; kw < KW; kw++){
+                            const int ih = oh * SH + kh - PH;
+                            const int iw = ow * SW + kw - PW;
+                            if(ih >= 0 && ih < IH && iw >= 0 && iw < IW){
+                                if constexpr(COMPUTE_D_DATA){
+                                    float w_val = (float)kernel_weights[bi * OC * IC * KH * KW + c_out * IC * KH * KW + c_in * KH * KW + kh * KW + kw];
+                                    atomicAdd(&d_data_acc[bi * IH * IW * IC + ih * IW * IC + iw * IC + c_in], w_val * d_pre);
+                                }
+                                if constexpr(COMPUTE_D_KW){
+                                    float d_val = (float)input_data[bi * IH * IW * IC + ih * IW * IC + iw * IC + c_in];
+                                    atomicAdd(&d_kw_acc[bi * OC * IC * KH * KW + c_out * IC * KH * KW + c_in * KH * KW + kh * KW + kw], d_val * d_pre);
+                                }
+                            }
                         }
-                        if constexpr(COMPUTE_D_KW){
-                            float d_val = (float)input_data[bi * IH * IW * C + ih * IW * C + iw * C + c];
-                            atomicAdd(&d_kw_acc[bi * C * KH * KW + c * KH * KW + kh * KW + kw], d_val * d_pre);
+                    }
+                }
+            } else {
+                for(int kh = 0; kh < KH; kh++){
+                    for(int kw = 0; kw < KW; kw++){
+                        const int ih = oh * SH + kh - PH;
+                        const int iw = ow * SW + kw - PW;
+                        if(ih >= 0 && ih < IH && iw >= 0 && iw < IW){
+                            if constexpr(COMPUTE_D_DATA){
+                                float w_val = (float)kernel_weights[bi * OC * KH * KW + c_out * KH * KW + kh * KW + kw];
+                                atomicAdd(&d_data_acc[bi * IH * IW * OC + ih * IW * OC + iw * OC + c_out], w_val * d_pre);
+                            }
+                            if constexpr(COMPUTE_D_KW){
+                                float d_val = (float)input_data[bi * IH * IW * OC + ih * IW * OC + iw * OC + c_out];
+                                atomicAdd(&d_kw_acc[bi * OC * KH * KW + c_out * KH * KW + kh * KW + kw], d_val * d_pre);
+                            }
                         }
                     }
                 }
@@ -108,9 +145,11 @@ namespace rl_tools{
         using T = typename OUTPUT_SPEC::T;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr bool IS_FULL_CONV = LAYER_SPEC::IS_FULL_CONV;
         constexpr int IH = LAYER_SPEC::INPUT_HEIGHT;
         constexpr int IW = LAYER_SPEC::INPUT_WIDTH;
-        constexpr int C = LAYER_SPEC::INPUT_CHANNELS;
+        constexpr int OC = LAYER_SPEC::OUTPUT_CHANNELS;
+        constexpr int IC = LAYER_SPEC::INPUT_CHANNELS;
         constexpr int OH = LAYER_SPEC::OUTPUT_HEIGHT;
         constexpr int OW = LAYER_SPEC::OUTPUT_WIDTH;
         constexpr int KH = LAYER_SPEC::KERNEL_HEIGHT;
@@ -119,10 +158,10 @@ namespace rl_tools{
         constexpr int SW = LAYER_SPEC::STRIDE_W;
         constexpr int PH = LAYER_SPEC::PADDING_H;
         constexpr int PW = LAYER_SPEC::PADDING_W;
-        constexpr TI TOTAL = BATCH_SIZE * OH * OW * C;
+        constexpr TI TOTAL = BATCH_SIZE * OH * OW * OC;
         constexpr TI BLOCK_SIZE = 256;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BLOCK_SIZE);
-        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_forward_kernel<false, LAYER_SPEC::ACTIVATION_FUNCTION, T, IH, IW, C, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS, BLOCK_SIZE, 0, device.stream>>>(
+        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_forward_kernel<false, IS_FULL_CONV, LAYER_SPEC::ACTIVATION_FUNCTION, T, IH, IW, OC, IC, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS, BLOCK_SIZE, 0, device.stream>>>(
             data._data,
             kernel_weights._data,
             nullptr,
@@ -139,9 +178,11 @@ namespace rl_tools{
         using T = typename OUTPUT_SPEC::T;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr bool IS_FULL_CONV = LAYER_SPEC::IS_FULL_CONV;
         constexpr int IH = LAYER_SPEC::INPUT_HEIGHT;
         constexpr int IW = LAYER_SPEC::INPUT_WIDTH;
-        constexpr int C = LAYER_SPEC::INPUT_CHANNELS;
+        constexpr int OC = LAYER_SPEC::OUTPUT_CHANNELS;
+        constexpr int IC = LAYER_SPEC::INPUT_CHANNELS;
         constexpr int OH = LAYER_SPEC::OUTPUT_HEIGHT;
         constexpr int OW = LAYER_SPEC::OUTPUT_WIDTH;
         constexpr int KH = LAYER_SPEC::KERNEL_HEIGHT;
@@ -150,10 +191,10 @@ namespace rl_tools{
         constexpr int SW = LAYER_SPEC::STRIDE_W;
         constexpr int PH = LAYER_SPEC::PADDING_H;
         constexpr int PW = LAYER_SPEC::PADDING_W;
-        constexpr TI TOTAL = BATCH_SIZE * OH * OW * C;
+        constexpr TI TOTAL = BATCH_SIZE * OH * OW * OC;
         constexpr TI BLOCK_SIZE = 256;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(TOTAL, BLOCK_SIZE);
-        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_forward_kernel<true, LAYER_SPEC::ACTIVATION_FUNCTION, T, IH, IW, C, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS, BLOCK_SIZE, 0, device.stream>>>(
+        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_forward_kernel<true, IS_FULL_CONV, LAYER_SPEC::ACTIVATION_FUNCTION, T, IH, IW, OC, IC, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS, BLOCK_SIZE, 0, device.stream>>>(
             data._data,
             kernel_weights._data,
             layer.pre_activations._data,
@@ -180,9 +221,11 @@ namespace rl_tools{
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr bool IS_FULL_CONV = LAYER_SPEC::IS_FULL_CONV;
         constexpr int IH = LAYER_SPEC::INPUT_HEIGHT;
         constexpr int IW = LAYER_SPEC::INPUT_WIDTH;
-        constexpr int C = LAYER_SPEC::INPUT_CHANNELS;
+        constexpr int OC = LAYER_SPEC::OUTPUT_CHANNELS;
+        constexpr int IC = LAYER_SPEC::INPUT_CHANNELS;
         constexpr int OH = LAYER_SPEC::OUTPUT_HEIGHT;
         constexpr int OW = LAYER_SPEC::OUTPUT_WIDTH;
         constexpr int KH = LAYER_SPEC::KERNEL_HEIGHT;
@@ -191,13 +234,13 @@ namespace rl_tools{
         constexpr int SW = LAYER_SPEC::STRIDE_W;
         constexpr int PH = LAYER_SPEC::PADDING_H;
         constexpr int PW = LAYER_SPEC::PADDING_W;
-        constexpr TI OUTPUT_TOTAL = BATCH_SIZE * OH * OW * C;
-        constexpr TI INPUT_TOTAL = BATCH_SIZE * IH * IW * C;
+        constexpr TI OUTPUT_TOTAL = BATCH_SIZE * OH * OW * OC;
+        constexpr TI INPUT_TOTAL = BATCH_SIZE * IH * IW * IC;
         constexpr TI BLOCK_SIZE = 256;
         constexpr TI N_BLOCKS_BWD = RL_TOOLS_DEVICES_CUDA_CEIL(OUTPUT_TOTAL, BLOCK_SIZE);
         constexpr TI N_BLOCKS_CAST = RL_TOOLS_DEVICES_CUDA_CEIL(INPUT_TOTAL, BLOCK_SIZE);
         check_cuda_call(device, cudaMemsetAsync(buffer.d_data_acc._data, 0, sizeof(ACCUMULATOR_TYPE) * INPUT_TOTAL, device.stream), "cudaMemsetAsync d_data_acc");
-        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_backward_kernel<true, false, LAYER_SPEC::ACTIVATION_FUNCTION, typename D_OUTPUT_SPEC::T, IH, IW, C, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS_BWD, BLOCK_SIZE, 0, device.stream>>>(
+        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_backward_kernel<true, false, IS_FULL_CONV, LAYER_SPEC::ACTIVATION_FUNCTION, typename D_OUTPUT_SPEC::T, IH, IW, OC, IC, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS_BWD, BLOCK_SIZE, 0, device.stream>>>(
             (const typename D_OUTPUT_SPEC::T*)nullptr,
             kernel_weights._data,
             layer.pre_activations._data,
@@ -221,9 +264,11 @@ namespace rl_tools{
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr bool IS_FULL_CONV = LAYER_SPEC::IS_FULL_CONV;
         constexpr int IH = LAYER_SPEC::INPUT_HEIGHT;
         constexpr int IW = LAYER_SPEC::INPUT_WIDTH;
-        constexpr int C = LAYER_SPEC::INPUT_CHANNELS;
+        constexpr int OC = LAYER_SPEC::OUTPUT_CHANNELS;
+        constexpr int IC = LAYER_SPEC::INPUT_CHANNELS;
         constexpr int OH = LAYER_SPEC::OUTPUT_HEIGHT;
         constexpr int OW = LAYER_SPEC::OUTPUT_WIDTH;
         constexpr int KH = LAYER_SPEC::KERNEL_HEIGHT;
@@ -232,13 +277,13 @@ namespace rl_tools{
         constexpr int SW = LAYER_SPEC::STRIDE_W;
         constexpr int PH = LAYER_SPEC::PADDING_H;
         constexpr int PW = LAYER_SPEC::PADDING_W;
-        constexpr TI OUTPUT_TOTAL = BATCH_SIZE * OH * OW * C;
-        constexpr TI KW_TOTAL = BATCH_SIZE * C * KH * KW;
+        constexpr TI OUTPUT_TOTAL = BATCH_SIZE * OH * OW * OC;
+        constexpr TI KW_TOTAL = IS_FULL_CONV ? (BATCH_SIZE * OC * IC * KH * KW) : (BATCH_SIZE * IC * KH * KW);
         constexpr TI BLOCK_SIZE = 256;
         constexpr TI N_BLOCKS_BWD = RL_TOOLS_DEVICES_CUDA_CEIL(OUTPUT_TOTAL, BLOCK_SIZE);
         constexpr TI N_BLOCKS_CAST = RL_TOOLS_DEVICES_CUDA_CEIL(KW_TOTAL, BLOCK_SIZE);
         check_cuda_call(device, cudaMemsetAsync(buffer.d_kernel_weights_acc._data, 0, sizeof(ACCUMULATOR_TYPE) * KW_TOTAL, device.stream), "cudaMemsetAsync d_kernel_weights_acc");
-        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_backward_kernel<false, true, LAYER_SPEC::ACTIVATION_FUNCTION, typename D_OUTPUT_SPEC::T, IH, IW, C, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS_BWD, BLOCK_SIZE, 0, device.stream>>>(
+        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_backward_kernel<false, true, IS_FULL_CONV, LAYER_SPEC::ACTIVATION_FUNCTION, typename D_OUTPUT_SPEC::T, IH, IW, OC, IC, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS_BWD, BLOCK_SIZE, 0, device.stream>>>(
             data._data,
             (const typename D_OUTPUT_SPEC::T*)nullptr,
             layer.pre_activations._data,
@@ -263,9 +308,11 @@ namespace rl_tools{
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
+        constexpr bool IS_FULL_CONV = LAYER_SPEC::IS_FULL_CONV;
         constexpr int IH = LAYER_SPEC::INPUT_HEIGHT;
         constexpr int IW = LAYER_SPEC::INPUT_WIDTH;
-        constexpr int C = LAYER_SPEC::INPUT_CHANNELS;
+        constexpr int OC = LAYER_SPEC::OUTPUT_CHANNELS;
+        constexpr int IC = LAYER_SPEC::INPUT_CHANNELS;
         constexpr int OH = LAYER_SPEC::OUTPUT_HEIGHT;
         constexpr int OW = LAYER_SPEC::OUTPUT_WIDTH;
         constexpr int KH = LAYER_SPEC::KERNEL_HEIGHT;
@@ -274,16 +321,16 @@ namespace rl_tools{
         constexpr int SW = LAYER_SPEC::STRIDE_W;
         constexpr int PH = LAYER_SPEC::PADDING_H;
         constexpr int PW = LAYER_SPEC::PADDING_W;
-        constexpr TI OUTPUT_TOTAL = BATCH_SIZE * OH * OW * C;
-        constexpr TI INPUT_TOTAL = BATCH_SIZE * IH * IW * C;
-        constexpr TI KW_TOTAL = BATCH_SIZE * C * KH * KW;
+        constexpr TI OUTPUT_TOTAL = BATCH_SIZE * OH * OW * OC;
+        constexpr TI INPUT_TOTAL = BATCH_SIZE * IH * IW * IC;
+        constexpr TI KW_TOTAL = IS_FULL_CONV ? (BATCH_SIZE * OC * IC * KH * KW) : (BATCH_SIZE * IC * KH * KW);
         constexpr TI BLOCK_SIZE = 256;
         constexpr TI N_BLOCKS_BWD = RL_TOOLS_DEVICES_CUDA_CEIL(OUTPUT_TOTAL, BLOCK_SIZE);
         constexpr TI N_BLOCKS_CAST_DATA = RL_TOOLS_DEVICES_CUDA_CEIL(INPUT_TOTAL, BLOCK_SIZE);
         constexpr TI N_BLOCKS_CAST_KW = RL_TOOLS_DEVICES_CUDA_CEIL(KW_TOTAL, BLOCK_SIZE);
         check_cuda_call(device, cudaMemsetAsync(buffer.d_data_acc._data, 0, sizeof(ACCUMULATOR_TYPE) * INPUT_TOTAL, device.stream), "cudaMemsetAsync d_data_acc");
         check_cuda_call(device, cudaMemsetAsync(buffer.d_kernel_weights_acc._data, 0, sizeof(ACCUMULATOR_TYPE) * KW_TOTAL, device.stream), "cudaMemsetAsync d_kernel_weights_acc");
-        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_backward_kernel<true, true, LAYER_SPEC::ACTIVATION_FUNCTION, typename D_OUTPUT_SPEC::T, IH, IW, C, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS_BWD, BLOCK_SIZE, 0, device.stream>>>(
+        nn::layers::dynamic_conv2d::cuda::kernels::dynamic_conv2d_backward_kernel<true, true, IS_FULL_CONV, LAYER_SPEC::ACTIVATION_FUNCTION, typename D_OUTPUT_SPEC::T, IH, IW, OC, IC, OH, OW, KH, KW, SH, SW, PH, PW><<<N_BLOCKS_BWD, BLOCK_SIZE, 0, device.stream>>>(
             data._data,
             kernel_weights._data,
             layer.pre_activations._data,

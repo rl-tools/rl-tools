@@ -15,7 +15,8 @@ namespace rl_tools::nn::layers::dynamic_conv2d {
              T_TI T_KERNEL_HEIGHT, T_TI T_KERNEL_WIDTH = T_KERNEL_HEIGHT,
              T_TI T_STRIDE_H = 1, T_TI T_STRIDE_W = T_STRIDE_H,
              T_TI T_PADDING_H = 0, T_TI T_PADDING_W = T_PADDING_H,
-             nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::IDENTITY>
+             nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::IDENTITY,
+             T_TI T_OUTPUT_CHANNELS = 0>
     struct Configuration{
         using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
@@ -26,6 +27,7 @@ namespace rl_tools::nn::layers::dynamic_conv2d {
         static constexpr TI PADDING_H = T_PADDING_H;
         static constexpr TI PADDING_W = T_PADDING_W;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
+        static constexpr TI OUTPUT_CHANNELS = T_OUTPUT_CHANNELS;
     };
 
     template <typename T_CONFIG, typename T_CAPABILITY, typename T_INPUT_SHAPE>
@@ -39,7 +41,8 @@ namespace rl_tools::nn::layers::dynamic_conv2d {
         static constexpr TI INPUT_HEIGHT = get<length(INPUT_SHAPE{})-3>(INPUT_SHAPE{});
         static constexpr TI INPUT_WIDTH = get<length(INPUT_SHAPE{})-2>(INPUT_SHAPE{});
         static constexpr TI INPUT_CHANNELS = get_last(INPUT_SHAPE{});
-        static constexpr TI OUTPUT_CHANNELS = INPUT_CHANNELS;
+        static constexpr bool IS_FULL_CONV = CONFIG::OUTPUT_CHANNELS != 0;
+        static constexpr TI OUTPUT_CHANNELS = IS_FULL_CONV ? CONFIG::OUTPUT_CHANNELS : INPUT_CHANNELS;
         static constexpr TI OUTPUT_HEIGHT = (INPUT_HEIGHT + 2 * CONFIG::PADDING_H - CONFIG::KERNEL_HEIGHT) / CONFIG::STRIDE_H + 1;
         static constexpr TI OUTPUT_WIDTH = (INPUT_WIDTH + 2 * CONFIG::PADDING_W - CONFIG::KERNEL_WIDTH) / CONFIG::STRIDE_W + 1;
 
@@ -56,7 +59,8 @@ namespace rl_tools::nn::layers::dynamic_conv2d {
             static constexpr TI NEW_OW = (NEW_W + 2 * CONFIG::PADDING_W - CONFIG::KERNEL_WIDTH) / CONFIG::STRIDE_W + 1;
             using SHAPE_HEIGHT = tensor::Replace<NEW_INPUT_SHAPE, NEW_OH, length(NEW_INPUT_SHAPE{}) - 3>;
             using SHAPE_WIDTH = tensor::Replace<SHAPE_HEIGHT, NEW_OW, length(NEW_INPUT_SHAPE{}) - 2>;
-            using SHAPE = SHAPE_WIDTH;
+            using SHAPE_CHANNELS = tensor::Replace<SHAPE_WIDTH, OUTPUT_CHANNELS, length(NEW_INPUT_SHAPE{}) - 1>;
+            using SHAPE = SHAPE_CHANNELS;
         };
         using OUTPUT_SHAPE = typename OUTPUT_SHAPE_FACTORY<INPUT_SHAPE>::SHAPE;
         static constexpr TI INTERNAL_BATCH_SIZE = tensor::shape_math::leading_product(tensor::shape_math::element_to_array<INPUT_SHAPE>(), 3);
@@ -66,6 +70,7 @@ namespace rl_tools::nn::layers::dynamic_conv2d {
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
             SPEC_1::INPUT_CHANNELS == SPEC_2::INPUT_CHANNELS
+            && SPEC_1::OUTPUT_CHANNELS == SPEC_2::OUTPUT_CHANNELS
             && SPEC_1::KERNEL_HEIGHT == SPEC_2::KERNEL_HEIGHT
             && SPEC_1::KERNEL_WIDTH == SPEC_2::KERNEL_WIDTH
             && SPEC_1::INPUT_HEIGHT == SPEC_2::INPUT_HEIGHT
@@ -107,7 +112,9 @@ namespace rl_tools::nn::layers::dynamic_conv2d {
         using D_DATA_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::INPUT_HEIGHT, SPEC::INPUT_WIDTH, SPEC::INPUT_CHANNELS>;
         using D_DATA_SPEC = tensor::Specification<ACCUMULATOR_TYPE, TI, D_DATA_SHAPE, DYNAMIC_ALLOCATION>;
         Tensor<D_DATA_SPEC> d_data_acc;
-        using D_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::INPUT_CHANNELS, SPEC::KERNEL_HEIGHT, SPEC::KERNEL_WIDTH>;
+        using D_KERNEL_WEIGHTS_SHAPE = utils::typing::conditional_t<SPEC::IS_FULL_CONV,
+            tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::OUTPUT_CHANNELS, SPEC::INPUT_CHANNELS, SPEC::KERNEL_HEIGHT, SPEC::KERNEL_WIDTH>,
+            tensor::Shape<TI, SPEC::INTERNAL_BATCH_SIZE, SPEC::INPUT_CHANNELS, SPEC::KERNEL_HEIGHT, SPEC::KERNEL_WIDTH>>;
         using D_KERNEL_WEIGHTS_SPEC = tensor::Specification<ACCUMULATOR_TYPE, TI, D_KERNEL_WEIGHTS_SHAPE, DYNAMIC_ALLOCATION>;
         Tensor<D_KERNEL_WEIGHTS_SPEC> d_kernel_weights_acc;
     };

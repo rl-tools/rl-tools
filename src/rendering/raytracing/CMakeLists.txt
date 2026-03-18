@@ -12,4 +12,4 @@ target_include_directories(rendering_raytracing_stb SYSTEM INTERFACE ${stb_SOURC
 add_subdirectory(backends)
 #add_subdirectory(benchmark)
 add_subdirectory(example)
-add_subdirectory(yaw_prediction)
+#add_subdirectory(yaw_prediction)

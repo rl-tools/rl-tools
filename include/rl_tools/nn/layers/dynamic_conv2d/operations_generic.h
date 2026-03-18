@@ -66,33 +66,64 @@ namespace rl_tools{
         using T = typename OUTPUT_SPEC::T;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
-        constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
-
-        using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
-        using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
-        using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
+        using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
         auto data_4d = view_memory<INTERNAL_DATA_SHAPE>(device, data);
-        auto kw_4d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
-        auto output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, output);
-
-        for(TI bi = 0; bi < BATCH_SIZE; bi++){
-            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                    for(TI c = 0; c < C; c++){
-                        ACCUMULATOR_TYPE acc = 0;
-                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
-                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
-                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
-                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
-                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
-                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
-                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
-                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
-                                    acc += (ACCUMULATOR_TYPE)get(device, kw_4d, bi, c, kh, kw) * (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c);
+        if constexpr(LAYER_SPEC::IS_FULL_CONV){
+            constexpr TI OC = LAYER_SPEC::OUTPUT_CHANNELS;
+            constexpr TI IC = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, OC, IC, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, OC>;
+            auto kw_5d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
+            auto output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c_out = 0; c_out < OC; c_out++){
+                            ACCUMULATOR_TYPE acc = 0;
+                            for(TI c_in = 0; c_in < IC; c_in++){
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            acc += (ACCUMULATOR_TYPE)get(device, kw_5d, bi, c_out, c_in, kh, kw) * (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c_in);
+                                        }
+                                    }
                                 }
                             }
+                            set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, c_out);
                         }
-                        set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, c);
+                    }
+                }
+            }
+        } else {
+            constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
+            auto kw_4d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
+            auto output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c = 0; c < C; c++){
+                            ACCUMULATOR_TYPE acc = 0;
+                            for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                    TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                    TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                    if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                       iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                        TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                        TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                        acc += (ACCUMULATOR_TYPE)get(device, kw_4d, bi, c, kh, kw) * (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c);
+                                    }
+                                }
+                            }
+                            set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, c);
+                        }
                     }
                 }
             }
@@ -107,34 +138,66 @@ namespace rl_tools{
         using T = typename OUTPUT_SPEC::T;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
-        constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
-
-        using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
-        using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
-        using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
+        using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, LAYER_SPEC::INPUT_CHANNELS>;
         auto data_4d = view_memory<INTERNAL_DATA_SHAPE>(device, data);
-        auto kw_4d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
-        auto output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, output);
-
-        for(TI bi = 0; bi < BATCH_SIZE; bi++){
-            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                    for(TI c = 0; c < C; c++){
-                        ACCUMULATOR_TYPE acc = 0;
-                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
-                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
-                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
-                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
-                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
-                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
-                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
-                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
-                                    acc += (ACCUMULATOR_TYPE)get(device, kw_4d, bi, c, kh, kw) * (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c);
+        if constexpr(LAYER_SPEC::IS_FULL_CONV){
+            constexpr TI OC = LAYER_SPEC::OUTPUT_CHANNELS;
+            constexpr TI IC = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, OC, IC, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, OC>;
+            auto kw_5d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
+            auto output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c_out = 0; c_out < OC; c_out++){
+                            ACCUMULATOR_TYPE acc = 0;
+                            for(TI c_in = 0; c_in < IC; c_in++){
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            acc += (ACCUMULATOR_TYPE)get(device, kw_5d, bi, c_out, c_in, kh, kw) * (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c_in);
+                                        }
+                                    }
                                 }
                             }
+                            set(device, layer.pre_activations, (T)acc, bi, oh, ow, c_out);
+                            set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, c_out);
                         }
-                        set(device, layer.pre_activations, (T)acc, bi, oh, ow, c);
-                        set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, c);
+                    }
+                }
+            }
+        } else {
+            constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            using INTERNAL_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
+            auto kw_4d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
+            auto output_4d = view_memory<INTERNAL_OUTPUT_SHAPE>(device, output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c = 0; c < C; c++){
+                            ACCUMULATOR_TYPE acc = 0;
+                            for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                    TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                    TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                    if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                       iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                        TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                        TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                        acc += (ACCUMULATOR_TYPE)get(device, kw_4d, bi, c, kh, kw) * (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c);
+                                    }
+                                }
+                            }
+                            set(device, layer.pre_activations, (T)acc, bi, oh, ow, c);
+                            set(device, output_4d, (T)activation<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>(acc), bi, oh, ow, c);
+                        }
                     }
                 }
             }
@@ -158,39 +221,73 @@ namespace rl_tools{
         using T = typename D_DATA_SPEC::T;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
-        constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
-
-        using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
-        using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
-        auto kw_4d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
-        auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
-
         set_all(device, buffer.d_data_acc, (ACCUMULATOR_TYPE)0);
-        for(TI bi = 0; bi < BATCH_SIZE; bi++){
-            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                    for(TI c = 0; c < C; c++){
-                        ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c);
-                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
-                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
-                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
-                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
-                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
-                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
-                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
-                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
-                                    increment(device, buffer.d_data_acc, (ACCUMULATOR_TYPE)get(device, kw_4d, bi, c, kh, kw) * d_pre_act, bi, ih, iw, c);
+        if constexpr(LAYER_SPEC::IS_FULL_CONV){
+            constexpr TI OC = LAYER_SPEC::OUTPUT_CHANNELS;
+            constexpr TI IC = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, OC, IC, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, OC>;
+            auto kw_5d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
+            auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c_out = 0; c_out < OC; c_out++){
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c_out)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c_out);
+                            for(TI c_in = 0; c_in < IC; c_in++){
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            increment(device, buffer.d_data_acc, (ACCUMULATOR_TYPE)get(device, kw_5d, bi, c_out, c_in, kh, kw) * d_pre_act, bi, ih, iw, c_in);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+            using INTERNAL_D_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, IC>;
+            auto d_data_4d = view_memory<INTERNAL_D_DATA_SHAPE>(device, d_data);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI ih = 0; ih < LAYER_SPEC::INPUT_HEIGHT; ih++) for(TI iw = 0; iw < LAYER_SPEC::INPUT_WIDTH; iw++) for(TI c_in = 0; c_in < IC; c_in++)
+                set(device, d_data_4d, (T)get(device, buffer.d_data_acc, bi, ih, iw, c_in), bi, ih, iw, c_in);
+        } else {
+            constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
+            auto kw_4d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
+            auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c = 0; c < C; c++){
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c);
+                            for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                    TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                    TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                    if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                       iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                        TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                        TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                        increment(device, buffer.d_data_acc, (ACCUMULATOR_TYPE)get(device, kw_4d, bi, c, kh, kw) * d_pre_act, bi, ih, iw, c);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            using INTERNAL_D_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
+            auto d_data_4d = view_memory<INTERNAL_D_DATA_SHAPE>(device, d_data);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI ih = 0; ih < LAYER_SPEC::INPUT_HEIGHT; ih++) for(TI iw = 0; iw < LAYER_SPEC::INPUT_WIDTH; iw++) for(TI c = 0; c < C; c++)
+                set(device, d_data_4d, (T)get(device, buffer.d_data_acc, bi, ih, iw, c), bi, ih, iw, c);
         }
-        using INTERNAL_D_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
-        auto d_data_4d = view_memory<INTERNAL_D_DATA_SHAPE>(device, d_data);
-        for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI ih = 0; ih < LAYER_SPEC::INPUT_HEIGHT; ih++) for(TI iw = 0; iw < LAYER_SPEC::INPUT_WIDTH; iw++) for(TI c = 0; c < C; c++)
-            set(device, d_data_4d, (T)get(device, buffer.d_data_acc, bi, ih, iw, c), bi, ih, iw, c);
     }
 
     // ======================== backward_kernel_weights (d_kernel_weights only) ========================
@@ -200,39 +297,73 @@ namespace rl_tools{
         using T = typename D_KERNEL_WEIGHTS_SPEC::T;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
-        constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
-
-        using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
-        using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
-        auto data_4d = view_memory<INTERNAL_DATA_SHAPE>(device, data);
-        auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
-
         set_all(device, buffer.d_kernel_weights_acc, (ACCUMULATOR_TYPE)0);
-        for(TI bi = 0; bi < BATCH_SIZE; bi++){
-            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                    for(TI c = 0; c < C; c++){
-                        ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c);
-                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
-                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
-                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
-                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
-                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
-                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
-                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
-                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
-                                    increment(device, buffer.d_kernel_weights_acc, (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c) * d_pre_act, bi, c, kh, kw);
+        if constexpr(LAYER_SPEC::IS_FULL_CONV){
+            constexpr TI OC = LAYER_SPEC::OUTPUT_CHANNELS;
+            constexpr TI IC = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, IC>;
+            using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, OC>;
+            auto data_4d = view_memory<INTERNAL_DATA_SHAPE>(device, data);
+            auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c_out = 0; c_out < OC; c_out++){
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c_out)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c_out);
+                            for(TI c_in = 0; c_in < IC; c_in++){
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            increment(device, buffer.d_kernel_weights_acc, (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c_in) * d_pre_act, bi, c_out, c_in, kh, kw);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+            using INTERNAL_D_KW_SHAPE = tensor::Shape<TI, BATCH_SIZE, OC, IC, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            auto d_kw_5d = view_memory<INTERNAL_D_KW_SHAPE>(device, d_kernel_weights);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI c_out = 0; c_out < OC; c_out++) for(TI c_in = 0; c_in < IC; c_in++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++)
+                set(device, d_kw_5d, (T)get(device, buffer.d_kernel_weights_acc, bi, c_out, c_in, kh, kw), bi, c_out, c_in, kh, kw);
+        } else {
+            constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
+            using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
+            auto data_4d = view_memory<INTERNAL_DATA_SHAPE>(device, data);
+            auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c = 0; c < C; c++){
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c);
+                            for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                    TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                    TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                    if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                       iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                        TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                        TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                        increment(device, buffer.d_kernel_weights_acc, (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c) * d_pre_act, bi, c, kh, kw);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            using INTERNAL_D_KW_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            auto d_kw_4d = view_memory<INTERNAL_D_KW_SHAPE>(device, d_kernel_weights);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI c = 0; c < C; c++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++)
+                set(device, d_kw_4d, (T)get(device, buffer.d_kernel_weights_acc, bi, c, kh, kw), bi, c, kh, kw);
         }
-        using INTERNAL_D_KW_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
-        auto d_kw_4d = view_memory<INTERNAL_D_KW_SHAPE>(device, d_kernel_weights);
-        for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI c = 0; c < C; c++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++)
-            set(device, d_kw_4d, (T)get(device, buffer.d_kernel_weights_acc, bi, c, kh, kw), bi, c, kh, kw);
     }
 
     // ======================== backward_full (d_data + d_kernel_weights, fused) ========================
@@ -243,47 +374,88 @@ namespace rl_tools{
         using T_KW = typename D_KERNEL_WEIGHTS_SPEC::T;
         using ACCUMULATOR_TYPE = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Accumulator>;
         constexpr TI BATCH_SIZE = LAYER_SPEC::INTERNAL_BATCH_SIZE;
-        constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
-
-        using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
-        using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
-        using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
-        auto data_4d = view_memory<INTERNAL_DATA_SHAPE>(device, data);
-        auto kw_4d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
-        auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
-
         set_all(device, buffer.d_data_acc, (ACCUMULATOR_TYPE)0);
         set_all(device, buffer.d_kernel_weights_acc, (ACCUMULATOR_TYPE)0);
-        for(TI bi = 0; bi < BATCH_SIZE; bi++){
-            for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
-                for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
-                    for(TI c = 0; c < C; c++){
-                        ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c);
-                        for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
-                            for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
-                                TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
-                                TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
-                                if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
-                                   iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
-                                    TI ih = ih_padded - LAYER_SPEC::PADDING_H;
-                                    TI iw = iw_padded - LAYER_SPEC::PADDING_W;
-                                    increment(device, buffer.d_data_acc, (ACCUMULATOR_TYPE)get(device, kw_4d, bi, c, kh, kw) * d_pre_act, bi, ih, iw, c);
-                                    increment(device, buffer.d_kernel_weights_acc, (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c) * d_pre_act, bi, c, kh, kw);
+        if constexpr(LAYER_SPEC::IS_FULL_CONV){
+            constexpr TI OC = LAYER_SPEC::OUTPUT_CHANNELS;
+            constexpr TI IC = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, IC>;
+            using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, OC, IC, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, OC>;
+            auto data_4d = view_memory<INTERNAL_DATA_SHAPE>(device, data);
+            auto kw_5d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
+            auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c_out = 0; c_out < OC; c_out++){
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c_out)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c_out);
+                            for(TI c_in = 0; c_in < IC; c_in++){
+                                for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                    for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                        TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                        TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                        if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                           iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                            TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                            TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                            increment(device, buffer.d_data_acc, (ACCUMULATOR_TYPE)get(device, kw_5d, bi, c_out, c_in, kh, kw) * d_pre_act, bi, ih, iw, c_in);
+                                            increment(device, buffer.d_kernel_weights_acc, (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c_in) * d_pre_act, bi, c_out, c_in, kh, kw);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+            using INTERNAL_D_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, IC>;
+            using INTERNAL_D_KW_SHAPE = tensor::Shape<TI, BATCH_SIZE, OC, IC, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            auto d_data_4d = view_memory<INTERNAL_D_DATA_SHAPE>(device, d_data);
+            auto d_kw_5d = view_memory<INTERNAL_D_KW_SHAPE>(device, d_kernel_weights);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI ih = 0; ih < LAYER_SPEC::INPUT_HEIGHT; ih++) for(TI iw = 0; iw < LAYER_SPEC::INPUT_WIDTH; iw++) for(TI c_in = 0; c_in < IC; c_in++)
+                set(device, d_data_4d, (T_DATA)get(device, buffer.d_data_acc, bi, ih, iw, c_in), bi, ih, iw, c_in);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI c_out = 0; c_out < OC; c_out++) for(TI c_in = 0; c_in < IC; c_in++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++)
+                set(device, d_kw_5d, (T_KW)get(device, buffer.d_kernel_weights_acc, bi, c_out, c_in, kh, kw), bi, c_out, c_in, kh, kw);
+        } else {
+            constexpr TI C = LAYER_SPEC::INPUT_CHANNELS;
+            using INTERNAL_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
+            using INTERNAL_KERNEL_WEIGHTS_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            using INTERNAL_D_OUTPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::OUTPUT_HEIGHT, LAYER_SPEC::OUTPUT_WIDTH, C>;
+            auto data_4d = view_memory<INTERNAL_DATA_SHAPE>(device, data);
+            auto kw_4d = view_memory<INTERNAL_KERNEL_WEIGHTS_SHAPE>(device, kernel_weights);
+            auto d_output_4d = view_memory<INTERNAL_D_OUTPUT_SHAPE>(device, d_output);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++){
+                for(TI oh = 0; oh < LAYER_SPEC::OUTPUT_HEIGHT; oh++){
+                    for(TI ow = 0; ow < LAYER_SPEC::OUTPUT_WIDTH; ow++){
+                        for(TI c = 0; c < C; c++){
+                            ACCUMULATOR_TYPE d_pre_act = d_activation_d_x<typename DEVICE::SPEC::MATH, ACCUMULATOR_TYPE, LAYER_SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(device, layer.pre_activations, bi, oh, ow, c)) * (ACCUMULATOR_TYPE)get(device, d_output_4d, bi, oh, ow, c);
+                            for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++){
+                                for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++){
+                                    TI ih_padded = oh * LAYER_SPEC::STRIDE_H + kh;
+                                    TI iw_padded = ow * LAYER_SPEC::STRIDE_W + kw;
+                                    if(ih_padded >= LAYER_SPEC::PADDING_H && ih_padded < LAYER_SPEC::INPUT_HEIGHT + LAYER_SPEC::PADDING_H &&
+                                       iw_padded >= LAYER_SPEC::PADDING_W && iw_padded < LAYER_SPEC::INPUT_WIDTH + LAYER_SPEC::PADDING_W){
+                                        TI ih = ih_padded - LAYER_SPEC::PADDING_H;
+                                        TI iw = iw_padded - LAYER_SPEC::PADDING_W;
+                                        increment(device, buffer.d_data_acc, (ACCUMULATOR_TYPE)get(device, kw_4d, bi, c, kh, kw) * d_pre_act, bi, ih, iw, c);
+                                        increment(device, buffer.d_kernel_weights_acc, (ACCUMULATOR_TYPE)get(device, data_4d, bi, ih, iw, c) * d_pre_act, bi, c, kh, kw);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            using INTERNAL_D_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
+            using INTERNAL_D_KW_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
+            auto d_data_4d = view_memory<INTERNAL_D_DATA_SHAPE>(device, d_data);
+            auto d_kw_4d = view_memory<INTERNAL_D_KW_SHAPE>(device, d_kernel_weights);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI ih = 0; ih < LAYER_SPEC::INPUT_HEIGHT; ih++) for(TI iw = 0; iw < LAYER_SPEC::INPUT_WIDTH; iw++) for(TI c = 0; c < C; c++)
+                set(device, d_data_4d, (T_DATA)get(device, buffer.d_data_acc, bi, ih, iw, c), bi, ih, iw, c);
+            for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI c = 0; c < C; c++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++)
+                set(device, d_kw_4d, (T_KW)get(device, buffer.d_kernel_weights_acc, bi, c, kh, kw), bi, c, kh, kw);
         }
-        using INTERNAL_D_DATA_SHAPE = tensor::Shape<TI, BATCH_SIZE, LAYER_SPEC::INPUT_HEIGHT, LAYER_SPEC::INPUT_WIDTH, C>;
-        using INTERNAL_D_KW_SHAPE = tensor::Shape<TI, BATCH_SIZE, C, LAYER_SPEC::KERNEL_HEIGHT, LAYER_SPEC::KERNEL_WIDTH>;
-        auto d_data_4d = view_memory<INTERNAL_D_DATA_SHAPE>(device, d_data);
-        auto d_kw_4d = view_memory<INTERNAL_D_KW_SHAPE>(device, d_kernel_weights);
-        for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI ih = 0; ih < LAYER_SPEC::INPUT_HEIGHT; ih++) for(TI iw = 0; iw < LAYER_SPEC::INPUT_WIDTH; iw++) for(TI c = 0; c < C; c++)
-            set(device, d_data_4d, (T_DATA)get(device, buffer.d_data_acc, bi, ih, iw, c), bi, ih, iw, c);
-        for(TI bi = 0; bi < BATCH_SIZE; bi++) for(TI c = 0; c < C; c++) for(TI kh = 0; kh < LAYER_SPEC::KERNEL_HEIGHT; kh++) for(TI kw = 0; kw < LAYER_SPEC::KERNEL_WIDTH; kw++)
-            set(device, d_kw_4d, (T_KW)get(device, buffer.d_kernel_weights_acc, bi, c, kh, kw), bi, c, kh, kw);
     }
 #endif
 
