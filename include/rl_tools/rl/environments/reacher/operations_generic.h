@@ -323,17 +323,20 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename STATE_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::ReacherVisualMemory<SPEC>& env, typename rl::environments::ReacherVisualMemory<SPEC>::Parameters& parameters, const typename rl::environments::reacher::StateSequentialTargets<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::reacher::StateSequentialTargets<STATE_SPEC>& next_state, RNG& rng){
         using T = typename SPEC::T;
-        T dx, dy;
-        if(next_state.current_target == 0){
-            dx = next_state.x - next_state.target1_x;
-            dy = next_state.y - next_state.target1_y;
+        using PARAMS = typename SPEC::PARAMETERS;
+        T dx_agent_t2 = next_state.x - next_state.target2_x;
+        T dy_agent_t2 = next_state.y - next_state.target2_y;
+        T distance_to_target2 = math::sqrt(device.math, dx_agent_t2 * dx_agent_t2 + dy_agent_t2 * dy_agent_t2);
+        if(PARAMS::NUM_TARGETS <= 1 || next_state.current_target > 0){
+            return -distance_to_target2;
         }
-        else{
-            dx = next_state.x - next_state.target2_x;
-            dy = next_state.y - next_state.target2_y;
-        }
-        T distance = math::sqrt(device.math, dx * dx + dy * dy);
-        return -distance;
+        T dx_agent_t1 = next_state.x - next_state.target1_x;
+        T dy_agent_t1 = next_state.y - next_state.target1_y;
+        T distance_to_target1 = math::sqrt(device.math, dx_agent_t1 * dx_agent_t1 + dy_agent_t1 * dy_agent_t1);
+        T dx_t1_t2 = next_state.target1_x - next_state.target2_x;
+        T dy_t1_t2 = next_state.target1_y - next_state.target2_y;
+        T distance_target1_to_target2 = math::sqrt(device.math, dx_t1_t2 * dx_t1_t2 + dy_t1_t2 * dy_t1_t2);
+        return -(distance_to_target1 + distance_target1_to_target2);
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::ReacherVisualMemory<SPEC>& env, const typename rl::environments::ReacherVisualMemory<SPEC>::Parameters& parameters, const typename rl::environments::reacher::StateSequentialTargets<STATE_SPEC>& state, const typename rl::environments::reacher::ObservationDenseSequentialTargets<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
