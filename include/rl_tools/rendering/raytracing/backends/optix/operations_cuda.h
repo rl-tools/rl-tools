@@ -821,6 +821,21 @@ namespace rl_tools {
     }
 
     // =========================================================================
+    // read_collision_results: typed access to collision probe buffer
+    // =========================================================================
+    template <typename DEVICE, typename SPEC>
+    const rendering::raytracing::CollisionResult* read_collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        return nullptr;
+#else
+        if(renderer.collision_results_buffer == nullptr){
+            return nullptr;
+        }
+        return (const rendering::raytracing::CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.collision_results_buffer, 0);
+#endif
+    }
+
+    // =========================================================================
     // free: destroy OWL contexts
     // =========================================================================
     template <typename DEVICE, typename SPEC>
