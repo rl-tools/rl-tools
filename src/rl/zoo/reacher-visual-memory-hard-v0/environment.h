@@ -14,9 +14,10 @@ namespace rl_tools::rl::zoo::reacher_visual_memory_hard_v0{
         struct REACHER_PARAMETERS: rlt::rl::environments::reacher::DefaultParameters<T>{
             static constexpr auto IMAGE_HEIGHT = 16;
             static constexpr auto IMAGE_WIDTH = 16;
+            static constexpr auto NUM_TARGETS = 2;
         };
         using ENVIRONMENT_SPEC = rlt::rl::environments::reacher::Specification<T, TI, REACHER_PARAMETERS>;
-        using ENVIRONMENT = rlt::rl::environments::ReacherVisualMemoryHard<ENVIRONMENT_SPEC>;
+        using ENVIRONMENT = rlt::rl::environments::ReacherVisualMemory<ENVIRONMENT_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
