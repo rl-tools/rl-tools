@@ -7,7 +7,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 #endif
 
 #ifndef ABLATION_USE_CROSS_CONV
-#define ABLATION_USE_CROSS_CONV 1
+#define ABLATION_USE_CROSS_CONV 0
 #endif
 
     template <typename TI, TI T_CHANNEL_MULTIPLIER = ABLATION_CHANNEL_MULTIPLIER, bool T_USE_CROSS_CONV = (ABLATION_USE_CROSS_CONV != 0)>

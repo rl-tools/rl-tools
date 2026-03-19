@@ -51,6 +51,7 @@
 #include <rl_tools/nn/layers/avg_pool2d/persist.h>
 #include <rl_tools/nn/layers/dynamic_conv2d/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/parallel/persist.h>
 #include "model_persist.h"
 #endif
 
@@ -406,6 +407,8 @@ int main(int argc, char** argv) {
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
     extrack_config.name = "yaw-prediction";
+    extrack_config.population_variates = "cross-conv_channel-multiplier_resolution";
+    extrack_config.population_values = std::to_string(ABLATION_USE_CROSS_CONV) + "_" + std::to_string(ABLATION_CHANNEL_MULTIPLIER) + "_" + std::to_string(ABLATION_RESOLUTION);
     rlt::init(device_cpu, extrack_config, extrack_paths, 0);
 
     // ---- Signal handler for clean shutdown ----

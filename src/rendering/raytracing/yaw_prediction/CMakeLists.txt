@@ -78,9 +78,9 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
         )
     endfunction()
 
-    add_yaw_prediction_ablation(base       CHANNEL_MULTIPLIER 1 USE_CROSS_CONV 1 RESOLUTION 64)
+    add_yaw_prediction_ablation(base       CHANNEL_MULTIPLIER 1 USE_CROSS_CONV 0 RESOLUTION 64)
+    add_yaw_prediction_ablation(crossconv  CHANNEL_MULTIPLIER 1 USE_CROSS_CONV 1 RESOLUTION 64)
     add_yaw_prediction_ablation(2x         CHANNEL_MULTIPLIER 2 USE_CROSS_CONV 1 RESOLUTION 64)
-    add_yaw_prediction_ablation(nocross    CHANNEL_MULTIPLIER 1 USE_CROSS_CONV 0 RESOLUTION 64)
     add_yaw_prediction_ablation(128        CHANNEL_MULTIPLIER 1 USE_CROSS_CONV 1 RESOLUTION 128)
 
     add_yaw_prediction_scene_lib(64)

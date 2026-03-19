@@ -142,9 +142,9 @@ using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_
 using GPU_INPUT_SPEC = rlt::tensor::Specification<T_ACTIVATION, TI_CUDA, GPU_INPUT_SHAPE>;
 
 // Teacher encoder output dimensions
-static constexpr int TEACHER_ENCODER_DIM_VAL = TEACHER_GPU_MODEL::SPEC::LATE_LAST_DIM;
-static constexpr int TEACHER_CONCAT_DIM = TEACHER_GPU_MODEL::SPEC::LATE_LAST_DIM * 2;
-static constexpr int TEACHER_ENCODER_TOTAL = rlt::product(typename TEACHER_GPU_MODEL::SPEC::LATE_OUTPUT_SHAPE{});
+static constexpr int TEACHER_ENCODER_DIM_VAL = TEACHER_GPU_MODEL::SPEC::LAST_DIM_A;
+static constexpr int TEACHER_CONCAT_DIM = TEACHER_GPU_MODEL::SPEC::LAST_DIM;
+static constexpr int TEACHER_ENCODER_TOTAL = rlt::product(typename TEACHER_GPU_MODEL::SPEC::OUTPUT_SHAPE_A{});
 static constexpr int ENCODER_SPATIAL = TEACHER_ENCODER_TOTAL / TEACHER_ENCODER_DIM_VAL;
 static constexpr int SPATIAL_PER_SAMPLE = ENCODER_SPATIAL / BATCH_SIZE;
 
@@ -544,7 +544,7 @@ int main(int argc, char** argv) {
     rlt::malloc(device_cuda, gpu_d_head_output);
 
     // d_concatenated from teacher head backward_input
-    using D_CONCAT_SHAPE = typename TEACHER_GPU_MODEL::SPEC::CONCAT_SHAPE;
+    using D_CONCAT_SHAPE = typename TEACHER_GPU_MODEL::SPEC::CONCAT_OUTPUT_SHAPE;
     using D_CONCAT_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, D_CONCAT_SHAPE, true, rlt::tensor::RowMajorStride<D_CONCAT_SHAPE>>;
     rlt::Tensor<D_CONCAT_SPEC> gpu_d_student_concat_task;
     rlt::malloc(device_cuda, gpu_d_student_concat_task);
@@ -582,6 +582,8 @@ int main(int argc, char** argv) {
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
     extrack_config.name = "yaw-prediction-distill";
+    extrack_config.population_variates = "cross-conv_channel-multiplier_resolution";
+    extrack_config.population_values = std::to_string(ABLATION_USE_CROSS_CONV) + "_" + std::to_string(ABLATION_CHANNEL_MULTIPLIER) + "_" + std::to_string(ABLATION_RESOLUTION);
     rlt::init(device_cpu, extrack_config, extrack_paths, 0);
 
     std::signal(SIGINT, signal_handler);
