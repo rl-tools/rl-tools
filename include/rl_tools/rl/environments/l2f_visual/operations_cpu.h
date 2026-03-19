@@ -53,6 +53,10 @@ namespace rl_tools {
         using T = typename SPEC::T;
         init(device, env.dynamics);
 
+        if (env.renderer_initialized) {
+            return;
+        }
+
         bool loaded = false;
         if (env.scene_path != nullptr) {
             loaded = load_model(device, *env.renderer, std::string(env.scene_path));
@@ -72,6 +76,8 @@ namespace rl_tools {
 
         T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
         rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *env.scene, *env.renderer, env.eye_height, env.cos_fov, aspect);
+
+        env.renderer_initialized = true;
     }
 
     // =========================================================================
@@ -87,16 +93,28 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, RNG& rng) {
+        using TI = typename SPEC::TI;
         sample_initial_parameters(device, env.dynamics, parameters.dynamics, rng);
-        parameters.scene_translation[0] = 0;
-        parameters.scene_translation[1] = 0;
-        parameters.scene_translation[2] = 0;
+        if (env.use_target_mode) {
+            for (TI i = 0; i < 3; i++) {
+                parameters.scene_translation[i] = env.target_scene_translation[i];
+            }
+        } else {
+            parameters.scene_translation[0] = 0;
+            parameters.scene_translation[1] = 0;
+            parameters.scene_translation[2] = 0;
+        }
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& state, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+
+        if (env.use_target_mode) {
+            sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
+            return;
+        }
 
         // Sample indoor position from the scene
         auto indoor_pos = rendering::raytracing::scene::procthor::sample_indoor_position(device, *env.scene, rng);

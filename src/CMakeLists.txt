@@ -4,7 +4,7 @@ if(WIN32)
 endif()
 
 add_subdirectory(nn)
+add_subdirectory(rendering)
 add_subdirectory(rl)
 add_subdirectory(ui_server)
 add_subdirectory(nn_models)
-add_subdirectory(rendering)
