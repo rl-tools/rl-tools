@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=yaw_pred
+#SBATCH --job-name=ablation
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=20
 #SBATCH --mem=300G
