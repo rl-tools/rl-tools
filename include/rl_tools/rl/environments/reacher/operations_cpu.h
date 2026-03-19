@@ -218,54 +218,22 @@ export async function render(ui_state, parameters, state, action) {
         return "2D point reacher (visual): navigate an agent to a target position within a bounded arena using image observations.";
     }
     template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE&, rl::environments::ReacherMemoryVisual<SPEC>& env){
+    std::string json(DEVICE&, rl::environments::ReacherVisualMemory<SPEC>& env){
         return "{}";
     }
     template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE&, rl::environments::ReacherMemoryVisual<SPEC>& env, typename rl::environments::ReacherMemoryVisual<SPEC>::Parameters& parameters){
+    std::string json(DEVICE&, rl::environments::ReacherVisualMemory<SPEC>& env, typename rl::environments::ReacherVisualMemory<SPEC>::Parameters& parameters){
         std::string json = "{";
         json += "\"arena_size\":" + std::to_string(SPEC::PARAMETERS::ARENA_SIZE) + ",";
         json += "\"target_radius\":" + std::to_string(SPEC::PARAMETERS::TARGET_RADIUS) + ",";
         json += "\"image_height\":" + std::to_string(SPEC::PARAMETERS::IMAGE_HEIGHT) + ",";
-        json += "\"image_width\":" + std::to_string(SPEC::PARAMETERS::IMAGE_WIDTH);
+        json += "\"image_width\":" + std::to_string(SPEC::PARAMETERS::IMAGE_WIDTH) + ",";
+        json += "\"num_targets\":" + std::to_string(SPEC::PARAMETERS::NUM_TARGETS);
         json += "}";
         return json;
     }
     template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    std::string json(DEVICE&, rl::environments::ReacherMemoryVisual<SPEC>& env, typename rl::environments::ReacherMemoryVisual<SPEC>::Parameters& parameters, typename rl::environments::reacher::StateWithStep<STATE_SPEC>& state){
-        std::string json = "{";
-        json += "\"x\":" + std::to_string(state.x) + ",";
-        json += "\"y\":" + std::to_string(state.y) + ",";
-        json += "\"target_x\":" + std::to_string(state.target_x) + ",";
-        json += "\"target_y\":" + std::to_string(state.target_y) + ",";
-        json += "\"step\":" + std::to_string(state.step);
-        json += "}";
-        return json;
-    }
-    template <typename DEVICE, typename SPEC>
-    std::string get_ui(DEVICE& device, rl::environments::ReacherMemoryVisual<SPEC>& env){
-        return rl::environments::reacher::get_ui_js();
-    }
-    template <typename DEVICE, typename SPEC>
-    std::string get_description(DEVICE& device, rl::environments::ReacherMemoryVisual<SPEC>& env){
-        return "2D point reacher (memory visual): target shown only on first step, agent must remember target location.";
-    }
-    template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE&, rl::environments::ReacherVisualMemoryHard<SPEC>& env){
-        return "{}";
-    }
-    template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE&, rl::environments::ReacherVisualMemoryHard<SPEC>& env, typename rl::environments::ReacherVisualMemoryHard<SPEC>::Parameters& parameters){
-        std::string json = "{";
-        json += "\"arena_size\":" + std::to_string(SPEC::PARAMETERS::ARENA_SIZE) + ",";
-        json += "\"target_radius\":" + std::to_string(SPEC::PARAMETERS::TARGET_RADIUS) + ",";
-        json += "\"image_height\":" + std::to_string(SPEC::PARAMETERS::IMAGE_HEIGHT) + ",";
-        json += "\"image_width\":" + std::to_string(SPEC::PARAMETERS::IMAGE_WIDTH);
-        json += "}";
-        return json;
-    }
-    template <typename DEVICE, typename SPEC, typename STATE_SPEC>
-    std::string json(DEVICE&, rl::environments::ReacherVisualMemoryHard<SPEC>& env, typename rl::environments::ReacherVisualMemoryHard<SPEC>::Parameters& parameters, typename rl::environments::reacher::StateSequentialTargets<STATE_SPEC>& state){
+    std::string json(DEVICE&, rl::environments::ReacherVisualMemory<SPEC>& env, typename rl::environments::ReacherVisualMemory<SPEC>::Parameters& parameters, typename rl::environments::reacher::StateSequentialTargets<STATE_SPEC>& state){
         std::string json = "{";
         json += "\"x\":" + std::to_string(state.x) + ",";
         json += "\"y\":" + std::to_string(state.y) + ",";
@@ -279,7 +247,7 @@ export async function render(ui_state, parameters, state, action) {
         return json;
     }
     namespace rl::environments::reacher{
-        inline std::string get_ui_hard_js(){
+        inline std::string get_ui_memory_js(){
             return R"RL_TOOLS_LITERAL(
 export async function init(canvas, options){
     return {
@@ -338,18 +306,20 @@ export async function render(ui_state, parameters, state, action) {
     ctx.fillStyle = state.current_target === 0 ? '#e74c3c' : '#e74c3c44';
     ctx.fill();
 
-    // Target 2 (green)
-    ctx.beginPath();
-    ctx.arc(toCanvasX(state.target2_x), toCanvasY(state.target2_y), targetCanvasR, 0, 2 * Math.PI);
-    ctx.fillStyle = state.current_target === 1 ? 'rgba(100, 255, 100, 0.2)' : 'rgba(100, 255, 100, 0.05)';
-    ctx.fill();
-    ctx.strokeStyle = state.current_target === 1 ? 'rgba(100, 255, 100, 0.5)' : 'rgba(100, 255, 100, 0.15)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(toCanvasX(state.target2_x), toCanvasY(state.target2_y), targetR, 0, 2 * Math.PI);
-    ctx.fillStyle = state.current_target === 1 ? '#2ecc71' : '#2ecc7144';
-    ctx.fill();
+    // Target 2 (green) - only for multi-target
+    if (parameters.num_targets > 1) {
+        ctx.beginPath();
+        ctx.arc(toCanvasX(state.target2_x), toCanvasY(state.target2_y), targetCanvasR, 0, 2 * Math.PI);
+        ctx.fillStyle = state.current_target === 1 ? 'rgba(100, 255, 100, 0.2)' : 'rgba(100, 255, 100, 0.05)';
+        ctx.fill();
+        ctx.strokeStyle = state.current_target === 1 ? 'rgba(100, 255, 100, 0.5)' : 'rgba(100, 255, 100, 0.15)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(toCanvasX(state.target2_x), toCanvasY(state.target2_y), targetR, 0, 2 * Math.PI);
+        ctx.fillStyle = state.current_target === 1 ? '#2ecc71' : '#2ecc7144';
+        ctx.fill();
+    }
 
     if (action && action.length >= 2) {
         const ax = toCanvasX(state.x);
@@ -399,8 +369,9 @@ export async function render(ui_state, parameters, state, action) {
     const agent_py = (state.y + arenaSize) / (2 * arenaSize) * imgW;
     const target1_px = (state.target1_x + arenaSize) / (2 * arenaSize) * imgH;
     const target1_py = (state.target1_y + arenaSize) / (2 * arenaSize) * imgW;
-    const target2_px = (state.target2_x + arenaSize) / (2 * arenaSize) * imgH;
-    const target2_py = (state.target2_y + arenaSize) / (2 * arenaSize) * imgW;
+    const hasTarget2 = parameters.num_targets > 1;
+    const target2_px = hasTarget2 ? (state.target2_x + arenaSize) / (2 * arenaSize) * imgH : 0;
+    const target2_py = hasTarget2 ? (state.target2_y + arenaSize) / (2 * arenaSize) * imgW : 0;
 
     for (let row = 0; row < imgH; row++) {
         for (let col = 0; col < imgW; col++) {
@@ -413,9 +384,11 @@ export async function render(ui_state, parameters, state, action) {
                 const dh_t1 = row + 0.5 - target1_px;
                 const dw_t1 = col + 0.5 - target1_py;
                 target1_intensity = Math.exp(-(dh_t1 * dh_t1 + dw_t1 * dw_t1) / sigma_sq);
-                const dh_t2 = row + 0.5 - target2_px;
-                const dw_t2 = col + 0.5 - target2_py;
-                target2_intensity = Math.exp(-(dh_t2 * dh_t2 + dw_t2 * dw_t2) / sigma_sq);
+                if (hasTarget2) {
+                    const dh_t2 = row + 0.5 - target2_px;
+                    const dw_t2 = col + 0.5 - target2_py;
+                    target2_intensity = Math.exp(-(dh_t2 * dh_t2 + dw_t2 * dw_t2) / sigma_sq);
+                }
             }
             const r = Math.round(target1_intensity * 255);
             const g = Math.round(target2_intensity * 255);
@@ -431,18 +404,21 @@ export async function render(ui_state, parameters, state, action) {
 
     ctx.fillStyle = '#666';
     ctx.font = Math.round(w * 0.03) + 'px monospace';
-    ctx.fillText(imgW + 'x' + imgH + ' obs (step=' + state.step + ' target=' + (state.current_target === 0 ? 'red' : 'green') + ')', mmX, mmY + mmH + w * 0.04);
+    ctx.fillText(imgW + 'x' + imgH + ' obs (step=' + state.step + (parameters.num_targets > 1 ? ' target=' + (state.current_target === 0 ? 'red' : 'green') : '') + ')', mmX, mmY + mmH + w * 0.04);
 }
             )RL_TOOLS_LITERAL";
         }
     }
     template <typename DEVICE, typename SPEC>
-    std::string get_ui(DEVICE& device, rl::environments::ReacherVisualMemoryHard<SPEC>& env){
-        return rl::environments::reacher::get_ui_hard_js();
+    std::string get_ui(DEVICE& device, rl::environments::ReacherVisualMemory<SPEC>& env){
+        return rl::environments::reacher::get_ui_memory_js();
     }
     template <typename DEVICE, typename SPEC>
-    std::string get_description(DEVICE& device, rl::environments::ReacherVisualMemoryHard<SPEC>& env){
-        return "2D point reacher (hard visual memory): two targets shown at step 0, agent must visit red then green.";
+    std::string get_description(DEVICE& device, rl::environments::ReacherVisualMemory<SPEC>& env){
+        if(SPEC::PARAMETERS::NUM_TARGETS > 1){
+            return "2D point reacher (visual memory): " + std::to_string(SPEC::PARAMETERS::NUM_TARGETS) + " targets shown at step 0, agent must visit them sequentially.";
+        }
+        return "2D point reacher (visual memory): target shown only on first step, agent must remember target location.";
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -16,7 +16,7 @@ namespace rl_tools::rl::zoo::reacher_visual_memory_v0{
             static constexpr auto IMAGE_WIDTH = 16;
         };
         using ENVIRONMENT_SPEC = rlt::rl::environments::reacher::Specification<T, TI, REACHER_PARAMETERS>;
-        using ENVIRONMENT = rlt::rl::environments::ReacherMemoryVisual<ENVIRONMENT_SPEC>;
+        using ENVIRONMENT = rlt::rl::environments::ReacherVisualMemory<ENVIRONMENT_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
