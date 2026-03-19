@@ -7,12 +7,17 @@
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn/layers/conv2d/operations_generic.h>
 #include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/operations_generic.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/operations_cuda.h>
 
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/parallel/operations_generic.h>
 
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn_models/operations_generic.h>
+
+#include "model_operations.h"
+#include "model_forward_cuda.h"
 
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_cuda.h>
@@ -35,8 +40,10 @@
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/conv2d/persist.h>
 #include <rl_tools/nn/layers/avg_pool2d/persist.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/parallel/persist.h>
+#include "model_persist.h"
 #endif
 
 #include <iostream>
@@ -125,9 +132,9 @@ using STUDENT_CPU_MODEL_INFERENCE = typename STUDENT_CPU_MODEL::template CHANGE_
 
 // Student head (trainable, same architecture as teacher head)
 using STUDENT_CONCAT_SHAPE = typename STUDENT_GPU_MODEL::SPEC::CONCAT_OUTPUT_SHAPE;
-using STUDENT_HEAD_GPU = typename yp::HEAD_MODULE<TYPE_POLICY, TI_CUDA>::template Layer<STUDENT_GPU_CAPABILITY, STUDENT_CONCAT_SHAPE>;
+using STUDENT_HEAD_GPU = typename yp::HEAD_MODULE<TYPE_POLICY, TI_CUDA, yp::ModelConfig<TI_CUDA>>::template Layer<STUDENT_GPU_CAPABILITY, STUDENT_CONCAT_SHAPE>;
 using STUDENT_HEAD_CPU_CONCAT_SHAPE = typename STUDENT_CPU_MODEL::SPEC::CONCAT_OUTPUT_SHAPE;
-using STUDENT_HEAD_CPU = typename yp::HEAD_MODULE<CPU_TYPE_POLICY, TI>::template Layer<STUDENT_CPU_CAPABILITY, STUDENT_HEAD_CPU_CONCAT_SHAPE>;
+using STUDENT_HEAD_CPU = typename yp::HEAD_MODULE<CPU_TYPE_POLICY, TI, yp::ModelConfig<TI>>::template Layer<STUDENT_CPU_CAPABILITY, STUDENT_HEAD_CPU_CONCAT_SHAPE>;
 using STUDENT_HEAD_CPU_INFERENCE = typename STUDENT_HEAD_CPU::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<>>;
 
 // ---- Tensor shapes ----
@@ -144,8 +151,9 @@ static constexpr int SPATIAL_PER_SAMPLE = ENCODER_SPATIAL / BATCH_SIZE;
 // Student encoder output dimensions (should match teacher after projection)
 static constexpr int STUDENT_ENCODER_DIM_VAL = STUDENT_GPU_MODEL::SPEC::LAST_DIM_A;
 static constexpr int STUDENT_CONCAT_DIM = STUDENT_GPU_MODEL::SPEC::LAST_DIM;
-static_assert(STUDENT_ENCODER_DIM_VAL == TEACHER_ENCODER_DIM_VAL, "Student projection must match teacher encoder dim");
-static_assert(STUDENT_CONCAT_DIM == TEACHER_CONCAT_DIM, "Student concatenated dim must match teacher");
+// Note: student per-branch dim (TEACHER_ENCODER_DIM=512) != teacher per-branch dim (LATE_CH=256)
+// The student projects to the teacher's *concatenated* dim per branch, not per-branch dim.
+// Cosine similarity operates on the min of the two dims or requires separate alignment.
 
 // Head output shape (3 values: px, py, roll)
 using HEAD_OUTPUT_SHAPE = typename STUDENT_HEAD_GPU::OUTPUT_SHAPE;
@@ -153,69 +161,8 @@ static constexpr TI OUTPUT_DIM = 3;
 static constexpr TI TOTAL_OUTPUT_ELEMENTS = BATCH_SIZE * OUTPUT_DIM;
 
 // ---- CUDA kernels ----
-
-__global__ void concatenate_kernel(
-    const T_ACTIVATION* __restrict__ a, int d_a,
-    const T_ACTIVATION* __restrict__ b, int d_b,
-    T_ACTIVATION* __restrict__ output,
-    int n
-) {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    const int d_out = d_a + d_b;
-    const int total = n * d_out;
-    if (idx >= total) return;
-    const int row = idx / d_out;
-    const int col = idx % d_out;
-    if (col < d_a) {
-        output[idx] = a[row * d_a + col];
-    } else {
-        output[idx] = b[row * d_b + (col - d_a)];
-    }
-}
-
-__global__ void split_kernel(
-    const T_ACTIVATION* __restrict__ input, int d_a, int d_b,
-    T_ACTIVATION* __restrict__ a,
-    T_ACTIVATION* __restrict__ b,
-    int n
-) {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    const int d_in = d_a + d_b;
-    const int total = n * d_in;
-    if (idx >= total) return;
-    const int row = idx / d_in;
-    const int col = idx % d_in;
-    if (col < d_a) {
-        a[row * d_a + col] = input[idx];
-    } else {
-        b[row * d_b + (col - d_a)] = input[idx];
-    }
-}
-
-__global__ void rgba_to_activation_kernel(
-    const uint32_t* __restrict__ framebuffer,
-    T_ACTIVATION* __restrict__ output,
-    int cam_width, int cam_height, int camera_offset, int dst_offset
-) {
-    const int sample_idx = blockIdx.x;
-    const int camera_idx = camera_offset + sample_idx;
-    const int cam_pixels = cam_width * cam_height;
-
-    const uint32_t* src = framebuffer + camera_idx * cam_pixels;
-    T_ACTIVATION* dst = output + (dst_offset + sample_idx) * cam_height * cam_width * 3;
-
-    for (int pixel = threadIdx.x; pixel < cam_pixels; pixel += blockDim.x) {
-        const uint32_t rgba = src[pixel];
-        const float r = static_cast<float>((rgba >>  0) & 0xFF) / 255.0f;
-        const float g = static_cast<float>((rgba >>  8) & 0xFF) / 255.0f;
-        const float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
-
-        const int out_base = pixel * 3;
-        dst[out_base + 0] = (T_ACTIVATION)r;
-        dst[out_base + 1] = (T_ACTIVATION)g;
-        dst[out_base + 2] = (T_ACTIVATION)b;
-    }
-}
+// concatenate_kernel, split_kernel, rgba_to_activation_kernel are provided by
+// yp::cuda_kernels:: in model_forward_cuda.h
 
 // Compute per-sample teacher MAE and generate binary filter mask
 __global__ void compute_teacher_error_mask_kernel(
@@ -635,6 +582,8 @@ int main(int argc, char** argv) {
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
     extrack_config.name = "yaw-prediction-distill";
+    extrack_config.population_variates = "cross-conv_channel-multiplier_resolution";
+    extrack_config.population_values = std::to_string(ABLATION_USE_CROSS_CONV) + "_" + std::to_string(ABLATION_CHANNEL_MULTIPLIER) + "_" + std::to_string(ABLATION_RESOLUTION);
     rlt::init(device_cpu, extrack_config, extrack_paths, 0);
 
     std::signal(SIGINT, signal_handler);
@@ -685,33 +634,18 @@ int main(int argc, char** argv) {
             TI scene_idx = scene_indices[s];
             const TI batch_offset = s * samples_per_scene;
             uint32_t* device_fb = yp::get_framebuffer_device_ptr(loaded_scenes[scene_idx].handle);
-            rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
+            yp::cuda_kernels::rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
                 device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, 0, batch_offset
             );
-            rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
+            yp::cuda_kernels::rgba_to_activation_kernel<<<samples_per_scene, 256, 0, device_cuda.stream>>>(
                 device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, samples_per_scene, batch_offset
             );
         }
         cudaMemcpyAsync(gpu_targets, cpu_targets.data(), TOTAL_OUTPUT_ELEMENTS * sizeof(float), cudaMemcpyHostToDevice, device_cuda.stream);
 
         // ---- Teacher forward (eval mode, frozen) ----
-        // evaluate() writes output directly to destination tensor (no output() needed)
-        rlt::evaluate(device_cuda, teacher.pipeline_a, gpu_input_a, teacher_buffer.intermediate_a, teacher_buffer.buffer_a, rng_cuda, eval_mode);
-        rlt::evaluate(device_cuda, teacher.pipeline_b, gpu_input_b, teacher_buffer.intermediate_b, teacher_buffer.buffer_b, rng_cuda, eval_mode);
-
-        {
-            constexpr int total = ENCODER_SPATIAL * TEACHER_CONCAT_DIM;
-            constexpr int threads = 256;
-            constexpr int blocks = (total + threads - 1) / threads;
-            concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                teacher_buffer.intermediate_a._data, TEACHER_ENCODER_DIM_VAL,
-                teacher_buffer.intermediate_b._data, TEACHER_ENCODER_DIM_VAL,
-                teacher_buffer.concatenated._data, ENCODER_SPATIAL
-            );
-        }
-
-        // Teacher head evaluation for filter mask
-        rlt::evaluate(device_cuda, teacher.head, teacher_buffer.concatenated, gpu_teacher_predictions, teacher_buffer.head_buffer, rng_cuda, eval_mode);
+        // evaluate_cuda runs all submodules and writes predictions directly
+        rlt::evaluate_cuda(device_cuda, teacher, gpu_input_a, gpu_input_b, gpu_teacher_predictions, teacher_buffer, rng_cuda, eval_mode);
 
         // Compute per-sample filter mask based on teacher error
         {
@@ -768,7 +702,7 @@ int main(int argc, char** argv) {
             constexpr int total = ENCODER_SPATIAL * STUDENT_CONCAT_DIM;
             constexpr int threads = 256;
             constexpr int blocks = (total + threads - 1) / threads;
-            concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
+            yp::cuda_kernels::concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
                 student_buffer.intermediate_a._data, STUDENT_ENCODER_DIM_VAL,
                 student_buffer.intermediate_b._data, STUDENT_ENCODER_DIM_VAL,
                 student_buffer.concatenated._data, ENCODER_SPATIAL
@@ -798,7 +732,7 @@ int main(int argc, char** argv) {
             constexpr int total = ENCODER_SPATIAL * STUDENT_CONCAT_DIM;
             constexpr int threads = 256;
             constexpr int blocks = (total + threads - 1) / threads;
-            split_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
+            yp::cuda_kernels::split_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
                 gpu_d_student_concat_task._data, STUDENT_ENCODER_DIM_VAL, STUDENT_ENCODER_DIM_VAL,
                 student_buffer.d_output_a._data,
                 student_buffer.d_output_b._data,
@@ -926,10 +860,10 @@ int main(int argc, char** argv) {
                 yp::render_batch<false>(val_scenes[vs].handle, cameras.data());
                 uint32_t* device_fb = yp::get_framebuffer_device_ptr(val_scenes[vs].handle);
 
-                rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+                yp::cuda_kernels::rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
                     device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, 0, 0
                 );
-                rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+                yp::cuda_kernels::rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
                     device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, BATCH_SIZE, 0
                 );
                 cudaMemcpyAsync(gpu_targets, cpu_targets.data(), TOTAL_OUTPUT_ELEMENTS * sizeof(float),
@@ -948,7 +882,7 @@ int main(int argc, char** argv) {
                     constexpr int total = ENCODER_SPATIAL * STUDENT_CONCAT_DIM;
                     constexpr int threads = 256;
                     constexpr int blocks = (total + threads - 1) / threads;
-                    concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
+                    yp::cuda_kernels::concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
                         student_buffer.intermediate_a._data, STUDENT_ENCODER_DIM_VAL,
                         student_buffer.intermediate_b._data, STUDENT_ENCODER_DIM_VAL,
                         student_buffer.concatenated._data, ENCODER_SPATIAL
@@ -959,19 +893,7 @@ int main(int argc, char** argv) {
                 rlt::evaluate(device_cuda, student_head, student_buffer.concatenated, gpu_teacher_predictions, student_head_buffer, rng_cuda, eval_mode);
 
                 // Teacher forward (eval mode) for expert baseline
-                rlt::evaluate(device_cuda, teacher.pipeline_a, gpu_input_a, teacher_buffer.intermediate_a, teacher_buffer.buffer_a, rng_cuda, eval_mode);
-                rlt::evaluate(device_cuda, teacher.pipeline_b, gpu_input_b, teacher_buffer.intermediate_b, teacher_buffer.buffer_b, rng_cuda, eval_mode);
-                {
-                    constexpr int total = ENCODER_SPATIAL * TEACHER_CONCAT_DIM;
-                    constexpr int threads = 256;
-                    constexpr int blocks = (total + threads - 1) / threads;
-                    concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                        teacher_buffer.intermediate_a._data, TEACHER_ENCODER_DIM_VAL,
-                        teacher_buffer.intermediate_b._data, TEACHER_ENCODER_DIM_VAL,
-                        teacher_buffer.concatenated._data, ENCODER_SPATIAL
-                    );
-                }
-                rlt::evaluate(device_cuda, teacher.head, teacher_buffer.concatenated, gpu_teacher_predictions, teacher_buffer.head_buffer, rng_cuda, eval_mode);
+                rlt::evaluate_cuda(device_cuda, teacher, gpu_input_a, gpu_input_b, gpu_teacher_predictions, teacher_buffer, rng_cuda, eval_mode);
 
                 cudaStreamSynchronize(device_cuda.stream);
 

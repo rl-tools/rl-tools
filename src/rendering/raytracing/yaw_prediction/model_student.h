@@ -4,10 +4,12 @@
 #include <rl_tools/nn_models/sequential/model.h>
 #include <rl_tools/nn_models/parallel/model.h>
 
+#include "model_config.h"
+
 namespace rl_tools::rendering::raytracing::yaw_prediction {
 
-    // Teacher encoder dim (must match teacher model's encoder output channels: 256*2 = 512)
-    static constexpr unsigned long TEACHER_ENCODER_DIM = 256 * 2;
+    // Teacher encoder dim (must match teacher model's encoder output channels: LATE_CH*2)
+    static constexpr unsigned long TEACHER_ENCODER_DIM = ModelConfig<unsigned long>::LATE_CH * 2;
 
     // Student encoder conv configs (much smaller channels than teacher)
     // 64x64x3 → 32x32x16
