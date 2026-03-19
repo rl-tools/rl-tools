@@ -36,7 +36,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
     }
 
     template <typename DEVICE, typename SCENE_SPEC, typename RENDERER_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename SCENE_SPEC::T eye_height, typename SCENE_SPEC::T cos_fov, typename SCENE_SPEC::T aspect) {
+    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename SCENE_SPEC::T eye_height, typename SCENE_SPEC::T cos_fov, typename SCENE_SPEC::T aspect) {
         using T = typename SCENE_SPEC::T;
         using TI = typename SCENE_SPEC::TI;
         constexpr TI NUM_CAMERAS = RENDERER_SPEC::NUM_CAMERAS;
