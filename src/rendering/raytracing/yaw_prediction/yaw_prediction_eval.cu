@@ -4,8 +4,9 @@
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn/layers/conv2d/operations_generic.h>
 #include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/operations_generic.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/operations_cuda.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/nn_models/parallel/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
 
 #include <rl_tools/nn/operations_cuda.h>
@@ -17,10 +18,14 @@
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/conv2d/persist.h>
 #include <rl_tools/nn/layers/avg_pool2d/persist.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/parallel/persist.h>
 
 #include "model.h"
+#include "model_operations.h"
+#include "model_persist.h"
+#include "model_forward_cuda.h"
 #include "scene.h"
 
 #include <algorithm>
@@ -72,55 +77,6 @@ using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_
 using GPU_INPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_INPUT_SHAPE>;
 using GPU_OUTPUT_SHAPE = typename GPU_MODEL::OUTPUT_SHAPE;
 using GPU_OUTPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_OUTPUT_SHAPE>;
-
-static constexpr int ENCODER_DIM = GPU_MODEL::SPEC::LAST_DIM_A;
-static constexpr int CONCAT_DIM = GPU_MODEL::SPEC::LAST_DIM;
-static constexpr int ENCODER_TOTAL = rlt::product(typename GPU_MODEL::SPEC::OUTPUT_SHAPE_A{});
-static constexpr int CONCAT_ROWS = ENCODER_TOTAL / ENCODER_DIM;
-
-__global__ void rgba_to_float_kernel(
-    const uint32_t* __restrict__ framebuffer,
-    float* __restrict__ output,
-    int cam_width, int cam_height, int camera_offset, int dst_offset
-) {
-    const int sample_idx = blockIdx.x;
-    const int camera_idx = camera_offset + sample_idx;
-    const int cam_pixels = cam_width * cam_height;
-
-    const uint32_t* src = framebuffer + camera_idx * cam_pixels;
-    float* dst = output + (dst_offset + sample_idx) * cam_height * cam_width * 3;
-
-    for (int pixel = threadIdx.x; pixel < cam_pixels; pixel += blockDim.x) {
-        const uint32_t rgba = src[pixel];
-        const float r = static_cast<float>((rgba >> 0) & 0xFF) / 255.0f;
-        const float g = static_cast<float>((rgba >> 8) & 0xFF) / 255.0f;
-        const float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
-
-        const int out_base = pixel * 3;
-        dst[out_base + 0] = r;
-        dst[out_base + 1] = g;
-        dst[out_base + 2] = b;
-    }
-}
-
-__global__ void concatenate_kernel(
-    const float* __restrict__ a, int d_a,
-    const float* __restrict__ b, int d_b,
-    float* __restrict__ output,
-    int n
-) {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    const int d_out = d_a + d_b;
-    const int total = n * d_out;
-    if (idx >= total) return;
-    const int row = idx / d_out;
-    const int col = idx % d_out;
-    if (col < d_a) {
-        output[idx] = a[row * d_a + col];
-    } else {
-        output[idx] = b[row * d_b + (col - d_a)];
-    }
-}
 
 struct Metrics {
     double mse = 0.0;
@@ -221,32 +177,18 @@ static Metrics evaluate_scene(
         EvalConfig::COS_FOV_MIN,
         EvalConfig::COS_FOV_MAX
     );
-    yp::render_batch(scene, cameras.data());
+    yp::render_batch<false>(scene, cameras.data());
 
     uint32_t* device_fb = yp::get_framebuffer_device_ptr(scene);
-    rgba_to_float_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+    yp::cuda_kernels::rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
         device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, 0, 0
     );
-    rgba_to_float_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
+    yp::cuda_kernels::rgba_to_activation_kernel<<<BATCH_SIZE, 256, 0, device_cuda.stream>>>(
         device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, BATCH_SIZE, 0
     );
 
     auto eval_mode = rlt::Mode<rlt::mode::Evaluation<>>{};
-    rlt::evaluate(device_cuda, model.pipeline_a, gpu_input_a, model_buffer.intermediate_a, model_buffer.buffer_a, rng_cuda, eval_mode);
-    rlt::evaluate(device_cuda, model.pipeline_b, gpu_input_b, model_buffer.intermediate_b, model_buffer.buffer_b, rng_cuda, eval_mode);
-
-    {
-        constexpr int total = CONCAT_ROWS * CONCAT_DIM;
-        constexpr int threads = 256;
-        constexpr int blocks = (total + threads - 1) / threads;
-        concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-            model_buffer.intermediate_a._data, ENCODER_DIM,
-            model_buffer.intermediate_b._data, ENCODER_DIM,
-            model_buffer.concatenated._data, CONCAT_ROWS
-        );
-    }
-
-    rlt::evaluate(device_cuda, model.head, model_buffer.concatenated, gpu_output, model_buffer.head_buffer, rng_cuda, eval_mode);
+    rlt::evaluate_cuda(device_cuda, model, gpu_input_a, gpu_input_b, gpu_output, model_buffer, rng_cuda, eval_mode);
 
     cudaStreamSynchronize(device_cuda.stream);
     cudaMemcpy(

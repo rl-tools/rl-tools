@@ -41,35 +41,49 @@ if(RL_TOOLS_ENABLE_HDF5)
 endif()
 
 if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
-    add_library(rendering_raytracing_yaw_prediction_scene STATIC scene.cpp)
-    set_target_properties(rendering_raytracing_yaw_prediction_scene PROPERTIES CXX_STANDARD 20)
-    target_link_libraries(rendering_raytracing_yaw_prediction_scene
-        PRIVATE
-            rl_tools_full
-            owl::owl
-            rendering_raytracing_device_ptx
-            assimp::assimp
-            rendering_raytracing_stb
-    )
+    # Per-resolution scene library (reused across ablation targets with same resolution)
+    function(add_yaw_prediction_scene_lib RESOLUTION)
+        set(TARGET rendering_raytracing_yaw_prediction_scene_${RESOLUTION})
+        if(NOT TARGET ${TARGET})
+            add_library(${TARGET} STATIC scene.cpp)
+            set_target_properties(${TARGET} PROPERTIES CXX_STANDARD 20)
+            target_compile_definitions(${TARGET} PRIVATE ABLATION_RESOLUTION=${RESOLUTION})
+            target_link_libraries(${TARGET} PRIVATE
+                rl_tools_full owl::owl rendering_raytracing_device_ptx
+                assimp::assimp rendering_raytracing_stb)
+        endif()
+    endfunction()
 
-    add_executable(rendering_raytracing_yaw_prediction yaw_prediction_cuda.cu)
-    set_target_properties(rendering_raytracing_yaw_prediction PROPERTIES CUDA_STANDARD 20)
-    set_property(TARGET rendering_raytracing_yaw_prediction PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-    target_compile_options(rendering_raytracing_yaw_prediction PRIVATE -O3)
-    # Allow multiple definitions: rl_tools non-inline functions appear in both scene.cpp and .cu TUs
-    if(NOT APPLE)
-        target_link_options(rendering_raytracing_yaw_prediction PRIVATE -Wl,--allow-multiple-definition)
-    endif()
-    target_link_libraries(rendering_raytracing_yaw_prediction
-        PRIVATE
-            rl_tools_full
-            owl::owl
-            rendering_raytracing_device_ptx
-            assimp::assimp
-            rendering_raytracing_stb
-            rendering_raytracing_yaw_prediction_scene
-    )
+    # Ablation target (creates scene lib if needed, then builds training binary)
+    function(add_yaw_prediction_ablation TARGET_SUFFIX)
+        cmake_parse_arguments(ARG "" "CHANNEL_MULTIPLIER;USE_CROSS_CONV;RESOLUTION" "" ${ARGN})
+        add_yaw_prediction_scene_lib(${ARG_RESOLUTION})
+        set(TARGET_NAME rendering_raytracing_yaw_prediction_${TARGET_SUFFIX})
+        add_executable(${TARGET_NAME} yaw_prediction_cuda.cu)
+        set_target_properties(${TARGET_NAME} PROPERTIES CUDA_STANDARD 20)
+        set_property(TARGET ${TARGET_NAME} PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+        target_compile_options(${TARGET_NAME} PRIVATE -O3)
+        if(NOT APPLE)
+            target_link_options(${TARGET_NAME} PRIVATE -Wl,--allow-multiple-definition)
+        endif()
+        target_compile_definitions(${TARGET_NAME} PRIVATE
+            ABLATION_CHANNEL_MULTIPLIER=${ARG_CHANNEL_MULTIPLIER}
+            ABLATION_USE_CROSS_CONV=${ARG_USE_CROSS_CONV}
+            ABLATION_RESOLUTION=${ARG_RESOLUTION}
+        )
+        target_link_libraries(${TARGET_NAME} PRIVATE
+            rl_tools_full owl::owl rendering_raytracing_device_ptx
+            assimp::assimp rendering_raytracing_stb
+            rendering_raytracing_yaw_prediction_scene_${ARG_RESOLUTION}
+        )
+    endfunction()
 
+    add_yaw_prediction_ablation(base       CHANNEL_MULTIPLIER 1 USE_CROSS_CONV 0 RESOLUTION 64)
+    add_yaw_prediction_ablation(crossconv  CHANNEL_MULTIPLIER 1 USE_CROSS_CONV 1 RESOLUTION 64)
+    add_yaw_prediction_ablation(2x         CHANNEL_MULTIPLIER 2 USE_CROSS_CONV 1 RESOLUTION 64)
+    add_yaw_prediction_ablation(128        CHANNEL_MULTIPLIER 1 USE_CROSS_CONV 1 RESOLUTION 128)
+
+    add_yaw_prediction_scene_lib(64)
     if(RL_TOOLS_ENABLE_HDF5)
         add_executable(rendering_raytracing_yaw_prediction_eval yaw_prediction_eval.cu)
         set_target_properties(rendering_raytracing_yaw_prediction_eval PROPERTIES CUDA_STANDARD 20)
@@ -85,7 +99,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
                 rendering_raytracing_device_ptx
                 assimp::assimp
                 rendering_raytracing_stb
-                rendering_raytracing_yaw_prediction_scene
+                rendering_raytracing_yaw_prediction_scene_64
         )
 
         add_executable(rendering_raytracing_yaw_prediction_distill yaw_prediction_distill_cuda.cu)
@@ -102,7 +116,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
                 rendering_raytracing_device_ptx
                 assimp::assimp
                 rendering_raytracing_stb
-                rendering_raytracing_yaw_prediction_scene
+                rendering_raytracing_yaw_prediction_scene_64
         )
 
         add_executable(rendering_raytracing_yaw_prediction_viewer yaw_prediction_viewer.cu)
