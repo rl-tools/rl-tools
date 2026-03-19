@@ -5,6 +5,7 @@
 #include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
 #include <rl_tools/nn/layers/dynamic_conv2d/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/parallel/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
 
 #include <rl_tools/containers/tensor/operations_generic.h>
@@ -19,6 +20,7 @@
 #include <rl_tools/nn/layers/avg_pool2d/persist.h>
 #include <rl_tools/nn/layers/dynamic_conv2d/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/parallel/persist.h>
 
 #include "model.h"
 #include "model_operations.h"

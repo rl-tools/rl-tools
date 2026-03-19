@@ -5,6 +5,7 @@
 #include <rl_tools/nn/layers/dense/layer.h>
 #include <rl_tools/nn/layers/dynamic_conv2d/layer.h>
 #include <rl_tools/nn_models/sequential/model.h>
+#include <rl_tools/nn_models/parallel/model.h>
 
 #include "model_config.h"
 
@@ -51,7 +52,28 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
             TYPE_POLICY, TI, 3, nn::activation_functions::ActivationFunction::IDENTITY>>
     >;
 
-    // --- Model Specification ---
+    // --- Base encoder: 4 conv layers (no 1x1 intermediate) ---
+
+    template<typename TYPE_POLICY, typename TI, typename MC>
+    using BASE_ENCODER_MODULE = nn_models::sequential::Module<
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::EARLY_CH_1>>,
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::EARLY_CH_2>>,
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::LATE_1X1_CH>>,
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::LATE_CH>>
+    >;
+
+    // --- Base model: parallel::Build with two identical encoders + head ---
+
+    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64, typename MC = ModelConfig<TI>>
+    using BASE_MODEL = nn_models::parallel::Build<CAPABILITY,
+        BASE_ENCODER_MODULE<TYPE_POLICY, TI, MC>,
+        BASE_ENCODER_MODULE<TYPE_POLICY, TI, MC>,
+        tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>,
+        tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>,
+        HEAD_MODULE<TYPE_POLICY, TI, MC>
+    >;
+
+    // --- Cross-conv Model Specification ---
 
     template<typename T_CAPABILITY, typename T_TYPE_POLICY, typename T_TI, T_TI T_BATCH_SIZE, T_TI T_HEIGHT, T_TI T_WIDTH, typename T_MODEL_CONFIG = ModelConfig<T_TI>>
     struct Specification {
@@ -225,8 +247,16 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     };
 
     template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64, typename MC = ModelConfig<TI>>
-    struct MODEL : BuildModuleType<CAPABILITY, Specification<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>>::type {
+    struct CROSS_CONV_BUILD : BuildModuleType<CAPABILITY, Specification<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>>::type {
         template <typename NEW_CAPABILITY>
-        using CHANGE_CAPABILITY = MODEL<NEW_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>;
+        using CHANGE_CAPABILITY = CROSS_CONV_BUILD<NEW_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>;
     };
+
+    // --- MODEL: conditional on USE_CROSS_CONV ---
+
+    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64, typename MC = ModelConfig<TI>>
+    using MODEL = utils::typing::conditional_t<MC::USE_CROSS_CONV,
+        CROSS_CONV_BUILD<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>,
+        BASE_MODEL<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>
+    >;
 }

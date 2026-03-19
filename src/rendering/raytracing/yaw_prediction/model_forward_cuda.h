@@ -272,4 +272,114 @@ namespace rl_tools {
         backward_full(device, model.early_encoder_b, input_b, buffer.d_features_b, d_input_b, buffer.buffer_early_b);
     }
 
+    // ======================== evaluate_cuda (parallel::Build, CUDA-optimized) ========================
+
+    template<typename DEVICE, typename SPEC, typename INPUT_A, typename INPUT_B, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE>
+    void evaluate_cuda(DEVICE& device, nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode) {
+        using TI = typename SPEC::TI;
+
+        evaluate(device, model.pipeline_a, input_a, buffer.intermediate_a, buffer.buffer_a, rng, mode);
+        evaluate(device, model.pipeline_b, input_b, buffer.intermediate_b, buffer.buffer_b, rng, mode);
+
+        {
+            constexpr TI LAST_DIM_A = SPEC::LAST_DIM_A;
+            constexpr TI LAST_DIM_B = SPEC::LAST_DIM_B;
+            constexpr TI TOTAL_A = product(typename SPEC::OUTPUT_SHAPE_A{});
+            constexpr TI LEADING = TOTAL_A / LAST_DIM_A;
+            constexpr int total = LEADING * (LAST_DIM_A + LAST_DIM_B);
+            constexpr int threads = 256;
+            constexpr int blocks = (total + threads - 1) / threads;
+            rendering::raytracing::yaw_prediction::cuda_kernels::concatenate_kernel<<<blocks, threads, 0, device.stream>>>(
+                buffer.intermediate_a._data, (int)LAST_DIM_A,
+                buffer.intermediate_b._data, (int)LAST_DIM_B,
+                buffer.concatenated._data, (int)LEADING
+            );
+        }
+
+        if constexpr(SPEC::HAS_HEAD) {
+            evaluate(device, model.head, buffer.concatenated, output, buffer.head_buffer, rng, mode);
+        } else {
+            copy(device, device, buffer.concatenated, output);
+        }
+    }
+
+    // ======================== forward_cuda (parallel::Build, CUDA-optimized training) ========================
+
+    template<typename DEVICE, typename SPEC, typename INPUT_A, typename INPUT_B, typename BUFFER_SPEC, typename RNG, typename MODE>
+    void forward_cuda(DEVICE& device, nn_models::parallel::ModuleGradient<SPEC>& model, INPUT_A& input_a, INPUT_B& input_b, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode) {
+        using TI = typename SPEC::TI;
+
+        forward(device, model.pipeline_a, input_a, buffer.buffer_a, rng, mode);
+        forward(device, model.pipeline_b, input_b, buffer.buffer_b, rng, mode);
+
+        {
+            auto output_a = rl_tools::output(device, model.pipeline_a);
+            auto output_b = rl_tools::output(device, model.pipeline_b);
+            copy(device, device, output_a, buffer.intermediate_a);
+            copy(device, device, output_b, buffer.intermediate_b);
+        }
+
+        {
+            constexpr TI LAST_DIM_A = SPEC::LAST_DIM_A;
+            constexpr TI LAST_DIM_B = SPEC::LAST_DIM_B;
+            constexpr TI TOTAL_A = product(typename SPEC::OUTPUT_SHAPE_A{});
+            constexpr TI LEADING = TOTAL_A / LAST_DIM_A;
+            constexpr int total = LEADING * (LAST_DIM_A + LAST_DIM_B);
+            constexpr int threads = 256;
+            constexpr int blocks = (total + threads - 1) / threads;
+            rendering::raytracing::yaw_prediction::cuda_kernels::concatenate_kernel<<<blocks, threads, 0, device.stream>>>(
+                buffer.intermediate_a._data, (int)LAST_DIM_A,
+                buffer.intermediate_b._data, (int)LAST_DIM_B,
+                buffer.concatenated._data, (int)LEADING
+            );
+        }
+
+        if constexpr(SPEC::HAS_HEAD) {
+            forward(device, model.head, buffer.concatenated, buffer.head_buffer, rng, mode);
+            auto head_output = rl_tools::output(device, model.head);
+            copy(device, device, head_output, model.output);
+        } else {
+            copy(device, device, buffer.concatenated, model.output);
+        }
+    }
+
+    // ======================== backward_full_cuda (parallel::Build, CUDA-optimized) ========================
+
+    template<typename DEVICE, typename SPEC, typename INPUT_A, typename INPUT_B, typename D_OUTPUT, typename D_INPUT_A, typename D_INPUT_B, typename BUFFER_SPEC>
+    void backward_full_cuda(DEVICE& device, nn_models::parallel::ModuleGradient<SPEC>& model, INPUT_A& input_a, INPUT_B& input_b, D_OUTPUT& d_output, D_INPUT_A& d_input_a, D_INPUT_B& d_input_b, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer) {
+        using TI = typename SPEC::TI;
+        constexpr TI LAST_DIM_A = SPEC::LAST_DIM_A;
+        constexpr TI LAST_DIM_B = SPEC::LAST_DIM_B;
+        constexpr TI TOTAL_A = product(typename SPEC::OUTPUT_SHAPE_A{});
+        constexpr TI LEADING = TOTAL_A / LAST_DIM_A;
+
+        if constexpr(SPEC::HAS_HEAD) {
+            backward_full(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer);
+        }
+
+        {
+            constexpr int total = LEADING * (LAST_DIM_A + LAST_DIM_B);
+            constexpr int threads = 256;
+            constexpr int blocks = (total + threads - 1) / threads;
+            if constexpr(SPEC::HAS_HEAD) {
+                rendering::raytracing::yaw_prediction::cuda_kernels::split_kernel<<<blocks, threads, 0, device.stream>>>(
+                    buffer.d_concatenated._data, (int)LAST_DIM_A, (int)LAST_DIM_B,
+                    buffer.d_output_a._data,
+                    buffer.d_output_b._data,
+                    (int)LEADING
+                );
+            } else {
+                rendering::raytracing::yaw_prediction::cuda_kernels::split_kernel<<<blocks, threads, 0, device.stream>>>(
+                    d_output._data, (int)LAST_DIM_A, (int)LAST_DIM_B,
+                    buffer.d_output_a._data,
+                    buffer.d_output_b._data,
+                    (int)LEADING
+                );
+            }
+        }
+
+        backward_full(device, model.pipeline_a, input_a, buffer.d_output_a, d_input_a, buffer.buffer_a);
+        backward_full(device, model.pipeline_b, input_b, buffer.d_output_b, d_input_b, buffer.buffer_b);
+    }
+
 } // namespace rl_tools
