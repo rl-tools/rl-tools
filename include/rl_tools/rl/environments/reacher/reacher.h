@@ -76,6 +76,28 @@ namespace rl_tools::rl::environments::reacher{
         static constexpr TI DIM = HEIGHT * WIDTH * CHANNELS;
         using SHAPE = tensor::Shape<TI, DIM>;
     };
+
+    template <typename T_SPEC>
+    struct StateSequentialTargets{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI DIM = 8;
+        T x;
+        T y;
+        T target1_x;
+        T target1_y;
+        T target2_x;
+        T target2_y;
+        TI step;
+        TI current_target;
+    };
+
+    template <typename TI>
+    struct ObservationDenseSequentialTargets{
+        static constexpr TI DIM = 7;
+        using SHAPE = tensor::Shape<TI, DIM>;
+    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
@@ -119,6 +141,19 @@ namespace rl_tools::rl::environments{
         static constexpr TI N_AGENTS = 1;
         static constexpr TI ACTION_DIM = 2;
         static constexpr TI EPISODE_STEP_LIMIT = 40;
+    };
+    template <typename T_SPEC>
+    struct ReacherVisualMemoryHard: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using State = reacher::StateSequentialTargets<reacher::StateSpecification<T, TI>>;
+        using Parameters = typename SPEC::PARAMETERS;
+        using Observation = reacher::ObservationImage<TI, SPEC::PARAMETERS::IMAGE_HEIGHT, SPEC::PARAMETERS::IMAGE_WIDTH>;
+        using ObservationPrivileged = reacher::ObservationDenseSequentialTargets<TI>;
+        static constexpr TI N_AGENTS = 1;
+        static constexpr TI ACTION_DIM = 2;
+        static constexpr TI EPISODE_STEP_LIMIT = 80;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
