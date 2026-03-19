@@ -4,11 +4,12 @@
 #SBATCH --cpus-per-task=20
 #SBATCH --mem=300G
 #SBATCH --output=slurm-%A_%a.out
-#SBATCH --array=0-3
+#SBATCH --array=0-5%3
+#SBATCH --time=2-00:00:00
 
 set -euo pipefail
 
-variants=(base crossconv 2x 128)
+variants=(base crossconv base_2x crossconv_2x base_128 crossconv_128)
 variant="${variants[$SLURM_ARRAY_TASK_ID]}"
 
 echo "Job ID:    $SLURM_JOB_ID"
