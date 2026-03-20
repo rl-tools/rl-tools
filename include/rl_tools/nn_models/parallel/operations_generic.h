@@ -326,6 +326,19 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT auto output(DEVICE& device, const nn_models::parallel::ModuleGradient<SPEC>& model){
         return view_memory<typename SPEC::OUTPUT_SHAPE>(device, model.output);
     }
+
+    // ======================== get_last_layer ========================
+    // Returns the head module (for PPO compatibility: accessing log_std on mlp_unconditional_stddev)
+    template <typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT auto& get_last_layer(nn_models::parallel::ModuleForward<SPEC>& model){
+        static_assert(SPEC::HAS_HEAD, "get_last_layer on parallel model requires a HEAD module");
+        return model.head;
+    }
+    template <typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT auto& get_last_layer(const nn_models::parallel::ModuleForward<SPEC>& model){
+        static_assert(SPEC::HAS_HEAD, "get_last_layer on parallel model requires a HEAD module");
+        return model.head;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
