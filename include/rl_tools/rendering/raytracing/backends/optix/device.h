@@ -4,6 +4,8 @@
 #pragma once
 #define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_OPTIX_DEVICE_H
 
+#include "../../renderer.h"
+
 #include <owl/owl.h>
 #include <owl/common/math/vec.h>
 
@@ -58,11 +60,7 @@ namespace rl_tools {
 
     // ---- Collision probing ----
 
-    struct CollisionResult
-    {
-        float distance; // hit distance, or max_dist on miss
-        int   hit;      // 1 = geometry, 0 = miss (skybox)
-    };
+    using CollisionResult = rendering::raytracing::CollisionResult;
 
     struct CollisionGeomData
     {

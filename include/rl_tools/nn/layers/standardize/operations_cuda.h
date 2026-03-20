@@ -16,15 +16,15 @@ namespace rl_tools{
         __global__ void evaluate(devices::CUDA<DEV_SPEC> device, const nn::layers::standardize::LayerForward<LAYER_SPEC> layer, const Matrix<INPUT_SPEC> input, Matrix<OUTPUT_SPEC> output) {
             static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename LAYER_SPEC::T;
+            using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
             using TI = typename DEVICE::index_t;
             constexpr TI DIM = LAYER_SPEC::INPUT_DIM;
             constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
             TI output_i = blockIdx.x * blockDim.x + threadIdx.x;
             TI batch_i = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_i < DIM && batch_i < BATCH_SIZE){
-                T mean = get(layer.mean.parameters, 0, output_i);
-                T precision = get(layer.precision.parameters, 0, output_i);
+                T mean = get(device, layer.mean.parameters, output_i);
+                T precision = get(device, layer.precision.parameters, output_i);
                 T input_value = get(input, batch_i, output_i);
                 T output_value = (input_value - mean) * precision;
                 set(output, batch_i, output_i, output_value);
@@ -34,7 +34,7 @@ namespace rl_tools{
         __global__ void backward_input(devices::CUDA<DEV_SPEC> device, nn::layers::standardize::LayerBackward<LAYER_SPEC> layer, const Matrix<D_OUTPUT_SPEC> d_output, Matrix<D_INPUT_SPEC> d_input){
             static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename LAYER_SPEC::T;
+            using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
             using TI = typename DEVICE::index_t;
             constexpr TI DIM = LAYER_SPEC::INPUT_DIM;
             constexpr TI BATCH_SIZE = D_INPUT_SPEC::ROWS;
@@ -42,7 +42,7 @@ namespace rl_tools{
             TI batch_i = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_i < DIM && batch_i < BATCH_SIZE){
                 T d_output_value = get(d_output, batch_i, output_i);
-                T precision = get(layer.precision.parameters, 0, output_i);
+                T precision = get(device, layer.precision.parameters, output_i);
                 T d_input_value = d_output_value * precision;
                 set(d_input, batch_i, output_i, d_input_value);
             }
@@ -51,7 +51,7 @@ namespace rl_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::standardize::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename LAYER_SPEC::T;
+        using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
         constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
@@ -93,7 +93,7 @@ namespace rl_tools{
         constexpr TI INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr TI OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
+        using T = typename LAYER_SPEC::TYPE_POLICY::DEFAULT;
 
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_BATCH = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
@@ -114,7 +114,7 @@ namespace rl_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::standardize::Buffer& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         // this is the same as the standardize layer does not have trainable parameters
-        backward_input(device, layer, d_output, d_input, mode);
+        backward_input(device, layer, d_output, d_input, buffer, mode);
     }
     template<typename DEV_SPEC, typename SPEC>
     void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<SPEC>& layer) {
@@ -142,9 +142,9 @@ namespace rl_tools{
 //        copy(source_device, target_device, source.output, target.output);
 //    }
     template <typename DEV_SPEC, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(devices::CUDA<DEV_SPEC>& device, const rl_tools::nn::layers::standardize::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::standardize::LayerForward<SPEC_2>& l2) {
+    typename SPEC_1::TYPE_POLICY::DEFAULT abs_diff(devices::CUDA<DEV_SPEC>& device, const rl_tools::nn::layers::standardize::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::standardize::LayerForward<SPEC_2>& l2) {
         nn::layers::standardize::check_compatibility<SPEC_1, SPEC_2>;
-        using T = typename SPEC_1::T;
+        using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
         T acc = 0;
         acc += abs_diff(device, l1.mean, l2.mean);
         acc += abs_diff(device, l1.precision, l2.precision);

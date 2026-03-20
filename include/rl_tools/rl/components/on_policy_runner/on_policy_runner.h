@@ -21,7 +21,7 @@ namespace rl_tools::rl::components{
             static constexpr TI N_AGENTS_PER_ENV = T_N_AGENTS_PER_ENV; // 1 for single agent, >1 for multi-agent
             static constexpr bool DYANMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static constexpr TI EPISODE_STATS_N_ENVIRONMENTS = 1;
-            static constexpr TI EPISODE_STATS_CADENCE = 10000;
+            static constexpr TI EPISODE_STATS_CADENCE = 100;
             static constexpr bool TRUNCATE_ON_EACH_ITERATION = T_TRUNCATE_ON_EACH_ITERATION;
         };
 
