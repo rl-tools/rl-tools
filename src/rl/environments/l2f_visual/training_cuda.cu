@@ -68,10 +68,12 @@ using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 namespace l2f = rlt::rl::environments::l2f;
 namespace obs = l2f::observation;
 
-// Actor state observation: orientation rotation matrix (9D) + angular velocity (3D) = 12D
-using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
-    obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI>>>>;
-static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
+// Actor state observation: position (3D) + orientation rotation matrix (9D) + linear velocity (3D) + angular velocity (3D) = 18D
+using ACTOR_STATE_OBS = obs::Position<obs::PositionSpecification<T, TI,
+    obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
+    obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
+    obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI>>>>>>>>;
+static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 18
 
 using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
 static constexpr TI SIMULATION_FREQUENCY = 100;
