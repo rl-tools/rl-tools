@@ -10,6 +10,11 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing{
+        struct CollisionResult {
+            float distance;
+            int hit;
+        };
+
         template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES>
         struct Specification{
             using T = T_T;
