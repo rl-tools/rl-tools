@@ -86,6 +86,7 @@ namespace rl_tools::nn_models::parallel{
         using TI = typename SPEC::TI;
         using INPUT_SHAPE_A = typename SPEC::INPUT_SHAPE_A;
         using INPUT_SHAPE_B = typename SPEC::INPUT_SHAPE_B;
+        using INPUT_SHAPE = INPUT_SHAPE_A; // primary input shape (for PPO compatibility)
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
         typename SPEC::PIPELINE_TYPE_A pipeline_a;
