@@ -56,7 +56,9 @@ namespace rl_tools::rl::algorithms{
 
             using _OBS_SHAPE = typename ENVIRONMENT::Observation::SHAPE;
             using _OBS_PRIV_SHAPE = typename ENVIRONMENT::ObservationPrivileged::SHAPE;
+#ifndef RL_TOOLS_DISABLE_VISUAL
             static_assert(get_last(typename ACTOR_TYPE::INPUT_SHAPE{}) == get_last(_OBS_SHAPE{}));
+#endif
             static_assert(get_last(typename CRITIC_TYPE::INPUT_SHAPE{}) == get_last(_OBS_PRIV_SHAPE{}));
             static_assert(get_last(typename ACTOR_TYPE::OUTPUT_SHAPE{}) == ENVIRONMENT::ACTION_DIM);
             static_assert(get_last(typename CRITIC_TYPE::OUTPUT_SHAPE{}) == 1);

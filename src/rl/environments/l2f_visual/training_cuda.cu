@@ -1,3 +1,4 @@
+#define RL_TOOLS_DISABLE_VISUAL // uncomment to disable rendering and image input (state-only actor)
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -280,6 +281,16 @@ struct ConfigApproximatorsCNN{
     static constexpr T_TI FORWARD_BATCH_SIZE = PARAMETERS::BATCH_SIZE;
     template <typename CAPABILITY>
     struct Actor{
+#ifdef RL_TOOLS_DISABLE_VISUAL
+        // State-only actor: Standardize → MLP → ACTION_DIM
+        using INPUT_SHAPE = rlt::tensor::Shape<T_TI, STEPS, FORWARD_BATCH_SIZE, STATE_OBS_DIM>;
+        using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<T_TYPE_POLICY, T_TI>;
+        using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+        using MLP_CONFIG = rlt::nn_models::mlp::Configuration<T_TYPE_POLICY, T_TI, T_ENVIRONMENT::ACTION_DIM, 2, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY>;
+        using MLP = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<MLP_CONFIG>;
+        using MODULE_CHAIN = rlt::nn_models::sequential::Module<STANDARDIZATION_LAYER, rlt::nn_models::sequential::Module<MLP>>;
+        using MODEL = rlt::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, INPUT_SHAPE>;
+#else
         // Image branch input shape
         using OBS_SHAPE = typename T_ENVIRONMENT::Observation::SHAPE;
         using IMAGE_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
@@ -320,6 +331,7 @@ struct ConfigApproximatorsCNN{
 
         // Parallel model: two branches + head
         using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, IMAGE_BRANCH, STATE_BRANCH, IMAGE_INPUT_SHAPE, STATE_INPUT_SHAPE, MLP_HEAD>;
+#endif
     };
     template <typename CAPABILITY>
     struct Critic{
@@ -435,7 +447,9 @@ int main(int argc, char** argv){
     CRITIC_BUFFERS_GAE critic_buffers_gae;
         // Extra rows so that BATCH_SIZE-padded evaluate from any collect step doesn't OOB
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
+#ifndef RL_TOOLS_DISABLE_VISUAL
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, OBSERVATION_DIM>>> gpu_all_observations;
+#endif
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, STATE_OBS_DIM>>> gpu_all_state_observations;
     rlt::Matrix<rlt::matrix::Specification<T, TI, N_ENVIRONMENTS, ACTION_DIM>> gpu_actions_eval;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_actions_train;
@@ -458,6 +472,7 @@ int main(int argc, char** argv){
     }
 
     auto& env0 = envs[0];
+#ifndef RL_TOOLS_DISABLE_VISUAL
     for(TI env_i = 1; env_i < N_ENVIRONMENTS; env_i++){
         if(envs[env_i].owns_renderer && envs[env_i].renderer != nullptr){
             rlt::free(device, *envs[env_i].renderer);
@@ -492,6 +507,7 @@ int main(int argc, char** argv){
             }
         }
     }
+#endif
 
     // =========================================================================
     // GPU device init (after env init; must be after OptiX context creation)
@@ -528,10 +544,12 @@ int main(int argc, char** argv){
             rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], warmup_state, rng);
             set_fixed_initial_state(warmup_state);
 
+#ifndef RL_TOOLS_DISABLE_VISUAL
             // Image observation
             auto obs_slice = rlt::view(device, dataset.all_observations, obs_row);
             auto obs_matrix = rlt::matrix_view(device, obs_slice);
             rlt::observe(device, envs[env_i], env_parameters[env_i], warmup_state, typename ENVIRONMENT::Observation{}, obs_matrix, rng);
+#endif
 
             // State observation
             auto state_obs_slice = rlt::view(device, warmup_state_observations, obs_row);
@@ -545,17 +563,21 @@ int main(int argc, char** argv){
         }
 
         // Accumulate mode forward passes for standardize layers
-        using IMAGE_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
         using STATE_INPUT_SHAPE_WARMUP = rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>;
         using OBS_PRIV_SHAPE = typename ENVIRONMENT::ObservationPrivileged::SHAPE;
         using CRITIC_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, BATCH_SIZE>, (TI)1>;
         rlt::Mode<rlt::nn::layers::standardize::AccumulateMode<>> accumulate_mode;
         for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
-            auto batch_observations = rlt::view_range(device, dataset.all_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-            auto batch_observations_reshaped = rlt::reshape_row_major(device, batch_observations, IMAGE_INPUT_SHAPE{});
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
+#ifdef RL_TOOLS_DISABLE_VISUAL
+            rlt::forward(device, ppo.actor, batch_state_observations_reshaped, actor_buffers_cpu, rng, accumulate_mode);
+#else
+            using IMAGE_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
+            auto batch_observations = rlt::view_range(device, dataset.all_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+            auto batch_observations_reshaped = rlt::reshape_row_major(device, batch_observations, IMAGE_INPUT_SHAPE{});
             rlt::forward(device, ppo.actor, batch_observations_reshaped, batch_state_observations_reshaped, actor_buffers_cpu, rng, accumulate_mode);
+#endif
             auto batch_observations_privileged = rlt::view_range(device, dataset.all_observations_privileged, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_observations_privileged_reshaped = rlt::reshape_row_major(device, batch_observations_privileged, CRITIC_INPUT_SHAPE{});
             rlt::forward(device, ppo.critic, batch_observations_privileged_reshaped, critic_buffers_cpu, rng, accumulate_mode);
@@ -578,7 +600,9 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, actor_buffers);
     rlt::malloc(device_gpu, critic_buffers);
     rlt::malloc(device_gpu, critic_buffers_gae);
+#ifndef RL_TOOLS_DISABLE_VISUAL
     rlt::malloc(device_gpu, gpu_all_observations);
+#endif
     rlt::malloc(device_gpu, gpu_all_state_observations);
     rlt::malloc(device_gpu, gpu_actions_eval);
     rlt::malloc(device_gpu, gpu_actions_train);
@@ -680,13 +704,11 @@ int main(int argc, char** argv){
                 auto state_obs_matrix = rlt::matrix_view(device, state_obs_row);
                 rlt::observe(device, env.dynamics, parameters.dynamics, state, ACTOR_STATE_OBS{}, state_obs_matrix, rng);
 
+#ifndef RL_TOOLS_DISABLE_VISUAL
                 // Camera
                 cameras[env_i] = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, state);
+#endif
             }
-
-            // GPU: batch render + pixel conversion
-            T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
-            rlt::observe_batch_render_gpu(device, env0, cameras.data(), N_ENVIRONMENTS, obs_ptr);
 
             // CPU->GPU: copy state observations for this step
             cudaMemcpy(
@@ -695,15 +717,25 @@ int main(int argc, char** argv){
                 N_ENVIRONMENTS * STATE_OBS_DIM * sizeof(T),
                 cudaMemcpyHostToDevice);
 
-            // GPU: actor evaluate (padded to BATCH_SIZE, same buffer as training)
-            auto gpu_obs_slice = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-            using EVAL_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
-            auto gpu_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_slice, EVAL_INPUT_SHAPE{});
             auto gpu_state_obs_slice = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto gpu_state_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_slice, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
             auto gpu_actions_train_tensor_eval = rlt::to_tensor(device_gpu, gpu_actions_train);
             auto gpu_actions_train_reshaped_eval = rlt::reshape_row_major(device_gpu, gpu_actions_train_tensor_eval, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+
+#ifdef RL_TOOLS_DISABLE_VISUAL
+            // State-only actor (sequential model, single input)
+            rlt::evaluate(device_gpu, ppo_gpu.actor, gpu_state_obs_reshaped, gpu_actions_train_reshaped_eval, actor_buffers, rng_gpu);
+#else
+            // GPU: batch render + pixel conversion
+            T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
+            rlt::observe_batch_render_gpu(device, env0, cameras.data(), N_ENVIRONMENTS, obs_ptr);
+
+            // GPU: actor evaluate (parallel model, two inputs)
+            auto gpu_obs_slice = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+            using EVAL_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
+            auto gpu_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_slice, EVAL_INPUT_SHAPE{});
             rlt::evaluate(device_gpu, ppo_gpu.actor, gpu_obs_reshaped, gpu_state_obs_reshaped, gpu_actions_train_reshaped_eval, actor_buffers, rng_gpu);
+#endif
             cudaDeviceSynchronize();
             // Copy first N_ENVS actions
             auto gpu_actions_first_n = rlt::view(device_gpu, gpu_actions_train, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), 0, 0);
@@ -731,9 +763,15 @@ int main(int argc, char** argv){
                 }
             }
 
-            auto& actor_head_cpu = ppo.actor.head;
-            auto log_std = rlt::matrix_view(device, actor_head_cpu.log_std.parameters);
-            rlt::rl::components::on_policy_runner::epilogue(device, dataset, on_policy_runner, actions_mean_view, actions_view, log_std, rng, step_i);
+            {
+#ifdef RL_TOOLS_DISABLE_VISUAL
+                auto& actor_log_std_layer = rlt::get_last_layer(ppo.actor);
+#else
+                auto& actor_log_std_layer = ppo.actor.head;
+#endif
+                auto log_std = rlt::matrix_view(device, actor_log_std_layer.log_std.parameters);
+                rlt::rl::components::on_policy_runner::epilogue(device, dataset, on_policy_runner, actions_mean_view, actions_view, log_std, rng, step_i);
+            }
 
             // Trajectory: fill in reward and terminated from epilogue results
             for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
@@ -762,6 +800,7 @@ int main(int argc, char** argv){
         }
         on_policy_runner.step += N_ENVIRONMENTS * STEPS_PER_ENV;
 
+#ifndef RL_TOOLS_DISABLE_VISUAL
         // Reset CUDA state after OptiX renders
         {
             cudaError_t err;
@@ -776,6 +815,7 @@ int main(int argc, char** argv){
             if(device_gpu.stream != 0) cudnnSetStream(device_gpu.cudnn_handle, device_gpu.stream);
 #endif
         }
+#endif
 
         // =================================================================
         // GAE
@@ -799,10 +839,15 @@ int main(int argc, char** argv){
         // =================================================================
         // Sync GPU->CPU: only copy log_std (not full model, which can crash with conv2d workspace)
         {
-            auto& head_gpu = ppo_gpu.actor.head;
-            auto& head_cpu = ppo.actor.head;
-            rlt::copy(device_gpu, device, head_gpu.log_std.parameters, head_cpu.log_std.parameters);
-            rlt::copy(device_gpu, device, head_gpu.log_std.gradient, head_cpu.log_std.gradient);
+#ifdef RL_TOOLS_DISABLE_VISUAL
+            auto& ll_gpu = rlt::get_last_layer(ppo_gpu.actor);
+            auto& ll_cpu = rlt::get_last_layer(ppo.actor);
+#else
+            auto& ll_gpu = ppo_gpu.actor.head;
+            auto& ll_cpu = ppo.actor.head;
+#endif
+            rlt::copy(device_gpu, device, ll_gpu.log_std.parameters, ll_cpu.log_std.parameters);
+            rlt::copy(device_gpu, device, ll_gpu.log_std.gradient, ll_cpu.log_std.gradient);
         }
 
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
@@ -822,23 +867,32 @@ int main(int argc, char** argv){
                 rlt::zero_gradient(device_gpu, ppo_gpu.actor);
 
                 // --- Actor forward on GPU ---
-                auto gpu_obs_batch = rlt::view_range(device_gpu, gpu_all_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-                using ACTOR_INPUT_SHAPE2 = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
-                auto gpu_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_batch, ACTOR_INPUT_SHAPE2{});
                 auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
 
                 auto gpu_actions_train_tensor = rlt::to_tensor(device_gpu, gpu_actions_train);
                 auto gpu_actions_train_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_train_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+#ifdef RL_TOOLS_DISABLE_VISUAL
+                rlt::forward(device_gpu, ppo_gpu.actor, gpu_state_obs_batch_reshaped, gpu_actions_train_reshaped, actor_buffers, rng_gpu);
+#else
+                auto gpu_obs_batch = rlt::view_range(device_gpu, gpu_all_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                using ACTOR_INPUT_SHAPE2 = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
+                auto gpu_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_batch, ACTOR_INPUT_SHAPE2{});
                 rlt::forward(device_gpu, ppo_gpu.actor, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, gpu_actions_train_reshaped, actor_buffers, rng_gpu);
+#endif
                 cudaDeviceSynchronize();
 
                 // GPU->CPU: copy action outputs
                 rlt::copy(device_gpu, device, gpu_actions_train, ppo_buffers.current_batch_actions);
 
                 // GPU->CPU: copy log_std
+#ifdef RL_TOOLS_DISABLE_VISUAL
+                auto& last_layer_gpu = rlt::get_last_layer(ppo_gpu.actor);
+                auto& last_layer_cpu = rlt::get_last_layer(ppo.actor);
+#else
                 auto& last_layer_gpu = ppo_gpu.actor.head;
                 auto& last_layer_cpu = ppo.actor.head;
+#endif
                 rlt::copy(device_gpu, device, last_layer_gpu.log_std.parameters, last_layer_cpu.log_std.parameters);
                 rlt::copy(device_gpu, device, last_layer_gpu.log_std.gradient, last_layer_cpu.log_std.gradient);
 
@@ -912,7 +966,11 @@ int main(int argc, char** argv){
                 // --- Actor backward on GPU ---
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+#ifdef RL_TOOLS_DISABLE_VISUAL
+                rlt::backward(device_gpu, ppo_gpu.actor, gpu_state_obs_batch_reshaped, gpu_d_action_reshaped, actor_buffers);
+#else
                 rlt::backward(device_gpu, ppo_gpu.actor, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, gpu_d_action_reshaped, actor_buffers);
+#endif
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
                 cudaDeviceSynchronize();
@@ -963,9 +1021,13 @@ int main(int argc, char** argv){
 
         // Log actor std
         {
-            auto& actor_head = ppo.actor.head;
+#ifdef RL_TOOLS_DISABLE_VISUAL
+            auto& actor_log_std = rlt::get_last_layer(ppo.actor);
+#else
+            auto& actor_log_std = ppo.actor.head;
+#endif
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                T log_std_val = rlt::get(device, actor_head.log_std.parameters, action_i);
+                T log_std_val = rlt::get(device, actor_log_std.log_std.parameters, action_i);
                 rlt::add_scalar(device, device.logger, "actor/log_std", log_std_val, 100);
             }
         }
@@ -997,6 +1059,7 @@ int main(int argc, char** argv){
     // =========================================================================
     // Cleanup
     // =========================================================================
+#ifndef RL_TOOLS_DISABLE_VISUAL
     for(TI env_i = 1; env_i < N_ENVIRONMENTS; env_i++){
         envs[env_i].renderer = nullptr;
         envs[env_i].scene = nullptr;
@@ -1004,6 +1067,7 @@ int main(int argc, char** argv){
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
         rlt::free(device, envs[env_i]);
     }
+#endif
 
     rlt::free(device, cpu_actions_eval);
     rlt::free(device, cpu_state_obs_step);
@@ -1020,7 +1084,9 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, actor_buffers);
     rlt::free(device_gpu, critic_buffers);
     rlt::free(device_gpu, critic_buffers_gae);
+#ifndef RL_TOOLS_DISABLE_VISUAL
     rlt::free(device_gpu, gpu_all_observations);
+#endif
     rlt::free(device_gpu, gpu_all_state_observations);
     rlt::free(device_gpu, gpu_actions_eval);
     rlt::free(device_gpu, gpu_actions_train);
