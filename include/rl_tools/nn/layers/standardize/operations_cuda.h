@@ -23,8 +23,8 @@ namespace rl_tools{
             TI output_i = blockIdx.x * blockDim.x + threadIdx.x;
             TI batch_i = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_i < DIM && batch_i < BATCH_SIZE){
-                T mean = layer.mean.parameters._data[output_i];
-                T precision = layer.precision.parameters._data[output_i];
+                T mean = get(device, layer.mean.parameters, output_i);
+                T precision = get(device, layer.precision.parameters, output_i);
                 T input_value = get(input, batch_i, output_i);
                 T output_value = (input_value - mean) * precision;
                 set(output, batch_i, output_i, output_value);
@@ -42,7 +42,7 @@ namespace rl_tools{
             TI batch_i = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_i < DIM && batch_i < BATCH_SIZE){
                 T d_output_value = get(d_output, batch_i, output_i);
-                T precision = layer.precision.parameters._data[output_i];
+                T precision = get(device, layer.precision.parameters, output_i);
                 T d_input_value = d_output_value * precision;
                 set(d_input, batch_i, output_i, d_input_value);
             }
