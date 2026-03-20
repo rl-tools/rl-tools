@@ -5,7 +5,7 @@
 
 #include "../../../../devices/esp32.h"
 #include "../../../../nn/layers/dense/layer.h"
-#include "../../../../nn/mode.h"
+#include "../../../../mode/mode.h"
 
 #include "esp_dsp.h"
 
