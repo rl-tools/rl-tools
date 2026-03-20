@@ -30,12 +30,17 @@
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 
 #include <rl_tools/utils/extrack/operations_cpu.h>
+#include <rl_tools/rl/environments/l2f/operations_cpu.h>
+#include <rl_tools/utils/zlib/operations_cpu.h>
 
 #include <array>
 #include <chrono>
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <fstream>
+#include <filesystem>
+#include <vector>
 
 namespace rlt = rl_tools;
 
@@ -145,6 +150,93 @@ static constexpr TI NUM_PROBES = 64;
 
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
+
+// =========================================================================
+// Fixed initial state for debugging
+// GLB position: (-4.4, 0, 5.5), GLB orientation (w,x,y,z): (-0.144, -0.009, -0.988, 0.060)
+// L2F dynamics use FLU (X=forward, Y=left, Z=up), gravity = {0, 0, -9.81}
+// Scene/GLB: Y-up coordinate system
+// State→Scene mapping (make_camera_for_state):
+//   Scene_X = FLU_X, Scene_Y = -FLU_Z, Scene_Z = FLU_Y
+// Position: set (0,0,0) in FLU, scene_translation places at GLB point
+// Orientation: pure yaw around FLU Z-up axis
+//   GLB quat ≈ 163° rotation around scene Y (up)
+//   FLU yaw quat: q = (cos(yaw/2), 0, 0, sin(yaw/2)) around Z-up
+//   yaw = 2*atan2(z, w) from GLB quat → 2*atan2(-0.988, -0.144)
+// =========================================================================
+template <typename STATE>
+void set_fixed_initial_state(STATE& state){
+    state.position[0] = 0;
+    state.position[1] = 0;
+    state.position[2] = 0;
+    // Level hover with yaw from GLB orientation
+    T yaw = static_cast<T>(2.0) * std::atan2(static_cast<T>(-0.988), static_cast<T>(-0.144));
+    T half_yaw = yaw / static_cast<T>(2);
+    state.orientation[0] = std::cos(half_yaw);  // w
+    state.orientation[1] = 0;                    // x
+    state.orientation[2] = 0;                    // y
+    state.orientation[3] = std::sin(half_yaw);   // z
+    state.linear_velocity[0] = 0;
+    state.linear_velocity[1] = 0;
+    state.linear_velocity[2] = 0;
+    state.angular_velocity[0] = 0;
+    state.angular_velocity[1] = 0;
+    state.angular_velocity[2] = 0;
+}
+
+// =========================================================================
+// Trajectory recording for extrack UI
+// =========================================================================
+static constexpr TI TRAJECTORY_SAVE_INTERVAL = 100; // save every N PPO steps
+static constexpr TI TRAJECTORY_NUM_ENVS = 10; // record from first N environments
+static constexpr TI TRAJECTORY_MAX_EPISODES = 10; // keep only last N completed episodes
+
+struct TrajectoryStep {
+    typename ENVIRONMENT::State state;
+    T actions[ENVIRONMENT::ACTION_DIM];
+    T reward;
+    bool terminated;
+};
+struct EpisodeRecorder {
+    std::vector<TrajectoryStep> current_episode;
+    bool episode_started = false;
+};
+
+std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typename ENVIRONMENT::Parameters& parameters,
+    const std::vector<std::vector<TrajectoryStep>>& episodes, T dt){
+    if(episodes.empty()) return "[]";
+    // The extrack UI iterates all episodes at the same step index, so all
+    // episodes must have the same length.  Pad shorter ones by repeating
+    // the last step with terminated=true.
+    TI max_len = 0;
+    for(auto& ep : episodes) if(ep.size() > max_len) max_len = ep.size();
+    std::string json = "[";
+    for(TI ep_i = 0; ep_i < episodes.size(); ep_i++){
+        auto& episode = episodes[ep_i];
+        json += "{\"parameters\": " + rlt::json(device, env.dynamics, parameters.dynamics) + ",\n";
+        json += "\"trajectory\": [";
+        for(TI step_i = 0; step_i < max_len; step_i++){
+            auto& s = (step_i < episode.size()) ? episode[step_i] : episode.back();
+            json += "{\"state\":" + rlt::json(device, env.dynamics, parameters.dynamics, s.state) + ",";
+            json += "\"action\":[";
+            for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
+                json += std::to_string(s.actions[a]);
+                if(a < ENVIRONMENT::ACTION_DIM - 1) json += ",";
+            }
+            json += "],";
+            json += "\"dt\":" + std::to_string(dt) + ",";
+            json += "\"reward\":" + std::to_string(s.reward) + ",";
+            bool terminated = (step_i < episode.size()) ? s.terminated : true;
+            json += "\"terminated\":" + (terminated ? std::string("true") : std::string("false"));
+            json += "}";
+            if(step_i < max_len - 1) json += ",";
+        }
+        json += "]}";
+        if(ep_i < episodes.size() - 1) json += ",";
+    }
+    json += "]";
+    return json;
+}
 
 // =========================================================================
 // PPO configuration
@@ -389,16 +481,12 @@ int main(int argc, char** argv){
         rlt::init(device, envs[env_i]);
     }
 
-    if(env0.scene->num_indoor_positions > 0){
-        auto& target = env0.scene->indoor_positions[0];
-        T target_translation[3] = {
-            target.position[0],
-            target.position[1] + env0.eye_height,
-            target.position[2]
-        };
+    // Fixed starting point in GLB frame for debugging
+    {
+        T fixed_scene_translation[3] = {-4.4, 0, 5.5};
         for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
             for(TI j = 0; j < 3; j++){
-                envs[env_i].target_scene_translation[j] = target_translation[j];
+                envs[env_i].target_scene_translation[j] = fixed_scene_translation[j];
             }
         }
     }
@@ -436,6 +524,7 @@ int main(int argc, char** argv){
             typename ENVIRONMENT::State warmup_state;
             rlt::sample_initial_parameters(device, envs[env_i], env_parameters[env_i], rng);
             rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], warmup_state, rng);
+            set_fixed_initial_state(warmup_state);
 
             // Image observation
             auto obs_slice = rlt::view(device, dataset.all_observations, obs_row);
@@ -525,6 +614,22 @@ int main(int argc, char** argv){
     std::array<rlt::CameraData, N_ENVIRONMENTS> cameras;
     static constexpr TI N_PPO_STEPS = LOOP_CORE_PARAMETERS::STEP_LIMIT;
 
+    // Trajectory recording for extrack UI
+    EpisodeRecorder episode_recorders[TRAJECTORY_NUM_ENVS];
+    std::vector<std::vector<TrajectoryStep>> completed_episodes;
+    T simulation_dt = static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY);
+
+    // Write ui.esm.js once
+    {
+        std::string ui = rlt::get_ui(device, envs[0].dynamics);
+        if(!ui.empty()){
+            std::filesystem::create_directories(extrack_paths.seed);
+            std::ofstream ui_file(extrack_paths.seed / "ui.esm.js");
+            ui_file << ui;
+            std::cout << "UI written to: " << extrack_paths.seed / "ui.esm.js" << std::endl;
+        }
+    }
+
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         rlt::set_step(device, device.logger, on_policy_runner.step);
@@ -543,11 +648,23 @@ int main(int argc, char** argv){
                     static constexpr TI EPISODE_LOG_CADENCE = 100;
                     rlt::add_scalar(device, device.logger, "episode/length", rlt::get(on_policy_runner.episode_step, 0, env_i), EPISODE_LOG_CADENCE);
                     rlt::add_scalar(device, device.logger, "episode/return", rlt::get(on_policy_runner.episode_return, 0, env_i), EPISODE_LOG_CADENCE);
+                    // Trajectory: finalize completed episode
+                    if(env_i < TRAJECTORY_NUM_ENVS && episode_recorders[env_i].episode_started && !episode_recorders[env_i].current_episode.empty()){
+                        completed_episodes.push_back(std::move(episode_recorders[env_i].current_episode));
+                        episode_recorders[env_i].current_episode.clear();
+                        if(completed_episodes.size() > TRAJECTORY_MAX_EPISODES){
+                            completed_episodes.erase(completed_episodes.begin());
+                        }
+                    }
                     rlt::set(on_policy_runner.truncated, 0, env_i, false);
                     rlt::set(on_policy_runner.episode_step, 0, env_i, (TI)0);
                     rlt::set(on_policy_runner.episode_return, 0, env_i, (T)0);
                     rlt::sample_initial_parameters(device, env, parameters, rng);
                     rlt::sample_initial_state(device, env, parameters, state, rng);
+                    set_fixed_initial_state(state);
+                    if(env_i < TRAJECTORY_NUM_ENVS){
+                        episode_recorders[env_i].episode_started = true;
+                    }
                 }
 
                 // Privileged observation
@@ -598,9 +715,37 @@ int main(int argc, char** argv){
             auto actions_view = rlt::view(device, dataset.actions, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), step_i * N_ENVIRONMENTS, 0);
             rlt::copy(device, device, cpu_actions_eval, actions_mean_view);
 
+            // Trajectory: save pre-step states for recorded envs
+            for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+                if(episode_recorders[env_i].episode_started){
+                    TrajectoryStep traj_step;
+                    traj_step.state = rlt::get(on_policy_runner.states, 0, env_i);
+                    for(TI a = 0; a < ACTION_DIM; a++){
+                        traj_step.actions[a] = rlt::get(cpu_actions_eval, env_i, a);
+                    }
+                    traj_step.reward = 0;
+                    traj_step.terminated = false;
+                    episode_recorders[env_i].current_episode.push_back(traj_step);
+                }
+            }
+
             auto& actor_head_cpu = ppo.actor.head;
             auto log_std = rlt::matrix_view(device, actor_head_cpu.log_std.parameters);
             rlt::rl::components::on_policy_runner::epilogue(device, dataset, on_policy_runner, actions_mean_view, actions_view, log_std, rng, step_i);
+
+            // Trajectory: fill in reward and terminated from epilogue results
+            for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+                if(episode_recorders[env_i].episode_started && !episode_recorders[env_i].current_episode.empty()){
+                    TI pos = step_i * N_ENVIRONMENTS + env_i;
+                    auto& last_step = episode_recorders[env_i].current_episode.back();
+                    last_step.reward = rlt::get(dataset.rewards, pos, 0);
+                    last_step.terminated = rlt::get(dataset.terminated, pos, 0);
+                    // Use noisy actions from epilogue
+                    for(TI a = 0; a < ACTION_DIM; a++){
+                        last_step.actions[a] = rlt::get(actions_view, env_i, a);
+                    }
+                }
+            }
         }
 
         // Final privileged observations
@@ -821,6 +966,27 @@ int main(int argc, char** argv){
                 T log_std_val = rlt::get(device, actor_head.log_std.parameters, action_i);
                 rlt::add_scalar(device, device.logger, "actor/log_std", log_std_val, 100);
             }
+        }
+
+        // Save trajectories to extrack
+        if(ppo_step_i % TRAJECTORY_SAVE_INTERVAL == 0 && !completed_episodes.empty()){
+            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner.step);
+            auto& parameters_ref = rlt::get(on_policy_runner.env_parameters, 0, (TI)0);
+            std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], parameters_ref, completed_episodes, simulation_dt);
+#ifdef RL_TOOLS_ENABLE_ZLIB
+            std::vector<uint8_t> compressed;
+            if(rlt::compress_zlib(trajectories_json, compressed)){
+                std::ofstream f(step_folder / "trajectories.json.gz", std::ios::binary);
+                f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+            }
+#else
+            {
+                std::ofstream f(step_folder / "trajectories.json");
+                f << trajectories_json;
+            }
+#endif
+            std::cout << "Saved " << completed_episodes.size() << " episodes to " << step_folder << std::endl;
+            completed_episodes.clear();
         }
     }
 
