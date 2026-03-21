@@ -175,6 +175,110 @@ TEST(NN_MODELS_SEQUENTIAL_STANDARDIZE_MLP_CUDA, MLP_MATRIX_INPUT){
     rlt::free(device_cpu, output_cuda_host);
 }
 
+TEST(NN_MODELS_SEQUENTIAL_STANDARDIZE_MLP_CUDA, MLP_BACKWARD){
+    static constexpr TI TEST_BATCH = 32;
+    using MLP_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, TEST_BATCH, INPUT_DIM>;
+    using MLP_MODEL = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<MLP_CONFIG_RELU, CAPABILITY, MLP_INPUT_SHAPE>;
+
+    DEVICE_CPU device_cpu;
+    DEVICE_CUDA device_cuda;
+    rlt::init(device_cuda);
+    RNG_CPU rng_cpu;
+    RNG_CUDA rng_cuda;
+    rlt::malloc(device_cpu, rng_cpu);
+    rlt::init(device_cpu, rng_cpu, 0);
+    rlt::malloc(device_cuda, rng_cuda);
+    rlt::init(device_cuda, rng_cuda, 0);
+
+    MLP_MODEL model_cpu, model_cuda;
+    typename MLP_MODEL::template Buffer<> buffer_cpu, buffer_cuda;
+    rlt::malloc(device_cpu, model_cpu);
+    rlt::malloc(device_cpu, buffer_cpu);
+    rlt::init_weights(device_cpu, model_cpu, rng_cpu);
+    rlt::malloc(device_cuda, model_cuda);
+    rlt::malloc(device_cuda, buffer_cuda);
+    rlt::copy(device_cpu, device_cuda, model_cpu, model_cuda);
+
+    // Input and d_output
+    rlt::Matrix<rlt::matrix::Specification<T, TI, TEST_BATCH, INPUT_DIM>> input_cpu, input_cuda;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, TEST_BATCH, OUTPUT_DIM>> d_output_cpu, d_output_cuda;
+    rlt::malloc(device_cpu, input_cpu);
+    rlt::malloc(device_cuda, input_cuda);
+    rlt::malloc(device_cpu, d_output_cpu);
+    rlt::malloc(device_cuda, d_output_cuda);
+    for(TI i = 0; i < TEST_BATCH; i++){
+        for(TI j = 0; j < INPUT_DIM; j++)
+            rlt::set(input_cpu, i, j, rlt::random::uniform_real_distribution(device_cpu.random, (T)-1, (T)1, rng_cpu));
+        for(TI j = 0; j < OUTPUT_DIM; j++)
+            rlt::set(d_output_cpu, i, j, rlt::random::uniform_real_distribution(device_cpu.random, (T)-0.01, (T)0.01, rng_cpu));
+    }
+    rlt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
+    rlt::copy(device_cpu, device_cuda, d_output_cpu, d_output_cuda);
+
+    // CPU forward + backward (matrix inputs)
+    rlt::zero_gradient(device_cpu, model_cpu);
+    rlt::forward(device_cpu, model_cpu, input_cpu, buffer_cpu, rng_cpu);
+    rlt::backward(device_cpu, model_cpu, input_cpu, d_output_cpu, buffer_cpu);
+
+    // CUDA forward + backward (matrix inputs)
+    rlt::zero_gradient(device_cuda, model_cuda);
+    rlt::forward(device_cuda, model_cuda, input_cuda, buffer_cuda, rng_cuda);
+    cudaDeviceSynchronize();
+    rlt::backward(device_cuda, model_cuda, input_cuda, d_output_cuda, buffer_cuda);
+    cudaDeviceSynchronize();
+
+    // Compare models (includes gradients)
+    MLP_MODEL model_cuda_host;
+    rlt::malloc(device_cpu, model_cuda_host);
+    rlt::copy(device_cuda, device_cpu, model_cuda, model_cuda_host);
+    T diff = rlt::abs_diff(device_cpu, model_cpu, model_cuda_host);
+    std::cout << "MLP backward (matrix) abs_diff: " << diff << std::endl;
+    EXPECT_LT(diff, 1e-3);
+
+    // Now test with TENSOR inputs (through tensor proxy)
+    rlt::copy(device_cpu, device_cuda, model_cpu, model_cuda); // reset GPU model
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MLP_INPUT_SHAPE>> t_input_cpu, t_input_cuda;
+    using MLP_OUTPUT_SHAPE = typename MLP_MODEL::OUTPUT_SHAPE;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MLP_OUTPUT_SHAPE>> t_d_output_cpu, t_d_output_cuda;
+    rlt::malloc(device_cpu, t_input_cpu);
+    rlt::malloc(device_cuda, t_input_cuda);
+    rlt::malloc(device_cpu, t_d_output_cpu);
+    rlt::malloc(device_cuda, t_d_output_cuda);
+    {
+        auto t_in_mat = rlt::matrix_view(device_cpu, t_input_cpu);
+        rlt::copy(device_cpu, device_cpu, input_cpu, t_in_mat);
+        auto t_dout_mat = rlt::matrix_view(device_cpu, t_d_output_cpu);
+        rlt::copy(device_cpu, device_cpu, d_output_cpu, t_dout_mat);
+    }
+    rlt::copy(device_cpu, device_cuda, t_input_cpu, t_input_cuda);
+    rlt::copy(device_cpu, device_cuda, t_d_output_cpu, t_d_output_cuda);
+
+    // CPU forward + backward (tensor inputs)
+    rlt::zero_gradient(device_cpu, model_cpu);
+    rlt::forward(device_cpu, model_cpu, t_input_cpu, buffer_cpu, rng_cpu);
+    rlt::backward(device_cpu, model_cpu, t_input_cpu, t_d_output_cpu, buffer_cpu);
+
+    // CUDA forward + backward (tensor inputs — goes through tensor proxy)
+    rlt::zero_gradient(device_cuda, model_cuda);
+    rlt::forward(device_cuda, model_cuda, t_input_cuda, buffer_cuda, rng_cuda);
+    cudaDeviceSynchronize();
+    rlt::backward(device_cuda, model_cuda, t_input_cuda, t_d_output_cuda, buffer_cuda);
+    cudaDeviceSynchronize();
+
+    rlt::copy(device_cuda, device_cpu, model_cuda, model_cuda_host);
+    T diff_tensor = rlt::abs_diff(device_cpu, model_cpu, model_cuda_host);
+    std::cout << "MLP backward (tensor proxy) abs_diff: " << diff_tensor << std::endl;
+    EXPECT_LT(diff_tensor, 1e-3);
+
+    rlt::free(device_cpu, model_cpu); rlt::free(device_cpu, buffer_cpu);
+    rlt::free(device_cuda, model_cuda); rlt::free(device_cuda, buffer_cuda);
+    rlt::free(device_cpu, model_cuda_host);
+    rlt::free(device_cpu, input_cpu); rlt::free(device_cuda, input_cuda);
+    rlt::free(device_cpu, d_output_cpu); rlt::free(device_cuda, d_output_cuda);
+    rlt::free(device_cpu, t_input_cpu); rlt::free(device_cuda, t_input_cuda);
+    rlt::free(device_cpu, t_d_output_cpu); rlt::free(device_cuda, t_d_output_cuda);
+}
+
 TEST(NN_MODELS_SEQUENTIAL_STANDARDIZE_MLP_CUDA, MANUAL_DENSE_CHAIN){
     // Manually chain two dense layers (like MLP does) to isolate the issue
     static constexpr TI TEST_BATCH = 32;

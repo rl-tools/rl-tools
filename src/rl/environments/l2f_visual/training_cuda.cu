@@ -713,13 +713,34 @@ int main(int argc, char** argv){
                 N_ENVIRONMENTS * STATE_OBS_DIM * sizeof(T));
 
 #ifdef RL_TOOLS_DISABLE_VISUAL
-            // State-only actor on CPU (identical to zoo target)
+            // State-only actor evaluate on GPU
             {
-                auto cpu_obs_slice = rlt::view_range(device, cpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-                auto cpu_obs_reshaped = rlt::reshape_row_major(device, cpu_obs_slice, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
-                auto cpu_actions_tensor = rlt::to_tensor(device, cpu_actions_eval);
-                auto cpu_actions_reshaped = rlt::reshape_row_major(device, cpu_actions_tensor, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, ACTION_DIM>{});
-                rlt::evaluate(device, ppo.actor, cpu_obs_reshaped, cpu_actions_reshaped, actor_buffers_cpu, rng);
+                cudaMemcpy(
+                    rlt::data(gpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
+                    rlt::data(cpu_state_obs_step),
+                    N_ENVIRONMENTS * STATE_OBS_DIM * sizeof(T),
+                    cudaMemcpyHostToDevice);
+                auto gpu_state_obs_slice = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto gpu_state_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_slice, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
+                auto gpu_actions_eval_tensor = rlt::to_tensor(device_gpu, gpu_actions_train);
+                auto gpu_actions_eval_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_eval_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+                rlt::evaluate(device_gpu, ppo_gpu.actor, gpu_state_obs_reshaped, gpu_actions_eval_reshaped, actor_buffers, rng_gpu);
+                cudaDeviceSynchronize();
+                auto gpu_actions_first_n = rlt::view(device_gpu, gpu_actions_train, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), 0, 0);
+                rlt::copy(device_gpu, device, gpu_actions_first_n, cpu_actions_eval);
+                // CPU comparison (first collect step of first PPO step only)
+                if(ppo_step_i == 0 && step_i == 0){
+                    rlt::Matrix<rlt::matrix::Specification<T, TI, N_ENVIRONMENTS, ACTION_DIM>> cpu_actions_check;
+                    rlt::malloc(device, cpu_actions_check);
+                    auto cpu_obs_slice = rlt::view_range(device, cpu_all_state_observations, (TI)0, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+                    auto cpu_obs_reshaped = rlt::reshape_row_major(device, cpu_obs_slice, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
+                    auto cpu_check_tensor = rlt::to_tensor(device, cpu_actions_check);
+                    auto cpu_check_reshaped = rlt::reshape_row_major(device, cpu_check_tensor, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, ACTION_DIM>{});
+                    rlt::evaluate(device, ppo.actor, cpu_obs_reshaped, cpu_check_reshaped, actor_buffers_cpu, rng);
+                    T eval_diff = rlt::abs_diff(device, cpu_actions_eval, cpu_actions_check) / (N_ENVIRONMENTS * ACTION_DIM);
+                    std::cout << "  [check] collection evaluate per-element abs_diff (CPU vs GPU): " << eval_diff << std::endl;
+                    rlt::free(device, cpu_actions_check);
+                }
             }
 #else
             // CPU->GPU: copy state observations for this step
@@ -880,19 +901,45 @@ int main(int argc, char** argv){
                     rlt::swap(device, dataset.target_values, dataset.target_values, dataset_i, 0, sample_index, 0);
                 }
             }
+            // Copy shuffled state observations to GPU for actor training
+            cudaMemcpy(rlt::data(gpu_all_state_observations), rlt::data(cpu_all_state_observations),
+                       STEPS_TOTAL * STATE_OBS_DIM * sizeof(T), cudaMemcpyHostToDevice);
+
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
                 TI batch_offset = batch_i * BATCH_SIZE;
-                rlt::zero_gradient(device, ppo.critic);
-                rlt::zero_gradient(device, ppo.actor);
+                rlt::zero_gradient(device_gpu, ppo_gpu.actor);
 
-                // Actor forward on CPU
-                auto cpu_state_obs_batch = rlt::view_range(device, cpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-                auto cpu_state_obs_batch_reshaped = rlt::reshape_row_major(device, cpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
-                auto current_batch_actions_tensor = rlt::to_tensor(device, ppo_buffers.current_batch_actions);
-                auto current_batch_actions_reshaped = rlt::reshape_row_major(device, current_batch_actions_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
-                rlt::forward(device, ppo.actor, cpu_state_obs_batch_reshaped, current_batch_actions_reshaped, actor_buffers_cpu, rng);
+                // Actor forward on GPU
+                auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
+                auto gpu_actions_train_tensor = rlt::to_tensor(device_gpu, gpu_actions_train);
+                auto gpu_actions_train_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_train_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+                rlt::forward(device_gpu, ppo_gpu.actor, gpu_state_obs_batch_reshaped, gpu_actions_train_reshaped, actor_buffers, rng_gpu);
+                cudaDeviceSynchronize();
 
-                // PPO loss on CPU
+                // GPU->CPU: copy action means and log_std for PPO loss computation
+                rlt::copy(device_gpu, device, gpu_actions_train, ppo_buffers.current_batch_actions);
+                auto& last_layer_gpu = rlt::get_last_layer(ppo_gpu.actor);
+                auto& last_layer_cpu = rlt::get_last_layer(ppo.actor);
+                rlt::copy(device_gpu, device, last_layer_gpu.log_std.parameters, last_layer_cpu.log_std.parameters);
+                rlt::copy(device_gpu, device, last_layer_gpu.log_std.gradient, last_layer_cpu.log_std.gradient);
+
+                // CPU comparison of actor forward output (first batch only)
+                if(ppo_step_i == 0 && batch_i == 0 && epoch_i == 0){
+                    rlt::copy(device_gpu, device, ppo_gpu.actor, ppo.actor);
+                    auto cpu_state_obs_batch_check = rlt::view_range(device, cpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                    auto cpu_state_obs_batch_check_reshaped = rlt::reshape_row_major(device, cpu_state_obs_batch_check, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
+                    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> cpu_actions_check;
+                    rlt::malloc(device, cpu_actions_check);
+                    auto cpu_actions_check_tensor = rlt::to_tensor(device, cpu_actions_check);
+                    auto cpu_actions_check_reshaped = rlt::reshape_row_major(device, cpu_actions_check_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+                    rlt::forward(device, ppo.actor, cpu_state_obs_batch_check_reshaped, cpu_actions_check_reshaped, actor_buffers_cpu, rng);
+                    T actor_fwd_diff = rlt::abs_diff(device, ppo_buffers.current_batch_actions, cpu_actions_check) / (BATCH_SIZE * ACTION_DIM);
+                    std::cout << "  [check] actor forward per-element abs_diff (CPU vs GPU): " << actor_fwd_diff << std::endl;
+                    rlt::free(device, cpu_actions_check);
+                }
+
+                // PPO loss on CPU (unchanged — reads from ppo_buffers.current_batch_actions and last_layer_cpu.log_std)
                 auto batch_actions = rlt::view(device, dataset.actions, rlt::matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>(), batch_offset, 0);
                 auto batch_action_log_probs = rlt::view(device, dataset.action_log_probs, rlt::matrix::ViewSpec<BATCH_SIZE, 1>(), batch_offset, 0);
                 auto batch_advantages = rlt::view(device, dataset.advantages, rlt::matrix::ViewSpec<BATCH_SIZE, 1>(), batch_offset, 0);
@@ -915,13 +962,12 @@ int main(int argc, char** argv){
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         T current_action = rlt::get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
                         T rollout_action = rlt::get(batch_actions, batch_step_i, action_i);
-                        auto& last_layer = rlt::get_last_layer(ppo.actor);
-                        T current_action_log_std = rlt::get(device, last_layer.log_std.parameters, action_i);
+                        T current_action_log_std = rlt::get(device, last_layer_cpu.log_std.parameters, action_i);
                         action_log_prob += rlt::random::normal_distribution::log_prob(device.random, current_action, current_action_log_std, rollout_action);
                         rlt::set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_mean(device.random, current_action, current_action_log_std, rollout_action));
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
-                            rlt::increment(device, last_layer.log_std.gradient, d_entropy_loss_d_current_action_log_std, action_i);
+                            rlt::increment(device, last_layer_cpu.log_std.gradient, d_entropy_loss_d_current_action_log_std, action_i);
                             rlt::set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_log_std(device.random, current_action, current_action_log_std, rollout_action));
                         }
                     }
@@ -944,16 +990,21 @@ int main(int argc, char** argv){
                         rlt::multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d = rlt::get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
-                            auto& last_layer = rlt::get_last_layer(ppo.actor);
-                            rlt::increment(device, last_layer.log_std.gradient, d_loss_d_action_log_prob * current_d, action_i);
+                            rlt::increment(device, last_layer_cpu.log_std.gradient, d_loss_d_action_log_prob * current_d, action_i);
                         }
                     }
                 }
 
-                // Actor backward + step on CPU
-                auto d_action_tensor = rlt::to_tensor(device, ppo_buffers.d_action_log_prob_d_action);
-                auto d_action_reshaped = rlt::reshape_row_major(device, d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
-                rlt::backward(device, ppo.actor, cpu_state_obs_batch_reshaped, d_action_reshaped, actor_buffers_cpu);
+                // Sync log_std gradient CPU->GPU, then actor backward + step on GPU
+                rlt::copy(device, device_gpu, last_layer_cpu.log_std.parameters, last_layer_gpu.log_std.parameters);
+                rlt::copy(device, device_gpu, last_layer_cpu.log_std.gradient, last_layer_gpu.log_std.gradient);
+                rlt::copy(device, device_gpu, ppo_buffers.d_action_log_prob_d_action, gpu_d_action_train);
+                auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
+                auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+                rlt::backward(device_gpu, ppo_gpu.actor, gpu_state_obs_batch_reshaped, gpu_d_action_reshaped, actor_buffers);
+                cudaDeviceSynchronize();
+                rlt::step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
+                cudaDeviceSynchronize();
 
                 // Critic forward + backward + step on GPU (with CPU comparison on first batch)
                 {
@@ -999,10 +1050,10 @@ int main(int argc, char** argv){
                     cudaDeviceSynchronize();
                 }
 
-                // Actor optimizer step on CPU
-                rlt::step(device, actor_optimizer, ppo.actor);
             }
         }
+        // Sync GPU actor back to CPU for collection (evaluate + epilogue use ppo.actor)
+        rlt::copy(device_gpu, device, ppo_gpu.actor, ppo.actor);
 #else
         // GPU training path for visual mode (hand-rolled PPO)
         // Sync GPU->CPU: only copy log_std (not full model, which can crash with conv2d workspace)
