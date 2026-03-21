@@ -27,6 +27,7 @@
 #include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
 #include <rl_tools/rl/algorithms/ppo/operations_cuda.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/operations_cuda.h>
+#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
