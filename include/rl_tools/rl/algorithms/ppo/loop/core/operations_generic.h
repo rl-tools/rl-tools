@@ -15,9 +15,38 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    // Device-dependent helpers (overridden by operations_cuda.h for CUDA)
+    template <typename DEVICE, typename ENV_SPEC>
+    void malloc_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
+        using TI = typename DEVICE::index_t;
+        constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
+        for(TI env_i = 0; env_i < N; env_i++){
+            auto& env = get_ref(device, envs, env_i);
+            malloc(device, env);
+        }
+    }
+    template <typename DEVICE, typename ENV_SPEC>
+    void free_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
+        using TI = typename DEVICE::index_t;
+        constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
+        for(TI env_i = 0; env_i < N; env_i++){
+            auto& env = get_ref(device, envs, env_i);
+            free(device, env);
+        }
+    }
+    template <typename DEVICE, typename ENV_SPEC>
+    void init_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
+        using TI = typename DEVICE::index_t;
+        constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
+        for(TI env_i = 0; env_i < N; env_i++){
+            auto& env = get_ref(device, envs, env_i);
+            init(device, env);
+        }
+    }
+    // Shared malloc/free/init
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
-        using TI = typename DEVICE::index_t;
+        malloc(device, ts.rng);
         malloc(device, ts.ppo);
         malloc(device, ts.ppo_buffers);
         malloc(device, ts.on_policy_runner_dataset);
@@ -30,15 +59,11 @@ namespace rl_tools{
         malloc(device, ts.critic_optimizer);
         malloc(device, ts.envs);
         malloc(device, ts.env_parameters);
-        for(TI env_i=0; env_i < T_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
-            auto& env = get_ref(device, ts.envs, env_i);
-            malloc(device, env);
-        }
-
+        malloc_environments(device, ts.envs);
     }
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
-        using TI = typename DEVICE::index_t;
+        free(device, ts.rng);
         free(device, ts.ppo);
         free(device, ts.ppo_buffers);
         free(device, ts.on_policy_runner_dataset);
@@ -51,25 +76,16 @@ namespace rl_tools{
         free(device, ts.critic_optimizer);
         free(device, ts.envs);
         free(device, ts.env_parameters);
-        for(TI env_i=0; env_i < T_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
-            auto& env = get_ref(device, ts.envs, env_i);
-            free(device, env);
-        }
+        free_environments(device, ts.envs);
     }
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
-        using T = typename CONFIG::T;
         using TI = typename DEVICE::index_t;
 
         init(device, ts.rng, seed);
-
-        for(TI env_i=0; env_i < CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
-            auto& env = get_ref(device, ts.envs, env_i);
-            init(device, env);
-        }
-
-        init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng); // this needs to be initialized before the on_policy_runner because the initial hidden state (might be learnable) might be used to set the initial policy state in the OnPolicyRunner
+        init_environments(device, ts.envs);
+        init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
         init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
 
         ts.step = 0;
