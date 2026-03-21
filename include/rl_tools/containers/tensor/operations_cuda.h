@@ -650,22 +650,6 @@ namespace rl_tools
 
         }
     }
-    // Get for CUDA tensors: on host uses cudaMemcpy, on device dereferences directly
-    template<typename DEV_SPEC, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T get(devices::CUDA<DEV_SPEC>& device, const Tensor<SPEC>& tensor, typename devices::CUDA<DEV_SPEC>::index_t index){
-        static_assert(SPEC::SHAPE::LENGTH == 1, "Single-index get only for rank-1 tensors");
-        using T = typename SPEC::T;
-        using TI = typename devices::CUDA<DEV_SPEC>::index_t;
-        constexpr TI STRIDE = SPEC::STRIDE::template GET<0>;
-        const T* element_ptr = data(tensor) + index * STRIDE;
-#ifdef __CUDA_ARCH__
-        return *element_ptr;
-#else
-        T result;
-        cudaMemcpy(&result, element_ptr, sizeof(T), cudaMemcpyDeviceToHost);
-        return result;
-#endif
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
