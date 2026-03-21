@@ -1,4 +1,4 @@
-#define RL_TOOLS_DISABLE_VISUAL // uncomment to disable rendering and image input (state-only actor)
+#define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -159,39 +159,6 @@ static constexpr TI NUM_PROBES = 64;
 
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
-
-// =========================================================================
-// Fixed initial state for debugging
-// GLB position: (-4.4, 0, 5.5), GLB orientation (w,x,y,z): (-0.144, -0.009, -0.988, 0.060)
-// L2F dynamics use FLU (X=forward, Y=left, Z=up), gravity = {0, 0, -9.81}
-// Scene/GLB: Y-up coordinate system
-// State→Scene mapping (make_camera_for_state):
-//   Scene_X = FLU_X, Scene_Y = -FLU_Z, Scene_Z = FLU_Y
-// Position: set (0,0,0) in FLU, scene_translation places at GLB point
-// Orientation: pure yaw around FLU Z-up axis
-//   GLB quat ≈ 163° rotation around scene Y (up)
-//   FLU yaw quat: q = (cos(yaw/2), 0, 0, sin(yaw/2)) around Z-up
-//   yaw = 2*atan2(z, w) from GLB quat → 2*atan2(-0.988, -0.144)
-// =========================================================================
-template <typename STATE>
-void set_fixed_initial_state(STATE& state){
-    state.position[0] = 0;
-    state.position[1] = 0;
-    state.position[2] = 0;
-    // Level hover with yaw from GLB orientation
-    T yaw = static_cast<T>(2.0) * std::atan2(static_cast<T>(-0.988), static_cast<T>(-0.144));
-    T half_yaw = yaw / static_cast<T>(2);
-    state.orientation[0] = std::cos(half_yaw);  // w
-    state.orientation[1] = 0;                    // x
-    state.orientation[2] = 0;                    // y
-    state.orientation[3] = std::sin(half_yaw);   // z
-    state.linear_velocity[0] = 0;
-    state.linear_velocity[1] = 0;
-    state.linear_velocity[2] = 0;
-    state.angular_velocity[0] = 0;
-    state.angular_velocity[1] = 0;
-    state.angular_velocity[2] = 0;
-}
 
 // =========================================================================
 // Trajectory recording for extrack UI
@@ -518,15 +485,6 @@ int main(int argc, char** argv){
         rlt::init(device, envs[env_i]);
     }
 
-    // Fixed starting point in GLB frame for debugging
-    {
-        T fixed_scene_translation[3] = {-4.4, 0, 5.5};
-        for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-            for(TI j = 0; j < 3; j++){
-                envs[env_i].target_scene_translation[j] = fixed_scene_translation[j];
-            }
-        }
-    }
 #endif
 
     // =========================================================================
@@ -870,20 +828,6 @@ int main(int argc, char** argv){
         // =================================================================
         // GAE
         // =================================================================
-#ifdef RL_TOOLS_DISABLE_VISUAL
-        // CPU GAE (using CPU critic, identical to zoo target)
-        {
-            CRITIC_BUFFERS_GAE critic_buffers_gae_cpu;
-            rlt::malloc(device, critic_buffers_gae_cpu);
-            using OBS_PRIV_SHAPE = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
-            using CRITIC_GAE_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, STEPS_TOTAL_ALL>, (TI)1>;
-            auto all_obs_priv_reshaped = rlt::reshape_row_major(device, dataset.all_observations_privileged, CRITIC_GAE_INPUT_SHAPE{});
-            auto all_values_tensor = rlt::to_tensor(device, dataset.all_values);
-            auto all_values_reshaped = rlt::reshape_row_major(device, all_values_tensor, rlt::tensor::Shape<TI, 1, STEPS_TOTAL_ALL, 1>{});
-            rlt::evaluate(device, ppo.critic, all_obs_priv_reshaped, all_values_reshaped, critic_buffers_gae_cpu, rng);
-            rlt::free(device, critic_buffers_gae_cpu);
-        }
-#else
         // GPU GAE
         {
             auto all_obs_priv_matrix = rlt::matrix_view(device, dataset.all_observations_privileged);
@@ -896,7 +840,24 @@ int main(int argc, char** argv){
             cudaDeviceSynchronize();
             rlt::copy(device_gpu, device, gpu_gae_values, dataset.all_values);
         }
-#endif
+        // CPU-GPU equivalence check (first PPO step only)
+        if(ppo_step_i == 0){
+            rlt::copy(device_gpu, device, ppo_gpu.critic, ppo.critic);
+            CRITIC_BUFFERS_GAE critic_buffers_gae_cpu;
+            rlt::malloc(device, critic_buffers_gae_cpu);
+            using OBS_PRIV_SHAPE_CHECK = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
+            using CRITIC_GAE_INPUT_SHAPE_CHECK = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE_CHECK, STEPS_TOTAL_ALL>, (TI)1>;
+            auto all_obs_priv_reshaped_check = rlt::reshape_row_major(device, dataset.all_observations_privileged, CRITIC_GAE_INPUT_SHAPE_CHECK{});
+            rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL_ALL, 1>> cpu_gae_values_check;
+            rlt::malloc(device, cpu_gae_values_check);
+            auto cpu_gae_values_tensor_check = rlt::to_tensor(device, cpu_gae_values_check);
+            auto cpu_gae_values_reshaped_check = rlt::reshape_row_major(device, cpu_gae_values_tensor_check, rlt::tensor::Shape<TI, 1, STEPS_TOTAL_ALL, 1>{});
+            rlt::evaluate(device, ppo.critic, all_obs_priv_reshaped_check, cpu_gae_values_reshaped_check, critic_buffers_gae_cpu, rng);
+            T gae_diff = rlt::abs_diff(device, dataset.all_values, cpu_gae_values_check) / STEPS_TOTAL_ALL;
+            std::cout << "  [check] GAE per-element abs_diff (CPU vs GPU): " << gae_diff << std::endl;
+            rlt::free(device, cpu_gae_values_check);
+            rlt::free(device, critic_buffers_gae_cpu);
+        }
         rlt::estimate_generalized_advantages(device, dataset, typename PPO_TYPE::SPEC::PARAMETERS{});
 
         // =================================================================
@@ -994,24 +955,52 @@ int main(int argc, char** argv){
                 auto d_action_reshaped = rlt::reshape_row_major(device, d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
                 rlt::backward(device, ppo.actor, cpu_state_obs_batch_reshaped, d_action_reshaped, actor_buffers_cpu);
 
-                // Critic forward + backward + step on CPU
-                using OBS_PRIV_SHAPE = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
-                using CRITIC_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, BATCH_SIZE>, (TI)1>;
-                auto batch_obs_priv = rlt::view_range(device, dataset.all_observations_privileged, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-                auto batch_obs_priv_reshaped = rlt::reshape_row_major(device, batch_obs_priv, CRITIC_INPUT_SHAPE{});
-                rlt::forward(device, ppo.critic, batch_obs_priv_reshaped, critic_buffers_cpu, rng);
+                // Critic forward + backward + step on GPU (with CPU comparison on first batch)
                 {
-                    auto output_tensor = rlt::output(device, ppo.critic);
-                    auto output_matrix = rlt::matrix_view(device, output_tensor);
-                    rlt::nn::loss_functions::mse::gradient(device, output_matrix, batch_target_values, ppo_buffers.d_critic_output, (T)0.5);
+                    rlt::zero_gradient(device_gpu, ppo_gpu.critic);
+                    auto batch_obs_priv_matrix = rlt::matrix_view(device, rlt::view_range(device, dataset.all_observations_privileged, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{}));
+                    rlt::copy(device, device_gpu, batch_obs_priv_matrix, gpu_critic_obs);
+                    auto gpu_critic_obs_tensor = rlt::to_tensor(device_gpu, gpu_critic_obs);
+                    using OBS_PRIV_SHAPE = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
+                    using CRITIC_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, BATCH_SIZE>, (TI)1>;
+                    auto gpu_critic_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_critic_obs_tensor, CRITIC_INPUT_SHAPE{});
+                    rlt::forward(device_gpu, ppo_gpu.critic, gpu_critic_obs_reshaped, critic_buffers, rng_gpu);
+                    cudaDeviceSynchronize();
+                    {
+                        rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, 1>> cpu_critic_output, cpu_d_critic;
+                        rlt::malloc(device, cpu_critic_output);
+                        rlt::malloc(device, cpu_d_critic);
+                        auto critic_output_tensor = rlt::output(device_gpu, ppo_gpu.critic);
+                        auto critic_output_matrix = rlt::matrix_view(device_gpu, critic_output_tensor);
+                        rlt::copy(device_gpu, device, critic_output_matrix, cpu_critic_output);
+                        // CPU comparison of critic forward output
+                        if(ppo_step_i == 0 && batch_i == 0 && epoch_i == 0){
+                            rlt::copy(device_gpu, device, ppo_gpu.critic, ppo.critic);
+                            using OBS_PRIV_SHAPE_T = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
+                            using CRITIC_INPUT_SHAPE_T = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE_T, BATCH_SIZE>, (TI)1>;
+                            auto batch_obs_priv_cpu = rlt::view_range(device, dataset.all_observations_privileged, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                            auto batch_obs_priv_cpu_reshaped = rlt::reshape_row_major(device, batch_obs_priv_cpu, CRITIC_INPUT_SHAPE_T{});
+                            rlt::forward(device, ppo.critic, batch_obs_priv_cpu_reshaped, critic_buffers_cpu, rng);
+                            auto cpu_output_tensor = rlt::output(device, ppo.critic);
+                            auto cpu_output_matrix = rlt::matrix_view(device, cpu_output_tensor);
+                            T critic_fwd_diff = rlt::abs_diff(device, cpu_output_matrix, cpu_critic_output) / BATCH_SIZE;
+                            std::cout << "  [check] critic forward per-element abs_diff (CPU vs GPU): " << critic_fwd_diff << std::endl;
+                        }
+                        rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5);
+                        rlt::copy(device, device_gpu, cpu_d_critic, gpu_d_critic_output);
+                        rlt::free(device, cpu_critic_output);
+                        rlt::free(device, cpu_d_critic);
+                    }
+                    auto gpu_d_critic_tensor = rlt::to_tensor(device_gpu, gpu_d_critic_output);
+                    auto gpu_d_critic_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_critic_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, 1>{});
+                    rlt::backward(device_gpu, ppo_gpu.critic, gpu_critic_obs_reshaped, gpu_d_critic_reshaped, critic_buffers);
+                    cudaDeviceSynchronize();
+                    rlt::step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
+                    cudaDeviceSynchronize();
                 }
-                auto d_critic_tensor = rlt::to_tensor(device, ppo_buffers.d_critic_output);
-                auto d_critic_reshaped = rlt::reshape_row_major(device, d_critic_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, 1>{});
-                rlt::backward(device, ppo.critic, batch_obs_priv_reshaped, d_critic_reshaped, critic_buffers_cpu);
 
-                // Optimizer steps on CPU (both at end, same as library)
+                // Actor optimizer step on CPU
                 rlt::step(device, actor_optimizer, ppo.actor);
-                rlt::step(device, critic_optimizer, ppo.critic);
             }
         }
 #else
