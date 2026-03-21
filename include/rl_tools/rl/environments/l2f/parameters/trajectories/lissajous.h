@@ -36,7 +36,7 @@ namespace rl_tools{
         };
 
         template <typename DEVICE, typename T, typename PARAMETERS>
-        rl::environments::l2f::parameters::trajectories::Step<T> evaluate(DEVICE& device, const PARAMETERS& params, T time){
+        RL_TOOLS_FUNCTION_PLACEMENT rl::environments::l2f::parameters::trajectories::Step<T> evaluate(DEVICE& device, const PARAMETERS& params, T time){
             T time_velocity = (params.ramp_duration > 0)
                 ? math::min(device.math, time, params.ramp_duration) / params.ramp_duration
                 : (T)1.0;
@@ -59,7 +59,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename T, typename SPEC, typename RNG>
-    void fill(DEVICE& device, rl::environments::l2f::parameters::trajectories::lissajous::Parameters<T>& params, rl_tools::rl::environments::l2f::parameters::trajectories::Trajectory<SPEC>& traj, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void fill(DEVICE& device, rl::environments::l2f::parameters::trajectories::lissajous::Parameters<T>& params, rl_tools::rl::environments::l2f::parameters::trajectories::Trajectory<SPEC>& traj, RNG& rng){
         using TI = typename SPEC::TI;
         for(TI step_i = 0; step_i < SPEC::LENGTH; step_i++){
             T time = step_i * SPEC::DT;

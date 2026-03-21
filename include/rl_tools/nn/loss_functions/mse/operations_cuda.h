@@ -56,6 +56,40 @@ namespace rl_tools::nn::loss_functions::mse {
         internal::mse::d_mse_d_x_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, a, b, d_a, loss_weight);
         check_status(device);
     }
+    namespace internal::mse{
+        template<typename DEV_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
+        __global__
+        void d_mse_d_x_scalar_kernel(devices::CUDA<DEV_SPEC> device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight) {
+            using T = typename SPEC_A::T;
+            using TI = typename devices::CUDA<DEV_SPEC>::index_t;
+            constexpr TI BATCH_SIZE = SPEC_A::ROWS;
+            constexpr TI OUTPUT_DIM = SPEC_A::COLS;
+            TI output_pos_x = blockIdx.x * blockDim.x + threadIdx.x;
+            TI output_pos_y = blockIdx.y * blockDim.y + threadIdx.y;
+            if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
+                T diff = get(a, output_pos_y, output_pos_x) - get(b, output_pos_y, output_pos_x);
+                set(d_a, output_pos_y, output_pos_x, 2*diff/(SPEC_A::ROWS * SPEC_A::COLS) * loss_weight);
+            }
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
+    void gradient(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, Matrix<SPEC_DA>& d_a, typename SPEC_A::T loss_weight_scalar) {
+        static_assert(containers::check_structure<SPEC_A, SPEC_B>);
+        static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = SPEC_A::ROWS;
+        constexpr TI OUTPUT_DIM = SPEC_A::COLS;
+        constexpr TI BLOCKSIZE_BATCH = 32;
+        constexpr TI BLOCKSIZE_OUTPUT = 32;
+        constexpr TI N_BLOCKS_BATCH = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_BATCH);
+        constexpr TI N_BLOCKS_OUTPUT = RL_TOOLS_DEVICES_CUDA_CEIL(OUTPUT_DIM, BLOCKSIZE_OUTPUT);
+        dim3 grid(N_BLOCKS_OUTPUT, N_BLOCKS_BATCH);
+        dim3 block(BLOCKSIZE_OUTPUT, BLOCKSIZE_BATCH);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        internal::mse::d_mse_d_x_scalar_kernel<<<grid, block, 0, device.stream>>>(tag_device, a, b, d_a, loss_weight_scalar);
+        check_status(device);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "operations_generic.h"

@@ -62,7 +62,7 @@ namespace rl_tools{
         };
     }
     template <typename DEVICE, typename ENVIRONMENT, typename PARAM_SPEC, typename SPEC, typename RNG>
-    void fill(DEVICE& device, ENVIRONMENT& env, rl::environments::l2f::parameters::trajectories::TaggedParameters<PARAM_SPEC>& params, rl_tools::rl::environments::l2f::parameters::trajectories::Trajectory<SPEC>& traj, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void fill(DEVICE& device, ENVIRONMENT& env, rl::environments::l2f::parameters::trajectories::TaggedParameters<PARAM_SPEC>& params, rl_tools::rl::environments::l2f::parameters::trajectories::Trajectory<SPEC>& traj, RNG& rng){
         using T = typename SPEC::T;
         if (params.type == rl::environments::l2f::parameters::trajectories::Type::LISSAJOUS){
             fill(device, params.parameters.lissajous, traj, rng);

@@ -18,7 +18,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state, RNG& rng);
     namespace rl::environments::l2f{
         template <typename DEVICE, typename T, typename RNG>
-        void sample_orientation(DEVICE& device, T limit, T output[4], RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT void sample_orientation(DEVICE& device, T limit, T output[4], RNG& rng){
             // Uniform sampling on the desired angle range
             T u = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
             T v = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
