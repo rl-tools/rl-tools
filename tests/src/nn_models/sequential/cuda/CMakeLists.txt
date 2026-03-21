@@ -8,4 +8,8 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_MKL)
     add_executable(test_rl_tools_nn_models_sequential_cuda sequential_cuda.cu)
     target_link_libraries(test_rl_tools_nn_models_sequential_cuda PRIVATE rl_tools_full GTest::gtest_main)
     gtest_discover_tests(test_rl_tools_nn_models_sequential_cuda)
+
+    add_executable(test_rl_tools_nn_models_sequential_standardize_mlp_cuda standardize_mlp_cuda.cu)
+    target_link_libraries(test_rl_tools_nn_models_sequential_standardize_mlp_cuda PRIVATE rl_tools_full GTest::gtest_main)
+    gtest_discover_tests(test_rl_tools_nn_models_sequential_standardize_mlp_cuda)
 endif()
