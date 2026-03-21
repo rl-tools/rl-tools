@@ -6,6 +6,8 @@ import simd
 import UniformTypeIdentifiers
 
 struct AttitudeGroundTruth {
+    let horizontalNorm: Double
+    let verticalNorm: Double
     let horizontalDegrees: Double
     let verticalDegrees: Double
     let rollDegrees: Double
@@ -239,13 +241,18 @@ func computeGroundTruthDegrees(
     guard abs(z2z) > 1e-6 else { return nil }
     let hfov = horizontalFOVDegrees * .pi / 180.0
     let tanHalfH = tan(hfov / 2.0)
-    let tanHalfV = tanHalfH
-    let px = normalizedDisplacementToDegrees(Double(z2x / (z2z * Float(tanHalfH))), fovDegrees: horizontalFOVDegrees)
-    let py = normalizedDisplacementToDegrees(Double(z2y / (z2z * Float(tanHalfV))), fovDegrees: horizontalFOVDegrees)
+    let horizontalNorm = Double(-z2y / (z2z * Float(tanHalfH)))
+    let verticalNorm = Double(z2x / (z2z * Float(tanHalfH)))
     let re00 = rel.columns.0.x
     let re10 = rel.columns.1.x
     let roll = Double(atan2(re10, re00)) * 180.0 / .pi
-    return AttitudeGroundTruth(horizontalDegrees: -py, verticalDegrees: px, rollDegrees: -roll)
+    return AttitudeGroundTruth(
+        horizontalNorm: horizontalNorm,
+        verticalNorm: verticalNorm,
+        horizontalDegrees: normalizedDisplacementToDegrees(horizontalNorm, fovDegrees: horizontalFOVDegrees),
+        verticalDegrees: normalizedDisplacementToDegrees(verticalNorm, fovDegrees: horizontalFOVDegrees),
+        rollDegrees: -roll
+    )
 }
 
 func normalizedDisplacementToDegrees(_ value: Double, fovDegrees: Double) -> Double {
