@@ -68,12 +68,12 @@ namespace rl_tools
         //        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename RNG>
-    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng){
         // to allow out of declaration order dispatch
         rl::environments::l2f::_sample_initial_parameters(device, env, parameters, rng);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
-    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state){
         rl::environments::l2f::_initial_state(device, env, parameters, state);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename RNG>

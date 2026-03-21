@@ -5,3 +5,8 @@ add_executable(test_rl_components_on_policy_runner_cuda test.cu)
 target_link_libraries(test_rl_components_on_policy_runner_cuda PRIVATE RLtools::RLtools GTest::gtest_main)
 target_compile_options(test_rl_components_on_policy_runner_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=186>)
 gtest_discover_tests(test_rl_components_on_policy_runner_cuda)
+
+add_executable(test_rl_algorithms_ppo_cuda test_ppo_cuda.cu)
+target_link_libraries(test_rl_algorithms_ppo_cuda PRIVATE RLtools::RLtools GTest::gtest_main)
+target_compile_options(test_rl_algorithms_ppo_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=186>)
+gtest_discover_tests(test_rl_algorithms_ppo_cuda)

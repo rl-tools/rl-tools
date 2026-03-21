@@ -16,7 +16,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::environments::l2f{
         template<typename DEVICE, typename STATE_SPEC>
-        static bool _is_nan(DEVICE& device, rl::environments::l2f::StateBase<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateBase<STATE_SPEC>& state){
             bool nan = false;
             for(typename DEVICE::index_t i = 0; i < 3; i++){
                 nan = nan || math::is_nan(device.math, state.position[i]);
@@ -33,7 +33,7 @@ namespace rl_tools{
             return nan;
         }
         template<typename DEVICE, typename STATE_SPEC>
-        static bool _is_nan(DEVICE& device, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
             is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             bool nan = false;
             nan = nan || math::is_nan(device.math, state.position_integral[0]);
@@ -43,7 +43,7 @@ namespace rl_tools{
             return nan;
         }
         template<typename DEVICE, typename STATE_SPEC>
-        static bool _is_nan(DEVICE& device, rl::environments::l2f::StateRandomForce<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateRandomForce<STATE_SPEC>& state){
             is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             bool nan = false;
             nan = nan || math::is_nan(device.math, state.force[0]);
@@ -55,7 +55,7 @@ namespace rl_tools{
             return nan;
         }
         template<typename DEVICE, typename STATE_SPEC>
-        static bool _is_nan(DEVICE& device, rl::environments::l2f::StateRotors<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateRotors<STATE_SPEC>& state){
             is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             bool nan = false;
             for(typename DEVICE::index_t i = 0; i < 4; i++){
@@ -64,7 +64,7 @@ namespace rl_tools{
             return nan;
         }
         template<typename DEVICE, typename STATE_SPEC>
-        static bool _is_nan(DEVICE& device, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
             using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
             using TI = typename DEVICE::index_t;
             is_nan(device, static_cast<typename STATE::NEXT_COMPONENT&>(state));

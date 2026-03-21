@@ -18,7 +18,7 @@ namespace rl_tools{
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state);
     namespace rl::environments::l2f{
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateBase<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateBase<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             for(TI i = 0; i < 3; i++){
                 state.position[i] = 0;
@@ -35,7 +35,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLastAction<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLastAction<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             using STATE = rl::environments::l2f::StateLastAction<STATE_SPEC>;
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
@@ -44,7 +44,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename NEXT_COMPONENT>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearAcceleration<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearAcceleration<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             initial_state(device, env, parameters, static_cast<NEXT_COMPONENT&>(state));
             for(TI i = 0; i < 3; i++){
@@ -52,7 +52,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             using STATE = rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>;
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
@@ -63,7 +63,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             using STATE = rl::environments::l2f::StateLinearVelocityDelay<STATE_SPEC>;
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
@@ -74,7 +74,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StatePoseErrorIntegral<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             for (TI dim_i=0; dim_i<3; dim_i++){
@@ -83,7 +83,7 @@ namespace rl_tools{
             state.orientation_integral = 0;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRandomForce<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRandomForce<STATE_SPEC>& state){
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             state.force[0] = 0;
             state.force[1] = 0;
@@ -93,7 +93,7 @@ namespace rl_tools{
             state.torque[2] = 0;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRandomOrientationOffset<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRandomOrientationOffset<STATE_SPEC>& state){
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             state.orientation_offset[0] = 1;
             state.orientation_offset[1] = 0;
@@ -101,7 +101,7 @@ namespace rl_tools{
             state.orientation_offset[3] = 0;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRotors<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRotors<STATE_SPEC>& state){
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             for(typename DEVICE::index_t i = 0; i < 4; i++){
     //            state.rpm[i] = (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) / 2 + parameters.dynamics.action_limit.min;
@@ -109,7 +109,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRotorsHistory<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             using STATE = rl::environments::l2f::StateRotorsHistory<STATE_SPEC>;
             using MULTIROTOR = rl::environments::Multirotor<SPEC>;
@@ -122,7 +122,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-        static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateTrajectory<STATE_SPEC>& state){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateTrajectory<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             using STATE = rl::environments::l2f::StateTrajectory<STATE_SPEC>;
             using MULTIROTOR = rl::environments::Multirotor<SPEC>;

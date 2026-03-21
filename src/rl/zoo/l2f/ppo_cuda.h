@@ -33,7 +33,7 @@ namespace rl_tools::rl::zoo::l2f::ppo{
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI BATCH_SIZE = 2048;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
-            static constexpr bool NORMALIZE_OBSERVATIONS = true;
+            static constexpr bool NORMALIZE_OBSERVATIONS = false; // disabled for CUDA (AccumulateMode not yet implemented for CUDA standardize layer)
             static constexpr bool NORMALIZE_OBSERVATIONS_CONTINUOUSLY = false;
 
             struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
