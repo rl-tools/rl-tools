@@ -74,7 +74,7 @@ namespace rl_tools{
         }
         template <typename DEVICE, typename PPO_SPEC, typename DATASET_SPEC, typename BUFFERS_SPEC, typename BATCH_ADVANTAGES_SPEC, typename BATCH_ACTIONS_SPEC, typename BATCH_ACTION_LOG_PROBS_SPEC, typename LOG_STD_SPEC>
         __global__
-        void ppo_per_sample_kernel(DEVICE device, rl::algorithms::ppo::Buffers<BUFFERS_SPEC> ppo_buffers, Matrix<BATCH_ADVANTAGES_SPEC> batch_advantages, Matrix<BATCH_ACTIONS_SPEC> batch_actions, Matrix<BATCH_ACTION_LOG_PROBS_SPEC> batch_action_log_probs, Matrix<LOG_STD_SPEC> log_std_params, Matrix<LOG_STD_SPEC> log_std_gradient, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_mean, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_std){
+        void ppo_per_sample_kernel(DEVICE device, rl::algorithms::ppo::Buffers<BUFFERS_SPEC> ppo_buffers, Matrix<BATCH_ADVANTAGES_SPEC> batch_advantages, Matrix<BATCH_ACTIONS_SPEC> batch_actions, Matrix<BATCH_ACTION_LOG_PROBS_SPEC> batch_action_log_probs, Matrix<LOG_STD_SPEC> log_std_params, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_mean, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_std){
             using T = typename PPO_SPEC::TYPE_POLICY::DEFAULT;
             using TI = typename DEVICE::index_t;
             constexpr TI BATCH_SIZE = PPO_SPEC::PARAMETERS::BATCH_SIZE;
@@ -91,8 +91,6 @@ namespace rl_tools{
                     action_log_prob += random::normal_distribution::log_prob(device.random, current_action, current_action_log_std, rollout_action);
                     set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, random::normal_distribution::d_log_prob_d_mean(device.random, current_action, current_action_log_std, rollout_action));
                     if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
-                        T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
-                        atomicAdd(&get(log_std_gradient, 0, action_i % PER_AGENT_ACTION_DIM), d_entropy_loss_d_current_action_log_std);
                         T d_action_log_prob_d_current_action_log_std = random::normal_distribution::d_log_prob_d_log_std(device.random, current_action, current_action_log_std, rollout_action);
                         set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, d_action_log_prob_d_current_action_log_std);
                     }
@@ -122,10 +120,32 @@ namespace rl_tools{
                 for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                     multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                     if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
-                        T current_d = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
-                        atomicAdd(&get(log_std_gradient, 0, action_i % PER_AGENT_ACTION_DIM), d_loss_d_action_log_prob * current_d);
+                        // Scale the per-sample log_std gradient by the loss gradient (stored for later reduction)
+                        multiply(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, d_loss_d_action_log_prob);
                     }
                 }
+            }
+        }
+        // Deterministic reduction: sum columns of per-sample log_std gradients into log_std_gradient
+        template <typename DEVICE, typename LOG_STD_SPEC, typename D_LOG_STD_SPEC>
+        __global__
+        void reduce_log_std_gradient_kernel(DEVICE device, Matrix<D_LOG_STD_SPEC> d_action_log_prob_d_action_log_std, Matrix<LOG_STD_SPEC> log_std_gradient, typename LOG_STD_SPEC::TI batch_size, typename LOG_STD_SPEC::TI action_dim, typename LOG_STD_SPEC::TI per_agent_action_dim, typename LOG_STD_SPEC::T entropy_grad){
+            using T = typename LOG_STD_SPEC::T;
+            using TI = typename DEVICE::index_t;
+            TI action_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(action_i < per_agent_action_dim){
+                T sum = 0;
+                TI n_agents = action_dim / per_agent_action_dim;
+                for(TI agent_i = 0; agent_i < n_agents; agent_i++){
+                    TI col = agent_i * per_agent_action_dim + action_i;
+                    for(TI batch_i = 0; batch_i < batch_size; batch_i++){
+                        sum += get(d_action_log_prob_d_action_log_std, batch_i, col);
+                    }
+                }
+                // Add entropy gradient: -ACTION_ENTROPY_COEFFICIENT * (ACTION_DIM/PER_AGENT_ACTION_DIM) (accumulated over BATCH_SIZE samples)
+                sum += entropy_grad;
+                // Accumulate into log_std_gradient (which was zero_gradient'd before train)
+                set(log_std_gradient, 0, action_i, get(log_std_gradient, 0, action_i) + sum);
             }
         }
     }
@@ -170,16 +190,28 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename PPO_SPEC, typename BUFFERS_SPEC, typename BATCH_ACTIONS_SPEC, typename BATCH_ACTIONS_MEAN_SPEC, typename BATCH_ACTION_LOG_PROBS_SPEC, typename BATCH_ADVANTAGES_SPEC, typename RNG>
     void ppo_compute_actor_loss_gradient(devices::CUDA<DEV_SPEC>& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::algorithms::ppo::Buffers<BUFFERS_SPEC>& ppo_buffers, Matrix<BATCH_ACTIONS_SPEC>& batch_actions, Matrix<BATCH_ACTIONS_MEAN_SPEC>& batch_actions_mean, Matrix<BATCH_ACTION_LOG_PROBS_SPEC>& batch_action_log_probs, Matrix<BATCH_ADVANTAGES_SPEC>& batch_advantages, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_mean, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_std, typename PPO_SPEC::TYPE_POLICY::DEFAULT& policy_kl_divergence, typename PPO_SPEC::TYPE_POLICY::DEFAULT& batch_policy_kl_divergence, RNG& rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename PPO_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = PPO_SPEC::PARAMETERS::BATCH_SIZE;
+        constexpr TI ACTION_DIM = PPO_SPEC::ENVIRONMENT::ACTION_DIM;
+        constexpr TI N_AGENTS = PPO_SPEC::ENVIRONMENT::N_AGENTS;
+        constexpr TI PER_AGENT_ACTION_DIM = ACTION_DIM / N_AGENTS;
         devices::cuda::TAG<DEVICE, true> tag_device{};
         auto& last_layer = get_last_layer(ppo.actor);
         auto log_std = matrix_view(device, last_layer.log_std.parameters);
         auto log_std_grad = matrix_view(device, last_layer.log_std.gradient);
         constexpr TI KERNEL_BLOCKSIZE = 32;
         constexpr TI KERNEL_N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, KERNEL_BLOCKSIZE);
-        rl::algorithms::ppo::cuda::ppo_per_sample_kernel<decltype(tag_device), PPO_SPEC, BUFFERS_SPEC, BUFFERS_SPEC><<<KERNEL_N_BLOCKS, KERNEL_BLOCKSIZE, 0, device.stream>>>(tag_device, ppo_buffers, batch_advantages, batch_actions, batch_action_log_probs, log_std, log_std_grad, advantage_mean, advantage_std);
+        rl::algorithms::ppo::cuda::ppo_per_sample_kernel<decltype(tag_device), PPO_SPEC, BUFFERS_SPEC, BUFFERS_SPEC><<<KERNEL_N_BLOCKS, KERNEL_BLOCKSIZE, 0, device.stream>>>(tag_device, ppo_buffers, batch_advantages, batch_actions, batch_action_log_probs, log_std, advantage_mean, advantage_std);
         check_status(device);
+        if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
+            // Deterministic reduction of per-sample log_std gradients
+            T entropy_grad = -(T)PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT * (T)N_AGENTS;
+            constexpr TI REDUCE_BLOCKSIZE = 32;
+            constexpr TI REDUCE_N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(PER_AGENT_ACTION_DIM, REDUCE_BLOCKSIZE);
+            rl::algorithms::ppo::cuda::reduce_log_std_gradient_kernel<<<REDUCE_N_BLOCKS, REDUCE_BLOCKSIZE, 0, device.stream>>>(tag_device, ppo_buffers.d_action_log_prob_d_action_log_std, log_std_grad, (TI)BATCH_SIZE, (TI)ACTION_DIM, (TI)PER_AGENT_ACTION_DIM, entropy_grad);
+            check_status(device);
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
