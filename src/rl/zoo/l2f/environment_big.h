@@ -52,15 +52,16 @@ namespace rl_tools::rl::zoo::l2f{
             T y = dynamics.rotor_positions[0][1];
             T rotor_distance = ((x > 0 ? x : -x) + (y > 0 ? y : -y))/2 * 1.4142135623730951; // sqrt is not available in constexpr
             mdp.termination.position_threshold = rotor_distance * 20;
+            mdp.termination.linear_velocity_threshold = 10;
             mdp.init.max_position = rotor_distance * 10;
             mdp.init.max_angle = 1.5707963267948966 * 90.0/90.0;   // orientation
             auto& reward = mdp.reward;
             reward = {
                 false, // non-negative
                 01.00, // scale
-                01.50, // constant
+                02.00, // constant (increased: ensures positive per-step reward even at max initial position)
                 -100.00, // termination penalty
-                01.00, // position
+                00.30, // position (reduced: avoids per-step reward going negative at large initial positions, preventing "learning to die")
                 00.00, // position_clip
                 00.10, // orientation
                 00.00, // linear_velocity
@@ -68,7 +69,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
                 00.00, // action
-                01.00, // d_action
+                00.50, // d_action (reduced: allows more aggressive corrective actions during recovery from extreme orientations)
                 00.00, // position_error_integral
             };
             return mdp;
