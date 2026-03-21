@@ -397,7 +397,7 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
 
 
             try {
-                const func = new Function('data', 'output', `
+                const func = new Function('data', 'output', 'scatter', `
                     const console = {
                         log: (...args) => {
                             output.console_container.textContent += args.map(arg =>
@@ -411,7 +411,7 @@ scatter([{label: 'test', data: [{x: 1, y: 2}, {x: 2, y: 4}]}], "X-Label", "Y-Lab
                     ${code}
                 `);
 
-                func(data, {"console_container": output, "container": output2, "scatter": scatter});
+                func(data, {"console_container": output, "container": output2, "scatter": scatter}, scatter);
             } catch (error) {
                 output.textContent = `Error: ${error.message}`;
             }
