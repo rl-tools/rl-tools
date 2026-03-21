@@ -62,6 +62,7 @@
 #include <rl_tools/rl/loop/steps/timing/persist.h>
 #include <rl_tools/rl/loop/steps/extrack/persist.h>
 #include <rl_tools/rl/loop/steps/evaluation/persist.h>
+#include <rl_tools/rl/loop/steps/curriculum/persist.h>
 #include <rl_tools/rl/loop/steps/checkpoint/persist.h>
 #include <rl_tools/rl/loop/steps/save_trajectories/persist.h>
 #include <rl_tools/rl/loop/steps/nn_analytics/persist.h>
@@ -133,6 +134,7 @@
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
+#include <rl_tools/rl/loop/steps/curriculum/operations_generic.h>
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/nn_analytics/operations_cpu.h>
@@ -303,11 +305,16 @@ struct LOOP_EVALUATION_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl:
     static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
 using LOOP_EVALUATION_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_EXTRACK_CONFIG, LOOP_EVALUATION_PARAMETERS>;
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
+using LOOP_CURRICULUM_CONFIG = rlt::rl::loop::steps::curriculum::Config<LOOP_EVALUATION_CONFIG, rlt::rl::loop::steps::curriculum::Parameters<TI>, rlt::rl::zoo::l2f::ppo::CurriculumTag>;
+#else
+using LOOP_CURRICULUM_CONFIG = rlt::rl::loop::steps::curriculum::Config<LOOP_EVALUATION_CONFIG>;
+#endif
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<TYPE_POLICY, TI>{
     static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
     static constexpr TI CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL_TEMP == 0 ? 1 : CHECKPOINT_INTERVAL_TEMP;
 };
-using LOOP_CHECKPOINT_CONFIG = rlt::rl::loop::steps::checkpoint::Config<LOOP_EVALUATION_CONFIG, LOOP_CHECKPOINT_PARAMETERS>;
+using LOOP_CHECKPOINT_CONFIG = rlt::rl::loop::steps::checkpoint::Config<LOOP_CURRICULUM_CONFIG, LOOP_CHECKPOINT_PARAMETERS>;
 struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: LOOP_EVALUATION_PARAMETER_OVERWRITES<rlt::rl::loop::steps::save_trajectories::Parameters<TYPE_POLICY, TI, LOOP_CHECKPOINT_CONFIG>>{
     static constexpr TI INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_SAVE_TRAJECTORIES;
     static constexpr TI INTERVAL = INTERVAL_TEMP == 0 ? 1 : INTERVAL_TEMP;
