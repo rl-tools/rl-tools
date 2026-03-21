@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(rl_zoo_cuda_l2f_ppo zoo.cu)
 target_link_libraries(rl_zoo_cuda_l2f_ppo PRIVATE RLtools::RLtools)
-target_compile_definitions(rl_zoo_cuda_l2f_ppo PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+# Tensorboard logging is done through the CPU evaluation device
 target_compile_options(rl_zoo_cuda_l2f_ppo PRIVATE "SHELL:$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=186>")
 target_compile_options(rl_zoo_cuda_l2f_ppo PRIVATE "SHELL:$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=20011>")
 target_compile_options(rl_zoo_cuda_l2f_ppo PRIVATE "SHELL:$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=20012>")
