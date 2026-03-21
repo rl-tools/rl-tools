@@ -32,6 +32,8 @@
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 
+#include <rl_tools/utils/extrack/operations_cpu.h>
+
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include "../l2f/ppo_cuda.h"
@@ -58,11 +60,20 @@ int main(int argc, char** argv){
     DEVICE device;
     DEVICE_EVALUATION device_evaluation;
     rlt::init(device);
+    rlt::malloc(device_evaluation);
+    rlt::init(device_evaluation);
 
     LOOP_STATE ts;
     rlt::malloc(device, ts);
     TI seed = argc > 1 ? std::atoi(argv[1]) : 0;
     rlt::init(device, ts, seed);
+
+    rlt::utils::extrack::Config<TI> extrack_config;
+    rlt::utils::extrack::Paths extrack_paths;
+    extrack_config.name = "zoo_cuda";
+    extrack_config.population_variates = "environment_algorithm";
+    extrack_config.population_values = "l2f_ppo";
+    rlt::init(device_evaluation, extrack_config, extrack_paths, seed);
 
     std::cout << "Zoo CUDA L2F PPO Training" << std::endl;
     std::cout << "Step limit: " << LOOP_CONFIG::CORE_PARAMETERS::STEP_LIMIT << std::endl;
@@ -97,6 +108,10 @@ int main(int argc, char** argv){
             rlt::copy(device, device_evaluation, rlt::get_actor(ts), actor_evaluation);
             cudaStreamSynchronize(device.stream);
             rlt::evaluate(device_evaluation, env_eval, ui, actor_evaluation, actor_state_evaluation, actor_buffers_evaluation, eval_buffer, result, rng_eval, rlt::Mode<rlt::mode::Evaluation<>>{});
+            rlt::set_step(device_evaluation, device_evaluation.logger, ts.step * LOOP_CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS * LOOP_CONFIG::CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
+            rlt::add_scalar(device_evaluation, device_evaluation.logger, "evaluation/return/mean", result.returns_mean);
+            rlt::add_scalar(device_evaluation, device_evaluation.logger, "evaluation/return/std", result.returns_std);
+            rlt::add_scalar(device_evaluation, device_evaluation.logger, "evaluation/episode_length/mean", result.episode_length_mean);
             std::cout << "Step: " << ts.step << "/" << LOOP_CONFIG::CORE_PARAMETERS::STEP_LIMIT << " Mean return: " << result.returns_mean << " Mean episode length: " << result.episode_length_mean << std::endl;
         }
         finished = rlt::step(device, ts);
@@ -112,6 +127,7 @@ int main(int argc, char** argv){
     rlt::free(device_evaluation, actor_buffers_evaluation);
     rlt::free(device_evaluation, actor_state_evaluation);
     rlt::free(device_evaluation, eval_buffer);
+    rlt::free(device_evaluation, device_evaluation.logger);
     rlt::free(device, ts);
     return 0;
 }
