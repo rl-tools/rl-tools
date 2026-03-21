@@ -22,4 +22,6 @@ cleanup() {
 trap "cleanup 0" SIGINT
 trap "cleanup 1" ERR EXIT
 
-python3 -m http.server -d "$PARENT_DIR"
+PORT="${PORT:-8000}"
+
+python3 -m http.server -d "$PARENT_DIR" $PORT

@@ -5,127 +5,126 @@
 #include <rl_tools/nn/layers/dense/layer.h>
 #include <rl_tools/nn/layers/dynamic_conv2d/layer.h>
 #include <rl_tools/nn_models/sequential/model.h>
+#include <rl_tools/nn_models/parallel/model.h>
+
+#include "model_config.h"
 
 namespace rl_tools::rendering::raytracing::yaw_prediction {
 
-    // --- Conv2d layer configs ---
+    // --- Conv2d layer config templates parameterized by channel count ---
 
-    // Conv2d: 3x3, stride=2, pad=1, 16ch, BN+ReLU -> 64x64x16
-    template<typename TYPE_POLICY, typename TI>
-    using CONV_16_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 16, 3, 3, 2, 2, 1, 1,
+    template<typename TYPE_POLICY, typename TI, TI OUTPUT_CHANNELS>
+    using CONV_3x3_S2_CONFIG = nn::layers::conv2d::Configuration<
+        TYPE_POLICY, TI, OUTPUT_CHANNELS, 3, 3, 2, 2, 1, 1,
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
-    // Conv2d: 3x3, stride=2, pad=1, 32ch, BN+ReLU -> 32x32x32
-    template<typename TYPE_POLICY, typename TI>
-    using CONV_32_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 32, 3, 3, 2, 2, 1, 1,
+    template<typename TYPE_POLICY, typename TI, TI OUTPUT_CHANNELS>
+    using CONV_1x1_CONFIG = nn::layers::conv2d::Configuration<
+        TYPE_POLICY, TI, OUTPUT_CHANNELS, 1, 1, 1, 1, 0, 0,
         nn::activation_functions::ActivationFunction::RELU,
         nn::layers::conv2d::Normalization::BATCH_NORM>;
 
-    // Conv2d: 3x3, stride=2, pad=1, 64ch, BN+ReLU -> 16x16x64
-    template<typename TYPE_POLICY, typename TI>
-    using CONV_64_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 64, 3, 3, 2, 2, 1, 1,
-        nn::activation_functions::ActivationFunction::RELU,
-        nn::layers::conv2d::Normalization::BATCH_NORM>;
+    // --- Sub-module configs parameterized by ModelConfig ---
 
-    // Conv2d: 3x3, stride=2, pad=1, 256ch, BN+ReLU -> 4x4x256
-    template<typename TYPE_POLICY, typename TI>
-    using CONV_256_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 256, 3, 3, 2, 2, 1, 1,
-        nn::activation_functions::ActivationFunction::RELU,
-        nn::layers::conv2d::Normalization::BATCH_NORM>;
-
-    // --- Sub-module configs ---
-
-    // Early encoder: CONV_32 -> CONV_64 (64x64x3 -> 16x16x64)
-    template<typename TYPE_POLICY, typename TI>
+    template<typename TYPE_POLICY, typename TI, typename MC>
     using EARLY_ENCODER_MODULE = nn_models::sequential::Module<
-        nn::layers::conv2d::BindConfiguration<CONV_32_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::conv2d::BindConfiguration<CONV_64_CONFIG<TYPE_POLICY, TI>>
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::EARLY_CH_1>>,
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::EARLY_CH_2>>
     >;
 
     template<typename TYPE_POLICY, typename TI>
     using AVGPOOL_CONFIG = nn::layers::avg_pool2d::Configuration<TYPE_POLICY, TI>;
 
-    // Cross-conv: dynamic_conv2d (8x8, stride 2, pad 3, ReLU)
-    // Kernel weights are the standard_conv_a output viewed as [BS, C, 8, 8]
-    template<typename TYPE_POLICY, typename TI>
-    using CROSS_CONV_CONFIG = nn::layers::dynamic_conv2d::Configuration<
-        TYPE_POLICY, TI, 8, 8, 2, 2, 3, 3,
-        nn::activation_functions::ActivationFunction::RELU>;
-
-    // Late encoder: 1x1 Conv(64->128, BN+ReLU) -> CONV_256(128->256, stride 2, BN+ReLU)
-    template<typename TYPE_POLICY, typename TI>
-    using LATE_CONV_1x1_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 128, 1, 1, 1, 1, 0, 0,
-        nn::activation_functions::ActivationFunction::RELU,
-        nn::layers::conv2d::Normalization::BATCH_NORM>;
-
-    template<typename TYPE_POLICY, typename TI>
+    template<typename TYPE_POLICY, typename TI, typename MC>
     using LATE_ENCODER_MODULE = nn_models::sequential::Module<
-        nn::layers::conv2d::BindConfiguration<LATE_CONV_1x1_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::conv2d::BindConfiguration<CONV_256_CONFIG<TYPE_POLICY, TI>>
+        nn::layers::conv2d::BindConfiguration<CONV_1x1_CONFIG<TYPE_POLICY, TI, MC::LATE_1X1_CH>>,
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::LATE_CH>>
     >;
 
-    // Head: 1x1 Conv(512->256, BN+ReLU) -> AvgPool -> Dense(256->128, ReLU) -> Dense(128->3)
-    template<typename TYPE_POLICY, typename TI>
-    using HEAD_CONV_1x1_CONFIG = nn::layers::conv2d::Configuration<
-        TYPE_POLICY, TI, 256, 1, 1, 1, 1, 0, 0,
-        nn::activation_functions::ActivationFunction::RELU,
-        nn::layers::conv2d::Normalization::BATCH_NORM>;
-
-    template<typename TYPE_POLICY, typename TI>
-    using DENSE_128_CONFIG = nn::layers::dense::Configuration<
-        TYPE_POLICY, TI, 128, nn::activation_functions::ActivationFunction::RELU>;
-
-    template<typename TYPE_POLICY, typename TI>
-    using DENSE_3_CONFIG = nn::layers::dense::Configuration<
-        TYPE_POLICY, TI, 3, nn::activation_functions::ActivationFunction::IDENTITY>;
-
-    template<typename TYPE_POLICY, typename TI>
+    template<typename TYPE_POLICY, typename TI, typename MC>
     using HEAD_MODULE = nn_models::sequential::Module<
-        nn::layers::conv2d::BindConfiguration<HEAD_CONV_1x1_CONFIG<TYPE_POLICY, TI>>,
+        nn::layers::conv2d::BindConfiguration<CONV_1x1_CONFIG<TYPE_POLICY, TI, MC::HEAD_1X1_CH>>,
         nn::layers::avg_pool2d::BindConfiguration<AVGPOOL_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::dense::BindConfiguration<DENSE_128_CONFIG<TYPE_POLICY, TI>>,
-        nn::layers::dense::BindConfiguration<DENSE_3_CONFIG<TYPE_POLICY, TI>>
+        nn::layers::dense::BindConfiguration<nn::layers::dense::Configuration<
+            TYPE_POLICY, TI, MC::HEAD_DENSE_CH, nn::activation_functions::ActivationFunction::RELU>>,
+        nn::layers::dense::BindConfiguration<nn::layers::dense::Configuration<
+            TYPE_POLICY, TI, 3, nn::activation_functions::ActivationFunction::IDENTITY>>
     >;
 
-    // --- Model Specification ---
+    // --- Base encoder: 4 conv layers (no 1x1 intermediate) ---
 
-    template<typename T_CAPABILITY, typename T_TYPE_POLICY, typename T_TI, T_TI T_BATCH_SIZE, T_TI T_HEIGHT, T_TI T_WIDTH>
+    template<typename TYPE_POLICY, typename TI, typename MC>
+    using BASE_ENCODER_MODULE = nn_models::sequential::Module<
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::EARLY_CH_1>>,
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::EARLY_CH_2>>,
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::LATE_1X1_CH>>,
+        nn::layers::conv2d::BindConfiguration<CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, MC::LATE_CH>>
+    >;
+
+    // --- Base model: parallel::Build with two identical encoders + head ---
+
+    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64, typename MC = ModelConfig<TI>>
+    using BASE_MODEL = nn_models::parallel::Build<CAPABILITY,
+        BASE_ENCODER_MODULE<TYPE_POLICY, TI, MC>,
+        BASE_ENCODER_MODULE<TYPE_POLICY, TI, MC>,
+        tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>,
+        tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>,
+        HEAD_MODULE<TYPE_POLICY, TI, MC>
+    >;
+
+    // --- Cross-conv Model Specification ---
+
+    template<typename T_CAPABILITY, typename T_TYPE_POLICY, typename T_TI, T_TI T_BATCH_SIZE, T_TI T_HEIGHT, T_TI T_WIDTH, typename T_MODEL_CONFIG = ModelConfig<T_TI>>
     struct Specification {
         using CAPABILITY = T_CAPABILITY;
         using TYPE_POLICY = T_TYPE_POLICY;
         using TI = T_TI;
+        using MODEL_CONFIG = T_MODEL_CONFIG;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         static constexpr TI HEIGHT = T_HEIGHT;
         static constexpr TI WIDTH = T_WIDTH;
 
         using INPUT_SHAPE = tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>;
 
-        using EARLY_ENCODER_TYPE = typename EARLY_ENCODER_MODULE<TYPE_POLICY, TI>::template Layer<CAPABILITY, INPUT_SHAPE>;
+        using EARLY_ENCODER_TYPE = typename EARLY_ENCODER_MODULE<TYPE_POLICY, TI, MODEL_CONFIG>::template Layer<CAPABILITY, INPUT_SHAPE>;
         using EARLY_OUTPUT_SHAPE = typename EARLY_ENCODER_TYPE::OUTPUT_SHAPE;
         static constexpr TI EARLY_CHANNELS = get_last(EARLY_OUTPUT_SHAPE{});
 
-        using CROSS_CONV_TYPE = nn::layers::dynamic_conv2d::Layer<CROSS_CONV_CONFIG<TYPE_POLICY, TI>, CAPABILITY, EARLY_OUTPUT_SHAPE>;
-        using CROSS_CONV_OUTPUT_SHAPE = typename CROSS_CONV_TYPE::OUTPUT_SHAPE;
+        // mid_conv_a: standard conv on branch A (same channel count as early encoder output)
+        using MID_CONV_A_CONFIG = CONV_3x3_S2_CONFIG<TYPE_POLICY, TI, EARLY_CHANNELS>;
+        using MID_CONV_A_TYPE = typename nn::layers::conv2d::BindConfiguration<MID_CONV_A_CONFIG>::template Layer<CAPABILITY, EARLY_OUTPUT_SHAPE>;
+        using MID_CONV_A_OUTPUT_SHAPE = typename MID_CONV_A_TYPE::OUTPUT_SHAPE;
 
-        using STANDARD_CONV_A_TYPE = typename nn::layers::conv2d::BindConfiguration<CONV_64_CONFIG<TYPE_POLICY, TI>>::template Layer<CAPABILITY, EARLY_OUTPUT_SHAPE>;
-        static constexpr TI KERNEL_HEIGHT = CROSS_CONV_CONFIG<TYPE_POLICY, TI>::KERNEL_HEIGHT;
-        static constexpr TI KERNEL_WIDTH = CROSS_CONV_CONFIG<TYPE_POLICY, TI>::KERNEL_WIDTH;
+        // Auto-derive cross-conv kernel size from mid_conv_a output spatial dims
+        static constexpr TI RANK = length(MID_CONV_A_OUTPUT_SHAPE{});
+        static constexpr TI MID_OUT_H = get<RANK - 3>(MID_CONV_A_OUTPUT_SHAPE{});
+        static constexpr TI MID_OUT_W = get<RANK - 2>(MID_CONV_A_OUTPUT_SHAPE{});
+        static constexpr TI CROSS_KERNEL_H = MID_OUT_H;
+        static constexpr TI CROSS_KERNEL_W = MID_OUT_W;
+        static constexpr TI CROSS_PAD_H = (CROSS_KERNEL_H - 2) / 2;
+        static constexpr TI CROSS_PAD_W = (CROSS_KERNEL_W - 2) / 2;
+
+        // mid_conv_b: either dynamic_conv2d (cross-conv) or standard conv2d
+        using CROSS_CONV_CONFIG = nn::layers::dynamic_conv2d::Configuration<
+            TYPE_POLICY, TI, CROSS_KERNEL_H, CROSS_KERNEL_W, 2, 2, CROSS_PAD_H, CROSS_PAD_W,
+            nn::activation_functions::ActivationFunction::RELU>;
+        using CROSS_CONV_TYPE = nn::layers::dynamic_conv2d::Layer<CROSS_CONV_CONFIG, CAPABILITY, EARLY_OUTPUT_SHAPE>;
+        using STANDARD_CONV_B_TYPE = typename nn::layers::conv2d::BindConfiguration<MID_CONV_A_CONFIG>::template Layer<CAPABILITY, EARLY_OUTPUT_SHAPE>;
+
+        using MID_CONV_B_TYPE = utils::typing::conditional_t<MODEL_CONFIG::USE_CROSS_CONV, CROSS_CONV_TYPE, STANDARD_CONV_B_TYPE>;
+        using MID_CONV_B_OUTPUT_SHAPE = typename MID_CONV_B_TYPE::OUTPUT_SHAPE;
+
         // Rank-4 shape for dynamic_conv2d kernel weights (view_memory requires matching rank)
-        using KERNEL_WEIGHTS_4D_SHAPE = tensor::Shape<TI, BATCH_SIZE, EARLY_CHANNELS, KERNEL_HEIGHT, KERNEL_WIDTH>;
+        using KERNEL_WEIGHTS_4D_SHAPE = tensor::Shape<TI, BATCH_SIZE, EARLY_CHANNELS, CROSS_KERNEL_H, CROSS_KERNEL_W>;
 
-        using LATE_ENCODER_TYPE = typename LATE_ENCODER_MODULE<TYPE_POLICY, TI>::template Layer<CAPABILITY, CROSS_CONV_OUTPUT_SHAPE>;
+        using LATE_ENCODER_TYPE = typename LATE_ENCODER_MODULE<TYPE_POLICY, TI, MODEL_CONFIG>::template Layer<CAPABILITY, MID_CONV_B_OUTPUT_SHAPE>;
         using LATE_OUTPUT_SHAPE = typename LATE_ENCODER_TYPE::OUTPUT_SHAPE;
         static constexpr TI LATE_LAST_DIM = get_last(LATE_OUTPUT_SHAPE{});
         static constexpr auto LATE_RANK = length(LATE_OUTPUT_SHAPE{});
         using CONCAT_SHAPE = tensor::Replace<LATE_OUTPUT_SHAPE, LATE_LAST_DIM * 2, LATE_RANK - 1>;
 
-        using HEAD_TYPE = typename HEAD_MODULE<TYPE_POLICY, TI>::template Layer<CAPABILITY, CONCAT_SHAPE>;
+        using HEAD_TYPE = typename HEAD_MODULE<TYPE_POLICY, TI, MODEL_CONFIG>::template Layer<CAPABILITY, CONCAT_SHAPE>;
         using OUTPUT_SHAPE = typename HEAD_TYPE::OUTPUT_SHAPE;
     };
 
@@ -149,8 +148,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
         typename SPEC::EARLY_ENCODER_TYPE early_encoder_a;
         typename SPEC::EARLY_ENCODER_TYPE early_encoder_b;
-        typename SPEC::STANDARD_CONV_A_TYPE standard_conv_a;
-        typename SPEC::CROSS_CONV_TYPE cross_conv_b;
+        typename SPEC::MID_CONV_A_TYPE mid_conv_a;
+        typename SPEC::MID_CONV_B_TYPE mid_conv_b;
         typename SPEC::LATE_ENCODER_TYPE late_encoder_a;
         typename SPEC::LATE_ENCODER_TYPE late_encoder_b;
         typename SPEC::HEAD_TYPE head;
@@ -194,8 +193,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         // Sub-module buffers
         typename SPEC::EARLY_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_early_a;
         typename SPEC::EARLY_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_early_b;
-        typename SPEC::STANDARD_CONV_A_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_standard_conv_a;
-        typename SPEC::CROSS_CONV_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_cross_b;
+        typename SPEC::MID_CONV_A_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_mid_a;
+        typename SPEC::MID_CONV_B_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_mid_b;
         typename SPEC::LATE_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_late_a;
         typename SPEC::LATE_ENCODER_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_late_b;
         typename SPEC::HEAD_TYPE::template Buffer<DYNAMIC_ALLOCATION> buffer_head;
@@ -204,6 +203,12 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         using FEATURES_SPEC = tensor::Specification<T, TI, typename SPEC::EARLY_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::EARLY_OUTPUT_SHAPE>>;
         Tensor<FEATURES_SPEC> features_a;
         Tensor<FEATURES_SPEC> features_b;
+
+        // Intermediate tensors for evaluate path (mid-conv outputs)
+        using MID_A_OUTPUT_TENSOR_SPEC = tensor::Specification<T, TI, typename SPEC::MID_CONV_A_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::MID_CONV_A_OUTPUT_SHAPE>>;
+        Tensor<MID_A_OUTPUT_TENSOR_SPEC> intermediate_mid_a;
+        using MID_B_OUTPUT_TENSOR_SPEC = tensor::Specification<T, TI, typename SPEC::MID_CONV_B_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::MID_CONV_B_OUTPUT_SHAPE>>;
+        Tensor<MID_B_OUTPUT_TENSOR_SPEC> intermediate_mid_b;
 
         // Forward intermediates (for concat)
         using LATE_OUTPUT_TENSOR_SPEC = tensor::Specification<T, TI, typename SPEC::LATE_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::LATE_OUTPUT_SHAPE>>;
@@ -220,9 +225,9 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         using KERNEL_WEIGHTS_4D_SPEC = tensor::Specification<T, TI, typename SPEC::KERNEL_WEIGHTS_4D_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::KERNEL_WEIGHTS_4D_SHAPE>>;
         Tensor<KERNEL_WEIGHTS_4D_SPEC> d_kw_for_b;
 
-        using CROSS_OUTPUT_TENSOR_SPEC = tensor::Specification<T, TI, typename SPEC::CROSS_CONV_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::CROSS_CONV_OUTPUT_SHAPE>>;
-        Tensor<CROSS_OUTPUT_TENSOR_SPEC> d_cross_a;
-        Tensor<CROSS_OUTPUT_TENSOR_SPEC> d_cross_b;
+        using MID_B_BACKWARD_TENSOR_SPEC = tensor::Specification<T, TI, typename SPEC::MID_CONV_B_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::MID_CONV_B_OUTPUT_SHAPE>>;
+        Tensor<MID_B_BACKWARD_TENSOR_SPEC> d_mid_a;
+        Tensor<MID_B_BACKWARD_TENSOR_SPEC> d_mid_b;
 
         Tensor<CONCAT_TENSOR_SPEC> d_concatenated;
         Tensor<LATE_OUTPUT_TENSOR_SPEC> d_output_a;
@@ -241,9 +246,17 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
             utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, GRADIENT, void>>>;
     };
 
-    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64>
-    struct MODEL : BuildModuleType<CAPABILITY, Specification<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH>>::type {
+    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64, typename MC = ModelConfig<TI>>
+    struct CROSS_CONV_BUILD : BuildModuleType<CAPABILITY, Specification<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>>::type {
         template <typename NEW_CAPABILITY>
-        using CHANGE_CAPABILITY = MODEL<NEW_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH>;
+        using CHANGE_CAPABILITY = CROSS_CONV_BUILD<NEW_CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>;
     };
+
+    // --- MODEL: conditional on USE_CROSS_CONV ---
+
+    template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64, typename MC = ModelConfig<TI>>
+    using MODEL = utils::typing::conditional_t<MC::USE_CROSS_CONV,
+        CROSS_CONV_BUILD<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>,
+        BASE_MODEL<CAPABILITY, TYPE_POLICY, TI, BATCH_SIZE, HEIGHT, WIDTH, MC>
+    >;
 }

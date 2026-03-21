@@ -5,7 +5,7 @@
 #include <rl_tools/nn/layers/flatten/layer.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::reacher_memory_v0_visual::ppo{
+namespace rl_tools::rl::zoo::reacher_visual_memory_v0::ppo{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename TYPE_POLICY, typename TI, typename RNG, bool DYNAMIC_ALLOCATION>
     struct FACTORY{

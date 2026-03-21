@@ -5,10 +5,11 @@
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn/layers/conv2d/operations_generic.h>
 #include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/operations_generic.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/operations_cuda.h>
 
 // Model operations
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/nn_models/parallel/operations_generic.h>
 
 // CUDA-specific operations
 #include <rl_tools/nn/operations_cuda.h>
@@ -23,11 +24,15 @@
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/conv2d/persist.h>
 #include <rl_tools/nn/layers/avg_pool2d/persist.h>
+#include <rl_tools/nn/layers/dynamic_conv2d/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/parallel/persist.h>
 
 // Model definition
 #include "model.h"
+#include "model_operations.h"
+#include "model_persist.h"
+#include "model_forward_cuda.h"
 
 // Scene management
 #include "scene.h"
@@ -78,57 +83,8 @@ using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_
 using GPU_INPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_INPUT_SHAPE>;
 
 // Head output tensor: [BATCH_SIZE, 3]
-using HEAD_OUTPUT_SHAPE = typename GPU_MODEL::SPEC::HEAD_TYPE::OUTPUT_SHAPE;
-using HEAD_OUTPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, HEAD_OUTPUT_SHAPE>;
-
-static constexpr int ENCODER_DIM = GPU_MODEL::SPEC::LAST_DIM_A;
-static constexpr int CONCAT_DIM = GPU_MODEL::SPEC::LAST_DIM;
-
-// ---- CUDA kernels ----
-
-__global__ void concatenate_kernel(
-    const float* __restrict__ a, int d_a,
-    const float* __restrict__ b, int d_b,
-    float* __restrict__ output,
-    int n
-) {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    const int d_out = d_a + d_b;
-    const int total = n * d_out;
-    if (idx >= total) return;
-    const int row = idx / d_out;
-    const int col = idx % d_out;
-    if (col < d_a) {
-        output[idx] = a[row * d_a + col];
-    } else {
-        output[idx] = b[row * d_b + (col - d_a)];
-    }
-}
-
-__global__ void rgba_to_float_kernel(
-    const uint32_t* __restrict__ framebuffer,
-    float* __restrict__ output,
-    int cam_width, int cam_height, int camera_offset, int dst_offset
-) {
-    const int sample_idx = blockIdx.x;
-    const int camera_idx = camera_offset + sample_idx;
-    const int cam_pixels = cam_width * cam_height;
-
-    const uint32_t* src = framebuffer + camera_idx * cam_pixels;
-    float* dst = output + (dst_offset + sample_idx) * cam_height * cam_width * 3;
-
-    for (int pixel = threadIdx.x; pixel < cam_pixels; pixel += blockDim.x) {
-        const uint32_t rgba = src[pixel];
-        const float r = static_cast<float>((rgba >>  0) & 0xFF) / 255.0f;
-        const float g = static_cast<float>((rgba >>  8) & 0xFF) / 255.0f;
-        const float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
-
-        const int out_base = pixel * 3;
-        dst[out_base + 0] = r;
-        dst[out_base + 1] = g;
-        dst[out_base + 2] = b;
-    }
-}
+using GPU_OUTPUT_SHAPE = typename GPU_MODEL::OUTPUT_SHAPE;
+using GPU_OUTPUT_SPEC = rlt::tensor::Specification<T, TI_CUDA, GPU_OUTPUT_SHAPE>;
 
 // ---- Progress bead drawing ----
 void draw_bead(std::vector<uint8_t>& image, int image_width, int tile_x, int tile_y,
@@ -276,15 +232,14 @@ int main(int argc, char** argv) {
     rlt::malloc(device_cuda, gpu_input_a);
     rlt::malloc(device_cuda, gpu_input_b);
 
-    rlt::Tensor<HEAD_OUTPUT_SPEC> gpu_head_output;
-    rlt::malloc(device_cuda, gpu_head_output);
+    rlt::Tensor<GPU_OUTPUT_SPEC> gpu_output;
+    rlt::malloc(device_cuda, gpu_output);
 
     DEVICE_CUDA::SPEC::RANDOM::ENGINE<> rng_cuda;
     rlt::malloc(device_cuda, rng_cuda);
     rlt::init(device_cuda, rng_cuda, 42);
 
     // ---- Sample base cameras per scene ----
-    // For each scene, sample base cameras for its assigned tiles
     std::vector<rlt::CameraData> base_cameras(NUM_GRID_CAMERAS);
     {
         std::vector<rlt::CameraData> setup_cameras(NUM_CAMERAS);
@@ -294,7 +249,6 @@ int main(int argc, char** argv) {
             auto& tiles = scene_tiles[s];
             if (tiles.empty()) continue;
 
-            // Sample enough cameras from this scene (fixed FOV for viewer, zero displacement)
             yp::sample_camera_batch(loaded_scenes[s].handle, setup_cameras.data(),
                                     setup_targets.data(),
                                     BATCH_SIZE, 0.0f,
@@ -358,58 +312,49 @@ int main(int argc, char** argv) {
         float delta_yaw = -MAX_ANGLE + t * 2.0f * MAX_ANGLE;
 
         // ---- Render each scene and fill GPU input tensors ----
-        // We accumulate into gpu_input_a/b at the right batch offsets.
-        // Batch layout: tiles [0..63] are our grid, [64..127] are padding.
         for (TI s = 0; s < loaded_scenes.size(); s++) {
             auto& tiles = scene_tiles[s];
             if (tiles.empty()) continue;
 
             TI num_pairs = tiles.size();
 
-            // Set up cameras for this scene's tiles:
-            // [0..num_pairs-1] = reference (A), [num_pairs..2*num_pairs-1] = swept (B)
-            for (TI t = 0; t < num_pairs; t++) {
-                cameras[t] = base_cameras[tiles[t]];
-                cameras[num_pairs + t] = rotate_camera_yaw(base_cameras[tiles[t]], delta_yaw);
+            for (TI t_idx = 0; t_idx < num_pairs; t_idx++) {
+                cameras[t_idx] = base_cameras[tiles[t_idx]];
+                cameras[num_pairs + t_idx] = rotate_camera_yaw(base_cameras[tiles[t_idx]], delta_yaw);
             }
-            // Fill remaining camera slots with copies (renderer expects SCENE_NUM_CAMERAS)
             for (TI i = num_pairs * 2; i < NUM_CAMERAS; i++) {
                 cameras[i] = cameras[i % (num_pairs * 2)];
             }
 
-            yp::render_batch(loaded_scenes[s].handle, cameras.data());
+            yp::render_batch<false>(loaded_scenes[s].handle, cameras.data());
             uint32_t* device_fb = yp::get_framebuffer_device_ptr(loaded_scenes[s].handle);
 
-            // Copy reference cameras to gpu_input_a at tile positions
-            for (TI t = 0; t < num_pairs; t++) {
-                TI batch_pos = tiles[t]; // tile index = batch position for first 64
-                rgba_to_float_kernel<<<1, 256, 0, device_cuda.stream>>>(
-                    device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, t, batch_pos
+            for (TI t_idx = 0; t_idx < num_pairs; t_idx++) {
+                TI batch_pos = tiles[t_idx];
+                yp::cuda_kernels::rgba_to_activation_kernel<<<1, 256, 0, device_cuda.stream>>>(
+                    device_fb, gpu_input_a._data, CAM_WIDTH, CAM_HEIGHT, t_idx, batch_pos
                 );
             }
-            // Copy swept cameras to gpu_input_b at tile positions
-            for (TI t = 0; t < num_pairs; t++) {
-                TI batch_pos = tiles[t];
-                rgba_to_float_kernel<<<1, 256, 0, device_cuda.stream>>>(
-                    device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, num_pairs + t, batch_pos
+            for (TI t_idx = 0; t_idx < num_pairs; t_idx++) {
+                TI batch_pos = tiles[t_idx];
+                yp::cuda_kernels::rgba_to_activation_kernel<<<1, 256, 0, device_cuda.stream>>>(
+                    device_fb, gpu_input_b._data, CAM_WIDTH, CAM_HEIGHT, num_pairs + t_idx, batch_pos
                 );
             }
 
-            // Read back swept camera pixels for compositing
             cudaStreamSynchronize(device_cuda.stream);
-            for (TI t = 0; t < num_pairs; t++) {
-                TI cam_idx = num_pairs + t;
-                cudaMemcpy(tile_pixels[tiles[t]].data(),
+            for (TI t_idx = 0; t_idx < num_pairs; t_idx++) {
+                TI cam_idx = num_pairs + t_idx;
+                cudaMemcpy(tile_pixels[tiles[t_idx]].data(),
                            device_fb + cam_idx * CAM_PIXELS,
                            CAM_PIXELS * sizeof(uint32_t),
                            cudaMemcpyDeviceToHost);
             }
         }
 
-        // Pad batch positions [64..127] with copies of [0..63] for gpu_input_a/b
+        // Pad batch positions [64..127]
         for (TI i = NUM_GRID_CAMERAS; i < BATCH_SIZE; i++) {
             TI src_pos = i % NUM_GRID_CAMERAS;
-            // Copy on GPU: just duplicate the already-written data
             cudaMemcpyAsync(
                 gpu_input_a._data + i * CAM_HEIGHT * CAM_WIDTH * 3,
                 gpu_input_a._data + src_pos * CAM_HEIGHT * CAM_WIDTH * 3,
@@ -425,27 +370,11 @@ int main(int argc, char** argv) {
         }
 
         // ---- Model forward pass ----
-        rlt::evaluate(device_cuda, model.pipeline_a, gpu_input_a, model_buffer.intermediate_a, model_buffer.buffer_a, rng_cuda, eval_mode);
-        rlt::evaluate(device_cuda, model.pipeline_b, gpu_input_b, model_buffer.intermediate_b, model_buffer.buffer_b, rng_cuda, eval_mode);
-
-        {
-            constexpr int total = BATCH_SIZE * CONCAT_DIM;
-            constexpr int threads = 256;
-            constexpr int blocks = (total + threads - 1) / threads;
-            concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                model_buffer.intermediate_a._data, ENCODER_DIM,
-                model_buffer.intermediate_b._data, ENCODER_DIM,
-                model_buffer.concatenated._data, BATCH_SIZE
-            );
-        }
-
-        rlt::evaluate(device_cuda, model.head, model_buffer.concatenated, gpu_head_output, model_buffer.head_buffer, rng_cuda, eval_mode);
+        rlt::evaluate_cuda(device_cuda, model, gpu_input_a, gpu_input_b, gpu_output, model_buffer, rng_cuda, eval_mode);
         cudaStreamSynchronize(device_cuda.stream);
 
-        // Read predictions (p_x, p_y, phi/pi per sample)
-        cudaMemcpy(pred_buf.data(), gpu_head_output._data, BATCH_SIZE * OUTPUT_DIM * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(pred_buf.data(), gpu_output._data, BATCH_SIZE * OUTPUT_DIM * sizeof(float), cudaMemcpyDeviceToHost);
 
-        // Convert p_x to angle: delta_yaw = atan(p_x * tan(half_hfov))
         const float half_hfov = std::atan(0.5f * VIEWER_COS_FOV * VIEWER_ASPECT);
         const float tan_half_hfov = std::tan(half_hfov);
 
@@ -502,7 +431,7 @@ int main(int argc, char** argv) {
     }
 
     // ---- Cleanup ----
-    rlt::free(device_cuda, gpu_head_output);
+    rlt::free(device_cuda, gpu_output);
     rlt::free(device_cuda, gpu_input_a);
     rlt::free(device_cuda, gpu_input_b);
     rlt::free(device_cuda, model_buffer);
