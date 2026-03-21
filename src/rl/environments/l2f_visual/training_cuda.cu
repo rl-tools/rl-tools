@@ -225,8 +225,8 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI BATCH_SIZE = 2048;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
-    static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-    static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
+    static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
+    static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
     static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
     static constexpr TI N_ENVIRONMENTS = NUM_ENVS;
     static constexpr TI TOTAL_STEP_LIMIT = 15000;
@@ -828,22 +828,9 @@ int main(int argc, char** argv){
         // =================================================================
         // GAE
         // =================================================================
-#ifdef RL_TOOLS_DISABLE_VISUAL
-        // CPU GAE (using CPU critic, identical to zoo target)
-        {
-            CRITIC_BUFFERS_GAE critic_buffers_gae_cpu;
-            rlt::malloc(device, critic_buffers_gae_cpu);
-            using OBS_PRIV_SHAPE = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
-            using CRITIC_GAE_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, STEPS_TOTAL_ALL>, (TI)1>;
-            auto all_obs_priv_reshaped = rlt::reshape_row_major(device, dataset.all_observations_privileged, CRITIC_GAE_INPUT_SHAPE{});
-            auto all_values_tensor = rlt::to_tensor(device, dataset.all_values);
-            auto all_values_reshaped = rlt::reshape_row_major(device, all_values_tensor, rlt::tensor::Shape<TI, 1, STEPS_TOTAL_ALL, 1>{});
-            rlt::evaluate(device, ppo.critic, all_obs_priv_reshaped, all_values_reshaped, critic_buffers_gae_cpu, rng);
-            rlt::free(device, critic_buffers_gae_cpu);
-        }
-#else
         // GPU GAE
         {
+            rlt::copy(device, device_gpu, ppo.critic, ppo_gpu.critic);
             auto all_obs_priv_matrix = rlt::matrix_view(device, dataset.all_observations_privileged);
             rlt::copy(device, device_gpu, all_obs_priv_matrix, gpu_gae_obs);
             auto gpu_gae_obs_tensor = rlt::to_tensor(device_gpu, gpu_gae_obs);
@@ -854,7 +841,6 @@ int main(int argc, char** argv){
             cudaDeviceSynchronize();
             rlt::copy(device_gpu, device, gpu_gae_values, dataset.all_values);
         }
-#endif
         rlt::estimate_generalized_advantages(device, dataset, typename PPO_TYPE::SPEC::PARAMETERS{});
 
         // =================================================================
