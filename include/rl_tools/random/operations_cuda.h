@@ -39,6 +39,12 @@ namespace rl_tools::random{
         }
         return 0;
     }
+    // Overload for ENGINE type (used from host code): extract first curandState
+    template<typename T, typename SPEC>
+    T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, devices::random::CUDA::ENGINE<SPEC>& rng){
+        auto& rng_state = get(rng.states, 0, 0);
+        return uniform_real_distribution(dev, low, high, rng_state);
+    }
     template<typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
         auto r = uniform_real_distribution(dev, (float)low, (float)high, rng);
@@ -59,6 +65,20 @@ namespace rl_tools::random{
                     return ((T)curand_normal(&rng)) * std + mean;
                 }
             }
+        }
+        // Overload for ENGINE type (used from host code): extract first curandState
+        template<typename T, typename SPEC>
+        T sample(const devices::random::CUDA& dev, T mean, T std, devices::random::CUDA::ENGINE<SPEC>& rng){
+            auto& rng_state = get(rng.states, 0, 0);
+            return sample(dev, mean, std, rng_state);
+        }
+    }
+    namespace normal_distribution{
+        template<typename T, typename SPEC>
+        T log_prob(const devices::random::CUDA& dev, T mean, T log_std, T value, devices::random::CUDA::ENGINE<SPEC>& rng){
+            // Just delegate to the generic implementation since log_prob doesn't need curand
+            auto& rng_state = get(rng.states, 0, 0);
+            return log_prob(dev, mean, log_std, value, rng_state);
         }
     }
 }

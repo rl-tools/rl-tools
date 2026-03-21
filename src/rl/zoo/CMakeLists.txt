@@ -212,6 +212,10 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     target_compile_definitions(rl_zoo_ant_v4_td3 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
 endif()
 
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    add_subdirectory(cuda)
+endif()
+
 if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     set(RL_ZOO_NIGHTLY_TARGETS
       rl_zoo_acrobot_swingup_v0_sac
