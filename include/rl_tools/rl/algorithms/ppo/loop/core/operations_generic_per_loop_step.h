@@ -79,6 +79,7 @@ namespace rl_tools{
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
+#ifndef RL_TOOLS_DISABLE_TENSORBOARD
         {
             // logging actor std
             auto& last_layer = get_last_layer(ts.ppo.actor);
@@ -89,6 +90,7 @@ namespace rl_tools{
                 add_scalar(device, device.logger, "actor/log_std", current_action_log_std, CADENCE);
             }
         }
+#endif
 
         add_scalar(device, device.logger, "ppo/step", ts.step, CADENCE);
 
