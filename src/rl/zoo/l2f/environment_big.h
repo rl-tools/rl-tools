@@ -59,17 +59,17 @@ namespace rl_tools::rl::zoo::l2f{
             reward = {
                 false, // non-negative
                 01.00, // scale
-                02.00, // constant (increased: ensures positive per-step reward even at max initial position)
+                02.00, // constant
                 -100.00, // termination penalty
-                00.30, // position (reduced: avoids per-step reward going negative at large initial positions, preventing "learning to die")
+                01.00, // position (curriculum prevents "learning to die" so full weight is safe)
                 00.00, // position_clip
-                00.10, // orientation
-                00.00, // linear_velocity
-                00.00, // angular_velocity
+                00.20, // orientation
+                00.50, // linear_velocity
+                00.50, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
                 00.00, // action
-                00.50, // d_action (reduced: allows more aggressive corrective actions during recovery from extreme orientations)
+                00.50, // d_action
                 00.00, // position_error_integral
             };
             return mdp;
