@@ -36,11 +36,12 @@ struct ContentView: View {
                     Text("Reference").font(.caption)
                     Group {
                         if let frozen = frozenFrame {
-                            Image(showNativeResolution ? downscale(frozen, to: imageSize) : frozen,
-                                  scale: 1, label: Text("Reference"))
-                                .resizable()
-                                .interpolation(.none)
-                                .aspectRatio(contentMode: .fit)
+                            AnnotatedImageView(
+                                image: showNativeResolution ? downscale(frozen, to: imageSize) : frozen,
+                                label: "Reference",
+                                showsCenter: true,
+                                markers: []
+                            )
                         } else {
                             Rectangle()
                                 .fill(Color.gray.opacity(0.3))
@@ -55,10 +56,12 @@ struct ContentView: View {
                     Text("Live").font(.caption)
                     Group {
                         if let frame = camera.currentFrame {
-                            Image(displayImage(frame), scale: 1, label: Text("Live"))
-                                .resizable()
-                                .interpolation(.none)
-                                .aspectRatio(contentMode: .fit)
+                            AnnotatedImageView(
+                                image: displayImage(frame),
+                                label: "Live",
+                                showsCenter: false,
+                                markers: liveImageMarkers
+                            )
                         } else {
                             Rectangle()
                                 .fill(Color.gray.opacity(0.3))
@@ -103,6 +106,12 @@ struct ContentView: View {
                 }
                 #endif
             }
+
+            #if os(iOS)
+            if let translationIndicator = translationIndicator {
+                TranslationOverlayView(indicator: translationIndicator)
+            }
+            #endif
 
             HStack {
                 Button("Capture Reference") {
@@ -237,6 +246,50 @@ struct ContentView: View {
     private func computeGroundTruth() -> AttitudeGroundTruth? {
         guard let refT = referenceTransform, let curT = camera.currentTransform else { return nil }
         return computeGroundTruthDegrees(reference: refT, current: curT, horizontalFOVDegrees: camera.horizontalFOV)
+    }
+
+    private var liveImageMarkers: [ImageMarker] {
+        var markers: [ImageMarker] = []
+        if let gt = computeGroundTruth() {
+            markers.append(
+                ImageMarker(
+                    label: "GT",
+                    horizontalNorm: gt.horizontalNorm,
+                    verticalNorm: gt.verticalNorm,
+                    color: .green
+                )
+            )
+        }
+        if let pred = prediction {
+            markers.append(
+                ImageMarker(
+                    label: "Pred",
+                    horizontalNorm: pred.px,
+                    verticalNorm: pred.py,
+                    color: .red
+                )
+            )
+        }
+        return markers
+    }
+
+    private var translationIndicator: TranslationIndicator? {
+        guard let referenceTransform, let currentTransform = camera.currentTransform else { return nil }
+        return computeTranslationIndicator(reference: referenceTransform, current: currentTransform)
+    }
+    #else
+    private var liveImageMarkers: [ImageMarker] {
+        if let pred = prediction {
+            return [
+                ImageMarker(
+                    label: "Pred",
+                    horizontalNorm: pred.px,
+                    verticalNorm: pred.py,
+                    color: .red
+                )
+            ]
+        }
+        return []
     }
     #endif
 
@@ -429,3 +482,222 @@ private func cgImageToFloatRGB(_ image: CGImage, size: Int) -> [Float] {
     }
     return result
 }
+
+private struct ImageMarker: Identifiable {
+    let id = UUID()
+    let label: String
+    let horizontalNorm: Double
+    let verticalNorm: Double
+    let color: Color
+}
+
+#if os(iOS)
+private struct TranslationIndicator {
+    let right: Double
+    let up: Double
+    let depth: Double
+    let magnitudeMeters: Double
+}
+#endif
+
+private struct AnnotatedImageView: View {
+    let image: CGImage
+    let label: String
+    let showsCenter: Bool
+    let markers: [ImageMarker]
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Image(image, scale: 1, label: Text(label))
+                    .resizable()
+                    .interpolation(.none)
+                    .aspectRatio(contentMode: .fit)
+
+                if showsCenter {
+                    CrosshairView(color: Color.white.opacity(0.75))
+                        .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.5)
+                }
+
+                ForEach(markers) { marker in
+                    MarkerView(label: marker.label, color: marker.color)
+                        .position(position(for: marker, in: geometry.size))
+                }
+            }
+        }
+    }
+
+    private func position(for marker: ImageMarker, in size: CGSize) -> CGPoint {
+        let clampedHorizontal = min(max(marker.horizontalNorm, -1.0), 1.0)
+        let clampedVertical = min(max(marker.verticalNorm, -1.0), 1.0)
+        let x = size.width * 0.5 * (1.0 - clampedHorizontal)
+        let y = size.height * 0.5 * (1.0 + clampedVertical)
+        return CGPoint(x: x, y: y)
+    }
+}
+
+private struct CrosshairView: View {
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(color)
+                .frame(width: 20, height: 2)
+            Rectangle()
+                .fill(color)
+                .frame(width: 2, height: 20)
+        }
+    }
+}
+
+private struct MarkerView: View {
+    let label: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            CrosshairView(color: color)
+            Text(label)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundColor(color)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(.black.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+    }
+}
+
+#if os(iOS)
+private struct TranslationOverlayView: View {
+    let indicator: TranslationIndicator
+
+    var body: some View {
+        let rightLength = CGFloat(abs(indicator.rightNormalized)) * 26.0
+        let upLength = CGFloat(abs(indicator.upNormalized)) * 26.0
+        let depthStrength = CGFloat(abs(indicator.depthNormalized))
+        let depthColor = indicator.depthNormalized >= 0 ? Color.orange : Color.cyan
+        let depthLabel = indicator.depthNormalized >= 0 ? "Near" : "Far"
+
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.black.opacity(0.55))
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                            .frame(width: 64, height: 64)
+                        axisArrow(horizontal: true, positive: indicator.rightNormalized >= 0, length: rightLength, color: .pink)
+                            .frame(width: 64, height: 64)
+                        axisArrow(horizontal: false, positive: indicator.upNormalized >= 0, length: upLength, color: .yellow)
+                            .frame(width: 64, height: 64)
+                        Circle()
+                            .fill(Color.white.opacity(0.9))
+                            .frame(width: 6, height: 6)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        ZStack {
+                            Circle()
+                                .stroke(depthColor.opacity(0.35), lineWidth: 1)
+                                .frame(width: 28, height: 28)
+                            Circle()
+                                .stroke(depthColor.opacity(0.18), lineWidth: 6)
+                                .frame(width: 28 + depthStrength * 18, height: 28 + depthStrength * 18)
+                            Circle()
+                                .fill(depthColor.opacity(0.85))
+                                .frame(width: 8 + depthStrength * 10, height: 8 + depthStrength * 10)
+                        }
+                        Text(depthLabel)
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(depthColor)
+                        Text(String(format: "%.0f mm", indicator.magnitudeMeters * 1000.0))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+            .frame(width: 132, height: 84)
+        }
+    }
+
+    private func axisArrow(horizontal: Bool, positive: Bool, length: CGFloat, color: Color) -> some View {
+        GeometryReader { geometry in
+            let center = CGPoint(x: geometry.size.width * 0.5, y: geometry.size.height * 0.5)
+            ZStack {
+                Path { path in
+                    path.move(to: center)
+                    if horizontal {
+                        path.addLine(to: CGPoint(x: center.x + (positive ? length : -length), y: center.y))
+                    } else {
+                        path.addLine(to: CGPoint(x: center.x, y: center.y + (positive ? -length : length)))
+                    }
+                }
+                .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+
+                if length > 1 {
+                    Path { path in
+                        let tip: CGPoint
+                        let a: CGPoint
+                        let b: CGPoint
+                        if horizontal {
+                            let x = center.x + (positive ? length : -length)
+                            tip = CGPoint(x: x, y: center.y)
+                            a = CGPoint(x: x + (positive ? -7 : 7), y: center.y - 4)
+                            b = CGPoint(x: x + (positive ? -7 : 7), y: center.y + 4)
+                        } else {
+                            let y = center.y + (positive ? -length : length)
+                            tip = CGPoint(x: center.x, y: y)
+                            a = CGPoint(x: center.x - 4, y: y + (positive ? 7 : -7))
+                            b = CGPoint(x: center.x + 4, y: y + (positive ? 7 : -7))
+                        }
+                        path.move(to: tip)
+                        path.addLine(to: a)
+                        path.addLine(to: b)
+                        path.closeSubpath()
+                    }
+                    .fill(color)
+                }
+            }
+        }
+    }
+}
+
+private extension TranslationIndicator {
+    var rightNormalized: Double {
+        max(-1.0, min(1.0, right / 0.05))
+    }
+
+    var upNormalized: Double {
+        max(-1.0, min(1.0, up / 0.05))
+    }
+
+    var depthNormalized: Double {
+        max(-1.0, min(1.0, depth / 0.05))
+    }
+}
+
+private func computeTranslationIndicator(
+    reference: simd_float4x4,
+    current: simd_float4x4
+) -> TranslationIndicator {
+    let referencePosition = simd_make_float3(reference.columns.3.x, reference.columns.3.y, reference.columns.3.z)
+    let currentPosition = simd_make_float3(current.columns.3.x, current.columns.3.y, current.columns.3.z)
+    let deltaWorld = currentPosition - referencePosition
+    let currentRotation = simd_float3x3(
+        simd_make_float3(current.columns.0.x, current.columns.0.y, current.columns.0.z),
+        simd_make_float3(current.columns.1.x, current.columns.1.y, current.columns.1.z),
+        simd_make_float3(current.columns.2.x, current.columns.2.y, current.columns.2.z)
+    )
+    let deltaPhone = currentRotation.transpose * deltaWorld
+    return TranslationIndicator(
+        right: Double(deltaPhone.x),
+        up: Double(deltaPhone.y),
+        depth: Double(-deltaPhone.z),
+        magnitudeMeters: Double(simd_length(deltaWorld))
+    )
+}
+#endif
