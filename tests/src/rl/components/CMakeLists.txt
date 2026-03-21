@@ -34,3 +34,4 @@ gtest_discover_tests(test_rl_components_off_policy_runner)
 
 
 add_subdirectory(off_policy_runner)
+add_subdirectory(on_policy_runner)

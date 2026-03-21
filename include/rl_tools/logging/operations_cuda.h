@@ -20,8 +20,24 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a){ }
     template <typename DEVICE, typename A, typename B>
     RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b){ }
+    template <typename DEVICE, typename A, typename B, typename C>
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c){ }
     template <typename DEVICE, typename A, typename B, typename C, typename D>
     RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E>
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d, const E e){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F>
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d, const E e, const F f){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G>
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J, typename K>
+    RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j, const K k){ }
     template <typename DEVICE>
     RL_TOOLS_FUNCTION_PLACEMENT void set_step(DEVICE& device, devices::logging::CUDA* logger, typename DEVICE::index_t step){ /* noop */ }
     template <typename DEVICE, typename ARG_1, typename ARG_2>
