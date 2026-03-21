@@ -713,13 +713,34 @@ int main(int argc, char** argv){
                 N_ENVIRONMENTS * STATE_OBS_DIM * sizeof(T));
 
 #ifdef RL_TOOLS_DISABLE_VISUAL
-            // State-only actor on CPU (identical to zoo target)
+            // State-only actor evaluate on GPU
             {
-                auto cpu_obs_slice = rlt::view_range(device, cpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-                auto cpu_obs_reshaped = rlt::reshape_row_major(device, cpu_obs_slice, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
-                auto cpu_actions_tensor = rlt::to_tensor(device, cpu_actions_eval);
-                auto cpu_actions_reshaped = rlt::reshape_row_major(device, cpu_actions_tensor, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, ACTION_DIM>{});
-                rlt::evaluate(device, ppo.actor, cpu_obs_reshaped, cpu_actions_reshaped, actor_buffers_cpu, rng);
+                cudaMemcpy(
+                    rlt::data(gpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
+                    rlt::data(cpu_state_obs_step),
+                    N_ENVIRONMENTS * STATE_OBS_DIM * sizeof(T),
+                    cudaMemcpyHostToDevice);
+                auto gpu_state_obs_slice = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto gpu_state_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_slice, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
+                auto gpu_actions_eval_tensor = rlt::to_tensor(device_gpu, gpu_actions_train);
+                auto gpu_actions_eval_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_eval_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+                rlt::evaluate(device_gpu, ppo_gpu.actor, gpu_state_obs_reshaped, gpu_actions_eval_reshaped, actor_buffers, rng_gpu);
+                cudaDeviceSynchronize();
+                auto gpu_actions_first_n = rlt::view(device_gpu, gpu_actions_train, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), 0, 0);
+                rlt::copy(device_gpu, device, gpu_actions_first_n, cpu_actions_eval);
+                // CPU comparison (first collect step of first PPO step only)
+                if(ppo_step_i == 0 && step_i == 0){
+                    rlt::Matrix<rlt::matrix::Specification<T, TI, N_ENVIRONMENTS, ACTION_DIM>> cpu_actions_check;
+                    rlt::malloc(device, cpu_actions_check);
+                    auto cpu_obs_slice = rlt::view_range(device, cpu_all_state_observations, (TI)0, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+                    auto cpu_obs_reshaped = rlt::reshape_row_major(device, cpu_obs_slice, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
+                    auto cpu_check_tensor = rlt::to_tensor(device, cpu_actions_check);
+                    auto cpu_check_reshaped = rlt::reshape_row_major(device, cpu_check_tensor, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, ACTION_DIM>{});
+                    rlt::evaluate(device, ppo.actor, cpu_obs_reshaped, cpu_check_reshaped, actor_buffers_cpu, rng);
+                    T eval_diff = rlt::abs_diff(device, cpu_actions_eval, cpu_actions_check) / (N_ENVIRONMENTS * ACTION_DIM);
+                    std::cout << "  [check] collection evaluate per-element abs_diff (CPU vs GPU): " << eval_diff << std::endl;
+                    rlt::free(device, cpu_actions_check);
+                }
             }
 #else
             // CPU->GPU: copy state observations for this step
