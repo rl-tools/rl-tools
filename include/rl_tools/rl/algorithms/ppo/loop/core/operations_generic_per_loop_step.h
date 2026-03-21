@@ -3,11 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_OPERATIONS_GENERIC_PER_LOOP_STEP_H
 
-#ifdef __CUDACC__
-#include "../../../../../rl/components/on_policy_runner/operations_cuda.h"
-#include "../../operations_cuda.h"
-#endif
-#include "../../operations_generic_train.h"
+#include "../../operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
