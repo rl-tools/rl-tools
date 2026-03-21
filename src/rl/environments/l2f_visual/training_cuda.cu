@@ -225,8 +225,8 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI BATCH_SIZE = 2048;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
-    static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
-    static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
+    static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
+    static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
     static constexpr TI N_ENVIRONMENTS = NUM_ENVS;
     static constexpr TI TOTAL_STEP_LIMIT = 15000;
@@ -830,7 +830,6 @@ int main(int argc, char** argv){
         // =================================================================
         // GPU GAE
         {
-            rlt::copy(device, device_gpu, ppo.critic, ppo_gpu.critic);
             auto all_obs_priv_matrix = rlt::matrix_view(device, dataset.all_observations_privileged);
             rlt::copy(device, device_gpu, all_obs_priv_matrix, gpu_gae_obs);
             auto gpu_gae_obs_tensor = rlt::to_tensor(device_gpu, gpu_gae_obs);
@@ -840,6 +839,24 @@ int main(int argc, char** argv){
             rlt::evaluate(device_gpu, ppo_gpu.critic, gpu_gae_obs_reshaped, gpu_gae_values_reshaped, critic_buffers_gae, rng_gpu);
             cudaDeviceSynchronize();
             rlt::copy(device_gpu, device, gpu_gae_values, dataset.all_values);
+        }
+        // CPU-GPU equivalence check (first PPO step only)
+        if(ppo_step_i == 0){
+            rlt::copy(device_gpu, device, ppo_gpu.critic, ppo.critic);
+            CRITIC_BUFFERS_GAE critic_buffers_gae_cpu;
+            rlt::malloc(device, critic_buffers_gae_cpu);
+            using OBS_PRIV_SHAPE_CHECK = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
+            using CRITIC_GAE_INPUT_SHAPE_CHECK = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE_CHECK, STEPS_TOTAL_ALL>, (TI)1>;
+            auto all_obs_priv_reshaped_check = rlt::reshape_row_major(device, dataset.all_observations_privileged, CRITIC_GAE_INPUT_SHAPE_CHECK{});
+            rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL_ALL, 1>> cpu_gae_values_check;
+            rlt::malloc(device, cpu_gae_values_check);
+            auto cpu_gae_values_tensor_check = rlt::to_tensor(device, cpu_gae_values_check);
+            auto cpu_gae_values_reshaped_check = rlt::reshape_row_major(device, cpu_gae_values_tensor_check, rlt::tensor::Shape<TI, 1, STEPS_TOTAL_ALL, 1>{});
+            rlt::evaluate(device, ppo.critic, all_obs_priv_reshaped_check, cpu_gae_values_reshaped_check, critic_buffers_gae_cpu, rng);
+            T gae_diff = rlt::abs_diff(device, dataset.all_values, cpu_gae_values_check) / STEPS_TOTAL_ALL;
+            std::cout << "  [check] GAE per-element abs_diff (CPU vs GPU): " << gae_diff << std::endl;
+            rlt::free(device, cpu_gae_values_check);
+            rlt::free(device, critic_buffers_gae_cpu);
         }
         rlt::estimate_generalized_advantages(device, dataset, typename PPO_TYPE::SPEC::PARAMETERS{});
 
@@ -938,24 +955,52 @@ int main(int argc, char** argv){
                 auto d_action_reshaped = rlt::reshape_row_major(device, d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
                 rlt::backward(device, ppo.actor, cpu_state_obs_batch_reshaped, d_action_reshaped, actor_buffers_cpu);
 
-                // Critic forward + backward + step on CPU
-                using OBS_PRIV_SHAPE = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
-                using CRITIC_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, BATCH_SIZE>, (TI)1>;
-                auto batch_obs_priv = rlt::view_range(device, dataset.all_observations_privileged, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-                auto batch_obs_priv_reshaped = rlt::reshape_row_major(device, batch_obs_priv, CRITIC_INPUT_SHAPE{});
-                rlt::forward(device, ppo.critic, batch_obs_priv_reshaped, critic_buffers_cpu, rng);
+                // Critic forward + backward + step on GPU (with CPU comparison on first batch)
                 {
-                    auto output_tensor = rlt::output(device, ppo.critic);
-                    auto output_matrix = rlt::matrix_view(device, output_tensor);
-                    rlt::nn::loss_functions::mse::gradient(device, output_matrix, batch_target_values, ppo_buffers.d_critic_output, (T)0.5);
+                    rlt::zero_gradient(device_gpu, ppo_gpu.critic);
+                    auto batch_obs_priv_matrix = rlt::matrix_view(device, rlt::view_range(device, dataset.all_observations_privileged, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{}));
+                    rlt::copy(device, device_gpu, batch_obs_priv_matrix, gpu_critic_obs);
+                    auto gpu_critic_obs_tensor = rlt::to_tensor(device_gpu, gpu_critic_obs);
+                    using OBS_PRIV_SHAPE = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
+                    using CRITIC_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, BATCH_SIZE>, (TI)1>;
+                    auto gpu_critic_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_critic_obs_tensor, CRITIC_INPUT_SHAPE{});
+                    rlt::forward(device_gpu, ppo_gpu.critic, gpu_critic_obs_reshaped, critic_buffers, rng_gpu);
+                    cudaDeviceSynchronize();
+                    {
+                        rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, 1>> cpu_critic_output, cpu_d_critic;
+                        rlt::malloc(device, cpu_critic_output);
+                        rlt::malloc(device, cpu_d_critic);
+                        auto critic_output_tensor = rlt::output(device_gpu, ppo_gpu.critic);
+                        auto critic_output_matrix = rlt::matrix_view(device_gpu, critic_output_tensor);
+                        rlt::copy(device_gpu, device, critic_output_matrix, cpu_critic_output);
+                        // CPU comparison of critic forward output
+                        if(ppo_step_i == 0 && batch_i == 0 && epoch_i == 0){
+                            rlt::copy(device_gpu, device, ppo_gpu.critic, ppo.critic);
+                            using OBS_PRIV_SHAPE_T = typename ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
+                            using CRITIC_INPUT_SHAPE_T = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE_T, BATCH_SIZE>, (TI)1>;
+                            auto batch_obs_priv_cpu = rlt::view_range(device, dataset.all_observations_privileged, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                            auto batch_obs_priv_cpu_reshaped = rlt::reshape_row_major(device, batch_obs_priv_cpu, CRITIC_INPUT_SHAPE_T{});
+                            rlt::forward(device, ppo.critic, batch_obs_priv_cpu_reshaped, critic_buffers_cpu, rng);
+                            auto cpu_output_tensor = rlt::output(device, ppo.critic);
+                            auto cpu_output_matrix = rlt::matrix_view(device, cpu_output_tensor);
+                            T critic_fwd_diff = rlt::abs_diff(device, cpu_output_matrix, cpu_critic_output) / BATCH_SIZE;
+                            std::cout << "  [check] critic forward per-element abs_diff (CPU vs GPU): " << critic_fwd_diff << std::endl;
+                        }
+                        rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5);
+                        rlt::copy(device, device_gpu, cpu_d_critic, gpu_d_critic_output);
+                        rlt::free(device, cpu_critic_output);
+                        rlt::free(device, cpu_d_critic);
+                    }
+                    auto gpu_d_critic_tensor = rlt::to_tensor(device_gpu, gpu_d_critic_output);
+                    auto gpu_d_critic_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_critic_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, 1>{});
+                    rlt::backward(device_gpu, ppo_gpu.critic, gpu_critic_obs_reshaped, gpu_d_critic_reshaped, critic_buffers);
+                    cudaDeviceSynchronize();
+                    rlt::step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
+                    cudaDeviceSynchronize();
                 }
-                auto d_critic_tensor = rlt::to_tensor(device, ppo_buffers.d_critic_output);
-                auto d_critic_reshaped = rlt::reshape_row_major(device, d_critic_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, 1>{});
-                rlt::backward(device, ppo.critic, batch_obs_priv_reshaped, d_critic_reshaped, critic_buffers_cpu);
 
-                // Optimizer steps on CPU (both at end, same as library)
+                // Actor optimizer step on CPU
                 rlt::step(device, actor_optimizer, ppo.actor);
-                rlt::step(device, critic_optimizer, ppo.critic);
             }
         }
 #else
