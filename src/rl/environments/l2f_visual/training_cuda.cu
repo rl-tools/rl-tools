@@ -82,29 +82,35 @@ static constexpr TI EPISODE_STEP_LIMIT = 500;
 using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
 using PARAMETERS_TYPE = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>;
 
-static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie;
+static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::soft_rigid;
 
 static constexpr REWARD_FUNCTION reward_function = {
-    false, // non_negative
-    1.00,  // scale
-    1.00,  // constant (survival bonus: +1 per step)
-    0.00,  // termination_penalty
-    0.00,  // position
-    0.00,  // position_clip
-    0.00,  // orientation
-    0.00,  // linear_velocity
-    0.00,  // angular_velocity
-    0.00,  // linear_acceleration
-    0.00,  // angular_acceleration
-    0.00,  // action
-    0.00,  // d_action
-    0.00   // position_error_integral
+    false,    // non_negative
+    1.00,     // scale
+    1.50,     // constant (survival bonus)
+    -100.00,  // termination_penalty
+    1.00,     // position
+    0.00,     // position_clip
+    0.10,     // orientation
+    0.00,     // linear_velocity
+    0.00,     // angular_velocity
+    0.00,     // linear_acceleration
+    0.00,     // angular_acceleration
+    0.00,     // action
+    1.00,     // d_action (action smoothness)
+    0.00      // position_error_integral
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
-    0.2, 1.0, 0.3, 1.0, 1.0, true, -1, +1,
+    0.2,                  // guidance (20% chance of spawning at origin)
+    2.2,                  // max_position (~rotor_distance * 10)
+    1.5707963267948966,   // max_angle (90 degrees)
+    1.0,                  // max_linear_velocity
+    1.0,                  // max_angular_velocity
+    true,                 // relative_rpm
+    -1, +1,              // min/max rpm
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-    true, 1.5, 10, 35, 10000, 50000,
+    true, 4.4, 10, 35, 10000, 50000,
 };
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -117,7 +123,7 @@ static constexpr PARAMETERS_TYPE nominal_parameters = { {dynamics, integration, 
 // =========================================================================
 // Environment static parameters
 // =========================================================================
-static constexpr TI ACTION_HISTORY_LENGTH = 1;
+static constexpr TI ACTION_HISTORY_LENGTH = 8;
 
 struct STATIC_PARAMETERS {
     static constexpr TI N_SUBSTEPS = 1;
@@ -244,28 +250,26 @@ std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typena
 // =========================================================================
 // PPO configuration
 // =========================================================================
-struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>{
-    static constexpr T ALPHA = 3e-4;
-    static constexpr T EPSILON = 1e-5;
-    static constexpr T EPSILON_SQRT = 1e-5;
+struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
+    static constexpr T ALPHA = 1e-3;
 };
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
-    static constexpr TI BATCH_SIZE = 512;
+    static constexpr TI BATCH_SIZE = 4096;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
+    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
     static constexpr TI N_ENVIRONMENTS = NUM_ENVS;
-    static constexpr TI TOTAL_STEP_LIMIT = 10000;
+    static constexpr TI TOTAL_STEP_LIMIT = 60000;
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using ACTOR_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
     using CRITIC_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
     static constexpr bool NORMALIZE_OBSERVATIONS = true;
     struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
-        static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.00;
+        static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
         static constexpr TI N_EPOCHS = 1;
         static constexpr T GAMMA = 0.99;
         static constexpr T LAMBDA = 0.95;
@@ -472,6 +476,9 @@ int main(int argc, char** argv){
     }
 
     auto& env0 = envs[0];
+    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+        envs[env_i].use_target_mode = true;
+    }
 #ifndef RL_TOOLS_DISABLE_VISUAL
     for(TI env_i = 1; env_i < N_ENVIRONMENTS; env_i++){
         if(envs[env_i].owns_renderer && envs[env_i].renderer != nullptr){
@@ -487,7 +494,6 @@ int main(int argc, char** argv){
     }
 
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-        envs[env_i].use_target_mode = true;
         envs[env_i].scene_path = scene_path;
         if(env_i > 0){
             envs[env_i].renderer_initialized = true;
@@ -542,7 +548,6 @@ int main(int argc, char** argv){
             typename ENVIRONMENT::State warmup_state;
             rlt::sample_initial_parameters(device, envs[env_i], env_parameters[env_i], rng);
             rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], warmup_state, rng);
-            set_fixed_initial_state(warmup_state);
 
 #ifndef RL_TOOLS_DISABLE_VISUAL
             // Image observation
@@ -687,7 +692,6 @@ int main(int argc, char** argv){
                     rlt::set(on_policy_runner.episode_return, 0, env_i, (T)0);
                     rlt::sample_initial_parameters(device, env, parameters, rng);
                     rlt::sample_initial_state(device, env, parameters, state, rng);
-                    set_fixed_initial_state(state);
                     if(env_i < TRAJECTORY_NUM_ENVS){
                         episode_recorders[env_i].episode_started = true;
                     }
