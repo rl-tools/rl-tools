@@ -11,8 +11,11 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
     // Shared configuration constants
     static constexpr unsigned long SCENE_NUM_CAMERAS = 1024; // 2 * BATCH_SIZE
-    static constexpr unsigned long SCENE_CAM_WIDTH = 64;
-    static constexpr unsigned long SCENE_CAM_HEIGHT = 64;
+#ifndef ABLATION_RESOLUTION
+#define ABLATION_RESOLUTION 64
+#endif
+    static constexpr unsigned long SCENE_CAM_WIDTH = ABLATION_RESOLUTION;
+    static constexpr unsigned long SCENE_CAM_HEIGHT = ABLATION_RESOLUTION;
 
     struct SceneHandle {
         using T = float;
