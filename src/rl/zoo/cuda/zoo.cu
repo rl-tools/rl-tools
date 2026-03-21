@@ -5,6 +5,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_cuda.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
@@ -18,14 +19,11 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
-#include <rl_tools/rl/algorithms/ppo/operations_cuda.h>
-#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/operations_cuda.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 

@@ -46,6 +46,7 @@ namespace rl_tools::rl::zoo::l2f::ppo{
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool ADAPTIVE_LEARNING_RATE = false;
                 static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.008;
+                static constexpr bool SHUFFLE_EPOCH = false; // CUDA: shuffling not yet supported (uses host-side swap on GPU data)
             };
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential, DYNAMIC_ALLOCATION>;

@@ -3,7 +3,9 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_OPERATIONS_CUDA_H
 
+#define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_OPERATIONS_CUDA_PENDING
 #include "operations_generic.h"
+#undef RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_OPERATIONS_CUDA_PENDING
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -96,4 +98,5 @@ namespace rl_tools{
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+#include "operations_generic_per_loop_step.h"
 #endif
