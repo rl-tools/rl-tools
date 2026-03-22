@@ -42,47 +42,46 @@ namespace rl_tools{
                 }
             }
         }
-        template <typename DEVICE, typename SPEC, typename T>
-        __global__
-        void reduce_mean_std_kernel(DEVICE device, Matrix<SPEC> data, T* out_mean, T* out_sq_mean){
-            using TI = typename DEVICE::index_t;
-            constexpr TI N = SPEC::ROWS;
-            extern __shared__ char shared_mem[];
-            T* shared_sum = reinterpret_cast<T*>(shared_mem);
-            T* shared_sq = shared_sum + blockDim.x;
-            TI tid = threadIdx.x;
-            T local_sum = 0, local_sq = 0;
-            for(TI i = tid; i < N; i += blockDim.x){
-                T val = get(data, i, 0);
-                local_sum += val;
-                local_sq += val * val;
-            }
-            shared_sum[tid] = local_sum;
-            shared_sq[tid] = local_sq;
-            __syncthreads();
-            for(TI s = blockDim.x / 2; s > 0; s >>= 1){
-                if(tid < s){
-                    shared_sum[tid] += shared_sum[tid + s];
-                    shared_sq[tid] += shared_sq[tid + s];
-                }
-                __syncthreads();
-            }
-            if(tid == 0){
-                *out_mean = shared_sum[0] / N;
-                *out_sq_mean = shared_sq[0] / N;
-            }
-        }
         template <typename DEVICE, typename PPO_SPEC, typename DATASET_SPEC, typename BUFFERS_SPEC, typename BATCH_ADVANTAGES_SPEC, typename BATCH_ACTIONS_SPEC, typename BATCH_ACTION_LOG_PROBS_SPEC, typename LOG_STD_SPEC>
         __global__
-        void ppo_per_sample_kernel(DEVICE device, rl::algorithms::ppo::Buffers<BUFFERS_SPEC> ppo_buffers, Matrix<BATCH_ADVANTAGES_SPEC> batch_advantages, Matrix<BATCH_ACTIONS_SPEC> batch_actions, Matrix<BATCH_ACTION_LOG_PROBS_SPEC> batch_action_log_probs, Matrix<LOG_STD_SPEC> log_std_params, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_mean, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_std){
+        void ppo_per_sample_kernel(DEVICE device, rl::algorithms::ppo::Buffers<BUFFERS_SPEC> ppo_buffers, Matrix<BATCH_ADVANTAGES_SPEC> batch_advantages, Matrix<BATCH_ACTIONS_SPEC> batch_actions, Matrix<BATCH_ACTION_LOG_PROBS_SPEC> batch_action_log_probs, Matrix<LOG_STD_SPEC> log_std_params){
             using T = typename PPO_SPEC::TYPE_POLICY::DEFAULT;
             using TI = typename DEVICE::index_t;
             constexpr TI BATCH_SIZE = PPO_SPEC::PARAMETERS::BATCH_SIZE;
             constexpr TI ACTION_DIM = PPO_SPEC::ENVIRONMENT::ACTION_DIM;
             constexpr TI N_AGENTS = PPO_SPEC::ENVIRONMENT::N_AGENTS;
             constexpr TI PER_AGENT_ACTION_DIM = ACTION_DIM / N_AGENTS;
-            TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(batch_step_i < BATCH_SIZE){
+            constexpr TI KERNEL_BLOCKSIZE = BATCH_SIZE < 1024 ? (BATCH_SIZE <= 32 ? 32 : (BATCH_SIZE <= 64 ? 64 : (BATCH_SIZE <= 128 ? 128 : (BATCH_SIZE <= 256 ? 256 : (BATCH_SIZE <= 512 ? 512 : 1024))))) : 1024;
+            static_assert(2 * KERNEL_BLOCKSIZE * sizeof(T) <= 48 * 1024, "ppo_per_sample_kernel shared memory usage exceeds 48KB limit");
+            // Fused advantage normalization via shared memory reduction
+            extern __shared__ char shared_mem_raw[];
+            T* shared_sum = reinterpret_cast<T*>(shared_mem_raw);
+            T* shared_sq = shared_sum + blockDim.x;
+            T advantage_mean = 0;
+            T advantage_std = 0;
+            if(PPO_SPEC::PARAMETERS::NORMALIZE_ADVANTAGE){
+                T local_sum = 0, local_sq = 0;
+                for(TI i = threadIdx.x; i < BATCH_SIZE; i += blockDim.x){
+                    T val = get(batch_advantages, i, 0);
+                    local_sum += val;
+                    local_sq += val * val;
+                }
+                shared_sum[threadIdx.x] = local_sum;
+                shared_sq[threadIdx.x] = local_sq;
+                __syncthreads();
+                for(TI s = blockDim.x / 2; s > 0; s >>= 1){
+                    if(threadIdx.x < s){
+                        shared_sum[threadIdx.x] += shared_sum[threadIdx.x + s];
+                        shared_sq[threadIdx.x] += shared_sq[threadIdx.x + s];
+                    }
+                    __syncthreads();
+                }
+                advantage_mean = shared_sum[0] / BATCH_SIZE;
+                T sq_mean = shared_sq[0] / BATCH_SIZE;
+                T variance = sq_mean - advantage_mean * advantage_mean;
+                advantage_std = variance > 0 ? math::sqrt(device.math, variance) : 0;
+            }
+            for(TI batch_step_i = threadIdx.x; batch_step_i < BATCH_SIZE; batch_step_i += blockDim.x){
                 T action_log_prob = 0;
                 for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                     T current_action = get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
@@ -120,7 +119,6 @@ namespace rl_tools{
                 for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                     multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                     if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
-                        // Scale the per-sample log_std gradient by the loss gradient (stored for later reduction)
                         multiply(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, d_loss_d_action_log_prob);
                     }
                 }
@@ -142,9 +140,7 @@ namespace rl_tools{
                         sum += get(d_action_log_prob_d_action_log_std, batch_i, col);
                     }
                 }
-                // Add entropy gradient: -ACTION_ENTROPY_COEFFICIENT * (ACTION_DIM/PER_AGENT_ACTION_DIM) (accumulated over BATCH_SIZE samples)
                 sum += entropy_grad;
-                // Accumulate into log_std_gradient (which was zero_gradient'd before train)
                 set(log_std_gradient, 0, action_i, get(log_std_gradient, 0, action_i) + sum);
             }
         }
@@ -163,32 +159,9 @@ namespace rl_tools{
         rl::algorithms::ppo::cuda::estimate_generalized_advantages_kernel<<<grid, block, 0, device.stream>>>(tag_device, dataset, ppo_parameters_tag);
         check_status(device);
     }
-    // CUDA overload: advantage normalization
-    template <typename DEV_SPEC, typename BATCH_ADVANTAGES_SPEC>
-    void ppo_advantage_normalization(devices::CUDA<DEV_SPEC>& device, Matrix<BATCH_ADVANTAGES_SPEC>& batch_advantages, typename BATCH_ADVANTAGES_SPEC::T& advantage_mean, typename BATCH_ADVANTAGES_SPEC::T& advantage_std){
-        using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename BATCH_ADVANTAGES_SPEC::T;
-        using TI = typename DEVICE::index_t;
-        devices::cuda::TAG<DEVICE, true> tag_device{};
-        T* d_adv_mean;
-        T* d_adv_sq_mean;
-        cudaMalloc(&d_adv_mean, sizeof(T));
-        cudaMalloc(&d_adv_sq_mean, sizeof(T));
-        constexpr TI REDUCE_BLOCKSIZE = 256;
-        rl::algorithms::ppo::cuda::reduce_mean_std_kernel<<<1, REDUCE_BLOCKSIZE, 2 * REDUCE_BLOCKSIZE * sizeof(T), device.stream>>>(tag_device, batch_advantages, d_adv_mean, d_adv_sq_mean);
-        check_status(device);
-        T h_mean, h_sq_mean;
-        cudaMemcpyAsync(&h_mean, d_adv_mean, sizeof(T), cudaMemcpyDeviceToHost, device.stream);
-        cudaMemcpyAsync(&h_sq_mean, d_adv_sq_mean, sizeof(T), cudaMemcpyDeviceToHost, device.stream);
-        cudaStreamSynchronize(device.stream);
-        advantage_mean = h_mean;
-        advantage_std = math::sqrt(device.math, math::max(device.math, (T)0, h_sq_mean - h_mean * h_mean));
-        cudaFree(d_adv_mean);
-        cudaFree(d_adv_sq_mean);
-    }
-    // CUDA overload: per-sample PPO loss gradient
+    // CUDA overload: per-sample PPO loss gradient (with fused advantage normalization)
     template <typename DEV_SPEC, typename PPO_SPEC, typename BUFFERS_SPEC, typename BATCH_ACTIONS_SPEC, typename BATCH_ACTIONS_MEAN_SPEC, typename BATCH_ACTION_LOG_PROBS_SPEC, typename BATCH_ADVANTAGES_SPEC, typename RNG>
-    void ppo_compute_actor_loss_gradient(devices::CUDA<DEV_SPEC>& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::algorithms::ppo::Buffers<BUFFERS_SPEC>& ppo_buffers, Matrix<BATCH_ACTIONS_SPEC>& batch_actions, Matrix<BATCH_ACTIONS_MEAN_SPEC>& batch_actions_mean, Matrix<BATCH_ACTION_LOG_PROBS_SPEC>& batch_action_log_probs, Matrix<BATCH_ADVANTAGES_SPEC>& batch_advantages, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_mean, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_std, typename PPO_SPEC::TYPE_POLICY::DEFAULT& policy_kl_divergence, typename PPO_SPEC::TYPE_POLICY::DEFAULT& batch_policy_kl_divergence, RNG& rng){
+    void ppo_compute_actor_loss_gradient(devices::CUDA<DEV_SPEC>& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::algorithms::ppo::Buffers<BUFFERS_SPEC>& ppo_buffers, Matrix<BATCH_ACTIONS_SPEC>& batch_actions, Matrix<BATCH_ACTIONS_MEAN_SPEC>& batch_actions_mean, Matrix<BATCH_ACTION_LOG_PROBS_SPEC>& batch_action_log_probs, Matrix<BATCH_ADVANTAGES_SPEC>& batch_advantages, typename PPO_SPEC::TYPE_POLICY::DEFAULT& policy_kl_divergence, typename PPO_SPEC::TYPE_POLICY::DEFAULT& batch_policy_kl_divergence, RNG& rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename PPO_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
@@ -200,12 +173,14 @@ namespace rl_tools{
         auto& last_layer = get_last_layer(ppo.actor);
         auto log_std = matrix_view(device, last_layer.log_std.parameters);
         auto log_std_grad = matrix_view(device, last_layer.log_std.gradient);
-        constexpr TI KERNEL_BLOCKSIZE = 32;
-        constexpr TI KERNEL_N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, KERNEL_BLOCKSIZE);
-        rl::algorithms::ppo::cuda::ppo_per_sample_kernel<decltype(tag_device), PPO_SPEC, BUFFERS_SPEC, BUFFERS_SPEC><<<KERNEL_N_BLOCKS, KERNEL_BLOCKSIZE, 0, device.stream>>>(tag_device, ppo_buffers, batch_advantages, batch_actions, batch_action_log_probs, log_std, advantage_mean, advantage_std);
+        // Single block: shared memory reduction computes mean/std, then all threads process their samples
+        // Each thread handles ceil(BATCH_SIZE/BLOCKSIZE) samples for both reduction and per-sample computation
+        constexpr TI KERNEL_BLOCKSIZE = BATCH_SIZE < 1024 ? (BATCH_SIZE <= 32 ? 32 : (BATCH_SIZE <= 64 ? 64 : (BATCH_SIZE <= 128 ? 128 : (BATCH_SIZE <= 256 ? 256 : (BATCH_SIZE <= 512 ? 512 : 1024))))) : 1024;
+        constexpr TI SHARED_MEM_SIZE = 2 * KERNEL_BLOCKSIZE * sizeof(T);
+        static_assert(SHARED_MEM_SIZE <= 48 * 1024, "ppo_per_sample_kernel shared memory exceeds 48KB limit");
+        rl::algorithms::ppo::cuda::ppo_per_sample_kernel<decltype(tag_device), PPO_SPEC, BUFFERS_SPEC, BUFFERS_SPEC><<<1, KERNEL_BLOCKSIZE, SHARED_MEM_SIZE, device.stream>>>(tag_device, ppo_buffers, batch_advantages, batch_actions, batch_action_log_probs, log_std);
         check_status(device);
         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
-            // Deterministic reduction of per-sample log_std gradients
             T entropy_grad = -(T)PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT * (T)N_AGENTS;
             constexpr TI REDUCE_BLOCKSIZE = 32;
             constexpr TI REDUCE_N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(PER_AGENT_ACTION_DIM, REDUCE_BLOCKSIZE);
