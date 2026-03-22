@@ -90,24 +90,22 @@ namespace rl_tools{
             }
         }
     }
-    template <typename DEVICE, typename BATCH_ADVANTAGES_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void ppo_advantage_normalization(DEVICE& device, Matrix<BATCH_ADVANTAGES_SPEC>& batch_advantages, typename BATCH_ADVANTAGES_SPEC::T& advantage_mean, typename BATCH_ADVANTAGES_SPEC::T& advantage_std){
-        using T = typename BATCH_ADVANTAGES_SPEC::T;
-        using TI = typename DEVICE::index_t;
-        constexpr TI BATCH_SIZE = BATCH_ADVANTAGES_SPEC::ROWS;
-        for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            T advantage = get(batch_advantages, batch_step_i, 0);
-            advantage_mean += advantage;
-            advantage_std += advantage * advantage;
-        }
-        advantage_mean /= BATCH_SIZE;
-        advantage_std /= BATCH_SIZE;
-        advantage_std = math::sqrt(device.math, math::max(device.math, (T)0, advantage_std - advantage_mean * advantage_mean));
-    }
     template <typename DEVICE, typename PPO_SPEC, typename BUFFERS_SPEC, typename BATCH_ACTIONS_SPEC, typename BATCH_ACTIONS_MEAN_SPEC, typename BATCH_ACTION_LOG_PROBS_SPEC, typename BATCH_ADVANTAGES_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void ppo_compute_actor_loss_gradient(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::algorithms::ppo::Buffers<BUFFERS_SPEC>& ppo_buffers, Matrix<BATCH_ACTIONS_SPEC>& batch_actions, Matrix<BATCH_ACTIONS_MEAN_SPEC>& batch_actions_mean, Matrix<BATCH_ACTION_LOG_PROBS_SPEC>& batch_action_log_probs, Matrix<BATCH_ADVANTAGES_SPEC>& batch_advantages, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_mean, typename PPO_SPEC::TYPE_POLICY::DEFAULT advantage_std, typename PPO_SPEC::TYPE_POLICY::DEFAULT& policy_kl_divergence, typename PPO_SPEC::TYPE_POLICY::DEFAULT& batch_policy_kl_divergence, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void ppo_compute_actor_loss_gradient(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::algorithms::ppo::Buffers<BUFFERS_SPEC>& ppo_buffers, Matrix<BATCH_ACTIONS_SPEC>& batch_actions, Matrix<BATCH_ACTIONS_MEAN_SPEC>& batch_actions_mean, Matrix<BATCH_ACTION_LOG_PROBS_SPEC>& batch_action_log_probs, Matrix<BATCH_ADVANTAGES_SPEC>& batch_advantages, typename PPO_SPEC::TYPE_POLICY::DEFAULT& policy_kl_divergence, typename PPO_SPEC::TYPE_POLICY::DEFAULT& batch_policy_kl_divergence, RNG& rng){
         using T = typename PPO_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename PPO_SPEC::TI;
+        T advantage_mean = 0;
+        T advantage_std = 0;
+        if(PPO_SPEC::PARAMETERS::NORMALIZE_ADVANTAGE){
+            for(TI batch_step_i = 0; batch_step_i < PPO_SPEC::PARAMETERS::BATCH_SIZE; batch_step_i++){
+                T advantage = get(batch_advantages, batch_step_i, 0);
+                advantage_mean += advantage;
+                advantage_std += advantage * advantage;
+            }
+            advantage_mean /= PPO_SPEC::PARAMETERS::BATCH_SIZE;
+            advantage_std /= PPO_SPEC::PARAMETERS::BATCH_SIZE;
+            advantage_std = math::sqrt(device.math, math::max(device.math, (T)0, advantage_std - advantage_mean * advantage_mean));
+        }
         constexpr TI BATCH_SIZE = PPO_SPEC::PARAMETERS::BATCH_SIZE;
         constexpr TI ACTION_DIM = PPO_SPEC::ENVIRONMENT::ACTION_DIM;
         constexpr TI N_AGENTS = PPO_SPEC::ENVIRONMENT::N_AGENTS;
@@ -262,12 +260,6 @@ namespace rl_tools{
                 auto batch_target_values           = view(device, dataset.target_values              , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
                 auto batch_reset                   = view(device, dataset.reset                      , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
 
-                T advantage_mean = 0;
-                T advantage_std = 0;
-                if(PPO_SPEC::PARAMETERS::NORMALIZE_ADVANTAGE) {
-                    ppo_advantage_normalization(device, batch_advantages, advantage_mean, advantage_std);
-                }
-
                 static constexpr TI STEPS = PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? DATASET_SPEC::STEPS_PER_ENV : 1;
                 static constexpr TI FORWARD_BATCH_SIZE = PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? DATASET_SPEC::SPEC::N_ENVIRONMENTS : BATCH_SIZE;
                 using ACTOR_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
@@ -280,7 +272,7 @@ namespace rl_tools{
                 mode.reset_container = batch_reset_tensor;
                 forward(device, ppo.actor, batch_observations_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng, mode);
 
-                ppo_compute_actor_loss_gradient(device, ppo, ppo_buffers, batch_actions, batch_actions_mean, batch_action_log_probs, batch_advantages, advantage_mean, advantage_std, policy_kl_divergence, batch_policy_kl_divergence, rng);
+                ppo_compute_actor_loss_gradient(device, ppo, ppo_buffers, batch_actions, batch_actions_mean, batch_action_log_probs, batch_advantages, policy_kl_divergence, batch_policy_kl_divergence, rng);
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
                     batch_policy_kl_divergence /= BATCH_SIZE;
                     auto& actor_optimizer_parameters = get_ref(device, actor_optimizer.parameters, 0);
