@@ -17,7 +17,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     // Device-dependent helpers (overridden by operations_cuda.h for CUDA)
     template <typename DEVICE, typename ENV_SPEC>
-    void malloc_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
         using TI = typename DEVICE::index_t;
         constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
         for(TI env_i = 0; env_i < N; env_i++){
@@ -26,7 +26,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename ENV_SPEC>
-    void free_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
+    RL_TOOLS_FUNCTION_PLACEMENT void free_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
         using TI = typename DEVICE::index_t;
         constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
         for(TI env_i = 0; env_i < N; env_i++){
@@ -35,7 +35,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename ENV_SPEC>
-    void init_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
+    RL_TOOLS_FUNCTION_PLACEMENT void init_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
         using TI = typename DEVICE::index_t;
         constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
         for(TI env_i = 0; env_i < N; env_i++){

@@ -113,6 +113,10 @@ namespace rl_tools {
         free(device, rng.states);
     }
     template <typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, curandState& rng){}
+    template <typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, curandState& rng){}
+    template <typename DEVICE>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, curandState& rng, typename DEVICE::index_t seed = 1){
         using TI = typename DEVICE::index_t;
         TI id = threadIdx.x + blockIdx.x * blockDim.x;

@@ -33,7 +33,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 // --- Device types ---
 using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_GPU = rlt::devices::DefaultCUDA;
-using T = float;
+using T = double;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE_CPU::index_t;
 
@@ -434,9 +434,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     std::cout << "Max GAE diff/el:     " << max_gae_diff / GAE_ELEMENTS << " (total: " << max_gae_diff << ", n=" << GAE_ELEMENTS << ")" << std::endl;
     std::cout << "Max train diff:      " << max_train_diff << std::endl;
 
-    EXPECT_LT(max_collect_diff / COLLECT_ELEMENTS, 1e-4);
-    EXPECT_LT(max_gae_diff / GAE_ELEMENTS, 1e-4);
-    EXPECT_LT(max_train_diff, 0.5);
+    EXPECT_LT(max_collect_diff / COLLECT_ELEMENTS, 1e-12);
+    EXPECT_LT(max_gae_diff / GAE_ELEMENTS, 1e-11);
+    EXPECT_LT(max_train_diff, 1e-5);
 
     // --- Cleanup ---
     rlt::free(device_cpu, ppo_cpu);
