@@ -164,6 +164,9 @@ static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000;
 static constexpr TI TEACHER_FORCING_EPOCHS = 100;
 static constexpr TI N_TRAIN_PASSES = 4;
+static constexpr TI VIDEO_CADENCE = 10;
+static constexpr TI GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS)
+static_assert(GRID_SIDE * GRID_SIDE == N_ENVIRONMENTS, "N_ENVIRONMENTS must be a perfect square for video mosaic");
 
 static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 
@@ -477,9 +480,32 @@ int main(int argc, char** argv){
     auto training_start = std::chrono::high_resolution_clock::now();
     std::array<rlt::CameraData, N_ENVIRONMENTS> cameras;
 
+    // Video recording buffers
+    static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
+    static constexpr TI MOSAIC_W = GRID_SIDE * CAM_WIDTH;
+    static constexpr TI MOSAIC_H = GRID_SIDE * CAM_HEIGHT;
+    std::vector<uint32_t> video_pixel_buffer(N_ENVIRONMENTS * CAM_PIXELS);
+    std::vector<uint8_t> mosaic_frame(MOSAIC_W * MOSAIC_H * 3);
+
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
         auto epoch_start = std::chrono::high_resolution_clock::now();
         bool teacher_forcing = epoch_i < TEACHER_FORCING_EPOCHS;
+        bool record_video = (epoch_i % VIDEO_CADENCE == 0);
+        FILE* ffmpeg_pipe = nullptr;
+        if(record_video){
+            char video_filename[256];
+            snprintf(video_filename, sizeof(video_filename), "epoch_%05lu.mp4", (unsigned long)epoch_i);
+            char ffmpeg_cmd[512];
+            snprintf(ffmpeg_cmd, sizeof(ffmpeg_cmd),
+                "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size %lux%lu -framerate 25 -i - "
+                "-c:v libx264 -pix_fmt yuv420p -crf 23 -preset fast -loglevel warning %s",
+                (unsigned long)MOSAIC_W, (unsigned long)MOSAIC_H, video_filename);
+            ffmpeg_pipe = popen(ffmpeg_cmd, "w");
+            if(!ffmpeg_pipe){
+                std::cerr << "Failed to open ffmpeg pipe for " << video_filename << std::endl;
+                record_video = false;
+            }
+        }
 
         // =================================================================
         // Data collection (CPU + GPU rendering)
@@ -531,6 +557,28 @@ int main(int argc, char** argv){
             T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
             rlt::observe_batch_render_gpu(device, env0, cameras.data(), N_ENVIRONMENTS, obs_ptr);
 
+            // Video: read back frame buffer and write mosaic frame
+            if(record_video && ffmpeg_pipe){
+                rlt::read_frame_buffer(device, *env0.renderer, video_pixel_buffer.data(), video_pixel_buffer.size());
+                for(TI grid_row = 0; grid_row < GRID_SIDE; grid_row++){
+                    for(TI grid_col = 0; grid_col < GRID_SIDE; grid_col++){
+                        TI env_i = grid_row * GRID_SIDE + grid_col;
+                        for(TI py = 0; py < CAM_HEIGHT; py++){
+                            for(TI px = 0; px < CAM_WIDTH; px++){
+                                uint32_t rgba = video_pixel_buffer[env_i * CAM_PIXELS + py * CAM_WIDTH + px];
+                                TI mosaic_x = grid_col * CAM_WIDTH + px;
+                                TI mosaic_y = grid_row * CAM_HEIGHT + py;
+                                TI out_idx = (mosaic_y * MOSAIC_W + mosaic_x) * 3;
+                                mosaic_frame[out_idx + 0] = (rgba >>  0) & 0xFF;
+                                mosaic_frame[out_idx + 1] = (rgba >>  8) & 0xFF;
+                                mosaic_frame[out_idx + 2] = (rgba >> 16) & 0xFF;
+                            }
+                        }
+                    }
+                }
+                fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
+            }
+
             // CPU→GPU: copy state observations for this step
             cudaMemcpy(
                 rlt::data(gpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
@@ -573,6 +621,12 @@ int main(int argc, char** argv){
                 states[env_i] = next_states[env_i];
                 episode_step[env_i]++;
             }
+        }
+
+        // Close video pipe
+        if(ffmpeg_pipe){
+            pclose(ffmpeg_pipe);
+            ffmpeg_pipe = nullptr;
         }
 
         // Reset CUDA state after OptiX renders
