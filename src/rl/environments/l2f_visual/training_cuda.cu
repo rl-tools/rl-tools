@@ -1,4 +1,4 @@
-#define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
+// #define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -26,7 +26,7 @@
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 
@@ -360,6 +360,83 @@ static constexpr TI IMG_C = ENVIRONMENT::Observation::CHANNELS;
 static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 
 // =========================================================================
+// Custom CUDA kernels for visual collect
+// =========================================================================
+namespace visual_collect {
+    using namespace rl_tools;
+
+    template<typename DEVICE, typename RUNNER_SPEC, typename OBS_PRIV_SPEC, typename STATE_OBS_SPEC, typename STATE_OBS_TYPE, typename EPISODE_STAT_SPEC, typename RNG>
+    __global__
+    void prologue_kernel(
+        DEVICE device,
+        rl::components::OnPolicyRunner<RUNNER_SPEC> runner,
+        Tensor<OBS_PRIV_SPEC> observations_privileged,
+        Tensor<STATE_OBS_SPEC> state_observations,
+        STATE_OBS_TYPE state_obs_type,
+        Matrix<EPISODE_STAT_SPEC> episode_lengths,
+        Matrix<EPISODE_STAT_SPEC> episode_returns,
+        RNG rng,
+        typename RUNNER_SPEC::TI step_i
+    ){
+        using TI = typename RUNNER_SPEC::TI;
+        using T = typename RUNNER_SPEC::TYPE_POLICY::DEFAULT;
+        TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i >= RUNNER_SPEC::N_ENVIRONMENTS) return;
+
+        auto& rng_state = get(rng.states, 0, env_i);
+        auto& env = get(runner.environments, 0, env_i);
+        auto& state = get(runner.states, 0, env_i);
+        auto& parameters = get(runner.env_parameters, 0, env_i);
+        TI pos = step_i * RUNNER_SPEC::N_ENVIRONMENTS + env_i;
+
+        if(get(runner.truncated, 0, env_i)){
+            set(episode_lengths, pos, 0, (T)get(runner.episode_step, 0, env_i));
+            set(episode_returns, pos, 0, (T)get(runner.episode_return, 0, env_i));
+            set(runner.truncated, 0, env_i, false);
+            set(runner.episode_step, 0, env_i, (TI)0);
+            set(runner.episode_return, 0, env_i, (T)0);
+            sample_initial_parameters(device, env, parameters, rng_state);
+            sample_initial_state(device, env, parameters, state, rng_state);
+        } else {
+            set(episode_lengths, pos, 0, (T)-1);
+            set(episode_returns, pos, 0, (T)0);
+        }
+
+        auto obs_priv_slice = view(device, observations_privileged, env_i);
+        auto obs_priv_flat = view_memory<tensor::Shape<TI, RUNNER_SPEC::ENVIRONMENT::ObservationPrivileged::DIM>>(device, obs_priv_slice);
+        auto obs_priv_matrix = matrix_view(device, obs_priv_flat);
+        observe(device, env, parameters, state, typename RUNNER_SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
+
+        auto state_obs_slice = view(device, state_observations, env_i);
+        auto state_obs_matrix = matrix_view(device, state_obs_slice);
+        observe(device, env.dynamics, parameters.dynamics, state, state_obs_type, state_obs_matrix, rng_state);
+    }
+
+    template<typename DEVICE, typename RUNNER_SPEC, typename OBS_PRIV_SPEC, typename RNG>
+    __global__
+    void final_priv_obs_kernel(
+        DEVICE device,
+        rl::components::OnPolicyRunner<RUNNER_SPEC> runner,
+        Tensor<OBS_PRIV_SPEC> observations_privileged,
+        RNG rng
+    ){
+        using TI = typename RUNNER_SPEC::TI;
+        TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i >= RUNNER_SPEC::N_ENVIRONMENTS) return;
+
+        auto& rng_state = get(rng.states, 0, env_i);
+        auto& env = get(runner.environments, 0, env_i);
+        auto& state = get(runner.states, 0, env_i);
+        auto& parameters = get(runner.env_parameters, 0, env_i);
+
+        auto obs_priv_slice = view(device, observations_privileged, env_i);
+        auto obs_priv_flat = view_memory<tensor::Shape<TI, RUNNER_SPEC::ENVIRONMENT::ObservationPrivileged::DIM>>(device, obs_priv_slice);
+        auto obs_priv_matrix = matrix_view(device, obs_priv_flat);
+        observe(device, env, parameters, state, typename RUNNER_SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
+    }
+}
+
+// =========================================================================
 // Main
 // =========================================================================
 int main(int argc, char** argv){
@@ -403,35 +480,25 @@ int main(int argc, char** argv){
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, critic_optimizer);
 
-    // CPU transfer matrices
-    rlt::Matrix<rlt::matrix::Specification<T, TI, N_ENVIRONMENTS, ACTION_DIM>> cpu_actions_eval;
-    rlt::malloc(device, cpu_actions_eval);
-
-    // CPU state observations buffer (per collect step, copied to GPU)
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, STATE_OBS_DIM>>> cpu_state_obs_step;
-    rlt::malloc(device, cpu_state_obs_step);
-
-    // CPU-side accumulated state observations for training (populated during collection)
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, STATE_OBS_DIM>>> cpu_all_state_observations;
-    rlt::malloc(device, cpu_all_state_observations);
-
-    // CPU-side actor/critic buffers for training
+    // CPU-side actor/critic buffers for warmup
     ACTOR_BUFFERS actor_buffers_cpu;
     CRITIC_BUFFERS critic_buffers_cpu;
     rlt::malloc(device, actor_buffers_cpu);
     rlt::malloc(device, critic_buffers_cpu);
+
+    // CPU buffer for camera construction (states copied from GPU each collect step)
+    rlt::Matrix<rlt::matrix::Specification<typename ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS>> cpu_states_for_cameras;
+    rlt::malloc(device, cpu_states_for_cameras);
 
     // GPU allocations (deferred to after env init to avoid OptiX context issues)
     PPO_TYPE ppo_gpu;
     ACTOR_BUFFERS actor_buffers;
     CRITIC_BUFFERS critic_buffers;
     CRITIC_BUFFERS_GAE critic_buffers_gae;
-        // Extra rows so that BATCH_SIZE-padded evaluate from any collect step doesn't OOB
-    static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
-#ifndef RL_TOOLS_DISABLE_VISUAL
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, OBSERVATION_DIM>>> gpu_all_observations;
-#endif
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, STATE_OBS_DIM>>> gpu_all_state_observations;
+    ON_POLICY_RUNNER_TYPE on_policy_runner_gpu;
+    ON_POLICY_RUNNER_DATASET_TYPE dataset_gpu;
+    static constexpr TI GPU_STATE_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_STATE_OBS_ROWS, STATE_OBS_DIM>>> gpu_all_state_observations;
     rlt::Matrix<rlt::matrix::Specification<T, TI, N_ENVIRONMENTS, ACTION_DIM>> gpu_actions_eval;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_actions_train;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_d_action_train;
@@ -440,6 +507,10 @@ int main(int argc, char** argv){
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, OBS_PRIV_DIM>> gpu_critic_obs;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, 1>> gpu_target_values;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, 1>> gpu_d_critic_output;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> gpu_episode_lengths;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> gpu_episode_returns;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> cpu_episode_lengths;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> cpu_episode_returns;
     RNG_GPU rng_gpu;
 
     // =========================================================================
@@ -577,9 +648,8 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, actor_buffers);
     rlt::malloc(device_gpu, critic_buffers);
     rlt::malloc(device_gpu, critic_buffers_gae);
-#ifndef RL_TOOLS_DISABLE_VISUAL
-    rlt::malloc(device_gpu, gpu_all_observations);
-#endif
+    rlt::malloc(device_gpu, on_policy_runner_gpu);
+    rlt::malloc(device_gpu, dataset_gpu);
     rlt::malloc(device_gpu, gpu_all_state_observations);
     rlt::malloc(device_gpu, gpu_actions_eval);
     rlt::malloc(device_gpu, gpu_actions_train);
@@ -589,6 +659,23 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, gpu_critic_obs);
     rlt::malloc(device_gpu, gpu_target_values);
     rlt::malloc(device_gpu, gpu_d_critic_output);
+    rlt::malloc(device_gpu, gpu_episode_lengths);
+    rlt::malloc(device_gpu, gpu_episode_returns);
+    rlt::malloc(device, cpu_episode_lengths);
+    rlt::malloc(device, cpu_episode_returns);
+
+    // Initialize GPU on_policy_runner from CPU
+    rlt::set_all(device_gpu, on_policy_runner_gpu.truncated, true);
+    rlt::set_all(device_gpu, on_policy_runner_gpu.episode_step, (TI)0);
+    rlt::set_all(device_gpu, on_policy_runner_gpu.episode_return, (T)0);
+    cudaMemcpy(on_policy_runner_gpu.environments._data, on_policy_runner.environments._data,
+               N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
+    cudaMemcpy(on_policy_runner_gpu.env_parameters._data, on_policy_runner.env_parameters._data,
+               N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyHostToDevice);
+    cudaMemcpy(on_policy_runner_gpu.states._data, on_policy_runner.states._data,
+               N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State), cudaMemcpyHostToDevice);
+    on_policy_runner_gpu.step = on_policy_runner.step;
+
     // GPU optimizer copies (CUDA update kernel needs optimizer state on GPU)
     ACTOR_OPTIMIZER actor_optimizer_gpu;
     CRITIC_OPTIMIZER critic_optimizer_gpu;
@@ -643,193 +730,172 @@ int main(int argc, char** argv){
     T episode_length_accumulator = 0;
     TI episode_count = 0;
 
-    // Apply initial curriculum (easy start)
+    // Apply initial curriculum (easy start) — on both CPU and GPU runners
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
         auto& env = rlt::get(on_policy_runner.environments, 0, env_i);
         env.dynamics.parameters.mdp.init.max_angle = CURRICULUM_MIN_START_ANGLE;
         env.dynamics.parameters.mdp.init.max_position = CURRICULUM_MIN_START_POSITION;
     }
+    cudaMemcpy(on_policy_runner_gpu.environments._data, on_policy_runner.environments._data,
+               N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
+
+    // Trajectory state buffer for post-collect reconstruction
+    typename ENVIRONMENT::State trajectory_states[STEPS_PER_ENV][TRAJECTORY_NUM_ENVS];
+
+    // Default parameters for camera construction (target_mode: scene_translation = 0)
+    typename ENVIRONMENT::Parameters default_cam_params;
+    default_cam_params.scene_translation[0] = 0;
+    default_cam_params.scene_translation[1] = 0;
+    default_cam_params.scene_translation[2] = 0;
 
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
-        rlt::set_step(device, device.logger, on_policy_runner.step);
+        rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
 
         // =================================================================
-        // Collect visual
+        // Collect (GPU prologue + render + evaluate + GPU epilogue)
         // =================================================================
-        for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
-            // Episode management + privileged observations (CPU)
-            for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-                auto& env = rlt::get(on_policy_runner.environments, 0, env_i);
-                auto& state = rlt::get(on_policy_runner.states, 0, env_i);
-                auto& parameters = rlt::get(on_policy_runner.env_parameters, 0, env_i);
+        {
+            constexpr TI BLOCKSIZE = 32;
+            constexpr TI N_BLOCKS = (N_ENVIRONMENTS + BLOCKSIZE - 1) / BLOCKSIZE;
+            dim3 grid(N_BLOCKS);
+            dim3 block(BLOCKSIZE);
+            rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
 
-                if(rlt::get(on_policy_runner.truncated, 0, env_i)){
-                    static constexpr TI EPISODE_LOG_CADENCE = 100;
-                    TI ep_len = rlt::get(on_policy_runner.episode_step, 0, env_i);
-                    rlt::add_scalar(device, device.logger, "episode/length", ep_len, EPISODE_LOG_CADENCE);
-                    rlt::add_scalar(device, device.logger, "episode/return", rlt::get(on_policy_runner.episode_return, 0, env_i), EPISODE_LOG_CADENCE);
-                    episode_length_accumulator += ep_len;
+            // Copy truncated → dataset.reset (for post-collect episode boundary detection)
+            rlt::rl::components::on_policy_runner::copy_truncated_to_reset_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, dataset_gpu, on_policy_runner_gpu);
+            rlt::check_status(device_gpu);
+
+            for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
+                // 1. GPU prologue: episode management + privileged obs + state obs
+                auto observations_privileged = rlt::view_range(device_gpu, dataset_gpu.all_observations_privileged, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+                auto state_observations = rlt::view_range(device_gpu, gpu_all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+                visual_collect::prologue_kernel<<<grid, block, 0, device_gpu.stream>>>(
+                    tag_device, on_policy_runner_gpu, observations_privileged, state_observations,
+                    ACTOR_STATE_OBS{}, gpu_episode_lengths, gpu_episode_returns, rng_gpu, step_i);
+                rlt::check_status(device_gpu);
+
+                // 2. GPU→CPU: copy states for camera construction
+                cudaDeviceSynchronize();
+                cudaMemcpy(cpu_states_for_cameras._data, on_policy_runner_gpu.states._data,
+                           N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
+
+                // Save states for trajectory recording
+                for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+                    trajectory_states[step_i][env_i] = rlt::get(cpu_states_for_cameras, 0, env_i);
+                }
+
+                // 3. CPU: construct cameras from states
+                for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+                    auto& state = rlt::get(cpu_states_for_cameras, 0, env_i);
+                    cameras[env_i] = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env0, default_cam_params, state);
+                }
+
+                // 4. GPU: batch render → dataset_gpu.all_observations
+                T* obs_ptr = rlt::data(dataset_gpu.all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
+                rlt::observe_batch_render_gpu(device, env0, cameras.data(), N_ENVIRONMENTS, obs_ptr);
+
+                // 5. GPU: actor evaluate (parallel model: image + state → actions)
+                auto gpu_state_obs_slice = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto gpu_state_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_slice, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
+                auto gpu_actions_train_tensor_eval = rlt::to_tensor(device_gpu, gpu_actions_train);
+                auto gpu_actions_train_reshaped_eval = rlt::reshape_row_major(device_gpu, gpu_actions_train_tensor_eval, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+                auto gpu_obs_slice = rlt::view_range(device_gpu, dataset_gpu.all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                using EVAL_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
+                auto gpu_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_slice, EVAL_INPUT_SHAPE{});
+                rlt::evaluate(device_gpu, ppo_gpu.actor, gpu_obs_reshaped, gpu_state_obs_reshaped, gpu_actions_train_reshaped_eval, actor_buffers, rng_gpu);
+                cudaDeviceSynchronize();
+
+                // 6. GPU: copy action means to dataset_gpu
+                auto gpu_actions_first_n = rlt::view(device_gpu, gpu_actions_train, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), 0, 0);
+                auto actions_mean_gpu = rlt::view(device_gpu, dataset_gpu.actions_mean, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), step_i * N_ENVIRONMENTS, 0);
+                rlt::copy(device_gpu, device_gpu, gpu_actions_first_n, actions_mean_gpu);
+
+                // 7. GPU epilogue: add noise, step environments, compute rewards
+                auto actions_gpu = rlt::view(device_gpu, dataset_gpu.actions, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), step_i * N_ENVIRONMENTS, 0);
+                auto& actor_log_std_gpu = ppo_gpu.actor.head;
+                auto log_std_gpu = rlt::matrix_view(device_gpu, actor_log_std_gpu.log_std.parameters);
+                rlt::rl::components::on_policy_runner::epilogue(device_gpu, dataset_gpu, on_policy_runner_gpu, actions_mean_gpu, actions_gpu, log_std_gpu, rng_gpu, step_i);
+            }
+
+            // Final privileged observations (GPU kernel)
+            auto final_obs_priv = rlt::view_range(device_gpu, dataset_gpu.all_observations_privileged, STEPS_PER_ENV * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+            visual_collect::final_priv_obs_kernel<<<grid, block, 0, device_gpu.stream>>>(
+                tag_device, on_policy_runner_gpu, final_obs_priv, rng_gpu);
+            rlt::check_status(device_gpu);
+        }
+        on_policy_runner_gpu.step += N_ENVIRONMENTS * STEPS_PER_ENV;
+
+        // =================================================================
+        // GPU→CPU: copy dataset for GAE + training
+        // =================================================================
+        cudaDeviceSynchronize();
+        {
+            auto gpu_scalar = rlt::matrix_view(device_gpu, dataset_gpu.scalar_data);
+            auto cpu_scalar = rlt::matrix_view(device, dataset.scalar_data);
+            rlt::copy(device_gpu, device, gpu_scalar, cpu_scalar);
+        }
+        {
+            auto gpu_obs_priv = rlt::matrix_view(device_gpu, dataset_gpu.all_observations_privileged);
+            auto cpu_obs_priv = rlt::matrix_view(device, dataset.all_observations_privileged);
+            rlt::copy(device_gpu, device, gpu_obs_priv, cpu_obs_priv);
+        }
+
+        // =================================================================
+        // Post-collect: episode stats for logging + curriculum
+        // =================================================================
+        {
+            rlt::copy(device_gpu, device, gpu_episode_lengths, cpu_episode_lengths);
+            rlt::copy(device_gpu, device, gpu_episode_returns, cpu_episode_returns);
+            static constexpr TI EPISODE_LOG_CADENCE = 100;
+            for(TI pos = 0; pos < STEPS_TOTAL; pos++){
+                T ep_len = rlt::get(cpu_episode_lengths, pos, 0);
+                if(ep_len >= (T)0){
+                    rlt::add_scalar(device, device.logger, "episode/length", (TI)ep_len, EPISODE_LOG_CADENCE);
+                    rlt::add_scalar(device, device.logger, "episode/return", rlt::get(cpu_episode_returns, pos, 0), EPISODE_LOG_CADENCE);
+                    episode_length_accumulator += (TI)ep_len;
                     episode_count++;
-                    // Trajectory: finalize completed episode
-                    if(env_i < TRAJECTORY_NUM_ENVS && episode_recorders[env_i].episode_started && !episode_recorders[env_i].current_episode.empty()){
+                }
+            }
+        }
+
+        // =================================================================
+        // Post-collect: trajectory reconstruction
+        // =================================================================
+        for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+            for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
+                TI pos = step_i * N_ENVIRONMENTS + env_i;
+                bool reset_at_this_step;
+                if(step_i == 0){
+                    reset_at_this_step = (rlt::get(dataset.reset, env_i, 0) > (T)0.5);
+                } else {
+                    TI prev_pos = (step_i - 1) * N_ENVIRONMENTS + env_i;
+                    reset_at_this_step = (rlt::get(dataset.truncated, prev_pos, 0) > (T)0.5);
+                }
+                if(reset_at_this_step){
+                    if(episode_recorders[env_i].episode_started && !episode_recorders[env_i].current_episode.empty()){
                         completed_episodes.push_back(std::move(episode_recorders[env_i].current_episode));
                         episode_recorders[env_i].current_episode.clear();
                         if(completed_episodes.size() > TRAJECTORY_MAX_EPISODES){
                             completed_episodes.erase(completed_episodes.begin());
                         }
                     }
-                    rlt::set(on_policy_runner.truncated, 0, env_i, false);
-                    rlt::set(on_policy_runner.episode_step, 0, env_i, (TI)0);
-                    rlt::set(on_policy_runner.episode_return, 0, env_i, (T)0);
-                    rlt::sample_initial_parameters(device, env, parameters, rng);
-                    rlt::sample_initial_state(device, env, parameters, state, rng);
-                    if(env_i < TRAJECTORY_NUM_ENVS){
-                        episode_recorders[env_i].episode_started = true;
-                    }
+                    episode_recorders[env_i].episode_started = true;
                 }
-
-                // Privileged observation
-                TI obs_row = step_i * N_ENVIRONMENTS + env_i;
-                auto obs_priv_slice = rlt::view(device, dataset.all_observations_privileged, obs_row);
-                auto obs_priv_matrix = rlt::matrix_view(device, obs_priv_slice);
-                rlt::observe(device, env, parameters, state, typename ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
-
-                // State observation (for actor's state branch)
-                auto state_obs_row = rlt::view(device, cpu_state_obs_step, env_i);
-                auto state_obs_matrix = rlt::matrix_view(device, state_obs_row);
-                rlt::observe(device, env.dynamics, parameters.dynamics, state, ACTOR_STATE_OBS{}, state_obs_matrix, rng);
-
-#ifndef RL_TOOLS_DISABLE_VISUAL
-                // Camera
-                cameras[env_i] = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, state);
-#endif
-            }
-
-            // CPU: accumulate state observations for training
-            memcpy(
-                rlt::data(cpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
-                rlt::data(cpu_state_obs_step),
-                N_ENVIRONMENTS * STATE_OBS_DIM * sizeof(T));
-
-#ifdef RL_TOOLS_DISABLE_VISUAL
-            // State-only actor evaluate on GPU
-            {
-                cudaMemcpy(
-                    rlt::data(gpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
-                    rlt::data(cpu_state_obs_step),
-                    N_ENVIRONMENTS * STATE_OBS_DIM * sizeof(T),
-                    cudaMemcpyHostToDevice);
-                auto gpu_state_obs_slice = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-                auto gpu_state_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_slice, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
-                auto gpu_actions_eval_tensor = rlt::to_tensor(device_gpu, gpu_actions_train);
-                auto gpu_actions_eval_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_eval_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
-                rlt::evaluate(device_gpu, ppo_gpu.actor, gpu_state_obs_reshaped, gpu_actions_eval_reshaped, actor_buffers, rng_gpu);
-                cudaDeviceSynchronize();
-                auto gpu_actions_first_n = rlt::view(device_gpu, gpu_actions_train, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), 0, 0);
-                rlt::copy(device_gpu, device, gpu_actions_first_n, cpu_actions_eval);
-                // CPU comparison (first collect step of first PPO step only)
-                if(ppo_step_i == 0 && step_i == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T, TI, N_ENVIRONMENTS, ACTION_DIM>> cpu_actions_check;
-                    rlt::malloc(device, cpu_actions_check);
-                    auto cpu_obs_slice = rlt::view_range(device, cpu_all_state_observations, (TI)0, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-                    auto cpu_obs_reshaped = rlt::reshape_row_major(device, cpu_obs_slice, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
-                    auto cpu_check_tensor = rlt::to_tensor(device, cpu_actions_check);
-                    auto cpu_check_reshaped = rlt::reshape_row_major(device, cpu_check_tensor, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, ACTION_DIM>{});
-                    rlt::evaluate(device, ppo.actor, cpu_obs_reshaped, cpu_check_reshaped, actor_buffers_cpu, rng);
-                    T eval_diff = rlt::abs_diff(device, cpu_actions_eval, cpu_actions_check) / (N_ENVIRONMENTS * ACTION_DIM);
-                    std::cout << "  [check] collection evaluate per-element abs_diff (CPU vs GPU): " << eval_diff << std::endl;
-                    rlt::free(device, cpu_actions_check);
-                }
-            }
-#else
-            // CPU->GPU: copy state observations for this step
-            cudaMemcpy(
-                rlt::data(gpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
-                rlt::data(cpu_state_obs_step),
-                N_ENVIRONMENTS * STATE_OBS_DIM * sizeof(T),
-                cudaMemcpyHostToDevice);
-
-            auto gpu_state_obs_slice = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-            auto gpu_state_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_slice, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
-            auto gpu_actions_train_tensor_eval = rlt::to_tensor(device_gpu, gpu_actions_train);
-            auto gpu_actions_train_reshaped_eval = rlt::reshape_row_major(device_gpu, gpu_actions_train_tensor_eval, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
-            // GPU: batch render + pixel conversion
-            T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
-            rlt::observe_batch_render_gpu(device, env0, cameras.data(), N_ENVIRONMENTS, obs_ptr);
-
-            // GPU: actor evaluate (parallel model, two inputs)
-            auto gpu_obs_slice = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-            using EVAL_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
-            auto gpu_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_slice, EVAL_INPUT_SHAPE{});
-            rlt::evaluate(device_gpu, ppo_gpu.actor, gpu_obs_reshaped, gpu_state_obs_reshaped, gpu_actions_train_reshaped_eval, actor_buffers, rng_gpu);
-#endif
-#ifndef RL_TOOLS_DISABLE_VISUAL
-            cudaDeviceSynchronize();
-            // Copy first N_ENVS actions
-            auto gpu_actions_first_n = rlt::view(device_gpu, gpu_actions_train, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), 0, 0);
-            rlt::copy(device_gpu, device_gpu, gpu_actions_first_n, gpu_actions_eval);
-
-            // GPU->CPU: copy action means
-            rlt::copy(device_gpu, device, gpu_actions_eval, cpu_actions_eval);
-#endif
-            // CPU: store action means + epilogue
-            auto actions_mean_view = rlt::view(device, dataset.actions_mean, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), step_i * N_ENVIRONMENTS, 0);
-            auto actions_view = rlt::view(device, dataset.actions, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), step_i * N_ENVIRONMENTS, 0);
-            rlt::copy(device, device, cpu_actions_eval, actions_mean_view);
-
-            // Trajectory: save pre-step states for recorded envs
-            for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
                 if(episode_recorders[env_i].episode_started){
                     TrajectoryStep traj_step;
-                    traj_step.state = rlt::get(on_policy_runner.states, 0, env_i);
+                    traj_step.state = trajectory_states[step_i][env_i];
                     for(TI a = 0; a < ACTION_DIM; a++){
-                        traj_step.actions[a] = rlt::get(cpu_actions_eval, env_i, a);
+                        traj_step.actions[a] = rlt::get(dataset.actions, pos, a);
                     }
-                    traj_step.reward = 0;
-                    traj_step.terminated = false;
+                    traj_step.reward = rlt::get(dataset.rewards, pos, 0);
+                    traj_step.terminated = (rlt::get(dataset.terminated, pos, 0) > (T)0.5);
                     episode_recorders[env_i].current_episode.push_back(traj_step);
                 }
             }
-
-            {
-#ifdef RL_TOOLS_DISABLE_VISUAL
-                auto& actor_log_std_layer = rlt::get_last_layer(ppo.actor);
-#else
-                auto& actor_log_std_layer = ppo.actor.head;
-#endif
-                auto log_std = rlt::matrix_view(device, actor_log_std_layer.log_std.parameters);
-                rlt::rl::components::on_policy_runner::epilogue(device, dataset, on_policy_runner, actions_mean_view, actions_view, log_std, rng, step_i);
-            }
-
-            // Trajectory: fill in reward and terminated from epilogue results
-            for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
-                if(episode_recorders[env_i].episode_started && !episode_recorders[env_i].current_episode.empty()){
-                    TI pos = step_i * N_ENVIRONMENTS + env_i;
-                    auto& last_step = episode_recorders[env_i].current_episode.back();
-                    last_step.reward = rlt::get(dataset.rewards, pos, 0);
-                    last_step.terminated = rlt::get(dataset.terminated, pos, 0);
-                    // Use noisy actions from epilogue
-                    for(TI a = 0; a < ACTION_DIM; a++){
-                        last_step.actions[a] = rlt::get(actions_view, env_i, a);
-                    }
-                }
-            }
         }
+        on_policy_runner.step = on_policy_runner_gpu.step;
 
-        // Final privileged observations
-        for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-            auto& env = rlt::get(on_policy_runner.environments, 0, env_i);
-            auto& state = rlt::get(on_policy_runner.states, 0, env_i);
-            auto& parameters = rlt::get(on_policy_runner.env_parameters, 0, env_i);
-            TI obs_row = STEPS_PER_ENV * N_ENVIRONMENTS + env_i;
-            auto obs_priv_slice = rlt::view(device, dataset.all_observations_privileged, obs_row);
-            auto obs_priv_matrix = rlt::matrix_view(device, obs_priv_slice);
-            rlt::observe(device, env, parameters, state, typename ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
-        }
-        on_policy_runner.step += N_ENVIRONMENTS * STEPS_PER_ENV;
-
-#ifndef RL_TOOLS_DISABLE_VISUAL
         // Reset CUDA state after OptiX renders
         {
             cudaError_t err;
@@ -844,7 +910,6 @@ int main(int argc, char** argv){
             if(device_gpu.stream != 0) cudnnSetStream(device_gpu.cudnn_handle, device_gpu.stream);
 #endif
         }
-#endif
 
         // =================================================================
         // GAE
@@ -1084,7 +1149,7 @@ int main(int argc, char** argv){
                 auto gpu_actions_train_tensor = rlt::to_tensor(device_gpu, gpu_actions_train);
                 auto gpu_actions_train_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_train_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
 
-                auto gpu_obs_batch = rlt::view_range(device_gpu, gpu_all_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto gpu_obs_batch = rlt::view_range(device_gpu, dataset_gpu.all_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 using ACTOR_INPUT_SHAPE2 = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
                 auto gpu_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_batch, ACTOR_INPUT_SHAPE2{});
                 rlt::forward(device_gpu, ppo_gpu.actor, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, gpu_actions_train_reshaped, actor_buffers, rng_gpu);
@@ -1206,6 +1271,8 @@ int main(int argc, char** argv){
                 env.dynamics.parameters.mdp.init.max_angle = current_max_angle;
                 env.dynamics.parameters.mdp.init.max_position = current_max_position;
             }
+            cudaMemcpy(on_policy_runner_gpu.environments._data, on_policy_runner.environments._data,
+                       N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
             std::cout << "  Curriculum: level=" << std::setprecision(2) << curriculum_level
                       << " survival=" << std::setprecision(3) << survival_share
                       << " angle=" << std::setprecision(3) << current_max_angle
@@ -1228,11 +1295,7 @@ int main(int argc, char** argv){
 
         // Log actor std
         {
-#ifdef RL_TOOLS_DISABLE_VISUAL
-            auto& actor_log_std = rlt::get_last_layer(ppo.actor);
-#else
             auto& actor_log_std = ppo.actor.head;
-#endif
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                 T log_std_val = rlt::get(device, actor_log_std.log_std.parameters, action_i);
                 rlt::add_scalar(device, device.logger, "actor/log_std", log_std_val, 100);
@@ -1261,12 +1324,11 @@ int main(int argc, char** argv){
         }
     }
 
-    std::cout << "Training finished at step " << on_policy_runner.step << std::endl;
+    std::cout << "Training finished at step " << on_policy_runner_gpu.step << std::endl;
 
     // =========================================================================
     // Cleanup
     // =========================================================================
-#ifndef RL_TOOLS_DISABLE_VISUAL
     for(TI env_i = 1; env_i < N_ENVIRONMENTS; env_i++){
         envs[env_i].renderer = nullptr;
         envs[env_i].scene = nullptr;
@@ -1274,16 +1336,16 @@ int main(int argc, char** argv){
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
         rlt::free(device, envs[env_i]);
     }
-#endif
 
-    rlt::free(device, cpu_actions_eval);
-    rlt::free(device, cpu_state_obs_step);
+    rlt::free(device, cpu_states_for_cameras);
     rlt::free(device, ppo);
     rlt::free(device, ppo_buffers);
     rlt::free(device, on_policy_runner);
     rlt::free(device, dataset);
     rlt::free(device, actor_optimizer);
     rlt::free(device, critic_optimizer);
+    rlt::free(device, cpu_episode_lengths);
+    rlt::free(device, cpu_episode_returns);
     rlt::free(device_gpu, actor_optimizer_gpu);
     rlt::free(device_gpu, critic_optimizer_gpu);
 
@@ -1291,9 +1353,8 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, actor_buffers);
     rlt::free(device_gpu, critic_buffers);
     rlt::free(device_gpu, critic_buffers_gae);
-#ifndef RL_TOOLS_DISABLE_VISUAL
-    rlt::free(device_gpu, gpu_all_observations);
-#endif
+    rlt::free(device_gpu, on_policy_runner_gpu);
+    rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, gpu_all_state_observations);
     rlt::free(device_gpu, gpu_actions_eval);
     rlt::free(device_gpu, gpu_actions_train);
@@ -1303,6 +1364,8 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_critic_obs);
     rlt::free(device_gpu, gpu_target_values);
     rlt::free(device_gpu, gpu_d_critic_output);
+    rlt::free(device_gpu, gpu_episode_lengths);
+    rlt::free(device_gpu, gpu_episode_returns);
 
     return 0;
 }
