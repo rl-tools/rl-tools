@@ -12,8 +12,110 @@
 #include <cmath>
 #include <cstring>
 #include <chrono>
+#include <cstdio>
 
 namespace rlt = rl_tools;
+
+// Minimal 5x7 bitmap font for overlay text
+struct FontGlyph {
+    char ch;
+    uint8_t rows[7];
+};
+
+static const FontGlyph FONT_GLYPHS[] = {
+    {'0', {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E}},
+    {'1', {0x04,0x0C,0x04,0x04,0x04,0x04,0x0E}},
+    {'2', {0x0E,0x11,0x01,0x06,0x08,0x10,0x1F}},
+    {'3', {0x0E,0x11,0x01,0x06,0x01,0x11,0x0E}},
+    {'4', {0x02,0x06,0x0A,0x12,0x1F,0x02,0x02}},
+    {'5', {0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E}},
+    {'6', {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E}},
+    {'7', {0x1F,0x01,0x02,0x04,0x08,0x08,0x08}},
+    {'8', {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E}},
+    {'9', {0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C}},
+    {'.', {0x00,0x00,0x00,0x00,0x00,0x00,0x04}},
+    {'-', {0x00,0x00,0x00,0x0E,0x00,0x00,0x00}},
+    {'+', {0x00,0x04,0x04,0x1F,0x04,0x04,0x00}},
+    {' ', {0x00,0x00,0x00,0x00,0x00,0x00,0x00}},
+    {':', {0x00,0x00,0x04,0x00,0x04,0x00,0x00}},
+    {'(', {0x02,0x04,0x08,0x08,0x08,0x04,0x02}},
+    {')', {0x08,0x04,0x02,0x02,0x02,0x04,0x08}},
+    {',', {0x00,0x00,0x00,0x00,0x00,0x04,0x08}},
+    {'=', {0x00,0x00,0x1F,0x00,0x1F,0x00,0x00}},
+    {'P', {0x1E,0x11,0x11,0x1E,0x10,0x10,0x10}},
+    {'Q', {0x0E,0x11,0x11,0x11,0x15,0x12,0x0D}},
+    {'o', {0x00,0x00,0x0E,0x11,0x11,0x11,0x0E}},
+    {'s', {0x00,0x00,0x0E,0x10,0x0E,0x01,0x1E}},
+    {'u', {0x00,0x00,0x11,0x11,0x11,0x11,0x0F}},
+    {'a', {0x00,0x00,0x0E,0x01,0x0F,0x11,0x0F}},
+    {'t', {0x08,0x08,0x1C,0x08,0x08,0x09,0x06}},
+};
+
+static const uint8_t* font_lookup(char ch) {
+    static const uint8_t empty[7] = {};
+    for (const auto& g : FONT_GLYPHS) {
+        if (g.ch == ch) return g.rows;
+    }
+    return empty;
+}
+
+static void draw_char(uint32_t* pixels, int width, int height, int x0, int y0, char ch, uint32_t color) {
+    const uint8_t* glyph = font_lookup(ch);
+    for (int row = 0; row < 7; row++) {
+        for (int col = 0; col < 5; col++) {
+            if (glyph[row] & (0x10 >> col)) {
+                int px = x0 + col;
+                int py = y0 + row;
+                if (px >= 0 && px < width && py >= 0 && py < height) {
+                    pixels[py * width + px] = color;
+                }
+            }
+        }
+    }
+}
+
+static void draw_string(uint32_t* pixels, int width, int height, int x0, int y0, const char* str, uint32_t color) {
+    int x = x0;
+    for (int i = 0; str[i] != '\0'; i++) {
+        draw_char(pixels, width, height, x, y0, str[i], color);
+        x += 6;
+    }
+}
+
+static void draw_overlay_background(uint32_t* pixels, int width, int /*height*/, int x0, int y0, int w, int h) {
+    for (int row = y0; row < y0 + h; row++) {
+        for (int col = x0; col < x0 + w; col++) {
+            if (row >= 0 && col >= 0) {
+                uint32_t pixel = pixels[row * width + col];
+                uint8_t r = (pixel >> 0) & 0xFF;
+                uint8_t g = (pixel >> 8) & 0xFF;
+                uint8_t b = (pixel >> 16) & 0xFF;
+                r = r / 3;
+                g = g / 3;
+                b = b / 3;
+                pixels[row * width + col] = (0xFF << 24) | (b << 16) | (g << 8) | r;
+            }
+        }
+    }
+}
+
+struct Quaternion {
+    float w, x, y, z;
+};
+
+static Quaternion quaternion_from_yaw_pitch(float yaw, float pitch) {
+    float half_yaw = yaw * 0.5f;
+    float half_pitch = pitch * 0.5f;
+    float cy = std::cos(half_yaw), sy = std::sin(half_yaw);
+    float cp = std::cos(half_pitch), sp = std::sin(half_pitch);
+    // Rotation order: yaw (around Y) then pitch (around Z-local, but here we use right-hand: pitch around X-local after yaw around Y)
+    return {
+        cy * cp,
+        cy * sp,
+        sy * cp,
+        -sy * sp
+    };
+}
 
 struct InputState {
     bool forward = false, backward = false, left = false, right = false;
@@ -173,6 +275,20 @@ int main(int argc, char** argv) {
         rlt::set_cameras(device, *env.renderer, &camera, static_cast<TI>(1));
         rlt::render_rgb_only(device, *env.renderer);
         rlt::read_frame_buffer(device, *env.renderer, pixels.data(), static_cast<TI>(pixels.size()));
+
+        {
+            Quaternion q = quaternion_from_yaw_pitch(g_input.yaw, g_input.pitch);
+            char line_pos[128];
+            char line_quat[128];
+            std::snprintf(line_pos, sizeof(line_pos), "Pos: (%.2f, %.2f, %.2f)", state.position[0], state.position[1], state.position[2]);
+            std::snprintf(line_quat, sizeof(line_quat), "Quat: (%.3f, %.3f, %.3f, %.3f)", q.w, q.x, q.y, q.z);
+            int overlay_x = 4;
+            int overlay_y = 4;
+            int text_width = std::max(static_cast<int>(std::strlen(line_pos)), static_cast<int>(std::strlen(line_quat))) * 6 + 4;
+            draw_overlay_background(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x, overlay_y, text_width, 20);
+            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 2, line_pos, 0xFF00FF00);
+            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 11, line_quat, 0xFF00FF00);
+        }
 
         glBindTexture(GL_TEXTURE_2D, texture);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CAM_WIDTH, CAM_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
