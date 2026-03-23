@@ -81,6 +81,24 @@ namespace rl_tools::random{
             return log_prob(dev, mean, log_std, value, rng_state);
         }
     }
+    // Fallback overloads for PortableState (generic XOR RNG, used for cross-device determinism)
+    template<typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, devices::generic::random::PortableState& rng){
+        const devices::random::Generic<devices::math::CUDA>& generic_dev = dev;
+        return uniform_real_distribution(generic_dev, low, high, rng);
+    }
+    template<typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, devices::generic::random::PortableState& rng){
+        const devices::random::Generic<devices::math::CUDA>& generic_dev = dev;
+        return uniform_int_distribution(generic_dev, low, high, rng);
+    }
+    namespace normal_distribution{
+        template<typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::CUDA& dev, T mean, T std, devices::generic::random::PortableState& rng){
+            const devices::random::Generic<devices::math::CUDA>& generic_dev = dev;
+            return sample(generic_dev, mean, std, rng);
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
