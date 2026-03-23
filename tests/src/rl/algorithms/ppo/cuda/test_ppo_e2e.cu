@@ -248,7 +248,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     rlt::init(device_gpu);
 
     constexpr TI NUM_STEPS = 200;
-    constexpr TI SYNC_INTERVAL = 10;
+    constexpr TI SYNC_INTERVAL = 1;
 
     // --- Allocate ---
     PPO_TYPE ppo_cpu, ppo_gpu;
@@ -338,6 +338,16 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     T max_gae_diff = 0;
     T max_train_diff = 0;
 
+    // Element counts for per-element diff
+    constexpr TI COLLECT_ELEMENTS =
+        DATASET_SPEC::STEPS_TOTAL_ALL * ENVIRONMENT::Observation::DIM +
+        DATASET_SPEC::STEPS_TOTAL_ALL * ENVIRONMENT::ObservationPrivileged::DIM +
+        DATASET_SPEC::STEPS_TOTAL * ENVIRONMENT::ACTION_DIM * 2 +
+        DATASET_SPEC::STEPS_TOTAL * 5 +
+        DATASET_SPEC::STEPS_TOTAL_ALL * 3 +
+        DATASET_SPEC::STEPS_TOTAL * 2;
+    constexpr TI GAE_ELEMENTS = 2 * DATASET_SPEC::STEPS_TOTAL;
+
     // --- Training loop ---
     for(TI step = 0; step < NUM_STEPS; step++){
         // Synchronize CPU→GPU periodically to prevent drift
@@ -412,24 +422,21 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
 
         if(step % 10 == 0 || step == NUM_STEPS - 1){
             std::cout << "Step " << step << "/" << NUM_STEPS
-                      << " collect=" << collect_diff
-                      << " gae=" << adv_diff
-                      << " train=" << train_diff
+                      << " collect/el=" << collect_diff / COLLECT_ELEMENTS
+                      << " gae/el=" << adv_diff / GAE_ELEMENTS
+                      << " train/el=" << train_diff
                       << std::endl;
         }
     }
 
-    std::cout << "\n=== Summary ===" << std::endl;
-    std::cout << "Max collect diff: " << max_collect_diff << std::endl;
-    std::cout << "Max GAE diff:     " << max_gae_diff << std::endl;
-    std::cout << "Max train diff:   " << max_train_diff << std::endl;
+    std::cout << "\n=== Summary (per element) ===" << std::endl;
+    std::cout << "Max collect diff/el: " << max_collect_diff / COLLECT_ELEMENTS << " (total: " << max_collect_diff << ", n=" << COLLECT_ELEMENTS << ")" << std::endl;
+    std::cout << "Max GAE diff/el:     " << max_gae_diff / GAE_ELEMENTS << " (total: " << max_gae_diff << ", n=" << GAE_ELEMENTS << ")" << std::endl;
+    std::cout << "Max train diff:      " << max_train_diff << std::endl;
 
-    // Tolerances account for CPU/GPU math function differences (sin/cos/sqrt)
-    // that compound over STEPS_PER_ENV trajectory steps and training iterations.
-    // Right after sync, per-step diffs are ~0.01; between syncs they compound.
-    EXPECT_LT(max_collect_diff, 5.0);
-    EXPECT_LT(max_gae_diff, 5.0);
-    EXPECT_LT(max_train_diff, 50.0);
+    EXPECT_LT(max_collect_diff / COLLECT_ELEMENTS, 1e-4);
+    EXPECT_LT(max_gae_diff / GAE_ELEMENTS, 1e-4);
+    EXPECT_LT(max_train_diff, 0.5);
 
     // --- Cleanup ---
     rlt::free(device_cpu, ppo_cpu);
