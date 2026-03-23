@@ -53,7 +53,7 @@ namespace rl_tools{
             // static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
             static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
             generic::next(dev, rng);
-            constexpr auto rng_max = static_cast<typename RNG::STATE_TYPE>(-1);
+            constexpr auto rng_max = static_cast<decltype(rng.state)>(-1);
             return (rng.state / static_cast<T>(rng_max)) * (high - low) + low;
         }
         namespace normal_distribution{
@@ -61,7 +61,7 @@ namespace rl_tools{
             RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::Generic<MATH_DEV>& dev, T mean, T std, RNG& rng){
                 // static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);
                 static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
-                constexpr auto rng_max = static_cast<typename RNG::STATE_TYPE>(-1);
+                constexpr auto rng_max = static_cast<decltype(rng.state)>(-1);
                 generic::next(dev, rng);
                 T u1 = rng.state / static_cast<T>(rng_max);
                 generic::next(dev, rng);
