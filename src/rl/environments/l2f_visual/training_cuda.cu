@@ -73,9 +73,9 @@ namespace obs = l2f::observation;
 static constexpr TI ACTION_HISTORY_LENGTH = 8;
 using ACTOR_STATE_OBS = // obs::Position<obs::PositionSpecification<T, TI,
     obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
-    obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
+    // obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
     obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI,
-    obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
+    obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 18 + 8*4 = 50
 
 using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
