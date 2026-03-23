@@ -486,11 +486,9 @@ int main(int argc, char** argv){
     rlt::malloc(device, actor_buffers_cpu);
     rlt::malloc(device, critic_buffers_cpu);
 
-#ifndef RL_TOOLS_DISABLE_VISUAL
-    // CPU buffer for camera construction (states copied from GPU each collect step)
+    // CPU buffer for states (camera construction in visual mode, trajectory recording in both)
     rlt::Matrix<rlt::matrix::Specification<typename ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS>> cpu_states_for_cameras;
     rlt::malloc(device, cpu_states_for_cameras);
-#endif
 
     // CPU-side state observations for training shuffle (state-only path)
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, STATE_OBS_DIM>>> cpu_all_state_observations;
@@ -747,10 +745,10 @@ int main(int argc, char** argv){
     cudaMemcpy(on_policy_runner_gpu.environments._data, on_policy_runner.environments._data,
                N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
 
-#ifndef RL_TOOLS_DISABLE_VISUAL
     // Trajectory state buffer for post-collect reconstruction
     typename ENVIRONMENT::State trajectory_states[STEPS_PER_ENV][TRAJECTORY_NUM_ENVS];
 
+#ifndef RL_TOOLS_DISABLE_VISUAL
     // Default parameters for camera construction (target_mode: scene_translation = 0)
     typename ENVIRONMENT::Parameters default_cam_params;
     default_cam_params.scene_translation[0] = 0;
@@ -785,8 +783,7 @@ int main(int argc, char** argv){
                     ACTOR_STATE_OBS{}, gpu_episode_lengths, gpu_episode_returns, rng_gpu, step_i);
                 rlt::check_status(device_gpu);
 
-#ifndef RL_TOOLS_DISABLE_VISUAL
-                // 2. GPU→CPU: copy states for camera construction
+                // 2. GPU→CPU: copy states for trajectory recording (and camera construction in visual mode)
                 cudaDeviceSynchronize();
                 cudaMemcpy(cpu_states_for_cameras._data, on_policy_runner_gpu.states._data,
                            N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
@@ -796,6 +793,7 @@ int main(int argc, char** argv){
                     trajectory_states[step_i][env_i] = rlt::get(cpu_states_for_cameras, 0, env_i);
                 }
 
+#ifndef RL_TOOLS_DISABLE_VISUAL
                 // 3. CPU: construct cameras from states
                 for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
                     auto& state = rlt::get(cpu_states_for_cameras, 0, env_i);
@@ -887,7 +885,6 @@ int main(int argc, char** argv){
         // =================================================================
         // Post-collect: trajectory reconstruction
         // =================================================================
-#ifndef RL_TOOLS_DISABLE_VISUAL
         for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
             for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
                 TI pos = step_i * N_ENVIRONMENTS + env_i;
@@ -920,7 +917,6 @@ int main(int argc, char** argv){
                 }
             }
         }
-#endif
         on_policy_runner.step = on_policy_runner_gpu.step;
 
 #ifndef RL_TOOLS_DISABLE_VISUAL
@@ -1370,8 +1366,8 @@ int main(int argc, char** argv){
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
         rlt::free(device, envs[env_i]);
     }
-    rlt::free(device, cpu_states_for_cameras);
 #endif
+    rlt::free(device, cpu_states_for_cameras);
     rlt::free(device, cpu_all_state_observations);
     rlt::free(device, ppo);
     rlt::free(device, ppo_buffers);
