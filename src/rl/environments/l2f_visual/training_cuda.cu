@@ -1,4 +1,4 @@
-#define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
+// #define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -89,7 +89,7 @@ static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::soft_rigid;
 static constexpr REWARD_FUNCTION reward_function = {
     false,    // non_negative
     1.00,     // scale
-    2.00,     // constant (survival bonus)
+    5.00,     // constant (survival bonus)
     -100.00,  // termination_penalty
     1.00,     // position
     0.00,     // position_clip
