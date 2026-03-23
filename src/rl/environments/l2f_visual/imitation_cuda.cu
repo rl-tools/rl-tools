@@ -62,10 +62,6 @@ using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 namespace l2f = rlt::rl::environments::l2f;
 namespace obs = l2f::observation;
 
-using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
-    obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI>>>>;
-static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
-
 using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
 static constexpr TI SIMULATION_FREQUENCY = 100;
 static constexpr TI EPISODE_STEP_LIMIT = 500;
@@ -120,6 +116,11 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
+// using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI>>>>;
+using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
+static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
+
+
 // =========================================================================
 // Visual environment specification
 // =========================================================================
@@ -161,6 +162,7 @@ static constexpr TI STEPS_PER_ENV = 500;
 static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000;
+static constexpr TI TEACHER_FORCING_EPOCHS = 100;
 static constexpr TI N_TRAIN_PASSES = 4;
 
 static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
@@ -232,6 +234,10 @@ int main(int argc, char** argv){
     TI seed = 0;
     if(argc > 1){
         scene_path = argv[1];
+    }
+    else{
+        std::cout << "Usage: " << argv[0] << " <scene_path> [seed]" << std::endl;
+        return 1;
     }
     if(argc > 2){
         seed = std::atoi(argv[2]);
@@ -320,17 +326,47 @@ int main(int argc, char** argv){
         rlt::init(device, envs[env_i]);
     }
 
-    if(env0.scene->num_indoor_positions > 0){
-        auto& target = env0.scene->indoor_positions[0];
-        T target_translation[3] = {
-            target.position[0],
-            target.position[1] + env0.eye_height,
-            target.position[2]
-        };
-        for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-            for(TI j = 0; j < 3; j++){
-                envs[env_i].target_scene_translation[j] = target_translation[j];
+    // Filter indoor positions by clearance (min probe distance >= 1m)
+    static constexpr T MIN_CLEARANCE = 1.0;
+    struct FilteredPosition { T translation[3]; };
+    std::vector<FilteredPosition> filtered_positions;
+    {
+        TI num_positions = env0.scene->num_indoor_positions;
+        std::cout << "Filtering " << num_positions << " indoor positions (min clearance: " << MIN_CLEARANCE << "m)..." << std::endl;
+        T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
+        T look_ahead = 1.0;
+        owl::vec3f up(0.f, 1.f, 0.f);
+        std::array<rlt::CameraData, N_ENVIRONMENTS> filter_cameras{};
+
+        for(TI batch_start = 0; batch_start < num_positions; batch_start += N_ENVIRONMENTS){
+            TI batch_count = std::min(N_ENVIRONMENTS, num_positions - batch_start);
+            for(TI i = 0; i < batch_count; i++){
+                auto& pos = env0.scene->indoor_positions[batch_start + i];
+                owl::vec3f position(pos.position[0], pos.position[1] + env0.eye_height, pos.position[2]);
+                owl::vec3f look_at(
+                    pos.position[0] + look_ahead * std::cos(pos.yaw),
+                    pos.position[1] + env0.eye_height,
+                    pos.position[2] + look_ahead * std::sin(pos.yaw));
+                filter_cameras[i] = rlt::make_camera_data(position, look_at, up, env0.cos_fov, aspect);
             }
+            rlt::set_cameras(device, *env0.renderer, filter_cameras.data(), batch_count);
+            rlt::render(device, *env0.renderer);
+            for(TI i = 0; i < batch_count; i++){
+                T clearance = rlt::rendering::raytracing::scene::procthor::evaluate_clearance(device, *env0.renderer, i);
+                if(clearance >= MIN_CLEARANCE){
+                    auto& pos = env0.scene->indoor_positions[batch_start + i];
+                    FilteredPosition fp;
+                    fp.translation[0] = pos.position[0];
+                    fp.translation[1] = pos.position[1] + env0.eye_height;
+                    fp.translation[2] = pos.position[2];
+                    filtered_positions.push_back(fp);
+                }
+            }
+        }
+        std::cout << "Kept " << filtered_positions.size() << " / " << num_positions << " positions with >= " << MIN_CLEARANCE << "m clearance." << std::endl;
+        if(filtered_positions.empty()){
+            std::cerr << "No indoor positions with sufficient clearance. Exiting." << std::endl;
+            return 1;
         }
     }
 
@@ -397,10 +433,14 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, STATE_OBS_DIM>>> gpu_all_state_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, ACTION_DIM>>> gpu_all_teacher_actions;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_d_action_train;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_actions_eval;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, N_ENVIRONMENTS, ACTION_DIM>> cpu_actions_eval;
     rlt::malloc(device_gpu, gpu_all_observations);
     rlt::malloc(device_gpu, gpu_all_state_observations);
     rlt::malloc(device_gpu, gpu_all_teacher_actions);
     rlt::malloc(device_gpu, gpu_d_action_train);
+    rlt::malloc(device_gpu, gpu_actions_eval);
+    rlt::malloc(device, cpu_actions_eval);
 
     // =========================================================================
     // Environment state tracking
@@ -429,6 +469,7 @@ int main(int argc, char** argv){
     std::cout << "  OBSERVATION_DIM (image): " << OBSERVATION_DIM << std::endl;
     std::cout << "  STATE_OBS_DIM: " << STATE_OBS_DIM << std::endl;
     std::cout << "  RAPTOR_OBS_DIM: " << RAPTOR_OBS_DIM << std::endl;
+    std::cout << "  TEACHER_FORCING_EPOCHS: " << TEACHER_FORCING_EPOCHS << std::endl;
 
     using NO_AUTO_RESET_MODE = rlt::Mode<rlt::nn::layers::gru::NoAutoResetMode<rlt::mode::Default<>>>;
     NO_AUTO_RESET_MODE no_auto_reset_mode;
@@ -438,6 +479,7 @@ int main(int argc, char** argv){
 
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
         auto epoch_start = std::chrono::high_resolution_clock::now();
+        bool teacher_forcing = epoch_i < TEACHER_FORCING_EPOCHS;
 
         // =================================================================
         // Data collection (CPU + GPU rendering)
@@ -448,6 +490,12 @@ int main(int argc, char** argv){
                     if(episode_step[env_i] > 0){
                         episode_length_sum += episode_step[env_i];
                         episode_count++;
+                    }
+                    // Pick a random indoor position
+                    TI pos_idx = rlt::random::uniform_int_distribution(device.random, (TI)0, (TI)(filtered_positions.size() - 1), rng);
+                    auto& fp = filtered_positions[pos_idx];
+                    for(TI j = 0; j < 3; j++){
+                        envs[env_i].target_scene_translation[j] = fp.translation[j];
                     }
                     rlt::sample_initial_parameters(device, envs[env_i], env_parameters[env_i], rng);
                     rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], states[env_i], rng);
@@ -494,11 +542,33 @@ int main(int argc, char** argv){
             auto actions_dest = rlt::view_range(device, cpu_all_teacher_actions, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             rlt::copy(device, device, teacher_actions, actions_dest);
 
-            // Step environment with teacher actions
+            if(!teacher_forcing){
+                // Student rollout: evaluate student on GPU to get stepping actions
+                auto gpu_obs_slice = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                using EVAL_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
+                auto gpu_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_slice, EVAL_INPUT_SHAPE{});
+                auto gpu_state_obs_slice = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto gpu_state_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_slice, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
+                auto gpu_actions_eval_tensor = rlt::to_tensor(device_gpu, gpu_actions_eval);
+                auto gpu_actions_eval_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_eval_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+                rlt::evaluate(device_gpu, student_gpu, gpu_obs_reshaped, gpu_state_obs_reshaped, gpu_actions_eval_reshaped, student_buffers, rng_gpu);
+                cudaDeviceSynchronize();
+
+                // GPU→CPU: copy first N_ENVIRONMENTS actions
+                auto gpu_actions_first_n = rlt::view(device_gpu, gpu_actions_eval, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), 0, 0);
+                rlt::copy(device_gpu, device, gpu_actions_first_n, cpu_actions_eval);
+            }
+
+            // Step environment with chosen actions
             for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-                auto action_row = rlt::view(device, teacher_actions, env_i);
-                auto action_matrix = rlt::matrix_view(device, action_row);
-                rlt::step(device, envs[env_i].dynamics, env_parameters[env_i].dynamics, states[env_i], action_matrix, next_states[env_i], rng);
+                if(teacher_forcing){
+                    auto action_row = rlt::view(device, teacher_actions, env_i);
+                    auto action_matrix = rlt::matrix_view(device, action_row);
+                    rlt::step(device, envs[env_i].dynamics, env_parameters[env_i].dynamics, states[env_i], action_matrix, next_states[env_i], rng);
+                } else {
+                    auto action_row = rlt::view(device, cpu_actions_eval, rlt::matrix::ViewSpec<1, ACTION_DIM>(), env_i, 0);
+                    rlt::step(device, envs[env_i].dynamics, env_parameters[env_i].dynamics, states[env_i], action_row, next_states[env_i], rng);
+                }
                 terminated[env_i] = rlt::terminated(device, envs[env_i].dynamics, env_parameters[env_i].dynamics, next_states[env_i], rng);
                 states[env_i] = next_states[env_i];
                 episode_step[env_i]++;
@@ -603,7 +673,8 @@ int main(int argc, char** argv){
         std::chrono::duration<T> epoch_elapsed = now - epoch_start;
         T mean_episode_length = episode_count > 0 ? episode_length_sum / episode_count : 0;
 
-        std::cout << "Epoch: " << std::setw(5) << epoch_i
+        std::cout << (teacher_forcing ? "[TF] " : "[SR] ")
+                  << "Epoch: " << std::setw(5) << epoch_i
                   << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
                   << " episodes: " << std::setw(5) << episode_count
@@ -644,6 +715,8 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_all_state_observations);
     rlt::free(device_gpu, gpu_all_teacher_actions);
     rlt::free(device_gpu, gpu_d_action_train);
+    rlt::free(device_gpu, gpu_actions_eval);
+    rlt::free(device, cpu_actions_eval);
 
     return 0;
 }
