@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
         }
         state.yaw = g_input.yaw;
 
-        owl::vec3f eye(state.position[0], state.position[1] + env.eye_height, state.position[2]);
+        owl::vec3f eye(state.position[0], state.position[1], state.position[2]);
         owl::vec3f look_at(
             eye.x + std::cos(g_input.yaw) * std::cos(g_input.pitch),
             eye.y + std::sin(g_input.pitch),
@@ -278,16 +278,25 @@ int main(int argc, char** argv) {
 
         {
             Quaternion q = quaternion_from_yaw_pitch(g_input.yaw, g_input.pitch);
-            char line_pos[128];
-            char line_quat[128];
-            std::snprintf(line_pos, sizeof(line_pos), "Pos: (%.2f, %.2f, %.2f)", state.position[0], state.position[1], state.position[2]);
-            std::snprintf(line_quat, sizeof(line_quat), "Quat: (%.3f, %.3f, %.3f, %.3f)", q.w, q.x, q.y, q.z);
+            // GLB/Scene: X=forward, Y=up, Z=left (Y-up)
+            char line_glb_pos[128];
+            char line_glb_quat[128];
+            std::snprintf(line_glb_pos, sizeof(line_glb_pos), "GLB  Pos: (%.2f, %.2f, %.2f)", state.position[0], state.position[1], state.position[2]);
+            std::snprintf(line_glb_quat, sizeof(line_glb_quat), "GLB Quat: (%.3f, %.3f, %.3f, %.3f)", q.w, q.x, q.y, q.z);
+            // L2F/RLtools: X=forward, Y=left, Z=up (FLU) — Y/Z swap from GLB
+            char line_l2f_pos[128];
+            char line_l2f_quat[128];
+            std::snprintf(line_l2f_pos, sizeof(line_l2f_pos), "L2F  Pos: (%.2f, %.2f, %.2f)", state.position[0], state.position[2], state.position[1]);
+            std::snprintf(line_l2f_quat, sizeof(line_l2f_quat), "L2F Quat: (%.3f, %.3f, %.3f, %.3f)", q.w, q.x, q.z, q.y);
             int overlay_x = 4;
             int overlay_y = 4;
-            int text_width = std::max(static_cast<int>(std::strlen(line_pos)), static_cast<int>(std::strlen(line_quat))) * 6 + 4;
-            draw_overlay_background(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x, overlay_y, text_width, 20);
-            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 2, line_pos, 0xFF00FF00);
-            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 11, line_quat, 0xFF00FF00);
+            int max_len = std::max({std::strlen(line_glb_pos), std::strlen(line_glb_quat), std::strlen(line_l2f_pos), std::strlen(line_l2f_quat)});
+            int text_width = static_cast<int>(max_len) * 6 + 4;
+            draw_overlay_background(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x, overlay_y, text_width, 38);
+            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 2, line_glb_pos, 0xFF00FF00);
+            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 11, line_glb_quat, 0xFF00FF00);
+            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 20, line_l2f_pos, 0xFF88CCFF);
+            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 29, line_l2f_quat, 0xFF88CCFF);
         }
 
         glBindTexture(GL_TEXTURE_2D, texture);

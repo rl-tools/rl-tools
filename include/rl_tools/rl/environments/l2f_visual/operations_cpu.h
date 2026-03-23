@@ -122,12 +122,15 @@ namespace rl_tools {
         // Use the L2F sample_initial_state for dynamics state initialization
         sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
 
-        // Override position with indoor position (converting from scene Y-up to NED)
-        // In the scene: X=forward, Y=up, Z=right
-        // In NED: X=north, Y=east, Z=down
+        // Override position with indoor position
+        // L2F coordinate system: X=forward, Y=left, Z=up (FLU, right-handed)
+        //   gravity={0,0,-9.81}, rotor thrust={0,0,+1}
+        // Scene coordinate system: X=forward, Y=up, Z=left (Y-up, right-handed)
+        // Mapping L2F→Scene: scene = (l2f[0], l2f[2], l2f[1])  (Y/Z swap, no sign flips)
+        // Inverse: l2f = (scene[0], scene[2], scene[1])
         state.position[0] = indoor_pos.position[0];
         state.position[1] = indoor_pos.position[2];
-        state.position[2] = -indoor_pos.position[1] - env.eye_height;
+        state.position[2] = indoor_pos.position[1];
 
         // Set hover orientation (identity quaternion = level)
         state.orientation[0] = static_cast<T>(1);
@@ -135,7 +138,7 @@ namespace rl_tools {
         state.orientation[2] = static_cast<T>(0);
         state.orientation[3] = static_cast<T>(0);
 
-        // Apply yaw rotation around NED down axis
+        // Apply yaw rotation around L2F Z-up axis
         T half_yaw = indoor_pos.yaw / static_cast<T>(2);
         state.orientation[0] = std::cos(half_yaw);
         state.orientation[1] = static_cast<T>(0);
@@ -184,12 +187,15 @@ namespace rl_tools {
             T cam_up_world[3];
             rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, env.camera_mount.up_body, cam_up_world);
 
-            // Convert from NED to scene coordinates (Y-up)
-            // NED: X=north, Y=east, Z=down
-            // Scene: X=north, Y=up, Z=east
-            const T px = state.position[0] + cam_pos_world[0] + parameters.scene_translation[0];
-            const T py = -state.position[2] + cam_pos_world[2] + parameters.scene_translation[1];
-            const T pz = state.position[1] + cam_pos_world[1] + parameters.scene_translation[2];
+            // Convert from L2F to scene coordinates
+            // L2F: X=forward, Y=left, Z=up (FLU, right-handed)
+            // Scene/GLB: X=forward, Y=up, Z=left (Y-up, right-handed)
+            // Mapping: scene = (l2f[0], l2f[2], l2f[1])  (Y/Z swap, no sign flips)
+            // scene_translation: L2F origin (0,0,0) maps to this position in scene coords
+            // TODO: hardcoded offset for ProcTHOR-Train-1 indoor position — make configurable
+            const T px = state.position[0] + cam_pos_world[0] + parameters.scene_translation[0] + static_cast<T>(-3.92);
+            const T py = state.position[2] + cam_pos_world[2] + parameters.scene_translation[1] + static_cast<T>(0.3);
+            const T pz = state.position[1] + cam_pos_world[1] + parameters.scene_translation[2] + static_cast<T>(5.67);
 
             const owl::vec3f position(px, py, pz);
             const owl::vec3f look_at(
@@ -198,9 +204,9 @@ namespace rl_tools {
                 pz + cam_forward_world[1]
             );
             const owl::vec3f up(
-                -cam_up_world[0],
+                cam_up_world[0],
                 cam_up_world[2],
-                -cam_up_world[1]
+                cam_up_world[1]
             );
 
             const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);

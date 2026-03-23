@@ -46,7 +46,7 @@ namespace rl_tools::rl::environments::l2f_visual {
     struct CameraMount {
         T offset_body[3] = {0, 0, 0};
         T forward_body[3] = {1, 0, 0};
-        T up_body[3] = {0, 0, -1};
+        T up_body[3] = {0, 0, 1};
     };
 
     template <typename T_SPEC>

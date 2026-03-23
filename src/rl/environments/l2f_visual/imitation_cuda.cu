@@ -116,7 +116,7 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
-// using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI>>>>;
+// using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
 using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
@@ -329,49 +329,7 @@ int main(int argc, char** argv){
         rlt::init(device, envs[env_i]);
     }
 
-    // Filter indoor positions by clearance (min probe distance >= 1m)
-    static constexpr T MIN_CLEARANCE = 1.0;
-    struct FilteredPosition { T translation[3]; };
-    std::vector<FilteredPosition> filtered_positions;
-    {
-        TI num_positions = env0.scene->num_indoor_positions;
-        std::cout << "Filtering " << num_positions << " indoor positions (min clearance: " << MIN_CLEARANCE << "m)..." << std::endl;
-        T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
-        T look_ahead = 1.0;
-        owl::vec3f up(0.f, 1.f, 0.f);
-        std::array<rlt::CameraData, N_ENVIRONMENTS> filter_cameras{};
-
-        for(TI batch_start = 0; batch_start < num_positions; batch_start += N_ENVIRONMENTS){
-            TI batch_count = std::min(N_ENVIRONMENTS, num_positions - batch_start);
-            for(TI i = 0; i < batch_count; i++){
-                auto& pos = env0.scene->indoor_positions[batch_start + i];
-                owl::vec3f position(pos.position[0], pos.position[1] + env0.eye_height, pos.position[2]);
-                owl::vec3f look_at(
-                    pos.position[0] + look_ahead * std::cos(pos.yaw),
-                    pos.position[1] + env0.eye_height,
-                    pos.position[2] + look_ahead * std::sin(pos.yaw));
-                filter_cameras[i] = rlt::make_camera_data(position, look_at, up, env0.cos_fov, aspect);
-            }
-            rlt::set_cameras(device, *env0.renderer, filter_cameras.data(), batch_count);
-            rlt::render(device, *env0.renderer);
-            for(TI i = 0; i < batch_count; i++){
-                T clearance = rlt::rendering::raytracing::scene::procthor::evaluate_clearance(device, *env0.renderer, i);
-                if(clearance >= MIN_CLEARANCE){
-                    auto& pos = env0.scene->indoor_positions[batch_start + i];
-                    FilteredPosition fp;
-                    fp.translation[0] = pos.position[0];
-                    fp.translation[1] = pos.position[1] + env0.eye_height;
-                    fp.translation[2] = pos.position[2];
-                    filtered_positions.push_back(fp);
-                }
-            }
-        }
-        std::cout << "Kept " << filtered_positions.size() << " / " << num_positions << " positions with >= " << MIN_CLEARANCE << "m clearance." << std::endl;
-        if(filtered_positions.empty()){
-            std::cerr << "No indoor positions with sufficient clearance. Exiting." << std::endl;
-            return 1;
-        }
-    }
+    // L2F origin maps to the hardcoded scene offset in make_camera_for_state
 
     // =========================================================================
     // Observation normalization warmup (CPU)
@@ -517,12 +475,8 @@ int main(int argc, char** argv){
                         episode_length_sum += episode_step[env_i];
                         episode_count++;
                     }
-                    // Pick a random indoor position
-                    TI pos_idx = rlt::random::uniform_int_distribution(device.random, (TI)0, (TI)(filtered_positions.size() - 1), rng);
-                    auto& fp = filtered_positions[pos_idx];
-                    for(TI j = 0; j < 3; j++){
-                        envs[env_i].target_scene_translation[j] = fp.translation[j];
-                    }
+                    // L2F origin = target hover position (mapped to scene by make_camera_for_state)
+                    // Identity quaternion = level hover (guidance=1.0 ensures this)
                     rlt::sample_initial_parameters(device, envs[env_i], env_parameters[env_i], rng);
                     rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], states[env_i], rng);
                     episode_step[env_i] = 0;
