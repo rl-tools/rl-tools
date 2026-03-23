@@ -108,63 +108,6 @@ using CRITIC_OPTIMIZER = rlt::nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
 using ARRAY_RNG_SPEC = rlt::devices::generic::random::ArraySpecification<TI, 1024>;
 using ARRAY_RNG = rlt::devices::generic::random::ArrayENGINE<ARRAY_RNG_SPEC>;
 
-// Custom CPU collect that extracts per-env RNG from the array engine (matching CUDA behavior)
-template <typename DEVICE, typename DATASET_SPEC_T, typename ACTOR, typename ACTOR_BUFFER, typename ARRAY_SPEC>
-void collect_array_rng(DEVICE& device, rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC_T>& dataset, rlt::rl::components::OnPolicyRunner<typename DATASET_SPEC_T::SPEC>& runner, ACTOR& actor, ACTOR_BUFFER& policy_eval_buffers, rlt::devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng){
-    using SPEC = typename DATASET_SPEC_T::SPEC;
-    using TI_INNER = typename SPEC::TI;
-    if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
-        rlt::set_all(device, runner.truncated, true);
-    }
-    for(TI_INNER env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-        rlt::set(dataset.reset, env_i, 0, rlt::get(runner.truncated, 0, env_i));
-    }
-    for(TI_INNER step_i = 0; step_i < DATASET_SPEC_T::STEPS_PER_ENV; step_i++){
-        auto actions_mean            = rlt::view(device, dataset.actions_mean               , rlt::matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
-        auto actions                 = rlt::view(device, dataset.actions                    , rlt::matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
-        auto observations_privileged = rlt::view_range(device, dataset.all_observations_privileged, step_i*SPEC::N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});
-        auto observations            = rlt::view_range(device, dataset.all_observations          , step_i*SPEC::N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});
-        auto truncated_view = rlt::view(device, runner.truncated);
-        rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, rlt::mode::sequential::ResetMaskSpecification<decltype(truncated_view)>>> mode_reset_mask;
-        mode_reset_mask.mask = truncated_view;
-        auto& first_rng = rlt::get(rng.states, 0, 0);
-        rlt::reset(device, actor, runner.policy_state, first_rng, mode_reset_mask);
-        // Prologue with per-env RNG (matches CUDA kernel behavior)
-        for(TI_INNER env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-            auto& rng_state = rlt::get(rng.states, 0, env_i);
-            rlt::rl::components::on_policy_runner::per_env::prologue(device, observations_privileged, observations, runner, rng_state, env_i);
-        }
-        using OBS_SHAPE = typename SPEC::ENVIRONMENT::Observation::SHAPE;
-        using EVAL_INPUT_SHAPE = rlt::tensor::Prepend<OBS_SHAPE, SPEC::N_ENVIRONMENTS>;
-        auto observations_reshaped = rlt::reshape_row_major(device, observations, EVAL_INPUT_SHAPE{});
-        auto actions_mean_tensor = rlt::to_tensor(device, actions_mean);
-        rlt::Mode<rlt::mode::Rollout<>> mode;
-        rlt::evaluate_step(device, actor, observations_reshaped, runner.policy_state, actions_mean_tensor, policy_eval_buffers, first_rng, mode);
-        auto& last_layer = rlt::get_last_layer(actor);
-        auto log_std = rlt::matrix_view(device, last_layer.log_std.parameters);
-        // Epilogue with per-env RNG (matches CUDA kernel behavior)
-        for(TI_INNER env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-            auto& rng_state = rlt::get(rng.states, 0, env_i);
-            TI_INNER pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-            rlt::rl::components::on_policy_runner::per_env::epilogue(device, dataset, runner, actions_mean, actions, log_std, rng_state, pos, env_i);
-        }
-    }
-    // Final observations with per-env RNG
-    for(TI_INNER env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-        auto& rng_state = rlt::get(rng.states, 0, env_i);
-        auto& env = rlt::get(runner.environments, 0, env_i);
-        auto& state = rlt::get(runner.states, 0, env_i);
-        auto& parameters = rlt::get(runner.env_parameters, 0, env_i);
-        auto obs_slice = rlt::view(device, dataset.all_observations, (TI_INNER)(DATASET_SPEC_T::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
-        auto obs_matrix = rlt::matrix_view(device, obs_slice);
-        rlt::observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng_state);
-        auto obs_priv_slice = rlt::view(device, dataset.all_observations_privileged, (TI_INNER)(DATASET_SPEC_T::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
-        auto obs_priv_matrix = rlt::matrix_view(device, obs_priv_slice);
-        rlt::observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
-    }
-    runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC_T::STEPS_PER_ENV;
-}
-
 // Run critic evaluate to fill all_values (mirrors PPO loop core step)
 template <typename DEVICE, typename PPO_TYPE_T, typename DATASET_T, typename CRITIC_GAE_BUFFER_T, typename RNG_T>
 void evaluate_critic_for_gae(DEVICE& device, PPO_TYPE_T& ppo, DATASET_T& dataset, CRITIC_GAE_BUFFER_T& critic_buffers_gae, RNG_T& rng){
@@ -326,8 +269,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     // --- Init runners identically ---
     rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> envs_cpu, envs_gpu;
     rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> params_cpu, params_gpu;
-    auto& first_rng_cpu = rlt::get(rng_cpu.states, 0, 0);
-    rlt::init(device_cpu, runner_cpu, envs_cpu, params_cpu, ppo_cpu.actor, first_rng_cpu);
+    rlt::init(device_cpu, runner_cpu, envs_cpu, params_cpu, ppo_cpu.actor, rng_cpu);
     rlt::init(device_gpu, runner_gpu, envs_gpu, params_gpu, ppo_gpu.actor, rng_gpu);
     cudaDeviceSynchronize();
 
@@ -371,7 +313,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
         }
 
         // 1. Collect
-        collect_array_rng(device_cpu, dataset_cpu, runner_cpu, ppo_cpu.actor, actor_eval_buffers_cpu, rng_cpu);
+        rlt::collect(device_cpu, dataset_cpu, runner_cpu, ppo_cpu.actor, actor_eval_buffers_cpu, rng_cpu);
         rlt::collect(device_gpu, dataset_gpu, runner_gpu, ppo_gpu.actor, actor_eval_buffers_gpu, rng_gpu);
         cudaDeviceSynchronize();
 
@@ -394,7 +336,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
         }
 
         // 2. Evaluate critic (fill all_values)
-        evaluate_critic_for_gae(device_cpu, ppo_cpu, dataset_cpu, critic_gae_buffers_cpu, first_rng_cpu);
+        evaluate_critic_for_gae(device_cpu, ppo_cpu, dataset_cpu, critic_gae_buffers_cpu, rng_cpu);
         evaluate_critic_for_gae(device_gpu, ppo_gpu, dataset_gpu, critic_gae_buffers_gpu, rng_gpu);
         cudaDeviceSynchronize();
 
@@ -412,7 +354,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
         if(adv_diff > max_gae_diff) max_gae_diff = adv_diff;
 
         // 4. Train
-        rlt::train(device_cpu, ppo_cpu, dataset_cpu, actor_optimizer_cpu, critic_optimizer_cpu, ppo_buffers_cpu, actor_train_buffers_cpu, critic_train_buffers_cpu, first_rng_cpu);
+        rlt::train(device_cpu, ppo_cpu, dataset_cpu, actor_optimizer_cpu, critic_optimizer_cpu, ppo_buffers_cpu, actor_train_buffers_cpu, critic_train_buffers_cpu, rng_cpu);
         rlt::train(device_gpu, ppo_gpu, dataset_gpu, actor_optimizer_gpu, critic_optimizer_gpu, ppo_buffers_gpu, actor_train_buffers_gpu, critic_train_buffers_gpu, rng_gpu);
         cudaDeviceSynchronize();
 

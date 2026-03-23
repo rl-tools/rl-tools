@@ -89,7 +89,16 @@ namespace rl_tools{
                 per_env::prologue(device, observations_privileged, observations, runner, rng, env_i);
             }
         }
-        template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+        // ArrayENGINE overload: extract per-env RNG (matches CUDA kernel behavior)
+        template <typename DEVICE, typename OBS_PRIV_SPEC, typename OBS_SPEC, typename SPEC, typename ARRAY_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void prologue(DEVICE& device, Tensor<OBS_PRIV_SPEC>& observations_privileged, Tensor<OBS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, typename DEVICE::index_t step_i){
+            using TI = typename SPEC::TI;
+            for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
+                auto& rng_state = get(rng.states, 0, env_i);
+                per_env::prologue(device, observations_privileged, observations, runner, rng_state, env_i);
+            }
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t step_i){
             using SPEC = typename DATASET_SPEC::SPEC;
             using TI = typename SPEC::TI;
@@ -98,8 +107,53 @@ namespace rl_tools{
                 per_env::epilogue(device, dataset, runner, actions_mean, actions, action_log_std, rng, pos, env_i);
             }
         }
+        // ArrayENGINE overload: extract per-env RNG (matches CUDA kernel behavior)
+        template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename ARRAY_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, typename DEVICE::index_t step_i){
+            using SPEC = typename DATASET_SPEC::SPEC;
+            using TI = typename SPEC::TI;
+            for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
+                TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
+                auto& rng_state = get(rng.states, 0, env_i);
+                per_env::epilogue(device, dataset, runner, actions_mean, actions, action_log_std, rng_state, pos, env_i);
+            }
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void final_observations(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, RNG& rng){
+            using SPEC = typename DATASET_SPEC::SPEC;
+            using TI = typename SPEC::TI;
+            for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
+                auto& env = get(runner.environments, 0, env_i);
+                auto& state = get(runner.states, 0, env_i);
+                auto& parameters = get(runner.env_parameters, 0, env_i);
+                auto obs_slice = view(device, dataset.all_observations, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
+                auto obs_matrix = matrix_view(device, obs_slice);
+                observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng);
+                auto obs_priv_slice = view(device, dataset.all_observations_privileged, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
+                auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
+                observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
+            }
+        }
+        // ArrayENGINE overload: extract per-env RNG for final observations (matches CUDA kernel behavior)
+        template <typename DEVICE, typename DATASET_SPEC, typename ARRAY_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void final_observations(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng){
+            using SPEC = typename DATASET_SPEC::SPEC;
+            using TI = typename SPEC::TI;
+            for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
+                auto& rng_state = get(rng.states, 0, env_i);
+                auto& env = get(runner.environments, 0, env_i);
+                auto& state = get(runner.states, 0, env_i);
+                auto& parameters = get(runner.env_parameters, 0, env_i);
+                auto obs_slice = view(device, dataset.all_observations, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
+                auto obs_matrix = matrix_view(device, obs_slice);
+                observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng_state);
+                auto obs_priv_slice = view(device, dataset.all_observations_privileged, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
+                auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
+                observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
+            }
+        }
     }
-    template <typename DEVICE, typename DATASET_SPEC, typename ACTOR, typename ACTOR_BUFFER, typename RNG> // todo: make this not PPO but general policy with output distribution
+    template <typename DEVICE, typename DATASET_SPEC, typename ACTOR, typename ACTOR_BUFFER, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_BUFFER& policy_eval_buffers, RNG& rng){
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
@@ -133,18 +187,7 @@ namespace rl_tools{
             auto log_std = matrix_view(device, last_layer.log_std.parameters);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, log_std, rng, step_i);
         }
-        // final observation
-        for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-            auto& env = get(runner.environments, 0, env_i);
-            auto& state = get(runner.states, 0, env_i);
-            auto& parameters = get(runner.env_parameters, 0, env_i);
-            auto obs_slice = view(device, dataset.all_observations, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
-            auto obs_matrix = matrix_view(device, obs_slice);
-            observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng);
-            auto obs_priv_slice = view(device, dataset.all_observations_privileged, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
-            auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
-            observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng);
-        }
+        rl::components::on_policy_runner::final_observations(device, dataset, runner, rng);
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>

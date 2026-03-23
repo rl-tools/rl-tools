@@ -52,6 +52,11 @@ namespace rl_tools::devices{
                 using STATE_TYPE = unsigned int;
                 STATE_TYPE state;
             };
+            // Forward declaration; full definition in random/operations_generic_array.h
+            template <typename T_TI, T_TI T_NUM_RNGS, bool T_DYNAMIC_ALLOCATION = true>
+            struct ArraySpecification;
+            template <typename T_SPEC>
+            struct ArrayENGINE;
         }
     }
     namespace random{
