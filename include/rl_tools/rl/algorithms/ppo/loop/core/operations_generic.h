@@ -10,6 +10,7 @@
 #include "../../../../../nn/optimizers/adam/operations_generic.h"
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"
 #include "../../../../../rl/components/on_policy_runner/operations_generic.h"
+#include "../../../../../random/operations_generic_array.h"
 
 #include "config.h"
 

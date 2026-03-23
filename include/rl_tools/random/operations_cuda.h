@@ -99,6 +99,24 @@ namespace rl_tools::random{
             return sample(generic_dev, mean, std, rng);
         }
     }
+    // Convenience overloads for ArrayENGINE: delegate to engine 0 (must be after PortableState overloads)
+    template<typename T, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, devices::generic::random::ArrayENGINE<SPEC>& rng){
+        auto& rng_state = get(rng.states, 0, 0);
+        return uniform_real_distribution(dev, low, high, rng_state);
+    }
+    template<typename T, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, devices::generic::random::ArrayENGINE<SPEC>& rng){
+        auto& rng_state = get(rng.states, 0, 0);
+        return uniform_int_distribution(dev, low, high, rng_state);
+    }
+    namespace normal_distribution{
+        template<typename T, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::CUDA& dev, T mean, T std, devices::generic::random::ArrayENGINE<SPEC>& rng){
+            auto& rng_state = get(rng.states, 0, 0);
+            return sample(dev, mean, std, rng_state);
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

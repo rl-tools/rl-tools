@@ -44,7 +44,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
         static constexpr TI N_EPOCHS = 1;
     };
 };
-using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
+using RNG = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024>>;
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential, true>;
 using LOOP_STATE = LOOP_CORE_CONFIG::template State<LOOP_CORE_CONFIG>;
 
@@ -73,10 +73,7 @@ struct StateComparison {
         step_diff = (s1.step > s2.step) ? (s1.step - s2.step) : (s2.step - s1.step);
         next_checkpoint_id_diff = (s1.next_checkpoint_id > s2.next_checkpoint_id) ? (s1.next_checkpoint_id - s2.next_checkpoint_id) : (s2.next_checkpoint_id - s1.next_checkpoint_id);
         next_evaluation_id_diff = (s1.next_evaluation_id > s2.next_evaluation_id) ? (s1.next_evaluation_id - s2.next_evaluation_id) : (s2.next_evaluation_id - s1.next_evaluation_id);
-        std::stringstream ss1, ss2;
-        ss1 << s1.rng.engine;
-        ss2 << s2.rng.engine;
-        rng_match = (ss1.str() == ss2.str());
+        rng_match = (rlt::abs_diff(device, s1.rng, s2.rng) == 0);
     }
     T total_diff() const {
         return ppo_diff + actor_optimizer_diff + critic_optimizer_diff + on_policy_runner_diff + dataset_diff + (T)step_diff + (T)next_checkpoint_id_diff + (T)next_evaluation_id_diff + (rng_match ? 0 : 1);
@@ -198,7 +195,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
         ASSERT_EQ(params_orig.initial_state_min_speed, params_loaded.initial_state_min_speed);
         ASSERT_EQ(params_orig.initial_state_max_speed, params_loaded.initial_state_max_speed);
 
-        ASSERT_EQ(ts.rng.engine, ts_loaded.rng.engine);
+        ASSERT_EQ(rlt::abs_diff(device, ts.rng, ts_loaded.rng), 0);
 
         rlt::step(device, ts);
         rlt::step(device, ts_loaded);
@@ -238,6 +235,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
     
     // Evaluate both
     RNG eval_rng;
+    rlt::malloc(device, eval_rng);
     rlt::init(device, eval_rng, SEED);
     T return_original = evaluate_policy<DEVICE, LOOP_CORE_CONFIG>(device, ts, eval_rng);
     rlt::init(device, eval_rng, SEED);
@@ -246,6 +244,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
     std::cout << "Evaluation return (loaded):    " << return_loaded << std::endl;
     ASSERT_FLOAT_EQ(return_original, return_loaded) << "Evaluation returns should match";
 
+    rlt::free(device, eval_rng);
     rlt::free(device, ts);
     rlt::free(device, ts_loaded);
 }

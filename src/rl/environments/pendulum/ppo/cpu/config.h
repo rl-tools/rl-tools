@@ -2,7 +2,7 @@ template <typename DEVICE, typename TYPE_POLICY, bool DYNAMIC_ALLOCATION>
 struct CONFIG_FACTORY{
     using TI = typename DEVICE::index_t;
     using T = typename TYPE_POLICY::DEFAULT;
-    using RNG = typename DEVICE::SPEC::RANDOM::template ENGINE<>;
+    using RNG = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024, DYNAMIC_ALLOCATION>>;
     using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<typename TYPE_POLICY::DEFAULT, TI, rlt::rl::environments::pendulum::DefaultParameters<typename TYPE_POLICY::DEFAULT>>;
     using PRE_ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
     using SCALE_OBSERVATIONS_WRAPPER_SPEC = rlt::rl::environment_wrappers::scale_observations::Specification<TYPE_POLICY, TI>;

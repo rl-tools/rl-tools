@@ -10,6 +10,7 @@
 #include "../../../../../rl/algorithms/td3/operations_generic.h"
 #include "../../../../../nn_models/random_uniform/operations_generic.h"
 #include "../../../../../rl/components/off_policy_runner/operations_generic.h"
+#include "../../../../../random/operations_generic_array.h"
 
 #include "config.h"
 
