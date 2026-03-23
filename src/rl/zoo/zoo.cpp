@@ -140,6 +140,7 @@
 #include <rl_tools/rl/loop/steps/nn_analytics/operations_cpu.h>
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
+#include <rl_tools/random/operations_generic_array.h>
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <signal.h>
@@ -163,7 +164,7 @@ struct DEV_SPEC: rlt::devices::DEVICE_FACTORY<>::SPEC{
 };
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
-using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
+using RNG = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024>>;
 using PARAMETER_POLICY = rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, float>;
 using TYPE_POLICY = rlt::numeric_types::Policy<float, PARAMETER_POLICY>;
 constexpr TI BASE_SEED = 0;
@@ -575,9 +576,11 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             rlt::initial_parameters(device, env_eval, env_eval_parameters);
 
             RNG rng;
+            rlt::malloc(device, rng);
             rlt::init(device, rng, seed);
             rlt::Mode<rlt::mode::Evaluation<>> evaluation_mode;
             rlt::evaluate(device, env_eval, ui, evaluation_actor, result, rng, evaluation_mode);
+            rlt::free(device, rng);
             rlt::free(device, evaluation_actor);
             rlt::log(device, device.logger, "Seed: ", seed, " Step: ", ts.step, "/", LOOP_CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
         }
@@ -593,8 +596,10 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             std::stringstream step_ss;
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
             RNG rng;
+            rlt::malloc(device, rng);
             rlt::init(device, rng, seed);
             rlt::rl::loop::steps::checkpoint::save_code<DYNAMIC_ALLOCATION, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION>(device, (ts.extrack_paths.seed / "steps" / step_ss.str()).string(), evaluation_actor, rng);
+            rlt::free(device, rng);
             rlt::free(device, evaluation_actor);
         }
 #endif

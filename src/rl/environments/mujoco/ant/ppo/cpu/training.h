@@ -24,6 +24,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #endif
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
+#include <rl_tools/random/operations_generic_array.h>
 
 #include <filesystem>
 #include <sstream>
@@ -57,7 +58,7 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 };
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
-using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
+using RNG = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024>>;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 using TI = typename DEVICE::index_t;
@@ -306,6 +307,8 @@ void run(TI BASE_SEED){
         rlt::free(device, envs);
         rlt::free(device, env_parameters);
         rlt::free(device, evaluation_env);
+        rlt::free(device, rng);
+        rlt::free(device, evaluation_rng);
         rlt::free(device, device.logger);
     }
 

@@ -35,7 +35,7 @@ namespace rl_tools{
         free(device, rng.states);
     }
     template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, devices::generic::random::ArrayENGINE<SPEC>& rng, unsigned int seed = 1){
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, devices::generic::random::ArrayENGINE<SPEC>& rng, unsigned int seed = 1){
         using TI = typename SPEC::TI;
         for(TI i = 0; i < SPEC::NUM_RNGS; i++){
             devices::generic::random::PortableState element;
@@ -57,26 +57,6 @@ namespace rl_tools{
             if(sa.state != sb.state) acc++;
         }
         return acc;
-    }
-    // Convenience overloads: scalar random calls on ArrayENGINE delegate to engine 0
-    namespace random{
-        template<typename RANDOM_DEV, typename T, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT T uniform_real_distribution(const RANDOM_DEV& dev, T low, T high, devices::generic::random::ArrayENGINE<SPEC>& rng){
-            auto& rng_state = get(rng.states, 0, 0);
-            return uniform_real_distribution(dev, low, high, rng_state);
-        }
-        template<typename RANDOM_DEV, typename T, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const RANDOM_DEV& dev, T low, T high, devices::generic::random::ArrayENGINE<SPEC>& rng){
-            auto& rng_state = get(rng.states, 0, 0);
-            return uniform_int_distribution(dev, low, high, rng_state);
-        }
-        namespace normal_distribution{
-            template<typename RANDOM_DEV, typename T, typename SPEC>
-            RL_TOOLS_FUNCTION_PLACEMENT T sample(const RANDOM_DEV& dev, T mean, T std, devices::generic::random::ArrayENGINE<SPEC>& rng){
-                auto& rng_state = get(rng.states, 0, 0);
-                return sample(dev, mean, std, rng_state);
-            }
-        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

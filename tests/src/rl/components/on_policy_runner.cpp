@@ -6,6 +6,7 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
+#include <rl_tools/random/operations_generic_array.h>
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/rl/components/on_policy_runner/persist.h>
 
@@ -44,7 +45,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     rlt::malloc(device, runner);
     rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT, TI, rlt::tensor::Shape<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>>> envs;
     rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>>> parameters;
-    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024>> rng;
 
     using ACTOR_ROLLOUT_TYPE = typename ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
     using ACTOR_BUFFERS = typename ACTOR_ROLLOUT_TYPE::template Buffer<>;

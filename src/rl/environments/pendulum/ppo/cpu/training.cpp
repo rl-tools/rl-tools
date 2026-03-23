@@ -22,6 +22,7 @@
 #include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
+#include <rl_tools/random/operations_generic_array.h>
 
 
 #include <utility> // for std::declval (which is needed to prevent MSVC from erroring out on too deeply nested struct init)

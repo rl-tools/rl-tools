@@ -7,6 +7,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
+#include <rl_tools/random/operations_generic_array.h>
 
 #include <gtest/gtest.h>
 
@@ -33,7 +34,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     {
         static constexpr T ALPHA = 0.001;
     };
-    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024>> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 10);
 
