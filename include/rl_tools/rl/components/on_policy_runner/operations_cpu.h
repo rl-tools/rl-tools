@@ -10,7 +10,7 @@ namespace rl_tools::rl::components::on_policy_runner{
     constexpr TI get_num_threads(rl::components::on_policy_runner::ExecutionHints<TI, NUM_THREADS> hints) {
         return NUM_THREADS;
     }
-    template <typename DEV_SPEC, typename OBSERVATIONS_PRIVILEGED_SPEC, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    template <typename DEV_SPEC, typename OBSERVATIONS_PRIVILEGED_SPEC, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG>
     void prologue(devices::CPU<DEV_SPEC>& device, Matrix<OBSERVATIONS_PRIVILEGED_SPEC>& observations_privileged, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, const typename devices::CPU<DEV_SPEC>::index_t step_i){
         static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
         static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::Observation::DIM);
@@ -22,7 +22,21 @@ namespace rl_tools::rl::components::on_policy_runner{
             per_env::prologue(device, observations_privileged, observations, runner, rng, env_i);
         }
     }
-    template <typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    // ArrayENGINE overload: extract per-env RNG
+    template <typename DEV_SPEC, typename OBSERVATIONS_PRIVILEGED_SPEC, typename OBSERVATIONS_SPEC, typename SPEC, typename ARRAY_SPEC>
+    void prologue(devices::CPU<DEV_SPEC>& device, Matrix<OBSERVATIONS_PRIVILEGED_SPEC>& observations_privileged, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, const typename devices::CPU<DEV_SPEC>::index_t step_i){
+        static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
+        static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::Observation::DIM);
+        static_assert(OBSERVATIONS_PRIVILEGED_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
+        static_assert(OBSERVATIONS_PRIVILEGED_SPEC::COLS == SPEC::ENVIRONMENT::ObservationPrivileged::DIM);
+        using DEVICE = devices::CPU<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
+            auto& rng_state = get(rng.states, 0, env_i);
+            per_env::prologue(device, observations_privileged, observations, runner, rng_state, env_i);
+        }
+    }
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG>
     void epilogue(devices::CPU<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename devices::CPU<DEV_SPEC>::index_t step_i){
         static_assert(containers::check_structure<ACTIONS_MEAN_SPEC, ACTIONS_SPEC>);
         using SPEC = typename DATASET_SPEC::SPEC;
@@ -55,6 +69,19 @@ namespace rl_tools::rl::components::on_policy_runner{
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
                 per_env::epilogue(device, dataset, runner, actions_mean, actions, action_log_std, rng, pos, env_i);
             }
+        }
+    }
+    // ArrayENGINE overload: extract per-env RNG
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename ARRAY_SPEC>
+    void epilogue(devices::CPU<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, typename devices::CPU<DEV_SPEC>::index_t step_i){
+        static_assert(containers::check_structure<ACTIONS_MEAN_SPEC, ACTIONS_SPEC>);
+        using SPEC = typename DATASET_SPEC::SPEC;
+        using DEVICE = devices::CPU<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
+            TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
+            auto& rng_state = get(rng.states, 0, env_i);
+            per_env::epilogue(device, dataset, runner, actions_mean, actions, action_log_std, rng_state, pos, env_i);
         }
     }
 }

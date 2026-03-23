@@ -7,8 +7,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices::generic::random{
-    // PortableState is defined in devices/devices.h
-    template <typename T_TI, T_TI T_NUM_RNGS, bool T_DYNAMIC_ALLOCATION = true>
+    // PortableState and ArrayENGINE forward-declared in devices/devices.h
+    template <typename T_TI, T_TI T_NUM_RNGS, bool T_DYNAMIC_ALLOCATION>
     struct ArraySpecification{
         using TI = T_TI;
         static constexpr TI NUM_RNGS = T_NUM_RNGS;
@@ -57,6 +57,26 @@ namespace rl_tools{
             if(sa.state != sb.state) acc++;
         }
         return acc;
+    }
+    // Convenience overloads: scalar random calls on ArrayENGINE delegate to engine 0
+    namespace random{
+        template<typename RANDOM_DEV, typename T, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT T uniform_real_distribution(const RANDOM_DEV& dev, T low, T high, devices::generic::random::ArrayENGINE<SPEC>& rng){
+            auto& rng_state = get(rng.states, 0, 0);
+            return uniform_real_distribution(dev, low, high, rng_state);
+        }
+        template<typename RANDOM_DEV, typename T, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const RANDOM_DEV& dev, T low, T high, devices::generic::random::ArrayENGINE<SPEC>& rng){
+            auto& rng_state = get(rng.states, 0, 0);
+            return uniform_int_distribution(dev, low, high, rng_state);
+        }
+        namespace normal_distribution{
+            template<typename RANDOM_DEV, typename T, typename SPEC>
+            RL_TOOLS_FUNCTION_PLACEMENT T sample(const RANDOM_DEV& dev, T mean, T std, devices::generic::random::ArrayENGINE<SPEC>& rng){
+                auto& rng_state = get(rng.states, 0, 0);
+                return sample(dev, mean, std, rng_state);
+            }
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

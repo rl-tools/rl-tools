@@ -45,6 +45,19 @@ namespace rl_tools{
             prologue_kernel<<<grid, block, 0, device.stream>>>(tag_device, observations_privileged, observations, runner, rng);
             check_status(device);
         }
+        // CUDA + ArrayENGINE: resolves ambiguity with generic ArrayENGINE overload
+        template<typename DEV_SPEC, typename OBS_PRIV_SPEC, typename OBS_SPEC, typename SPEC, typename ARRAY_SPEC>
+        void prologue(devices::CUDA<DEV_SPEC>& device, Tensor<OBS_PRIV_SPEC>& observations_privileged, Tensor<OBS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, typename devices::CUDA<DEV_SPEC>::index_t step_i){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            constexpr TI BLOCKSIZE = 32;
+            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
+            dim3 grid(N_BLOCKS);
+            dim3 block(BLOCKSIZE);
+            devices::cuda::TAG<DEVICE, true> tag_device{};
+            prologue_kernel<<<grid, block, 0, device.stream>>>(tag_device, observations_privileged, observations, runner, rng);
+            check_status(device);
+        }
         template<typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG>
         __global__
         void epilogue_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC> runner, Matrix<ACTIONS_MEAN_SPEC> actions_mean, Matrix<ACTIONS_SPEC> actions, Matrix<ACTION_LOG_STD_SPEC> action_log_std, RNG rng, typename DATASET_SPEC::SPEC::TI step_i){
@@ -60,6 +73,20 @@ namespace rl_tools{
         }
         template<typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG>
         void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename devices::CUDA<DEV_SPEC>::index_t step_i){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using SPEC = typename DATASET_SPEC::SPEC;
+            using TI = typename DEVICE::index_t;
+            constexpr TI BLOCKSIZE = 32;
+            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
+            dim3 grid(N_BLOCKS);
+            dim3 block(BLOCKSIZE);
+            devices::cuda::TAG<DEVICE, true> tag_device{};
+            epilogue_kernel<<<grid, block, 0, device.stream>>>(tag_device, dataset, runner, actions_mean, actions, action_log_std, rng, step_i);
+            check_status(device);
+        }
+        // CUDA + ArrayENGINE: resolves ambiguity with generic ArrayENGINE overload
+        template<typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename ARRAY_SPEC>
+        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, typename devices::CUDA<DEV_SPEC>::index_t step_i){
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using SPEC = typename DATASET_SPEC::SPEC;
             using TI = typename DEVICE::index_t;
