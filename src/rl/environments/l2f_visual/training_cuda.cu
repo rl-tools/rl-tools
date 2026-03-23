@@ -1,4 +1,4 @@
-// #define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
+#define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -561,6 +561,11 @@ int main(int argc, char** argv){
     }
 
 #endif
+
+    // Initialize env_parameters with nominal dynamics (needed for JSON serialization)
+    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+        rlt::initial_parameters(device, envs[env_i], env_parameters[env_i]);
+    }
 
     // =========================================================================
     // GPU device init (after env init; must be after OptiX context creation)
