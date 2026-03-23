@@ -194,7 +194,7 @@ namespace rl_tools {
             // scene_translation: L2F origin (0,0,0) maps to this position in scene coords
             // TODO: hardcoded offset for ProcTHOR-Train-1 indoor position — make configurable
             const T px = state.position[0] + cam_pos_world[0] + parameters.scene_translation[0] + static_cast<T>(-3.92);
-            const T py = state.position[2] + cam_pos_world[2] + parameters.scene_translation[1] + static_cast<T>(0.3);
+            const T py = state.position[2] + cam_pos_world[2] + parameters.scene_translation[1] + static_cast<T>(1.0);
             const T pz = state.position[1] + cam_pos_world[1] + parameters.scene_translation[2] + static_cast<T>(5.67);
 
             const owl::vec3f position(px, py, pz);
