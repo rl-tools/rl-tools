@@ -1,4 +1,4 @@
-#define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
+// #define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
