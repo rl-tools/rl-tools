@@ -47,6 +47,11 @@ namespace rl_tools::devices{
                 using STATE_TYPE = typename T_MATH_DEVICE::index_t;
                 STATE_TYPE state;
             };
+            // Portable RNG element with fixed 32-bit state for cross-device (CPU/CUDA) determinism
+            struct PortableState{
+                using STATE_TYPE = unsigned int;
+                STATE_TYPE state;
+            };
         }
     }
     namespace random{
