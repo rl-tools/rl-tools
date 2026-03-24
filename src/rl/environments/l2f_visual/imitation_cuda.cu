@@ -20,6 +20,7 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 
+#include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
 
@@ -27,6 +28,9 @@
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 
 #include "../../../../src/nn_models/port_checkpoint/raptor/policy.h"
+
+#include <rl_tools/utils/extrack/operations_cpu.h>
+#include <rl_tools/utils/zlib/operations_cpu.h>
 
 #include <array>
 #include <chrono>
@@ -37,6 +41,8 @@
 #include <numeric>
 #include <cstring>
 #include <string>
+#include <filesystem>
+#include <fstream>
 
 namespace rlt = rl_tools;
 
@@ -172,6 +178,57 @@ static_assert(GRID_SIDE * GRID_SIDE == N_ENVIRONMENTS, "N_ENVIRONMENTS must be a
 
 static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 
+// =========================================================================
+// Trajectory recording
+// =========================================================================
+static constexpr TI TRAJECTORY_SAVE_INTERVAL = 10; // save every N epochs
+static constexpr TI TRAJECTORY_NUM_ENVS = 10;
+static constexpr TI TRAJECTORY_MAX_EPISODES = 10;
+
+struct TrajectoryStep {
+    typename ENVIRONMENT::State state;
+    T actions[ENVIRONMENT::ACTION_DIM];
+    T reward;
+    bool terminated;
+};
+struct EpisodeRecorder {
+    std::vector<TrajectoryStep> current_episode;
+    bool episode_started = false;
+};
+
+std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typename ENVIRONMENT::Parameters& parameters,
+    const std::vector<std::vector<TrajectoryStep>>& episodes, T dt){
+    if(episodes.empty()) return "[]";
+    TI max_len = 0;
+    for(auto& ep : episodes) if(ep.size() > max_len) max_len = ep.size();
+    std::string json = "[";
+    for(TI ep_i = 0; ep_i < episodes.size(); ep_i++){
+        auto& episode = episodes[ep_i];
+        json += "{\"parameters\": " + rlt::json(device, env, parameters) + ",\n";
+        json += "\"trajectory\": [";
+        for(TI step_i = 0; step_i < max_len; step_i++){
+            auto& s = (step_i < episode.size()) ? episode[step_i] : episode.back();
+            json += "{\"state\":" + rlt::json(device, env, parameters, s.state) + ",";
+            json += "\"action\":[";
+            for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
+                json += std::to_string(s.actions[a]);
+                if(a < ENVIRONMENT::ACTION_DIM - 1) json += ",";
+            }
+            json += "],";
+            json += "\"dt\":" + std::to_string(dt) + ",";
+            json += "\"reward\":" + std::to_string(s.reward) + ",";
+            bool term = (step_i < episode.size()) ? s.terminated : true;
+            json += "\"terminated\":" + (term ? std::string("true") : std::string("false"));
+            json += "}";
+            if(step_i < max_len - 1) json += ",";
+        }
+        json += "]}";
+        if(ep_i < episodes.size() - 1) json += ",";
+    }
+    json += "]";
+    return json;
+}
+
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>{
     static constexpr T ALPHA = 3e-4;
     static constexpr T EPSILON = 1e-5;
@@ -291,6 +348,11 @@ int main(int argc, char** argv){
     DEVICE_GPU device_gpu;
     rlt::init(device);
 
+    rlt::utils::extrack::Config<TI> extrack_config;
+    rlt::utils::extrack::Paths extrack_paths;
+    extrack_config.name = "l2f_visual_imitation_cuda";
+    rlt::init(device, extrack_config, extrack_paths, seed);
+
     RNG rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
@@ -376,6 +438,20 @@ int main(int argc, char** argv){
         env_parameters[env_i].scene_translation[2] =  5.67;
         env_parameters[env_i].scene_hash = scene_hash;
     }
+
+    {
+        std::string ui = rlt::get_ui(device, envs[0].dynamics);
+        if(!ui.empty()){
+            std::filesystem::create_directories(extrack_paths.seed);
+            std::ofstream ui_file(extrack_paths.seed / "ui.esm.js");
+            ui_file << ui;
+        }
+    }
+
+    EpisodeRecorder episode_recorders[TRAJECTORY_NUM_ENVS];
+    std::vector<std::vector<TrajectoryStep>> completed_episodes;
+    T simulation_dt = static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY);
+    TI global_step = 0;
 
     // =========================================================================
     // Observation normalization warmup (CPU)
@@ -495,18 +571,19 @@ int main(int argc, char** argv){
         auto epoch_start = std::chrono::high_resolution_clock::now();
         bool teacher_forcing = epoch_i < TEACHER_FORCING_EPOCHS;
         bool record_video = (epoch_i % VIDEO_CADENCE == 0);
+        TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
         FILE* ffmpeg_pipe = nullptr;
         if(record_video){
-            char video_filename[256];
-            snprintf(video_filename, sizeof(video_filename), "epoch_%05lu.mp4", (unsigned long)epoch_i);
-            char ffmpeg_cmd[512];
+            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, epoch_end_step);
+            auto video_path = step_folder / "video.mp4";
+            char ffmpeg_cmd[1024];
             snprintf(ffmpeg_cmd, sizeof(ffmpeg_cmd),
                 "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size %lux%lu -framerate 25 -i - "
                 "-c:v libx264 -pix_fmt yuv420p -crf 23 -preset fast -loglevel warning %s",
-                (unsigned long)MOSAIC_W, (unsigned long)MOSAIC_H, video_filename);
+                (unsigned long)MOSAIC_W, (unsigned long)MOSAIC_H, video_path.c_str());
             ffmpeg_pipe = popen(ffmpeg_cmd, "w");
             if(!ffmpeg_pipe){
-                std::cerr << "Failed to open ffmpeg pipe for " << video_filename << std::endl;
+                std::cerr << "Failed to open ffmpeg pipe for " << video_path << std::endl;
                 record_video = false;
             }
         }
@@ -520,15 +597,22 @@ int main(int argc, char** argv){
                     if(episode_step[env_i] > 0){
                         episode_length_sum += episode_step[env_i];
                         episode_count++;
+                        if(env_i < TRAJECTORY_NUM_ENVS && episode_recorders[env_i].episode_started && !episode_recorders[env_i].current_episode.empty()){
+                            completed_episodes.push_back(std::move(episode_recorders[env_i].current_episode));
+                            episode_recorders[env_i].current_episode.clear();
+                            if(completed_episodes.size() > TRAJECTORY_MAX_EPISODES){
+                                completed_episodes.erase(completed_episodes.begin());
+                            }
+                        }
                     }
-                    // L2F origin = target hover position (mapped to scene by make_camera_for_state)
-                    // Identity quaternion = level hover (guidance=1.0 ensures this)
                     rlt::sample_initial_parameters(device, envs[env_i], env_parameters[env_i], rng);
                     rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], states[env_i], rng);
                     episode_step[env_i] = 0;
                     terminated[env_i] = false;
+                    if(env_i < TRAJECTORY_NUM_ENVS){
+                        episode_recorders[env_i].episode_started = true;
+                    }
 
-                    // Reset RAPTOR GRU state for this environment
                     auto& gru_layer = rlt::nn_models::sequential::layer<1>(raptor);
                     auto& gru_state = rlt::nn_models::sequential::content_state<1>(raptor_state.content_state);
                     auto state_row = rlt::view(device, gru_state.state, env_i);
@@ -607,6 +691,24 @@ int main(int argc, char** argv){
                 rlt::copy(device_gpu, device, gpu_actions_first_n, cpu_actions_eval);
             }
 
+            // Record pre-step state for trajectory
+            for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+                if(episode_recorders[env_i].episode_started){
+                    TrajectoryStep traj_step;
+                    traj_step.state = states[env_i];
+                    for(TI a = 0; a < ACTION_DIM; a++){
+                        if(teacher_forcing){
+                            traj_step.actions[a] = rlt::get(device, teacher_actions, env_i, a);
+                        } else {
+                            traj_step.actions[a] = rlt::get(cpu_actions_eval, env_i, a);
+                        }
+                    }
+                    traj_step.reward = 0;
+                    traj_step.terminated = false;
+                    episode_recorders[env_i].current_episode.push_back(traj_step);
+                }
+            }
+
             // Step environment with chosen actions
             for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
                 if(teacher_forcing){
@@ -621,12 +723,40 @@ int main(int argc, char** argv){
                 states[env_i] = next_states[env_i];
                 episode_step[env_i]++;
             }
+
+            // Fill in terminated for trajectory steps
+            for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+                if(episode_recorders[env_i].episode_started && !episode_recorders[env_i].current_episode.empty()){
+                    episode_recorders[env_i].current_episode.back().terminated = terminated[env_i];
+                }
+            }
+
+            global_step += N_ENVIRONMENTS;
         }
 
         // Close video pipe
         if(ffmpeg_pipe){
             pclose(ffmpeg_pipe);
             ffmpeg_pipe = nullptr;
+        }
+
+        // Save trajectories
+        if(epoch_i % TRAJECTORY_SAVE_INTERVAL == 0 && !completed_episodes.empty()){
+            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, epoch_end_step);
+            std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], env_parameters[0], completed_episodes, simulation_dt);
+#ifdef RL_TOOLS_ENABLE_ZLIB
+            std::vector<uint8_t> compressed;
+            if(rlt::compress_zlib(trajectories_json, compressed)){
+                std::ofstream f(step_folder / "trajectories.json.gz", std::ios::binary);
+                f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+            }
+#else
+            {
+                std::ofstream f(step_folder / "trajectories.json");
+                f << trajectories_json;
+            }
+#endif
+            completed_episodes.clear();
         }
 
         // Reset CUDA state after OptiX renders
