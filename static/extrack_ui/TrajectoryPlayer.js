@@ -110,8 +110,11 @@ export class TrajectoryPlayer{
         let render_loops_running = {}
         let current_parameters_multi = null
         let current_step_data_multi = null
+        let render_initialized = false
 
         const render = async () => {
+            if(!single && render_initialized) return
+            render_initialized = true
             if (ui.render && ui.init){
                 if(!ui_state){
                     if(current_parameters || current_parameters_multi){
