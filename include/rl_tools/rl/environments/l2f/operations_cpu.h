@@ -1348,13 +1348,19 @@ function clear_episode(ui_state){
         ui_state.trajectoryVisArray = null
     }
 }
-function set_camera(ui_state, distance){
+function set_camera(ui_state, distance, target){
     const scale = 1/Math.sqrt(ui_state.camera_position[0]**2 + ui_state.camera_position[1]**2 + ui_state.camera_position[2]**2) * distance
+    const tx = target ? target[0] : 0
+    const ty = target ? target[1] : 0
+    const tz = target ? target[2] : 0
     if(!ui_state.camera_set){
-        ui_state.camera.position.set(ui_state.camera_position[0] * scale, ui_state.camera_position[1] * scale, ui_state.camera_position[2] * scale)
-        ui_state.camera.lookAt(0, 0, 0)
+        ui_state.camera.position.set(ui_state.camera_position[0] * scale + tx, ui_state.camera_position[1] * scale + ty, ui_state.camera_position[2] * scale + tz)
+        ui_state.camera.lookAt(tx, ty, tz)
+        if(ui_state.controls){
+            ui_state.controls.target.set(tx, ty, tz)
+        }
         ui_state.camera_set = true
-        ui_state.controls.update()
+        if(ui_state.controls) ui_state.controls.update()
     }
 }
 export async function episode_init(ui_state, parameters){
@@ -1371,11 +1377,11 @@ export async function episode_init(ui_state, parameters){
         ui_state.origin_coordinate_system = new CoordinateSystem([0, 0, 0], 1 * scale, 0.01 * scale)
         ui_state.simulator.add(ui_state.origin_coordinate_system.get())
     }
-    // Create trajectory visualization if trajectory data exists
     ui_state.trajectoryVis = create_trajectory_visualization(parameters, scale)
     if(ui_state.trajectoryVis){
         ui_state.simulator.add(ui_state.trajectoryVis.group)
     }
+    await setup_onboard_camera(ui_state, parameters)
 }
 
 export async function episode_init_multi(ui_state, parameters){
@@ -1424,6 +1430,73 @@ export async function episode_init_multi(ui_state, parameters){
             ui_state.trajectoryVisArray.push(null)
         }
     }))
+    await setup_onboard_camera(ui_state, parameters[0])
+}
+
+async function setup_onboard_camera(ui_state, parameters){
+    const visual = parameters.visual
+    if(!visual || !visual.scene_hash || visual.scene_hash === '0000000000000000000000000000000000000000') return
+    const cos_fov = visual.cos_fov || 0.66
+    const fov_rad = Math.acos(cos_fov)
+    const fov_deg = fov_rad * 180 / Math.PI * 2
+    const cam_w = visual.cam_width || 64
+    const cam_h = visual.cam_height || 64
+    ui_state.onboard_camera = new THREE.PerspectiveCamera(fov_deg, cam_w / cam_h, 0.05, 100)
+    ui_state.onboard_scene = new THREE.Scene()
+    ui_state.onboard_scene.background = new THREE.Color(0x87CEEB)
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6)
+    ui_state.onboard_scene.add(ambient)
+    const dir_light = new THREE.DirectionalLight(0xffffff, 0.8)
+    dir_light.position.set(5, 10, 5)
+    ui_state.onboard_scene.add(dir_light)
+    const scene_url = `${ui_state.conta_url}data/${visual.scene_hash}`
+    try {
+        const prev_enabled = THREE.ColorManagement.enabled
+        THREE.ColorManagement.enabled = false
+        const gltf = await new GLTFLoader().loadAsync(scene_url)
+        THREE.ColorManagement.enabled = prev_enabled
+        ui_state.onboard_scene.add(gltf.scene)
+    } catch(e) {
+        console.error('Failed to load scene GLB for onboard camera:', e)
+        ui_state.onboard_camera = null
+        ui_state.onboard_scene = null
+    }
+    ui_state.onboard_overlay_size = Math.max(cam_w, cam_h) * 3
+    ui_state.onboard_scene_translation = visual.scene_translation || [0, 0, 0]
+}
+
+function update_onboard_camera(ui_state, state, parameters){
+    if(!ui_state.onboard_camera || !ui_state.onboard_scene) return
+    const st = ui_state.onboard_scene_translation
+    // L2F (FLU, Z-up) → Scene/GLB (Y-up): scene = (l2f[0], l2f[2], l2f[1])
+    const scene_x = state.position[0] + st[0]
+    const scene_y = state.position[2] + st[1]
+    const scene_z = state.position[1] + st[2]
+    ui_state.onboard_camera.position.set(scene_x, scene_y, scene_z)
+    // L2F quat (w,x,y,z) → Scene quat: axis (ax,ay,az)→(ax,az,ay), so quat (w,x,y,z)→(w,x,z,y)
+    // THREE.Quaternion constructor: (x, y, z, w)
+    const qw = state.orientation[0], qx = state.orientation[1], qy = state.orientation[2], qz = state.orientation[3]
+    const scene_quat = new THREE.Quaternion(qx, qz, qy, qw)
+    // Three.js camera looks along -Z. Drone camera looks along body +X (= scene +X).
+    // Rotate +X → -Z: +90° around Y (up)
+    const body_to_cam = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    ui_state.onboard_camera.quaternion.copy(scene_quat.multiply(body_to_cam))
+}
+
+function render_onboard_overlay(ui_state){
+    if(!ui_state.onboard_camera || !ui_state.onboard_scene || !ui_state.renderer) return
+    const size = ui_state.onboard_overlay_size || 128
+    const margin = 10
+    const canvas_w = ui_state.canvas.width / ui_state.devicePixelRatio
+    const canvas_h = ui_state.canvas.height / ui_state.devicePixelRatio
+    const x = canvas_w - size - margin
+    const y = canvas_h - size - margin
+    ui_state.renderer.setScissorTest(true)
+    ui_state.renderer.setViewport(x, margin, size, size)
+    ui_state.renderer.setScissor(x, margin, size, size)
+    ui_state.renderer.render(ui_state.onboard_scene, ui_state.onboard_camera)
+    ui_state.renderer.setScissorTest(false)
+    ui_state.renderer.setViewport(0, 0, canvas_w, canvas_h)
 }
 
 function update_camera(ui_state){
@@ -1534,16 +1607,15 @@ function update_trajectory_bug(trajectoryVis, trajectory_step){
 
 export async function render(ui_state, parameters, state, action) {
     if(ui_state.drone){
-        const st = (parameters.visual && parameters.visual.scene_translation) ? parameters.visual.scene_translation : [0, 0, 0]
-        const pos = [state.position[0] + st[0], state.position[1] + st[1], state.position[2] + st[2]]
-        ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, pos))
+        ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, state.position))
         ui_state.drone.get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
     }
-    // Update trajectory bug position if trajectory_step is in state
     if(ui_state.trajectoryVis && state.trajectory && state.trajectory.trajectory_step !== undefined){
         update_trajectory_bug(ui_state.trajectoryVis, state.trajectory.trajectory_step)
     }
+    update_onboard_camera(ui_state, state, parameters)
     update_camera(ui_state)
+    render_onboard_overlay(ui_state)
 }
 
 export async function render_multi(ui_state, parameters, states, actions){
@@ -1551,18 +1623,17 @@ export async function render_multi(ui_state, parameters, states, actions){
         states.map((state, i) => {
             const action = actions[i]
             const current_parameters = parameters[i]
-            const st = (current_parameters.visual && current_parameters.visual.scene_translation) ? current_parameters.visual.scene_translation : [0, 0, 0]
-            const pos = [state.position[0] + st[0], state.position[1] + st[1], state.position[2] + st[2]]
-            ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, pos))
+            ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
             ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
             ui_state.drones[i].set_action(action)
-            // Update trajectory bug position if trajectory_step is in state
             if(ui_state.trajectoryVisArray && ui_state.trajectoryVisArray[i] && state.trajectory && state.trajectory.trajectory_step !== undefined){
                 update_trajectory_bug(ui_state.trajectoryVisArray[i], state.trajectory.trajectory_step)
             }
         })
+        update_onboard_camera(ui_state, states[0], parameters[0])
     }
     update_camera(ui_state)
+    render_onboard_overlay(ui_state)
 }
 
 

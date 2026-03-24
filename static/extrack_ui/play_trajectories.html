@@ -56,8 +56,9 @@
 
         function toAbsolute(path) {
             if (!path) return path;
-            if (path.startsWith('/') || path.startsWith('./') || path.startsWith('http://') || path.startsWith('https://')) return path;
-            return '/' + path;
+            if (!path.startsWith('/') && !path.startsWith('./') && !path.startsWith('http://') && !path.startsWith('https://')) path = '/' + path;
+            if (path.endsWith('.js')) path += '?v=' + Date.now();
+            return path;
         }
 
         let trajectory_player = null;
@@ -65,7 +66,7 @@
         function createPlayer(ui_path) {
             const container = document.getElementById('trajectoryPlayerContainer');
             container.innerHTML = '';
-            trajectory_player = new TrajectoryPlayer(toAbsolute(ui_path), {"verbose": true});
+            trajectory_player = new TrajectoryPlayer(toAbsolute(ui_path), null, {"verbose": true});
             container.appendChild(trajectory_player.getCanvas());
             return trajectory_player;
         }
