@@ -28,7 +28,6 @@ namespace rl_tools::rl::environments::l2f {
         using ENVIRONMENT = T_ENVIRONMENT;
         std::string id = "default";
         typename ENVIRONMENT::T origin[3];
-        typename ENVIRONMENT::T scene_translation[3] = {0, 0, 0};
         std::string host;
         std::string port;
         net::io_context ioc;

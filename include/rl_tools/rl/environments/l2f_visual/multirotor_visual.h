@@ -90,7 +90,6 @@ namespace rl_tools::rl::environments::l2f_visual {
 
         bool use_target_mode = false;
         bool renderer_initialized = false;
-        T target_scene_translation[3] = {0, 0, 0};
 
         DYNAMICS_ENV dynamics;
     };

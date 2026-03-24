@@ -87,17 +87,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, RNG& rng) {
-        using TI = typename SPEC::TI;
         sample_initial_parameters(device, env.dynamics, parameters.dynamics, rng);
-        if (env.use_target_mode) {
-            for (TI i = 0; i < 3; i++) {
-                parameters.scene_translation[i] = env.target_scene_translation[i];
-            }
-        } else {
-            parameters.scene_translation[0] = 0;
-            parameters.scene_translation[1] = 0;
-            parameters.scene_translation[2] = 0;
-        }
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
