@@ -370,9 +370,10 @@ int main(int argc, char** argv){
         rlt::init(device, envs[env_i]);
     }
 
-    // L2F origin maps to the hardcoded scene offset in make_camera_for_state
-    // Set scene hash on all environment parameters
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+        env_parameters[env_i].scene_translation[0] = -3.92;
+        env_parameters[env_i].scene_translation[1] =  1.0;
+        env_parameters[env_i].scene_translation[2] =  5.67;
         env_parameters[env_i].scene_hash = scene_hash;
     }
 

@@ -531,6 +531,9 @@ int main(int argc, char** argv){
 #endif
 
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+        env_parameters[env_i].scene_translation[0] = -3.92;
+        env_parameters[env_i].scene_translation[1] =  1.0;
+        env_parameters[env_i].scene_translation[2] =  5.67;
         env_parameters[env_i].scene_hash = scene_hash;
     }
 
