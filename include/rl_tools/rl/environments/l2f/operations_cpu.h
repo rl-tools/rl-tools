@@ -1534,7 +1534,9 @@ function update_trajectory_bug(trajectoryVis, trajectory_step){
 
 export async function render(ui_state, parameters, state, action) {
     if(ui_state.drone){
-        ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, state.position))
+        const st = (parameters.visual && parameters.visual.scene_translation) ? parameters.visual.scene_translation : [0, 0, 0]
+        const pos = [state.position[0] + st[0], state.position[1] + st[1], state.position[2] + st[2]]
+        ui_state.drone.get().position.set(...clip_position(parameters.dynamics.mass, pos))
         ui_state.drone.get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
     }
     // Update trajectory bug position if trajectory_step is in state
@@ -1549,7 +1551,9 @@ export async function render_multi(ui_state, parameters, states, actions){
         states.map((state, i) => {
             const action = actions[i]
             const current_parameters = parameters[i]
-            ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, state.position))
+            const st = (current_parameters.visual && current_parameters.visual.scene_translation) ? current_parameters.visual.scene_translation : [0, 0, 0]
+            const pos = [state.position[0] + st[0], state.position[1] + st[1], state.position[2] + st[2]]
+            ui_state.drones[i].get().position.set(...clip_position(current_parameters.dynamics.mass, pos))
             ui_state.drones[i].get().quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
             ui_state.drones[i].set_action(action)
             // Update trajectory bug position if trajectory_step is in state
