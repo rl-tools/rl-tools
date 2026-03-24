@@ -17,9 +17,6 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
 
-    // =========================================================================
-    // Lifecycle
-    // =========================================================================
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env) {
         if (env.renderer == nullptr) {
@@ -80,9 +77,6 @@ namespace rl_tools {
         env.renderer_initialized = true;
     }
 
-    // =========================================================================
-    // Parameters
-    // =========================================================================
     template <typename DEVICE, typename SPEC>
     static void initial_parameters(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters) {
         initial_parameters(device, env.dynamics, parameters.dynamics);
@@ -116,45 +110,31 @@ namespace rl_tools {
             return;
         }
 
-        // Sample indoor position from the scene
         auto indoor_pos = rendering::raytracing::scene::procthor::sample_indoor_position(device, *env.scene, rng);
-
-        // Use the L2F sample_initial_state for dynamics state initialization
         sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
 
-        // Override position with indoor position
-        // L2F coordinate system: X=forward, Y=left, Z=up (FLU, right-handed)
-        //   gravity={0,0,-9.81}, rotor thrust={0,0,+1}
-        // Scene coordinate system: X=forward, Y=up, Z=left (Y-up, right-handed)
-        // Mapping L2F→Scene: scene = (l2f[0], l2f[2], l2f[1])  (Y/Z swap, no sign flips)
-        // Inverse: l2f = (scene[0], scene[2], scene[1])
+        // L2F (FLU, Z-up) ↔ Scene (Y-up): Y/Z swap, no sign flips
         state.position[0] = indoor_pos.position[0];
         state.position[1] = indoor_pos.position[2];
         state.position[2] = indoor_pos.position[1];
 
-        // Set hover orientation (identity quaternion = level)
         state.orientation[0] = static_cast<T>(1);
         state.orientation[1] = static_cast<T>(0);
         state.orientation[2] = static_cast<T>(0);
         state.orientation[3] = static_cast<T>(0);
 
-        // Apply yaw rotation around L2F Z-up axis
         T half_yaw = indoor_pos.yaw / static_cast<T>(2);
         state.orientation[0] = std::cos(half_yaw);
         state.orientation[1] = static_cast<T>(0);
         state.orientation[2] = static_cast<T>(0);
         state.orientation[3] = std::sin(half_yaw);
 
-        // Zero velocities for hover start
         for (TI i = 0; i < 3; i++) {
             state.linear_velocity[i] = static_cast<T>(0);
             state.angular_velocity[i] = static_cast<T>(0);
         }
     }
 
-    // =========================================================================
-    // Dynamics (delegate to L2F)
-    // =========================================================================
     template <typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T step(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& next_state, RNG& rng) {
         return step(device, env.dynamics, parameters.dynamics, state, action, next_state, rng);
@@ -170,9 +150,6 @@ namespace rl_tools {
         return terminated(device, env.dynamics, parameters.dynamics, state, rng);
     }
 
-    // =========================================================================
-    // Camera helper: construct camera from quadrotor state
-    // =========================================================================
     namespace rl::environments::l2f_visual {
         template <typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT CameraData make_camera_for_state(DEVICE&, const MultirrotorVisual<SPEC>& env, const typename MultirrotorVisual<SPEC>::Parameters& parameters, const typename MultirrotorVisual<SPEC>::State& state) {
@@ -187,12 +164,8 @@ namespace rl_tools {
             T cam_up_world[3];
             rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, env.camera_mount.up_body, cam_up_world);
 
-            // Convert from L2F to scene coordinates
-            // L2F: X=forward, Y=left, Z=up (FLU, right-handed)
-            // Scene/GLB: X=forward, Y=up, Z=left (Y-up, right-handed)
-            // Mapping: scene = (l2f[0], l2f[2], l2f[1])  (Y/Z swap, no sign flips)
-            // scene_translation: L2F origin (0,0,0) maps to this position in scene coords
-            // TODO: hardcoded offset for ProcTHOR-Train-1 indoor position — make configurable
+            // L2F (FLU, Z-up) → Scene/GLB (Y-up): scene = (l2f[0], l2f[2], l2f[1])
+            // TODO: hardcoded scene offset — make configurable
             const T px = state.position[0] + cam_pos_world[0] + parameters.scene_translation[0] + static_cast<T>(-3.92);
             const T py = state.position[2] + cam_pos_world[2] + parameters.scene_translation[1] + static_cast<T>(1.0);
             const T pz = state.position[1] + cam_pos_world[1] + parameters.scene_translation[2] + static_cast<T>(5.67);
@@ -214,9 +187,6 @@ namespace rl_tools {
         }
     }
 
-    // =========================================================================
-    // Observation: Image (RGB)
-    // =========================================================================
     template <typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& state, const rl::environments::observation::Image<typename SPEC::TI, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 3>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
         using T = typename OBS_SPEC::T;
@@ -249,17 +219,11 @@ namespace rl_tools {
         }
     }
 
-    // =========================================================================
-    // Observation: Privileged (delegate to L2F dense observation)
-    // =========================================================================
     template <typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& state, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::ObservationPrivileged& observation_type, Matrix<OBS_SPEC>& observation, RNG& rng) {
         observe(device, env.dynamics, parameters.dynamics, state, observation_type, observation, rng);
     }
 
-    // =========================================================================
-    // Batch observation
-    // =========================================================================
     template <typename DEVICE, typename SPEC, typename PARAMETERS_SPEC, typename STATE_SPEC, typename OUT_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void observe_batch(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const Tensor<PARAMETERS_SPEC>& parameters, const Tensor<STATE_SPEC>& states, typename SPEC::TI num_envs, Tensor<OUT_SPEC>& out_pixels) {
         using T = typename SPEC::T;
@@ -284,17 +248,11 @@ namespace rl_tools {
         render(device, *env.renderer);
         read_frame_buffer(device, *env.renderer, data(out_pixels), product(typename OUT_SPEC::SHAPE{}));
     }
-    // =========================================================================
-    // JSON serialization
-    // =========================================================================
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters){
         std::string json_string = "{";
-        // Inline dynamics fields at the top level
         std::string dynamics_json = rl_tools::json(device, env.dynamics, parameters.dynamics);
-        // Remove outer braces to inline
         json_string += dynamics_json.substr(1, dynamics_json.size() - 2);
-        // Add visual group
         json_string += ", \"visual\": {";
         json_string += "\"scene_translation\": [";
         for(typename SPEC::TI i = 0; i < 3; i++){
@@ -307,7 +265,10 @@ namespace rl_tools {
             std::snprintf(hex, sizeof(hex), "%02x", parameters.scene_hash.hash[i]);
             json_string += hex;
         }
-        json_string += "\"}}";
+        json_string += "\", \"cam_width\": " + std::to_string(SPEC::CAM_WIDTH);
+        json_string += ", \"cam_height\": " + std::to_string(SPEC::CAM_HEIGHT);
+        json_string += ", \"cos_fov\": " + std::to_string(env.cos_fov);
+        json_string += "}}";
         return json_string;
     }
     template <typename DEVICE, typename SPEC>

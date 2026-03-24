@@ -89,3 +89,4 @@ Some tests (`NN_LAYERS_RESNET_CUDA`, sequential persist tests) load `.h5` files 
 18. Preserve benchmarking comparability during refactors: keep initialization and workload semantics deterministic when measuring performance across revisions, and avoid mixing behavioral changes with structural/API migrations in the same benchmark comparison.
 19. In hot paths, keep RLtools API boundaries explicit but minimize per-element abstraction overhead (prefer contiguous-buffer iteration patterns where appropriate) so architectural cleanup does not unintentionally regress throughput.
 20. As an agent NEVER stash or commit anything. Git is read-only for you. 
+21. We don't endorse comment noise. Comments signal two things: 1) complex/misleading (first thought) code and 2) important code. Only if both are the case should you add a comment. To calibrate this: There should be a comment for every few hundred lines of code.
