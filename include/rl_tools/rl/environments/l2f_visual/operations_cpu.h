@@ -165,10 +165,9 @@ namespace rl_tools {
             rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, env.camera_mount.up_body, cam_up_world);
 
             // L2F (FLU, Z-up) → Scene/GLB (Y-up): scene = (l2f[0], l2f[2], l2f[1])
-            // TODO: hardcoded scene offset — make configurable
-            const T px = state.position[0] + cam_pos_world[0] + parameters.scene_translation[0] + static_cast<T>(-3.92);
-            const T py = state.position[2] + cam_pos_world[2] + parameters.scene_translation[1] + static_cast<T>(1.0);
-            const T pz = state.position[1] + cam_pos_world[1] + parameters.scene_translation[2] + static_cast<T>(5.67);
+            const T px = state.position[0] + cam_pos_world[0] + parameters.scene_translation[0];
+            const T py = state.position[2] + cam_pos_world[2] + parameters.scene_translation[1];
+            const T pz = state.position[1] + cam_pos_world[1] + parameters.scene_translation[2];
 
             const owl::vec3f position(px, py, pz);
             const owl::vec3f look_at(
