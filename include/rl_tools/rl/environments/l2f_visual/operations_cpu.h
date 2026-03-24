@@ -284,6 +284,36 @@ namespace rl_tools {
         render(device, *env.renderer);
         read_frame_buffer(device, *env.renderer, data(out_pixels), product(typename OUT_SPEC::SHAPE{}));
     }
+    // =========================================================================
+    // JSON serialization
+    // =========================================================================
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters){
+        std::string json_string = "{";
+        // Inline dynamics fields at the top level
+        std::string dynamics_json = rl_tools::json(device, env.dynamics, parameters.dynamics);
+        // Remove outer braces to inline
+        json_string += dynamics_json.substr(1, dynamics_json.size() - 2);
+        // Add visual group
+        json_string += ", \"visual\": {";
+        json_string += "\"scene_translation\": [";
+        for(typename SPEC::TI i = 0; i < 3; i++){
+            json_string += std::to_string(parameters.scene_translation[i]);
+            if(i < 2) json_string += ", ";
+        }
+        json_string += "], \"scene_hash\": \"";
+        for(unsigned i = 0; i < rl::environments::l2f_visual::SceneHash::HASH_SIZE; i++){
+            char hex[3];
+            std::snprintf(hex, sizeof(hex), "%02x", parameters.scene_hash.hash[i]);
+            json_string += hex;
+        }
+        json_string += "\"}}";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& state){
+        return rl_tools::json(device, env.dynamics, parameters.dynamics, state);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

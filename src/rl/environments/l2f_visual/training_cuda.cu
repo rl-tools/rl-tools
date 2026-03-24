@@ -1,6 +1,7 @@
 #define RL_TOOLS_DISABLE_VISUAL // comment out to enable rendering and image input
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/random/operations_generic_array.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
@@ -20,6 +21,7 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 
+#include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
 
@@ -31,13 +33,14 @@
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 
 #include <rl_tools/utils/extrack/operations_cpu.h>
-#include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/utils/zlib/operations_cpu.h>
 
 #include <array>
 #include <chrono>
 #include <iostream>
 #include <iomanip>
+#include <cstring>
+#include <string>
 #include <algorithm>
 #include <fstream>
 #include <filesystem>
@@ -60,7 +63,7 @@ using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASp
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using TI = typename DEVICE::index_t;
-using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
+using RNG = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024>>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 
 // =========================================================================
@@ -189,11 +192,11 @@ std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typena
     std::string json = "[";
     for(TI ep_i = 0; ep_i < episodes.size(); ep_i++){
         auto& episode = episodes[ep_i];
-        json += "{\"parameters\": " + rlt::json(device, env.dynamics, parameters.dynamics) + ",\n";
+        json += "{\"parameters\": " + rlt::json(device, env, parameters) + ",\n";
         json += "\"trajectory\": [";
         for(TI step_i = 0; step_i < max_len; step_i++){
             auto& s = (step_i < episode.size()) ? episode[step_i] : episode.back();
-            json += "{\"state\":" + rlt::json(device, env.dynamics, parameters.dynamics, s.state) + ",";
+            json += "{\"state\":" + rlt::json(device, env, parameters, s.state) + ",";
             json += "\"action\":[";
             for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
                 json += std::to_string(s.actions[a]);
@@ -362,15 +365,55 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 // =========================================================================
 // Main
 // =========================================================================
+static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
+    for(unsigned i = 0; i < len; i++){
+        unsigned byte = 0;
+        for(int nibble = 0; nibble < 2; nibble++){
+            char c = hex[i * 2 + nibble];
+            if(c >= '0' && c <= '9') byte = (byte << 4) | (c - '0');
+            else if(c >= 'a' && c <= 'f') byte = (byte << 4) | (c - 'a' + 10);
+            else if(c >= 'A' && c <= 'F') byte = (byte << 4) | (c - 'A' + 10);
+            else return false;
+        }
+        out[i] = static_cast<unsigned char>(byte);
+    }
+    return true;
+}
+
 int main(int argc, char** argv){
-    const char* scene_path = nullptr;
     TI seed = 0;
-    if(argc > 1){
-        scene_path = argv[1];
+    if(argc < 2){
+        std::cerr << "Usage: " << argv[0] << " <conta:HASH or scene.glb> [seed]" << std::endl;
+        return 1;
     }
     if(argc > 2){
         seed = std::atoi(argv[2]);
     }
+
+    std::string resolved_scene_path;
+    rlt::rl::environments::l2f_visual::SceneHash scene_hash;
+    const char* scene_arg = argv[1];
+    if(std::strncmp(scene_arg, "conta:", 6) == 0){
+        const char* hash_str = scene_arg + 6;
+        if(std::strlen(hash_str) != 40){
+            std::cerr << "Invalid conta hash: expected 40 hex characters, got " << std::strlen(hash_str) << std::endl;
+            return 1;
+        }
+        if(!parse_hex_hash(hash_str, scene_hash.hash, rlt::rl::environments::l2f_visual::SceneHash::HASH_SIZE)){
+            std::cerr << "Invalid conta hash: contains non-hex characters" << std::endl;
+            return 1;
+        }
+        const char* conta_root = std::getenv("CONTA_ROOT");
+        if(!conta_root){
+            std::cerr << "CONTA_ROOT environment variable is not set" << std::endl;
+            return 1;
+        }
+        resolved_scene_path = std::string(conta_root) + "/data/" + hash_str;
+    } else {
+        resolved_scene_path = scene_arg;
+        std::memset(scene_hash.hash, 0, rlt::rl::environments::l2f_visual::SceneHash::HASH_SIZE);
+    }
+    const char* scene_path = resolved_scene_path.c_str();
 
     // Devices
     DEVICE device;
@@ -486,6 +529,10 @@ int main(int argc, char** argv){
     }
 
 #endif
+
+    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+        env_parameters[env_i].scene_hash = scene_hash;
+    }
 
     // =========================================================================
     // GPU device init (after env init; must be after OptiX context creation)
