@@ -162,7 +162,7 @@ static constexpr TI STEPS_PER_ENV = 500;
 static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000;
-static constexpr TI TEACHER_FORCING_EPOCHS = 100;
+static constexpr TI TEACHER_FORCING_EPOCHS = 30;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS)
@@ -188,16 +188,17 @@ struct StudentActor{
     static constexpr TI IMG_W = ENVIRONMENT::Observation::WIDTH;
     static constexpr TI IMG_C = ENVIRONMENT::Observation::CHANNELS;
 
-    // Image branch: Flatten→Standardize→Unflatten→Conv1→Conv2→Flatten→Dense(64)
+    // Image branch: Flatten→Standardize→Unflatten→Conv(s4)→Conv(s2)→Conv(s2)→Flatten→Dense(64)
+    // 64×64×3 → 16×16×32 → 8×8×64 → 4×4×128 → 2048 → 64
     using INPUT_FLATTEN_CONFIG = rlt::nn::layers::flatten::Configuration<TYPE_POLICY, TI>;
     using INPUT_FLATTEN = rlt::nn::layers::flatten::BindConfiguration<INPUT_FLATTEN_CONFIG>;
     using IMAGE_STANDARDIZE_CONFIG = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using IMAGE_STANDARDIZE = rlt::nn::layers::standardize::BindConfiguration<IMAGE_STANDARDIZE_CONFIG>;
     using UNFLATTEN_CONFIG = rlt::nn::layers::unflatten::Configuration<TYPE_POLICY, TI, IMG_H, IMG_W, IMG_C>;
     using UNFLATTEN = rlt::nn::layers::unflatten::BindConfiguration<UNFLATTEN_CONFIG>;
-    using CONV1_CONFIG = rlt::nn::layers::conv2d::Configuration<TYPE_POLICY, TI, 16, 3, 3, 2, 2, 0, 0, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using CONV1_CONFIG = rlt::nn::layers::conv2d::Configuration<TYPE_POLICY, TI, 32, 4, 4, 4, 4, 0, 0, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using CONV1 = rlt::nn::layers::conv2d::BindConfiguration<CONV1_CONFIG>;
-    using CONV2_CONFIG = rlt::nn::layers::conv2d::Configuration<TYPE_POLICY, TI, 32, 3, 3, 1, 1, 0, 0, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using CONV2_CONFIG = rlt::nn::layers::conv2d::Configuration<TYPE_POLICY, TI, 64, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using CONV2 = rlt::nn::layers::conv2d::BindConfiguration<CONV2_CONFIG>;
     using OUTPUT_FLATTEN_CONFIG = rlt::nn::layers::flatten::Configuration<TYPE_POLICY, TI>;
     using OUTPUT_FLATTEN = rlt::nn::layers::flatten::BindConfiguration<OUTPUT_FLATTEN_CONFIG>;
