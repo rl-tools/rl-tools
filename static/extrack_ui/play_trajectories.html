@@ -5,28 +5,106 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trajectory Player</title>
     <link rel="stylesheet" href="play_trajectory.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./lib/three.js",
+                "three-orbitcontrols": "./lib/three.js",
+                "three-gltfloader": "./lib/three.js",
+                "pako": "./lib/dependencies.js"
+            }
+        }
+    </script>
+    <style>
+        #controls {
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        #controls label {
+            white-space: nowrap;
+        }
+        #controls input[type="text"] {
+            flex: 1;
+            padding: 4px 6px;
+            font-family: monospace;
+            font-size: 13px;
+            border: 1px solid #999;
+        }
+        #controls button {
+            padding: 4px 12px;
+            font-family: monospace;
+            font-size: 13px;
+            cursor: pointer;
+        }
+    </style>
     <script type="module">
         import { TrajectoryPlayer } from './TrajectoryPlayer.js';
 
         const urlObj = new URL(window.location.href);
         const params = new URLSearchParams(urlObj.search);
 
-        const trajectories_path = params.get("experiments") + "/" + params.get('trajectories');
-        const ui_path = params.get("experiments") + "/" + params.get('ui');
-        const trajectory_player = new TrajectoryPlayer(ui_path, {"verbose": true});
+        const experiments_base = params.get("experiments") || "";
+        const default_trajectories = experiments_base ? experiments_base + "/" + (params.get('trajectories') || "") : "";
+        const default_ui = experiments_base ? experiments_base + "/" + (params.get('ui') || "") : "";
 
-        const trajectoryPlayerContainer = document.getElementById('trajectoryPlayerContainer');
-        trajectoryPlayerContainer.appendChild(trajectory_player.getCanvas())
+        function toAbsolute(path) {
+            if (!path) return path;
+            if (path.startsWith('/') || path.startsWith('./') || path.startsWith('http://') || path.startsWith('https://')) return path;
+            return '/' + path;
+        }
 
+        let trajectory_player = null;
 
-        document.addEventListener('DOMContentLoaded', ()=>{
-            trajectory_player.playTrajectories(trajectories_path);
+        function createPlayer(ui_path) {
+            const container = document.getElementById('trajectoryPlayerContainer');
+            container.innerHTML = '';
+            trajectory_player = new TrajectoryPlayer(toAbsolute(ui_path), {"verbose": true});
+            container.appendChild(trajectory_player.getCanvas());
+            return trajectory_player;
+        }
+
+        function play() {
+            const trajectories_path = document.getElementById('trajectoriesInput').value.trim();
+            const ui_path = document.getElementById('uiInput').value.trim();
+            if (!trajectories_path || !ui_path) {
+                alert('Please specify both paths.');
+                return;
+            }
+            localStorage.setItem('play_trajectories_path', trajectories_path);
+            localStorage.setItem('play_trajectories_ui', ui_path);
+            const player = createPlayer(ui_path);
+            player.playTrajectories(toAbsolute(trajectories_path));
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const stored_trajectories = localStorage.getItem('play_trajectories_path') || "";
+            const stored_ui = localStorage.getItem('play_trajectories_ui') || "";
+
+            document.getElementById('trajectoriesInput').value = default_trajectories || stored_trajectories;
+            document.getElementById('uiInput').value = default_ui || stored_ui;
+
+            document.getElementById('playButton').addEventListener('click', play);
+            document.getElementById('trajectoriesInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') play(); });
+            document.getElementById('uiInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') play(); });
+
+            if (default_trajectories && default_ui) {
+                play();
+            }
         });
-
     </script>
 </head>
 <body>
+<div id="controls">
+    <label for="trajectoriesInput">Trajectories:</label>
+    <input type="text" id="trajectoriesInput" placeholder="experiments/.../trajectories.json.gz">
+    <label for="uiInput">UI:</label>
+    <input type="text" id="uiInput" placeholder="experiments/.../ui.esm.js">
+    <button id="playButton">Play</button>
+</div>
 <div id="trajectoryPlayerContainer"></div>
 </body>
 </html>
-
