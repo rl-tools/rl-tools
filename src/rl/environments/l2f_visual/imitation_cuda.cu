@@ -35,6 +35,8 @@
 #include <algorithm>
 #include <vector>
 #include <numeric>
+#include <cstring>
+#include <string>
 
 namespace rlt = rl_tools;
 
@@ -233,19 +235,57 @@ static constexpr TI IMG_C = ENVIRONMENT::Observation::CHANNELS;
 // =========================================================================
 // Main
 // =========================================================================
-int main(int argc, char** argv){
-    const char* scene_path = nullptr;
-    TI seed = 0;
-    if(argc > 1){
-        scene_path = argv[1];
+// Parse hex hash string (40 chars) into 20 bytes
+static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
+    for(unsigned i = 0; i < len; i++){
+        unsigned byte = 0;
+        for(int nibble = 0; nibble < 2; nibble++){
+            char c = hex[i * 2 + nibble];
+            if(c >= '0' && c <= '9') byte = (byte << 4) | (c - '0');
+            else if(c >= 'a' && c <= 'f') byte = (byte << 4) | (c - 'a' + 10);
+            else if(c >= 'A' && c <= 'F') byte = (byte << 4) | (c - 'A' + 10);
+            else return false;
+        }
+        out[i] = static_cast<unsigned char>(byte);
     }
-    else{
-        std::cout << "Usage: " << argv[0] << " <scene_path> [seed]" << std::endl;
+    return true;
+}
+
+int main(int argc, char** argv){
+    TI seed = 0;
+    if(argc < 2){
+        std::cerr << "Usage: " << argv[0] << " <conta:HASH or scene.glb> [seed]" << std::endl;
         return 1;
     }
     if(argc > 2){
         seed = std::atoi(argv[2]);
     }
+
+    // Resolve scene path and hash
+    std::string resolved_scene_path;
+    rlt::rl::environments::l2f_visual::SceneHash scene_hash;
+    const char* scene_arg = argv[1];
+    if(std::strncmp(scene_arg, "conta:", 6) == 0){
+        const char* hash_str = scene_arg + 6;
+        if(std::strlen(hash_str) != 40){
+            std::cerr << "Invalid conta hash: expected 40 hex characters, got " << std::strlen(hash_str) << std::endl;
+            return 1;
+        }
+        if(!parse_hex_hash(hash_str, scene_hash.hash, rlt::rl::environments::l2f_visual::SceneHash::HASH_SIZE)){
+            std::cerr << "Invalid conta hash: contains non-hex characters" << std::endl;
+            return 1;
+        }
+        const char* conta_root = std::getenv("CONTA_ROOT");
+        if(!conta_root){
+            std::cerr << "CONTA_ROOT environment variable is not set" << std::endl;
+            return 1;
+        }
+        resolved_scene_path = std::string(conta_root) + "/data/" + hash_str;
+    } else {
+        resolved_scene_path = scene_arg;
+        std::memset(scene_hash.hash, 0, rlt::rl::environments::l2f_visual::SceneHash::HASH_SIZE);
+    }
+    const char* scene_path = resolved_scene_path.c_str();
 
     DEVICE device;
     DEVICE_GPU device_gpu;
@@ -331,6 +371,10 @@ int main(int argc, char** argv){
     }
 
     // L2F origin maps to the hardcoded scene offset in make_camera_for_state
+    // Set scene hash on all environment parameters
+    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+        env_parameters[env_i].scene_hash = scene_hash;
+    }
 
     // =========================================================================
     // Observation normalization warmup (CPU)

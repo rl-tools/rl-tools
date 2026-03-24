@@ -34,12 +34,18 @@ namespace rl_tools::rl::environments::l2f_visual {
         using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
     };
 
+    struct SceneHash {
+        static constexpr unsigned HASH_SIZE = 20; // SHA-1
+        unsigned char hash[HASH_SIZE] = {0};
+    };
+
     template <typename T_SPEC>
     struct Parameters {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         typename SPEC::DYNAMICS_ENV::Parameters dynamics;
         T scene_translation[3] = {0, 0, 0};
+        SceneHash scene_hash;
     };
 
     template <typename T>
