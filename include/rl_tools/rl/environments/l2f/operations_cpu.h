@@ -1463,11 +1463,13 @@ async function setup_onboard_camera(ui_state, parameters){
     }
     ui_state.onboard_overlay_size = Math.max(cam_w, cam_h) * 3
     ui_state.onboard_scene_translation = visual.scene_translation || [0, 0, 0]
+    ui_state.onboard_render_target = new THREE.WebGLRenderTarget(cam_w, cam_h)
+    ui_state.onboard_pixel_buffer = new Uint8Array(cam_w * cam_h * 4)
 }
 
 function update_onboard_camera(ui_state, state, parameters){
     if(!ui_state.onboard_camera || !ui_state.onboard_scene) return
-    const st = ui_state.onboard_scene_translation
+    const st = ui_state.onboard_scene_translation || [0, 0, 0]
     // L2F (FLU, Z-up) → Scene/GLB (Y-up): scene = (l2f[0], l2f[2], l2f[1])
     const scene_x = state.position[0] + st[0]
     const scene_y = state.position[2] + st[1]
@@ -1497,6 +1499,51 @@ function render_onboard_overlay(ui_state){
     ui_state.renderer.render(ui_state.onboard_scene, ui_state.onboard_camera)
     ui_state.renderer.setScissorTest(false)
     ui_state.renderer.setViewport(0, 0, canvas_w, canvas_h)
+}
+
+export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, cos_fov){
+    const fov_rad = Math.acos(cos_fov)
+    const fov_deg = fov_rad * 180 / Math.PI * 2
+    ui_state.onboard_camera = new THREE.PerspectiveCamera(fov_deg, cam_w / cam_h, 0.05, 100)
+    ui_state.onboard_scene = new THREE.Scene()
+    ui_state.onboard_scene.background = new THREE.Color(0x87CEEB)
+    ui_state.onboard_scene.add(new THREE.AmbientLight(0xffffff, 0.6))
+    const dir_light = new THREE.DirectionalLight(0xffffff, 0.8)
+    dir_light.position.set(5, 10, 5)
+    ui_state.onboard_scene.add(dir_light)
+    if(scene_hash && scene_hash !== 'none'){
+        const scene_url = `${ui_state.conta_url}${scene_hash}`
+        try {
+            const prev_enabled = THREE.ColorManagement.enabled
+            THREE.ColorManagement.enabled = false
+            const gltf = await new GLTFLoader().loadAsync(scene_url)
+            THREE.ColorManagement.enabled = prev_enabled
+            ui_state.onboard_scene.add(gltf.scene)
+        } catch(e) {
+            console.error('Failed to load scene GLB:', e)
+        }
+    }
+    ui_state.onboard_scene_translation = [0, 0, 0]
+    ui_state.onboard_overlay_size = Math.max(cam_w, cam_h) * 3
+    ui_state.onboard_render_target = new THREE.WebGLRenderTarget(cam_w, cam_h)
+    ui_state.onboard_pixel_buffer = new Uint8Array(cam_w * cam_h * 4)
+}
+
+export function render_onboard_pixels(ui_state, state, parameters){
+    if(!ui_state.onboard_camera || !ui_state.onboard_scene || !ui_state.renderer || !ui_state.onboard_render_target) return null
+    update_onboard_camera(ui_state, state, parameters)
+    ui_state.renderer.setRenderTarget(ui_state.onboard_render_target)
+    ui_state.renderer.render(ui_state.onboard_scene, ui_state.onboard_camera)
+    ui_state.renderer.setRenderTarget(null)
+    const w = ui_state.onboard_render_target.width, h = ui_state.onboard_render_target.height
+    ui_state.renderer.readRenderTargetPixels(ui_state.onboard_render_target, 0, 0, w, h, ui_state.onboard_pixel_buffer)
+    const rgb = new Float32Array(w * h * 3)
+    for(let i = 0; i < w * h; i++){
+        rgb[i*3+0] = ui_state.onboard_pixel_buffer[i*4+0] / 255
+        rgb[i*3+1] = ui_state.onboard_pixel_buffer[i*4+1] / 255
+        rgb[i*3+2] = ui_state.onboard_pixel_buffer[i*4+2] / 255
+    }
+    return rgb
 }
 
 function update_camera(ui_state){
