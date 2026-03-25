@@ -236,6 +236,19 @@ namespace rl_tools::nn::layers::gru::helper{
         check_status(device);
     }
 }
+
+namespace rl_tools::nn::layers::gru::mode{
+    template <typename SPEC, typename DEV_SPEC, typename MODE, typename MODE_SPEC, typename TI>
+    bool reset_sample(devices::CUDA<DEV_SPEC>& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, TI step_i, TI sample_i){
+        using RTI = typename MODE_SPEC::TI;
+        using RESET_SPEC = typename MODE_SPEC::RESET_CONTAINER_TYPE::SPEC;
+        auto offset = (RTI)step_i * get<0>(typename RESET_SPEC::STRIDE{}) + (RTI)sample_i * get<1>(typename RESET_SPEC::STRIDE{});
+        typename RESET_SPEC::T host_val;
+        cudaMemcpy(&host_val, data(mode.reset_container) + offset, sizeof(host_val), cudaMemcpyDeviceToHost);
+        return host_val;
+    }
+}
+
 namespace rl_tools{
     namespace nn::layers::gru::kernels{
         template<typename DEV_SPEC, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>

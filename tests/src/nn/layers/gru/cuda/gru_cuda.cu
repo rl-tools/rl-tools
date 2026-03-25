@@ -841,6 +841,103 @@ void test_gru_cuda_backward(){
     rlt::free(device_cpu, d_input_gpu_cpu);
 }
 
+template <TI T_SEQUENCE_LENGTH, TI T_BATCH_SIZE, TI T_INPUT_DIM, TI T_HIDDEN_DIM>
+void test_gru_cuda_forward_reset_mode(){
+    using GRU_CFG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, T_HIDDEN_DIM, rlt::nn::parameters::groups::Normal, true>;
+    using GRU_BIND = rlt::nn::layers::gru::BindConfiguration<GRU_CFG>;
+    using CAP = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
+    using SHAPE = rlt::tensor::Shape<TI, T_SEQUENCE_LENGTH, T_BATCH_SIZE, T_INPUT_DIM>;
+    using GRU_TYPE = typename GRU_BIND::template Layer<CAP, SHAPE>;
+
+    DEVICE_CPU device_cpu;
+    DEVICE_GPU device_gpu;
+    DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng_cpu;
+    DEVICE_GPU::SPEC::RANDOM::ENGINE<> rng_gpu;
+    rlt::init(device_cpu);
+    rlt::init(device_gpu);
+    rlt::malloc(device_cpu, rng_cpu);
+    rlt::malloc(device_gpu, rng_gpu);
+    rlt::init(device_cpu, rng_cpu, 0);
+    rlt::init(device_gpu, rng_gpu, 0);
+
+    GRU_TYPE gru_cpu, gru_gpu, gru_gpu_cpu;
+    typename GRU_TYPE::template Buffer<> buffer_cpu, buffer_gpu;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> input_cpu, input_gpu;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, T_SEQUENCE_LENGTH, T_BATCH_SIZE, 1>>> reset_cpu, reset_gpu;
+
+    rlt::malloc(device_cpu, gru_cpu);
+    rlt::malloc(device_gpu, gru_gpu);
+    rlt::malloc(device_cpu, gru_gpu_cpu);
+    rlt::malloc(device_cpu, buffer_cpu);
+    rlt::malloc(device_gpu, buffer_gpu);
+    rlt::malloc(device_cpu, input_cpu);
+    rlt::malloc(device_gpu, input_gpu);
+    rlt::malloc(device_cpu, reset_cpu);
+    rlt::malloc(device_gpu, reset_gpu);
+
+    rlt::init_weights(device_cpu, gru_cpu, rng_cpu);
+    rlt::copy(device_cpu, device_gpu, gru_cpu, gru_gpu);
+    rlt::randn(device_cpu, input_cpu, rng_cpu);
+    rlt::copy(device_cpu, device_gpu, input_cpu, input_gpu);
+
+    rlt::set_all(device_cpu, reset_cpu, (T)0);
+    for(TI s = 0; s < T_SEQUENCE_LENGTH; s++){
+        for(TI b = 0; b < T_BATCH_SIZE; b++){
+            if((s * T_BATCH_SIZE + b) % 3 == 0){
+                rlt::set(device_cpu, reset_cpu, (T)1, s, b, (TI)0);
+            }
+        }
+    }
+
+    rlt::copy(device_cpu, device_gpu, reset_cpu, reset_gpu);
+    {
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, T_SEQUENCE_LENGTH, T_BATCH_SIZE, 1>>> reset_gpu_cpu;
+        rlt::malloc(device_cpu, reset_gpu_cpu);
+        rlt::copy(device_gpu, device_cpu, reset_gpu, reset_gpu_cpu);
+        T reset_diff = rlt::abs_diff(device_cpu, reset_cpu, reset_gpu_cpu);
+        std::cout << "reset container abs_diff: " << reset_diff << std::endl;
+        EXPECT_LT(reset_diff, 1e-10);
+        rlt::free(device_cpu, reset_gpu_cpu);
+    }
+
+    using RESET_MODE_CPU_SPEC = rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(reset_cpu)>;
+    using RESET_MODE_CPU = rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, RESET_MODE_CPU_SPEC>;
+    rlt::Mode<RESET_MODE_CPU> reset_mode_cpu;
+    reset_mode_cpu.reset_container = reset_cpu;
+
+    using RESET_MODE_GPU_SPEC = rlt::nn::layers::gru::ResetModeSpecification<TI, decltype(reset_gpu)>;
+    using RESET_MODE_GPU = rlt::nn::layers::gru::ResetMode<rlt::mode::Default<>, RESET_MODE_GPU_SPEC>;
+    rlt::Mode<RESET_MODE_GPU> reset_mode_gpu;
+    reset_mode_gpu.reset_container = reset_gpu;
+
+    rlt::forward(device_cpu, gru_cpu, input_cpu, buffer_cpu, rng_cpu, reset_mode_cpu);
+    rlt::forward(device_gpu, gru_gpu, input_gpu, buffer_gpu, rng_gpu, reset_mode_gpu);
+    rlt::copy(device_gpu, device_cpu, gru_gpu, gru_gpu_cpu);
+
+    T abs_diff_output = rlt::abs_diff(device_cpu, gru_cpu.output, gru_gpu_cpu.output);
+    std::cout << "forward_reset<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> output abs_diff: " << abs_diff_output << std::endl;
+    EXPECT_LT(abs_diff_output, 1e-5);
+
+    rlt::free(device_cpu, rng_cpu);
+    rlt::free(device_gpu, rng_gpu);
+    rlt::free(device_cpu, gru_cpu);
+    rlt::free(device_gpu, gru_gpu);
+    rlt::free(device_cpu, gru_gpu_cpu);
+    rlt::free(device_cpu, buffer_cpu);
+    rlt::free(device_gpu, buffer_gpu);
+    rlt::free(device_cpu, input_cpu);
+    rlt::free(device_gpu, input_gpu);
+    rlt::free(device_cpu, reset_cpu);
+    rlt::free(device_gpu, reset_gpu);
+}
+
+TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_CUDA_FORWARD_RESET_MODE){
+    test_gru_cuda_forward_reset_mode<2, 3, 4, 5>();
+    test_gru_cuda_forward_reset_mode<4, 3, 4, 5>();
+    test_gru_cuda_forward_reset_mode<16, 8, 4, 5>();
+    test_gru_cuda_forward_reset_mode<16, 32, 19, 64>();
+}
+
 TEST(RL_TOOLS_NN_LAYERS_GRU, GRU_CUDA_BACKWARD){
     test_gru_cuda_backward<1, 3, 4, 5>();
 }
