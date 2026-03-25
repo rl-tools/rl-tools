@@ -736,8 +736,10 @@ void test_gru_cuda_forward(){
     rlt::copy(device_gpu, device_cpu, gru_gpu, gru_gpu_cpu);
 
     T abs_diff_output = rlt::abs_diff(device_cpu, gru_cpu.output, gru_gpu_cpu.output);
-    std::cout << "forward<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> output abs_diff: " << abs_diff_output << std::endl;
-    EXPECT_LT(abs_diff_output, 1e-5);
+    constexpr TI N_OUTPUT_ELEMENTS = T_SEQUENCE_LENGTH * T_BATCH_SIZE * T_HIDDEN_DIM;
+    T per_element = abs_diff_output / N_OUTPUT_ELEMENTS;
+    std::cout << "forward<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> per-element abs_diff: " << per_element << std::endl;
+    EXPECT_LT(per_element, T_SEQUENCE_LENGTH * 1e-14);
 
     rlt::free(device_cpu, rng_cpu);
     rlt::free(device_gpu, rng_gpu);
@@ -813,17 +815,25 @@ void test_gru_cuda_backward(){
     rlt::copy(device_gpu, device_cpu, d_input_gpu, d_input_gpu_cpu);
     rlt::copy(device_gpu, device_cpu, gru_gpu, gru_gpu_cpu);
 
+    constexpr T PER_ELEMENT_THRESHOLD = T_SEQUENCE_LENGTH * 1e-14;
+
     T abs_diff_d_input = rlt::abs_diff(device_cpu, d_input_cpu, d_input_gpu_cpu);
-    std::cout << "backward<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> d_input abs_diff: " << abs_diff_d_input << std::endl;
-    EXPECT_LT(abs_diff_d_input, 1e-5);
+    constexpr TI N_D_INPUT = T_SEQUENCE_LENGTH * T_BATCH_SIZE * T_INPUT_DIM;
+    T per_element_d_input = abs_diff_d_input / N_D_INPUT;
+    std::cout << "backward<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> d_input per-element abs_diff: " << per_element_d_input << std::endl;
+    EXPECT_LT(per_element_d_input, PER_ELEMENT_THRESHOLD);
 
     T abs_diff_weights_input = rlt::abs_diff(device_cpu, gru_cpu.weights_input.gradient, gru_gpu_cpu.weights_input.gradient);
-    std::cout << "backward<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> weights_input gradient abs_diff: " << abs_diff_weights_input << std::endl;
-    EXPECT_LT(abs_diff_weights_input, 1e-5);
+    constexpr TI N_W_INPUT = 3 * T_HIDDEN_DIM * T_INPUT_DIM;
+    T per_element_w_input = abs_diff_weights_input / N_W_INPUT;
+    std::cout << "backward<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> weights_input gradient per-element abs_diff: " << per_element_w_input << std::endl;
+    EXPECT_LT(per_element_w_input, PER_ELEMENT_THRESHOLD);
 
     T abs_diff_weights_hidden = rlt::abs_diff(device_cpu, gru_cpu.weights_hidden.gradient, gru_gpu_cpu.weights_hidden.gradient);
-    std::cout << "backward<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> weights_hidden gradient abs_diff: " << abs_diff_weights_hidden << std::endl;
-    EXPECT_LT(abs_diff_weights_hidden, 1e-5);
+    constexpr TI N_W_HIDDEN = 3 * T_HIDDEN_DIM * T_HIDDEN_DIM;
+    T per_element_w_hidden = abs_diff_weights_hidden / N_W_HIDDEN;
+    std::cout << "backward<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> weights_hidden gradient per-element abs_diff: " << per_element_w_hidden << std::endl;
+    EXPECT_LT(per_element_w_hidden, PER_ELEMENT_THRESHOLD);
 
     rlt::free(device_cpu, rng_cpu);
     rlt::free(device_gpu, rng_gpu);
@@ -915,8 +925,10 @@ void test_gru_cuda_forward_reset_mode(){
     rlt::copy(device_gpu, device_cpu, gru_gpu, gru_gpu_cpu);
 
     T abs_diff_output = rlt::abs_diff(device_cpu, gru_cpu.output, gru_gpu_cpu.output);
-    std::cout << "forward_reset<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> output abs_diff: " << abs_diff_output << std::endl;
-    EXPECT_LT(abs_diff_output, 1e-5);
+    constexpr TI N_OUTPUT_ELEMENTS = T_SEQUENCE_LENGTH * T_BATCH_SIZE * T_HIDDEN_DIM;
+    T per_element = abs_diff_output / N_OUTPUT_ELEMENTS;
+    std::cout << "forward_reset<" << T_SEQUENCE_LENGTH << "," << T_BATCH_SIZE << "," << T_INPUT_DIM << "," << T_HIDDEN_DIM << "> per-element abs_diff: " << per_element << std::endl;
+    EXPECT_LT(per_element, T_SEQUENCE_LENGTH * 1e-14);
 
     rlt::free(device_cpu, rng_cpu);
     rlt::free(device_gpu, rng_gpu);
