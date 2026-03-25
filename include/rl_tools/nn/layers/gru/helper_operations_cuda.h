@@ -236,5 +236,127 @@ namespace rl_tools::nn::layers::gru::helper{
         check_status(device);
     }
 }
+namespace rl_tools{
+    namespace nn::layers::gru::kernels{
+        template<typename DEV_SPEC, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+        __global__
+        void multiply_subtract_broadcast_kernel(devices::CUDA<DEV_SPEC> device, Tensor<SPEC_FACTOR> factor, Tensor<SPEC_1> t1, Tensor<SPEC_2> t2, Tensor<SPEC_OUTPUT> t_output){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC_FACTOR::T;
+            constexpr TI ROWS = SPEC_FACTOR::SHAPE::template GET<0>;
+            constexpr TI COLS = SPEC_FACTOR::SHAPE::template GET<1>;
+            TI i = threadIdx.x + blockIdx.x * blockDim.x;
+            TI j = threadIdx.y + blockIdx.y * blockDim.y;
+            if(i < ROWS && j < COLS){
+                T factor_value = get(device, factor, i, j);
+                T t1_value = get(device, t1, j);
+                T t2_value = get(device, t2, i, j);
+                set(device, t_output, factor_value * (t1_value - t2_value), i, j);
+            }
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+    void multiply_subtract_broadcast(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        constexpr TI ROWS = SPEC_FACTOR::SHAPE::template GET<0>;
+        constexpr TI COLS = SPEC_FACTOR::SHAPE::template GET<1>;
+        constexpr TI BLOCKSIZE = 16;
+        dim3 grid(RL_TOOLS_DEVICES_CUDA_CEIL(ROWS, BLOCKSIZE), RL_TOOLS_DEVICES_CUDA_CEIL(COLS, BLOCKSIZE));
+        dim3 block(BLOCKSIZE, BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        nn::layers::gru::kernels::multiply_subtract_broadcast_kernel<<<grid, block, 0, device.stream>>>(tag_device, factor, t1, t2, t_output);
+        check_status(device);
+    }
+
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+    void multiply_accumulate_reduce(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+        static_assert(length(typename SPEC_1::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_2::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_OUTPUT::SHAPE{}) == 1);
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename SPEC_1::T;
+        using TI = typename DEVICE::index_t;
+        constexpr TI ROWS = SPEC_1::SHAPE::template GET<0>;
+        constexpr TI COLS = SPEC_1::SHAPE::template GET<1>;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, ROWS, COLS>>> temp;
+        malloc(device, temp);
+        multiply(device, t1, t2, temp);
+        reduce_sum<true>(device, temp, t_output);
+        free(device, temp);
+    }
+
+    namespace nn::layers::gru::kernels{
+        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+        __global__
+        void matrix_multiply_broadcast_accumulate_kernel(devices::CUDA<DEV_SPEC> device, const Tensor<SPEC_1> t1, const Tensor<SPEC_2> t2, Tensor<SPEC_OUT> result){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC_1::T;
+            constexpr TI ROWS = SPEC_1::SHAPE::template GET<0>;
+            constexpr TI INNER = SPEC_1::SHAPE::template GET<1>;
+            constexpr TI COLS = SPEC_OUT::SHAPE::template GET<1>;
+            TI row_i = threadIdx.x + blockIdx.x * blockDim.x;
+            TI col_j = threadIdx.y + blockIdx.y * blockDim.y;
+            if(row_i < ROWS && col_j < COLS){
+                T acc = get(device, result, row_i, col_j);
+                T t2_value = get(device, t2, col_j);
+                for(TI k = 0; k < INNER; ++k){
+                    acc += get(device, t1, row_i, k) * t2_value;
+                }
+                set(device, result, acc, row_i, col_j);
+            }
+        }
+
+        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+        __global__
+        void matrix_multiply_accumulate_reduce_kernel(devices::CUDA<DEV_SPEC> device, const Tensor<SPEC_1> t1, const Tensor<SPEC_2> t2, Tensor<SPEC_OUT> result){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC_1::T;
+            constexpr TI ROWS = SPEC_1::SHAPE::template GET<0>;
+            constexpr TI INNER = SPEC_1::SHAPE::template GET<1>;
+            constexpr TI COLS = SPEC_2::SHAPE::template GET<1>;
+            TI col_j = threadIdx.x + blockIdx.x * blockDim.x;
+            if(col_j < COLS){
+                T acc = get(device, result, col_j);
+                for(TI row_i = 0; row_i < ROWS; ++row_i){
+                    for(TI k = 0; k < INNER; ++k){
+                        acc += get(device, t1, row_i, k) * get(device, t2, k, col_j);
+                    }
+                }
+                set(device, result, acc, col_j);
+            }
+        }
+    }
+
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    void matrix_multiply_broadcast_accumulate(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        constexpr TI BLOCKSIZE = 16;
+        constexpr TI ROWS = SPEC_1::SHAPE::template GET<0>;
+        constexpr TI COLS = SPEC_OUT::SHAPE::template GET<1>;
+        dim3 grid(RL_TOOLS_DEVICES_CUDA_CEIL(ROWS, BLOCKSIZE), RL_TOOLS_DEVICES_CUDA_CEIL(COLS, BLOCKSIZE));
+        dim3 block(BLOCKSIZE, BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        nn::layers::gru::kernels::matrix_multiply_broadcast_accumulate_kernel<<<grid, block, 0, device.stream>>>(tag_device, t1, t2, result);
+        check_status(device);
+    }
+
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    void matrix_multiply_accumulate_reduce(devices::CUDA<DEV_SPEC>& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        constexpr TI COLS = SPEC_2::SHAPE::template GET<1>;
+        constexpr TI BLOCKSIZE = 32;
+        dim3 grid(RL_TOOLS_DEVICES_CUDA_CEIL(COLS, BLOCKSIZE));
+        dim3 block(BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        nn::layers::gru::kernels::matrix_multiply_accumulate_reduce_kernel<<<grid, block, 0, device.stream>>>(tag_device, t1, t2, result);
+        check_status(device);
+    }
+}
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

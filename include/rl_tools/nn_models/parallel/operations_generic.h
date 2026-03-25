@@ -163,6 +163,39 @@ namespace rl_tools{
         }
     }
 
+    // ======================== reset ========================
+    template <typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const nn_models::parallel::ModuleForward<SPEC>& model, nn_models::parallel::ModuleState<STATE_SPEC>& state, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        reset(device, model.pipeline_a, state.state_a, rng, mode);
+        reset(device, model.pipeline_b, state.state_b, rng, mode);
+        if constexpr(SPEC::HAS_HEAD){
+            reset(device, model.head, state.head_state, rng, mode);
+        }
+    }
+
+    // ======================== evaluate_step ========================
+    template <typename DEVICE, typename SPEC, typename INPUT_A, typename INPUT_B, typename STATE_SPEC, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, nn_models::parallel::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename SPEC::TI;
+        evaluate_step(device, model.pipeline_a, input_a, state.state_a, buffer.intermediate_a, buffer.buffer_a, rng, mode);
+        evaluate_step(device, model.pipeline_b, input_b, state.state_b, buffer.intermediate_b, buffer.buffer_b, rng, mode);
+        nn_models::parallel::_concatenate(device, buffer.intermediate_a, buffer.intermediate_b, buffer.concatenated);
+        if constexpr(SPEC::HAS_HEAD){
+            using CONCAT_SHAPE = typename utils::typing::remove_reference_t<decltype(buffer.concatenated)>::SPEC::SHAPE;
+            constexpr TI CONCAT_LAST_DIM = get_last(CONCAT_SHAPE{});
+            constexpr TI CONCAT_LEADING = product(CONCAT_SHAPE{}) / CONCAT_LAST_DIM;
+            auto concat_2d = reshape_row_major(device, buffer.concatenated, tensor::Shape<TI, CONCAT_LEADING, CONCAT_LAST_DIM>{});
+            using OUTPUT_TENSOR_SHAPE = typename OUTPUT::SPEC::SHAPE;
+            constexpr TI OUTPUT_LAST_DIM = get_last(OUTPUT_TENSOR_SHAPE{});
+            constexpr TI OUTPUT_LEADING = product(OUTPUT_TENSOR_SHAPE{}) / OUTPUT_LAST_DIM;
+            auto output_2d = reshape_row_major(device, output, tensor::Shape<TI, OUTPUT_LEADING, OUTPUT_LAST_DIM>{});
+            evaluate_step(device, model.head, concat_2d, state.head_state, output_2d, buffer.head_buffer, rng, mode);
+        }
+        else{
+            copy(device, device, buffer.concatenated, output);
+        }
+    }
+
     // ======================== evaluate ========================
     template <typename DEVICE, typename SPEC, typename INPUT_A, typename INPUT_B, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
