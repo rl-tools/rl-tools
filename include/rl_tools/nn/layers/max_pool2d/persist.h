@@ -8,6 +8,13 @@ namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::max_pool2d::LayerForward<SPEC>& layer, GROUP& group) {
         set_attribute(device, group, "type", "max_pool2d");
+        set_attribute(device, group, "kernel_height", std::to_string(SPEC::CONFIG::KERNEL_HEIGHT).c_str());
+        set_attribute(device, group, "kernel_width", std::to_string(SPEC::CONFIG::KERNEL_WIDTH).c_str());
+        set_attribute(device, group, "stride_h", std::to_string(SPEC::CONFIG::STRIDE_H).c_str());
+        set_attribute(device, group, "stride_w", std::to_string(SPEC::CONFIG::STRIDE_W).c_str());
+        set_attribute(device, group, "padding_h", std::to_string(SPEC::CONFIG::PADDING_H).c_str());
+        set_attribute(device, group, "padding_w", std::to_string(SPEC::CONFIG::PADDING_W).c_str());
+        write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::max_pool2d::LayerBackward<SPEC>& layer, GROUP& group) {

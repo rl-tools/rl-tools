@@ -291,11 +291,12 @@ int main(int argc, char** argv){
         rlt::log(device, device.logger, "Target scene position: [",
             target_translation[0], ", ", target_translation[1], ", ", target_translation[2], "]");
         for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
-            auto& env = rlt::get_ref(device, ts.envs, env_i);
+            auto& params = rlt::get_ref(device, ts.env_parameters, env_i);
             for (TI j = 0; j < 3; j++) {
-                env.target_scene_translation[j] = target_translation[j];
+                params.scene_translation[j] = target_translation[j];
             }
         }
+        rlt::init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
     }
 
     // 6. Training loop
