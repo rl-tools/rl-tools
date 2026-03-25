@@ -237,10 +237,6 @@ namespace rl_tools::math {
 //        return x * (27 + x_squared) / (27 + 9 * x_squared);
 //    }
     template<typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT T fast_sigmoid(const devices::math::CUDA& dev, T x) {
-        return fast_sigmoid(devices::math::Generic{}, x);
-    }
-    template<typename T>
     RL_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::CUDA& dev, T x) {
         x = clamp(dev, x, static_cast<T>(-3.0), static_cast<T>(3.0));
         T x_squared = x * x;
@@ -255,6 +251,10 @@ namespace rl_tools::math {
 #else
         return numerator / denominator;
 #endif
+    }
+    template<typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT T fast_sigmoid(const devices::math::CUDA& dev, T x) {
+        return (T)0.5 * fast_tanh(dev, (T)0.5 * x) + (T)0.5;
     }
     template<typename T>
     RL_TOOLS_FUNCTION_PLACEMENT T atan2(const devices::math::CUDA&, const T a, const T b) {

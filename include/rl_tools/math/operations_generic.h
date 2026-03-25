@@ -215,7 +215,7 @@ namespace rl_tools::math {
     // }
 
     template<typename T>
-    T clamp(const devices::math::Generic&, T x, T min, T max) {
+    RL_TOOLS_FUNCTION_PLACEMENT T clamp(const devices::math::Generic&, T x, T min, T max) {
         return x < min ? min : (x > max ? max : x);
     }
 
