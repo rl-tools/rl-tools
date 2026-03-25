@@ -63,14 +63,23 @@ export class TrajectoryPlayer{
 
         this.controls_container.replaceChildren(episode_info);
         const previous_button = document.createElement('button');
-        previous_button.innerHTML = "Previous Episode";
+        previous_button.innerHTML = "Prev Episode";
         this.controls_container.appendChild(previous_button);
         const restart_button = document.createElement('button');
-        restart_button.innerHTML = "Restart Episode";
+        restart_button.innerHTML = "Restart";
         this.controls_container.appendChild(restart_button);
         const skip_button = document.createElement('button');
         skip_button.innerHTML = "Next Episode";
         this.controls_container.appendChild(skip_button);
+        const step_back_button = document.createElement('button');
+        step_back_button.innerHTML = "◀";
+        this.controls_container.appendChild(step_back_button);
+        const pause_button = document.createElement('button');
+        pause_button.innerHTML = "⏸";
+        this.controls_container.appendChild(pause_button);
+        const step_forward_button = document.createElement('button');
+        step_forward_button.innerHTML = "▶";
+        this.controls_container.appendChild(step_forward_button);
 
         var ratio = window.devicePixelRatio || 1;
 
@@ -268,12 +277,36 @@ export class TrajectoryPlayer{
             console.log(`Skipped to Episode ${currentEpisode}`);
         }
 
+        let paused = false;
+
+        function stepBack() {
+            const len = single ? trajectoryData[currentEpisode].trajectory.length : trajectoryData[0].trajectory.length;
+            // step() reads currentStep then increments, so go back 2 to end up 1 behind
+            currentStep = ((currentStep - 2) % len + len) % len;
+            if(single){
+                currentEpisodeReturn = 0;
+                currentEpisodeLength = currentStep;
+            } else {
+                current_episode_return_multi = 0;
+            }
+            step();
+        }
+        function stepForward() {
+            step();
+        }
+        function togglePause() {
+            paused = !paused;
+            pause_button.innerHTML = paused ? "▶" : "⏸";
+        }
+
         previous_button.addEventListener('click', previousEpisode);
         restart_button.addEventListener('click', restartEpisode);
         skip_button.addEventListener('click', skipEpisode);
+        step_back_button.addEventListener('click', () => { if(!paused) togglePause(); stepBack(); });
+        pause_button.addEventListener('click', togglePause);
+        step_forward_button.addEventListener('click', () => { if(!paused) togglePause(); stepForward(); });
 
-
-        setInterval(step, dt * 1000);
+        setInterval(() => { if(!paused) step(); }, dt * 1000);
     }
 
 }
