@@ -4,6 +4,7 @@
 #include "../../../version.h"
 #include "layer.h"
 #include "../../parameters/persist.h"
+#include "../dense/persist_common.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
@@ -21,6 +22,14 @@ namespace rl_tools {
         set_attribute(device, group, "stride_w", std::to_string(SPEC::STRIDE_W).c_str());
         set_attribute(device, group, "padding_h", std::to_string(SPEC::PADDING_H).c_str());
         set_attribute(device, group, "padding_w", std::to_string(SPEC::PADDING_W).c_str());
+        set_attribute(device, group, "activation_function", nn::layers::dense::persist::get_activation_function_string_short<SPEC::ACTIVATION_FUNCTION>());
+        if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::NONE){
+            set_attribute(device, group, "normalization", "NONE");
+        } else if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
+            set_attribute(device, group, "normalization", "BATCH_NORM");
+        } else if constexpr(SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::LAYER_NORM){
+            set_attribute(device, group, "normalization", "LAYER_NORM");
+        }
         if constexpr(SPEC::NORMALIZATION != nn::layers::conv2d::Normalization::NONE) {
             auto gamma_group = create_group(device, group, "gamma");
             auto beta_group = create_group(device, group, "beta");
