@@ -78,6 +78,29 @@ namespace rl_tools{
             data(d_output), data(d_a), data(d_b), LAST_DIM_A, LAST_DIM_B, TOTAL);
     }
 
+    // ======================== CUDA evaluate_step ========================
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_A, typename INPUT_B, typename STATE_SPEC, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate_step(devices::CUDA<DEV_SPEC>& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, nn_models::parallel::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using TI = typename SPEC::TI;
+        evaluate_step(device, model.pipeline_a, input_a, state.state_a, buffer.intermediate_a, buffer.buffer_a, rng, mode);
+        evaluate_step(device, model.pipeline_b, input_b, state.state_b, buffer.intermediate_b, buffer.buffer_b, rng, mode);
+        _concatenate_cuda(device, buffer.intermediate_a, buffer.intermediate_b, buffer.concatenated);
+        if constexpr(SPEC::HAS_HEAD){
+            using CONCAT_SHAPE = typename utils::typing::remove_reference_t<decltype(buffer.concatenated)>::SPEC::SHAPE;
+            constexpr TI CONCAT_LAST_DIM = get_last(CONCAT_SHAPE{});
+            constexpr TI CONCAT_LEADING = product(CONCAT_SHAPE{}) / CONCAT_LAST_DIM;
+            auto concat_2d = reshape_row_major(device, buffer.concatenated, tensor::Shape<TI, CONCAT_LEADING, CONCAT_LAST_DIM>{});
+            using OUTPUT_TENSOR_SHAPE = typename OUTPUT::SPEC::SHAPE;
+            constexpr TI OUTPUT_LAST_DIM = get_last(OUTPUT_TENSOR_SHAPE{});
+            constexpr TI OUTPUT_LEADING = product(OUTPUT_TENSOR_SHAPE{}) / OUTPUT_LAST_DIM;
+            auto output_2d = reshape_row_major(device, output, tensor::Shape<TI, OUTPUT_LEADING, OUTPUT_LAST_DIM>{});
+            evaluate_step(device, model.head, concat_2d, state.head_state, output_2d, buffer.head_buffer, rng, mode);
+        }
+        else{
+            copy(device, device, buffer.concatenated, output);
+        }
+    }
+
     // ======================== CUDA evaluate ========================
     template <typename DEV_SPEC, typename SPEC, typename INPUT_A, typename INPUT_B, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate(devices::CUDA<DEV_SPEC>& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){

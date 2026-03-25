@@ -202,9 +202,9 @@ namespace rl_tools{
                 return false;
             }
 
-            template <typename SPEC, typename DEVICE, typename MODE, typename MODE_SPEC>
-            RL_TOOLS_FUNCTION_PLACEMENT bool reset_sample(DEVICE& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, typename MODE_SPEC::TI step_i, typename MODE_SPEC::TI batch_sample_i){
-                return get(device, mode.reset_container, step_i, batch_sample_i, (typename MODE_SPEC::TI)0);
+            template <typename SPEC, typename DEVICE, typename MODE, typename MODE_SPEC, typename TI>
+            RL_TOOLS_FUNCTION_PLACEMENT bool reset_sample(DEVICE& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, TI step_i, TI batch_sample_i){
+                return get(device, mode.reset_container, (typename MODE_SPEC::TI)step_i, (typename MODE_SPEC::TI)batch_sample_i, (typename MODE_SPEC::TI)0);
             }
             template <typename SPEC, typename DEVICE, typename MODE, typename TI>
             RL_TOOLS_FUNCTION_PLACEMENT bool reset_sample(DEVICE& device, const Mode<MODE>& mode, TI step_i, TI batch_sample_i){
@@ -272,9 +272,6 @@ namespace rl_tools{
             }
             else{
                 if constexpr(CAN_RESET_SAMPLE){
-                    #ifdef RL_TOOLS_ENABLE_TRACY
-                    ZoneScopedN("gru::evaluate_step::CAN_RESET_SAMPLE_1");
-                    #endif
                     for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
                         auto target = view(device, previous_output_scratch, sample_i);
                         bool reset = nn::layers::gru::mode::reset_sample<LAYER_SPEC>(device, mode, step_i, sample_i);
@@ -615,7 +612,7 @@ namespace rl_tools{
         auto z_post_activation = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
         auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
-        constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(decltype(mode){});
+        constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(utils::typing::remove_reference_t<decltype(mode)>{});
         bool reset_full_batch = nn::layers::gru::mode::reset_full_batch<LAYER_SPEC>(mode) || step_i == 0;
         if(reset_full_batch){
             multiply_subtract_broadcast(device, d_output_step, layer.initial_hidden_state.parameters, n_post_activation, buffers.buffer_z);
@@ -634,8 +631,6 @@ namespace rl_tools{
                     if(reset){
                         auto source = layer.initial_hidden_state.parameters;
                         copy(device, device, source, target);
-
-                        // also propagate the d_output to the initial state
                         if constexpr(CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
                             auto d_output_previous_step_sample = layer.initial_hidden_state.gradient;
                             multiply_accumulate(device, d_output_step_sample, z_post_activation_sample, d_output_previous_step_sample);
@@ -645,8 +640,6 @@ namespace rl_tools{
                         auto output_previous_step = view(device, layer.output, step_i-1);
                         auto source = view(device, output_previous_step, sample_i);
                         copy(device, device, source, target);
-
-                        // also propagate the d_output to the previous step
                         auto d_output_previous_step = view(device, d_output, step_i-1);
                         auto d_output_previous_step_sample = view(device, d_output_previous_step, sample_i);
                         multiply_accumulate(device, d_output_step_sample, z_post_activation_sample, d_output_previous_step_sample);
