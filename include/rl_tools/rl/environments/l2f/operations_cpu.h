@@ -1492,13 +1492,29 @@ function render_onboard_overlay(ui_state){
     const canvas_w = ui_state.canvas.width / ui_state.devicePixelRatio
     const canvas_h = ui_state.canvas.height / ui_state.devicePixelRatio
     const x = canvas_w - size - margin
-    const y = canvas_h - size - margin
+    const prev_autoClear = ui_state.renderer.autoClear
+    ui_state.renderer.autoClear = false
     ui_state.renderer.setScissorTest(true)
     ui_state.renderer.setViewport(x, margin, size, size)
     ui_state.renderer.setScissor(x, margin, size, size)
-    ui_state.renderer.render(ui_state.onboard_scene, ui_state.onboard_camera)
+    ui_state.renderer.clearDepth()
+    if(ui_state.onboard_obs_resolution && ui_state.onboard_render_target){
+        if(!ui_state.onboard_overlay_quad){
+            const geo = new THREE.PlaneGeometry(2, 2)
+            const mat = new THREE.MeshBasicMaterial({map: ui_state.onboard_render_target.texture, depthTest: false})
+            mat.map.magFilter = THREE.NearestFilter
+            ui_state.onboard_overlay_quad = new THREE.Mesh(geo, mat)
+            ui_state.onboard_overlay_blit_scene = new THREE.Scene()
+            ui_state.onboard_overlay_blit_scene.add(ui_state.onboard_overlay_quad)
+            ui_state.onboard_overlay_blit_camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+        }
+        ui_state.renderer.render(ui_state.onboard_overlay_blit_scene, ui_state.onboard_overlay_blit_camera)
+    } else {
+        ui_state.renderer.render(ui_state.onboard_scene, ui_state.onboard_camera)
+    }
     ui_state.renderer.setScissorTest(false)
     ui_state.renderer.setViewport(0, 0, canvas_w, canvas_h)
+    ui_state.renderer.autoClear = prev_autoClear
 }
 
 export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, cos_fov){
@@ -1660,9 +1676,15 @@ export async function render(ui_state, parameters, state, action) {
     if(ui_state.trajectoryVis && state.trajectory && state.trajectory.trajectory_step !== undefined){
         update_trajectory_bug(ui_state.trajectoryVis, state.trajectory.trajectory_step)
     }
-    update_onboard_camera(ui_state, state, parameters)
+    if(ui_state.show_onboard_preview && ui_state.onboard_scene){
+        if(ui_state.onboard_obs_resolution && ui_state.onboard_render_target){
+            render_onboard_pixels(ui_state, state, parameters)
+        } else {
+            update_onboard_camera(ui_state, state, parameters)
+        }
+    }
     update_camera(ui_state)
-    render_onboard_overlay(ui_state)
+    if(ui_state.show_onboard_preview && ui_state.onboard_scene) render_onboard_overlay(ui_state)
 }
 
 export async function render_multi(ui_state, parameters, states, actions){
@@ -1677,10 +1699,16 @@ export async function render_multi(ui_state, parameters, states, actions){
                 update_trajectory_bug(ui_state.trajectoryVisArray[i], state.trajectory.trajectory_step)
             }
         })
-        update_onboard_camera(ui_state, states[0], parameters[0])
+        if(ui_state.show_onboard_preview && ui_state.onboard_scene){
+            if(ui_state.onboard_obs_resolution && ui_state.onboard_render_target){
+                render_onboard_pixels(ui_state, states[0], parameters[0])
+            } else {
+                update_onboard_camera(ui_state, states[0], parameters[0])
+            }
+        }
     }
     update_camera(ui_state)
-    render_onboard_overlay(ui_state)
+    if(ui_state.show_onboard_preview && ui_state.onboard_scene) render_onboard_overlay(ui_state)
 }
 
 
