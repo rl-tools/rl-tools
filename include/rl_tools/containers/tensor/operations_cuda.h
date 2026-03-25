@@ -356,7 +356,7 @@ namespace rl_tools
     template<typename DEV_SPEC, typename SPEC,
         typename utils::typing::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void set_all(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& t, typename SPEC::T value){
-        if(value == (typename SPEC::T)0){
+        if(value == (typename SPEC::T)0 && tensor::dense_row_major_layout<SPEC>()){
             cudaMemsetAsync(t._data, 0, SPEC::SIZE_BYTES, device.stream);
         }
         else{
@@ -517,7 +517,7 @@ namespace rl_tools
     // Unary operation when on Host device
     template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_3, typename SPEC_OUT, typename OPERATION,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    void ternary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
+    void ternary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_3>& t3, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
@@ -567,7 +567,7 @@ namespace rl_tools
     }
     template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, typename OPERATION,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
-    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void ternary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         ternary_operation(device, op, t1, t2, result, result);
     }
     namespace tensor::kernels{
@@ -649,6 +649,54 @@ namespace rl_tools
             check_status(device);
 
         }
+    }
+    namespace tensor::kernels{
+        template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, bool ACCUMULATE>
+        __global__
+        void reduce_sum_2d(devices::CUDA<DEV_SPEC> device, Tensor<SPEC> input, Tensor<OUTPUT_SPEC> output){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC::T;
+            constexpr TI ROWS = SPEC::SHAPE::template GET<0>;
+            constexpr TI COLS = SPEC::SHAPE::template GET<1>;
+            TI row_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(row_i < ROWS){
+                T acc = ACCUMULATE ? get(device, output, row_i) : (T)0;
+                for(TI col_i = 0; col_i < COLS; ++col_i){
+                    acc += get(device, input, row_i, col_i);
+                }
+                set(device, output, acc, row_i);
+            }
+        }
+    }
+
+    template <bool ACCUMULATE, typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, auto SIZE=0, auto DIM=length(typename SPEC::SHAPE{})-1,
+        typename utils::typing::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
+    void reduce_sum(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& input, Tensor<OUTPUT_SPEC>& output, tensor::ViewSpec<DIM, SIZE> = tensor::ViewSpec<length(typename SPEC::SHAPE{})-1, SIZE>{}){
+        static_assert(DIM == length(typename SPEC::SHAPE{}) - 1);
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) == 2){
+            constexpr TI ROWS = SPEC::SHAPE::template GET<0>;
+            constexpr TI BLOCKSIZE = 32;
+            dim3 grid(RL_TOOLS_DEVICES_CUDA_CEIL(ROWS, BLOCKSIZE));
+            dim3 block(BLOCKSIZE);
+            devices::cuda::TAG<DEVICE, true> tag_device{};
+            tensor::kernels::reduce_sum_2d<typename decltype(tag_device)::SPEC, SPEC, OUTPUT_SPEC, ACCUMULATE><<<grid, block, 0, device.stream>>>(tag_device, input, output);
+            check_status(device);
+        }
+        else{
+            for(TI i = 0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+                auto next_input = view(device, input, i);
+                auto next_output = view(device, output, i);
+                reduce_sum<ACCUMULATE>(device, next_input, next_output);
+            }
+        }
+    }
+    template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, auto SIZE=0, auto DIM=length(typename SPEC::SHAPE{})-1,
+        typename utils::typing::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
+    void reduce_sum(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& input, Tensor<OUTPUT_SPEC>& output, tensor::ViewSpec<DIM, SIZE> = tensor::ViewSpec<length(typename SPEC::SHAPE{})-1, SIZE>{}){
+        reduce_sum<false>(device, input, output);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

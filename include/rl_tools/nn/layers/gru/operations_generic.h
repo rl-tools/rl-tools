@@ -615,7 +615,7 @@ namespace rl_tools{
         auto z_post_activation = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
         auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
-        constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(decltype(mode){});
+        constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample<LAYER_SPEC>(utils::typing::remove_reference_t<decltype(mode)>{});
         bool reset_full_batch = nn::layers::gru::mode::reset_full_batch<LAYER_SPEC>(mode) || step_i == 0;
         if(reset_full_batch){
             multiply_subtract_broadcast(device, d_output_step, layer.initial_hidden_state.parameters, n_post_activation, buffers.buffer_z);
