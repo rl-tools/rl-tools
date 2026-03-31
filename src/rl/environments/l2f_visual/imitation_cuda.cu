@@ -33,6 +33,7 @@
 #include <rl_tools/utils/zlib/operations_cpu.h>
 
 #include <array>
+#include <cmath>
 #include <chrono>
 #include <iostream>
 #include <iomanip>
@@ -124,8 +125,8 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
-// using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
-using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
+using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
+// using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
 
@@ -353,10 +354,6 @@ int main(int argc, char** argv){
     extrack_config.name = "l2f_visual_imitation_cuda";
     rlt::init(device, extrack_config, extrack_paths, seed);
 
-#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
-    rlt::init(device, device.logger, extrack_paths.seed);
-#endif
-
     RNG rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
@@ -536,8 +533,14 @@ int main(int argc, char** argv){
     typename ENVIRONMENT::State next_states[N_ENVIRONMENTS];
     bool terminated[N_ENVIRONMENTS];
     TI episode_step[N_ENVIRONMENTS];
-    T episode_length_sum = 0;
-    TI episode_count = 0;
+    T episode_length_sum_tf = 0;
+    TI episode_count_tf = 0;
+    T episode_length_sum_student = 0;
+    TI episode_count_student = 0;
+    T position_error_sum_tf = 0;
+    TI position_error_steps_tf = 0;
+    T position_error_sum_student = 0;
+    TI position_error_steps_student = 0;
 
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
         terminated[env_i] = true;
@@ -599,8 +602,13 @@ int main(int argc, char** argv){
             for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
                 if(terminated[env_i] || episode_step[env_i] >= EPISODE_STEP_LIMIT){
                     if(episode_step[env_i] > 0){
-                        episode_length_sum += episode_step[env_i];
-                        episode_count++;
+                        if(teacher_forcing){
+                            episode_length_sum_tf += episode_step[env_i];
+                            episode_count_tf++;
+                        } else {
+                            episode_length_sum_student += episode_step[env_i];
+                            episode_count_student++;
+                        }
                         if(env_i < TRAJECTORY_NUM_ENVS && episode_recorders[env_i].episode_started && !episode_recorders[env_i].current_episode.empty()){
                             completed_episodes.push_back(std::move(episode_recorders[env_i].current_episode));
                             episode_recorders[env_i].current_episode.clear();
@@ -726,6 +734,16 @@ int main(int argc, char** argv){
                 terminated[env_i] = rlt::terminated(device, envs[env_i].dynamics, env_parameters[env_i].dynamics, next_states[env_i], rng);
                 states[env_i] = next_states[env_i];
                 episode_step[env_i]++;
+                T pos_err = std::sqrt(states[env_i].position[0] * states[env_i].position[0]
+                                    + states[env_i].position[1] * states[env_i].position[1]
+                                    + states[env_i].position[2] * states[env_i].position[2]);
+                if(teacher_forcing){
+                    position_error_sum_tf += pos_err;
+                    position_error_steps_tf++;
+                } else {
+                    position_error_sum_student += pos_err;
+                    position_error_steps_student++;
+                }
             }
 
             // Fill in terminated for trajectory steps
@@ -859,11 +877,18 @@ int main(int argc, char** argv){
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> training_elapsed = now - training_start;
         std::chrono::duration<T> epoch_elapsed = now - epoch_start;
-        T mean_episode_length = episode_count > 0 ? episode_length_sum / episode_count : 0;
+        T mean_episode_length_tf = episode_count_tf > 0 ? episode_length_sum_tf / episode_count_tf : 0;
+        T mean_episode_length_student = episode_count_student > 0 ? episode_length_sum_student / episode_count_student : 0;
+        T error_position_rmse_tf = position_error_steps_tf > 0 ? position_error_sum_tf / position_error_steps_tf : 0;
+        T error_position_rmse_student = position_error_steps_student > 0 ? position_error_sum_student / position_error_steps_student : 0;
+        TI episode_count = episode_count_tf + episode_count_student;
+        T mean_episode_length = teacher_forcing ? mean_episode_length_tf : mean_episode_length_student;
+        T error_position_rmse = teacher_forcing ? error_position_rmse_tf : error_position_rmse_student;
 
         std::cout << (teacher_forcing ? "[TF] " : "[SR] ")
                   << "Epoch: " << std::setw(5) << epoch_i
                   << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
+                  << " rmse_pos: " << std::setw(8) << std::setprecision(4) << error_position_rmse
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
                   << " episodes: " << std::setw(5) << episode_count
                   << " epoch_time: " << std::setw(6) << std::setprecision(1) << epoch_elapsed.count() << "s"
@@ -873,15 +898,29 @@ int main(int argc, char** argv){
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
         rlt::set_step(device, device.logger, epoch_i);
         rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
-        rlt::add_scalar(device, device.logger, "training/mean_episode_length", mean_episode_length);
-        rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
+        if(episode_count_tf > 0){
+            rlt::add_scalar(device, device.logger, "training/teacher/episode_length", mean_episode_length_tf);
+            rlt::add_scalar(device, device.logger, "training/teacher/episodes", static_cast<T>(episode_count_tf));
+            rlt::add_scalar(device, device.logger, "training/teacher/error_position_rmse", error_position_rmse_tf);
+        }
+        if(episode_count_student > 0){
+            rlt::add_scalar(device, device.logger, "training/student/episode_length", mean_episode_length_student);
+            rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
+            rlt::add_scalar(device, device.logger, "training/student/error_position_rmse", error_position_rmse_student);
+        }
         rlt::add_scalar(device, device.logger, "training/epoch_time_s", epoch_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/total_time_s", training_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/teacher_forcing", teacher_forcing ? (T)1 : (T)0);
 #endif
 
-        episode_length_sum = 0;
-        episode_count = 0;
+        episode_length_sum_tf = 0;
+        episode_count_tf = 0;
+        episode_length_sum_student = 0;
+        episode_count_student = 0;
+        position_error_sum_tf = 0;
+        position_error_steps_tf = 0;
+        position_error_sum_student = 0;
+        position_error_steps_student = 0;
     }
 
     std::cout << "Training finished." << std::endl;
