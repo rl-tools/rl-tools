@@ -42,6 +42,7 @@ namespace rl_tools{
     void init(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger){ }
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, std::filesystem::path run_dir){
+        utils::assert_exit(device, logger.tb == nullptr, "Tensorboard logger already initialized (double init can cause file corruption)");
         if (!std::filesystem::is_directory(run_dir) || !std::filesystem::exists(run_dir)) {
             std::filesystem::create_directories(run_dir);
         }
