@@ -124,8 +124,8 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
-using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
-// using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
+// using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
+using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
 
@@ -352,6 +352,10 @@ int main(int argc, char** argv){
     rlt::utils::extrack::Paths extrack_paths;
     extrack_config.name = "l2f_visual_imitation_cuda";
     rlt::init(device, extrack_config, extrack_paths, seed);
+
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+    rlt::init(device, device.logger, extrack_paths.seed);
+#endif
 
     RNG rng;
     rlt::malloc(device, rng);
@@ -866,11 +870,25 @@ int main(int argc, char** argv){
                   << " total: " << std::setw(8) << std::setprecision(1) << training_elapsed.count() << "s"
                   << std::endl;
 
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+        rlt::set_step(device, device.logger, epoch_i);
+        rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
+        rlt::add_scalar(device, device.logger, "training/mean_episode_length", mean_episode_length);
+        rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
+        rlt::add_scalar(device, device.logger, "training/epoch_time_s", epoch_elapsed.count());
+        rlt::add_scalar(device, device.logger, "training/total_time_s", training_elapsed.count());
+        rlt::add_scalar(device, device.logger, "training/teacher_forcing", teacher_forcing ? (T)1 : (T)0);
+#endif
+
         episode_length_sum = 0;
         episode_count = 0;
     }
 
     std::cout << "Training finished." << std::endl;
+
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+    rlt::free(device, device.logger);
+#endif
 
     // =========================================================================
     // Cleanup
