@@ -125,8 +125,8 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
-using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
-// using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
+// using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
+using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
 
@@ -172,6 +172,7 @@ static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000;
 static constexpr TI TEACHER_FORCING_EPOCHS = 30;
+static constexpr T TEACHER_FORCING_FRACTION = 0.0;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS)
@@ -532,6 +533,7 @@ int main(int argc, char** argv){
     typename ENVIRONMENT::State states[N_ENVIRONMENTS];
     typename ENVIRONMENT::State next_states[N_ENVIRONMENTS];
     bool terminated[N_ENVIRONMENTS];
+    bool teacher_forcing_env[N_ENVIRONMENTS];
     TI episode_step[N_ENVIRONMENTS];
     T episode_length_sum_tf = 0;
     TI episode_count_tf = 0;
@@ -544,6 +546,7 @@ int main(int argc, char** argv){
 
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
         terminated[env_i] = true;
+        teacher_forcing_env[env_i] = true;
         episode_step[env_i] = 0;
     }
 
@@ -560,6 +563,7 @@ int main(int argc, char** argv){
     std::cout << "  STATE_OBS_DIM: " << STATE_OBS_DIM << std::endl;
     std::cout << "  RAPTOR_OBS_DIM: " << RAPTOR_OBS_DIM << std::endl;
     std::cout << "  TEACHER_FORCING_EPOCHS: " << TEACHER_FORCING_EPOCHS << std::endl;
+    std::cout << "  TEACHER_FORCING_FRACTION: " << TEACHER_FORCING_FRACTION << std::endl;
 
     using NO_AUTO_RESET_MODE = rlt::Mode<rlt::nn::layers::gru::NoAutoResetMode<rlt::mode::Default<>>>;
     NO_AUTO_RESET_MODE no_auto_reset_mode;
@@ -576,7 +580,7 @@ int main(int argc, char** argv){
 
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
         auto epoch_start = std::chrono::high_resolution_clock::now();
-        bool teacher_forcing = epoch_i < TEACHER_FORCING_EPOCHS;
+        bool full_teacher_forcing = epoch_i < TEACHER_FORCING_EPOCHS;
         bool record_video = (epoch_i % VIDEO_CADENCE == 0);
         TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
         FILE* ffmpeg_pipe = nullptr;
@@ -602,7 +606,7 @@ int main(int argc, char** argv){
             for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
                 if(terminated[env_i] || episode_step[env_i] >= EPISODE_STEP_LIMIT){
                     if(episode_step[env_i] > 0){
-                        if(teacher_forcing){
+                        if(teacher_forcing_env[env_i]){
                             episode_length_sum_tf += episode_step[env_i];
                             episode_count_tf++;
                         } else {
@@ -621,6 +625,7 @@ int main(int argc, char** argv){
                     rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], states[env_i], rng);
                     episode_step[env_i] = 0;
                     terminated[env_i] = false;
+                    teacher_forcing_env[env_i] = full_teacher_forcing || rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, rng) < TEACHER_FORCING_FRACTION;
                     if(env_i < TRAJECTORY_NUM_ENVS){
                         episode_recorders[env_i].episode_started = true;
                     }
@@ -686,7 +691,7 @@ int main(int argc, char** argv){
             auto actions_dest = rlt::view_range(device, cpu_all_teacher_actions, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             rlt::copy(device, device, teacher_actions, actions_dest);
 
-            if(!teacher_forcing){
+            if(!full_teacher_forcing){
                 // Student rollout: evaluate student on GPU to get stepping actions
                 auto gpu_obs_slice = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 using EVAL_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
@@ -709,7 +714,7 @@ int main(int argc, char** argv){
                     TrajectoryStep traj_step;
                     traj_step.state = states[env_i];
                     for(TI a = 0; a < ACTION_DIM; a++){
-                        if(teacher_forcing){
+                        if(teacher_forcing_env[env_i]){
                             traj_step.actions[a] = rlt::get(device, teacher_actions, env_i, a);
                         } else {
                             traj_step.actions[a] = rlt::get(cpu_actions_eval, env_i, a);
@@ -723,7 +728,7 @@ int main(int argc, char** argv){
 
             // Step environment with chosen actions
             for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-                if(teacher_forcing){
+                if(teacher_forcing_env[env_i]){
                     auto action_row = rlt::view(device, teacher_actions, env_i);
                     auto action_matrix = rlt::matrix_view(device, action_row);
                     rlt::step(device, envs[env_i].dynamics, env_parameters[env_i].dynamics, states[env_i], action_matrix, next_states[env_i], rng);
@@ -737,7 +742,7 @@ int main(int argc, char** argv){
                 T pos_err = std::sqrt(states[env_i].position[0] * states[env_i].position[0]
                                     + states[env_i].position[1] * states[env_i].position[1]
                                     + states[env_i].position[2] * states[env_i].position[2]);
-                if(teacher_forcing){
+                if(teacher_forcing_env[env_i]){
                     position_error_sum_tf += pos_err;
                     position_error_steps_tf++;
                 } else {
@@ -882,15 +887,17 @@ int main(int argc, char** argv){
         T error_position_rmse_tf = position_error_steps_tf > 0 ? position_error_sum_tf / position_error_steps_tf : 0;
         T error_position_rmse_student = position_error_steps_student > 0 ? position_error_sum_student / position_error_steps_student : 0;
         TI episode_count = episode_count_tf + episode_count_student;
-        T mean_episode_length = teacher_forcing ? mean_episode_length_tf : mean_episode_length_student;
-        T error_position_rmse = teacher_forcing ? error_position_rmse_tf : error_position_rmse_student;
+        T mean_episode_length = episode_count_student > 0 ? mean_episode_length_student : mean_episode_length_tf;
+        T error_position_rmse = position_error_steps_student > 0 ? error_position_rmse_student : error_position_rmse_tf;
+        T fps = epoch_elapsed.count() > 0 ? static_cast<T>(STEPS_TOTAL) / epoch_elapsed.count() : 0;
 
-        std::cout << (teacher_forcing ? "[TF] " : "[SR] ")
+        std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(TEACHER_FORCING_FRACTION * 100)) + "%] ")
                   << "Epoch: " << std::setw(5) << epoch_i
                   << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
                   << " rmse_pos: " << std::setw(8) << std::setprecision(4) << error_position_rmse
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
                   << " episodes: " << std::setw(5) << episode_count
+                  << " fps: " << std::setw(7) << std::setprecision(0) << fps
                   << " epoch_time: " << std::setw(6) << std::setprecision(1) << epoch_elapsed.count() << "s"
                   << " total: " << std::setw(8) << std::setprecision(1) << training_elapsed.count() << "s"
                   << std::endl;
@@ -908,9 +915,10 @@ int main(int argc, char** argv){
             rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
             rlt::add_scalar(device, device.logger, "training/student/error_position_rmse", error_position_rmse_student);
         }
+        rlt::add_scalar(device, device.logger, "training/fps", fps);
         rlt::add_scalar(device, device.logger, "training/epoch_time_s", epoch_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/total_time_s", training_elapsed.count());
-        rlt::add_scalar(device, device.logger, "training/teacher_forcing", teacher_forcing ? (T)1 : (T)0);
+        rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : TEACHER_FORCING_FRACTION);
 #endif
 
         episode_length_sum_tf = 0;
