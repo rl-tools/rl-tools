@@ -39,17 +39,24 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::loop::steps::checkpoint::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    void malloc(DEVICE& device, rl::loop::steps::checkpoint::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::checkpoint::State<T_CONFIG>;
-        init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-        init(device, ts.rng_checkpoint, seed);
-        ts.checkpoint_this_step = false;
+        malloc(device, static_cast<typename STATE::NEXT&>(ts));
+        malloc(device, ts.rng_checkpoint);
     }
 
     template <typename DEVICE, typename T_CONFIG>
     void free(DEVICE& device, rl::loop::steps::checkpoint::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::checkpoint::State<T_CONFIG>;
         free(device, static_cast<typename STATE::NEXT&>(ts));
+        free(device, ts.rng_checkpoint);
+    }
+    template <typename DEVICE, typename T_CONFIG>
+    void init(DEVICE& device, rl::loop::steps::checkpoint::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        using STATE = rl::loop::steps::checkpoint::State<T_CONFIG>;
+        init(device, static_cast<typename STATE::NEXT&>(ts), seed);
+        init(device, ts.rng_checkpoint, seed);
+        ts.checkpoint_this_step = false;
     }
 
     namespace rl::loop::steps::checkpoint{
