@@ -28,7 +28,7 @@ namespace rl_tools{
             T x = sin_theta * math::cos(device.math, phi);
             T y = sin_theta * math::sin(device.math, phi);
             T z = cos_theta;
-            T angle = random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
+            T angle = random::uniform_real_distribution(device.random, (T)0, limit, rng);
 
             // Quaternion = [cos(angle/2), sin(angle/2)*axis]
             T half = 0.5 * angle;
