@@ -196,8 +196,8 @@ namespace rl_tools{
                 __syncthreads();
             }
             if(threadIdx.x == 0){
-                atomicAdd(&d_gamma[c], (T)s_d_gamma[0]);
-                atomicAdd(&d_beta[c], (T)s_d_beta[0]);
+                d_gamma[c] += (T)s_d_gamma[0];
+                d_beta[c] += (T)s_d_beta[0];
             }
         }
         template<typename T, typename T_NORM_PARAM>

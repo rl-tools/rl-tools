@@ -86,7 +86,8 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
-    static void sample_initial_parameters(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, RNG& rng) {
+        using TI = typename SPEC::TI;
         sample_initial_parameters(device, env.dynamics, parameters.dynamics, rng);
     }
 
