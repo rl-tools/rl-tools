@@ -83,10 +83,10 @@ static constexpr REWARD_FUNCTION reward_function = {
     false, 1.00, 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
-    0.2, 1.0, 0.3, 1.0, 1.0, true, -1, +1,
+    0.2, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-    true, 1.5, 10, 35, 10000, 50000,
+    true, 0.5, 10, 35, 10000, 50000,
 };
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -183,7 +183,7 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 // =========================================================================
 // Frame stacking configuration
 // =========================================================================
-// #define USE_FRAME_STACKING
+#define USE_FRAME_STACKING
 #ifdef USE_FRAME_STACKING
 static constexpr TI FRAME_STACK_N = 5;
 static constexpr TI FRAME_STACK_STRIDE = 20; // 100Hz / 20 = 5Hz
