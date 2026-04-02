@@ -547,7 +547,7 @@ namespace rl_tools {
     }
 
     template <typename T>
-    CameraData make_camera_data(const owl::vec3f& position, const owl::vec3f& look_at, const owl::vec3f& up, T cos_fov, T aspect){
+    RL_TOOLS_FUNCTION_PLACEMENT CameraData make_camera_data(const owl::vec3f& position, const owl::vec3f& look_at, const owl::vec3f& up, T cos_fov, T aspect){
         owl::vec3f dir = normalize(look_at - position);
         owl::vec3f du = cos_fov * aspect * normalize(cross(dir, up));
         owl::vec3f dv = cos_fov * normalize(cross(du, dir));
