@@ -761,7 +761,7 @@ int main(int argc, char** argv){
 
     auto training_start = std::chrono::high_resolution_clock::now();
 #ifndef RL_TOOLS_DISABLE_VISUAL
-    std::array<rlt::CameraData, N_ENVIRONMENTS> cameras;
+    // cameras are now stored in env0.renderer->cameras
 #endif
     static constexpr TI N_PPO_STEPS = LOOP_CORE_PARAMETERS::STEP_LIMIT;
 
@@ -852,12 +852,12 @@ int main(int argc, char** argv){
                 // 3. CPU: construct cameras from states
                 for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
                     auto& state = rlt::get(cpu_states_for_cameras, 0, env_i);
-                    cameras[env_i] = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env0, default_cam_params, state);
+                    rlt::set(device, env0.renderer->cameras, rlt::rl::environments::l2f_visual::make_camera_for_state(device, env0, default_cam_params, state), env_i);
                 }
 
                 // 4. GPU: batch render → dataset_gpu.all_observations
                 T* obs_ptr = rlt::data(dataset_gpu.all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
-                rlt::observe_batch_render_gpu(device, env0, cameras.data(), N_ENVIRONMENTS, obs_ptr);
+                rlt::observe_batch_render_gpu(device, env0, env0.renderer->cameras, obs_ptr);
 #endif
 
                 // 5. GPU: actor evaluate

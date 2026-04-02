@@ -263,18 +263,21 @@ int main(int argc, char** argv) {
         }
         state.yaw = g_input.yaw;
 
-        owl::vec3f eye(state.position[0], state.position[1], state.position[2]);
-        owl::vec3f look_at(
-            eye.x + std::cos(g_input.yaw) * std::cos(g_input.pitch),
-            eye.y + std::sin(g_input.pitch),
-            eye.z + std::sin(g_input.yaw) * std::cos(g_input.pitch)
-        );
+        T eye[3] = {state.position[0], state.position[1], state.position[2]};
+        T look_at[3] = {
+            eye[0] + std::cos(g_input.yaw) * std::cos(g_input.pitch),
+            eye[1] + std::sin(g_input.pitch),
+            eye[2] + std::sin(g_input.yaw) * std::cos(g_input.pitch)
+        };
+        T up[3] = {0, 1, 0};
         T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
-        rlt::CameraData camera = rlt::make_camera_data(eye, look_at, owl::vec3f(0.f, 1.f, 0.f), SPEC::RAYTRACING_SPEC::COS_FOVY, aspect);
+        rlt::set(device, env.renderer->cameras, rlt::make_camera_data(eye, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect), static_cast<TI>(0));
 
-        rlt::set_cameras(device, *env.renderer, &camera, static_cast<TI>(1));
+        rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
         rlt::render_rgb_only(device, *env.renderer);
-        rlt::read_frame_buffer(device, *env.renderer, pixels.data(), static_cast<TI>(pixels.size()));
+        rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
+        const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
+        std::memcpy(pixels.data(), fb_data, pixels.size() * sizeof(uint32_t));
 
         {
             Quaternion q = quaternion_from_yaw_pitch(g_input.yaw, g_input.pitch);

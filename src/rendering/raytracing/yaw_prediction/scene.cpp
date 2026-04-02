@@ -35,6 +35,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         }
     }
 
+    using CameraData = rlt::rendering::raytracing::CameraData<float>;
+
     void sample_camera_batch(
         SceneHandle* handle,
         CameraData* cameras_out,
@@ -112,41 +114,42 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
             // Camera A's local frame in world coords
             // forward = (cby, 0, sby), right = (-sby, 0, cby), up = (0, 1, 0)
-            const owl::vec3f forward_a(cby, 0.0f, sby);
-            const owl::vec3f right_a(-sby, 0.0f, cby);
-            const owl::vec3f up_a(0.0f, 1.0f, 0.0f);
+            const T forward_a[3] = {cby, 0.0f, sby};
+            const T right_a[3] = {-sby, 0.0f, cby};
+            const T up_a[3] = {0.0f, 1.0f, 0.0f};
 
-            const owl::vec3f position(
+            const T position[3] = {
                 params.scene_translation[0] + state.position[0],
                 params.scene_translation[1] + state.position[1] + handle->env.eye_height,
                 params.scene_translation[2] + state.position[2]
-            );
-            const owl::vec3f world_up(0.f, 1.f, 0.f);
+            };
+            const T world_up[3] = {0, 1, 0};
 
-            // Build base camera
             auto make_base_cam = [&]() -> CameraData {
-                const owl::vec3f look_at(
-                    position.x + handle->env.look_ahead * cby,
-                    position.y,
-                    position.z + handle->env.look_ahead * sby
-                );
+                const T look_at[3] = {
+                    position[0] + handle->env.look_ahead * cby,
+                    position[1],
+                    position[2] + handle->env.look_ahead * sby
+                };
                 return rlt::make_camera_data(position, look_at, world_up, cos_fov, aspect);
             };
 
-            // Build rotated camera using R in camera A's local frame
             auto make_rotated_cam = [&]() -> CameraData {
-                // Camera B's frame = Camera A's frame * R
-                const owl::vec3f dir_b(
-                    R[0][2]*right_a.x + R[1][2]*up_a.x + R[2][2]*forward_a.x,
-                    R[0][2]*right_a.y + R[1][2]*up_a.y + R[2][2]*forward_a.y,
-                    R[0][2]*right_a.z + R[1][2]*up_a.z + R[2][2]*forward_a.z
-                );
-                const owl::vec3f up_b(
-                    R[0][1]*right_a.x + R[1][1]*up_a.x + R[2][1]*forward_a.x,
-                    R[0][1]*right_a.y + R[1][1]*up_a.y + R[2][1]*forward_a.y,
-                    R[0][1]*right_a.z + R[1][1]*up_a.z + R[2][1]*forward_a.z
-                );
-                const owl::vec3f look_at = position + handle->env.look_ahead * dir_b;
+                const T dir_b[3] = {
+                    R[0][2]*right_a[0] + R[1][2]*up_a[0] + R[2][2]*forward_a[0],
+                    R[0][2]*right_a[1] + R[1][2]*up_a[1] + R[2][2]*forward_a[1],
+                    R[0][2]*right_a[2] + R[1][2]*up_a[2] + R[2][2]*forward_a[2]
+                };
+                const T up_b[3] = {
+                    R[0][1]*right_a[0] + R[1][1]*up_a[0] + R[2][1]*forward_a[0],
+                    R[0][1]*right_a[1] + R[1][1]*up_a[1] + R[2][1]*forward_a[1],
+                    R[0][1]*right_a[2] + R[1][1]*up_a[2] + R[2][1]*forward_a[2]
+                };
+                const T look_at[3] = {
+                    position[0] + handle->env.look_ahead * dir_b[0],
+                    position[1] + handle->env.look_ahead * dir_b[1],
+                    position[2] + handle->env.look_ahead * dir_b[2]
+                };
                 return rlt::make_camera_data(position, look_at, up_b, cos_fov, aspect);
             };
 
@@ -194,11 +197,12 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
     template <bool ASYNC>
     void render_batch(SceneHandle* handle, const CameraData* cameras) {
+        std::memcpy(rlt::data(handle->env.renderer->cameras), cameras, SCENE_NUM_CAMERAS * sizeof(CameraData));
         if constexpr (ASYNC){
-            rlt::set_cameras_async(handle->device, *handle->env.renderer, cameras, SCENE_NUM_CAMERAS);
-            rlt::render_rgb_only_async(handle->device, *handle->env.renderer, cameras, SCENE_NUM_CAMERAS);
+            rlt::set_cameras_async(handle->device, *handle->env.renderer, handle->env.renderer->cameras);
+            rlt::render_rgb_only_launch(handle->device, *handle->env.renderer);
         } else {
-            rlt::set_cameras(handle->device, *handle->env.renderer, cameras, SCENE_NUM_CAMERAS);
+            rlt::set_cameras(handle->device, *handle->env.renderer, handle->env.renderer->cameras);
             rlt::render_rgb_only(handle->device, *handle->env.renderer);
         }
     }
@@ -210,6 +214,6 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     }
 
     uint32_t* get_framebuffer_device_ptr(SceneHandle* handle) {
-        return (uint32_t*)owlBufferGetPointer((OWLBuffer)handle->env.renderer->frame_buffer, 0);
+        return rlt::get_framebuffer_device_ptr(handle->device, *handle->env.renderer);
     }
 }

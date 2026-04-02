@@ -38,7 +38,7 @@ namespace rl_tools {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        if(env.renderer->collision_results_buffer == nullptr){
+        if(env.renderer->backend.owl_collision_results_buffer == nullptr){
             constexpr T PI = static_cast<T>(3.14159265358979323846);
             const T center_x = env.renderer->scene_center[0];
             const T center_z = env.renderer->scene_center[2];
@@ -83,7 +83,6 @@ namespace rl_tools {
         std::vector<Candidate> candidates;
         candidates.reserve(static_cast<size_t>(NUM_BATCHES) * static_cast<size_t>(SPEC::NUM_ENVS));
 
-        std::array<CameraData, SPEC::NUM_ENVS> cameras{};
         std::array<rl::environments::raytracing_example::State<SPEC>, SPEC::NUM_ENVS> batch_states{};
 
         for (TI batch_i = 0; batch_i < NUM_BATCHES; batch_i++) {
@@ -106,23 +105,22 @@ namespace rl_tools {
                 state.velocity[2] = static_cast<T>(0);
                 state.yaw = yaw;
 
-                cameras[camera_i] = make_camera_data(
-                    owl::vec3f(state.position[0], state.position[1] + env.eye_height, state.position[2]),
-                    owl::vec3f(
-                        state.position[0] + env.look_ahead * std::cos(state.yaw),
-                        state.position[1] + env.eye_height,
-                        state.position[2] + env.look_ahead * std::sin(state.yaw)
-                    ),
-                    owl::vec3f(0.f, 1.f, 0.f),
+                const T position[3] = {state.position[0], state.position[1] + env.eye_height, state.position[2]};
+                const T look_at[3] = {
+                    state.position[0] + env.look_ahead * std::cos(state.yaw),
+                    state.position[1] + env.eye_height,
+                    state.position[2] + env.look_ahead * std::sin(state.yaw)
+                };
+                const T up[3] = {0, 1, 0};
+                set(device, env.renderer->cameras, make_camera_data(position, look_at, up,
                     SPEC::RAYTRACING_SPEC::COS_FOVY,
-                    static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT)
-                );
+                    static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT)), camera_i);
             }
 
-            set_cameras(device, *env.renderer, cameras.data(), SPEC::NUM_ENVS);
+            set_cameras(device, *env.renderer, env.renderer->cameras);
             render(device, *env.renderer);
 
-            const CollisionResult* probe_results = (const CollisionResult*)owlBufferGetPointer((OWLBuffer)env.renderer->collision_results_buffer, 0);
+            const rendering::raytracing::CollisionResult* probe_results = read_collision_results_raw(device, *env.renderer);
             for (TI camera_i = 0; camera_i < SPEC::NUM_ENVS; camera_i++) {
                 const CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(SPEC::NUM_PROBES);
                 TI hit_count = 0;
@@ -237,9 +235,9 @@ namespace rl_tools {
 
         upload_geometry(device, *env.renderer);
         {
-            owl::vec3f center(env.renderer->scene_center[0], env.renderer->scene_center[1], env.renderer->scene_center[2]);
-            const owl::vec3f up(0.f, 1.f, 0.f);
-            generate_cameras(device, *env.renderer, center, env.renderer->camera_radius, up, SPEC::RAYTRACING_SPEC::COS_FOVY);
+            using T = typename SPEC::T;
+            const T up[3] = {0, 1, 0};
+            generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, SPEC::RAYTRACING_SPEC::COS_FOVY);
         }
         generate_probe_directions(device, *env.renderer);
         build_pipeline(device, *env.renderer);
@@ -330,53 +328,51 @@ namespace rl_tools {
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == rl::environments::raytracing_example::ObservationRGB<SPEC>::DIM);
 
-        std::array<CameraData, 1> cameras{};
-        const auto camera = make_camera_data(
-            owl::vec3f(
-                parameters.scene_translation[0] + state.position[0],
-                parameters.scene_translation[1] + state.position[1] + env.eye_height,
-                parameters.scene_translation[2] + state.position[2]
-            ),
-            owl::vec3f(
-                parameters.scene_translation[0] + state.position[0] + env.look_ahead * std::cos(state.yaw),
-                parameters.scene_translation[1] + state.position[1] + env.eye_height,
-                parameters.scene_translation[2] + state.position[2] + env.look_ahead * std::sin(state.yaw)
-            ),
-            owl::vec3f(0.f, 1.f, 0.f),
+        using T = typename SPEC::T;
+        const T position[3] = {
+            parameters.scene_translation[0] + state.position[0],
+            parameters.scene_translation[1] + state.position[1] + env.eye_height,
+            parameters.scene_translation[2] + state.position[2]
+        };
+        const T look_at[3] = {
+            position[0] + env.look_ahead * std::cos(state.yaw),
+            position[1],
+            position[2] + env.look_ahead * std::sin(state.yaw)
+        };
+        const T up[3] = {0, 1, 0};
+        set(device, env.renderer->cameras, make_camera_data(position, look_at, up,
             SPEC::RAYTRACING_SPEC::COS_FOVY,
-            static_cast<typename SPEC::T>(SPEC::CAM_WIDTH) / static_cast<typename SPEC::T>(SPEC::CAM_HEIGHT)
-        );
-        cameras[0] = camera;
+            static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT)), static_cast<typename SPEC::TI>(0));
 
-        set_cameras(device, *env.renderer, cameras.data(), 1);
+        set_cameras(device, *env.renderer, env.renderer->cameras);
         render(device, *env.renderer);
 
-        std::array<uint32_t, SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT> pixels{};
-        read_frame_buffer(device, *env.renderer, pixels.data(), pixels.size());
-        for (typename SPEC::TI i = 0; i < static_cast<typename SPEC::TI>(pixels.size()); i++) {
-            set(observation, 0, i, static_cast<typename OBS_SPEC::T>(pixels[i]));
+        read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
+        const uint32_t* fb_data = data(env.renderer->frame_buffer);
+        for (typename SPEC::TI i = 0; i < static_cast<typename SPEC::TI>(SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT); i++) {
+            set(observation, 0, i, static_cast<typename OBS_SPEC::T>(fb_data[i]));
         }
     }
 
     template <typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT CameraData make_camera_for_state(const rl::environments::raytracing_example::Environment<SPEC>& env, const rl::environments::raytracing_example::Parameters<SPEC>& parameters, const rl::environments::raytracing_example::State<SPEC>& state) {
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_camera_for_state(const rl::environments::raytracing_example::Environment<SPEC>& env, const rl::environments::raytracing_example::Parameters<SPEC>& parameters, const rl::environments::raytracing_example::State<SPEC>& state) {
         using T = typename SPEC::T;
         const T cy = std::cos(state.yaw);
         const T sy = std::sin(state.yaw);
 
-        const owl::vec3f position(
+        const T position[3] = {
             parameters.scene_translation[0] + state.position[0],
             parameters.scene_translation[1] + state.position[1] + env.eye_height,
             parameters.scene_translation[2] + state.position[2]
-        );
+        };
 
-        const owl::vec3f look_at(
-            position.x + env.look_ahead * cy,
-            position.y,
-            position.z + env.look_ahead * sy
-        );
+        const T look_at[3] = {
+            position[0] + env.look_ahead * cy,
+            position[1],
+            position[2] + env.look_ahead * sy
+        };
 
-        const owl::vec3f up(0.f, 1.f, 0.f);
+        const T up[3] = {0, 1, 0};
         const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
 
         return make_camera_data(position, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect);
@@ -412,13 +408,12 @@ namespace rl_tools {
             return;
         }
 
-        std::array<CameraData, SPEC::NUM_ENVS> cameras;
         for (typename SPEC::TI env_i = 0; env_i < num_envs; env_i++) {
-            cameras[env_i] = make_camera_for_state(env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
+            set(device, env.renderer->cameras, make_camera_for_state(env, get_ref(device, parameters, env_i), get_ref(device, states, env_i)), env_i);
         }
 
-        set_cameras(device, *env.renderer, cameras.data(), num_envs);
+        set_cameras(device, *env.renderer, env.renderer->cameras);
         render(device, *env.renderer);
-        read_frame_buffer(device, *env.renderer, data(out_pixels), product(typename OUT_SPEC::SHAPE{}));
+        read_frame_buffer(device, *env.renderer, out_pixels);
     }
 }

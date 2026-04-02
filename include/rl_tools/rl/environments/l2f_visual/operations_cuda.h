@@ -29,17 +29,17 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
     }
 }
 namespace rl_tools{
-    template <typename DEVICE, typename SPEC>
-    void observe_batch_render_gpu(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const CameraData* cameras, typename SPEC::TI num_cameras, float* gpu_output_ptr){
+    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
+    void observe_batch_render_gpu(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const Tensor<CAMERAS_SPEC>& cameras, float* gpu_output_ptr){
         using TI = typename SPEC::TI;
         constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
-        set_cameras_async(device, *env.renderer, cameras, num_cameras);
+        set_cameras_async(device, *env.renderer, cameras);
         render_rgb_only(device, *env.renderer);
-        const uint32_t* fb_ptr = (const uint32_t*)owlBufferGetPointer((OWLBuffer)env.renderer->frame_buffer, 0);
-        TI total_pixels = num_cameras * CAM_PIXELS;
+        const uint32_t* fb_ptr = get_framebuffer_device_ptr(device, *env.renderer);
+        TI total_pixels = SPEC::NUM_ENVS * CAM_PIXELS;
         int block_size = 256;
         int grid_size = (total_pixels + block_size - 1) / block_size;
-        rl::environments::l2f_visual::cuda::pixel_to_float_kernel<<<grid_size, block_size>>>(fb_ptr, gpu_output_ptr, num_cameras, CAM_PIXELS);
+        rl::environments::l2f_visual::cuda::pixel_to_float_kernel<<<grid_size, block_size>>>(fb_ptr, gpu_output_ptr, SPEC::NUM_ENVS, CAM_PIXELS);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

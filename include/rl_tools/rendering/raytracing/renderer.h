@@ -4,16 +4,15 @@
 #pragma once
 #define RL_TOOLS_RENDERING_RAYTRACING_RENDERER_H
 
+#include "types.h"
+#include "../../containers/tensor/tensor.h"
+
 #include <vector>
 #include <cstdint>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing{
-        struct CollisionResult {
-            float distance;
-            int hit;
-        };
 
         template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES>
         struct Specification{
@@ -51,32 +50,42 @@ namespace rl_tools {
         };
 
         template <typename T_SPEC>
+        struct BackendContext{
+            using SPEC = T_SPEC;
+            void* context = nullptr;
+            void* module = nullptr;
+            void* ray_gen = nullptr;
+            void* owl_frame_buffer = nullptr;
+            void* owl_cameras_buffer = nullptr;
+            void* world = nullptr;
+            void* rgb_launch_params = nullptr;
+            void* collision_ray_gen = nullptr;
+            void* owl_collision_results_buffer = nullptr;
+            void* probe_dirs_buffer = nullptr;
+            void* coll_launch_params = nullptr;
+        };
+
+        template <typename T_SPEC>
         struct Renderer{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
 
-            // RGB rendering context (OWL handles stored as void* to avoid header leakage)
-            void* context = nullptr;           // OWLContext
-            void* module = nullptr;            // OWLModule
-            void* ray_gen = nullptr;           // OWLRayGen
-            void* frame_buffer = nullptr;      // OWLBuffer
-            void* cameras_buffer = nullptr;    // OWLBuffer
-            void* world = nullptr;             // OWLGroup (instance group)
-            void* rgb_launch_params = nullptr; // OWLParams
+            using CAMERA_TENSOR_SPEC = tensor::Specification<CameraData<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
+            Tensor<CAMERA_TENSOR_SPEC> cameras;
 
-            // Collision (shares context/module/world with RGB)
-            void* collision_ray_gen = nullptr;
-            void* collision_results_buffer = nullptr; // OWLBuffer (host-pinned)
-            void* probe_dirs_buffer = nullptr;
-            void* coll_launch_params = nullptr;
+            using FB_TENSOR_SPEC = tensor::Specification<uint32_t, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
+            Tensor<FB_TENSOR_SPEC> frame_buffer;
 
-            // Scene parameters
+            using COLLISION_TENSOR_SPEC = tensor::Specification<CollisionResult, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES>, true>;
+            Tensor<COLLISION_TENSOR_SPEC> collision_results;
+
             T scene_center[3] = {0, 0, 0};
             T camera_radius = 0;
 
-            // Mesh data (kept for potential re-upload)
             std::vector<MeshData<SPEC>> meshes;
+
+            BackendContext<SPEC> backend;
         };
     }
 }

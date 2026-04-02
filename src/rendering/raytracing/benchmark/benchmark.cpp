@@ -72,10 +72,10 @@ int main(int ac, char** av){
           << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT << " + " << SPEC::NUM_PROBES
           << " probes/cam for ~" << SPEC::BENCHMARK_SECONDS << "s ...");
 
-    OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
-    OWLParams coll_lp = (OWLParams)renderer.coll_launch_params;
-    OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
-    OWLRayGen collision_ray_gen = (OWLRayGen)renderer.collision_ray_gen;
+    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
+    OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
+    OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
+    OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
 
     owlLaunchSync(rgb_lp);
     owlLaunchSync(coll_lp);
