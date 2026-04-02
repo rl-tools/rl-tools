@@ -8,6 +8,7 @@ namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::avg_pool2d::LayerForward<SPEC>& layer, GROUP& group) {
         set_attribute(device, group, "type", "avg_pool2d");
+        write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::avg_pool2d::LayerBackward<SPEC>& layer, GROUP& group) {
