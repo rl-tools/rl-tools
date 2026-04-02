@@ -401,7 +401,7 @@ int main(int argc, char** argv) {
 
     // CPU-side buffers
     std::vector<float> cpu_targets(TOTAL_OUTPUT_ELEMENTS);
-    std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
+    std::vector<rlt::rendering::raytracing::CameraData<float>> cameras(NUM_CAMERAS);
 
     // ---- Extrack setup (experiment tracking, tensorboard logging) ----
     rlt::utils::extrack::Config<TI> extrack_config;

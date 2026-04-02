@@ -240,9 +240,9 @@ int main(int argc, char** argv) {
     rlt::init(device_cuda, rng_cuda, 42);
 
     // ---- Sample base cameras per scene ----
-    std::vector<rlt::CameraData> base_cameras(NUM_GRID_CAMERAS);
+    std::vector<rlt::rendering::raytracing::CameraData<float>> base_cameras(NUM_GRID_CAMERAS);
     {
-        std::vector<rlt::CameraData> setup_cameras(NUM_CAMERAS);
+        std::vector<rlt::rendering::raytracing::CameraData<float>> setup_cameras(NUM_CAMERAS);
         std::vector<float> setup_targets(BATCH_SIZE * 3);
 
         for (TI s = 0; s < loaded_scenes.size(); s++) {
@@ -261,20 +261,19 @@ int main(int argc, char** argv) {
     }
 
     // Rotate a camera's view direction by delta_yaw around the Y axis
-    auto rotate_camera_yaw = [](const rlt::CameraData& cam, float delta_yaw) -> rlt::CameraData {
-        rlt::CameraData rotated = cam;
+    using YPCameraData = rlt::rendering::raytracing::CameraData<float>;
+    auto rotate_camera_yaw = [](const YPCameraData& cam, float delta_yaw) -> YPCameraData {
+        YPCameraData rotated = cam;
         float cy = std::cos(delta_yaw);
         float sy = std::sin(delta_yaw);
-        auto rotate_y = [cy, sy](owl::vec3f v) -> owl::vec3f {
-            return owl::vec3f{
-                cy * v.x - sy * v.z,
-                v.y,
-                sy * v.x + cy * v.z
-            };
+        auto rotate_y = [cy, sy](const float v[3], float out[3]) {
+            out[0] = cy * v[0] - sy * v[2];
+            out[1] = v[1];
+            out[2] = sy * v[0] + cy * v[2];
         };
-        rotated.dir_00 = rotate_y(cam.dir_00);
-        rotated.dir_du = rotate_y(cam.dir_du);
-        rotated.dir_dv = rotate_y(cam.dir_dv);
+        rotate_y(cam.dir_00, rotated.dir_00);
+        rotate_y(cam.dir_du, rotated.dir_du);
+        rotate_y(cam.dir_dv, rotated.dir_dv);
         return rotated;
     };
 
@@ -300,7 +299,7 @@ int main(int argc, char** argv) {
     std::vector<uint8_t> output_image(IMAGE_WIDTH * IMAGE_HEIGHT * 3);
     static constexpr TI OUTPUT_DIM = 3;
     std::vector<float> pred_buf(BATCH_SIZE * OUTPUT_DIM);
-    std::vector<rlt::CameraData> cameras(NUM_CAMERAS);
+    std::vector<rlt::rendering::raytracing::CameraData<float>> cameras(NUM_CAMERAS);
 
     // Per-tile host framebuffer for swept views (read back per scene)
     std::vector<std::vector<uint32_t>> tile_pixels(NUM_GRID_CAMERAS, std::vector<uint32_t>(CAM_PIXELS));

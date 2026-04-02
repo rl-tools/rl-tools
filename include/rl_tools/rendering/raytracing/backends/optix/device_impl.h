@@ -31,7 +31,7 @@ namespace rl_tools
     const int local_y = pixel_id.y - tile_row * self.cam_size.y;
     const owl::vec2f screen = (owl::vec2f(local_x, local_y) + owl::vec2f(.5f)) / owl::vec2f(self.cam_size);
 
-    const CameraData &cam = self.cameras[cam_idx];
+    const OptixCameraData &cam = self.cameras[cam_idx];
     owl::Ray ray;
     ray.origin    = cam.pos;
     ray.direction = normalize(cam.dir_00
@@ -148,7 +148,7 @@ namespace rl_tools
     if (cam_idx >= self.num_cameras || probe_idx >= self.num_probes)
       return;
 
-    const CameraData &cam = self.cameras[cam_idx];
+    const OptixCameraData &cam = self.cameras[cam_idx];
 
     owl::vec3f dir;
     if (probe_idx == 0) {

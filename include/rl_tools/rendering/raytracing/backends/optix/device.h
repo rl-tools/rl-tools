@@ -4,7 +4,7 @@
 #pragma once
 #define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_OPTIX_DEVICE_H
 
-#include "../../renderer.h"
+#include "../../types.h"
 
 #include <owl/owl.h>
 #include <owl/common/math/vec.h>
@@ -30,14 +30,14 @@ namespace rl_tools {
         OptixTraversableHandle world;
     };
 
-    /* per-camera parameters (shared between host and device) */
-    struct CameraData
+    struct OptixCameraData
     {
         owl::vec3f pos;
         owl::vec3f dir_00;
         owl::vec3f dir_du;
         owl::vec3f dir_dv;
     };
+    static_assert(sizeof(OptixCameraData) == sizeof(rendering::raytracing::CameraData<float>), "OptixCameraData and CameraData<float> must have identical layout");
 
     /* variables for the ray generation program */
     struct RayGenData
@@ -48,7 +48,7 @@ namespace rl_tools {
         int    grid_cols;    // number of columns in the grid
         int    num_cameras;  // total number of cameras
         OptixTraversableHandle world;
-        CameraData *cameras; // device array of all cameras
+        OptixCameraData *cameras; // device array of all cameras
     };
 
     /* variables for the miss program */
@@ -76,7 +76,7 @@ namespace rl_tools {
     {
         CollisionResult *results;    // [num_cameras * num_probes] output
         owl::vec3f           *probe_directions; // [num_probes] unit directions (index 0 = placeholder, overridden by camera forward)
-        CameraData      *cameras;        // reused camera array
+        OptixCameraData *cameras;        // reused camera array
         OptixTraversableHandle world;
         int   num_probes;
         int   num_cameras;

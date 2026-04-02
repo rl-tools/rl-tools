@@ -712,7 +712,7 @@ int main(int argc, char** argv){
     NO_AUTO_RESET_MODE no_auto_reset_mode;
 
     auto training_start = std::chrono::high_resolution_clock::now();
-    std::array<rlt::CameraData, N_ENVIRONMENTS> cameras;
+    // cameras are stored in env0.renderer->cameras
 
     // Video recording buffers
     static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
@@ -811,7 +811,7 @@ int main(int argc, char** argv){
                 rlt::observe(device, envs[env_i].dynamics, env_parameters[env_i].dynamics, states[env_i], ACTOR_STATE_OBS{}, state_obs_matrix, rng);
 
                 // Camera
-                cameras[env_i] = rlt::rl::environments::l2f_visual::make_camera_for_state(device, envs[env_i], env_parameters[env_i], states[env_i]);
+                rlt::set(device, env0.renderer->cameras, rlt::rl::environments::l2f_visual::make_camera_for_state(device, envs[env_i], env_parameters[env_i], states[env_i]), env_i);
 #ifdef USE_FRAME_STACKING
                 episode_start_step_per_row[step_i * N_ENVIRONMENTS + env_i] = episode_start_step[env_i];
 #endif
@@ -822,17 +822,17 @@ int main(int argc, char** argv){
 
             // GPU batch render
             T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
-            rlt::observe_batch_render_gpu(device, env0, cameras.data(), N_ENVIRONMENTS, obs_ptr);
+            rlt::observe_batch_render_gpu(device, env0, env0.renderer->cameras, obs_ptr);
 
             // Video: read back frame buffer and write mosaic frame
             if(record_video && ffmpeg_pipe){
-                rlt::read_frame_buffer(device, *env0.renderer, video_pixel_buffer.data(), video_pixel_buffer.size());
+                rlt::read_frame_buffer(device, *env0.renderer, env0.renderer->frame_buffer);
                 for(TI grid_row = 0; grid_row < GRID_SIDE; grid_row++){
                     for(TI grid_col = 0; grid_col < GRID_SIDE; grid_col++){
                         TI env_i = grid_row * GRID_SIDE + grid_col;
                         for(TI py = 0; py < CAM_HEIGHT; py++){
                             for(TI px = 0; px < CAM_WIDTH; px++){
-                                uint32_t rgba = video_pixel_buffer[env_i * CAM_PIXELS + py * CAM_WIDTH + px];
+                                uint32_t rgba = rlt::data(env0.renderer->frame_buffer)[env_i * CAM_PIXELS + py * CAM_WIDTH + px];
                                 TI mosaic_x = grid_col * CAM_WIDTH + px;
                                 TI mosaic_y = grid_row * CAM_HEIGHT + py;
                                 TI out_idx = (mosaic_y * MOSAIC_W + mosaic_x) * 3;

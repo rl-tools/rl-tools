@@ -48,7 +48,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     // cos_fov_range: [min, max] range for random FOV (cos_fov parameter)
     void sample_camera_batch(
         SceneHandle* handle,
-        CameraData* cameras_out,
+        rl_tools::rendering::raytracing::CameraData<float>* cameras_out,
         float* targets_out,
         unsigned long batch_size,
         float max_angle,
@@ -58,7 +58,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
     // Set cameras and render (blocking)
     template <bool ASYNC>
-    void render_batch(SceneHandle* handle, const CameraData* cameras);
+    void render_batch(SceneHandle* handle, const rl_tools::rendering::raytracing::CameraData<float>* cameras);
 
     // Get number of indoor initial states found
     unsigned long get_num_indoor_states(SceneHandle* handle);

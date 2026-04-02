@@ -111,6 +111,10 @@ namespace rl_tools {
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         using TI = typename SPEC::TI;
 
+        malloc(device, renderer.cameras);
+        malloc(device, renderer.frame_buffer);
+        malloc(device, renderer.collision_results);
+
         OWLContext context = owlContextCreate(nullptr, 1);
         owlContextSetRayTypeCount(context, 2);
         owlContextSetNumPayloadValues(context, 3);
@@ -163,13 +167,12 @@ namespace rl_tools {
         owlRayGenSet1i    (ray_gen, "grid_cols", SPEC::GRID_COLS);
         owlRayGenSet1i    (ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
 
-        renderer.context = context;
-        renderer.module = module;
-        renderer.ray_gen = ray_gen;
-        renderer.frame_buffer = frame_buffer;
+        renderer.backend.context = context;
+        renderer.backend.module = module;
+        renderer.backend.ray_gen = ray_gen;
+        renderer.backend.owl_frame_buffer = frame_buffer;
 
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        // Collision ray gen (shares same context)
         OWLVarDecl collision_ray_gen_vars[] = {
             { "results",         OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, results)},
             { "probe_directions", OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, probe_directions)},
@@ -187,8 +190,8 @@ namespace rl_tools {
         OWLBuffer collision_results_buffer = owlHostPinnedBufferCreate(context, OWL_USER_TYPE(CollisionResult),
                                                                         (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
 
-        renderer.collision_ray_gen = collision_ray_gen;
-        renderer.collision_results_buffer = collision_results_buffer;
+        renderer.backend.collision_ray_gen = collision_ray_gen;
+        renderer.backend.owl_collision_results_buffer = collision_results_buffer;
 #endif
     }
 
@@ -416,8 +419,8 @@ namespace rl_tools {
     // =========================================================================
     template <typename DEVICE, typename SPEC>
     void upload_geometry(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        OWLContext context = (OWLContext)renderer.context;
-        OWLModule module = (OWLModule)renderer.module;
+        OWLContext context = (OWLContext)renderer.backend.context;
+        OWLModule module = (OWLModule)renderer.backend.module;
 
         OWLVarDecl triangles_geom_vars[] = {
             { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
@@ -489,10 +492,10 @@ namespace rl_tools {
             owlGeomSetGroup(geoms[m], "world", world);
         }
 
-        owlRayGenSetGroup((OWLRayGen)renderer.ray_gen, "world", world);
-        if(renderer.collision_ray_gen)
-            owlRayGenSetGroup((OWLRayGen)renderer.collision_ray_gen, "world", world);
-        renderer.world = world;
+        owlRayGenSetGroup((OWLRayGen)renderer.backend.ray_gen, "world", world);
+        if(renderer.backend.collision_ray_gen)
+            owlRayGenSetGroup((OWLRayGen)renderer.backend.collision_ray_gen, "world", world);
+        renderer.backend.world = world;
     }
 
     // =========================================================================
@@ -500,80 +503,103 @@ namespace rl_tools {
     // =========================================================================
     template <typename DEVICE, typename SPEC>
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
-                          owl::vec3f center, float radius, owl::vec3f up, float cos_fov){
+                          const typename SPEC::T center[3], typename SPEC::T radius,
+                          const typename SPEC::T up[3], typename SPEC::T cos_fov){
+        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        std::vector<CameraData> cameras;
-        cameras.reserve(SPEC::NUM_CAMERAS);
+        const T golden_ratio = (T{1} + sqrtf(T{5})) / T{2};
+        const T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
 
-        const float golden_ratio = (1.0f + sqrtf(5.0f)) / 2.0f;
-        const owl::vec2i cam_size(SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
-        const float aspect = cam_size.x / float(cam_size.y);
+        for(TI i = 0; i < SPEC::NUM_CAMERAS; i++){
+            T theta = T{2} * (T)M_PI * i / golden_ratio;
+            T cos_inc = T{1} - T{2} * (i + T{0.5}) / SPEC::NUM_CAMERAS;
+            cos_inc = cos_inc * T{0.85};
+            T sin_inc = sqrtf(T{1} - cos_inc * cos_inc);
 
-        for(int i = 0; i < (int)SPEC::NUM_CAMERAS; i++){
-            float theta = 2.0f * (float)M_PI * i / golden_ratio;
-            float cos_inc = 1.0f - 2.0f * (i + 0.5f) / SPEC::NUM_CAMERAS;
-            cos_inc = cos_inc * 0.85f;
-            float sin_inc = sqrtf(1.0f - cos_inc * cos_inc);
+            T cam_pos[3];
+            cam_pos[0] = center[0] + radius * sin_inc * cosf(theta);
+            cam_pos[1] = center[1] + radius * cos_inc;
+            cam_pos[2] = center[2] + radius * sin_inc * sinf(theta);
 
-            owl::vec3f cam_pos;
-            cam_pos.x = center.x + radius * sin_inc * cosf(theta);
-            cam_pos.y = center.y + radius * cos_inc;
-            cam_pos.z = center.z + radius * sin_inc * sinf(theta);
+            if(cam_pos[1] < center[1] - radius * T{0.1})
+                cam_pos[1] = center[1] + radius * T{0.3};
 
-            if(cam_pos.y < center.y - radius * 0.1f)
-                cam_pos.y = center.y + radius * 0.3f;
+            T dir[3] = {center[0] - cam_pos[0], center[1] - cam_pos[1], center[2] - cam_pos[2]};
+            T dir_len = sqrtf(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+            dir[0] /= dir_len; dir[1] /= dir_len; dir[2] /= dir_len;
 
-            owl::vec3f dir = normalize(center - cam_pos);
-            owl::vec3f du = cos_fov * aspect * normalize(cross(dir, up));
-            owl::vec3f dv = cos_fov * normalize(cross(du, dir));
+            T cross_du[3] = {dir[1]*up[2] - dir[2]*up[1], dir[2]*up[0] - dir[0]*up[2], dir[0]*up[1] - dir[1]*up[0]};
+            T du_len = sqrtf(cross_du[0]*cross_du[0] + cross_du[1]*cross_du[1] + cross_du[2]*cross_du[2]);
+            T du[3] = {cos_fov * aspect * cross_du[0]/du_len, cos_fov * aspect * cross_du[1]/du_len, cos_fov * aspect * cross_du[2]/du_len};
 
-            owl::vec3f dir_00 = dir - 0.5f * du + 0.5f * dv;
-            dv = -dv;
+            T cross_dv[3] = {du[1]*dir[2] - du[2]*dir[1], du[2]*dir[0] - du[0]*dir[2], du[0]*dir[1] - du[1]*dir[0]};
+            T dv_len = sqrtf(cross_dv[0]*cross_dv[0] + cross_dv[1]*cross_dv[1] + cross_dv[2]*cross_dv[2]);
+            T dv[3] = {cos_fov * cross_dv[0]/dv_len, cos_fov * cross_dv[1]/dv_len, cos_fov * cross_dv[2]/dv_len};
 
-            cameras.push_back({cam_pos, dir_00, du, dv});
+            rendering::raytracing::CameraData<T> cam;
+            cam.pos[0] = cam_pos[0]; cam.pos[1] = cam_pos[1]; cam.pos[2] = cam_pos[2];
+            cam.dir_00[0] = dir[0] - T{0.5}*du[0] + T{0.5}*dv[0];
+            cam.dir_00[1] = dir[1] - T{0.5}*du[1] + T{0.5}*dv[1];
+            cam.dir_00[2] = dir[2] - T{0.5}*du[2] + T{0.5}*dv[2];
+            cam.dir_du[0] = du[0]; cam.dir_du[1] = du[1]; cam.dir_du[2] = du[2];
+            cam.dir_dv[0] = -dv[0]; cam.dir_dv[1] = -dv[1]; cam.dir_dv[2] = -dv[2];
+
+            set(device, renderer.cameras, cam, i);
         }
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << cameras.size() << " camera positions");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << SPEC::NUM_CAMERAS << " camera positions");
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Per-camera resolution: " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT);
 
-        OWLContext context = (OWLContext)renderer.context;
-        OWLBuffer cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(CameraData),
-                                                          cameras.size(), cameras.data());
-        owlRayGenSetBuffer((OWLRayGen)renderer.ray_gen, "cameras", cameras_buffer);
-        if(renderer.collision_ray_gen)
-            owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "cameras", cameras_buffer);
-        renderer.cameras_buffer = cameras_buffer;
+        OWLContext context = (OWLContext)renderer.backend.context;
+        OWLBuffer cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData),
+                                                          SPEC::NUM_CAMERAS, data(renderer.cameras));
+        owlRayGenSetBuffer((OWLRayGen)renderer.backend.ray_gen, "cameras", cameras_buffer);
+        if(renderer.backend.collision_ray_gen)
+            owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "cameras", cameras_buffer);
+        renderer.backend.owl_cameras_buffer = cameras_buffer;
     }
 
     template <typename T>
-    CameraData make_camera_data(const owl::vec3f& position, const owl::vec3f& look_at, const owl::vec3f& up, T cos_fov, T aspect){
-        owl::vec3f dir = normalize(look_at - position);
-        owl::vec3f du = cos_fov * aspect * normalize(cross(dir, up));
-        owl::vec3f dv = cos_fov * normalize(cross(du, dir));
-        owl::vec3f dir_00 = dir - 0.5f * du + 0.5f * dv;
-        dv = -dv;
-        return {position, dir_00, du, dv};
+    rendering::raytracing::CameraData<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T cos_fov, T aspect){
+        T dir[3] = {look_at[0] - position[0], look_at[1] - position[1], look_at[2] - position[2]};
+        T dir_len = sqrtf(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+        dir[0] /= dir_len; dir[1] /= dir_len; dir[2] /= dir_len;
+
+        T cross_du[3] = {dir[1]*up[2] - dir[2]*up[1], dir[2]*up[0] - dir[0]*up[2], dir[0]*up[1] - dir[1]*up[0]};
+        T du_len = sqrtf(cross_du[0]*cross_du[0] + cross_du[1]*cross_du[1] + cross_du[2]*cross_du[2]);
+        T du[3] = {cos_fov * aspect * cross_du[0]/du_len, cos_fov * aspect * cross_du[1]/du_len, cos_fov * aspect * cross_du[2]/du_len};
+
+        T cross_dv[3] = {du[1]*dir[2] - du[2]*dir[1], du[2]*dir[0] - du[0]*dir[2], du[0]*dir[1] - du[1]*dir[0]};
+        T dv_len = sqrtf(cross_dv[0]*cross_dv[0] + cross_dv[1]*cross_dv[1] + cross_dv[2]*cross_dv[2]);
+        T dv[3] = {cos_fov * cross_dv[0]/dv_len, cos_fov * cross_dv[1]/dv_len, cos_fov * cross_dv[2]/dv_len};
+
+        rendering::raytracing::CameraData<T> cam;
+        cam.pos[0] = position[0]; cam.pos[1] = position[1]; cam.pos[2] = position[2];
+        cam.dir_00[0] = dir[0] - T{0.5}*du[0] + T{0.5}*dv[0];
+        cam.dir_00[1] = dir[1] - T{0.5}*du[1] + T{0.5}*dv[1];
+        cam.dir_00[2] = dir[2] - T{0.5}*du[2] + T{0.5}*dv[2];
+        cam.dir_du[0] = du[0]; cam.dir_du[1] = du[1]; cam.dir_du[2] = du[2];
+        cam.dir_dv[0] = -dv[0]; cam.dir_dv[1] = -dv[1]; cam.dir_dv[2] = -dv[2];
+        return cam;
     }
 
-    template <typename DEVICE, typename SPEC>
-    void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const CameraData* cameras, typename SPEC::TI num_cameras){
-        if(num_cameras != SPEC::NUM_CAMERAS){
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("set_cameras called with " << num_cameras << " cameras, expected " << SPEC::NUM_CAMERAS);
-            return;
-        }
+    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
+    void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
+        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
 
-        OWLContext context = (OWLContext)renderer.context;
-        OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
+        OWLContext context = (OWLContext)renderer.backend.context;
+        OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
 
-        if(renderer.cameras_buffer == nullptr){
-            renderer.cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(CameraData), num_cameras, cameras);
-            owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.cameras_buffer);
-            if(renderer.collision_ray_gen)
-                owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "cameras", (OWLBuffer)renderer.cameras_buffer);
+        if(renderer.backend.owl_cameras_buffer == nullptr){
+            renderer.backend.owl_cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, data(cameras));
+            owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            if(renderer.backend.collision_ray_gen)
+                owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
         }
         else{
-            owlBufferUpload((OWLBuffer)renderer.cameras_buffer, cameras, 0, num_cameras);
+            owlBufferUpload((OWLBuffer)renderer.backend.owl_cameras_buffer, data(cameras), 0, SPEC::NUM_CAMERAS);
         }
     }
 
@@ -605,16 +631,16 @@ namespace rl_tools {
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << dirs.size() << " probe directions per camera");
 
-        OWLContext context = (OWLContext)renderer.context;
+        OWLContext context = (OWLContext)renderer.backend.context;
         OWLBuffer probe_dirs_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(owl::vec3f),
                                                               dirs.size(), dirs.data());
-        owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "probe_directions", probe_dirs_buffer);
-        renderer.probe_dirs_buffer = probe_dirs_buffer;
+        owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "probe_directions", probe_dirs_buffer);
+        renderer.backend.probe_dirs_buffer = probe_dirs_buffer;
 
-        owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "results", (OWLBuffer)renderer.collision_results_buffer);
-        owlRayGenSet1i    ((OWLRayGen)renderer.collision_ray_gen, "num_probes", SPEC::NUM_PROBES);
-        owlRayGenSet1i    ((OWLRayGen)renderer.collision_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
-        owlRayGenSet1f    ((OWLRayGen)renderer.collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
+        owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "results", (OWLBuffer)renderer.backend.owl_collision_results_buffer);
+        owlRayGenSet1i    ((OWLRayGen)renderer.backend.collision_ray_gen, "num_probes", SPEC::NUM_PROBES);
+        owlRayGenSet1i    ((OWLRayGen)renderer.backend.collision_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+        owlRayGenSet1f    ((OWLRayGen)renderer.backend.collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
 #endif
     }
 
@@ -623,40 +649,37 @@ namespace rl_tools {
     // =========================================================================
     template <typename DEVICE, typename SPEC>
     void build_pipeline(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        OWLContext context = (OWLContext)renderer.context;
+        OWLContext context = (OWLContext)renderer.backend.context;
 
         owlBuildPrograms(context);
         owlBuildPipeline(context);
         owlBuildSBT(context);
 
         OWLParams rgb_lp = owlParamsCreate(context, 0, nullptr, 0);
-        renderer.rgb_launch_params = rgb_lp;
-        if(renderer.collision_ray_gen){
+        renderer.backend.rgb_launch_params = rgb_lp;
+        if(renderer.backend.collision_ray_gen){
             OWLParams coll_lp = owlParamsCreate(context, 0, nullptr, 0);
-            renderer.coll_launch_params = coll_lp;
+            renderer.backend.coll_launch_params = coll_lp;
         }
     }
 
-    // =========================================================================
-    // render: async launch RGB + collision, then sync
-    // =========================================================================
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
-        OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
+        OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
+        OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
         owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, rgb_lp);
-        if(renderer.collision_ray_gen){
-            OWLRayGen collision_ray_gen = (OWLRayGen)renderer.collision_ray_gen;
-            OWLParams coll_lp = (OWLParams)renderer.coll_launch_params;
+        if(renderer.backend.collision_ray_gen){
+            OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
+            OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
             owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
         }
     }
 
     template <typename DEVICE, typename SPEC>
     void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        owlLaunchSync((OWLParams)renderer.rgb_launch_params);
-        if(renderer.coll_launch_params)
-            owlLaunchSync((OWLParams)renderer.coll_launch_params);
+        owlLaunchSync((OWLParams)renderer.backend.rgb_launch_params);
+        if(renderer.backend.coll_launch_params)
+            owlLaunchSync((OWLParams)renderer.backend.coll_launch_params);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -667,14 +690,14 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void render_rgb_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
-        OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
+        OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
+        OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
         owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, rgb_lp);
     }
 
     template <typename DEVICE, typename SPEC>
     void render_rgb_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        owlLaunchSync((OWLParams)renderer.rgb_launch_params);
+        owlLaunchSync((OWLParams)renderer.backend.rgb_launch_params);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -683,47 +706,39 @@ namespace rl_tools {
         render_rgb_only_sync(device, renderer);
     }
 
-    // Async camera upload that bypasses owlBufferUpload (which calls cudaDeviceSynchronize).
-    // Uploads directly on the launch params' CUDA stream so it is ordered before the next optixLaunch.
-    template <typename DEVICE, typename SPEC>
-    void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const CameraData* cameras, typename SPEC::TI num_cameras){
-        if(num_cameras != SPEC::NUM_CAMERAS){
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("set_cameras_async called with " << num_cameras << " cameras, expected " << SPEC::NUM_CAMERAS);
-            return;
-        }
+    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
+    void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
+        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
 
-        OWLContext context = (OWLContext)renderer.context;
-        OWLRayGen ray_gen = (OWLRayGen)renderer.ray_gen;
+        OWLContext context = (OWLContext)renderer.backend.context;
+        OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
 
-        if(renderer.cameras_buffer == nullptr){
-            renderer.cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(CameraData), num_cameras, cameras);
-            owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.cameras_buffer);
-            if(renderer.collision_ray_gen)
-                owlRayGenSetBuffer((OWLRayGen)renderer.collision_ray_gen, "cameras", (OWLBuffer)renderer.cameras_buffer);
+        if(renderer.backend.owl_cameras_buffer == nullptr){
+            renderer.backend.owl_cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, data(cameras));
+            owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            if(renderer.backend.collision_ray_gen)
+                owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
         } else {
-            OWLParams rgb_lp = (OWLParams)renderer.rgb_launch_params;
+            OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
             cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-            void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.cameras_buffer, 0);
-            cudaMemcpyAsync(d_ptr, cameras, num_cameras * sizeof(CameraData), cudaMemcpyHostToDevice, stream);
+            void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
+            cudaMemcpyAsync(d_ptr, data(cameras), SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyHostToDevice, stream);
         }
     }
 
-    // Fully async render: uploads cameras and launches render without any device synchronization.
-    // Call render_rgb_only_sync later to wait for completion.
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const CameraData* cameras, typename SPEC::TI num_cameras){
-        set_cameras_async(device, renderer, cameras, num_cameras);
+    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
+    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
+        set_cameras_async(device, renderer, cameras);
         render_rgb_only_launch(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, uint32_t* out_pixels, typename SPEC::TI out_count){
-        const typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        if(out_count < expected){
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("read_frame_buffer output too small: " << out_count << ", expected at least " << expected);
-            return;
-        }
-        cudaMemcpy(out_pixels, owlBufferGetPointer((OWLBuffer)renderer.frame_buffer, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    template <typename DEVICE, typename SPEC, typename FB_SPEC>
+    void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<FB_SPEC>& out_pixels){
+        static_assert(utils::typing::is_same_v<typename FB_SPEC::T, uint32_t>);
+        static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
+        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        cudaMemcpy(data(out_pixels), owlBufferGetPointer((OWLBuffer)renderer.backend.owl_frame_buffer, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     }
 
     // =========================================================================
@@ -737,7 +752,7 @@ namespace rl_tools {
 
         std::vector<uint32_t> fb_host(fb_count);
         cudaMemcpy(fb_host.data(),
-                   owlBufferGetPointer((OWLBuffer)renderer.frame_buffer, 0),
+                   owlBufferGetPointer((OWLBuffer)renderer.backend.owl_frame_buffer, 0),
                    fb_count * sizeof(uint32_t),
                    cudaMemcpyDeviceToHost);
         const uint32_t* fb = fb_host.data();
@@ -776,7 +791,7 @@ namespace rl_tools {
         return;
 #else
         const CollisionResult* probe_results =
-            (const CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.collision_results_buffer, 0);
+            (const CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_collision_results_buffer, 0);
 
         int total_hits = 0;
         float min_hit_dist = 1e30f, max_hit_dist = 0.f;
@@ -823,26 +838,45 @@ namespace rl_tools {
     // =========================================================================
     // read_collision_results: typed access to collision probe buffer
     // =========================================================================
-    template <typename DEVICE, typename SPEC>
-    const rendering::raytracing::CollisionResult* read_collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        return nullptr;
-#else
-        if(renderer.collision_results_buffer == nullptr){
-            return nullptr;
+    template <typename DEVICE, typename SPEC, typename COLL_SPEC>
+    void read_collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<COLL_SPEC>& out){
+        static_assert(utils::typing::is_same_v<typename COLL_SPEC::T, rendering::raytracing::CollisionResult>);
+        static_assert(get<0>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
+        static_assert(get<1>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_PROBES);
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        if(renderer.backend.owl_collision_results_buffer != nullptr){
+            memcpy(data(out),
+                   owlBufferGetPointer((OWLBuffer)renderer.backend.owl_collision_results_buffer, 0),
+                   SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult));
         }
-        return (const rendering::raytracing::CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.collision_results_buffer, 0);
 #endif
     }
 
-    // =========================================================================
-    // free: destroy OWL contexts
-    // =========================================================================
+    template <typename DEVICE, typename SPEC>
+    const rendering::raytracing::CollisionResult* read_collision_results_raw(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        return nullptr;
+#else
+        if(renderer.backend.owl_collision_results_buffer == nullptr){
+            return nullptr;
+        }
+        return (const rendering::raytracing::CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_collision_results_buffer, 0);
+#endif
+    }
+
+    template <typename DEVICE, typename SPEC>
+    uint32_t* get_framebuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        return (uint32_t*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_frame_buffer, 0);
+    }
+
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
-        if(renderer.context) owlContextDestroy((OWLContext)renderer.context);
-        renderer.context = nullptr;
+        if(renderer.backend.context) owlContextDestroy((OWLContext)renderer.backend.context);
+        renderer.backend.context = nullptr;
+        free(device, renderer.cameras);
+        free(device, renderer.frame_buffer);
+        free(device, renderer.collision_results);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

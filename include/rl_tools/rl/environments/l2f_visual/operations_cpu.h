@@ -64,9 +64,8 @@ namespace rl_tools {
 
         upload_geometry(device, *env.renderer);
         {
-            owl::vec3f center(env.renderer->scene_center[0], env.renderer->scene_center[1], env.renderer->scene_center[2]);
-            const owl::vec3f up(0.f, 1.f, 0.f);
-            generate_cameras(device, *env.renderer, center, env.renderer->camera_radius, up, env.cos_fov);
+            const T up[3] = {0, 1, 0};
+            generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, env.cos_fov);
         }
         generate_probe_directions(device, *env.renderer);
         build_pipeline(device, *env.renderer);
@@ -143,7 +142,7 @@ namespace rl_tools {
 
     namespace rl::environments::l2f_visual {
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT CameraData make_camera_for_state(DEVICE&, const MultirrotorVisual<SPEC>& env, const typename MultirrotorVisual<SPEC>::Parameters& parameters, const typename MultirrotorVisual<SPEC>::State& state) {
+        RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_camera_for_state(DEVICE&, const MultirrotorVisual<SPEC>& env, const typename MultirrotorVisual<SPEC>::Parameters& parameters, const typename MultirrotorVisual<SPEC>::State& state) {
             using T = typename SPEC::T;
 
             T cam_pos_world[3];
@@ -160,17 +159,17 @@ namespace rl_tools {
             const T py = state.position[2] + cam_pos_world[2] + parameters.scene_translation[1];
             const T pz = state.position[1] + cam_pos_world[1] + parameters.scene_translation[2];
 
-            const owl::vec3f position(px, py, pz);
-            const owl::vec3f look_at(
+            const T position[3] = {px, py, pz};
+            const T look_at[3] = {
                 px + cam_forward_world[0],
                 py + cam_forward_world[2],
                 pz + cam_forward_world[1]
-            );
-            const owl::vec3f up(
+            };
+            const T up[3] = {
                 cam_up_world[0],
                 cam_up_world[2],
                 cam_up_world[1]
-            );
+            };
 
             const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
             return make_camera_data(position, look_at, up, env.cos_fov, aspect);
@@ -184,22 +183,20 @@ namespace rl_tools {
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == SPEC::CAM_HEIGHT * SPEC::CAM_WIDTH * 3);
 
-        CameraData camera = rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, state);
-        std::array<CameraData, SPEC::NUM_ENVS> cameras;
+        auto camera = rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, state);
         for (TI i = 0; i < SPEC::NUM_ENVS; i++) {
-            cameras[i] = camera;
+            set(device, env.renderer->cameras, camera, i);
         }
 
-        set_cameras(device, *env.renderer, cameras.data(), SPEC::NUM_ENVS);
+        set_cameras(device, *env.renderer, env.renderer->cameras);
         render(device, *env.renderer);
 
-        constexpr TI TOTAL_PIXELS = SPEC::NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
-        std::array<uint32_t, TOTAL_PIXELS> all_pixels{};
-        read_frame_buffer(device, *env.renderer, all_pixels.data(), all_pixels.size());
+        read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
 
         constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
+        const uint32_t* fb_data = data(env.renderer->frame_buffer);
         for (TI i = 0; i < CAM_PIXELS; i++) {
-            const uint32_t rgba = all_pixels[i];
+            const uint32_t rgba = fb_data[i];
             const T r = static_cast<T>((rgba >>  0) & 0xFF) / static_cast<T>(255);
             const T g = static_cast<T>((rgba >>  8) & 0xFF) / static_cast<T>(255);
             const T b = static_cast<T>((rgba >> 16) & 0xFF) / static_cast<T>(255);
@@ -229,14 +226,13 @@ namespace rl_tools {
             return;
         }
 
-        std::array<CameraData, SPEC::NUM_ENVS> cameras;
         for (TI env_i = 0; env_i < num_envs; env_i++) {
-            cameras[env_i] = rl::environments::l2f_visual::make_camera_for_state(device, env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
+            set(device, env.renderer->cameras, rl::environments::l2f_visual::make_camera_for_state(device, env, get_ref(device, parameters, env_i), get_ref(device, states, env_i)), env_i);
         }
 
-        set_cameras(device, *env.renderer, cameras.data(), num_envs);
+        set_cameras(device, *env.renderer, env.renderer->cameras);
         render(device, *env.renderer);
-        read_frame_buffer(device, *env.renderer, data(out_pixels), product(typename OUT_SPEC::SHAPE{}));
+        read_frame_buffer(device, *env.renderer, out_pixels);
     }
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters){

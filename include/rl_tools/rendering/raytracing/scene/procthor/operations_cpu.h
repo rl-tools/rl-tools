@@ -47,7 +47,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         scene.config.scene_center[2] = renderer.scene_center[2];
         scene.config.scene_radius = renderer.camera_radius;
 
-        if (renderer.collision_results_buffer == nullptr) {
+        if (renderer.backend.owl_collision_results_buffer == nullptr) {
             constexpr T PI = static_cast<T>(3.14159265358979323846);
             const T center_x = renderer.scene_center[0];
             const T center_z = renderer.scene_center[2];
@@ -92,7 +92,6 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         std::vector<Candidate> candidates;
         candidates.reserve(static_cast<size_t>(NUM_BATCHES) * static_cast<size_t>(NUM_CAMERAS));
 
-        std::array<CameraData, NUM_CAMERAS> cameras{};
         std::array<IndoorPosition<T>, NUM_CAMERAS> batch_positions{};
 
         for (TI batch_i = 0; batch_i < NUM_BATCHES; batch_i++) {
@@ -113,23 +112,20 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                 pos.yaw = yaw;
                 pos.score = static_cast<T>(0);
 
-                cameras[camera_i] = make_camera_data(
-                    owl::vec3f(pos.position[0], pos.position[1] + eye_height, pos.position[2]),
-                    owl::vec3f(
-                        pos.position[0] + look_ahead * std::cos(pos.yaw),
-                        pos.position[1] + eye_height,
-                        pos.position[2] + look_ahead * std::sin(pos.yaw)
-                    ),
-                    owl::vec3f(0.f, 1.f, 0.f),
-                    cos_fov,
-                    aspect
-                );
+                const T cam_position[3] = {pos.position[0], pos.position[1] + eye_height, pos.position[2]};
+                const T cam_look_at[3] = {
+                    pos.position[0] + look_ahead * std::cos(pos.yaw),
+                    pos.position[1] + eye_height,
+                    pos.position[2] + look_ahead * std::sin(pos.yaw)
+                };
+                const T cam_up[3] = {0, 1, 0};
+                set(device, renderer.cameras, make_camera_data(cam_position, cam_look_at, cam_up, cos_fov, aspect), camera_i);
             }
 
-            set_cameras(device, renderer, cameras.data(), NUM_CAMERAS);
+            set_cameras(device, renderer, renderer.cameras);
             render(device, renderer);
 
-            const rendering::raytracing::CollisionResult* probe_results = read_collision_results(device, renderer);
+            const rendering::raytracing::CollisionResult* probe_results = read_collision_results_raw(device, renderer);
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const rendering::raytracing::CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(NUM_PROBES);
                 TI hit_count = 0;
@@ -225,7 +221,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
     RL_TOOLS_FUNCTION_PLACEMENT typename RENDERER_SPEC::T evaluate_clearance(DEVICE& device, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename RENDERER_SPEC::TI camera_index) {
         using T = typename RENDERER_SPEC::T;
         constexpr auto NUM_PROBES = RENDERER_SPEC::NUM_PROBES;
-        const rendering::raytracing::CollisionResult* results = read_collision_results(device, renderer);
+        const rendering::raytracing::CollisionResult* results = read_collision_results_raw(device, renderer);
         if (results == nullptr) {
             return std::numeric_limits<T>::infinity();
         }
