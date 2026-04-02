@@ -431,6 +431,12 @@ namespace rl_tools{
                     return 1 - a;
                 }
             };
+            struct Increment: Operation {
+                template <typename DEVICE, typename T>
+                RL_TOOLS_FUNCTION_PLACEMENT static T operation(DEVICE& device, const Increment& parameter, T a){
+                    return a + 1;
+                }
+            };
             template <typename T>
             struct Scale: Operation{
                 T scale;
@@ -747,6 +753,10 @@ namespace rl_tools{
         tensor::operations::unary::ConstantFromTensor<Tensor<VALUE_SPEC>> op;
         op.constant = value;
         unary_operation(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void increment(DEVICE& device, Tensor<SPEC>& t){
+        unary_operation(device, tensor::operations::unary::Increment{}, t);
     }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void one_minus(DEVICE& device, Tensor<SPEC>& t){
