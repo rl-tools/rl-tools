@@ -369,15 +369,16 @@ namespace rl_tools{
             current_position += 1;
         }
         utils::string::copy(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        constexpr TI METADATA_SIZE = 100;
+        constexpr TI METADATA_SIZE = 500;
         char metadata[METADATA_SIZE];
         TI read_size = 0;
         utils::assert_exit(device, persist::backends::tar::get(device, group.data, group_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
         TI position;
         TI value_length = 0;
         utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, read_size, name, position, value_length), "persist::backends::tar: key not found in metadata");
-        utils::string::memcpy(output, metadata + position, value_length < output_size ? value_length : output_size);
-        output[output_size-1] = '\0';
+        TI copy_len = value_length < output_size - 1 ? value_length : output_size - 1;
+        utils::string::memcpy(output, metadata + position, copy_len);
+        output[copy_len] = '\0';
     }
     template<typename TYPE, typename DEVICE, typename SPEC>
     TYPE get_attribute_int(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name){
