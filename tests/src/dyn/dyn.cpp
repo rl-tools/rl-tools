@@ -4,12 +4,23 @@
 
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
+#include <rl_tools/nn/layers/conv2d/operations_generic.h>
+#include <rl_tools/nn/layers/max_pool2d/operations_generic.h>
+#include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
+#include <rl_tools/nn/layers/flatten/operations_generic.h>
+#include <rl_tools/nn/layers/resnet_block/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/resnet/resnet.h>
 
 #include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
+#include <rl_tools/nn/layers/conv2d/persist.h>
+#include <rl_tools/nn/layers/max_pool2d/persist.h>
+#include <rl_tools/nn/layers/avg_pool2d/persist.h>
+#include <rl_tools/nn/layers/flatten/persist.h>
+#include <rl_tools/nn/layers/resnet_block/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 
@@ -36,6 +47,13 @@ using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 #include <gtest/gtest.h>
 
 namespace helpers{
+    void setup_buffer(rlt::dyn::Buffer<TI>& buf, TI batch_size, const rlt::dyn::Layer<TI>& layer, const rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>>& input){
+        buf.batch_size = batch_size;
+        buf.layer = &layer;
+        buf.input_rank = input.rank;
+        buf.input_size = input.size;
+        for(TI i = 0; i < input.rank; i++) buf.input_shape[i] = input.shape[i];
+    }
     std::vector<char> load_tar(const std::string& path){
         std::ifstream archive(path, std::ios::binary);
         std::vector<char> data((std::istreambuf_iterator<char>(archive)), std::istreambuf_iterator<char>());
@@ -111,8 +129,7 @@ TEST(TEST_DYN, dense_layer){
     rlt::malloc(device, dyn_output);
 
     rlt::dyn::Buffer<TI> dyn_buffer;
-    dyn_buffer.batch_size = 3;
-    dyn_buffer.layer = &dyn_layer;
+    helpers::setup_buffer(dyn_buffer, 3, dyn_layer, dyn_input);
     rlt::malloc(device, dyn_buffer);
 
     rlt::evaluate(device, dyn_layer, dyn_input, dyn_output, dyn_buffer);
@@ -185,7 +202,7 @@ TEST(TEST_DYN, gru_single_step){
     copy_tensor_1d(layer.biases_hidden, gd->biases_hidden, 3*GH);
     copy_tensor_1d(layer.initial_hidden_state, gd->initial_hidden_state, GH);
     dl.data = gd;
-    rlt::dyn::Buffer<TI> db; db.batch_size = GB; db.layer = &dl; rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, GB, dl, dyn_in); rlt::malloc(device, db);
     rlt::evaluate(device, dl, dyn_in, dyn_out, db);
     auto om = rlt::matrix_view(device, output_static);
     T md = 0;
@@ -253,8 +270,7 @@ TEST(TEST_DYN, gru_standalone){
     dyn_gru_output.type = rlt::dyn::Type::FLOAT32;
     rlt::malloc(device, dyn_gru_output);
     rlt::dyn::Buffer<TI> dyn_gru_buffer;
-    dyn_gru_buffer.batch_size = GRU_BATCH_SIZE;
-    dyn_gru_buffer.layer = &dyn_gru_layer;
+    helpers::setup_buffer(dyn_gru_buffer, GRU_BATCH_SIZE, dyn_gru_layer, dyn_gru_input);
     rlt::malloc(device, dyn_gru_buffer);
     rlt::evaluate(device, dyn_gru_layer, dyn_gru_input, dyn_gru_output, dyn_gru_buffer);
     auto gru_output_mat = rlt::matrix_view(device, gru_output_static);
@@ -303,7 +319,7 @@ TEST(TEST_DYN, sequential_dense_dense){
     TI dos[] = {(TI)3, (TI)5}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in);
     for(TI i = 0; i < 3; i++) for(TI j = 0; j < 6; j++) rlt::dyn::set(device, di, i*6+j, rlt::get(im, i, j));
-    rlt::dyn::Buffer<TI> db; db.batch_size = 3; db.layer = &dm; rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 3, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, out);
     T md = 0;
@@ -349,7 +365,7 @@ TEST(TEST_DYN, sequential_dense_gru){
     TI dos[] = {SL, BS, (TI)8}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in);
     for(TI i = 0; i < SL*BS; i++) for(TI j = 0; j < ID; j++) rlt::dyn::set(device, di, i*ID+j, rlt::get(im, i, j));
-    rlt::dyn::Buffer<TI> db; db.batch_size = SL * BS; db.layer = &dm; rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, SL * BS, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, out);
     T md = 0;
@@ -401,7 +417,7 @@ TEST(TEST_DYN, sequential_dense_gru_dense){
     TI dos[] = {SL2, BS2, OD2}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in2);
     for(TI i = 0; i < SL2*BS2; i++) for(TI j = 0; j < ID2; j++) rlt::dyn::set(device, di, i*ID2+j, rlt::get(im, i, j));
-    rlt::dyn::Buffer<TI> db; db.batch_size = SL2 * BS2; db.layer = &dm; rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, SL2 * BS2, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, out2);
     T md = 0;
@@ -452,7 +468,7 @@ TEST(TEST_DYN, mlp_standalone){
     TI dos[] = {(TI)4, MLP_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, mlp_in);
     for(TI i = 0; i < 4; i++) for(TI j = 0; j < 20; j++) rlt::dyn::set(device, di, i*20+j, rlt::get(im, i, j));
-    rlt::dyn::Buffer<TI> db; db.batch_size = 4; db.layer = &dm; rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 4, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, mlp_out);
     T md = 0;
@@ -540,8 +556,7 @@ TEST(TEST_DYN, sequential_dense_gru_mlp){
     rlt::malloc(device, dyn_output);
 
     rlt::dyn::Buffer<TI> dyn_buffer;
-    dyn_buffer.batch_size = SEQ_LEN * BATCH_SIZE;
-    dyn_buffer.layer = &dyn_model;
+    helpers::setup_buffer(dyn_buffer, SEQ_LEN * BATCH_SIZE, dyn_model, dyn_input);
     rlt::malloc(device, dyn_buffer);
 
     rlt::evaluate(device, dyn_model, dyn_input, dyn_output, dyn_buffer);
@@ -599,10 +614,10 @@ TEST(TEST_DYN, gru_step_only){
     auto dlg = rlt::get_group(device, rg, "layer");
     rlt::dyn::Layer<TI> dl; rlt::load(device, dl, dlg);
     rlt::dyn::State<TI> ds; ds.batch_size = GB2; ds.layer = &dl; rlt::malloc(device, ds); rlt::reset(device, dl, ds);
-    rlt::dyn::Buffer<TI> db; db.batch_size = GB2; db.layer = &dl; rlt::malloc(device, db);
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
     TI dis[] = {GB2, GI2}; rlt::dyn::set_shape(di, (TI)2, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     TI dos[] = {GB2, GH2}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, GB2, dl, di); rlt::malloc(device, db);
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GB2, GI2>>> si;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GB2, GH2>>> s_out;
     rlt::malloc(device, si); rlt::malloc(device, s_out);
@@ -685,11 +700,6 @@ TEST(TEST_DYN, evaluate_step_gru){
     rlt::malloc(device, dyn_state);
     rlt::reset(device, dyn_model, dyn_state);
 
-    rlt::dyn::Buffer<TI> dyn_buffer;
-    dyn_buffer.batch_size = BATCH_SIZE;
-    dyn_buffer.layer = &dyn_model;
-    rlt::malloc(device, dyn_buffer);
-
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> dyn_step_input, dyn_step_output;
     TI step_input_shape[] = {BATCH_SIZE, INPUT_DIM};
     rlt::dyn::set_shape(dyn_step_input, (TI)2, step_input_shape);
@@ -699,6 +709,10 @@ TEST(TEST_DYN, evaluate_step_gru){
     rlt::dyn::set_shape(dyn_step_output, (TI)2, step_output_shape);
     dyn_step_output.type = rlt::dyn::Type::FLOAT32;
     rlt::malloc(device, dyn_step_output);
+
+    rlt::dyn::Buffer<TI> dyn_buffer;
+    helpers::setup_buffer(dyn_buffer, BATCH_SIZE, dyn_model, dyn_step_input);
+    rlt::malloc(device, dyn_buffer);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, STEP_INPUT_SHAPE>> step_input;
     using STEP_OUTPUT_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, OUTPUT_DIM>;
@@ -744,4 +758,181 @@ TEST(TEST_DYN, evaluate_step_gru){
     rlt::free(device, state);
     rlt::free(device, step_input);
     rlt::free(device, step_output_static);
+}
+
+TEST(TEST_DYN, basic_cnn){
+    DEVICE device;
+    RNG rng;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 42);
+    // Conv2d(3→8, 3x3, stride=1, pad=1, RELU) → MaxPool2d(2x2, stride=2) → Flatten → Dense(→5)
+    using CONV_CONFIG = rlt::nn::layers::conv2d::Configuration<TYPE_POLICY, TI, 8, 3, 3, 1, 1, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using POOL_CONFIG = rlt::nn::layers::max_pool2d::Configuration<TYPE_POLICY, TI, 2, 2, 2, 2>;
+    using FLAT_CONFIG = rlt::nn::layers::flatten::Configuration<TYPE_POLICY, TI>;
+    using FC_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using CHAIN = rlt::nn_models::sequential::Module<
+        rlt::nn::layers::conv2d::BindConfiguration<CONV_CONFIG>,
+        rlt::nn_models::sequential::Module<rlt::nn::layers::max_pool2d::BindConfiguration<POOL_CONFIG>,
+        rlt::nn_models::sequential::Module<rlt::nn::layers::flatten::BindConfiguration<FLAT_CONFIG>,
+        rlt::nn_models::sequential::Module<rlt::nn::layers::dense::BindConfiguration<FC_CONFIG>>>>>;
+    // Input: (1, 8, 8, 3)
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 8, 8, 3>;
+    using MODEL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, CHAIN, INPUT_SHAPE>;
+    MODEL model; MODEL::Buffer<> buf;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> in;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::OUTPUT_SHAPE>> out;
+    rlt::malloc(device, model); rlt::malloc(device, buf); rlt::malloc(device, in); rlt::malloc(device, out);
+    rlt::init_weights(device, model, rng); rlt::randn(device, in, rng);
+    rlt::evaluate(device, model, in, out, buf, rng);
+    // Save to TAR
+    std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_basic_cnn.tar";
+    rlt::persist::backends::tar::Writer w;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(w)>> wg{"", &w};
+    auto mg = rlt::create_group(device, wg, "m"); rlt::save(device, model, mg);
+    rlt::persist::backends::tar::finalize(device, w);
+    {std::ofstream a(dp, std::ios::binary); a.write(w.buffer.data(), w.buffer.size());}
+    // Load into dyn
+    auto td = helpers::load_tar(dp);
+    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> rg{"", td.data(), static_cast<TI>(td.size())};
+    auto dg = rlt::get_group(device, rg, "m");
+    rlt::dyn::Layer<TI> dm; rlt::load(device, dm, dg);
+    ASSERT_EQ(dm.type, rlt::dyn::LayerType::SEQUENTIAL);
+    // Prepare dyn input
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
+    TI dis[] = {(TI)1, (TI)8, (TI)8, (TI)3}; rlt::dyn::set_shape(di, (TI)4, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
+    auto im = rlt::matrix_view(device, in);
+    for(TI i = 0; i < 1 * 8 * 8 * 3; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, in, i));
+    // Output: (1, 5) from flatten→dense
+    constexpr TI CNN_OUTPUT_DIM = 5;
+    TI dos[] = {(TI)1, CNN_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 1, dm, di); rlt::malloc(device, db);
+    rlt::evaluate(device, dm, di, d_out, db);
+    auto om = rlt::matrix_view(device, out);
+    T md = 0;
+    for(TI j = 0; j < CNN_OUTPUT_DIM; j++){
+        T d = std::abs(rlt::get(om, 0, j) - rlt::dyn::get(device, d_out, j));
+        if(d > md) md = d;
+    }
+    std::cout << "Basic CNN max diff: " << md << std::endl;
+    ASSERT_NEAR(md, 0, 1e-4);
+    rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
+    rlt::free(device, model); rlt::free(device, buf); rlt::free(device, in); rlt::free(device, out);
+}
+
+TEST(TEST_DYN, resnet_block){
+    DEVICE device;
+    RNG rng;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 42);
+    // Single resnet block: 64→64, stride=1 (no downsample)
+    using RB_CONFIG = rlt::nn::layers::resnet_block::Configuration<TYPE_POLICY, TI, 64, 1>;
+    using RB_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, 8, 8, 64>;
+    using RB_SPEC = rlt::nn::layers::resnet_block::Specification<RB_CONFIG, rlt::nn::capability::Forward<>, RB_INPUT_SHAPE>;
+    rlt::nn::layers::resnet_block::LayerForward<RB_SPEC> rb;
+    rlt::malloc(device, rb);
+    rlt::init_weights(device, rb, rng);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, RB_INPUT_SHAPE>> rb_in;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename RB_SPEC::OUTPUT_SHAPE>> rb_out;
+    typename rlt::nn::layers::resnet_block::LayerForward<RB_SPEC>::template Buffer<> rb_buf;
+    rlt::malloc(device, rb_in); rlt::malloc(device, rb_out);
+    rlt::malloc(device, rb_buf);
+    rlt::randn(device, rb_in, rng);
+    rlt::evaluate(device, rb, rb_in, rb_out, rb_buf, rng);
+    std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_resnet_block.tar";
+    rlt::persist::backends::tar::Writer w;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(w)>> wg{"", &w};
+    auto mg = rlt::create_group(device, wg, "m"); rlt::save(device, rb, mg);
+    rlt::persist::backends::tar::finalize(device, w);
+    {std::ofstream a(dp, std::ios::binary); a.write(w.buffer.data(), w.buffer.size());}
+    auto td = helpers::load_tar(dp);
+    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> rg{"", td.data(), static_cast<TI>(td.size())};
+    auto dg = rlt::get_group(device, rg, "m");
+    rlt::dyn::Layer<TI> dm; rlt::load(device, dm, dg);
+    std::cout << "Dyn load done" << std::endl;
+    ASSERT_EQ(dm.type, rlt::dyn::LayerType::RESNET_BLOCK);
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
+    TI dis[] = {(TI)1, (TI)8, (TI)8, (TI)64}; rlt::dyn::set_shape(di, (TI)4, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
+    for(TI i = 0; i < 1*8*8*64; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, rb_in, i));
+    TI dos[] = {(TI)1, (TI)8, (TI)8, (TI)64}; rlt::dyn::set_shape(d_out, (TI)4, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
+    // Check loaded conv dimensions
+    auto* loaded_rb = reinterpret_cast<rlt::dyn::layers::ResnetBlock<TI>*>(dm.data);
+    std::cout << "  conv1 type=" << (int)loaded_rb->conv1.type << " data=" << loaded_rb->conv1.data << std::endl;
+    auto* loaded_c1 = reinterpret_cast<rlt::dyn::layers::Conv2d<TI>*>(loaded_rb->conv1.data);
+    std::cout << "  conv1: in_ch=" << loaded_c1->input_channels << " out_ch=" << loaded_c1->output_channels
+              << " kh=" << loaded_c1->kernel_height << " kw=" << loaded_c1->kernel_width
+              << " sh=" << loaded_c1->stride_h << " sw=" << loaded_c1->stride_w
+              << " ph=" << loaded_c1->padding_h << " pw=" << loaded_c1->padding_w
+              << " weights_rank=" << loaded_c1->weights.rank << " weights_size=" << loaded_c1->weights.size << std::endl;
+    auto* loaded_c2 = reinterpret_cast<rlt::dyn::layers::Conv2d<TI>*>(loaded_rb->conv2.data);
+    std::cout << "  conv2: in_ch=" << loaded_c2->input_channels << " out_ch=" << loaded_c2->output_channels << std::endl;
+    std::cout << "  downsample: " << (loaded_rb->downsample ? "yes" : "no") << std::endl;
+
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 1, dm, di);
+    // Debug: manually compute output shape
+    TI osh[5]; TI orn, osz;
+    rlt::dyn::compute_output_shape(dm, di.shape, di.rank, di.size, osh, orn, osz);
+    std::cout << "  output shape: rank=" << orn << " size=" << osz << std::endl;
+    rlt::malloc(device, db);
+    std::cout << "  Buffer max_size=" << db.max_size << std::endl;
+    rlt::evaluate(device, dm, di, d_out, db);
+    T md = 0;
+    for(TI i = 0; i < 1*8*8*64; i++){
+        T d = std::abs(rlt::get_flat(device, rb_out, i) - rlt::dyn::get(device, d_out, i));
+        if(d > md) md = d;
+    }
+    std::cout << "ResNet block (no downsample) max diff: " << md << std::endl;
+    ASSERT_NEAR(md, 0, 1e-4);
+    rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
+    rlt::free(device, rb); rlt::free(device, rb_buf); rlt::free(device, rb_in); rlt::free(device, rb_out);
+}
+
+TEST(TEST_DYN, resnet18){
+    DEVICE device;
+    RNG rng;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 42);
+    using CAPABILITY = rlt::nn::capability::Forward<>;
+    using MODEL = rlt::nn_models::resnet18::MODEL<TYPE_POLICY, TI, CAPABILITY>;
+    MODEL model; MODEL::Buffer<> buf;
+    using INPUT_SHAPE = rlt::nn_models::resnet18::INPUT_SHAPE<TYPE_POLICY, TI>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> in;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::OUTPUT_SHAPE>> out;
+    rlt::malloc(device, model); rlt::malloc(device, buf); rlt::malloc(device, in); rlt::malloc(device, out);
+    rlt::init_weights(device, model, rng); rlt::randn(device, in, rng);
+    rlt::evaluate(device, model, in, out, buf, rng);
+    // Save to TAR
+    std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_resnet18.tar";
+    rlt::persist::backends::tar::Writer w;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(w)>> wg{"", &w};
+    auto mg = rlt::create_group(device, wg, "m"); rlt::save(device, model, mg);
+    rlt::persist::backends::tar::finalize(device, w);
+    {std::ofstream a(dp, std::ios::binary); a.write(w.buffer.data(), w.buffer.size());}
+    // Load into dyn
+    auto td = helpers::load_tar(dp);
+    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> rg{"", td.data(), static_cast<TI>(td.size())};
+    auto dg = rlt::get_group(device, rg, "m");
+    rlt::dyn::Layer<TI> dm; rlt::load(device, dm, dg);
+    ASSERT_EQ(dm.type, rlt::dyn::LayerType::SEQUENTIAL);
+    // Prepare dyn input (1, 224, 224, 3)
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
+    TI dis[] = {(TI)1, (TI)224, (TI)224, (TI)3}; rlt::dyn::set_shape(di, (TI)4, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
+    for(TI i = 0; i < 1 * 224 * 224 * 3; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, in, i));
+    // Output: (1, 1000)
+    constexpr TI RESNET_OUTPUT_DIM = 1000;
+    TI dos[] = {(TI)1, RESNET_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 1, dm, di); rlt::malloc(device, db);
+    rlt::evaluate(device, dm, di, d_out, db);
+    auto om = rlt::matrix_view(device, out);
+    T md = 0;
+    for(TI j = 0; j < RESNET_OUTPUT_DIM; j++){
+        T d = std::abs(rlt::get(om, 0, j) - rlt::dyn::get(device, d_out, j));
+        if(d > md) md = d;
+    }
+    std::cout << "ResNet18 max diff: " << md << std::endl;
+    ASSERT_NEAR(md, 0, 1e-3);
+    rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
+    rlt::free(device, model); rlt::free(device, buf); rlt::free(device, in); rlt::free(device, out);
 }

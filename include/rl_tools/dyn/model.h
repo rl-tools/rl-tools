@@ -56,7 +56,7 @@ namespace rl_tools::dyn{
     }
 
     enum class ActivationFunction { IDENTITY, RELU, GELU, TANH, FAST_TANH, SIGMOID };
-    enum class LayerType { DENSE, GRU, CONV2D, MAX_POOL2D, AVG_POOL2D, FLATTEN, UNFLATTEN, SAMPLE_AND_SQUASH, STANDARDIZE, EMBEDDING, SEQUENTIAL, PARALLEL, MLP };
+    enum class LayerType { DENSE, GRU, CONV2D, MAX_POOL2D, AVG_POOL2D, FLATTEN, UNFLATTEN, SAMPLE_AND_SQUASH, STANDARDIZE, EMBEDDING, SEQUENTIAL, PARALLEL, MLP, RESNET_BLOCK };
 
     template <typename T_TI>
     struct TensorSpecification{
@@ -166,6 +166,13 @@ namespace rl_tools::dyn{
             Layer<TI>* pipeline_b = nullptr;
             Layer<TI>* head = nullptr;
         };
+        template <typename T_TI>
+        struct ResnetBlock{
+            using TI = T_TI;
+            Layer<TI> conv1;
+            Layer<TI> conv2;
+            Layer<TI>* downsample = nullptr;
+        };
     }
 
     template <typename T_TI>
@@ -213,10 +220,15 @@ namespace rl_tools::dyn{
         using TI = T_TI;
         TI batch_size = 0;
         const Layer<TI>* layer = nullptr;
+        TI input_shape[TensorSpecification<TI>::MAX_RANK] = {};
+        TI input_rank = 0;
+        TI input_size = 0;
         Tensor<TensorSpecification<TI>> tick;
         Tensor<TensorSpecification<TI>> tock;
         Tensor<TensorSpecification<TI>> gru_state_scratch;
         Tensor<TensorSpecification<TI>> gru_gate_scratch;
+        Tensor<TensorSpecification<TI>> resnet_intermediate;
+        Tensor<TensorSpecification<TI>> resnet_shortcut;
         TI max_size = 0;
     };
 }

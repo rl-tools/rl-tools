@@ -303,6 +303,21 @@ namespace rl_tools{
             layer.data = p;
             return true;
         }
+        else if(utils::string::compare(type_str, "resnet_block", 12)){
+            layer.type = LayerType::RESNET_BLOCK;
+            auto* rb = new layers::ResnetBlock<TI>();
+            auto conv1_group = get_group(device, group, "conv1");
+            load(device, rb->conv1, conv1_group);
+            auto conv2_group = get_group(device, group, "conv2");
+            load(device, rb->conv2, conv2_group);
+            if(group_exists(device, group, "downsample")){
+                rb->downsample = new Layer<TI>();
+                auto ds_group = get_group(device, group, "downsample");
+                load(device, *rb->downsample, ds_group);
+            }
+            layer.data = rb;
+            return true;
+        }
         return false;
     }
 }
