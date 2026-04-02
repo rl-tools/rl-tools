@@ -498,9 +498,73 @@ namespace rl_tools {
         renderer.backend.world = world;
     }
 
-    // =========================================================================
-    // generate_cameras: Fibonacci sphere camera generation + upload
-    // =========================================================================
+    namespace rendering::raytracing::vec3{
+        template <typename T>
+        void sub(const T a[3], const T b[3], T out[3]){
+            out[0] = a[0] - b[0]; out[1] = a[1] - b[1]; out[2] = a[2] - b[2];
+        }
+        template <typename T>
+        T dot(const T a[3], const T b[3]){
+            return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+        }
+        template <typename T>
+        void cross(const T a[3], const T b[3], T out[3]){
+            out[0] = a[1]*b[2] - a[2]*b[1];
+            out[1] = a[2]*b[0] - a[0]*b[2];
+            out[2] = a[0]*b[1] - a[1]*b[0];
+        }
+        template <typename T>
+        T length(const T v[3]){
+            return sqrtf(dot(v, v));
+        }
+        template <typename T>
+        void normalize(const T v[3], T out[3]){
+            T len = length(v);
+            out[0] = v[0]/len; out[1] = v[1]/len; out[2] = v[2]/len;
+        }
+        template <typename T>
+        void scale(const T v[3], T s, T out[3]){
+            out[0] = v[0]*s; out[1] = v[1]*s; out[2] = v[2]*s;
+        }
+        template <typename T>
+        void add(const T a[3], const T b[3], T out[3]){
+            out[0] = a[0] + b[0]; out[1] = a[1] + b[1]; out[2] = a[2] + b[2];
+        }
+        template <typename T>
+        void cross_normalized(const T a[3], const T b[3], T out[3]){
+            T tmp[3];
+            cross(a, b, tmp);
+            normalize(tmp, out);
+        }
+    }
+
+    template <typename T>
+    rendering::raytracing::CameraData<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T cos_fov, T aspect){
+        namespace v3 = rendering::raytracing::vec3;
+        T raw_dir[3], dir[3];
+        v3::sub(look_at, position, raw_dir);
+        v3::normalize(raw_dir, dir);
+
+        T du_dir[3], du[3];
+        v3::cross_normalized(dir, up, du_dir);
+        v3::scale(du_dir, cos_fov * aspect, du);
+
+        T dv_dir[3], dv[3];
+        v3::cross_normalized(du, dir, dv_dir);
+        v3::scale(dv_dir, cos_fov, dv);
+
+        T half_du[3], half_dv[3], tmp[3];
+        v3::scale(du, T{-0.5}, half_du);
+        v3::scale(dv, T{0.5}, half_dv);
+        v3::add(dir, half_du, tmp);
+        rendering::raytracing::CameraData<T> cam;
+        v3::add(tmp, half_dv, cam.dir_00);
+        cam.pos[0] = position[0]; cam.pos[1] = position[1]; cam.pos[2] = position[2];
+        cam.dir_du[0] = du[0]; cam.dir_du[1] = du[1]; cam.dir_du[2] = du[2];
+        v3::scale(dv, T{-1}, cam.dir_dv);
+        return cam;
+    }
+
     template <typename DEVICE, typename SPEC>
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
@@ -517,35 +581,16 @@ namespace rl_tools {
             cos_inc = cos_inc * T{0.85};
             T sin_inc = sqrtf(T{1} - cos_inc * cos_inc);
 
-            T cam_pos[3];
-            cam_pos[0] = center[0] + radius * sin_inc * cosf(theta);
-            cam_pos[1] = center[1] + radius * cos_inc;
-            cam_pos[2] = center[2] + radius * sin_inc * sinf(theta);
+            T cam_pos[3] = {
+                center[0] + radius * sin_inc * cosf(theta),
+                center[1] + radius * cos_inc,
+                center[2] + radius * sin_inc * sinf(theta)
+            };
 
             if(cam_pos[1] < center[1] - radius * T{0.1})
                 cam_pos[1] = center[1] + radius * T{0.3};
 
-            T dir[3] = {center[0] - cam_pos[0], center[1] - cam_pos[1], center[2] - cam_pos[2]};
-            T dir_len = sqrtf(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
-            dir[0] /= dir_len; dir[1] /= dir_len; dir[2] /= dir_len;
-
-            T cross_du[3] = {dir[1]*up[2] - dir[2]*up[1], dir[2]*up[0] - dir[0]*up[2], dir[0]*up[1] - dir[1]*up[0]};
-            T du_len = sqrtf(cross_du[0]*cross_du[0] + cross_du[1]*cross_du[1] + cross_du[2]*cross_du[2]);
-            T du[3] = {cos_fov * aspect * cross_du[0]/du_len, cos_fov * aspect * cross_du[1]/du_len, cos_fov * aspect * cross_du[2]/du_len};
-
-            T cross_dv[3] = {du[1]*dir[2] - du[2]*dir[1], du[2]*dir[0] - du[0]*dir[2], du[0]*dir[1] - du[1]*dir[0]};
-            T dv_len = sqrtf(cross_dv[0]*cross_dv[0] + cross_dv[1]*cross_dv[1] + cross_dv[2]*cross_dv[2]);
-            T dv[3] = {cos_fov * cross_dv[0]/dv_len, cos_fov * cross_dv[1]/dv_len, cos_fov * cross_dv[2]/dv_len};
-
-            rendering::raytracing::CameraData<T> cam;
-            cam.pos[0] = cam_pos[0]; cam.pos[1] = cam_pos[1]; cam.pos[2] = cam_pos[2];
-            cam.dir_00[0] = dir[0] - T{0.5}*du[0] + T{0.5}*dv[0];
-            cam.dir_00[1] = dir[1] - T{0.5}*du[1] + T{0.5}*dv[1];
-            cam.dir_00[2] = dir[2] - T{0.5}*du[2] + T{0.5}*dv[2];
-            cam.dir_du[0] = du[0]; cam.dir_du[1] = du[1]; cam.dir_du[2] = du[2];
-            cam.dir_dv[0] = -dv[0]; cam.dir_dv[1] = -dv[1]; cam.dir_dv[2] = -dv[2];
-
-            set(device, renderer.cameras, cam, i);
+            set(device, renderer.cameras, make_camera_data(cam_pos, center, up, cos_fov, aspect), i);
         }
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << SPEC::NUM_CAMERAS << " camera positions");
@@ -558,30 +603,6 @@ namespace rl_tools {
         if(renderer.backend.collision_ray_gen)
             owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "cameras", cameras_buffer);
         renderer.backend.owl_cameras_buffer = cameras_buffer;
-    }
-
-    template <typename T>
-    rendering::raytracing::CameraData<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T cos_fov, T aspect){
-        T dir[3] = {look_at[0] - position[0], look_at[1] - position[1], look_at[2] - position[2]};
-        T dir_len = sqrtf(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
-        dir[0] /= dir_len; dir[1] /= dir_len; dir[2] /= dir_len;
-
-        T cross_du[3] = {dir[1]*up[2] - dir[2]*up[1], dir[2]*up[0] - dir[0]*up[2], dir[0]*up[1] - dir[1]*up[0]};
-        T du_len = sqrtf(cross_du[0]*cross_du[0] + cross_du[1]*cross_du[1] + cross_du[2]*cross_du[2]);
-        T du[3] = {cos_fov * aspect * cross_du[0]/du_len, cos_fov * aspect * cross_du[1]/du_len, cos_fov * aspect * cross_du[2]/du_len};
-
-        T cross_dv[3] = {du[1]*dir[2] - du[2]*dir[1], du[2]*dir[0] - du[0]*dir[2], du[0]*dir[1] - du[1]*dir[0]};
-        T dv_len = sqrtf(cross_dv[0]*cross_dv[0] + cross_dv[1]*cross_dv[1] + cross_dv[2]*cross_dv[2]);
-        T dv[3] = {cos_fov * cross_dv[0]/dv_len, cos_fov * cross_dv[1]/dv_len, cos_fov * cross_dv[2]/dv_len};
-
-        rendering::raytracing::CameraData<T> cam;
-        cam.pos[0] = position[0]; cam.pos[1] = position[1]; cam.pos[2] = position[2];
-        cam.dir_00[0] = dir[0] - T{0.5}*du[0] + T{0.5}*dv[0];
-        cam.dir_00[1] = dir[1] - T{0.5}*du[1] + T{0.5}*dv[1];
-        cam.dir_00[2] = dir[2] - T{0.5}*du[2] + T{0.5}*dv[2];
-        cam.dir_du[0] = du[0]; cam.dir_du[1] = du[1]; cam.dir_du[2] = du[2];
-        cam.dir_dv[0] = -dv[0]; cam.dir_dv[1] = -dv[1]; cam.dir_dv[2] = -dv[2];
-        return cam;
     }
 
     template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>

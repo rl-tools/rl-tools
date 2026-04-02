@@ -19,6 +19,7 @@ namespace rl_tools {
             T_T dir_du[3];
             T_T dir_dv[3];
         };
+
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
