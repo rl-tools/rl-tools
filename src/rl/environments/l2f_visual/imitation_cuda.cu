@@ -594,7 +594,7 @@ int main(int argc, char** argv){
     rlt::free(device, warmup_state_observations);
 
     // =========================================================================
-    // GPU init (after warmup renders change CUDA context)
+    // GPU init
     // =========================================================================
     rlt::init(device_gpu);
     RNG_GPU rng_gpu;
@@ -983,21 +983,6 @@ int main(int argc, char** argv){
             }
 #endif
             completed_episodes.clear();
-        }
-
-        // Reset CUDA state after OptiX renders
-        {
-            cudaError_t err;
-            do { err = cudaGetLastError(); } while(err != cudaSuccess);
-            cudaDeviceSynchronize();
-            cublasDestroy(device_gpu.handle);
-            cublasCreate(&device_gpu.handle);
-            if(device_gpu.stream != 0) cublasSetStream(device_gpu.handle, device_gpu.stream);
-#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
-            cudnnDestroy(device_gpu.cudnn_handle);
-            cudnnCreate(&device_gpu.cudnn_handle);
-            if(device_gpu.stream != 0) cudnnSetStream(device_gpu.cudnn_handle, device_gpu.stream);
-#endif
         }
 
         // Copy all teacher actions to GPU
