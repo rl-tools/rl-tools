@@ -5,6 +5,9 @@
 
 #include "layer.h"
 #include "helper_operations_generic.h"
+#ifdef RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
+#include "helper_operations_cuda.h"
+#endif
 #include "../../parameters/operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -74,13 +77,15 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename MODE>
     RL_TOOLS_FUNCTION_PLACEMENT void reset_truncate(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, Mode<MODE> mode = Mode<mode::Default<>>{}){
-        using TI = typename DEVICE::index_t;
-        static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
-        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-            if(!mode::is<MODE, nn::layers::gru::NoAutoResetMode> && get(device, state.step, batch_i) >= SPEC::SEQUENCE_LENGTH){
-                auto row = view(device, state.state, batch_i);
-                copy(device, device, layer.initial_hidden_state.parameters, row);
-                set(device, state.step, 0, batch_i);
+        if constexpr(!mode::is<MODE, nn::layers::gru::NoAutoResetMode>){
+            using TI = typename DEVICE::index_t;
+            static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
+            for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+                if(get(device, state.step, batch_i) >= SPEC::SEQUENCE_LENGTH){
+                    auto row = view(device, state.state, batch_i);
+                    copy(device, device, layer.initial_hidden_state.parameters, row);
+                    set(device, state.step, 0, batch_i);
+                }
             }
         }
     }
@@ -400,15 +405,19 @@ namespace rl_tools{
         multiply(device, n_post_activation, output_step);
         multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
         copy(device, device, output_step, relevant_state);
-        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-            TI new_step = get(device, state.step, batch_i) + 1;
-            if(!mode::is<MODE, nn::layers::gru::NoAutoResetMode> && new_step >= LAYER_SPEC::SEQUENCE_LENGTH){
-                new_step = 0;
-                auto row = view(device, relevant_state, batch_i);
-                copy(device, device, layer.initial_hidden_state.parameters, row);
+        if constexpr(mode::is<MODE, nn::layers::gru::NoAutoResetMode>){
+            increment(device, state.step);
+        }
+        else{
+            for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+                TI new_step = get(device, state.step, batch_i) + 1;
+                if(new_step >= LAYER_SPEC::SEQUENCE_LENGTH){
+                    new_step = 0;
+                    auto row = view(device, relevant_state, batch_i);
+                    copy(device, device, layer.initial_hidden_state.parameters, row);
+                }
+                set(device, state.step, new_step, batch_i);
             }
-            set(device, state.step, new_step, batch_i);
-
         }
     }
 
