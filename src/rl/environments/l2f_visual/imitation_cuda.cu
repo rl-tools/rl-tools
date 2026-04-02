@@ -13,6 +13,7 @@
 #include <rl_tools/nn/layers/unflatten/operations_generic.h>
 #include <rl_tools/nn/layers/unflatten/operations_cuda.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
+#include <rl_tools/nn/layers/gru/helper_operations_cuda.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/parallel/operations_generic.h>
@@ -271,9 +272,10 @@ namespace imitation_kernels{
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, bool* teacher_forcing_arr,
         T* episode_return_arr, bool* needs_reset_flags,
-        T* episode_lengths_log, T* episode_returns_log,
+        T* episode_lengths_log, T* episode_returns_log, T* episode_tf_log,
         T teacher_forcing_fraction, bool full_teacher_forcing,
-        T* state_obs_ptr,
+        T* teacher_obs_ptr, T* state_obs_ptr,
+        T* raptor_gru_state_ptr, T* raptor_gru_initial_hidden_ptr, TI* raptor_gru_step_ptr,
 #ifdef USE_GRU_TEMPORAL
         T* student_gru_state_ptr, T* student_gru_initial_hidden_ptr, TI* student_gru_step_ptr,
 #endif
@@ -291,9 +293,11 @@ namespace imitation_kernels{
             if(episode_step_arr[env_i] > 0){
                 episode_lengths_log[env_i] = (T)episode_step_arr[env_i];
                 episode_returns_log[env_i] = episode_return_arr[env_i];
+                episode_tf_log[env_i] = teacher_forcing_arr[env_i] ? (T)1 : (T)0;
             } else {
                 episode_lengths_log[env_i] = (T)-1;
                 episode_returns_log[env_i] = (T)0;
+                episode_tf_log[env_i] = (T)0;
             }
             rl_tools::sample_initial_parameters(device, env, params, rng_state);
             rl_tools::sample_initial_state(device, env, params, state, rng_state);
@@ -301,6 +305,10 @@ namespace imitation_kernels{
             terminated_flags[env_i] = false;
             episode_return_arr[env_i] = (T)0;
             teacher_forcing_arr[env_i] = full_teacher_forcing || rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) < teacher_forcing_fraction;
+            for(TI h = 0; h < RAPTOR_HIDDEN_DIM; h++){
+                raptor_gru_state_ptr[env_i * RAPTOR_HIDDEN_DIM + h] = raptor_gru_initial_hidden_ptr[h];
+            }
+            raptor_gru_step_ptr[env_i] = 0;
 #ifdef USE_GRU_TEMPORAL
             for(TI h = 0; h < GRU_HIDDEN_DIM; h++){
                 student_gru_state_ptr[env_i * GRU_HIDDEN_DIM + h] = student_gru_initial_hidden_ptr[h];
@@ -310,6 +318,12 @@ namespace imitation_kernels{
         } else {
             episode_lengths_log[env_i] = (T)-1;
             episode_returns_log[env_i] = (T)0;
+            episode_tf_log[env_i] = (T)0;
+        }
+        {
+            rlt::Matrix<rlt::matrix::Specification<T, TI, 1, RAPTOR_OBS_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> obs_mat;
+            obs_mat._data = teacher_obs_ptr + env_i * RAPTOR_OBS_DIM;
+            rl_tools::observe(device, env, params, state, typename STATIC_PARAMETERS::OBSERVATION_TYPE{}, obs_mat, rng_state);
         }
         {
             rlt::Matrix<rlt::matrix::Specification<T, TI, 1, STATE_OBS_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> obs_mat;
@@ -347,6 +361,54 @@ namespace imitation_kernels{
         terminated_flags[env_i] = rl_tools::terminated(device, env, params, next_state, rng_state);
         state = next_state;
         episode_step_arr[env_i]++;
+    }
+
+    template<typename DEVICE>
+    __global__
+    void make_cameras_kernel(
+        DEVICE device,
+        DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
+        rlt::CameraData* gpu_cameras,
+        T cos_fov, T aspect,
+        T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
+        T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
+        T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
+        T scene_translation_0, T scene_translation_1, T scene_translation_2
+    ){
+        TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i >= N_ENVIRONMENTS) return;
+        auto& state = states[env_i];
+        T offset_body[3] = {camera_offset_body_0, camera_offset_body_1, camera_offset_body_2};
+        T forward_body[3] = {camera_forward_body_0, camera_forward_body_1, camera_forward_body_2};
+        T up_body[3] = {camera_up_body_0, camera_up_body_1, camera_up_body_2};
+        T cam_pos_world[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, offset_body, cam_pos_world);
+        T cam_forward_world[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, forward_body, cam_forward_world);
+        T cam_up_world[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, up_body, cam_up_world);
+        T px = state.position[0] + cam_pos_world[0] + scene_translation_0;
+        T py = state.position[2] + cam_pos_world[2] + scene_translation_1;
+        T pz = state.position[1] + cam_pos_world[1] + scene_translation_2;
+        owl::vec3f position(px, py, pz);
+        owl::vec3f look_at(px + cam_forward_world[0], py + cam_forward_world[2], pz + cam_forward_world[1]);
+        owl::vec3f up(cam_up_world[0], cam_up_world[2], cam_up_world[1]);
+        gpu_cameras[env_i] = rl_tools::make_camera_data(position, look_at, up, cos_fov, aspect);
+    }
+
+    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename STATE_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE>
+    __global__
+    void raptor_evaluate_step_kernel(
+        DEVICE device,
+        const rlt::nn_models::sequential::ModuleForward<MODEL_SPEC> model,
+        rlt::Tensor<INPUT_SPEC> input,
+        rlt::nn_models::sequential::ModuleState<STATE_SPEC> state,
+        rlt::Tensor<OUTPUT_SPEC> output,
+        rlt::nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers,
+        RNG rng,
+        rlt::Mode<MODE> mode
+    ){
+        rlt::_evaluate_step(device, model, input, state, state.content_state, output, buffers, buffers.content_buffer, rng, mode);
     }
 }
 
@@ -467,6 +529,7 @@ __global__ void gather_frames_kernel(
 #endif
 
 int main(int argc, char** argv){
+#define CUDA_CHECK(msg) { cudaError_t e = cudaGetLastError(); if(e != cudaSuccess){ std::cerr << "CUDA ERROR [" << msg << "]: " << cudaGetErrorString(e) << std::endl; return 1; } e = cudaDeviceSynchronize(); if(e != cudaSuccess){ std::cerr << "CUDA SYNC ERROR [" << msg << "]: " << cudaGetErrorString(e) << std::endl; return 1; } }
     TI seed = 0;
     if(argc < 2){
         std::cerr << "Usage: " << argv[0] << " <conta:HASH or scene.glb> [seed]" << std::endl;
@@ -708,9 +771,24 @@ int main(int argc, char** argv){
     rlt::reset(device_gpu, student_gpu, student_state_gpu, rng_gpu);
 #endif
 
-    // GPU teacher actions buffer (RAPTOR stays on CPU, tiny per-step CPU→GPU transfer)
+    // GPU RAPTOR teacher
+    RAPTOR_MODEL raptor_gpu;
+    typename RAPTOR_MODEL::Buffer<true> raptor_buffer_gpu;
+    typename RAPTOR_MODEL::State<true> raptor_state_gpu;
+    rlt::malloc(device_gpu, raptor_gpu);
+    rlt::malloc(device_gpu, raptor_buffer_gpu);
+    rlt::malloc(device_gpu, raptor_state_gpu);
+    rlt::copy(device, device_gpu, raptor, raptor_gpu);
+    rlt::reset(device_gpu, raptor_gpu, raptor_state_gpu, rng_gpu);
+
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, RAPTOR_OBS_DIM>>> gpu_teacher_obs;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> gpu_teacher_actions_step;
+    rlt::malloc(device_gpu, gpu_teacher_obs);
     rlt::malloc(device_gpu, gpu_teacher_actions_step);
+
+    // GPU cameras
+    rlt::CameraData* gpu_cameras = nullptr;
+    cudaMalloc(&gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::CameraData));
 
     // GPU tensors
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
@@ -769,6 +847,7 @@ int main(int argc, char** argv){
     bool* gpu_needs_reset = nullptr;
     T* gpu_episode_lengths_log = nullptr;
     T* gpu_episode_returns_log = nullptr;
+    T* gpu_episode_tf_log = nullptr;
     cudaMalloc(&gpu_dynamics_arr, N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE));
     cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
@@ -779,7 +858,9 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_needs_reset, N_ENVIRONMENTS * sizeof(bool));
     cudaMalloc(&gpu_episode_lengths_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_episode_returns_log, STEPS_TOTAL * sizeof(T));
+    cudaMalloc(&gpu_episode_tf_log, STEPS_TOTAL * sizeof(T));
     std::vector<T> cpu_episode_lengths_log(STEPS_TOTAL);
+    std::vector<T> cpu_episode_tf_log(STEPS_TOTAL);
     std::vector<T> cpu_episode_returns_log(STEPS_TOTAL);
     typename ENVIRONMENT::State cpu_states_for_cameras[N_ENVIRONMENTS];
     {
@@ -805,8 +886,10 @@ int main(int argc, char** argv){
         cudaMemcpy(gpu_episode_step_arr, init_step, N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_episode_return_arr, init_return, N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
     }
-    T episode_length_sum = 0;
-    TI episode_count = 0;
+    T episode_length_sum_tf = 0;
+    TI episode_count_tf = 0;
+    T episode_length_sum_student = 0;
+    TI episode_count_student = 0;
 
     // =========================================================================
     // Training loop
@@ -836,7 +919,6 @@ int main(int argc, char** argv){
     NO_AUTO_RESET_MODE no_auto_reset_mode;
 
     auto training_start = std::chrono::high_resolution_clock::now();
-    std::array<rlt::CameraData, N_ENVIRONMENTS> cameras;
 
     // Video recording buffers
     static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
@@ -875,11 +957,13 @@ int main(int argc, char** argv){
             dim3 grid(N_BLOCKS);
             dim3 block(BLOCKSIZE);
             rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
+            auto& raptor_gru_layer = rlt::nn_models::sequential::layer<1>(raptor_gpu);
+            auto& raptor_gru_state_content = rlt::nn_models::sequential::content_state<1>(raptor_state_gpu.content_state);
 #ifdef USE_GRU_TEMPORAL
             auto& student_gru_layer = rlt::nn_models::sequential::layer<0>(student_gpu.head);
             auto& student_gru_state = rlt::nn_models::sequential::content_state<0>(student_state_gpu.head_state.content_state);
 #endif
-            bool cpu_needs_reset[N_ENVIRONMENTS];
+            T cam_aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
             for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
                 imitation_kernels::prologue_kernel<<<grid, block, 0, device_gpu.stream>>>(
                     tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
@@ -887,35 +971,49 @@ int main(int argc, char** argv){
                     gpu_episode_return_arr, gpu_needs_reset,
                     gpu_episode_lengths_log + step_i * N_ENVIRONMENTS,
                     gpu_episode_returns_log + step_i * N_ENVIRONMENTS,
+                    gpu_episode_tf_log + step_i * N_ENVIRONMENTS,
                     TEACHER_FORCING_FRACTION, full_teacher_forcing,
+                    rlt::data(gpu_teacher_obs),
                     rlt::data(gpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
+                    rlt::data(raptor_gru_state_content.state),
+                    rlt::data(raptor_gru_layer.initial_hidden_state.parameters),
+                    rlt::data(raptor_gru_state_content.step),
 #ifdef USE_GRU_TEMPORAL
                     rlt::data(student_gru_state.state),
                     rlt::data(student_gru_layer.initial_hidden_state.parameters),
                     rlt::data(student_gru_state.step),
 #endif
                     rng_gpu, step_i);
-                rlt::check_status(device_gpu);
-                cudaDeviceSynchronize();
-                cudaMemcpy(cpu_states_for_cameras, gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
-                cudaMemcpy(cpu_needs_reset, gpu_needs_reset, N_ENVIRONMENTS * sizeof(bool), cudaMemcpyDeviceToHost);
-                for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-                    if(cpu_needs_reset[env_i]){
-                        auto& gru_layer = rlt::nn_models::sequential::layer<1>(raptor);
-                        auto& gru_state_c = rlt::nn_models::sequential::content_state<1>(raptor_state.content_state);
-                        auto state_row = rlt::view(device, gru_state_c.state, env_i);
-                        rlt::copy(device, device, gru_layer.initial_hidden_state.parameters, state_row);
-                        rlt::set(device, gru_state_c.step, (TI)0, env_i);
-                    }
-                    auto teacher_obs_row = rlt::view(device, teacher_obs, env_i);
-                    auto teacher_obs_matrix = rlt::matrix_view(device, teacher_obs_row);
-                    rlt::observe(device, envs[env_i], env_parameters[env_i], cpu_states_for_cameras[env_i], typename STATIC_PARAMETERS::OBSERVATION_TYPE{}, teacher_obs_matrix, rng);
-                    cameras[env_i] = rlt::rl::environments::l2f_visual::make_camera_for_state(device, envs[env_i], env_parameters[env_i], cpu_states_for_cameras[env_i]);
-                }
-                rlt::evaluate_step(device, raptor, teacher_obs, raptor_state, teacher_actions, raptor_buffer, rng, no_auto_reset_mode);
-                cudaMemcpy(rlt::data(gpu_teacher_actions_step), rlt::data(teacher_actions), N_ENVIRONMENTS * ACTION_DIM * sizeof(T), cudaMemcpyHostToDevice);
+                CUDA_CHECK("prologue_kernel");
+                imitation_kernels::make_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
+                    tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
+                    gpu_cameras,
+                    env0.cos_fov, cam_aspect,
+                    env0.camera_mount.offset_body[0], env0.camera_mount.offset_body[1], env0.camera_mount.offset_body[2],
+                    env0.camera_mount.forward_body[0], env0.camera_mount.forward_body[1], env0.camera_mount.forward_body[2],
+                    env0.camera_mount.up_body[0], env0.camera_mount.up_body[1], env0.camera_mount.up_body[2],
+                    env_parameters[0].scene_translation[0], env_parameters[0].scene_translation[1], env_parameters[0].scene_translation[2]);
+                CUDA_CHECK("make_cameras_kernel");
                 T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
-                rlt::observe_batch_render_gpu(device, env0, cameras.data(), N_ENVIRONMENTS, obs_ptr);
+                if(env0.renderer->cameras_buffer == nullptr){
+                    std::array<rlt::CameraData, N_ENVIRONMENTS> cpu_cameras_init;
+                    cudaMemcpy(cpu_cameras_init.data(), gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::CameraData), cudaMemcpyDeviceToHost);
+                    CUDA_CHECK("cameras D2H init");
+                    rlt::observe_batch_render_gpu(device, env0, cpu_cameras_init.data(), N_ENVIRONMENTS, obs_ptr);
+                    CUDA_CHECK("observe_batch_render_gpu init");
+                } else {
+                    void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)env0.renderer->cameras_buffer, 0);
+                    cudaMemcpy(owl_cam_ptr, gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::CameraData), cudaMemcpyDeviceToDevice);
+                    CUDA_CHECK("cameras D2D copy");
+                    rlt::render_rgb_only(device, *env0.renderer);
+                    CUDA_CHECK("render_rgb_only");
+                    const uint32_t* fb_ptr = (const uint32_t*)owlBufferGetPointer((OWLBuffer)env0.renderer->frame_buffer, 0);
+                    constexpr TI TOTAL_PIXELS = N_ENVIRONMENTS * CAM_PIXELS;
+                    int pf_block = 256;
+                    int pf_grid = (TOTAL_PIXELS + pf_block - 1) / pf_block;
+                    rlt::rl::environments::l2f_visual::cuda::pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, N_ENVIRONMENTS, CAM_PIXELS);
+                    CUDA_CHECK("pixel_to_float_kernel");
+                }
                 if(record_video && ffmpeg_pipe){
                     rlt::read_frame_buffer(device, *env0.renderer, video_pixel_buffer.data(), video_pixel_buffer.size());
                     for(TI grid_row = 0; grid_row < GRID_SIDE; grid_row++){
@@ -936,7 +1034,8 @@ int main(int argc, char** argv){
                     }
                     fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
                 }
-                // RAPTOR teacher actions already on GPU from cudaMemcpy above
+                rlt::evaluate_step(device_gpu, raptor_gpu, gpu_teacher_obs, raptor_state_gpu, gpu_teacher_actions_step, raptor_buffer_gpu, rng_gpu, no_auto_reset_mode);
+                CUDA_CHECK("raptor evaluate_step");
                 if(!full_teacher_forcing){
 #ifdef USE_GRU_TEMPORAL
                     auto current_img = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
@@ -946,6 +1045,7 @@ int main(int argc, char** argv){
                     rlt::evaluate(device_gpu, student_gpu.pipeline_b, current_state, gpu_rollout_branch_b, student_buffers.buffer_b, rng_gpu);
                     rlt::_concatenate_cuda(device_gpu, gpu_rollout_branch_a, gpu_rollout_branch_b, gpu_rollout_concat);
                     rlt::evaluate_step(device_gpu, student_gpu.head, gpu_rollout_concat, student_state_gpu.head_state, gpu_rollout_actions, student_buffers.head_buffer, rng_gpu, no_auto_reset_mode);
+                    CUDA_CHECK("student eval GRU");
 #else
 #ifdef USE_FRAME_STACKING
                     for(TI s = 0; s < BATCH_SIZE; s++){
@@ -977,9 +1077,9 @@ int main(int argc, char** argv){
                     auto gpu_actions_eval_tensor = rlt::to_tensor(device_gpu, gpu_actions_eval);
                     auto gpu_actions_eval_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_eval_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
                     rlt::evaluate(device_gpu, student_gpu, gpu_obs_reshaped, gpu_state_obs_reshaped, gpu_actions_eval_reshaped, student_buffers, rng_gpu);
+                    CUDA_CHECK("student eval");
 #endif
                 }
-                cudaDeviceSynchronize();
                 {
 #ifdef USE_GRU_TEMPORAL
                     T* student_ptr = rlt::data(gpu_rollout_actions);
@@ -993,18 +1093,25 @@ int main(int argc, char** argv){
                         rlt::data(gpu_teacher_actions_step), student_ptr,
                         rlt::data(gpu_all_teacher_actions),
                         rng_gpu, step_i);
-                    rlt::check_status(device_gpu);
                 }
+                CUDA_CHECK("epilogue_kernel");
                 global_step += N_ENVIRONMENTS;
             }
         }
         cudaDeviceSynchronize();
+        CUDA_CHECK("end of collection sync");
         cudaMemcpy(cpu_episode_lengths_log.data(), gpu_episode_lengths_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
         cudaMemcpy(cpu_episode_returns_log.data(), gpu_episode_returns_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_episode_tf_log.data(), gpu_episode_tf_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
         for(TI pos = 0; pos < STEPS_TOTAL; pos++){
             if(cpu_episode_lengths_log[pos] >= (T)0){
-                episode_length_sum += cpu_episode_lengths_log[pos];
-                episode_count++;
+                if(cpu_episode_tf_log[pos] > (T)0.5){
+                    episode_length_sum_tf += cpu_episode_lengths_log[pos];
+                    episode_count_tf++;
+                } else {
+                    episode_length_sum_student += cpu_episode_lengths_log[pos];
+                    episode_count_student++;
+                }
             }
         }
         if(ffmpeg_pipe){ pclose(ffmpeg_pipe); ffmpeg_pipe = nullptr; }
@@ -1170,7 +1277,10 @@ int main(int argc, char** argv){
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> training_elapsed = now - training_start;
         std::chrono::duration<T> epoch_elapsed = now - epoch_start;
-        T mean_episode_length = episode_count > 0 ? episode_length_sum / episode_count : 0;
+        T mean_episode_length_tf = episode_count_tf > 0 ? episode_length_sum_tf / episode_count_tf : 0;
+        T mean_episode_length_student = episode_count_student > 0 ? episode_length_sum_student / episode_count_student : 0;
+        TI episode_count = episode_count_tf + episode_count_student;
+        T mean_episode_length = episode_count_student > 0 ? mean_episode_length_student : mean_episode_length_tf;
         T fps = epoch_elapsed.count() > 0 ? static_cast<T>(STEPS_TOTAL) / epoch_elapsed.count() : 0;
 
         std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(TEACHER_FORCING_FRACTION * 100)) + "%] ")
@@ -1186,16 +1296,24 @@ int main(int argc, char** argv){
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
         rlt::set_step(device, device.logger, epoch_i);
         rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
-        rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
-        rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
+        if(episode_count_tf > 0){
+            rlt::add_scalar(device, device.logger, "training/teacher/episode_length", mean_episode_length_tf);
+            rlt::add_scalar(device, device.logger, "training/teacher/episodes", static_cast<T>(episode_count_tf));
+        }
+        if(episode_count_student > 0){
+            rlt::add_scalar(device, device.logger, "training/student/episode_length", mean_episode_length_student);
+            rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
+        }
         rlt::add_scalar(device, device.logger, "training/fps", fps);
         rlt::add_scalar(device, device.logger, "training/epoch_time_s", epoch_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/total_time_s", training_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : TEACHER_FORCING_FRACTION);
 #endif
 
-        episode_length_sum = 0;
-        episode_count = 0;
+        episode_length_sum_tf = 0;
+        episode_count_tf = 0;
+        episode_length_sum_student = 0;
+        episode_count_student = 0;
     }
 
     std::cout << "Training finished." << std::endl;
@@ -1225,7 +1343,13 @@ int main(int argc, char** argv){
     rlt::free(device, student_cpu);
 
     rlt::free(device_gpu, gpu_teacher_actions_step);
+    cudaFree(gpu_cameras);
     rlt::free(device_gpu, student_gpu);
+    rlt::free(device_gpu, raptor_gpu);
+    rlt::free(device_gpu, raptor_buffer_gpu);
+    rlt::free(device_gpu, raptor_state_gpu);
+    rlt::free(device_gpu, gpu_teacher_obs);
+    rlt::free(device_gpu, gpu_teacher_actions_step);
     rlt::free(device_gpu, student_buffers);
     rlt::free(device_gpu, optimizer_gpu);
     rlt::free(device_gpu, gpu_all_observations);
@@ -1243,6 +1367,7 @@ int main(int argc, char** argv){
     cudaFree(gpu_needs_reset);
     cudaFree(gpu_episode_lengths_log);
     cudaFree(gpu_episode_returns_log);
+    cudaFree(gpu_episode_tf_log);
 #ifdef USE_GRU_TEMPORAL
     rlt::free(device_gpu, student_state_gpu);
     rlt::free(device_gpu, gpu_rollout_branch_a);
