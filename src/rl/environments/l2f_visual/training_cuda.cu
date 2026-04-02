@@ -699,7 +699,7 @@ int main(int argc, char** argv){
         on_policy_runner.step = 0;
     }
 
-    // GPU device init AFTER warmup (warmup renders change CUDA context)
+    // GPU device init
     rlt::init(device_gpu);
     rlt::malloc(device_gpu, rng_gpu);
     rlt::init(device_gpu, rng_gpu, seed);
@@ -973,23 +973,6 @@ int main(int argc, char** argv){
             }
         }
         on_policy_runner.step = on_policy_runner_gpu.step;
-
-#ifndef RL_TOOLS_DISABLE_VISUAL
-        // Reset CUDA state after OptiX renders
-        {
-            cudaError_t err;
-            do { err = cudaGetLastError(); } while(err != cudaSuccess);
-            cudaDeviceSynchronize();
-            cublasDestroy(device_gpu.handle);
-            cublasCreate(&device_gpu.handle);
-            if(device_gpu.stream != 0) cublasSetStream(device_gpu.handle, device_gpu.stream);
-#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
-            cudnnDestroy(device_gpu.cudnn_handle);
-            cudnnCreate(&device_gpu.cudnn_handle);
-            if(device_gpu.stream != 0) cudnnSetStream(device_gpu.cudnn_handle, device_gpu.stream);
-#endif
-        }
-#endif
 
         // =================================================================
         // GAE
