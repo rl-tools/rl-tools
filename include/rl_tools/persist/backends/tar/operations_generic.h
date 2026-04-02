@@ -461,7 +461,7 @@ namespace rl_tools{
         char metadata[METADATA_SIZE];
         TI metadata_position = 0;
         metadata_position += utils::string::copy(metadata, "type: tensor\n", METADATA_SIZE - metadata_position-1);
-        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double> || utils::typing::is_same_v<typename SPEC::T, bool> || sizeof(typename SPEC::T) == 1 || sizeof(typename SPEC::T) == 4 || sizeof(typename SPEC::T) == 8, "Only float32, float64, bool, uint8, int32 and int64 are supported for now");
+        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double> || utils::typing::is_same_v<typename SPEC::T, bool> || sizeof(typename SPEC::T) == 1 || sizeof(typename SPEC::T) == 2 || sizeof(typename SPEC::T) == 4 || sizeof(typename SPEC::T) == 8, "Only float32, float64, bf16, bool, uint8, int32 and int64 are supported for now");
         if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
             metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position-1);
         }
@@ -473,6 +473,9 @@ namespace rl_tools{
         }
         else if constexpr(sizeof(typename SPEC::T) == 1){
             metadata_position += utils::string::copy(metadata+metadata_position, "dtype: uint8\n", METADATA_SIZE - metadata_position-1);
+        }
+        else if constexpr(sizeof(typename SPEC::T) == 2){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: bf16\n", METADATA_SIZE - metadata_position-1);
         }
         else if constexpr(sizeof(typename SPEC::T) == 4){
             metadata_position += utils::string::copy(metadata+metadata_position, "dtype: int32\n", METADATA_SIZE - metadata_position-1);
