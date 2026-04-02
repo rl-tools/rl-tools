@@ -529,7 +529,11 @@ __global__ void gather_frames_kernel(
 #endif
 
 int main(int argc, char** argv){
+#ifdef RL_TOOLS_DEBUG_CUDA_CHECK
 #define CUDA_CHECK(msg) { cudaError_t e = cudaGetLastError(); if(e != cudaSuccess){ std::cerr << "CUDA ERROR [" << msg << "]: " << cudaGetErrorString(e) << std::endl; return 1; } e = cudaDeviceSynchronize(); if(e != cudaSuccess){ std::cerr << "CUDA SYNC ERROR [" << msg << "]: " << cudaGetErrorString(e) << std::endl; return 1; } }
+#else
+#define CUDA_CHECK(msg) ((void)0)
+#endif
     TI seed = 0;
     if(argc < 2){
         std::cerr << "Usage: " << argv[0] << " <conta:HASH or scene.glb> [seed]" << std::endl;
@@ -1003,16 +1007,12 @@ int main(int argc, char** argv){
                     CUDA_CHECK("observe_batch_render_gpu init");
                 } else {
                     void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)env0.renderer->cameras_buffer, 0);
-                    cudaMemcpy(owl_cam_ptr, gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::CameraData), cudaMemcpyDeviceToDevice);
+                    OWLParams rgb_lp = (OWLParams)env0.renderer->rgb_launch_params;
+                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+                    cudaMemcpyAsync(owl_cam_ptr, gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::CameraData), cudaMemcpyDeviceToDevice, optix_stream);
                     CUDA_CHECK("cameras D2D copy");
-                    rlt::render_rgb_only(device, *env0.renderer);
-                    CUDA_CHECK("render_rgb_only");
-                    const uint32_t* fb_ptr = (const uint32_t*)owlBufferGetPointer((OWLBuffer)env0.renderer->frame_buffer, 0);
-                    constexpr TI TOTAL_PIXELS = N_ENVIRONMENTS * CAM_PIXELS;
-                    int pf_block = 256;
-                    int pf_grid = (TOTAL_PIXELS + pf_block - 1) / pf_block;
-                    rlt::rl::environments::l2f_visual::cuda::pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, N_ENVIRONMENTS, CAM_PIXELS);
-                    CUDA_CHECK("pixel_to_float_kernel");
+                    rlt::render_rgb_only_launch(device, *env0.renderer);
+                    CUDA_CHECK("render_rgb_only_launch");
                 }
                 if(record_video && ffmpeg_pipe){
                     rlt::read_frame_buffer(device, *env0.renderer, video_pixel_buffer.data(), video_pixel_buffer.size());
@@ -1036,6 +1036,16 @@ int main(int argc, char** argv){
                 }
                 rlt::evaluate_step(device_gpu, raptor_gpu, gpu_teacher_obs, raptor_state_gpu, gpu_teacher_actions_step, raptor_buffer_gpu, rng_gpu, no_auto_reset_mode);
                 CUDA_CHECK("raptor evaluate_step");
+                if(env0.renderer->cameras_buffer != nullptr){
+                    rlt::render_rgb_only_sync(device, *env0.renderer);
+                    CUDA_CHECK("render_rgb_only_sync");
+                    const uint32_t* fb_ptr = (const uint32_t*)owlBufferGetPointer((OWLBuffer)env0.renderer->frame_buffer, 0);
+                    constexpr TI TOTAL_PIXELS = N_ENVIRONMENTS * CAM_PIXELS;
+                    int pf_block = 256;
+                    int pf_grid = (TOTAL_PIXELS + pf_block - 1) / pf_block;
+                    rlt::rl::environments::l2f_visual::cuda::pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, N_ENVIRONMENTS, CAM_PIXELS);
+                    CUDA_CHECK("pixel_to_float_kernel");
+                }
                 if(!full_teacher_forcing){
 #ifdef USE_GRU_TEMPORAL
                     auto current_img = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
