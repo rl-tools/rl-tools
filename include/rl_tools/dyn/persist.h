@@ -6,7 +6,6 @@
 #include "model.h"
 #include "operations_generic.h"
 #include "../utils/string/operations_generic.h"
-#include "../persist/backends/tar/operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -37,14 +36,12 @@ namespace rl_tools{
         }
     }
 
-    // --- Load a dyn::Tensor from a persist group (runtime shape discovery) ---
-    template <typename DEVICE, typename TI, typename GROUP>
-    RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, GROUP& group, const char* name){
-        using namespace dyn;
+    // --- TAR backend: Load dyn::Tensor ---
+#ifdef RL_TOOLS_PERSIST_BACKENDS_TAR_OPERATIONS_GENERIC
+    template <typename DEVICE, typename TI, typename GROUP_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name){
         auto tensor_group = get_group(device, group, name);
-        using GROUP_SPEC = typename GROUP::SPEC;
         constexpr TI MAX_PATH = GROUP_SPEC::MAX_PATH_LENGTH;
-
         char current_path[MAX_PATH];
         utils::string::copy<TI>(current_path, tensor_group.path, MAX_PATH);
         TI path_len = utils::string::length(current_path, MAX_PATH);
@@ -54,58 +51,86 @@ namespace rl_tools{
             current_path[path_len + 1] = '\0';
             sep_pos = path_len + 1;
         }
-
-        // Read metadata
         utils::string::copy(current_path + sep_pos, "meta", MAX_PATH - sep_pos);
         constexpr TI METADATA_SIZE = 200;
         char metadata[METADATA_SIZE];
         TI read_size = 0;
-        if(!rl_tools::persist::backends::tar::get(device, tensor_group.data, current_path, metadata, METADATA_SIZE, read_size)){
-            return false;
-        }
-        if(read_size < METADATA_SIZE){
-            metadata[read_size] = '\0';
-        }
-
-        // Parse dtype
+        if(!persist::backends::tar::get(device, tensor_group.data, current_path, metadata, METADATA_SIZE, read_size)) return false;
+        if(read_size < METADATA_SIZE) metadata[read_size] = '\0';
         TI dtype_pos, dtype_len;
-        if(rl_tools::persist::backends::tar::seek_in_metadata(device, metadata, read_size, "dtype", dtype_pos, dtype_len)){
+        if(persist::backends::tar::seek_in_metadata(device, metadata, read_size, "dtype", dtype_pos, dtype_len))
             tensor.type = dyn::persist_helpers::parse_dtype(metadata + dtype_pos, dtype_len);
-        }
-
-        // Parse num_dims
         TI ndims_pos, ndims_len;
-        if(!rl_tools::persist::backends::tar::seek_in_metadata(device, metadata, read_size, "num_dims", ndims_pos, ndims_len)){
-            return false;
-        }
+        if(!persist::backends::tar::seek_in_metadata(device, metadata, read_size, "num_dims", ndims_pos, ndims_len)) return false;
         tensor.rank = utils::string::string_to_int<TI>(metadata + ndims_pos, ndims_len);
-
-        // Parse each dim
         tensor.size = 1;
         for(TI d = 0; d < tensor.rank; d++){
             char dim_key[16] = "dim_";
             char digit[2] = {static_cast<char>('0' + d), '\0'};
             utils::string::copy(dim_key + 4, digit, 12);
             TI dim_pos, dim_len;
-            if(!rl_tools::persist::backends::tar::seek_in_metadata(device, metadata, read_size, dim_key, dim_pos, dim_len)){
-                return false;
-            }
+            if(!persist::backends::tar::seek_in_metadata(device, metadata, read_size, dim_key, dim_pos, dim_len)) return false;
             tensor.shape[d] = utils::string::string_to_int<TI>(metadata + dim_pos, dim_len);
             tensor.size *= tensor.shape[d];
         }
-
-        // Allocate and read data
         rl_tools::malloc(device, tensor);
         utils::string::copy(current_path + sep_pos, "data", MAX_PATH - sep_pos);
         TI data_size = tensor.size * dyn::size_of<TI>(tensor.type);
         TI data_read_size = 0;
-        if(!rl_tools::persist::backends::tar::get(device, tensor_group.data, current_path, reinterpret_cast<char*>(tensor.data), data_size, data_read_size)){
-            return false;
+        if(!persist::backends::tar::get(device, tensor_group.data, current_path, reinterpret_cast<char*>(tensor.data), data_size, data_read_size)) return false;
+        return true;
+    }
+#endif
+
+    // --- HDF5 backend: Load dyn::Tensor ---
+#ifdef RL_TOOLS_PERSIST_BACKENDS_HDF5_HDF5
+    template <typename DEVICE, typename TI, typename GROUP_SPEC>
+    bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, const persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* name){
+        auto dataset = group.group.getDataSet(name);
+        auto dims = dataset.getDimensions();
+        tensor.rank = dims.size();
+        tensor.size = 1;
+        for(TI d = 0; d < tensor.rank; d++){
+            tensor.shape[d] = dims[d];
+            tensor.size *= dims[d];
+        }
+        auto data_type = dataset.getDataType();
+        auto data_type_class = data_type.getClass();
+        auto data_type_size = data_type.getSize();
+        if(data_type_class == HighFive::DataTypeClass::Float){
+            if(data_type_size == 4) tensor.type = dyn::Type::FLOAT32;
+            else if(data_type_size == 8) tensor.type = dyn::Type::FLOAT64;
+            else if(data_type_size == 2) tensor.type = dyn::Type::BF16;
+        }
+        else if(data_type_class == HighFive::DataTypeClass::Integer){
+            if(data_type_size == 1) tensor.type = dyn::Type::INT8;
+        }
+        rl_tools::malloc(device, tensor);
+        if(data_type_class == HighFive::DataTypeClass::Float && data_type_size == 4){
+            std::vector<float> buffer(tensor.size);
+            dataset.read(buffer.data());
+            for(TI i = 0; i < tensor.size; i++) dyn::set(device, tensor, i, buffer[i]);
+        }
+        else if(data_type_class == HighFive::DataTypeClass::Float && data_type_size == 8){
+            std::vector<double> buffer(tensor.size);
+            dataset.read(buffer.data());
+            for(TI i = 0; i < tensor.size; i++) dyn::set(device, tensor, i, static_cast<float>(buffer[i]));
+        }
+        else if(data_type_class == HighFive::DataTypeClass::Integer && data_type_size == 1){
+            std::vector<uint8_t> buffer(tensor.size);
+            dataset.read(buffer.data());
+            for(TI i = 0; i < tensor.size; i++) dyn::set(device, tensor, i, static_cast<float>(buffer[i]));
+        }
+        else{
+            std::vector<float> buffer(tensor.size);
+            dataset.read(buffer.data());
+            for(TI i = 0; i < tensor.size; i++) dyn::set(device, tensor, i, buffer[i]);
         }
         return true;
     }
+#endif
 
-    // --- Load a dyn::Layer from a persist group ---
+    // --- Load a dyn::Layer from a persist group (backend-agnostic) ---
     template <typename DEVICE, typename TI, typename GROUP>
     RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, dyn::Layer<TI>& layer, GROUP& group){
         using namespace dyn;
@@ -150,14 +175,11 @@ namespace rl_tools{
             layer.type = LayerType::SEQUENTIAL;
             auto* seq = new layers::Sequential<TI>();
             auto layers_group = get_group(device, group, "layers");
-            // Count layers by probing for groups "0", "1", "2", ...
             TI count = 0;
             for(TI i = 0; i < 100; i++){
                 char idx_str[10];
                 utils::string::int_to_string<long int, TI>(idx_str, 10, i);
-                if(!group_exists(device, layers_group, idx_str)){
-                    break;
-                }
+                if(!group_exists(device, layers_group, idx_str)) break;
                 count++;
             }
             seq->num_layers = count;
@@ -208,19 +230,13 @@ namespace rl_tools{
             return true;
         }
         else if(utils::string::compare(type_str, "flatten", 7)){
-            layer.type = LayerType::FLATTEN;
-            layer.data = nullptr;
-            return true;
+            layer.type = LayerType::FLATTEN; layer.data = nullptr; return true;
         }
         else if(utils::string::compare(type_str, "unflatten", 9)){
-            layer.type = LayerType::UNFLATTEN;
-            layer.data = nullptr;
-            return true;
+            layer.type = LayerType::UNFLATTEN; layer.data = nullptr; return true;
         }
         else if(utils::string::compare(type_str, "avg_pool2d", 10)){
-            layer.type = LayerType::AVG_POOL2D;
-            layer.data = nullptr;
-            return true;
+            layer.type = LayerType::AVG_POOL2D; layer.data = nullptr; return true;
         }
         else if(utils::string::compare(type_str, "max_pool2d", 10)){
             layer.type = LayerType::MAX_POOL2D;
@@ -254,15 +270,9 @@ namespace rl_tools{
             c->activation_function = dyn::persist_helpers::parse_activation_function(device, af_str, ATTR_BUF_SIZE);
             char norm_str[ATTR_BUF_SIZE];
             get_attribute<char*>(device, group, "normalization", norm_str, ATTR_BUF_SIZE);
-            if(utils::string::compare(norm_str, "BATCH_NORM", 10)){
-                c->normalization = layers::Conv2d<TI>::Normalization::BATCH_NORM;
-            }
-            else if(utils::string::compare(norm_str, "LAYER_NORM", 10)){
-                c->normalization = layers::Conv2d<TI>::Normalization::LAYER_NORM;
-            }
-            else{
-                c->normalization = layers::Conv2d<TI>::Normalization::NONE;
-            }
+            if(utils::string::compare(norm_str, "BATCH_NORM", 10)) c->normalization = layers::Conv2d<TI>::Normalization::BATCH_NORM;
+            else if(utils::string::compare(norm_str, "LAYER_NORM", 10)) c->normalization = layers::Conv2d<TI>::Normalization::LAYER_NORM;
+            else c->normalization = layers::Conv2d<TI>::Normalization::NONE;
             if(c->normalization != layers::Conv2d<TI>::Normalization::NONE){
                 auto gamma_group = get_group(device, group, "gamma");
                 load(device, c->gamma, gamma_group, "parameters");
