@@ -853,19 +853,6 @@ TEST(TEST_DYN, resnet_block){
     TI dis[] = {(TI)1, (TI)8, (TI)8, (TI)64}; rlt::dyn::set_shape(di, (TI)4, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     for(TI i = 0; i < 1*8*8*64; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, rb_in, i));
     TI dos[] = {(TI)1, (TI)8, (TI)8, (TI)64}; rlt::dyn::set_shape(d_out, (TI)4, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
-    // Check loaded conv dimensions
-    auto* loaded_rb = reinterpret_cast<rlt::dyn::layers::ResnetBlock<TI>*>(dm.data);
-    std::cout << "  conv1 type=" << (int)loaded_rb->conv1.type << " data=" << loaded_rb->conv1.data << std::endl;
-    auto* loaded_c1 = reinterpret_cast<rlt::dyn::layers::Conv2d<TI>*>(loaded_rb->conv1.data);
-    std::cout << "  conv1: in_ch=" << loaded_c1->input_channels << " out_ch=" << loaded_c1->output_channels
-              << " kh=" << loaded_c1->kernel_height << " kw=" << loaded_c1->kernel_width
-              << " sh=" << loaded_c1->stride_h << " sw=" << loaded_c1->stride_w
-              << " ph=" << loaded_c1->padding_h << " pw=" << loaded_c1->padding_w
-              << " weights_rank=" << loaded_c1->weights.rank << " weights_size=" << loaded_c1->weights.size << std::endl;
-    auto* loaded_c2 = reinterpret_cast<rlt::dyn::layers::Conv2d<TI>*>(loaded_rb->conv2.data);
-    std::cout << "  conv2: in_ch=" << loaded_c2->input_channels << " out_ch=" << loaded_c2->output_channels << std::endl;
-    std::cout << "  downsample: " << (loaded_rb->downsample ? "yes" : "no") << std::endl;
-
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     T md = 0;
