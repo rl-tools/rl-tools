@@ -41,7 +41,7 @@ namespace rl_tools {
         if(env.renderer->backend.owl_collision_results_buffer == nullptr){
             constexpr T PI = static_cast<T>(3.14159265358979323846);
             const T center_x = env.renderer->scene_center[0];
-            const T center_z = env.renderer->scene_center[2];
+            const T center_y = env.renderer->scene_center[1];
             const T search_radius = env.renderer->camera_radius > static_cast<T>(1)
                 ? static_cast<T>(0.95) * env.renderer->camera_radius
                 : static_cast<T>(8);
@@ -53,8 +53,8 @@ namespace rl_tools {
 
                 auto& s = env.indoor_initial_states[i];
                 s.position[0] = center_x + radius * std::cos(angle);
-                s.position[1] = static_cast<T>(0);
-                s.position[2] = center_z + radius * std::sin(angle);
+                s.position[1] = center_y + radius * std::sin(angle);
+                s.position[2] = static_cast<T>(0);
                 s.velocity[0] = static_cast<T>(0);
                 s.velocity[1] = static_cast<T>(0);
                 s.velocity[2] = static_cast<T>(0);
@@ -72,7 +72,7 @@ namespace rl_tools {
         constexpr T PI = static_cast<T>(3.14159265358979323846);
         constexpr TI NUM_BATCHES = 8;
         const T center_x = env.renderer->scene_center[0];
-        const T center_z = env.renderer->scene_center[2];
+        const T center_y = env.renderer->scene_center[1];
         const T search_radius = env.renderer->camera_radius > static_cast<T>(1)
             ? static_cast<T>(0.95) * env.renderer->camera_radius
             : static_cast<T>(8);
@@ -98,20 +98,20 @@ namespace rl_tools {
 
                 auto& state = batch_states[camera_i];
                 state.position[0] = center_x + radius * std::cos(angle);
-                state.position[1] = static_cast<T>(0);
-                state.position[2] = center_z + radius * std::sin(angle);
+                state.position[1] = center_y + radius * std::sin(angle);
+                state.position[2] = static_cast<T>(0);
                 state.velocity[0] = static_cast<T>(0);
                 state.velocity[1] = static_cast<T>(0);
                 state.velocity[2] = static_cast<T>(0);
                 state.yaw = yaw;
 
-                const T position[3] = {state.position[0], state.position[1] + env.eye_height, state.position[2]};
+                const T position[3] = {state.position[0], state.position[1], state.position[2] + env.eye_height};
                 const T look_at[3] = {
                     state.position[0] + env.look_ahead * std::cos(state.yaw),
-                    state.position[1] + env.eye_height,
-                    state.position[2] + env.look_ahead * std::sin(state.yaw)
+                    state.position[1] + env.look_ahead * std::sin(state.yaw),
+                    state.position[2] + env.eye_height
                 };
-                const T up[3] = {0, 1, 0};
+                const T up[3] = {0, 0, 1};
                 set(device, env.renderer->cameras, make_camera_data(position, look_at, up,
                     SPEC::RAYTRACING_SPEC::COS_FOVY,
                     static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT)), camera_i);
@@ -190,8 +190,8 @@ namespace rl_tools {
 
                 auto& s = env.indoor_initial_states[i];
                 s.position[0] = center_x + radius * std::cos(angle);
-                s.position[1] = static_cast<T>(0);
-                s.position[2] = center_z + radius * std::sin(angle);
+                s.position[1] = center_y + radius * std::sin(angle);
+                s.position[2] = static_cast<T>(0);
                 s.velocity[0] = static_cast<T>(0);
                 s.velocity[1] = static_cast<T>(0);
                 s.velocity[2] = static_cast<T>(0);
@@ -236,7 +236,7 @@ namespace rl_tools {
         upload_geometry(device, *env.renderer);
         {
             using T = typename SPEC::T;
-            const T up[3] = {0, 1, 0};
+            const T up[3] = {0, 0, 1};
             generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, SPEC::RAYTRACING_SPEC::COS_FOVY);
         }
         generate_probe_directions(device, *env.renderer);
@@ -265,7 +265,7 @@ namespace rl_tools {
         if (env.num_indoor_initial_states > 0) {
             const TI index = random::uniform_int_distribution(device.random, static_cast<TI>(0), static_cast<TI>(env.num_indoor_initial_states - 1), rng);
             state = env.indoor_initial_states[index];
-            state.position[1] = parameters.base_height;
+            state.position[2] = parameters.base_height;
             state.velocity[0] = static_cast<T>(0);
             state.velocity[1] = static_cast<T>(0);
             state.velocity[2] = static_cast<T>(0);
@@ -275,8 +275,8 @@ namespace rl_tools {
         const T angle = random::uniform_real_distribution(device.random, static_cast<T>(0), static_cast<T>(2.0 * 3.14159265358979323846), rng);
         const T radius = random::uniform_real_distribution(device.random, static_cast<T>(2.0), static_cast<T>(6.0), rng);
         state.position[0] = radius * std::cos(angle);
-        state.position[1] = parameters.base_height;
-        state.position[2] = radius * std::sin(angle);
+        state.position[1] = radius * std::sin(angle);
+        state.position[2] = parameters.base_height;
         state.velocity[0] = 0;
         state.velocity[1] = 0;
         state.velocity[2] = 0;
@@ -290,7 +290,7 @@ namespace rl_tools {
         static_assert(ACTION_SPEC::COLS == 3);
 
         T desired_vx = get(action, 0, 0) * env.max_velocity;
-        T desired_vz = get(action, 0, 1) * env.max_velocity;
+        T desired_vy = get(action, 0, 1) * env.max_velocity;
         T yaw_rate = get(action, 0, 2);
 
         T alpha = env.acceleration * env.dt;
@@ -299,12 +299,12 @@ namespace rl_tools {
         }
 
         next_state.velocity[0] = state.velocity[0] + alpha * (desired_vx - state.velocity[0]);
-        next_state.velocity[1] = 0;
-        next_state.velocity[2] = state.velocity[2] + alpha * (desired_vz - state.velocity[2]);
+        next_state.velocity[1] = state.velocity[1] + alpha * (desired_vy - state.velocity[1]);
+        next_state.velocity[2] = 0;
 
         next_state.position[0] = state.position[0] + next_state.velocity[0] * env.dt;
-        next_state.position[1] = parameters.base_height;
-        next_state.position[2] = state.position[2] + next_state.velocity[2] * env.dt;
+        next_state.position[1] = state.position[1] + next_state.velocity[1] * env.dt;
+        next_state.position[2] = parameters.base_height;
         next_state.yaw = state.yaw + yaw_rate * env.dt;
 
         return env.dt;
@@ -313,7 +313,7 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const rl::environments::raytracing_example::Environment<SPEC>& env, rl::environments::raytracing_example::Parameters<SPEC>& parameters, const rl::environments::raytracing_example::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::raytracing_example::State<SPEC>& next_state, RNG& rng) {
         using T = typename SPEC::T;
-        const T v = std::sqrt(next_state.velocity[0] * next_state.velocity[0] + next_state.velocity[2] * next_state.velocity[2]);
+        const T v = std::sqrt(next_state.velocity[0] * next_state.velocity[0] + next_state.velocity[1] * next_state.velocity[1]);
         const T control = std::abs(get(action, 0, 0)) + std::abs(get(action, 0, 1)) + static_cast<T>(0.1) * std::abs(get(action, 0, 2));
         return v - static_cast<T>(0.05) * control;
     }
@@ -331,15 +331,15 @@ namespace rl_tools {
         using T = typename SPEC::T;
         const T position[3] = {
             parameters.scene_translation[0] + state.position[0],
-            parameters.scene_translation[1] + state.position[1] + env.eye_height,
-            parameters.scene_translation[2] + state.position[2]
+            parameters.scene_translation[1] + state.position[1],
+            parameters.scene_translation[2] + state.position[2] + env.eye_height
         };
         const T look_at[3] = {
             position[0] + env.look_ahead * std::cos(state.yaw),
-            position[1],
-            position[2] + env.look_ahead * std::sin(state.yaw)
+            position[1] + env.look_ahead * std::sin(state.yaw),
+            position[2]
         };
-        const T up[3] = {0, 1, 0};
+        const T up[3] = {0, 0, 1};
         set(device, env.renderer->cameras, make_camera_data(position, look_at, up,
             SPEC::RAYTRACING_SPEC::COS_FOVY,
             static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT)), static_cast<typename SPEC::TI>(0));
@@ -362,17 +362,17 @@ namespace rl_tools {
 
         const T position[3] = {
             parameters.scene_translation[0] + state.position[0],
-            parameters.scene_translation[1] + state.position[1] + env.eye_height,
-            parameters.scene_translation[2] + state.position[2]
+            parameters.scene_translation[1] + state.position[1],
+            parameters.scene_translation[2] + state.position[2] + env.eye_height
         };
 
         const T look_at[3] = {
             position[0] + env.look_ahead * cy,
-            position[1],
-            position[2] + env.look_ahead * sy
+            position[1] + env.look_ahead * sy,
+            position[2]
         };
 
-        const T up[3] = {0, 1, 0};
+        const T up[3] = {0, 0, 1};
         const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
 
         return make_camera_data(position, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect);

@@ -285,8 +285,8 @@ int main(int argc, char** argv){
         auto& target = env0.scene->indoor_positions[0];
         T target_translation[3] = {
             target.position[0],
-            target.position[1] + env0.eye_height,
-            target.position[2]
+            target.position[1],
+            target.position[2] + env0.eye_height
         };
         rlt::log(device, device.logger, "Target scene position: [",
             target_translation[0], ", ", target_translation[1], ", ", target_translation[2], "]");

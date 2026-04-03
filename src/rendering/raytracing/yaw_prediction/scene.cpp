@@ -112,24 +112,24 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
             const T base_yaw = yaw_dist(handle->data_rng);
             const T cby = std::cos(base_yaw), sby = std::sin(base_yaw);
 
-            // Camera A's local frame in world coords
-            // forward = (cby, 0, sby), right = (-sby, 0, cby), up = (0, 1, 0)
-            const T forward_a[3] = {cby, 0.0f, sby};
-            const T right_a[3] = {-sby, 0.0f, cby};
-            const T up_a[3] = {0.0f, 1.0f, 0.0f};
+            // Camera A's local frame in FLU world coords
+            // forward = (cby, sby, 0), right = (sby, -cby, 0), up = (0, 0, 1)
+            const T forward_a[3] = {cby, sby, 0.0f};
+            const T right_a[3] = {sby, -cby, 0.0f};
+            const T up_a[3] = {0.0f, 0.0f, 1.0f};
 
             const T position[3] = {
                 params.scene_translation[0] + state.position[0],
-                params.scene_translation[1] + state.position[1] + handle->env.eye_height,
-                params.scene_translation[2] + state.position[2]
+                params.scene_translation[1] + state.position[1],
+                params.scene_translation[2] + state.position[2] + handle->env.eye_height
             };
-            const T world_up[3] = {0, 1, 0};
+            const T world_up[3] = {0, 0, 1};
 
             auto make_base_cam = [&]() -> CameraData {
                 const T look_at[3] = {
                     position[0] + handle->env.look_ahead * cby,
-                    position[1],
-                    position[2] + handle->env.look_ahead * sby
+                    position[1] + handle->env.look_ahead * sby,
+                    position[2]
                 };
                 return rlt::make_camera_data(position, look_at, world_up, cos_fov, aspect);
             };
