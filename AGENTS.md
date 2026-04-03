@@ -90,4 +90,5 @@ Some tests (`NN_LAYERS_RESNET_CUDA`, sequential persist tests) load `.h5` files 
 19. In hot paths, keep RLtools API boundaries explicit but minimize per-element abstraction overhead (prefer contiguous-buffer iteration patterns where appropriate) so architectural cleanup does not unintentionally regress throughput.
 20. As an agent NEVER stash or commit anything. Git is read-only for you. 
 21. We don't endorse comment noise. Comments signal two things: 1) complex/misleading (first thought) code and 2) important code. Only if both are the case should you add a comment. To calibrate this: There should be a comment for every few hundred lines of code.
-20. RLtools is deterministic given a fixed seed. NEVER use atomic operations (e.g. when using CUDA)
+22. RLtools is deterministic given a fixed seed. NEVER use atomic operations (e.g. when using CUDA)
+23. The tar and hdf5 representations of a model should have a lossless bijective mapping
