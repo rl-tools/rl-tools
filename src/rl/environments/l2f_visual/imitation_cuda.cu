@@ -33,6 +33,30 @@
 #include <rl_tools/utils/extrack/operations_cpu.h>
 #include <rl_tools/utils/zlib/operations_cpu.h>
 
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/nn/layers/dense/persist.h>
+#include <rl_tools/nn/layers/conv2d/persist.h>
+#include <rl_tools/nn/layers/gru/persist.h>
+#include <rl_tools/nn/layers/standardize/persist.h>
+#include <rl_tools/nn/layers/flatten/persist.h>
+#include <rl_tools/nn/layers/unflatten/persist.h>
+#include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/parallel/persist.h>
+#include <rl_tools/numeric_types/persist_code.h>
+#include <rl_tools/containers/matrix/persist_code.h>
+#include <rl_tools/containers/tensor/persist_code.h>
+#include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
+#include <rl_tools/nn/parameters/persist_code.h>
+#include <rl_tools/nn/layers/dense/persist_code.h>
+#include <rl_tools/nn/layers/conv2d/persist_code.h>
+#include <rl_tools/nn/layers/gru/persist_code.h>
+#include <rl_tools/nn/layers/standardize/persist_code.h>
+#include <rl_tools/nn/layers/flatten/persist_code.h>
+#include <rl_tools/nn/layers/unflatten/persist_code.h>
+#include <rl_tools/nn_models/mlp/persist_code.h>
+#include <rl_tools/nn_models/sequential/persist_code.h>
+#include <rl_tools/nn_models/parallel/persist_code.h>
+
 #include <array>
 #include <cmath>
 #include <chrono>
@@ -176,6 +200,7 @@ static constexpr TI TEACHER_FORCING_EPOCHS = 0;
 static constexpr T TEACHER_FORCING_FRACTION = 0.0;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
+static constexpr TI CHECKPOINT_CADENCE = 100;
 static constexpr TI GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS)
 static_assert(GRID_SIDE * GRID_SIDE == N_ENVIRONMENTS, "N_ENVIRONMENTS must be a perfect square for video mosaic");
 
@@ -1368,6 +1393,52 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "training/total_time_s", training_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : TEACHER_FORCING_FRACTION);
 #endif
+
+        if(epoch_i % CHECKPOINT_CADENCE == 0){
+            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, epoch_end_step);
+            static constexpr TI CHECKPOINT_BATCH_SIZE = 1;
+            using EVAL_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>::template CHANGE_BATCH_SIZE<TI, CHECKPOINT_BATCH_SIZE>;
+            EVAL_TYPE eval_student;
+            rlt::malloc(device, eval_student);
+            rlt::copy(device_gpu, device, student_gpu, eval_student);
+            { // binary (tar)
+                std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
+                rlt::persist::backends::tar::Writer writer;
+                rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
+                auto actor_group = rlt::create_group(device, root_group, "actor");
+                rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
+                rlt::save(device, eval_student, actor_group);
+                rlt::persist::backends::tar::finalize(device, writer);
+                std::ofstream f(checkpoint_path, std::ios::binary);
+                f.write(writer.buffer.data(), writer.buffer.size());
+            }
+            { // code (checkpoint.h)
+                auto actor_weights = rlt::save_code(device, eval_student, std::string("rl_tools::checkpoint::actor"), true);
+                std::stringstream output_ss;
+                output_ss << actor_weights;
+                output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
+                output_ss << "\n" << "   " << "char name[] = \"" << step_folder.string() << "\";";
+                output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
+                output_ss << "\n" << "}";
+                std::string output_string = output_ss.str();
+#ifdef RL_TOOLS_ENABLE_ZLIB
+                {
+                    std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h.gz";
+                    std::vector<uint8_t> compressed;
+                    rlt::compress_zlib(output_string, compressed);
+                    std::ofstream f(checkpoint_code_path, std::ios::binary);
+                    f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+                }
+#endif
+                {
+                    std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h";
+                    std::ofstream f(checkpoint_code_path);
+                    f << output_string;
+                }
+            }
+            rlt::free(device, eval_student);
+            std::cerr << "Checkpoint saved: " << step_folder << std::endl;
+        }
 
         episode_length_sum_tf = 0;
         episode_count_tf = 0;
