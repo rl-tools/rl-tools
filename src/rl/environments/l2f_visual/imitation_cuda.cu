@@ -620,9 +620,13 @@ struct StudentActor{
     using HEAD_DENSE_OUT_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, TARGET_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using HEAD_DENSE_OUT = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE_OUT_CONFIG>;
     using SEQUENTIAL_HEAD = rlt::nn_models::sequential::Module<GRU_HEAD, HEAD_DENSE1, HEAD_DENSE2, HEAD_DENSE_OUT>;
-    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, IMAGE_BRANCH, STATE_BRANCH, IMAGE_INPUT_SHAPE, STATE_INPUT_SHAPE, SEQUENTIAL_HEAD>;
+    using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
+    using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, SEQUENTIAL_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
 #else
-    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, IMAGE_BRANCH, STATE_BRANCH, IMAGE_INPUT_SHAPE, STATE_INPUT_SHAPE, MLP_HEAD>;
+    using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
+    using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
 #endif
 };
 
@@ -966,7 +970,7 @@ int main(int argc, char** argv){
             auto batch_observations_reshaped = rlt::reshape_row_major(device, batch_observations, IMAGE_INPUT_SHAPE_WARMUP{});
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * WINDOW_SAMPLES, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
-            rlt::forward(device, student_cpu, batch_observations_reshaped, batch_state_observations_reshaped, student_buffers_cpu, rng, accumulate_mode);
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
         }
 #else
         using IMAGE_INPUT_SHAPE_WARMUP = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
@@ -995,7 +999,7 @@ int main(int argc, char** argv){
 #endif
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
-            rlt::forward(device, student_cpu, batch_observations_reshaped, batch_state_observations_reshaped, student_buffers_cpu, rng, accumulate_mode);
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
         }
 #ifdef USE_FRAME_STACKING
         rlt::free(device, warmup_stacked_batch);
@@ -1504,7 +1508,7 @@ int main(int argc, char** argv){
                 using GRU_STATE_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, STATE_OBS_DIM>;
                 auto win_state_reshaped = rlt::reshape_row_major(device_gpu, win_state, GRU_STATE_SHAPE{});
 
-                rlt::forward(device_gpu, student_gpu, win_obs_reshaped, win_state_reshaped, student_buffers, rng_gpu);
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(win_obs_reshaped, win_state_reshaped); rlt::forward(device_gpu, student_gpu, inputs, student_buffers, rng_gpu); }
                 cudaDeviceSynchronize();
 
                 auto student_output_tensor = rlt::output(device_gpu, student_gpu);
@@ -1530,7 +1534,7 @@ int main(int argc, char** argv){
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
                 using GRU_ACTION_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, TARGET_DIM>;
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, GRU_ACTION_SHAPE{});
-                rlt::backward(device_gpu, student_gpu, win_obs_reshaped, win_state_reshaped, gpu_d_action_reshaped, student_buffers);
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(win_obs_reshaped, win_state_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
                 cudaDeviceSynchronize();
@@ -1578,7 +1582,7 @@ int main(int argc, char** argv){
                 auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
 
-                rlt::forward(device_gpu, student_gpu, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, student_buffers, rng_gpu);
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::forward(device_gpu, student_gpu, inputs, student_buffers, rng_gpu); }
                 cudaDeviceSynchronize();
 
                 // MSE loss gradient

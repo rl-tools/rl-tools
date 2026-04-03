@@ -8,6 +8,12 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::parallel{
 
+    template <typename T_MODULE, typename T_INPUT_SHAPE>
+    struct Branch{
+        using MODULE = T_MODULE;
+        using INPUT_SHAPE = T_INPUT_SHAPE;
+    };
+
     namespace detail{
         template <typename SHAPE_A, typename SHAPE_B, auto INDEX = 0>
         constexpr bool leading_dims_match(){
@@ -21,37 +27,114 @@ namespace rl_tools::nn_models::parallel{
             }
         }
 
-        // Empty struct used as placeholder when HEAD is void
         struct Empty{};
+
+        template <typename FIRST, typename...>
+        struct first_type{ using type = FIRST; };
+
+        template <typename T>
+        struct is_input_tuple : utils::typing::false_type {};
+        template <typename TI, typename... Types>
+        struct is_input_tuple<utils::Tuple<TI, Types...>> : utils::typing::true_type {};
+        template <typename TI, typename... Types, template <typename> typename F>
+        struct is_input_tuple<utils::MapTuple<utils::Tuple<TI, Types...>, F>> : utils::typing::true_type {};
+
+        template <typename CAPABILITY, typename BRANCH>
+        using pipeline_type = typename BRANCH::MODULE::template Layer<CAPABILITY, typename BRANCH::INPUT_SHAPE>;
+
+        template <typename CAPABILITY, typename BRANCH>
+        using output_shape = typename pipeline_type<CAPABILITY, BRANCH>::OUTPUT_SHAPE;
+
+        template <typename CAPABILITY, typename... BRANCHES>
+        struct ConcatLastDim{
+            static constexpr auto VALUE = 0;
+        };
+        template <typename CAPABILITY, typename BRANCH, typename... REST>
+        struct ConcatLastDim<CAPABILITY, BRANCH, REST...>{
+            static constexpr auto VALUE = get_last(output_shape<CAPABILITY, BRANCH>{}) + ConcatLastDim<CAPABILITY, REST...>::VALUE;
+        };
+
+        template <typename CAPABILITY, typename... BRANCHES>
+        struct VerifyShapes{
+            static constexpr bool VALID = true;
+        };
+        template <typename CAPABILITY, typename FIRST, typename SECOND, typename... REST>
+        struct VerifyShapes<CAPABILITY, FIRST, SECOND, REST...>{
+            using SHAPE_A = output_shape<CAPABILITY, FIRST>;
+            using SHAPE_B = output_shape<CAPABILITY, SECOND>;
+            static_assert(length(SHAPE_A{}) == length(SHAPE_B{}), "Pipeline output shapes must have same rank");
+            static_assert(leading_dims_match<SHAPE_A, SHAPE_B>(), "Pipeline output shapes must have matching leading dimensions");
+            static constexpr bool VALID = VerifyShapes<CAPABILITY, FIRST, REST...>::VALID;
+        };
+
+        template <typename CAPABILITY>
+        struct PipelineMapFactory{
+            template <typename BRANCH>
+            struct Map{
+                using CONTENT = pipeline_type<CAPABILITY, BRANCH>;
+            };
+        };
+
+        template <typename CAPABILITY, bool DYNAMIC_ALLOCATION, typename TYPE_POLICY>
+        struct TensorMapFactory{
+            template <typename BRANCH>
+            struct Map{
+                using PIPELINE = pipeline_type<CAPABILITY, BRANCH>;
+                using OUTPUT_SHAPE = typename PIPELINE::OUTPUT_SHAPE;
+                using T = typename TYPE_POLICY::template GET<numeric_types::categories::Activation>;
+                using TI = typename OUTPUT_SHAPE::TI;
+                using CONTENT = Tensor<tensor::Specification<T, TI, OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<OUTPUT_SHAPE>>>;
+            };
+        };
+
+        template <typename CAPABILITY, bool DYNAMIC_ALLOCATION>
+        struct SubBufferMapFactory{
+            template <typename BRANCH>
+            struct Map{
+                using CONTENT = typename pipeline_type<CAPABILITY, BRANCH>::template Buffer<DYNAMIC_ALLOCATION>;
+            };
+        };
+
+        template <typename CAPABILITY, bool DYNAMIC_ALLOCATION>
+        struct SubStateMapFactory{
+            template <typename BRANCH>
+            struct Map{
+                using CONTENT = typename pipeline_type<CAPABILITY, BRANCH>::template State<DYNAMIC_ALLOCATION>;
+            };
+        };
     }
 
-    template <typename T_CAPABILITY, typename T_MODULE_A, typename T_MODULE_B, typename T_INPUT_SHAPE_A, typename T_INPUT_SHAPE_B, typename T_HEAD = void>
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+    struct ModuleBufferSpecification;
+    template <typename T_BUFFER_SPEC>
+    struct ModuleBuffer;
+    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
+    struct ModuleStateSpecification;
+    template <typename T_STATE_SPEC>
+    struct ModuleState;
+
+    template <typename T_CAPABILITY, typename T_HEAD, typename... T_BRANCHES>
     struct Specification{
         using CAPABILITY = T_CAPABILITY;
-        using MODULE_A = T_MODULE_A;
-        using MODULE_B = T_MODULE_B;
-        using INPUT_SHAPE_A = T_INPUT_SHAPE_A;
-        using INPUT_SHAPE_B = T_INPUT_SHAPE_B;
         using HEAD_MODULE = T_HEAD;
-
-        using PIPELINE_TYPE_A = typename MODULE_A::template Layer<CAPABILITY, INPUT_SHAPE_A>;
-        using PIPELINE_TYPE_B = typename MODULE_B::template Layer<CAPABILITY, INPUT_SHAPE_B>;
-
-        using OUTPUT_SHAPE_A = typename PIPELINE_TYPE_A::OUTPUT_SHAPE;
-        using OUTPUT_SHAPE_B = typename PIPELINE_TYPE_B::OUTPUT_SHAPE;
-
-        static_assert(length(OUTPUT_SHAPE_A{}) == length(OUTPUT_SHAPE_B{}), "Pipeline output shapes must have same rank");
-        static_assert(detail::leading_dims_match<OUTPUT_SHAPE_A, OUTPUT_SHAPE_B>(), "Pipeline output shapes must have matching leading dimensions");
-
-        using TI = typename INPUT_SHAPE_A::TI;
-        static constexpr TI LAST_DIM_A = get_last(OUTPUT_SHAPE_A{});
-        static constexpr TI LAST_DIM_B = get_last(OUTPUT_SHAPE_B{});
-        static constexpr TI LAST_DIM = LAST_DIM_A + LAST_DIM_B;
-        static constexpr auto RANK = length(OUTPUT_SHAPE_A{});
-        using CONCAT_OUTPUT_SHAPE = tensor::Replace<OUTPUT_SHAPE_A, LAST_DIM, RANK - 1>;
-
-        // HEAD (optional post-processing after concatenation)
         static constexpr bool HAS_HEAD = !utils::typing::is_same_v<HEAD_MODULE, void>;
+
+        using FIRST_BRANCH = typename detail::first_type<T_BRANCHES...>::type;
+        using TI = typename FIRST_BRANCH::INPUT_SHAPE::TI;
+        static constexpr TI NUM_BRANCHES = sizeof...(T_BRANCHES);
+        static_assert(NUM_BRANCHES >= 1, "parallel model requires at least one branch");
+
+        using BRANCH_TUPLE = utils::Tuple<TI, T_BRANCHES...>;
+        using PIPELINES_TYPE = utils::MapTuple<BRANCH_TUPLE, detail::PipelineMapFactory<CAPABILITY>::template Map>;
+
+        static constexpr bool _SHAPES_VALID = detail::VerifyShapes<CAPABILITY, T_BRANCHES...>::VALID;
+
+        using FIRST_PIPELINE = detail::pipeline_type<CAPABILITY, FIRST_BRANCH>;
+        using FIRST_OUTPUT_SHAPE = typename FIRST_PIPELINE::OUTPUT_SHAPE;
+        static constexpr auto RANK = length(FIRST_OUTPUT_SHAPE{});
+        static constexpr TI CONCAT_LAST_DIM = detail::ConcatLastDim<CAPABILITY, T_BRANCHES...>::VALUE;
+        using CONCAT_OUTPUT_SHAPE = tensor::Replace<FIRST_OUTPUT_SHAPE, CONCAT_LAST_DIM, RANK - 1>;
+
     private:
         template <bool ENABLED, typename = void>
         struct HeadResolver{
@@ -66,31 +149,18 @@ namespace rl_tools::nn_models::parallel{
     public:
         using HEAD_TYPE = typename HeadResolver<HAS_HEAD>::HEAD_TYPE;
         using OUTPUT_SHAPE = typename HeadResolver<HAS_HEAD>::OUTPUT_SHAPE;
-
-        using TYPE_POLICY = typename PIPELINE_TYPE_A::TYPE_POLICY;
+        using TYPE_POLICY = typename FIRST_PIPELINE::TYPE_POLICY;
     };
-
-    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
-    struct ModuleBufferSpecification;
-    template <typename T_BUFFER_SPEC>
-    struct ModuleBuffer;
-    template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
-    struct ModuleStateSpecification;
-    template <typename T_STATE_SPEC>
-    struct ModuleState;
 
     template <typename T_SPEC>
     struct ModuleForward{
         using SPEC = T_SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
-        using INPUT_SHAPE_A = typename SPEC::INPUT_SHAPE_A;
-        using INPUT_SHAPE_B = typename SPEC::INPUT_SHAPE_B;
-        using INPUT_SHAPE = INPUT_SHAPE_A; // primary input shape (for PPO compatibility)
+        using INPUT_SHAPE = typename SPEC::FIRST_BRANCH::INPUT_SHAPE;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
-        typename SPEC::PIPELINE_TYPE_A pipeline_a;
-        typename SPEC::PIPELINE_TYPE_B pipeline_b;
+        typename SPEC::PIPELINES_TYPE pipelines;
         typename SPEC::HEAD_TYPE head;
 
         template <bool DYNAMIC_ALLOCATION=true>
@@ -130,24 +200,14 @@ namespace rl_tools::nn_models::parallel{
         using T = typename TYPE_POLICY::template GET<numeric_types::categories::Activation>;
         static constexpr bool DYNAMIC_ALLOCATION = BUFFER_SPEC::DYNAMIC_ALLOCATION;
 
-        typename SPEC::PIPELINE_TYPE_A::template Buffer<DYNAMIC_ALLOCATION> buffer_a;
-        typename SPEC::PIPELINE_TYPE_B::template Buffer<DYNAMIC_ALLOCATION> buffer_b;
+        utils::MapTuple<typename SPEC::BRANCH_TUPLE, detail::SubBufferMapFactory<typename SPEC::CAPABILITY, DYNAMIC_ALLOCATION>::template Map> sub_buffers;
+        utils::MapTuple<typename SPEC::BRANCH_TUPLE, detail::TensorMapFactory<typename SPEC::CAPABILITY, DYNAMIC_ALLOCATION, TYPE_POLICY>::template Map> intermediates;
+        utils::MapTuple<typename SPEC::BRANCH_TUPLE, detail::TensorMapFactory<typename SPEC::CAPABILITY, DYNAMIC_ALLOCATION, TYPE_POLICY>::template Map> d_outputs;
 
-        using INTERMEDIATE_A_SPEC = tensor::Specification<T, TI, typename SPEC::OUTPUT_SHAPE_A, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::OUTPUT_SHAPE_A>>;
-        using INTERMEDIATE_B_SPEC = tensor::Specification<T, TI, typename SPEC::OUTPUT_SHAPE_B, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::OUTPUT_SHAPE_B>>;
-        Tensor<INTERMEDIATE_A_SPEC> intermediate_a;
-        Tensor<INTERMEDIATE_B_SPEC> intermediate_b;
+        using CONCAT_SPEC = tensor::Specification<T, TI, typename SPEC::CONCAT_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::CONCAT_OUTPUT_SHAPE>>;
+        Tensor<CONCAT_SPEC> concatenated;
+        Tensor<CONCAT_SPEC> d_concatenated;
 
-        // Concatenated output buffer (used as input to head when HAS_HEAD)
-        using CONCAT_OUTPUT_SPEC = tensor::Specification<T, TI, typename SPEC::CONCAT_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::CONCAT_OUTPUT_SHAPE>>;
-        Tensor<CONCAT_OUTPUT_SPEC> concatenated;
-
-        using D_OUTPUT_A_SPEC = tensor::Specification<T, TI, typename SPEC::OUTPUT_SHAPE_A, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::OUTPUT_SHAPE_A>>;
-        using D_OUTPUT_B_SPEC = tensor::Specification<T, TI, typename SPEC::OUTPUT_SHAPE_B, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::OUTPUT_SHAPE_B>>;
-        Tensor<D_OUTPUT_A_SPEC> d_output_a;
-        Tensor<D_OUTPUT_B_SPEC> d_output_b;
-
-        // Head buffer (conditionally present)
     private:
         template <bool ENABLED, typename = void>
         struct HeadBufferResolver{ using type = detail::Empty; };
@@ -155,10 +215,6 @@ namespace rl_tools::nn_models::parallel{
         struct HeadBufferResolver<true, DUMMY>{ using type = typename SPEC::HEAD_TYPE::template Buffer<DYNAMIC_ALLOCATION>; };
     public:
         typename HeadBufferResolver<SPEC::HAS_HEAD>::type head_buffer;
-
-        // d_concatenated: gradient of loss w.r.t. concatenated output (needed when head present)
-        using D_CONCAT_SPEC = tensor::Specification<T, TI, typename SPEC::CONCAT_OUTPUT_SHAPE, DYNAMIC_ALLOCATION, tensor::RowMajorStride<typename SPEC::CONCAT_OUTPUT_SHAPE>>;
-        Tensor<D_CONCAT_SPEC> d_concatenated;
     };
 
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
@@ -172,8 +228,9 @@ namespace rl_tools::nn_models::parallel{
         using STATE_SPEC = T_STATE_SPEC;
         using SPEC = typename STATE_SPEC::SPEC;
         static constexpr bool DYNAMIC_ALLOCATION = STATE_SPEC::DYNAMIC_ALLOCATION;
-        typename SPEC::PIPELINE_TYPE_A::template State<DYNAMIC_ALLOCATION> state_a;
-        typename SPEC::PIPELINE_TYPE_B::template State<DYNAMIC_ALLOCATION> state_b;
+
+        utils::MapTuple<typename SPEC::BRANCH_TUPLE, detail::SubStateMapFactory<typename SPEC::CAPABILITY, DYNAMIC_ALLOCATION>::template Map> states;
+
     private:
         template <bool ENABLED, typename = void>
         struct HeadStateResolver{ using type = detail::Empty; };
@@ -193,16 +250,16 @@ namespace rl_tools::nn_models::parallel{
             utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient, GRADIENT, void>>>;
     };
 
-    template <typename CAPABILITY, typename MODULE_A, typename MODULE_B, typename INPUT_SHAPE_A, typename INPUT_SHAPE_B, typename HEAD = void>
-    struct Build: BuildModuleType<CAPABILITY, Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD>>::type{
-        using PARALLEL_SPEC = Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD>;
+    template <typename CAPABILITY, typename HEAD, typename... BRANCHES>
+    struct Build: BuildModuleType<CAPABILITY, Specification<CAPABILITY, HEAD, BRANCHES...>>::type{
+        using PARALLEL_SPEC = Specification<CAPABILITY, HEAD, BRANCHES...>;
         template <typename NEW_CAPABILITY>
-        using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD>;
+        using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, HEAD, BRANCHES...>;
         template <typename TI, TI BATCH_SIZE>
         struct CHANGE_BATCH_SIZE_IMPL{
-            using NEW_INPUT_SHAPE_A = tensor::Replace<INPUT_SHAPE_A, BATCH_SIZE, 1>;
-            using NEW_INPUT_SHAPE_B = tensor::Replace<INPUT_SHAPE_B, BATCH_SIZE, 1>;
-            using CHANGE_BATCH_SIZE = Build<CAPABILITY, MODULE_A, MODULE_B, NEW_INPUT_SHAPE_A, NEW_INPUT_SHAPE_B, HEAD>;
+            template <typename BRANCH>
+            using UpdatedBranch = Branch<typename BRANCH::MODULE, tensor::Replace<typename BRANCH::INPUT_SHAPE, BATCH_SIZE, 1>>;
+            using CHANGE_BATCH_SIZE = Build<CAPABILITY, HEAD, UpdatedBranch<BRANCHES>...>;
         };
         template <typename TI, TI BATCH_SIZE>
         using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;

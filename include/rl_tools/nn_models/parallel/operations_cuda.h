@@ -10,81 +10,70 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace nn_models::parallel::cuda{
         template <typename T, typename TI>
-        __global__ void concatenate_kernel(const T* a, const T* b, T* output, TI last_dim_a, TI last_dim_b, TI total_elements){
+        __global__ void copy_to_concat_kernel(const T* src, T* dst, TI src_dim, TI dst_dim, TI offset, TI num_elements){
             TI idx = blockIdx.x * blockDim.x + threadIdx.x;
-            TI last_dim_out = last_dim_a + last_dim_b;
-            if(idx < total_elements){
-                TI row = idx / last_dim_out;
-                TI col = idx % last_dim_out;
-                if(col < last_dim_a){
-                    output[idx] = a[row * last_dim_a + col];
-                }
-                else{
-                    output[idx] = b[row * last_dim_b + (col - last_dim_a)];
-                }
+            if(idx < num_elements){
+                TI row = idx / src_dim;
+                TI col = idx % src_dim;
+                dst[row * dst_dim + offset + col] = src[idx];
             }
         }
 
         template <typename T, typename TI>
-        __global__ void split_kernel(const T* d_output, T* d_a, T* d_b, TI last_dim_a, TI last_dim_b, TI total_elements){
+        __global__ void copy_from_concat_kernel(const T* src, T* dst, TI src_dim, TI dst_dim, TI offset, TI num_elements){
             TI idx = blockIdx.x * blockDim.x + threadIdx.x;
-            TI last_dim_out = last_dim_a + last_dim_b;
-            if(idx < total_elements){
-                TI row = idx / last_dim_out;
-                TI col = idx % last_dim_out;
-                if(col < last_dim_a){
-                    d_a[row * last_dim_a + col] = d_output[idx];
-                }
-                else{
-                    d_b[row * last_dim_b + (col - last_dim_a)] = d_output[idx];
-                }
+            if(idx < num_elements){
+                TI row = idx / dst_dim;
+                TI col = idx % dst_dim;
+                dst[idx] = src[row * src_dim + offset + col];
             }
         }
     }
 
-    template <typename DEV_SPEC, typename A_SPEC, typename B_SPEC, typename OUTPUT_SPEC>
-    void _concatenate_cuda(devices::CUDA<DEV_SPEC>& device, const Tensor<A_SPEC>& a, const Tensor<B_SPEC>& b, Tensor<OUTPUT_SPEC>& output){
-        using TI = typename devices::CUDA<DEV_SPEC>::index_t;
-        using T = typename OUTPUT_SPEC::T;
-        using A_SHAPE = typename A_SPEC::SHAPE;
-        using B_SHAPE = typename B_SPEC::SHAPE;
-        using OUTPUT_SHAPE = typename OUTPUT_SPEC::SHAPE;
-        constexpr TI LAST_DIM_A = get_last(A_SHAPE{});
-        constexpr TI LAST_DIM_B = get_last(B_SHAPE{});
-        constexpr TI LAST_DIM_OUT = get_last(OUTPUT_SHAPE{});
-        static_assert(LAST_DIM_OUT == LAST_DIM_A + LAST_DIM_B);
-        constexpr TI TOTAL = product(OUTPUT_SHAPE{});
-        constexpr TI BLOCK_SIZE = 256;
-        constexpr TI GRID_SIZE = (TOTAL + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        nn_models::parallel::cuda::concatenate_kernel<<<GRID_SIZE, BLOCK_SIZE, 0, device.stream>>>(
-            data(a), data(b), data(output), LAST_DIM_A, LAST_DIM_B, TOTAL);
+    template <auto NUM_BRANCHES, auto I = 0, auto OFFSET = 0, typename DEV_SPEC, typename INTERMEDIATES, typename OUTPUT_SPEC>
+    void _concatenate_n_cuda(devices::CUDA<DEV_SPEC>& device, const INTERMEDIATES& intermediates, Tensor<OUTPUT_SPEC>& output){
+        if constexpr(I < NUM_BRANCHES){
+            using TI = typename devices::CUDA<DEV_SPEC>::index_t;
+            using T = typename OUTPUT_SPEC::T;
+            using OUTPUT_SHAPE = typename OUTPUT_SPEC::SHAPE;
+            constexpr TI DST_DIM = get_last(OUTPUT_SHAPE{});
+            const auto& src = get<I>(intermediates);
+            using SRC_SHAPE = typename utils::typing::remove_reference_t<decltype(src)>::SPEC::SHAPE;
+            constexpr TI SRC_DIM = get_last(SRC_SHAPE{});
+            constexpr TI TOTAL_SRC = product(SRC_SHAPE{});
+            constexpr TI BLOCK_SIZE = 256;
+            constexpr TI GRID_SIZE = (TOTAL_SRC + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            nn_models::parallel::cuda::copy_to_concat_kernel<<<GRID_SIZE, BLOCK_SIZE, 0, device.stream>>>(
+                data(src), data(output), SRC_DIM, DST_DIM, static_cast<TI>(OFFSET), TOTAL_SRC);
+            _concatenate_n_cuda<NUM_BRANCHES, I + 1, OFFSET + SRC_DIM>(device, intermediates, output);
+        }
     }
 
-    template <typename DEV_SPEC, typename D_OUTPUT_SPEC, typename D_A_SPEC, typename D_B_SPEC>
-    void _split_cuda(devices::CUDA<DEV_SPEC>& device, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_A_SPEC>& d_a, Tensor<D_B_SPEC>& d_b){
-        using TI = typename devices::CUDA<DEV_SPEC>::index_t;
-        using T = typename D_OUTPUT_SPEC::T;
-        using A_SHAPE = typename D_A_SPEC::SHAPE;
-        using B_SHAPE = typename D_B_SPEC::SHAPE;
-        using OUTPUT_SHAPE = typename D_OUTPUT_SPEC::SHAPE;
-        constexpr TI LAST_DIM_A = get_last(A_SHAPE{});
-        constexpr TI LAST_DIM_B = get_last(B_SHAPE{});
-        constexpr TI LAST_DIM_OUT = get_last(OUTPUT_SHAPE{});
-        static_assert(LAST_DIM_OUT == LAST_DIM_A + LAST_DIM_B);
-        constexpr TI TOTAL = product(OUTPUT_SHAPE{});
-        constexpr TI BLOCK_SIZE = 256;
-        constexpr TI GRID_SIZE = (TOTAL + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        nn_models::parallel::cuda::split_kernel<<<GRID_SIZE, BLOCK_SIZE, 0, device.stream>>>(
-            data(d_output), data(d_a), data(d_b), LAST_DIM_A, LAST_DIM_B, TOTAL);
+    template <auto NUM_BRANCHES, auto I = 0, auto OFFSET = 0, typename DEV_SPEC, typename D_OUTPUT_SPEC, typename D_OUTPUTS>
+    void _split_n_cuda(devices::CUDA<DEV_SPEC>& device, const Tensor<D_OUTPUT_SPEC>& d_output, D_OUTPUTS& d_outputs){
+        if constexpr(I < NUM_BRANCHES){
+            using TI = typename devices::CUDA<DEV_SPEC>::index_t;
+            using T = typename D_OUTPUT_SPEC::T;
+            using SRC_SHAPE = typename D_OUTPUT_SPEC::SHAPE;
+            constexpr TI SRC_DIM = get_last(SRC_SHAPE{});
+            auto& dst = get<I>(d_outputs);
+            using DST_SHAPE = typename utils::typing::remove_reference_t<decltype(dst)>::SPEC::SHAPE;
+            constexpr TI DST_DIM = get_last(DST_SHAPE{});
+            constexpr TI TOTAL_DST = product(DST_SHAPE{});
+            constexpr TI BLOCK_SIZE = 256;
+            constexpr TI GRID_SIZE = (TOTAL_DST + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            nn_models::parallel::cuda::copy_from_concat_kernel<<<GRID_SIZE, BLOCK_SIZE, 0, device.stream>>>(
+                data(d_output), data(dst), SRC_DIM, DST_DIM, static_cast<TI>(OFFSET), TOTAL_DST);
+            _split_n_cuda<NUM_BRANCHES, I + 1, OFFSET + DST_DIM>(device, d_output, d_outputs);
+        }
     }
 
     // ======================== CUDA evaluate_step ========================
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_A, typename INPUT_B, typename STATE_SPEC, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void evaluate_step(devices::CUDA<DEV_SPEC>& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, nn_models::parallel::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_TUPLE, typename STATE_SPEC, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate_step(devices::CUDA<DEV_SPEC>& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_TUPLE& inputs, nn_models::parallel::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename SPEC::TI;
-        evaluate_step(device, model.pipeline_a, input_a, state.state_a, buffer.intermediate_a, buffer.buffer_a, rng, mode);
-        evaluate_step(device, model.pipeline_b, input_b, state.state_b, buffer.intermediate_b, buffer.buffer_b, rng, mode);
-        _concatenate_cuda(device, buffer.intermediate_a, buffer.intermediate_b, buffer.concatenated);
+        nn_models::parallel::_evaluate_step_branches(device, model, inputs, state, buffer, rng, mode);
+        _concatenate_n_cuda<SPEC::NUM_BRANCHES>(device, buffer.intermediates, buffer.concatenated);
         if constexpr(SPEC::HAS_HEAD){
             using CONCAT_SHAPE = typename utils::typing::remove_reference_t<decltype(buffer.concatenated)>::SPEC::SHAPE;
             constexpr TI CONCAT_LAST_DIM = get_last(CONCAT_SHAPE{});
@@ -102,11 +91,10 @@ namespace rl_tools{
     }
 
     // ======================== CUDA evaluate ========================
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_A, typename INPUT_B, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        evaluate(device, model.pipeline_a, input_a, buffer.intermediate_a, buffer.buffer_a, rng, mode);
-        evaluate(device, model.pipeline_b, input_b, buffer.intermediate_b, buffer.buffer_b, rng, mode);
-        _concatenate_cuda(device, buffer.intermediate_a, buffer.intermediate_b, buffer.concatenated);
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_TUPLE, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_TUPLE& inputs, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        nn_models::parallel::_evaluate_branches(device, model, inputs, buffer, rng, mode);
+        _concatenate_n_cuda<SPEC::NUM_BRANCHES>(device, buffer.intermediates, buffer.concatenated);
         if constexpr(SPEC::HAS_HEAD){
             evaluate(device, model.head, buffer.concatenated, output, buffer.head_buffer, rng, mode);
         }
@@ -115,16 +103,11 @@ namespace rl_tools{
         }
     }
 
-    // ======================== CUDA forward (no output) ========================
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_A, typename INPUT_B, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void forward(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, INPUT_A& input_a, INPUT_B& input_b, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        forward(device, model.pipeline_a, input_a, buffer.buffer_a, rng, mode);
-        forward(device, model.pipeline_b, input_b, buffer.buffer_b, rng, mode);
-        auto output_a = rl_tools::output(device, model.pipeline_a);
-        auto output_b = rl_tools::output(device, model.pipeline_b);
-        copy(device, device, output_a, buffer.intermediate_a);
-        copy(device, device, output_b, buffer.intermediate_b);
-        _concatenate_cuda(device, buffer.intermediate_a, buffer.intermediate_b, buffer.concatenated);
+    // ======================== CUDA forward ========================
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_TUPLE, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void forward(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, INPUT_TUPLE& inputs, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        nn_models::parallel::_forward_branches(device, model, inputs, buffer, rng, mode);
+        _concatenate_n_cuda<SPEC::NUM_BRANCHES>(device, buffer.intermediates, buffer.concatenated);
         if constexpr(SPEC::HAS_HEAD){
             forward(device, model.head, buffer.concatenated, buffer.head_buffer, rng, mode);
             auto head_output = rl_tools::output(device, model.head);
@@ -135,53 +118,49 @@ namespace rl_tools{
         }
     }
 
-    // ======================== CUDA forward (with output) ========================
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_A, typename INPUT_B, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
-    void forward(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, INPUT_A& input_a, INPUT_B& input_b, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        forward(device, model, input_a, input_b, buffer, rng, mode);
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_TUPLE, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
+    void forward(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, INPUT_TUPLE& inputs, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        forward(device, model, inputs, buffer, rng, mode);
         copy(device, device, model.output, output);
     }
 
     // ======================== CUDA backward_full ========================
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_A, typename INPUT_B, typename D_OUTPUT, typename D_INPUT_A, typename D_INPUT_B, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    void backward_full(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, D_OUTPUT& d_output, D_INPUT_A& d_input_a, D_INPUT_B& d_input_b, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_TUPLE, typename D_OUTPUT, typename D_INPUT_TUPLE, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward_full(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, D_OUTPUT& d_output, D_INPUT_TUPLE& d_inputs, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         if constexpr(SPEC::HAS_HEAD){
             backward_full(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
-            _split_cuda(device, buffer.d_concatenated, buffer.d_output_a, buffer.d_output_b);
+            _split_n_cuda<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
         }
         else{
-            _split_cuda(device, d_output, buffer.d_output_a, buffer.d_output_b);
+            _split_n_cuda<SPEC::NUM_BRANCHES>(device, d_output, buffer.d_outputs);
         }
-        backward_full(device, model.pipeline_a, input_a, buffer.d_output_a, d_input_a, buffer.buffer_a, mode);
-        backward_full(device, model.pipeline_b, input_b, buffer.d_output_b, d_input_b, buffer.buffer_b, mode);
+        nn_models::parallel::_backward_full_branches(device, model, inputs, d_inputs, buffer, mode);
     }
 
     // ======================== CUDA backward (gradients only) ========================
-    template <typename DEV_SPEC, typename SPEC, typename INPUT_A, typename INPUT_B, typename D_OUTPUT, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    void backward(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_A& input_a, const INPUT_B& input_b, D_OUTPUT& d_output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_TUPLE, typename D_OUTPUT, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, D_OUTPUT& d_output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         if constexpr(SPEC::HAS_HEAD){
             backward_full(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
-            _split_cuda(device, buffer.d_concatenated, buffer.d_output_a, buffer.d_output_b);
+            _split_n_cuda<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
         }
         else{
-            _split_cuda(device, d_output, buffer.d_output_a, buffer.d_output_b);
+            _split_n_cuda<SPEC::NUM_BRANCHES>(device, d_output, buffer.d_outputs);
         }
-        backward(device, model.pipeline_a, input_a, buffer.d_output_a, buffer.buffer_a, mode);
-        backward(device, model.pipeline_b, input_b, buffer.d_output_b, buffer.buffer_b, mode);
+        nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
     }
 
     // ======================== CUDA backward_input ========================
-    template <typename DEV_SPEC, typename SPEC, typename D_OUTPUT, typename D_INPUT_A, typename D_INPUT_B, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    void backward_input(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleBackward<SPEC>& model, D_OUTPUT& d_output, D_INPUT_A& d_input_a, D_INPUT_B& d_input_b, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template <typename DEV_SPEC, typename SPEC, typename D_OUTPUT, typename D_INPUT_TUPLE, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward_input(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleBackward<SPEC>& model, D_OUTPUT& d_output, D_INPUT_TUPLE& d_inputs, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         if constexpr(SPEC::HAS_HEAD){
             backward_input(device, model.head, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
-            _split_cuda(device, buffer.d_concatenated, buffer.d_output_a, buffer.d_output_b);
+            _split_n_cuda<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
         }
         else{
-            _split_cuda(device, d_output, buffer.d_output_a, buffer.d_output_b);
+            _split_n_cuda<SPEC::NUM_BRANCHES>(device, d_output, buffer.d_outputs);
         }
-        backward_input(device, model.pipeline_a, buffer.d_output_a, d_input_a, buffer.buffer_a, mode);
-        backward_input(device, model.pipeline_b, buffer.d_output_b, d_input_b, buffer.buffer_b, mode);
+        nn_models::parallel::_backward_input_branches(device, model, d_inputs, buffer, mode);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
