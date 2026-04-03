@@ -76,7 +76,7 @@ TEST(NN_LAYERS_RESNET_CUDA_BF16, FORWARD_COMPARISON){
     rlt::malloc(device_cpu, model_cpu); rlt::malloc(device_cpu, buffer_cpu);
 
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(data_path_stub) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(data_path_stub) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     auto model_group = rlt::get_group(device_cpu, file, "model");
     ASSERT_TRUE(rlt::load(device_cpu, model_cpu, model_group));
 
@@ -160,7 +160,7 @@ TEST(NN_LAYERS_RESNET_CUDA_BF16, BACKWARD){
     DEVICE_CPU device_cpu; DEVICE_CUDA device_cuda; rlt::init(device_cuda);
 
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(data_path_stub) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(data_path_stub) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
 
     // Load FP32 weights on CPU, then copy to BF16 CUDA
     RESNET18_GRAD_CPU model_cpu_loader;
@@ -275,7 +275,7 @@ TEST(NN_LAYERS_RESNET_CUDA_BF16, AMP_COMPARISON){
     DEVICE_CPU device_cpu; DEVICE_CUDA device_cuda; rlt::init(device_cuda);
 
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto amp_file = HighFive::File(std::string(data_path_stub) + "/resnet18_test_data_bf16.h5", HighFive::File::ReadOnly);
+    auto amp_file = rl_tools::persist::backends::hdf5::File(std::string(data_path_stub) + "/resnet18_test_data_bf16.h5", rl_tools::persist::backends::hdf5::Mode::READ);
 
     // Load FP32 model on CPU from AMP checkpoint, then copy to BF16 CUDA Gradient model
     RESNET18_GRAD_CPU model_cpu;

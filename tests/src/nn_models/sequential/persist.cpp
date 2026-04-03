@@ -52,13 +52,13 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_forward) {
     rlt::init_weights(device, model, rng);
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_forward_forward.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_forward_forward.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
         auto sequential_model_group = rlt::create_group(device, file, "sequential_model");
         rlt::save(device, model, sequential_model_group);
     }
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_forward_forward.h5", HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_forward_forward.h5", rl_tools::persist::backends::hdf5::Mode::READ);
         auto sequential_model_group = rlt::get_group(device, file, "sequential_model");
         rlt::load(device, model_loaded, sequential_model_group);
     }
@@ -84,13 +84,13 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_backward_forward) {
     rlt::init_weights(device, model, rng);
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_backward_forward.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_backward_forward.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
         auto sequential_model_group = rlt::create_group(device, file, "sequential_model");
         rlt::save(device, model, sequential_model_group);
     }
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_backward_forward.h5", HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_backward_forward.h5", rl_tools::persist::backends::hdf5::Mode::READ);
         auto sequential_model_group = rlt::get_group(device, file, "sequential_model");
         rlt::load(device, model_loaded, sequential_model_group);
     }
@@ -116,13 +116,13 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_gradient_adam_forward)
     rlt::init_weights(device, model, rng);
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_forward.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_gradient_adam_forward.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
         auto sequential_model_group = rlt::create_group(device, file, "sequential_model");
         rlt::save(device, model, sequential_model_group);
     }
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_forward.h5", HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_gradient_adam_forward.h5", rl_tools::persist::backends::hdf5::Mode::READ);
         auto sequential_model_group = rlt::get_group(device, file, "sequential_model");
         rlt::load(device, model_loaded, sequential_model_group);
     }
@@ -148,19 +148,19 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_gradient_adam)
     rlt::init_weights(device, model, rng);
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_forward_gradient_adam.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_forward_gradient_adam.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
         auto sequential_model_group = rlt::create_group(device, file, "sequential_model");
         rlt::save(device, model, sequential_model_group);
     }
 
     bool got_expected_error = false;
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_forward_gradient_adam.h5", HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_forward_gradient_adam.h5", rl_tools::persist::backends::hdf5::Mode::READ);
         try{
             auto sequential_model_group = rlt::get_group(device, file, "sequential_model");
             rlt::load(device, model_loaded, sequential_model_group);
         }
-        catch(HighFive::DataSetException& e){
+        catch(std::exception& e){
 
             std::cerr << "Error while loading model: " << e.what() << std::endl;
             const std::string error = e.what();
@@ -219,13 +219,13 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_gradient_adam_gradient
     rlt::randn(device, rlt::get_layer<2>(model).biases.gradient_second_order_moment, rng);
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_gradient_adam.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_gradient_adam_gradient_adam.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
         auto sequential_model_group = rlt::create_group(device, file, "sequential_model");
         rlt::save(device, model, sequential_model_group);
     }
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_gradient_adam.h5", HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_gradient_adam_gradient_adam.h5", rl_tools::persist::backends::hdf5::Mode::READ);
         auto sequential_model_group = rlt::get_group(device, file, "sequential_model");
         rlt::load(device, model_loaded, sequential_model_group);
     }

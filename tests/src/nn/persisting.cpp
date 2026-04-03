@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 #include <rl_tools/operations/cpu.h>
 
@@ -40,7 +40,7 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     rlt::zero_gradient(device, network_2);
     rlt::increment(device, network_1.input_layer.weights.gradient_first_order_moment, 10, 2, 3);
     {
-        auto output_file = HighFive::File(std::string("test.hdf5"), HighFive::File::Overwrite);
+        auto output_file = rl_tools::persist::backends::hdf5::File(std::string("test.hdf5"), rl_tools::persist::backends::hdf5::Mode::WRITE);
         rlt::persist::backends::hdf5::Group<> group = {output_file.createGroup("three_layer_fc")};
         rlt::save(device, network_1, group);
     }
@@ -49,7 +49,7 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     ASSERT_GT(diff_pre_load, 10);
     std::cout << "diff_pre_load: " << diff_pre_load << std::endl;
     {
-        auto input_file = HighFive::File(std::string("test.hdf5"), HighFive::File::ReadOnly);
+        auto input_file = rl_tools::persist::backends::hdf5::File(std::string("test.hdf5"), rl_tools::persist::backends::hdf5::Mode::READ);
         auto three_layer_fc_group = rlt::get_group(device, input_file, "three_layer_fc");
         rlt::load(device, network_2, three_layer_fc_group);
     }

@@ -146,7 +146,7 @@ void test_loading(std::string DATA_FILE_NAME){
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
-    auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadOnly);
+    auto output_file = rl_tools::persist::backends::hdf5::File(std::string(DATA_FILE_PATH), rl_tools::persist::backends::hdf5::Mode::READ);
     for(auto epoch_group_name : output_file.listObjectNames()){
         auto epoch_group = output_file.getGroup(epoch_group_name);
         for(auto batch_group_name: epoch_group.listObjectNames()){

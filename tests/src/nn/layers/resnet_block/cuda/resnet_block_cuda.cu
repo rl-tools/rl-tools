@@ -40,7 +40,7 @@ void test_resnet_block_evaluate(const std::string& layer_idx, const std::string&
     DEVICE_CPU device_cpu; DEVICE_CUDA device_cuda; rlt::init(device_cuda);
     RNG_CPU rng_cpu; rlt::malloc(device_cpu, rng_cpu); rlt::init(device_cpu, rng_cpu, 0);
     const char *dp = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(dp) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(dp) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     auto tg = rlt::get_group(device_cpu, file, "test_data");
     auto mg = rlt::get_group(device_cpu, file, "model");
     auto lg = rlt::get_group(device_cpu, mg, "layers");
@@ -98,7 +98,7 @@ void test_resnet_block_forward(const std::string& layer_idx, const std::string& 
     DEVICE_CPU device_cpu; DEVICE_CUDA device_cuda; rlt::init(device_cuda);
     RNG_CPU rng_cpu; rlt::malloc(device_cpu, rng_cpu); rlt::init(device_cpu, rng_cpu, 0);
     const char *dp = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(dp) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(dp) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     auto tg = rlt::get_group(device_cpu, file, "test_data");
     auto mg = rlt::get_group(device_cpu, file, "model");
     auto lg = rlt::get_group(device_cpu, mg, "layers");
@@ -147,7 +147,7 @@ void test_resnet_block_backward(const std::string& layer_idx, const std::string&
     DEVICE_CPU device_cpu; DEVICE_CUDA device_cuda; rlt::init(device_cuda);
     RNG_CPU rng_cpu; rlt::malloc(device_cpu, rng_cpu); rlt::init(device_cpu, rng_cpu, 0);
     const char *dp = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(dp) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(dp) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     auto tg = rlt::get_group(device_cpu, file, "test_data");
     auto mg = rlt::get_group(device_cpu, file, "model");
     auto lg = rlt::get_group(device_cpu, mg, "layers");

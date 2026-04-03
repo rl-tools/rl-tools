@@ -11,7 +11,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <random>
 #include <chrono>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -85,7 +85,7 @@ int main(){
 
 
     {
-        auto data_file = HighFive::File(dataset_path, HighFive::File::ReadOnly);
+        auto data_file = rl_tools::persist::backends::hdf5::File(dataset_path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto train_group = rlt::get_group(device, data_file, "train");
         auto test_group = rlt::get_group(device, data_file, "test");
         rlt::load(device, x_train, train_group, "inputs");

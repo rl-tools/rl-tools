@@ -55,7 +55,7 @@ int main(){
     rlt::malloc(device, actor);
     rlt::malloc(device, actor_buffer);
 
-    auto actor_file = HighFive::File(checkpoint, HighFive::File::ReadOnly);
+    auto actor_file = rl_tools::persist::backends::hdf5::File(checkpoint, rl_tools::persist::backends::hdf5::Mode::READ);
     rlt::load(device, actor, actor_file.getGroup("actor"));
 
     for(TI repeat_i = 0; repeat_i < 2; repeat_i++){

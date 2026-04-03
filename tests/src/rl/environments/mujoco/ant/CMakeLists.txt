@@ -19,7 +19,7 @@ endif()
 
 if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_TENSORBOARD)
     add_executable(test_rl_environments_mujoco_ant_ppo_test training_ppo_test.cpp)
-    target_link_libraries(test_rl_environments_mujoco_ant_ppo_test PRIVATE RLtools::RLtools GTest::gtest_main HighFive tensorboard_logger mujoco)
+    target_link_libraries(test_rl_environments_mujoco_ant_ppo_test PRIVATE RLtools::RLtools GTest::gtest_main tensorboard_logger mujoco)
     gtest_discover_tests(test_rl_environments_mujoco_ant_ppo_test)
 endif()
 

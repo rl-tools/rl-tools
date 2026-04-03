@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
 
     // Load model weights
     std::cout << "Loading model from: " << model_path << std::endl;
-    auto file = HighFive::File(model_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(model_path, rl_tools::persist::backends::hdf5::Mode::READ);
     auto model_group = rlt::get_group(device, file, "model");
     bool load_success = rlt::load(device, model, model_group);
     if(!load_success) {

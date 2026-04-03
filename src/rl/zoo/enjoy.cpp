@@ -115,7 +115,7 @@ int main(int argc, char** argv){
     ACTOR actor;
     ACTOR::template Buffer<1> actor_buffer;
     rlt::malloc(device, actor);
-    auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::ReadOnly);
+    auto actor_file = rl_tools::persist::backends::hdf5::File(checkpoint_path.string(), rl_tools::persist::backends::hdf5::Mode::READ);
     rlt::load(device, actor, actor_file.getGroup("actor"));
     rlt::malloc(device, actor_buffer);
     evaluate(device, actor, actor_buffer, rng);

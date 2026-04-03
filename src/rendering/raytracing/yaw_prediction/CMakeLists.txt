@@ -19,7 +19,6 @@ target_link_libraries(rendering_raytracing_yaw_prediction_real_world_eval
     PRIVATE
         nlohmann_json::nlohmann_json
         rendering_raytracing_stb
-        HighFive
 )
 
 
@@ -31,7 +30,6 @@ target_include_directories(rendering_raytracing_yaw_prediction_dataset_overlay P
 target_link_libraries(rendering_raytracing_yaw_prediction_dataset_overlay
     PRIVATE
         nlohmann_json::nlohmann_json
-        HighFive
         ${OpenCV_LIBS}
 )
 endif()

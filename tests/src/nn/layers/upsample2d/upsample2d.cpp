@@ -50,7 +50,7 @@ void test_upsample2d_case(const std::string& test_case_name) {
     std::string data_file_path = std::string(data_path_stub) + "/upsample2d_test_data.h5";
     std::cout << "Loading test data from: " << data_file_path << std::endl;
 
-    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::READ);
     auto group = rlt::get_group(device, file, test_case_name);
 
     rlt::load(device, input, group, "input");
