@@ -198,6 +198,14 @@ namespace rl_tools::nn_models::parallel{
         using PARALLEL_SPEC = Specification<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD>;
         template <typename NEW_CAPABILITY>
         using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD>;
+        template <typename TI, TI BATCH_SIZE>
+        struct CHANGE_BATCH_SIZE_IMPL{
+            using NEW_INPUT_SHAPE_A = tensor::Replace<INPUT_SHAPE_A, BATCH_SIZE, 1>;
+            using NEW_INPUT_SHAPE_B = tensor::Replace<INPUT_SHAPE_B, BATCH_SIZE, 1>;
+            using CHANGE_BATCH_SIZE = Build<CAPABILITY, MODULE_A, MODULE_B, NEW_INPUT_SHAPE_A, NEW_INPUT_SHAPE_B, HEAD>;
+        };
+        template <typename TI, TI BATCH_SIZE>
+        using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
