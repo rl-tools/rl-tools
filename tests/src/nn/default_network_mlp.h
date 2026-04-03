@@ -37,7 +37,7 @@ protected:
         const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
         this->DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
-        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+        auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
         data_file.getDataSet("data/X_train").read(X_train);
         data_file.getDataSet("data/Y_train").read(Y_train);
         data_file.getDataSet("data/X_val").read(X_val);

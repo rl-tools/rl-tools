@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
 
     // Load HDF5 with Forward capability
     {
-        auto file = HighFive::File(std::string(argv[1]), HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(std::string(argv[1]), rl_tools::persist::backends::hdf5::Mode::READ);
         auto group = rlt::get_group(device, file, "model");
         if (!rlt::load(device, model_hdf5_fwd, group)) {
             fprintf(stderr, "Failed to load HDF5 model\n");

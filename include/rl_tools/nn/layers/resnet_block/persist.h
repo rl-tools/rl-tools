@@ -29,6 +29,7 @@ namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::resnet_block::LayerForward<SPEC>& layer, GROUP& group) {
         set_attribute(device, group, "type", "resnet_block");
+        write_attributes(device, group);
         auto conv1_group = create_group(device, group, "conv1");
         save(device, layer.conv1, conv1_group);
         auto conv2_group = create_group(device, group, "conv2");

@@ -5,7 +5,7 @@
 
 #include "../../../utils/utils.h"
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #define T double
 const T STATE_TOLERANCE = 1e-13;
@@ -23,7 +23,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
     DEVICE::SPEC::RANDOM::ENGINE<> rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
-    HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    rl_tools::persist::backends::hdf5::File file(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
     auto episodes_group = file.getGroup("episodes");
     for(TI episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){
         auto episode_group = episodes_group.getGroup(std::to_string(episode_i));

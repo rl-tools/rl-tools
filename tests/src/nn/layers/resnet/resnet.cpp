@@ -58,7 +58,7 @@ TEST(RESNET18, FULL_FORWARD) {
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/resnet18_test_data.h5";
     std::cout << "Loading test data from: " << data_file_path << std::endl;
-    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::READ);
 
     // Create and malloc model
     RESNET18 model;
@@ -124,7 +124,7 @@ TEST(RESNET18, STEM_CONV) {
 
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/resnet18_test_data.h5";
-    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::READ);
 
     // Create just the stem conv layer
     using STEM_CAPABILITY = rlt::nn::capability::Forward<>;
@@ -175,7 +175,7 @@ TEST(RESNET18, MAXPOOL) {
 
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/resnet18_test_data.h5";
-    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::READ);
 
     // MaxPool layer
     using STEM_OUTPUT_SHAPE = rlt::tensor::Shape<TI, 1, 112, 112, 64>;
@@ -221,7 +221,7 @@ void test_resnet_block(const std::string& layer_group_name, const std::string& e
 
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/resnet18_test_data.h5";
-    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::READ);
 
     using BLOCK_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, HEIGHT, WIDTH, IN_CHANNELS>;
     using BLOCK_CAPABILITY = rlt::nn::capability::Forward<>;
@@ -347,7 +347,7 @@ TEST(RESNET18, FULL_BACKWARD) {
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/resnet18_test_data.h5";
     std::cout << "Loading test data from: " << data_file_path << std::endl;
-    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::READ);
 
     // Create and malloc model with Gradient capability
     RESNET18_GRAD model;

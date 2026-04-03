@@ -81,7 +81,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
-    auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadOnly);
+    auto output_file = rl_tools::persist::backends::hdf5::File(std::string(DATA_FILE_PATH), rl_tools::persist::backends::hdf5::Mode::READ);
     for(auto epoch_group_name : output_file.listObjectNames()){
         auto epoch_group = output_file.getGroup(epoch_group_name);
         for(auto batch_group_name: epoch_group.listObjectNames()){
@@ -394,7 +394,7 @@ bool save_and_load_one_way(DEVICE& device){
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
-    auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
+    auto output_file = rl_tools::persist::backends::hdf5::File(std::string(DATA_FILE_PATH), rl_tools::persist::backends::hdf5::Mode::WRITE);
     auto group = rlt::create_group(device, output_file, "test");
     rlt::save(device, tensor, group, "tensor");
     rlt::Tensor<rlt::tensor::Specification<T2, TI, SHAPE>> tensor_loaded, diff;

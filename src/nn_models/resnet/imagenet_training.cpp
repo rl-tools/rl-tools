@@ -574,7 +574,7 @@ int main(int argc, char* argv[]) {
 
     if (!resume_path.empty()) {
         std::cout << "Resuming from: " << resume_path << std::endl;
-        auto file = HighFive::File(resume_path, HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(resume_path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto model_group = rlt::get_group(device, file, "model");
         if (!rlt::load(device, model, model_group)) {
             std::cerr << "Failed to load model from checkpoint" << std::endl;
@@ -713,7 +713,7 @@ int main(int argc, char* argv[]) {
         if ((epoch + 1) % TrainingConfig::CHECKPOINT_INTERVAL == 0 || epoch == TrainingConfig::NUM_EPOCHS - 1) {
             fs::create_directories(checkpoint_dir);
             std::string ckpt_path = checkpoint_dir + "/resnet18_epoch_" + std::to_string(epoch) + ".h5";
-            auto file = HighFive::File(ckpt_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+            auto file = rl_tools::persist::backends::hdf5::File(ckpt_path, rl_tools::persist::backends::hdf5::Mode::WRITE);
             auto model_group = rlt::create_group(device, file, "model");
             rlt::save(device, model, model_group);
             std::cout << "  Checkpoint: " << ckpt_path << std::endl;

@@ -169,7 +169,7 @@ int main(){
     rlt::malloc(device, actor_state);
     rlt::malloc(device, buffer);
 
-    HighFive::File file(latest_checkpoint, HighFive::File::ReadOnly);
+    rl_tools::persist::backends::hdf5::File file(latest_checkpoint, rl_tools::persist::backends::hdf5::Mode::READ);
 
     rlt::load(device, actor, file.getGroup("actor"));
 

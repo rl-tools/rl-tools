@@ -17,7 +17,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../../../utils/nn_comparison_mlp.h"
 
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 std::string get_data_file_path(){
     std::string DATA_FILE_NAME = "model_first_stage.hdf5";
@@ -38,12 +38,13 @@ ENVIRONMENT env;
 
 template <typename T>
 struct Dataset{
-    Dataset(HighFive::Group g){
-        g.getDataSet("states").read(states);
-        g.getDataSet("actions").read(actions);
-        g.getDataSet("next_states").read(next_states);
-        g.getDataSet("rewards").read(rewards);
-        g.getDataSet("terminated").read(terminated);
+    template <typename GROUP_SPEC>
+    Dataset(rl_tools::persist::backends::hdf5::Group<GROUP_SPEC>& g){
+        rl_tools::persist::backends::hdf5::read_dataset(g, "states", states);
+        rl_tools::persist::backends::hdf5::read_dataset(g, "actions", actions);
+        rl_tools::persist::backends::hdf5::read_dataset(g, "next_states", next_states);
+        rl_tools::persist::backends::hdf5::read_dataset(g, "rewards", rewards);
+        rl_tools::persist::backends::hdf5::read_dataset(g, "terminated", terminated);
     };
     std::vector<std::vector<T>> states;
     std::vector<std::vector<T>> actions;
@@ -60,14 +61,14 @@ void load_dataset(DEVICE& device, GROUP& g, RB& rb){
     auto rT = rlt::view_transpose(device, rb.rewards);
     rlt::load(device, rT, g, "rewards");
     std::vector<std::vector<typename RB::T>> terminated_matrix;
-    g.group.getDataSet("terminated").read(terminated_matrix);
+    rl_tools::persist::backends::hdf5::read_dataset(g, "terminated", terminated_matrix);
     assert(terminated_matrix.size() == 1);
     auto terminated = terminated_matrix[0];
     for(TI i = 0; i < terminated.size(); i++){
         rlt::set(rb.terminated, i, 0, terminated[i] == 1);
     }
     std::vector<std::vector<typename RB::T>> truncated_matrix;
-    g.group.getDataSet("truncated").read(truncated_matrix);
+    rl_tools::persist::backends::hdf5::read_dataset(g, "truncated", truncated_matrix);
     assert(truncated_matrix.size() == 1);
     auto truncated = truncated_matrix[0];
     for(TI i = 0; i < truncated.size(); i++){
@@ -82,12 +83,12 @@ void load_dataset(DEVICE& device, GROUP& g, RB& rb){
 //    g.getDataSet("truncated").read(truncated);
 }
 
-template <typename SPEC>
-typename SPEC::T assign(const HighFive::Group g, rlt::nn::layers::dense::LayerForward<SPEC>& layer){
+template <typename SPEC, typename GROUP_SPEC>
+typename SPEC::T assign(rl_tools::persist::backends::hdf5::Group<GROUP_SPEC>& g, rlt::nn::layers::dense::LayerForward<SPEC>& layer){
     std::vector<std::vector<typename SPEC::T>> weights;
     std::vector<typename SPEC::T> biases;
-    g.getDataSet("weight").read(weights);
-    g.getDataSet("bias").read(biases);
+    rl_tools::persist::backends::hdf5::read_dataset(g, "weight", weights);
+    rl_tools::persist::backends::hdf5::read_dataset(g, "bias", biases);
     for(TI i = 0; i < SPEC::OUTPUT_DIM; i++){
         for(TI j = 0; j < SPEC::INPUT_DIM; j++){
             layer.weights[i][j] = weights[i][j];
@@ -95,11 +96,15 @@ typename SPEC::T assign(const HighFive::Group g, rlt::nn::layers::dense::LayerFo
         layer.biases[i] = biases[i];
     }
 }
-template <typename NT>
-void assign_network(NT& network, const HighFive::Group g){
-    assign(g.getGroup("0"), network.layer_1);
-    assign(g.getGroup("1"), network.layer_2);
-    assign(g.getGroup("2"), network.output_layer);
+template <typename NT, typename GROUP_SPEC>
+void assign_network(NT& network, rl_tools::persist::backends::hdf5::Group<GROUP_SPEC>& g){
+    DEVICE device;
+    auto g0 = rlt::get_group(device, g, "0");
+    auto g1 = rlt::get_group(device, g, "1");
+    auto g2 = rlt::get_group(device, g, "2");
+    assign(g0, network.layer_1);
+    assign(g1, network.layer_2);
+    assign(g2, network.output_layer);
 }
 
 using AC_DEVICE = rlt::devices::DefaultCPU;
@@ -141,11 +146,13 @@ namespace first_stage_first_stage{
     using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
 
-template <typename T, typename NT>
-T abs_diff_network(const NT network, const HighFive::Group g){
+template <typename T, typename NT, typename GROUP_SPEC>
+T abs_diff_network(const NT network, rl_tools::persist::backends::hdf5::Group<GROUP_SPEC>& g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
-    g.getDataSet("0/weight").read(weights);
+    DEVICE device;
+    auto g0 = rlt::get_group(device, g, "0");
+    rl_tools::persist::backends::hdf5::read_dataset(g0, "weight", weights);
     acc += abs_diff_matrix<T, NT::SPEC::LAYER_1::OUTPUT_DIM, NT::SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
     return acc;
 }
@@ -164,7 +171,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     rlt::init(device, actor_critic, rng);
-    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(get_data_file_path(), rl_tools::persist::backends::hdf5::Mode::READ);
     first_stage_first_stage::CRITIC_LOADER_TYPE critic_temp;
     rlt::malloc(device, critic_temp);
     auto critic_group1 = rlt::get_group(device, data_file, "critic_1");
@@ -174,10 +181,14 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     rlt::load(device, actor_critic.critics_target[0], critic_target_group1);
     rlt::free(device, critic_temp);
 
-    Dataset<T> batch(data_file.getGroup("batch"));
+    auto batch_data_group = rlt::get_group(device, data_file, "batch");
+    Dataset<T> batch(batch_data_group);
 
     std::vector<std::vector<T>> outputs;
-    data_file.getDataSet("batch_output").read(outputs);
+    {
+        rl_tools::persist::backends::hdf5::Group<> root{data_file.id};
+        rl_tools::persist::backends::hdf5::read_dataset(root, "batch_output", outputs);
+    }
 
     for(TI batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
         rlt::Matrix<rlt::matrix::Specification<T, DEVICE::index_t, 1, rlt::get_last(first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_SHAPE{})>> input;
@@ -242,7 +253,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     rlt::init(device, actor_critic, rng);
     rlt::init(device, optimizer);
 
-    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(get_data_file_path(), rl_tools::persist::backends::hdf5::Mode::READ);
     first_stage_first_stage::CRITIC_LOADER_TYPE critic_temp;
     rlt::malloc(device, critic_temp);
     auto critic_group1 = rlt::get_group(device, data_file, "critic_1");
@@ -252,7 +263,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     rlt::load(device, actor_critic.critics_target[0], critic_target_group1);
     rlt::free(device, critic_temp);
 
-    Dataset<T> batch(data_file.getGroup("batch"));
+    auto batch_data_group2 = rlt::get_group(device, data_file, "batch");
+    Dataset<T> batch(batch_data_group2);
     assert(batch.states.size() == 32);
 
     T loss = 0;
@@ -380,7 +392,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     rlt::get_ref(device, actor_critic.critic_optimizers[0].parameters, 0).epsilon_sqrt = 0;
     rlt::get_ref(device, actor_critic.critic_optimizers[1].parameters, 0).epsilon_sqrt = 0;
 
-    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(get_data_file_path(), rl_tools::persist::backends::hdf5::Mode::READ);
     first_stage_second_stage::ACTOR_LOADER_TYPE actor_temp;
     first_stage_second_stage::CRITIC_LOADER_TYPE critic_temp;
     rlt::malloc(device, actor_temp);
@@ -449,7 +461,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     T mean_ratio_grad = 0;
     T mean_ratio_adam = 0;
     auto critic_training_group = rlt::get_group(device, data_file, "critic_training");
-    TI num_updates = critic_training_group.group.getNumberObjects();
+    hsize_t num_updates_h;
+    H5Gget_num_objs(critic_training_group.id, &num_updates_h);
+    TI num_updates = static_cast<TI>(num_updates_h);
     for(TI training_step_i = 0; training_step_i < num_updates; training_step_i++){
         auto step_group = rlt::get_group(device, critic_training_group, std::to_string(training_step_i));
         auto next_actions_matrix_view = rlt::matrix_view(device, critic_training_buffers_target.next_actions);
@@ -474,7 +488,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         rlt::free(device, post_critic_temp);
 
         std::vector<std::vector<T>> target_next_action_noise_vector;
-        step_group.group.getDataSet("target_next_action_noise").read(target_next_action_noise_vector);
+        rl_tools::persist::backends::hdf5::read_dataset(step_group, "target_next_action_noise", target_next_action_noise_vector);
 
 
         for(TI i = 0; i < first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; i++){
@@ -595,7 +609,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     rlt::get_ref(device, actor_critic.critic_optimizers[0].parameters, 0).epsilon_sqrt = 0;
     rlt::get_ref(device, actor_critic.critic_optimizers[1].parameters, 0).epsilon_sqrt = 0;
 
-    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(get_data_file_path(), rl_tools::persist::backends::hdf5::Mode::READ);
     first_stage_second_stage::ACTOR_LOADER_TYPE actor_temp;
     first_stage_second_stage::CRITIC_LOADER_TYPE critic_temp;
     rlt::malloc(device, actor_temp);
@@ -655,7 +669,13 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     T mean_ratio = 0;
     T mean_ratio_grad = 0;
     T mean_ratio_adam = 0;
-    TI num_updates = data_file.getGroup("actor_training").getNumberObjects();
+    TI num_updates;
+    {
+        auto actor_training_group = rlt::get_group(device, data_file, "actor_training");
+        hsize_t num_updates_h;
+        H5Gget_num_objs(actor_training_group.id, &num_updates_h);
+        num_updates = static_cast<TI>(num_updates_h);
+    }
     for(TI training_step_i = 0; training_step_i < num_updates; training_step_i++){
         decltype(actor_critic.actor) post_actor;
         first_stage_second_stage::ACTOR_LOADER_TYPE post_actor_temp;

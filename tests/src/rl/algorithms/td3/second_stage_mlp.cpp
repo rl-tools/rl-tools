@@ -28,7 +28,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #endif
 
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 
 std::string get_data_file_path(){
@@ -110,7 +110,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
 
     rlt::rl::environments::DummyUI ui;
 
-    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(get_data_file_path(), rl_tools::persist::backends::hdf5::Mode::READ);
     TI step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
     // assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
@@ -219,7 +219,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 
 
-    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(get_data_file_path(), rl_tools::persist::backends::hdf5::Mode::READ);
     ACTOR_LOADER_TYPE actor_loader;
     CRITIC_LOADER_TYPE critic_loader;
     rlt::malloc(device, actor_loader);

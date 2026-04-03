@@ -76,7 +76,7 @@ TEST(NN_LAYERS_RESNET_CUDA, FORWARD_COMPARISON){
     rlt::malloc(device_cpu, buffer_cpu);
 
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(data_path_stub) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(data_path_stub) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     auto model_group = rlt::get_group(device_cpu, file, "model");
     ASSERT_TRUE(rlt::load(device_cpu, model_cpu, model_group));
 
@@ -231,7 +231,7 @@ TEST(NN_LAYERS_RESNET_CUDA, FULL_BACKWARD){
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/resnet18_test_data.h5";
     std::cout << "Loading test data from: " << data_file_path << std::endl;
-    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::READ);
 
     // Create CPU model with Gradient capability (for loading weights and comparing results)
     RESNET18_GRAD_CPU model_cpu;
@@ -393,7 +393,7 @@ TEST(NN_LAYERS_RESNET_CUDA, BACKWARD_CPU_VS_CUDA){
 
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/resnet18_test_data.h5";
-    auto file = HighFive::File(data_file_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::READ);
 
     // CPU model
     RESNET18_GRAD_CPU model_cpu;
