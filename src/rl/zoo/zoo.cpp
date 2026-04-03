@@ -457,7 +457,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #if defined(RL_TOOLS_ENABLE_HDF5) && defined(RL_TOOLS_RL_ZOO_ALGORITHMS_PPO)
         if(!loop_state_path.empty()){
             std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-            auto file = HighFive::File(loop_state_path, HighFive::File::ReadOnly);
+            auto file = rl_tools::persist::backends::hdf5::File(loop_state_path, rl_tools::persist::backends::hdf5::Mode::READ);
             auto group = rlt::get_group(device, file, "loop_state");
             auto prev_extrack_config = ts.extrack_config;
             auto prev_extrack_paths = ts.extrack_paths;
@@ -486,11 +486,11 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
                 auto step_folder = rlt::get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
                 std::string checkpoint_path = step_folder / "loop_state.h5";
                 std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-                auto file = HighFive::File(checkpoint_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+                auto file = rl_tools::persist::backends::hdf5::File(checkpoint_path, rl_tools::persist::backends::hdf5::Mode::WRITE);
                 auto group = rlt::create_group(device, file, "loop_state");
                 rlt::save(device, ts, group);
                 // { // load for testing
-                //     auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
+                //     auto file = rl_tools::persist::backends::hdf5::File(checkpoint_path, rl_tools::persist::backends::hdf5::Mode::READ);
                 //     auto group = rlt::get_group(device, file, "loop_state");
                 //     bool success = rlt::load(device, ts_loaded, group);
                 //     if(!success){
@@ -605,7 +605,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 #endif
 // #if defined(RL_TOOLS_EXPERIMENTAL) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC) && defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 //         {
-//             HighFive::File replay_buffer_file("replay_buffer.h5", HighFive::File::Overwrite);
+//             rl_tools::persist::backends::hdf5::File replay_buffer_file("replay_buffer.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
 //             for (TI rb_i = 0; rb_i < decltype(ts.off_policy_runner)::SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++){
 //                 auto& rb = rlt::get(ts.off_policy_runner.replay_buffers, 0, rb_i);
 //                 auto group = replay_buffer_file.createGroup(std::to_string(rb_i));

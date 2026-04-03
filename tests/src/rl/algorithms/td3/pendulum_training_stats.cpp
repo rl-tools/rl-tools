@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #pragma push_macro("slots")
 #undef slots
 #include "matplotlib/matplotlibcpp.h"
@@ -124,9 +124,27 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
     plt::close();
 
     std::string training_stats_file = training_stats_dir + "/td3_pendulum_training_stats.h5";
-    HighFive::File file(training_stats_file, HighFive::File::Overwrite);
-    HighFive::DataSet dataset = file.createDataSet<typename DEVICE::index_t>("mean_returns_steps", HighFive::DataSpace::From(mean_returns_steps));
-    dataset.write(mean_returns_steps);
-    dataset = file.createDataSet<DTYPE>("mean_returns", HighFive::DataSpace::From(mean_returns));
-    dataset.write(mean_returns);
+    auto file = rl_tools::persist::backends::hdf5::File(training_stats_file, rl_tools::persist::backends::hdf5::Mode::WRITE);
+    {
+        hsize_t dims = mean_returns_steps.size();
+        hid_t space = H5Screate_simple(1, &dims, nullptr);
+        hid_t ds = H5Dcreate2(file.id, "mean_returns_steps", H5T_NATIVE_HSIZE, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        H5Dwrite(ds, H5T_NATIVE_HSIZE, H5S_ALL, H5S_ALL, H5P_DEFAULT, mean_returns_steps.data());
+        H5Dclose(ds);
+        H5Sclose(space);
+    }
+    {
+        hsize_t dims[2] = {(hsize_t)mean_returns.size(), (hsize_t)mean_returns[0].size()};
+        hid_t space = H5Screate_simple(2, dims, nullptr);
+        hid_t ds = H5Dcreate2(file.id, "mean_returns", H5T_NATIVE_FLOAT, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        std::vector<DTYPE> flat(dims[0] * dims[1]);
+        for(hsize_t i = 0; i < dims[0]; i++){
+            for(hsize_t j = 0; j < dims[1]; j++){
+                flat[i * dims[1] + j] = mean_returns[i][j];
+            }
+        }
+        H5Dwrite(ds, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, flat.data());
+        H5Dclose(ds);
+        H5Sclose(space);
+    }
 }

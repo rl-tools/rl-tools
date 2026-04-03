@@ -41,7 +41,7 @@ TEST(NN_LAYERS_DENSE_CUDA, EVALUATE) {
     DEVICE_CPU device_cpu; DEVICE_CUDA device_cuda; rlt::init(device_cuda);
     RNG_CPU rng_cpu; rlt::malloc(device_cpu, rng_cpu); rlt::init(device_cpu, rng_cpu, 0);
     const char *dp = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(dp) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(dp) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     FC_FWD_CPU lc; typename FC_FWD_CPU::template Buffer<true> bc;
     rlt::malloc(device_cpu, lc); rlt::malloc(device_cpu, bc);
     auto mg = rlt::get_group(device_cpu, file, "model");
@@ -86,7 +86,7 @@ TEST(NN_LAYERS_DENSE_CUDA, FORWARD) {
     DEVICE_CPU device_cpu; DEVICE_CUDA device_cuda; rlt::init(device_cuda);
     RNG_CPU rng_cpu; rlt::malloc(device_cpu, rng_cpu); rlt::init(device_cpu, rng_cpu, 0);
     const char *dp = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(dp) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(dp) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     FC_GRAD_CPU lc; typename FC_GRAD_CPU::template Buffer<true> bc;
     rlt::malloc(device_cpu, lc); rlt::malloc(device_cpu, bc);
     auto mg = rlt::get_group(device_cpu, file, "model");
@@ -123,7 +123,7 @@ TEST(NN_LAYERS_DENSE_CUDA, BACKWARD) {
     DEVICE_CPU device_cpu; DEVICE_CUDA device_cuda; rlt::init(device_cuda);
     RNG_CPU rng_cpu; rlt::malloc(device_cpu, rng_cpu); rlt::init(device_cpu, rng_cpu, 0);
     const char *dp = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(dp) + "/resnet18_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(dp) + "/resnet18_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     FC_GRAD_CPU lc; typename FC_GRAD_CPU::template Buffer<true> bc;
     rlt::malloc(device_cpu, lc); rlt::malloc(device_cpu, bc);
     auto mg = rlt::get_group(device_cpu, file, "model");

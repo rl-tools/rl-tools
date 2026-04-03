@@ -137,8 +137,8 @@ namespace rl_tools{
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
             std::lock_guard<std::mutex> lock(persist::backends::hdf5::global_mutex());
             std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.h5";
-            auto root_group = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
-            auto actor_group = create_group(device, root_group, "actor");
+            persist::backends::hdf5::File root_file(checkpoint_path.string(), persist::backends::hdf5::Mode::WRITE);
+            auto actor_group = create_group(device, root_file, "actor");
 #else
             std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.tar";
             persist::backends::tar::Writer writer;
@@ -164,7 +164,11 @@ namespace rl_tools{
                     randn(device, input, rng);
                     Mode<mode::Evaluation<>> mode;
                     evaluate(device, actor, input, output, actor_buffer, rng, mode);
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+                    auto example_group = create_group(device, root_file, "example");
+#else
                     auto example_group = create_group(device, root_group, "example");
+#endif
                     save(device, input, example_group, "input");
                     save(device, output, example_group, "output");
                     free(device, input);
@@ -178,11 +182,7 @@ namespace rl_tools{
                 actor_file.close();
 #endif
             }
-#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-            catch(HighFive::Exception& e){
-#else
             catch(std::exception& e){
-#endif
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
             rl::loop::steps::checkpoint::save_code<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, step_folder, evaluation_actor, rng);

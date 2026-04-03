@@ -32,7 +32,7 @@ TEST(TEST_PERSIST_BACKENDS_HDF5_HDF5, test) {
     std::string data_file_name = "test_persist_backends_hdf5.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string data_file_path = std::string(data_path_stub) + "/" + data_file_name;
-    auto output_file = HighFive::File(data_file_path, HighFive::File::Overwrite);
+    auto output_file = rl_tools::persist::backends::hdf5::File(data_file_path, rl_tools::persist::backends::hdf5::Mode::WRITE);
     rlt::persist::backends::hdf5::Group<rlt::persist::backends::hdf5::GroupSpecification<>> group{output_file.createGroup("test")};
     rlt::save(device, A, group, "A");
 

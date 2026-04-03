@@ -10,7 +10,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <iostream>
 
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 namespace TEST_DEFINITIONS{
     using DEVICE = rlt::devices::DefaultCPU;
@@ -130,7 +130,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     std::string DATA_FILE_NAME = "tests_rl_environments_mujoco_ant_data.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
     std::vector<std::vector<T>> observations, next_observations, states, next_states, actions;
     std::vector<T> rewards;
     std::vector<T> terminated_flags;

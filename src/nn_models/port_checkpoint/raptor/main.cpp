@@ -177,7 +177,7 @@ int main(){
     }
 
 #ifdef RL_TOOLS_ENABLE_HDF5
-    auto actor_file = HighFive::File(this_dir / "policy.h5", HighFive::File::Overwrite);
+    auto actor_file = rl_tools::persist::backends::hdf5::File(this_dir / "policy.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
     write_checkpoint(actor_file);
 #endif
 

@@ -15,7 +15,7 @@
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/parallel/persist.h>
 
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 #include <iostream>
 #include <string>
@@ -29,7 +29,7 @@ using TI = typename DEVICE::index_t;
 
 template <typename DEVICE_T, typename MODEL, typename INPUT_SPEC, typename OUTPUT_SPEC>
 void save_single_input_fixture(DEVICE_T& device, MODEL& model, rlt::Tensor<INPUT_SPEC>& input, rlt::Tensor<OUTPUT_SPEC>& output, const std::string& path){
-    auto file = HighFive::File(path, HighFive::File::Overwrite);
+    auto file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::WRITE);
     auto actor_group = rlt::create_group(device, file, "actor");
     rlt::save(device, model, actor_group);
     auto example_group = rlt::create_group(device, file, "example");
@@ -176,7 +176,7 @@ void generate_parallel(DEVICE& device, const std::string& output_dir){
     rlt::randn(device, input_b, rng);
     rlt::evaluate(device, model, input_a, input_b, output, buffer, rng);
 
-    auto file = HighFive::File(output_dir + "/rltools_js_parallel.h5", HighFive::File::Overwrite);
+    auto file = rl_tools::persist::backends::hdf5::File(output_dir + "/rltools_js_parallel.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
     auto actor_group = rlt::create_group(device, file, "actor");
     rlt::save(device, model, actor_group);
     auto example_group = rlt::create_group(device, file, "example");

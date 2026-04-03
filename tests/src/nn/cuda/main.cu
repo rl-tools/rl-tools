@@ -32,7 +32,7 @@ constexpr bool test_first_layer = true;
 
 #include <random>
 #include <chrono>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 #ifdef RL_TOOLS_TESTS_NN_CUDA_ENABLE_CUTLASS
 #include "cutlass/gemm/device/gemm.h"

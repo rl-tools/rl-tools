@@ -3,7 +3,7 @@
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
@@ -29,7 +29,7 @@ void test(){
 //    auto last_part = rlt::view(device, data, rlt::matrix::ViewSpec<ROWS / 2, COLS>{}, ROWS/2, 0);
 //    rlt::increment_all(device, last_part, 10);
     {
-        auto file = HighFive::File("running_normalizer.h5", HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File("running_normalizer.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
         rlt::save(device, data, file.createGroup("data"), "data");
     }
     for(TI batch_start = 0; batch_start < ROWS; batch_start += BATCH_SIZE){

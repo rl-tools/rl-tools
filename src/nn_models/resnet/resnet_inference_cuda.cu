@@ -111,7 +111,7 @@ int main(int argc, char* argv[]){
     rlt::malloc(device_cpu, model_cpu);
 
     std::cout << "Loading model from: " << model_path << std::endl;
-    auto file = HighFive::File(model_path, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(model_path, rl_tools::persist::backends::hdf5::Mode::READ);
     auto model_group = rlt::get_group(device_cpu, file, "model");
     if(!rlt::load(device_cpu, model_cpu, model_group)){
         std::cerr << "Error: Failed to load model weights" << std::endl;

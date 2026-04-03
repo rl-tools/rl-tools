@@ -113,7 +113,7 @@ YawPredictorHandle* yaw_predictor_create(const char* model_path) {
     } else {
 #ifdef RL_TOOLS_ENABLE_HDF5
         try {
-            auto file = HighFive::File(std::string(model_path), HighFive::File::ReadOnly);
+            auto file = rl_tools::persist::backends::hdf5::File(std::string(model_path), rl_tools::persist::backends::hdf5::Mode::READ);
             auto model_group = rlt::get_group(handle->device, file, "model");
             success = rlt::load(handle->device, handle->model, model_group);
         } catch (const std::exception& e) {

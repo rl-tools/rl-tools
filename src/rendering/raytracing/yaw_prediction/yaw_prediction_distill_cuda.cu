@@ -463,7 +463,7 @@ int main(int argc, char** argv) {
     TEACHER_CPU_MODEL_GRAD teacher_cpu_grad;
     rlt::malloc(device_cpu, teacher_cpu_grad);
     {
-        auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(checkpoint_path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto mg = rlt::get_group(device_cpu, file, "model");
         const bool success = rlt::load(device_cpu, teacher_cpu_grad, mg);
         if (!success) {
@@ -770,7 +770,7 @@ int main(int argc, char** argv) {
             rlt::copy(device_cuda, device_cpu, student_head, student_head_cpu);
             rlt::copy(device_cpu, device_cpu, student_head_cpu, student_head_cpu_inference);
             auto step_folder = rlt::get_step_folder(device_cpu, extrack_config, extrack_paths, iteration);
-            auto file = HighFive::File((step_folder / "checkpoint.h5").string(), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+            auto file = rl_tools::persist::backends::hdf5::File((step_folder / "checkpoint.h5").string(), rl_tools::persist::backends::hdf5::Mode::WRITE);
             auto mg = rlt::create_group(device_cpu, file, "student");
             rlt::save(device_cpu, student_cpu_inference, mg);
             auto mg_head = rlt::create_group(device_cpu, file, "student_head");

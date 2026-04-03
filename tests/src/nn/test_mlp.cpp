@@ -14,7 +14,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <vector>
 #include <filesystem>
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 #include "default_network_mlp.h"
 #include <rl_tools/nn_models/persist.h>
@@ -32,17 +32,18 @@ constexpr TI N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LA
 
 using NetworkType_1 = NetworkType;
 
-template <typename DEVICE, typename T, typename NT>
-T abs_diff_network(DEVICE& device, const NT network, const HighFive::Group g){
+template <typename DEVICE, typename T, typename NT, typename GROUP_SPEC>
+T abs_diff_network(DEVICE& device, const NT network, rl_tools::persist::backends::hdf5::Group<GROUP_SPEC>& g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
-    g.getDataSet("input_layer/weight").read(weights);
+    auto input_layer_group = rlt::get_group(device, g, "input_layer");
+    rl_tools::persist::backends::hdf5::read_dataset(input_layer_group, "weight", weights);
     acc += abs_diff_matrix(matrix_view(device, network.input_layer.weights.parameters), weights);
     return acc;
 }
 
 //template <typename DEVICE, typename SPEC>
-//typename SPEC::T abs_diff_network(const rlt::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> network, const HighFive::Group g){
+//typename SPEC::T abs_diff_network(const rlt::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> network, rl_tools::persist::backends::hdf5::Group<>& g){
 //    using T = typename SPEC::T;
 //    T acc = 0;
 //    std::vector<std::vector<T>> weights;
@@ -58,13 +59,17 @@ protected:
         model_name = "model_1";
         rlt::malloc(device, network);
         rlt::malloc(device, network_buffers);
-        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet("model_1/gradients/0/input_layer/weight").read(batch_0_input_layer_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/input_layer/bias").read(batch_0_input_layer_biases_grad);
-        data_file.getDataSet("model_1/gradients/0/hidden_layers/0/weight").read(batch_0_hidden_layer_0_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/hidden_layers/0/bias").read(batch_0_hidden_layer_0_biases_grad);
-        data_file.getDataSet("model_1/gradients/0/output_layer/weight").read(batch_0_output_layer_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/output_layer/bias").read(batch_0_output_layer_biases_grad);
+        auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
+        auto grad_group = rlt::get_group(device, data_file, "model_1/gradients/0");
+        auto grad_input_layer_group = rlt::get_group(device, grad_group, "input_layer");
+        rl_tools::persist::backends::hdf5::read_dataset(grad_input_layer_group, "weight", batch_0_input_layer_weights_grad);
+        rl_tools::persist::backends::hdf5::read_dataset(grad_input_layer_group, "bias", batch_0_input_layer_biases_grad);
+        auto grad_hidden_layer_0_group = rlt::get_group(device, grad_group, "hidden_layers/0");
+        rl_tools::persist::backends::hdf5::read_dataset(grad_hidden_layer_0_group, "weight", batch_0_hidden_layer_0_weights_grad);
+        rl_tools::persist::backends::hdf5::read_dataset(grad_hidden_layer_0_group, "bias", batch_0_hidden_layer_0_biases_grad);
+        auto grad_output_layer_group = rlt::get_group(device, grad_group, "output_layer");
+        rl_tools::persist::backends::hdf5::read_dataset(grad_output_layer_group, "weight", batch_0_output_layer_weights_grad);
+        rl_tools::persist::backends::hdf5::read_dataset(grad_output_layer_group, "bias", batch_0_output_layer_biases_grad);
         this->reset();
         DTYPE input[INPUT_DIM];
         DTYPE output[OUTPUT_DIM];
@@ -92,15 +97,19 @@ protected:
     }
     void reset(){
 
-        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet(model_name + "/init/input_layer/weight").read(input_layer_weights);
-        data_file.getDataSet(model_name + "/init/input_layer/bias").read(input_layer_biases);
-        data_file.getDataSet(model_name + "/init/hidden_layers/0/weight").read(hidden_layer_0_weights);
-        data_file.getDataSet(model_name + "/init/hidden_layers/0/bias").read(hidden_layer_0_biases);
-        data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
-        data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
+        auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
         auto model_group = rlt::get_group(device, data_file, model_name);
         auto init_group = rlt::get_group(device, model_group, "init");
+        auto init_input_layer_group = rlt::get_group(device, init_group, "input_layer");
+        rl_tools::persist::backends::hdf5::read_dataset(init_input_layer_group, "weight", input_layer_weights);
+        rl_tools::persist::backends::hdf5::read_dataset(init_input_layer_group, "bias", input_layer_biases);
+        auto init_hidden_layers_group = rlt::get_group(device, init_group, "hidden_layers");
+        auto init_hidden_layer_0_group = rlt::get_group(device, init_hidden_layers_group, "0");
+        rl_tools::persist::backends::hdf5::read_dataset(init_hidden_layer_0_group, "weight", hidden_layer_0_weights);
+        rl_tools::persist::backends::hdf5::read_dataset(init_hidden_layer_0_group, "bias", hidden_layer_0_biases);
+        auto init_output_layer_group = rlt::get_group(device, init_group, "output_layer");
+        rl_tools::persist::backends::hdf5::read_dataset(init_output_layer_group, "weight", output_layer_weights);
+        rl_tools::persist::backends::hdf5::read_dataset(init_output_layer_group, "bias", output_layer_biases);
         auto input_layer_group = rlt::get_group(device, init_group, "input_layer");
         auto hidden_layer_group = rlt::get_group(device, init_group, "hidden_layers");
         auto hidden_layer_0_group = rlt::get_group(device, hidden_layer_group, "0");
@@ -195,19 +204,23 @@ TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
 //    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
     using TI = typename DEVICE::index_t;
 
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
     std::vector<std::vector<DTYPE>> batch_0_input_layer_weights;
     std::vector<DTYPE> batch_0_input_layer_biases;
     std::vector<std::vector<DTYPE>> batch_0_hidden_layer_0_weights;
     std::vector<DTYPE> batch_0_hidden_layer_0_biases;
     std::vector<std::vector<DTYPE>> batch_0_output_layer_weights;
     std::vector<DTYPE> batch_0_output_layer_biases;
-    data_file.getDataSet("model_1/weights/0/input_layer/weight").read(batch_0_input_layer_weights);
-    data_file.getDataSet("model_1/weights/0/input_layer/bias").read(batch_0_input_layer_biases);
-    data_file.getDataSet("model_1/weights/0/hidden_layers/0/weight").read(batch_0_hidden_layer_0_weights);
-    data_file.getDataSet("model_1/weights/0/hidden_layers/0/bias").read(batch_0_hidden_layer_0_biases);
-    data_file.getDataSet("model_1/weights/0/output_layer/weight").read(batch_0_output_layer_weights);
-    data_file.getDataSet("model_1/weights/0/output_layer/bias").read(batch_0_output_layer_biases);
+    auto weights_group = rlt::get_group(device, data_file, "model_1/weights/0");
+    auto w_input_layer_group = rlt::get_group(device, weights_group, "input_layer");
+    rl_tools::persist::backends::hdf5::read_dataset(w_input_layer_group, "weight", batch_0_input_layer_weights);
+    rl_tools::persist::backends::hdf5::read_dataset(w_input_layer_group, "bias", batch_0_input_layer_biases);
+    auto w_hidden_layer_0_group = rlt::get_group(device, weights_group, "hidden_layers/0");
+    rl_tools::persist::backends::hdf5::read_dataset(w_hidden_layer_0_group, "weight", batch_0_hidden_layer_0_weights);
+    rl_tools::persist::backends::hdf5::read_dataset(w_hidden_layer_0_group, "bias", batch_0_hidden_layer_0_biases);
+    auto w_output_layer_group = rlt::get_group(device, weights_group, "output_layer");
+    rl_tools::persist::backends::hdf5::read_dataset(w_output_layer_group, "weight", batch_0_output_layer_weights);
+    rl_tools::persist::backends::hdf5::read_dataset(w_output_layer_group, "bias", batch_0_output_layer_biases);
     DTYPE input[INPUT_DIM];
     DTYPE output[OUTPUT_DIM];
     standardise<DTYPE, TI, INPUT_DIM>(&X_train[0][0], &X_mean[0], &X_std[0], input);
@@ -287,8 +300,8 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     rlt::init(device, optimizer);
     rlt::get_ref(device, optimizer.parameters, 0).epsilon_sqrt = 0;
 
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-    HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");
+    auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
+    auto g = rlt::get_group(device, data_file, "model_2/overfit_small_batch");
 
     using TI = typename DEVICE::index_t;
 
@@ -297,7 +310,8 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     DTYPE loss = 0;
     rlt::reset_optimizer_state(device, optimizer, network);
     {
-        DTYPE diff = abs_diff_network<DEVICE, DTYPE>(device, network, data_file.getGroup(model_name+"/init"));
+        auto init_grp = rlt::get_group(device, data_file, model_name+"/init");
+        DTYPE diff = abs_diff_network<DEVICE, DTYPE>(device, network, init_grp);
         std::cout << "initial diff: " << diff << std::endl;
         ASSERT_EQ(diff, 0);
     }
@@ -336,7 +350,8 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 //        if(batch_i == comp_batch){
         std::stringstream ss;
         ss << "model_2/overfit_small_batch/" << batch_i;
-        DTYPE diff = abs_diff_network<DEVICE, DTYPE>(device, network, data_file.getGroup(ss.str()));
+        auto batch_grp = rlt::get_group(device, data_file, ss.str());
+        DTYPE diff = abs_diff_network<DEVICE, DTYPE>(device, network, batch_grp);
         std::cout << "batch_i: " << batch_i << " diff: " << diff << std::endl;
 #ifdef RL_TOOLS_TESTS_CODE_COVERAGE
         if (batch_i >= 10){
