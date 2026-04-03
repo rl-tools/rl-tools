@@ -1400,7 +1400,9 @@ int main(int argc, char** argv){
     rlt::free(device, cpu_state_obs_step);
     rlt::free(device, cpu_all_teacher_actions);
     rlt::free(device, student_cpu);
+    rlt::free(device, rng);
 
+    rlt::free(device_gpu, rng_gpu);
     rlt::free(device_gpu, gpu_teacher_actions_step);
     cudaFree(gpu_cameras);
     rlt::free(device_gpu, student_gpu);
@@ -1408,7 +1410,6 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, raptor_buffer_gpu);
     rlt::free(device_gpu, raptor_state_gpu);
     rlt::free(device_gpu, gpu_teacher_obs);
-    rlt::free(device_gpu, gpu_teacher_actions_step);
     rlt::free(device_gpu, student_buffers);
     rlt::free(device_gpu, optimizer_gpu);
     rlt::free(device_gpu, gpu_all_observations);
