@@ -1463,7 +1463,6 @@ async function setup_onboard_camera(ui_state, parameters){
     }
     ui_state.onboard_overlay_size = Math.max(cam_w, cam_h) * 3
     ui_state.onboard_scene_translation = visual.scene_translation || [0, 0, 0]
-    ui_state.onboard_scene_rotation = visual.scene_rotation || [0, 0, 0]
     ui_state.onboard_render_target = new THREE.WebGLRenderTarget(cam_w, cam_h)
     ui_state.onboard_pixel_buffer = new Uint8Array(cam_w * cam_h * 4)
 }
@@ -1471,18 +1470,17 @@ async function setup_onboard_camera(ui_state, parameters){
 function update_onboard_camera(ui_state, state, parameters){
     if(!ui_state.onboard_camera || !ui_state.onboard_scene) return
     const st = ui_state.onboard_scene_translation || [0, 0, 0]
-    const sr = ui_state.onboard_scene_rotation || [0, 0, 0]
-    // sr = [roll, pitch, yaw] in radians in L2F frame (FLU, Z-up)
-    // L2F RPY → scene (Y-up) Euler: L2F-X→scene-X, L2F-Y→scene-Z, L2F-Z→scene-Y
-    const scene_euler = new THREE.Euler(sr[0], sr[2], sr[1], 'XYZ')
-    const rot_quat = new THREE.Quaternion().setFromEuler(scene_euler)
-    // Rotate L2F position, then convert to scene coords
-    const pos_l2f = new THREE.Vector3(state.position[0], state.position[2], state.position[1])
-    pos_l2f.applyQuaternion(rot_quat)
-    ui_state.onboard_camera.position.set(pos_l2f.x + st[0], pos_l2f.y + st[1], pos_l2f.z + st[2])
+    // L2F (FLU, Z-up) → Scene/GLB (Y-up): scene = (l2f[0], l2f[2], l2f[1])
+    const scene_x = state.position[0] + st[0]
+    const scene_y = state.position[2] + st[1]
+    const scene_z = state.position[1] + st[2]
+    ui_state.onboard_camera.position.set(scene_x, scene_y, scene_z)
+    // L2F quat (w,x,y,z) → Scene quat: axis (ax,ay,az)→(ax,az,ay), so quat (w,x,y,z)→(w,x,z,y)
+    // THREE.Quaternion constructor: (x, y, z, w)
     const qw = state.orientation[0], qx = state.orientation[1], qy = state.orientation[2], qz = state.orientation[3]
     const scene_quat = new THREE.Quaternion(qx, qz, qy, qw)
-    scene_quat.premultiply(rot_quat)
+    // Three.js camera looks along -Z. Drone camera looks along body +X (= scene +X).
+    // Rotate +X → -Z: +90° around Y (up)
     const body_to_cam = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
     ui_state.onboard_camera.quaternion.copy(scene_quat.multiply(body_to_cam))
 }
@@ -1542,7 +1540,6 @@ export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, co
         }
     }
     ui_state.onboard_scene_translation = [0, 0, 0]
-    ui_state.onboard_scene_rotation = [0, 0, 0]
     ui_state.onboard_overlay_size = Math.max(cam_w, cam_h) * 3
     ui_state.onboard_render_target = new THREE.WebGLRenderTarget(cam_w, cam_h)
     ui_state.onboard_pixel_buffer = new Uint8Array(cam_w * cam_h * 4)
