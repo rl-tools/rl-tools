@@ -66,11 +66,9 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
     template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE, TI HEIGHT = 64, TI WIDTH = 64, typename MC = ModelConfig<TI>>
     using BASE_MODEL = nn_models::parallel::Build<CAPABILITY,
-        BASE_ENCODER_MODULE<TYPE_POLICY, TI, MC>,
-        BASE_ENCODER_MODULE<TYPE_POLICY, TI, MC>,
-        tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>,
-        tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>,
-        HEAD_MODULE<TYPE_POLICY, TI, MC>
+        HEAD_MODULE<TYPE_POLICY, TI, MC>,
+        nn_models::parallel::Branch<BASE_ENCODER_MODULE<TYPE_POLICY, TI, MC>, tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>>,
+        nn_models::parallel::Branch<BASE_ENCODER_MODULE<TYPE_POLICY, TI, MC>, tensor::Shape<TI, BATCH_SIZE, HEIGHT, WIDTH, 3>>
     >;
 
     // --- Cross-conv Model Specification ---

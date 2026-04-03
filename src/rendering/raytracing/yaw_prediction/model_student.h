@@ -63,10 +63,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     // Output shape: [BATCH_SIZE, 4, 4, 2*TEACHER_ENCODER_DIM] = [BATCH_SIZE, 4, 4, 1024]
     // Matches teacher's concatenated encoder output shape, so teacher's head can be applied directly
     template<typename CAPABILITY, typename TYPE_POLICY, typename TI, TI BATCH_SIZE>
-    using STUDENT_MODEL = nn_models::parallel::Build<CAPABILITY,
-        STUDENT_ENCODER_MODULE<TYPE_POLICY, TI>,
-        STUDENT_ENCODER_MODULE<TYPE_POLICY, TI>,
-        tensor::Shape<TI, BATCH_SIZE, 64, 64, 3>,
-        tensor::Shape<TI, BATCH_SIZE, 64, 64, 3>
+    using STUDENT_MODEL = nn_models::parallel::Build<CAPABILITY, void,
+        nn_models::parallel::Branch<STUDENT_ENCODER_MODULE<TYPE_POLICY, TI>, tensor::Shape<TI, BATCH_SIZE, 64, 64, 3>>,
+        nn_models::parallel::Branch<STUDENT_ENCODER_MODULE<TYPE_POLICY, TI>, tensor::Shape<TI, BATCH_SIZE, 64, 64, 3>>
     >;
 }
