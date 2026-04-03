@@ -158,7 +158,7 @@ static void cursor_pos_callback(GLFWwindow* /*window*/, double xpos, double ypos
     g_input.last_mouse_y = ypos;
 
     constexpr float sensitivity = 0.002f;
-    g_input.yaw += dx * sensitivity;
+    g_input.yaw -= dx * sensitivity;
     g_input.pitch -= dy * sensitivity;
     constexpr float max_pitch = static_cast<float>(M_PI) * 0.49f;
     if (g_input.pitch > max_pitch) g_input.pitch = max_pitch;
@@ -269,13 +269,13 @@ int main(int argc, char** argv) {
 
         float cos_yaw = std::cos(g_input.yaw);
         float sin_yaw = std::sin(g_input.yaw);
-        float dx = 0, dz = 0, dy = 0;
-        if (g_input.forward)  { dx += cos_yaw; dz += sin_yaw; }
-        if (g_input.backward) { dx -= cos_yaw; dz -= sin_yaw; }
-        if (g_input.left)     { dx += sin_yaw; dz -= cos_yaw; }
-        if (g_input.right)    { dx -= sin_yaw; dz += cos_yaw; }
-        if (g_input.up)       { dy += 1; }
-        if (g_input.down)     { dy -= 1; }
+        float dx = 0, dy = 0, dz = 0;
+        if (g_input.forward)  { dx += cos_yaw; dy += sin_yaw; }
+        if (g_input.backward) { dx -= cos_yaw; dy -= sin_yaw; }
+        if (g_input.left)     { dx -= sin_yaw; dy += cos_yaw; }
+        if (g_input.right)    { dx += sin_yaw; dy -= cos_yaw; }
+        if (g_input.up)       { dz += 1; }
+        if (g_input.down)     { dz -= 1; }
         float move_len = std::sqrt(dx * dx + dy * dy + dz * dz);
         if (move_len > 0) {
             float speed = MOVE_SPEED * dt / move_len;
@@ -288,10 +288,10 @@ int main(int argc, char** argv) {
         T eye[3] = {state.position[0], state.position[1], state.position[2]};
         T look_at[3] = {
             eye[0] + std::cos(g_input.yaw) * std::cos(g_input.pitch),
-            eye[1] + std::sin(g_input.pitch),
-            eye[2] + std::sin(g_input.yaw) * std::cos(g_input.pitch)
+            eye[1] + std::sin(g_input.yaw) * std::cos(g_input.pitch),
+            eye[2] + std::sin(g_input.pitch)
         };
-        T up[3] = {0, 1, 0};
+        T up[3] = {0, 0, 1};
         T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
         rlt::set(device, env.renderer->cameras, rlt::make_camera_data(eye, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect), static_cast<TI>(0));
 

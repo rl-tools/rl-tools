@@ -236,13 +236,14 @@ namespace rl_tools {
                 mat = scene->mMaterials[mesh->mMaterialIndex];
             }
 
-            // vertices
+            // vertices: GLB (Y-up) → FLU (Z-up): x_flu = x_glb, y_flu = -z_glb, z_flu = y_glb
             for(unsigned int v = 0; v < mesh->mNumVertices; v++){
                 const aiVector3D& pos = mesh->mVertices[v];
-                owl::vec3f vertex(pos.x, pos.y, pos.z);
-                md.vertices.push_back(pos.x);
-                md.vertices.push_back(pos.y);
-                md.vertices.push_back(pos.z);
+                float flu_x = pos.x, flu_y = -pos.z, flu_z = pos.y;
+                md.vertices.push_back(flu_x);
+                md.vertices.push_back(flu_y);
+                md.vertices.push_back(flu_z);
+                owl::vec3f vertex(flu_x, flu_y, flu_z);
                 bbox_min = min(bbox_min, vertex);
                 bbox_max = max(bbox_max, vertex);
             }
@@ -379,7 +380,7 @@ namespace rl_tools {
         owl::vec3f center = 0.5f * (bbox_min + bbox_max);
         owl::vec3f size = bbox_max - bbox_min;
         float max_dim = std::max({size.x, size.y, size.z});
-        owl::vec3f look_from = center + owl::vec3f(max_dim * 1.5f, max_dim * 0.8f, max_dim * 1.5f);
+        owl::vec3f look_from = center + owl::vec3f(max_dim * 1.5f, max_dim * 1.5f, max_dim * 0.8f);
         renderer.scene_center[0] = center.x;
         renderer.scene_center[1] = center.y;
         renderer.scene_center[2] = center.z;
@@ -397,9 +398,10 @@ namespace rl_tools {
         renderer.meshes.clear();
         rendering::raytracing::MeshData<SPEC> md;
         for(int i = 0; i < rendering::raytracing::constants::NUM_VERTICES; i++){
-            md.vertices.push_back(rendering::raytracing::constants::default_vertices[i].x);
-            md.vertices.push_back(rendering::raytracing::constants::default_vertices[i].y);
-            md.vertices.push_back(rendering::raytracing::constants::default_vertices[i].z);
+            const auto& v = rendering::raytracing::constants::default_vertices[i];
+            md.vertices.push_back(v.x);
+            md.vertices.push_back(-v.z);
+            md.vertices.push_back(v.y);
         }
         for(int i = 0; i < rendering::raytracing::constants::NUM_INDICES; i++){
             md.indices.push_back(rendering::raytracing::constants::default_indices[i].x);
@@ -583,12 +585,12 @@ namespace rl_tools {
 
             T cam_pos[3] = {
                 center[0] + radius * sin_inc * cosf(theta),
-                center[1] + radius * cos_inc,
-                center[2] + radius * sin_inc * sinf(theta)
+                center[1] + radius * sin_inc * sinf(theta),
+                center[2] + radius * cos_inc
             };
 
-            if(cam_pos[1] < center[1] - radius * T{0.1})
-                cam_pos[1] = center[1] + radius * T{0.3};
+            if(cam_pos[2] < center[2] - radius * T{0.1})
+                cam_pos[2] = center[2] + radius * T{0.3};
 
             set(device, renderer.cameras, make_camera_data(cam_pos, center, up, cos_fov, aspect), i);
         }
@@ -646,8 +648,8 @@ namespace rl_tools {
             float sin_inc = sqrtf(1.0f - cos_inc * cos_inc);
 
             dirs.push_back(normalize(owl::vec3f(sin_inc * cosf(theta),
-                                           cos_inc,
-                                           sin_inc * sinf(theta))));
+                                           sin_inc * sinf(theta),
+                                           cos_inc)));
         }
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << dirs.size() << " probe directions per camera");

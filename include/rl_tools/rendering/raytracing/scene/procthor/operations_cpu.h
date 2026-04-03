@@ -50,7 +50,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         if (renderer.backend.owl_collision_results_buffer == nullptr) {
             constexpr T PI = static_cast<T>(3.14159265358979323846);
             const T center_x = renderer.scene_center[0];
-            const T center_z = renderer.scene_center[2];
+            const T center_y = renderer.scene_center[1];
             const T search_radius = renderer.camera_radius > static_cast<T>(1)
                 ? static_cast<T>(0.95) * renderer.camera_radius
                 : static_cast<T>(8);
@@ -63,8 +63,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
 
                 auto& pos = scene.indoor_positions[i];
                 pos.position[0] = center_x + radius * std::cos(angle);
-                pos.position[1] = static_cast<T>(0);
-                pos.position[2] = center_z + radius * std::sin(angle);
+                pos.position[1] = center_y + radius * std::sin(angle);
+                pos.position[2] = static_cast<T>(0);
                 pos.yaw = static_cast<T>(2) * PI * frac(static_cast<T>(0.61803398875) * static_cast<T>(i + 1));
                 pos.score = static_cast<T>(0);
             }
@@ -80,7 +80,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         constexpr T PI = static_cast<T>(3.14159265358979323846);
         constexpr TI NUM_BATCHES = 8;
         const T center_x = renderer.scene_center[0];
-        const T center_z = renderer.scene_center[2];
+        const T center_y = renderer.scene_center[1];
         const T search_radius = renderer.camera_radius > static_cast<T>(1)
             ? static_cast<T>(0.95) * renderer.camera_radius
             : static_cast<T>(8);
@@ -107,18 +107,18 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
 
                 auto& pos = batch_positions[camera_i];
                 pos.position[0] = center_x + radius * std::cos(angle);
-                pos.position[1] = static_cast<T>(0);
-                pos.position[2] = center_z + radius * std::sin(angle);
+                pos.position[1] = center_y + radius * std::sin(angle);
+                pos.position[2] = static_cast<T>(0);
                 pos.yaw = yaw;
                 pos.score = static_cast<T>(0);
 
-                const T cam_position[3] = {pos.position[0], pos.position[1] + eye_height, pos.position[2]};
+                const T cam_position[3] = {pos.position[0], pos.position[1], pos.position[2] + eye_height};
                 const T cam_look_at[3] = {
                     pos.position[0] + look_ahead * std::cos(pos.yaw),
-                    pos.position[1] + eye_height,
-                    pos.position[2] + look_ahead * std::sin(pos.yaw)
+                    pos.position[1] + look_ahead * std::sin(pos.yaw),
+                    pos.position[2] + eye_height
                 };
-                const T cam_up[3] = {0, 1, 0};
+                const T cam_up[3] = {0, 0, 1};
                 set(device, renderer.cameras, make_camera_data(cam_position, cam_look_at, cam_up, cos_fov, aspect), camera_i);
             }
 
@@ -198,8 +198,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
 
                 auto& pos = scene.indoor_positions[i];
                 pos.position[0] = center_x + radius * std::cos(angle);
-                pos.position[1] = static_cast<T>(0);
-                pos.position[2] = center_z + radius * std::sin(angle);
+                pos.position[1] = center_y + radius * std::sin(angle);
+                pos.position[2] = static_cast<T>(0);
                 pos.yaw = static_cast<T>(2) * PI * frac(static_cast<T>(0.61803398875) * static_cast<T>(i + 1));
                 pos.score = static_cast<T>(0);
             }

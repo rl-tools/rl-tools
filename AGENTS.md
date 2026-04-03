@@ -92,3 +92,4 @@ Some tests (`NN_LAYERS_RESNET_CUDA`, sequential persist tests) load `.h5` files 
 21. We don't endorse comment noise. Comments signal two things: 1) complex/misleading (first thought) code and 2) important code. Only if both are the case should you add a comment. To calibrate this: There should be a comment for every few hundred lines of code.
 22. RLtools is deterministic given a fixed seed. NEVER use atomic operations (e.g. when using CUDA)
 23. The tar and hdf5 representations of a model should have a lossless bijective mapping
+24. The raytracing renderer operates in the same FLU frame as L2F: camera principal axis = +X (forward), image horizontal axis = Y (left-right), image vertical axis = Z (up-down). GLB meshes (Y-up) are swizzled to FLU at load time so the entire pipeline uses a single coordinate frame.

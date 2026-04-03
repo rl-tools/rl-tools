@@ -64,7 +64,7 @@ namespace rl_tools {
 
         upload_geometry(device, *env.renderer);
         {
-            const T up[3] = {0, 1, 0};
+            const T up[3] = {0, 0, 1};
             generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, env.cos_fov);
         }
         generate_probe_directions(device, *env.renderer);
@@ -103,10 +103,9 @@ namespace rl_tools {
         auto indoor_pos = rendering::raytracing::scene::procthor::sample_indoor_position(device, *env.scene, rng);
         sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
 
-        // L2F (FLU, Z-up) ↔ Scene (Y-up): Y/Z swap, no sign flips
         state.position[0] = indoor_pos.position[0];
-        state.position[1] = indoor_pos.position[2];
-        state.position[2] = indoor_pos.position[1];
+        state.position[1] = indoor_pos.position[1];
+        state.position[2] = indoor_pos.position[2];
 
         state.orientation[0] = static_cast<T>(1);
         state.orientation[1] = static_cast<T>(0);
@@ -154,21 +153,20 @@ namespace rl_tools {
             T cam_up_world[3];
             rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, env.camera_mount.up_body, cam_up_world);
 
-            // L2F (FLU, Z-up) → Scene/GLB (Y-up): scene = (l2f[0], l2f[2], l2f[1])
-            const T px = state.position[0] + cam_pos_world[0] + parameters.scene_translation[0];
-            const T py = state.position[2] + cam_pos_world[2] + parameters.scene_translation[1];
-            const T pz = state.position[1] + cam_pos_world[1] + parameters.scene_translation[2];
-
-            const T position[3] = {px, py, pz};
+            const T position[3] = {
+                state.position[0] + cam_pos_world[0] + parameters.scene_translation[0],
+                state.position[1] + cam_pos_world[1] + parameters.scene_translation[1],
+                state.position[2] + cam_pos_world[2] + parameters.scene_translation[2]
+            };
             const T look_at[3] = {
-                px + cam_forward_world[0],
-                py + cam_forward_world[2],
-                pz + cam_forward_world[1]
+                position[0] + cam_forward_world[0],
+                position[1] + cam_forward_world[1],
+                position[2] + cam_forward_world[2]
             };
             const T up[3] = {
                 cam_up_world[0],
-                cam_up_world[2],
-                cam_up_world[1]
+                cam_up_world[1],
+                cam_up_world[2]
             };
 
             const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
