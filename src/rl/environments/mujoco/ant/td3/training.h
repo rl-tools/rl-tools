@@ -48,7 +48,7 @@ using TI = typename DEVICE::index_t;
 
 #include <iostream>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #endif
 #include <filesystem>
 #include <thread>
@@ -355,10 +355,10 @@ void run(){
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 try{
-                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
+                    auto actor_file = rl_tools::persist::backends::hdf5::File(actor_output_path.string(), rl_tools::persist::backends::hdf5::Mode::WRITE);
                     rlt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
                 }
-                catch(HighFive::Exception& e){
+                catch(std::exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
                 }
 #endif
@@ -375,10 +375,10 @@ void run(){
 //                checkpoint_name << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
 //                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name.str();
 //                try{
-//                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
+//                    auto actor_file = rl_tools::persist::backends::hdf5::File(actor_output_path.string(), rl_tools::persist::backends::hdf5::Mode::WRITE);
 //                    rlt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
 //                }
-//                catch(HighFive::Exception& e){
+//                catch(std::exception& e){
 //                    std::cout << "Error while saving actor: " << e.what() << std::endl;
 //                }
 //            }
@@ -387,14 +387,14 @@ void run(){
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
         if constexpr(RL_TOOLS_SAVE_REPLAY_BUFFER){
             try{
-                auto actor_file = HighFive::File(REPLAY_BUFFER_OUTPUT_PATH, HighFive::File::Overwrite);
+                auto actor_file = rl_tools::persist::backends::hdf5::File(REPLAY_BUFFER_OUTPUT_PATH, rl_tools::persist::backends::hdf5::Mode::WRITE);
                 auto replay_buffer_group = actor_file.createGroup("replay_buffer");
                 for(typename DEVICE::index_t env_i = 0; env_i < decltype(off_policy_runner)::N_ENVIRONMENTS; env_i++){
                     auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, env_i);
                     rlt::save(device, replay_buffer, replay_buffer_group.createGroup(std::to_string(env_i)));
                 }
             }
-            catch(HighFive::Exception& e){
+            catch(std::exception& e){
                 std::cout << "Error while saving actor: " << e.what() << std::endl;
             }
         }
@@ -420,7 +420,7 @@ void run(){
 
 
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
+    auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::WRITE);
     for(typename DEVICE::index_t run_i = 0; run_i < episode_step.size(); run_i++){
         auto group = data_file.createGroup(std::to_string(run_i));
         group.createDataSet("episode_step", episode_step[run_i]);

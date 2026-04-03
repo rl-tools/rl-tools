@@ -27,7 +27,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <filesystem>
 #include <algorithm>
 #include <thread>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <CLI/CLI.hpp>
 
 namespace TEST_DEFINITIONS{
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
         std::cout << "Loading actor from " << checkpoint << std::endl;
         {
             try{
-                auto data_file = HighFive::File(checkpoint, HighFive::File::ReadOnly);
+                auto data_file = rl_tools::persist::backends::hdf5::File(checkpoint, rl_tools::persist::backends::hdf5::Mode::READ);
                 auto group = rlt::get_group(dev, data_file, "actor");
                 rlt::load(dev, actor, group);
 #ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
                 rlt::load(dev, observation_normalizer.std, obsnorm_group, "std");
 #endif
             }
-            catch(HighFive::FileException& e){
+            catch(std::exception& e){
                 std::cout << "Failed to load actor from " << checkpoint << std::endl;
                 std::cout << "Error: " << e.what() << std::endl;
                 continue;

@@ -44,7 +44,7 @@ void test_upsample2d_cuda(const std::string& test_case_name) {
 
     // Load test data
     const char *dp = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
-    auto file = HighFive::File(std::string(dp) + "/upsample2d_test_data.h5", HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(std::string(dp) + "/upsample2d_test_data.h5", rl_tools::persist::backends::hdf5::Mode::READ);
     auto group = rlt::get_group(device_cpu, file, test_case_name);
 
     // EVALUATE test: CPU vs CUDA

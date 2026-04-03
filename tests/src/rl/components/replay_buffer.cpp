@@ -8,7 +8,7 @@
 
 
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
@@ -33,13 +33,13 @@ TEST(RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
         rlt::malloc(device, replay_buffer_1);
         rlt::test::rl::components::replay_buffer::sample(device, replay_buffer_1, rng);
         set(replay_buffer_1.next_observations, 7, 0, 1337);
-        auto data_file = HighFive::File(replay_buffer_path, HighFive::File::Overwrite);
+        auto data_file = rl_tools::persist::backends::hdf5::File(replay_buffer_path, rl_tools::persist::backends::hdf5::Mode::WRITE);
         rlt::persist::backends::hdf5::Group<> replay_buffer_group = {data_file.createGroup("replay_buffer")};
         rlt::save(device, replay_buffer_1, replay_buffer_group);
     }
     {
         rlt::malloc(device, replay_buffer_2);
-        auto data_file = HighFive::File(replay_buffer_path, HighFive::File::ReadOnly);
+        auto data_file = rl_tools::persist::backends::hdf5::File(replay_buffer_path, rl_tools::persist::backends::hdf5::Mode::READ);
         rlt::persist::backends::hdf5::Group<> replay_buffer_group = {data_file.getGroup("replay_buffer")};
         rlt::load(device, replay_buffer_2, replay_buffer_group);
     }

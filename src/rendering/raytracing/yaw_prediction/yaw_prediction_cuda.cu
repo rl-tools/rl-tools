@@ -502,7 +502,7 @@ int main(int argc, char** argv) {
             rlt::copy(device_cuda, device_cpu, model, model_cpu);
             rlt::copy(device_cpu, device_cpu, model_cpu, model_cpu_inference);
             auto step_folder = rlt::get_step_folder(device_cpu, extrack_config, extrack_paths, iteration);
-            auto file = HighFive::File((step_folder / "checkpoint.h5").string(), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+            auto file = rl_tools::persist::backends::hdf5::File((step_folder / "checkpoint.h5").string(), rl_tools::persist::backends::hdf5::Mode::WRITE);
             auto mg = rlt::create_group(device_cpu, file, "model");
             rlt::save(device_cpu, model_cpu_inference, mg);
             std::cout << "  Checkpoint: " << (step_folder / "checkpoint.h5").string() << std::endl;

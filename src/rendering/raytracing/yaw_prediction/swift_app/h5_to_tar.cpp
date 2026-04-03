@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
     rlt::malloc(device, model);
 
     try {
-        auto file = HighFive::File(std::string(argv[1]), HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(std::string(argv[1]), rl_tools::persist::backends::hdf5::Mode::READ);
         auto model_group = rlt::get_group(device, file, "model");
         if (!rlt::load(device, model, model_group)) {
             std::cerr << "Failed to load model from " << argv[1] << std::endl;

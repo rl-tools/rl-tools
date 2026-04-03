@@ -145,7 +145,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
     std::string checkpoint_path = "test_ppo_loop_persist_checkpoint.h5";
     {
         std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-        auto file = HighFive::File(checkpoint_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File(checkpoint_path, rl_tools::persist::backends::hdf5::Mode::WRITE);
         auto group = rlt::create_group(device, file, "loop_state");
         rlt::save(device, ts, group);
     }
@@ -153,7 +153,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
     // Load checkpoint
     {
         std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-        auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(checkpoint_path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto group = rlt::get_group(device, file, "loop_state");
         bool success = rlt::load(device, ts_loaded, group);
         ASSERT_TRUE(success);
@@ -267,7 +267,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD) {
     // Save HDF5
     {
         std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-        auto file = HighFive::File(hdf5_path, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File(hdf5_path, rl_tools::persist::backends::hdf5::Mode::WRITE);
         auto group = rlt::create_group(device, file, "loop_state");
         rlt::save(device, ts, group);
     }
@@ -285,7 +285,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD) {
     // Load HDF5
     {
         std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-        auto file = HighFive::File(hdf5_path, HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(hdf5_path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto group = rlt::get_group(device, file, "loop_state");
         bool success = rlt::load(device, ts_loaded_hdf5, group);
         ASSERT_TRUE(success) << "HDF5 load failed";

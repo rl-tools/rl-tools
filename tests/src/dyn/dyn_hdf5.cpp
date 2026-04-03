@@ -57,12 +57,12 @@ TEST(TEST_DYN_HDF5, dense_layer){
     // Save to HDF5
     std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_hdf5_dense.h5";
     {
-        auto file = HighFive::File(dp, HighFive::File::Overwrite);
+        auto file = rl_tools::persist::backends::hdf5::File(dp, rl_tools::persist::backends::hdf5::Mode::WRITE);
         auto group = rlt::create_group(device, file, "layer");
         rlt::save(device, layer, group);
     }
     // Load into dyn
-    auto file = HighFive::File(dp, HighFive::File::ReadOnly);
+    auto file = rl_tools::persist::backends::hdf5::File(dp, rl_tools::persist::backends::hdf5::Mode::READ);
     auto group = rlt::get_group(device, file, "layer");
     rlt::dyn::Layer<TI> dyn_layer;
     rlt::load(device, dyn_layer, group);
@@ -117,8 +117,8 @@ TEST(TEST_DYN_HDF5, sequential_dense_gru_mlp){
     rlt::init_weights(device, model, rng); rlt::randn(device, in, rng);
     rlt::evaluate(device, model, in, out, buf, rng);
     std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_hdf5_sequential.h5";
-    { auto file = HighFive::File(dp, HighFive::File::Overwrite); auto g = rlt::create_group(device, file, "model"); rlt::save(device, model, g); }
-    auto file = HighFive::File(dp, HighFive::File::ReadOnly);
+    { auto file = rl_tools::persist::backends::hdf5::File(dp, rl_tools::persist::backends::hdf5::Mode::WRITE); auto g = rlt::create_group(device, file, "model"); rlt::save(device, model, g); }
+    auto file = rl_tools::persist::backends::hdf5::File(dp, rl_tools::persist::backends::hdf5::Mode::READ);
     auto g = rlt::get_group(device, file, "model");
     rlt::dyn::Layer<TI> dm;
     rlt::load(device, dm, g);
