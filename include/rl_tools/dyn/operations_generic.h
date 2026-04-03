@@ -258,35 +258,35 @@ namespace rl_tools{
 
     // Forward declarations
     template <typename DEVICE, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer);
+    RL_TOOLS_FUNCTION_PLACEMENT bool evaluate(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer);
     template <typename DEVICE, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::State<TI>& state, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer);
+    RL_TOOLS_FUNCTION_PLACEMENT bool evaluate_step(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::State<TI>& state, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer);
 
     namespace dyn{
-        // --- Composite evaluate: sequential chain through children ---
         template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_chain(DEVICE& device, const Layer<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
+        RL_TOOLS_FUNCTION_PLACEMENT bool evaluate_chain(DEVICE& device, const Layer<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             const Tensor<TensorSpecification<TI>>* current_input = &input;
             for(TI i = 0; i < layer.num_children; i++){
                 Tensor<TensorSpecification<TI>>* current_output;
                 if(i == layer.num_children - 1) current_output = &output;
                 else current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
-                rl_tools::evaluate(device, layer.children[i], *current_input, *current_output, buffer);
+                if(!rl_tools::evaluate(device, layer.children[i], *current_input, *current_output, buffer)) return false;
                 current_input = current_output;
             }
+            return true;
         }
         template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step_chain(DEVICE& device, const Layer<TI>& layer, state::Composite<TI>& comp_state, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
+        RL_TOOLS_FUNCTION_PLACEMENT bool evaluate_step_chain(DEVICE& device, const Layer<TI>& layer, state::Composite<TI>& comp_state, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             const Tensor<TensorSpecification<TI>>* current_input = &input;
             for(TI i = 0; i < layer.num_children; i++){
                 Tensor<TensorSpecification<TI>>* current_output;
                 if(i == layer.num_children - 1) current_output = &output;
                 else current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
-                rl_tools::evaluate_step(device, layer.children[i], *current_input, comp_state.child_states[i], *current_output, buffer);
+                if(!rl_tools::evaluate_step(device, layer.children[i], *current_input, comp_state.child_states[i], *current_output, buffer)) return false;
                 current_input = current_output;
             }
+            return true;
         }
-        // --- GRU evaluate (full sequence) ---
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_gru(DEVICE& device, const layers::GRU<TI>& gru, const Layer<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             TI hidden_dim = gru.hidden_dim;
@@ -403,34 +403,35 @@ namespace rl_tools{
 
     // --- Top-level evaluate ---
     template <typename DEVICE, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer){
-        utils::assert_exit(device, layer.output_size > 0, "dyn::evaluate: shapes not propagated (call propagate_shapes or setup_buffer before evaluate)");
-        utils::assert_exit(device, output.size >= layer.output_size, "dyn::evaluate: output tensor too small for layer output");
-        utils::assert_exit(device, buffer.tick.data != nullptr, "dyn::evaluate: buffer not allocated (call malloc on the buffer before evaluate)");
+    RL_TOOLS_FUNCTION_PLACEMENT bool evaluate(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer){
+        if(layer.output_size == 0) return false;
+        if(output.size < layer.output_size) return false;
+        if(buffer.tick.data == nullptr) return false;
+        if(input.data == nullptr) return false;
         dyn::set_shape(output, layer.output_rank, layer.output_shape);
         output.type = dyn::Type::FLOAT32;
         switch(layer.type){
-            case dyn::LayerType::DENSE: dyn::evaluate_dense(device, layer.template as<const dyn::layers::Dense<TI>>(), input, output); break;
-            case dyn::LayerType::GRU: dyn::evaluate_gru(device, layer.template as<const dyn::layers::GRU<TI>>(), layer, input, output, buffer); break;
-            case dyn::LayerType::CONV2D: dyn::evaluate_conv2d(device, layer.template as<const dyn::layers::Conv2d<TI>>(), input, output); break;
-            case dyn::LayerType::MAX_POOL2D: dyn::evaluate_max_pool2d(device, layer.template as<const dyn::layers::MaxPool2d<TI>>(), input, output); break;
+            case dyn::LayerType::DENSE: dyn::evaluate_dense(device, layer.template as<const dyn::layers::Dense<TI>>(), input, output); return true;
+            case dyn::LayerType::GRU: dyn::evaluate_gru(device, layer.template as<const dyn::layers::GRU<TI>>(), layer, input, output, buffer); return true;
+            case dyn::LayerType::CONV2D: dyn::evaluate_conv2d(device, layer.template as<const dyn::layers::Conv2d<TI>>(), input, output); return true;
+            case dyn::LayerType::MAX_POOL2D: dyn::evaluate_max_pool2d(device, layer.template as<const dyn::layers::MaxPool2d<TI>>(), input, output); return true;
             case dyn::LayerType::SAMPLE_AND_SQUASH: {
                 TI last = input.shape[input.rank-1], half = last/2, batch = input.size/last;
                 for(TI b = 0; b < batch; b++) for(TI i = 0; i < half; i++) dyn::set(device, output, b*half+i, math::tanh(device.math, dyn::get(device, input, b*last+i)));
-                break;
+                return true;
             }
             case dyn::LayerType::STANDARDIZE: {
                 auto& s = layer.template as<const dyn::layers::Standardize<TI>>();
                 TI batch = input.size / s.dim;
                 for(TI b = 0; b < batch; b++) for(TI i = 0; i < s.dim; i++) dyn::set(device, output, b*s.dim+i, (dyn::get(device, input, b*s.dim+i) - dyn::get(device, s.mean, i)) * dyn::get(device, s.precision, i));
-                break;
+                return true;
             }
             case dyn::LayerType::FLATTEN: case dyn::LayerType::UNFLATTEN: {
                 output.type = input.type;
                 TI bytes = input.size * dyn::size_of<TI>(input.type);
                 const char* src = reinterpret_cast<const char*>(input.data); char* dst = reinterpret_cast<char*>(output.data);
                 for(TI i = 0; i < bytes; i++) dst[i] = src[i];
-                break;
+                return true;
             }
             case dyn::LayerType::AVG_POOL2D: {
                 TI ch = input.shape[input.rank-1], w = input.shape[input.rank-2], h = input.shape[input.rank-3], batch = input.size/(h*w*ch);
@@ -439,38 +440,42 @@ namespace rl_tools{
                     float sum = 0; for(TI hi = 0; hi < h; hi++) for(TI wi = 0; wi < w; wi++) sum += dyn::get(device, input, ((b*h+hi)*w+wi)*ch+c);
                     dyn::set(device, output, b*ch+c, sum*scale);
                 }
-                break;
+                return true;
             }
-            case dyn::LayerType::SEQUENTIAL: case dyn::LayerType::MLP: dyn::evaluate_chain(device, layer, input, output, buffer); break;
+            case dyn::LayerType::SEQUENTIAL: case dyn::LayerType::MLP:
+                return dyn::evaluate_chain(device, layer, input, output, buffer);
             case dyn::LayerType::RESNET_BLOCK: {
-                // children[0]=conv1, children[1]=conv2, children[2]=downsample (optional)
-                rl_tools::evaluate(device, layer.children[0], input, buffer.scratch, buffer);
-                rl_tools::evaluate(device, layer.children[1], buffer.scratch, output, buffer);
+                if(!rl_tools::evaluate(device, layer.children[0], input, buffer.scratch, buffer)) return false;
+                if(!rl_tools::evaluate(device, layer.children[1], buffer.scratch, output, buffer)) return false;
                 if(layer.num_children == 3){
                     dyn::Buffer<TI> sub_buffer = buffer;
                     TI conv1_bytes = layer.children[0].output_size * sizeof(float);
                     sub_buffer.scratch.data = reinterpret_cast<char*>(buffer.scratch.data) + conv1_bytes;
                     sub_buffer.scratch.size = buffer.scratch.size - layer.children[0].output_size;
-                    rl_tools::evaluate(device, layer.children[2], input, buffer.scratch, sub_buffer);
+                    if(!rl_tools::evaluate(device, layer.children[2], input, buffer.scratch, sub_buffer)) return false;
                 }
                 const dyn::Tensor<dyn::TensorSpecification<TI>>& shortcut = (layer.num_children == 3) ? buffer.scratch : input;
                 for(TI i = 0; i < output.size; i++){
                     float val = dyn::get(device, output, i) + dyn::get(device, shortcut, i);
                     dyn::set(device, output, i, val > 0 ? val : 0);
                 }
-                break;
+                return true;
             }
-            default: break;
+            default: return false;
         }
     }
 
     // --- Top-level evaluate_step ---
     template <typename DEVICE, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::State<TI>& state, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer){
+    RL_TOOLS_FUNCTION_PLACEMENT bool evaluate_step(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::State<TI>& state, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer){
+        if(layer.output_size == 0) return false;
+        if(output.size < layer.output_size) return false;
+        if(buffer.tick.data == nullptr) return false;
         switch(layer.type){
             case dyn::LayerType::GRU: {
                 auto& g = layer.template as<const dyn::layers::GRU<TI>>();
                 auto* gs = reinterpret_cast<dyn::state::GRU<TI>*>(state.data);
+                if(!gs) return false;
                 dyn::set_shape(output, layer.output_rank, layer.output_shape); output.type = dyn::Type::FLOAT32;
                 dyn::Tensor<dyn::TensorSpecification<TI>> gate_scratch;
                 TI batch = input.size / g.input_dim;
@@ -478,14 +483,14 @@ namespace rl_tools{
                 dyn::set_shape(gate_scratch, (TI)1, gs_shape); gate_scratch.type = dyn::Type::FLOAT32; gate_scratch.data = buffer.scratch.data;
                 dyn::evaluate_step_gru(device, g, input, *gs, gate_scratch);
                 for(TI b = 0; b < batch; b++) for(TI h = 0; h < g.hidden_dim; h++) dyn::set(device, output, b*g.hidden_dim+h, dyn::get(device, gs->hidden, b*g.hidden_dim+h));
-                break;
+                return true;
             }
             case dyn::LayerType::SEQUENTIAL: case dyn::LayerType::MLP: {
                 auto* cs = reinterpret_cast<dyn::state::Composite<TI>*>(state.data);
-                dyn::evaluate_step_chain(device, layer, *cs, input, output, buffer);
-                break;
+                if(!cs) return false;
+                return dyn::evaluate_step_chain(device, layer, *cs, input, output, buffer);
             }
-            default: evaluate(device, layer, input, output, buffer); break;
+            default: return evaluate(device, layer, input, output, buffer);
         }
     }
 }
