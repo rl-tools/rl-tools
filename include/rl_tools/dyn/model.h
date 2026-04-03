@@ -27,9 +27,7 @@ namespace rl_tools::dyn{
                 float result;
                 char* result_ptr = reinterpret_cast<char*>(&result);
                 const char* bits_ptr = reinterpret_cast<const char*>(&float_bits);
-                for(int i = 0; i < 4; i++){
-                    result_ptr[i] = bits_ptr[i];
-                }
+                for(int i = 0; i < 4; i++) result_ptr[i] = bits_ptr[i];
                 return result;
             }
             case Type::INT8: return static_cast<float>(*reinterpret_cast<const signed char*>(data));
@@ -44,9 +42,7 @@ namespace rl_tools::dyn{
                 unsigned int float_bits;
                 const char* value_ptr = reinterpret_cast<const char*>(&value);
                 char* bits_ptr = reinterpret_cast<char*>(&float_bits);
-                for(int i = 0; i < 4; i++){
-                    bits_ptr[i] = value_ptr[i];
-                }
+                for(int i = 0; i < 4; i++) bits_ptr[i] = value_ptr[i];
                 *reinterpret_cast<unsigned short*>(data) = static_cast<unsigned short>(float_bits >> 16);
                 break;
             }
@@ -75,7 +71,20 @@ namespace rl_tools::dyn{
         Type type = Type::FLOAT32;
     };
 
-    template <typename T_TI> struct Layer;
+    template <typename T_TI>
+    struct Layer{
+        using TI = T_TI;
+        LayerType type;
+        void* data = nullptr;
+        Layer* children = nullptr;
+        TI num_children = 0;
+        TI output_shape[TensorSpecification<TI>::MAX_RANK] = {};
+        TI output_rank = 0;
+        TI output_size = 0;
+        template <typename T> T& as() { return *reinterpret_cast<T*>(data); }
+        template <typename T> const T& as() const { return *reinterpret_cast<const T*>(data); }
+    };
+
     template <typename T_TI> struct State;
 
     namespace layers{
@@ -125,10 +134,6 @@ namespace rl_tools::dyn{
             TI stride_h, stride_w;
             TI padding_h, padding_w;
         };
-        struct AvgPool2d{};
-        struct Flatten{};
-        struct Unflatten{};
-        struct SampleAndSquash{};
         template <typename T_TI>
         struct Standardize{
             using TI = T_TI;
@@ -145,45 +150,7 @@ namespace rl_tools::dyn{
             TI num_classes;
             TI embedding_dim;
         };
-        template <typename T_TI>
-        struct Sequential{
-            using TI = T_TI;
-            Layer<TI>* layers = nullptr;
-            TI num_layers = 0;
-        };
-        template <typename T_TI>
-        struct MLP{
-            using TI = T_TI;
-            Layer<TI> input_layer;
-            Layer<TI>* hidden_layers = nullptr;
-            TI num_hidden_layers = 0;
-            Layer<TI> output_layer;
-        };
-        template <typename T_TI>
-        struct Parallel{
-            using TI = T_TI;
-            Layer<TI>* pipeline_a = nullptr;
-            Layer<TI>* pipeline_b = nullptr;
-            Layer<TI>* head = nullptr;
-        };
-        template <typename T_TI>
-        struct ResnetBlock{
-            using TI = T_TI;
-            Layer<TI> conv1;
-            Layer<TI> conv2;
-            Layer<TI>* downsample = nullptr;
-        };
     }
-
-    template <typename T_TI>
-    struct Layer{
-        using TI = T_TI;
-        LayerType type;
-        void* data = nullptr;
-        TI output_shape[TensorSpecification<TI>::MAX_RANK] = {};
-        TI output_rank = 0;
-        TI output_size = 0;
-    };
 
     template <typename T_TI>
     struct State{
@@ -203,18 +170,10 @@ namespace rl_tools::dyn{
             bool initialized = false;
         };
         template <typename T_TI>
-        struct Sequential{
+        struct Composite{
             using TI = T_TI;
-            State<TI>* layer_states = nullptr;
-            TI num_layers = 0;
-        };
-        template <typename T_TI>
-        struct MLP{
-            using TI = T_TI;
-            State<TI> input_layer_state;
-            State<TI>* hidden_layer_states = nullptr;
-            TI num_hidden_layers = 0;
-            State<TI> output_layer_state;
+            State<TI>* child_states = nullptr;
+            TI num_children = 0;
         };
     }
 
