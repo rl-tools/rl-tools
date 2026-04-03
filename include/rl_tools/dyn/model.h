@@ -180,6 +180,9 @@ namespace rl_tools::dyn{
         using TI = T_TI;
         LayerType type;
         void* data = nullptr;
+        TI output_shape[TensorSpecification<TI>::MAX_RANK] = {};
+        TI output_rank = 0;
+        TI output_size = 0;
     };
 
     template <typename T_TI>
@@ -218,18 +221,10 @@ namespace rl_tools::dyn{
     template <typename T_TI>
     struct Buffer{
         using TI = T_TI;
-        TI batch_size = 0;
         const Layer<TI>* layer = nullptr;
-        TI input_shape[TensorSpecification<TI>::MAX_RANK] = {};
-        TI input_rank = 0;
-        TI input_size = 0;
         Tensor<TensorSpecification<TI>> tick;
         Tensor<TensorSpecification<TI>> tock;
-        Tensor<TensorSpecification<TI>> gru_state_scratch;
-        Tensor<TensorSpecification<TI>> gru_gate_scratch;
-        Tensor<TensorSpecification<TI>> resnet_intermediate;
-        Tensor<TensorSpecification<TI>> resnet_shortcut;
-        TI max_size = 0;
+        Tensor<TensorSpecification<TI>> scratch;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

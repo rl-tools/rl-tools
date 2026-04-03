@@ -11,7 +11,6 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    // --- Tensor operations ---
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, dyn::Tensor<SPEC>& tensor){
         using TI = typename SPEC::TI;
@@ -40,15 +39,15 @@ namespace rl_tools{
         }
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT float get(DEVICE& device, const Tensor<TensorSpecification<TI>>& tensor, TI flat_index){
-            TI element_size = dyn::size_of<TI>(tensor.type);
+            TI element_size = size_of<TI>(tensor.type);
             const char* ptr = reinterpret_cast<const char*>(tensor.data) + flat_index * element_size;
-            return dyn::to_float(ptr, tensor.type);
+            return to_float(ptr, tensor.type);
         }
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void set(DEVICE& device, Tensor<TensorSpecification<TI>>& tensor, TI flat_index, float value){
-            TI element_size = dyn::size_of<TI>(tensor.type);
+            TI element_size = size_of<TI>(tensor.type);
             char* ptr = reinterpret_cast<char*>(tensor.data) + flat_index * element_size;
-            dyn::from_float(ptr, value, tensor.type);
+            from_float(ptr, value, tensor.type);
         }
 
         RL_TOOLS_FUNCTION_PLACEMENT inline float apply_activation(ActivationFunction af, float x){
@@ -77,53 +76,26 @@ namespace rl_tools{
             }
         }
 
+        // --- Shape propagation (one-time init) ---
         template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT TI output_dim(const Layer<TI>& layer){
-            switch(layer.type){
-                case LayerType::DENSE: return reinterpret_cast<const layers::Dense<TI>*>(layer.data)->output_dim;
-                case LayerType::GRU: return reinterpret_cast<const layers::GRU<TI>*>(layer.data)->hidden_dim;
-                case LayerType::EMBEDDING: return reinterpret_cast<const layers::Embedding<TI>*>(layer.data)->embedding_dim;
-                case LayerType::SEQUENTIAL: {
-                    auto* seq = reinterpret_cast<const layers::Sequential<TI>*>(layer.data);
-                    return output_dim(seq->layers[seq->num_layers - 1]);
-                }
-                case LayerType::MLP: return output_dim(reinterpret_cast<const layers::MLP<TI>*>(layer.data)->output_layer);
-                default: return 0;
-            }
-        }
-        template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT TI input_dim(const Layer<TI>& layer){
-            switch(layer.type){
-                case LayerType::DENSE: return reinterpret_cast<const layers::Dense<TI>*>(layer.data)->input_dim;
-                case LayerType::GRU: return reinterpret_cast<const layers::GRU<TI>*>(layer.data)->input_dim;
-                case LayerType::SEQUENTIAL: {
-                    auto* seq = reinterpret_cast<const layers::Sequential<TI>*>(layer.data);
-                    return input_dim(seq->layers[0]);
-                }
-                case LayerType::MLP: return input_dim(reinterpret_cast<const layers::MLP<TI>*>(layer.data)->input_layer);
-                default: return 0;
-            }
-        }
-        // Compute output shape given a layer and input shape, writing into out_shape/out_rank/out_size
-        template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void compute_output_shape(const Layer<TI>& layer, const TI* in_shape, TI in_rank, TI in_size, TI* out_shape, TI& out_rank, TI& out_size){
+        RL_TOOLS_FUNCTION_PLACEMENT void propagate_shapes(Layer<TI>& layer, const TI* in_shape, TI in_rank, TI in_size){
             switch(layer.type){
                 case LayerType::DENSE: {
                     auto* d = reinterpret_cast<const layers::Dense<TI>*>(layer.data);
-                    out_rank = in_rank;
-                    out_size = 1;
-                    for(TI i = 0; i < in_rank - 1; i++){ out_shape[i] = in_shape[i]; out_size *= in_shape[i]; }
-                    out_shape[in_rank - 1] = d->output_dim;
-                    out_size *= d->output_dim;
+                    layer.output_rank = in_rank;
+                    layer.output_size = 1;
+                    for(TI i = 0; i < in_rank - 1; i++){ layer.output_shape[i] = in_shape[i]; layer.output_size *= in_shape[i]; }
+                    layer.output_shape[in_rank - 1] = d->output_dim;
+                    layer.output_size *= d->output_dim;
                     break;
                 }
                 case LayerType::GRU: {
                     auto* g = reinterpret_cast<const layers::GRU<TI>*>(layer.data);
-                    out_rank = in_rank;
-                    out_size = 1;
-                    for(TI i = 0; i < in_rank - 1; i++){ out_shape[i] = in_shape[i]; out_size *= in_shape[i]; }
-                    out_shape[in_rank - 1] = g->hidden_dim;
-                    out_size *= g->hidden_dim;
+                    layer.output_rank = in_rank;
+                    layer.output_size = 1;
+                    for(TI i = 0; i < in_rank - 1; i++){ layer.output_shape[i] = in_shape[i]; layer.output_size *= in_shape[i]; }
+                    layer.output_shape[in_rank - 1] = g->hidden_dim;
+                    layer.output_size *= g->hidden_dim;
                     break;
                 }
                 case LayerType::CONV2D: {
@@ -132,8 +104,9 @@ namespace rl_tools{
                     TI oh = (ih + 2 * c->padding_h - c->kernel_height) / c->stride_h + 1;
                     TI ow = (iw + 2 * c->padding_w - c->kernel_width) / c->stride_w + 1;
                     TI batch = in_size / (ih * iw * c->input_channels);
-                    out_rank = 4; out_shape[0] = batch; out_shape[1] = oh; out_shape[2] = ow; out_shape[3] = c->output_channels;
-                    out_size = batch * oh * ow * c->output_channels;
+                    layer.output_rank = 4;
+                    layer.output_shape[0] = batch; layer.output_shape[1] = oh; layer.output_shape[2] = ow; layer.output_shape[3] = c->output_channels;
+                    layer.output_size = batch * oh * ow * c->output_channels;
                     break;
                 }
                 case LayerType::MAX_POOL2D: {
@@ -142,169 +115,150 @@ namespace rl_tools{
                     TI oh = (ih + 2 * mp->padding_h - mp->kernel_height) / mp->stride_h + 1;
                     TI ow = (iw + 2 * mp->padding_w - mp->kernel_width) / mp->stride_w + 1;
                     TI batch = in_size / (ih * iw * ch);
-                    out_rank = 4; out_shape[0] = batch; out_shape[1] = oh; out_shape[2] = ow; out_shape[3] = ch;
-                    out_size = batch * oh * ow * ch;
+                    layer.output_rank = 4;
+                    layer.output_shape[0] = batch; layer.output_shape[1] = oh; layer.output_shape[2] = ow; layer.output_shape[3] = ch;
+                    layer.output_size = batch * oh * ow * ch;
                     break;
                 }
                 case LayerType::AVG_POOL2D: {
-                    TI ch = in_shape[in_rank - 1];
-                    TI ih = in_shape[in_rank - 3], iw = in_shape[in_rank - 2];
+                    TI ch = in_shape[in_rank - 1], ih = in_shape[in_rank - 3], iw = in_shape[in_rank - 2];
                     TI batch = in_size / (ih * iw * ch);
-                    out_rank = 2; out_shape[0] = batch; out_shape[1] = ch;
-                    out_size = batch * ch;
+                    layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = ch;
+                    layer.output_size = batch * ch;
                     break;
                 }
                 case LayerType::FLATTEN: {
                     if(in_rank >= 3){
-                        TI flat = 1;
-                        for(TI i = in_rank - 3; i < in_rank; i++) flat *= in_shape[i];
+                        TI flat = 1; for(TI i = in_rank - 3; i < in_rank; i++) flat *= in_shape[i];
                         TI batch = in_size / flat;
-                        out_rank = 2; out_shape[0] = batch; out_shape[1] = flat;
-                        out_size = in_size;
+                        layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = flat;
                     } else {
-                        out_rank = in_rank; out_size = in_size;
-                        for(TI i = 0; i < in_rank; i++) out_shape[i] = in_shape[i];
+                        layer.output_rank = in_rank; for(TI i = 0; i < in_rank; i++) layer.output_shape[i] = in_shape[i];
                     }
+                    layer.output_size = in_size;
                     break;
                 }
                 case LayerType::SAMPLE_AND_SQUASH: {
-                    TI last = in_shape[in_rank - 1];
-                    TI batch = in_size / last;
-                    out_rank = 2; out_shape[0] = batch; out_shape[1] = last / 2;
-                    out_size = batch * (last / 2);
+                    TI last = in_shape[in_rank - 1], batch = in_size / last;
+                    layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = last / 2;
+                    layer.output_size = batch * (last / 2);
+                    break;
+                }
+                case LayerType::STANDARDIZE: {
+                    layer.output_rank = in_rank; layer.output_size = in_size;
+                    for(TI i = 0; i < in_rank; i++) layer.output_shape[i] = in_shape[i];
+                    break;
+                }
+                case LayerType::SEQUENTIAL: {
+                    auto* seq = reinterpret_cast<layers::Sequential<TI>*>(layer.data);
+                    const TI* cur_shape = in_shape; TI cur_rank = in_rank, cur_size = in_size;
+                    for(TI i = 0; i < seq->num_layers; i++){
+                        propagate_shapes(seq->layers[i], cur_shape, cur_rank, cur_size);
+                        cur_shape = seq->layers[i].output_shape;
+                        cur_rank = seq->layers[i].output_rank;
+                        cur_size = seq->layers[i].output_size;
+                    }
+                    layer.output_rank = cur_rank; layer.output_size = cur_size;
+                    for(TI i = 0; i < cur_rank; i++) layer.output_shape[i] = cur_shape[i];
+                    break;
+                }
+                case LayerType::MLP: {
+                    auto* mlp = reinterpret_cast<layers::MLP<TI>*>(layer.data);
+                    propagate_shapes(mlp->input_layer, in_shape, in_rank, in_size);
+                    const TI* cur_shape = mlp->input_layer.output_shape;
+                    TI cur_rank = mlp->input_layer.output_rank, cur_size = mlp->input_layer.output_size;
+                    for(TI i = 0; i < mlp->num_hidden_layers; i++){
+                        propagate_shapes(mlp->hidden_layers[i], cur_shape, cur_rank, cur_size);
+                        cur_shape = mlp->hidden_layers[i].output_shape;
+                        cur_rank = mlp->hidden_layers[i].output_rank;
+                        cur_size = mlp->hidden_layers[i].output_size;
+                    }
+                    propagate_shapes(mlp->output_layer, cur_shape, cur_rank, cur_size);
+                    layer.output_rank = mlp->output_layer.output_rank;
+                    layer.output_size = mlp->output_layer.output_size;
+                    for(TI i = 0; i < layer.output_rank; i++) layer.output_shape[i] = mlp->output_layer.output_shape[i];
                     break;
                 }
                 case LayerType::RESNET_BLOCK: {
-                    // ResNet block output shape = conv2 output shape (same as conv1 output shape)
-                    auto* rb = reinterpret_cast<const layers::ResnetBlock<TI>*>(layer.data);
-                    TI mid_shape[TensorSpecification<TI>::MAX_RANK]; TI mid_rank, mid_size;
-                    compute_output_shape(rb->conv1, in_shape, in_rank, in_size, mid_shape, mid_rank, mid_size);
-                    compute_output_shape(rb->conv2, mid_shape, mid_rank, mid_size, out_shape, out_rank, out_size);
+                    auto* rb = reinterpret_cast<layers::ResnetBlock<TI>*>(layer.data);
+                    propagate_shapes(rb->conv1, in_shape, in_rank, in_size);
+                    propagate_shapes(rb->conv2, rb->conv1.output_shape, rb->conv1.output_rank, rb->conv1.output_size);
+                    if(rb->downsample) propagate_shapes(*rb->downsample, in_shape, in_rank, in_size);
+                    layer.output_rank = rb->conv2.output_rank;
+                    layer.output_size = rb->conv2.output_size;
+                    for(TI i = 0; i < layer.output_rank; i++) layer.output_shape[i] = rb->conv2.output_shape[i];
                     break;
                 }
                 default: {
-                    out_rank = in_rank; out_size = in_size;
-                    for(TI i = 0; i < in_rank; i++) out_shape[i] = in_shape[i];
+                    layer.output_rank = in_rank; layer.output_size = in_size;
+                    for(TI i = 0; i < in_rank; i++) layer.output_shape[i] = in_shape[i];
                     break;
                 }
             }
         }
 
-        // Compute max intermediate buffer size needed, given the full input shape
+        // --- Buffer sizing helpers ---
         template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT TI max_intermediate_size(const Layer<TI>& layer, const TI* in_shape, TI in_rank, TI in_size){
-            TI out_shape[TensorSpecification<TI>::MAX_RANK]; TI out_rank, out_size;
-            compute_output_shape(layer, in_shape, in_rank, in_size, out_shape, out_rank, out_size);
+        RL_TOOLS_FUNCTION_PLACEMENT TI max_output_size(const Layer<TI>& layer){
+            TI m = layer.output_size;
             switch(layer.type){
                 case LayerType::SEQUENTIAL: {
                     auto* seq = reinterpret_cast<const layers::Sequential<TI>*>(layer.data);
-                    TI max_size = 0;
-                    TI cur_shape[TensorSpecification<TI>::MAX_RANK];
-                    TI cur_rank = in_rank, cur_size = in_size;
-                    for(TI i = 0; i < in_rank; i++) cur_shape[i] = in_shape[i];
-                    for(TI i = 0; i < seq->num_layers; i++){
-                        TI next_shape[TensorSpecification<TI>::MAX_RANK]; TI next_rank, next_size;
-                        compute_output_shape(seq->layers[i], cur_shape, cur_rank, cur_size, next_shape, next_rank, next_size);
-                        if(next_size > max_size) max_size = next_size;
-                        TI sub = max_intermediate_size(seq->layers[i], cur_shape, cur_rank, cur_size);
-                        if(sub > max_size) max_size = sub;
-                        cur_rank = next_rank; cur_size = next_size;
-                        for(TI j = 0; j < next_rank; j++) cur_shape[j] = next_shape[j];
-                    }
-                    return max_size;
+                    for(TI i = 0; i < seq->num_layers; i++){ TI s = max_output_size(seq->layers[i]); if(s > m) m = s; }
+                    break;
                 }
                 case LayerType::MLP: {
                     auto* mlp = reinterpret_cast<const layers::MLP<TI>*>(layer.data);
-                    TI max_size = 0;
-                    TI cur_shape[TensorSpecification<TI>::MAX_RANK];
-                    TI cur_rank = in_rank, cur_size = in_size;
-                    for(TI i = 0; i < in_rank; i++) cur_shape[i] = in_shape[i];
-                    auto process = [&](const Layer<TI>& l){
-                        TI next_shape[TensorSpecification<TI>::MAX_RANK]; TI next_rank, next_size;
-                        compute_output_shape(l, cur_shape, cur_rank, cur_size, next_shape, next_rank, next_size);
-                        if(next_size > max_size) max_size = next_size;
-                        cur_rank = next_rank; cur_size = next_size;
-                        for(TI j = 0; j < next_rank; j++) cur_shape[j] = next_shape[j];
-                    };
-                    process(mlp->input_layer);
-                    for(TI i = 0; i < mlp->num_hidden_layers; i++) process(mlp->hidden_layers[i]);
-                    process(mlp->output_layer);
-                    return max_size;
+                    TI s = max_output_size(mlp->input_layer); if(s > m) m = s;
+                    for(TI i = 0; i < mlp->num_hidden_layers; i++){ s = max_output_size(mlp->hidden_layers[i]); if(s > m) m = s; }
+                    s = max_output_size(mlp->output_layer); if(s > m) m = s;
+                    break;
                 }
                 case LayerType::RESNET_BLOCK: {
                     auto* rb = reinterpret_cast<const layers::ResnetBlock<TI>*>(layer.data);
-                    TI mid_shape[TensorSpecification<TI>::MAX_RANK]; TI mid_rank, mid_size;
-                    compute_output_shape(rb->conv1, in_shape, in_rank, in_size, mid_shape, mid_rank, mid_size);
-                    TI max_size = mid_size; // conv1 output = intermediate
-                    if(out_size > max_size) max_size = out_size; // conv2 output
-                    if(rb->downsample){
-                        TI ds_shape[TensorSpecification<TI>::MAX_RANK]; TI ds_rank, ds_size;
-                        compute_output_shape(*rb->downsample, in_shape, in_rank, in_size, ds_shape, ds_rank, ds_size);
-                        if(ds_size > max_size) max_size = ds_size;
-                    }
-                    return max_size;
+                    TI s = max_output_size(rb->conv1); if(s > m) m = s;
+                    s = max_output_size(rb->conv2); if(s > m) m = s;
+                    if(rb->downsample){ s = max_output_size(*rb->downsample); if(s > m) m = s; }
+                    break;
                 }
-                default: return out_size;
+                default: break;
             }
-        }
-        template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT TI max_gru_hidden_size(const Layer<TI>& layer, TI batch_size){
-            TI max_size = 0;
-            switch(layer.type){
-                case LayerType::GRU: return batch_size * reinterpret_cast<const layers::GRU<TI>*>(layer.data)->hidden_dim;
-                case LayerType::SEQUENTIAL: {
-                    auto* seq = reinterpret_cast<const layers::Sequential<TI>*>(layer.data);
-                    for(TI i = 0; i < seq->num_layers; i++){
-                        TI s = max_gru_hidden_size(seq->layers[i], batch_size);
-                        if(s > max_size) max_size = s;
-                    }
-                    return max_size;
-                }
-                case LayerType::MLP: {
-                    auto* mlp = reinterpret_cast<const layers::MLP<TI>*>(layer.data);
-                    TI s = max_gru_hidden_size(mlp->input_layer, batch_size);
-                    if(s > max_size) max_size = s;
-                    for(TI i = 0; i < mlp->num_hidden_layers; i++){
-                        s = max_gru_hidden_size(mlp->hidden_layers[i], batch_size);
-                        if(s > max_size) max_size = s;
-                    }
-                    s = max_gru_hidden_size(mlp->output_layer, batch_size);
-                    if(s > max_size) max_size = s;
-                    return max_size;
-                }
-                default: return 0;
-            }
-        }
-        template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT TI max_gru_gate_size(const Layer<TI>& layer, TI batch_size){
-            TI max_size = 0;
-            switch(layer.type){
-                case LayerType::GRU: return batch_size * 2 * reinterpret_cast<const layers::GRU<TI>*>(layer.data)->hidden_dim;
-                case LayerType::SEQUENTIAL: {
-                    auto* seq = reinterpret_cast<const layers::Sequential<TI>*>(layer.data);
-                    for(TI i = 0; i < seq->num_layers; i++){
-                        TI s = max_gru_gate_size(seq->layers[i], batch_size);
-                        if(s > max_size) max_size = s;
-                    }
-                    return max_size;
-                }
-                case LayerType::MLP: {
-                    auto* mlp = reinterpret_cast<const layers::MLP<TI>*>(layer.data);
-                    TI s = max_gru_gate_size(mlp->input_layer, batch_size);
-                    if(s > max_size) max_size = s;
-                    for(TI i = 0; i < mlp->num_hidden_layers; i++){
-                        s = max_gru_gate_size(mlp->hidden_layers[i], batch_size);
-                        if(s > max_size) max_size = s;
-                    }
-                    s = max_gru_gate_size(mlp->output_layer, batch_size);
-                    if(s > max_size) max_size = s;
-                    return max_size;
-                }
-                default: return 0;
-            }
+            return m;
         }
 
-        // --- Dense evaluate ---
+        template <typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT TI max_scratch_size(const Layer<TI>& layer){
+            TI m = 0;
+            switch(layer.type){
+                case LayerType::GRU: {
+                    auto* g = reinterpret_cast<const layers::GRU<TI>*>(layer.data);
+                    TI batch = (layer.output_rank == 3) ? layer.output_shape[1] : (layer.output_size / g->hidden_dim);
+                    m = batch * 3 * g->hidden_dim;
+                    break;
+                }
+                case LayerType::RESNET_BLOCK: {
+                    auto* rb = reinterpret_cast<const layers::ResnetBlock<TI>*>(layer.data);
+                    m = rb->conv1.output_size;
+                    break;
+                }
+                case LayerType::SEQUENTIAL: {
+                    auto* seq = reinterpret_cast<const layers::Sequential<TI>*>(layer.data);
+                    for(TI i = 0; i < seq->num_layers; i++){ TI s = max_scratch_size(seq->layers[i]); if(s > m) m = s; }
+                    break;
+                }
+                case LayerType::MLP: {
+                    auto* mlp = reinterpret_cast<const layers::MLP<TI>*>(layer.data);
+                    TI s = max_scratch_size(mlp->input_layer); if(s > m) m = s;
+                    for(TI i = 0; i < mlp->num_hidden_layers; i++){ s = max_scratch_size(mlp->hidden_layers[i]); if(s > m) m = s; }
+                    s = max_scratch_size(mlp->output_layer); if(s > m) m = s;
+                    break;
+                }
+                default: break;
+            }
+            return m;
+        }
+
+        // --- Layer evaluate helpers ---
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_dense(DEVICE& device, const layers::Dense<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output){
             TI batch_size = input.size / layer.input_dim;
@@ -318,173 +272,52 @@ namespace rl_tools{
                 }
             }
         }
-
-        // --- GRU evaluate_step ---
-        // scratch layout: [batch * 2 * hidden_dim] for r,z gates, then [batch * hidden_dim] for new_h
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step_gru(DEVICE& device, const layers::GRU<TI>& layer, const Tensor<TensorSpecification<TI>>& input, state::GRU<TI>& gru_state, Tensor<TensorSpecification<TI>>& scratch){
             TI batch_size = input.size / layer.input_dim;
             TI hidden_dim = layer.hidden_dim;
             if(!gru_state.initialized){
-                for(TI b = 0; b < batch_size; b++){
-                    for(TI h = 0; h < hidden_dim; h++){
+                for(TI b = 0; b < batch_size; b++)
+                    for(TI h = 0; h < hidden_dim; h++)
                         set(device, gru_state.hidden, b * hidden_dim + h, get(device, layer.initial_hidden_state, h));
-                    }
-                }
                 gru_state.initialized = true;
             }
             for(TI b = 0; b < batch_size; b++){
-                // r and z gates
                 for(TI g = 0; g < 2 * hidden_dim; g++){
                     float wh = get(device, layer.biases_hidden, g);
-                    for(TI h = 0; h < hidden_dim; h++){
-                        wh += get(device, layer.weights_hidden, g * hidden_dim + h) * get(device, gru_state.hidden, b * hidden_dim + h);
-                    }
+                    for(TI h = 0; h < hidden_dim; h++) wh += get(device, layer.weights_hidden, g * hidden_dim + h) * get(device, gru_state.hidden, b * hidden_dim + h);
                     float wi = get(device, layer.biases_input, g);
-                    for(TI i = 0; i < layer.input_dim; i++){
-                        wi += get(device, layer.weights_input, g * layer.input_dim + i) * get(device, input, b * layer.input_dim + i);
-                    }
-                    float rz = 1.0f / (1.0f + __builtin_expf(-(wh + wi)));
-                    set(device, scratch, b * 2 * hidden_dim + g, rz);
+                    for(TI i = 0; i < layer.input_dim; i++) wi += get(device, layer.weights_input, g * layer.input_dim + i) * get(device, input, b * layer.input_dim + i);
+                    set(device, scratch, b * 2 * hidden_dim + g, 1.0f / (1.0f + __builtin_expf(-(wh + wi))));
                 }
-                // n gate and new hidden state (compute all, then write)
                 for(TI h = 0; h < hidden_dim; h++){
                     TI g = 2 * hidden_dim + h;
                     float wh_n = get(device, layer.biases_hidden, g);
-                    for(TI hh = 0; hh < hidden_dim; hh++){
-                        wh_n += get(device, layer.weights_hidden, g * hidden_dim + hh) * get(device, gru_state.hidden, b * hidden_dim + hh);
-                    }
+                    for(TI hh = 0; hh < hidden_dim; hh++) wh_n += get(device, layer.weights_hidden, g * hidden_dim + hh) * get(device, gru_state.hidden, b * hidden_dim + hh);
                     float wi_n = get(device, layer.biases_input, g);
-                    for(TI i = 0; i < layer.input_dim; i++){
-                        wi_n += get(device, layer.weights_input, g * layer.input_dim + i) * get(device, input, b * layer.input_dim + i);
-                    }
+                    for(TI i = 0; i < layer.input_dim; i++) wi_n += get(device, layer.weights_input, g * layer.input_dim + i) * get(device, input, b * layer.input_dim + i);
                     float r = get(device, scratch, b * 2 * hidden_dim + h);
                     float n_pre = r * wh_n + wi_n;
                     float n;
-                    if(n_pre > 10.0f) n = 1.0f;
-                    else if(n_pre < -10.0f) n = -1.0f;
-                    else{
-                        float e2x = __builtin_expf(2.0f * n_pre);
-                        n = (e2x - 1.0f) / (e2x + 1.0f);
-                    }
+                    if(n_pre > 10.0f) n = 1.0f; else if(n_pre < -10.0f) n = -1.0f;
+                    else{ float e2x = __builtin_expf(2.0f * n_pre); n = (e2x - 1.0f) / (e2x + 1.0f); }
                     float z = get(device, scratch, b * 2 * hidden_dim + hidden_dim + h);
-                    float prev_h = get(device, gru_state.hidden, b * hidden_dim + h);
-                    float new_h = z * prev_h + (1.0f - z) * n;
-                    // Write to scratch (after the r,z area) to avoid corrupting state mid-loop
-                    // Reuse scratch at offset batch_size * 2 * hidden_dim is not safe because scratch might be too small
-                    // Instead, we know the n gate reads state but doesn't modify it, so we can write directly
-                    // The bug was: we write to gru_state.hidden[h] before computing n for other h values
-                    // But actually the n gate computation reads gru_state.hidden[hh] for ALL hh, not just h
-                    // So we MUST NOT modify gru_state.hidden until ALL n values are computed
-                    // Store new_h temporarily in scratch (overwriting r values which are no longer needed)
+                    float new_h = z * get(device, gru_state.hidden, b * hidden_dim + h) + (1.0f - z) * n;
                     set(device, scratch, b * 2 * hidden_dim + h, new_h);
                 }
-                // Copy computed new hidden state back
-                for(TI h = 0; h < hidden_dim; h++){
+                for(TI h = 0; h < hidden_dim; h++)
                     set(device, gru_state.hidden, b * hidden_dim + h, get(device, scratch, b * 2 * hidden_dim + h));
-                }
             }
         }
-
-        // --- GRU evaluate (full sequence) ---
-        template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_gru(DEVICE& device, const layers::GRU<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
-            TI hidden_dim = layer.hidden_dim;
-            if(input.rank == 2){
-                TI batch_size = input.shape[0];
-                state::GRU<TI> tmp_state;
-                TI state_shape[] = {batch_size, hidden_dim};
-                set_shape(tmp_state.hidden, (TI)2, state_shape);
-                tmp_state.hidden.type = dyn::Type::FLOAT32;
-                tmp_state.hidden.data = buffer.gru_state_scratch.data;
-                tmp_state.initialized = false;
-                Tensor<TensorSpecification<TI>> scratch;
-                TI scratch_shape[] = {batch_size * 2 * hidden_dim};
-                set_shape(scratch, (TI)1, scratch_shape);
-                scratch.type = dyn::Type::FLOAT32;
-                scratch.data = buffer.gru_gate_scratch.data;
-                evaluate_step_gru(device, layer, input, tmp_state, scratch);
-                for(TI b = 0; b < batch_size; b++){
-                    for(TI h = 0; h < hidden_dim; h++){
-                        set(device, output, b * hidden_dim + h, get(device, tmp_state.hidden, b * hidden_dim + h));
-                    }
-                }
-            }
-            else{
-                TI seq_len = input.shape[0];
-                TI batch_size = input.shape[1];
-                state::GRU<TI> tmp_state;
-                TI state_shape[] = {batch_size, hidden_dim};
-                set_shape(tmp_state.hidden, (TI)2, state_shape);
-                tmp_state.hidden.type = dyn::Type::FLOAT32;
-                tmp_state.hidden.data = buffer.gru_state_scratch.data;
-                tmp_state.initialized = false;
-                Tensor<TensorSpecification<TI>> step_input, scratch;
-                TI step_input_shape[] = {batch_size, layer.input_dim};
-                set_shape(step_input, (TI)2, step_input_shape);
-                step_input.type = input.type;
-                TI scratch_shape[] = {batch_size * 2 * hidden_dim};
-                set_shape(scratch, (TI)1, scratch_shape);
-                scratch.type = dyn::Type::FLOAT32;
-                scratch.data = buffer.gru_gate_scratch.data;
-                for(TI t = 0; t < seq_len; t++){
-                    TI input_element_size = dyn::size_of<TI>(input.type);
-                    step_input.data = reinterpret_cast<char*>(const_cast<void*>(input.data)) + t * batch_size * layer.input_dim * input_element_size;
-                    evaluate_step_gru(device, layer, step_input, tmp_state, scratch);
-                    for(TI b = 0; b < batch_size; b++){
-                        for(TI h = 0; h < hidden_dim; h++){
-                            set(device, output, (t * batch_size + b) * hidden_dim + h, get(device, tmp_state.hidden, b * hidden_dim + h));
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- SampleAndSquash evaluate ---
-        template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_sample_and_squash(DEVICE& device, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output){
-            TI last_dim = input.shape[input.rank - 1];
-            TI half_dim = last_dim / 2;
-            TI batch_size = input.size / last_dim;
-            for(TI b = 0; b < batch_size; b++){
-                for(TI i = 0; i < half_dim; i++){
-                    float mean = get(device, input, b * last_dim + i);
-                    float t;
-                    if(mean > 10.0f) t = 1.0f;
-                    else if(mean < -10.0f) t = -1.0f;
-                    else{
-                        float e2x = __builtin_expf(2.0f * mean);
-                        t = (e2x - 1.0f) / (e2x + 1.0f);
-                    }
-                    set(device, output, b * half_dim + i, t);
-                }
-            }
-        }
-
-        // --- Standardize evaluate ---
-        template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_standardize(DEVICE& device, const layers::Standardize<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output){
-            TI batch_size = input.size / layer.dim;
-            for(TI b = 0; b < batch_size; b++){
-                for(TI i = 0; i < layer.dim; i++){
-                    float val = get(device, input, b * layer.dim + i);
-                    float m = get(device, layer.mean, i);
-                    float p = get(device, layer.precision, i);
-                    set(device, output, b * layer.dim + i, (val - m) * p);
-                }
-            }
-        }
-        // --- Conv2d evaluate ---
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_conv2d(DEVICE& device, const layers::Conv2d<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output){
-            TI input_height = input.shape[input.rank - 3];
-            TI input_width = input.shape[input.rank - 2];
+            TI input_height = input.shape[input.rank - 3], input_width = input.shape[input.rank - 2];
             TI batch_size = input.size / (input_height * input_width * layer.input_channels);
             TI output_height = (input_height + 2 * layer.padding_h - layer.kernel_height) / layer.stride_h + 1;
             TI output_width = (input_width + 2 * layer.padding_w - layer.kernel_width) / layer.stride_w + 1;
-            for(TI bi = 0; bi < batch_size; bi++){
-                for(TI oh = 0; oh < output_height; oh++){
-                    for(TI ow = 0; ow < output_width; ow++){
+            for(TI bi = 0; bi < batch_size; bi++)
+                for(TI oh = 0; oh < output_height; oh++)
+                    for(TI ow = 0; ow < output_width; ow++)
                         for(TI oc = 0; oc < layer.output_channels; oc++){
                             float acc = get(device, layer.biases, oc);
                             for(TI kh = 0; kh < layer.kernel_height; kh++){
@@ -493,86 +326,49 @@ namespace rl_tools{
                                 for(TI kw = 0; kw < layer.kernel_width; kw++){
                                     TI iw = ow * layer.stride_w + kw - layer.padding_w;
                                     if(iw >= input_width) continue;
-                                    for(TI ic = 0; ic < layer.input_channels; ic++){
-                                        float w = get(device, layer.weights, ((oc * layer.kernel_height + kh) * layer.kernel_width + kw) * layer.input_channels + ic);
-                                        float v = get(device, input, ((bi * input_height + ih) * input_width + iw) * layer.input_channels + ic);
-                                        acc += w * v;
-                                    }
+                                    for(TI ic = 0; ic < layer.input_channels; ic++)
+                                        acc += get(device, layer.weights, ((oc * layer.kernel_height + kh) * layer.kernel_width + kw) * layer.input_channels + ic)
+                                             * get(device, input, ((bi * input_height + ih) * input_width + iw) * layer.input_channels + ic);
                                 }
                             }
-                            TI out_idx = ((bi * output_height + oh) * output_width + ow) * layer.output_channels + oc;
-                            set(device, output, out_idx, acc);
+                            set(device, output, ((bi * output_height + oh) * output_width + ow) * layer.output_channels + oc, acc);
                         }
-                    }
-                }
-            }
-            // Batch normalization
             if(layer.normalization == layers::Conv2d<TI>::Normalization::BATCH_NORM){
                 float epsilon = 1e-5f;
-                for(TI bi = 0; bi < batch_size; bi++){
-                    for(TI oh = 0; oh < output_height; oh++){
-                        for(TI ow = 0; ow < output_width; ow++){
-                            for(TI oc = 0; oc < layer.output_channels; oc++){
-                                TI idx = ((bi * output_height + oh) * output_width + ow) * layer.output_channels + oc;
-                                float x = get(device, output, idx);
-                                float mean = get(device, layer.running_mean, oc);
-                                float var = get(device, layer.running_var, oc);
-                                float gamma = get(device, layer.gamma, oc);
-                                float beta = get(device, layer.beta, oc);
-                                float normalized = gamma * (x - mean) / __builtin_sqrtf(var + epsilon) + beta;
-                                set(device, output, idx, normalized);
-                            }
-                        }
-                    }
+                for(TI i = 0; i < output.size; i++){
+                    TI oc = i % layer.output_channels;
+                    float x = get(device, output, i);
+                    set(device, output, i, get(device, layer.gamma, oc) * (x - get(device, layer.running_mean, oc)) / __builtin_sqrtf(get(device, layer.running_var, oc) + epsilon) + get(device, layer.beta, oc));
                 }
             }
             else if(layer.normalization == layers::Conv2d<TI>::Normalization::LAYER_NORM){
                 float epsilon = 1e-5f;
-                TI spatial_channels = output_height * output_width * layer.output_channels;
+                TI spatial_channels = output.size / batch_size;
                 for(TI bi = 0; bi < batch_size; bi++){
                     float sum = 0;
-                    for(TI i = 0; i < spatial_channels; i++){
-                        sum += get(device, output, bi * spatial_channels + i);
-                    }
+                    for(TI i = 0; i < spatial_channels; i++) sum += get(device, output, bi * spatial_channels + i);
                     float mean = sum / (float)spatial_channels;
                     float var_sum = 0;
-                    for(TI i = 0; i < spatial_channels; i++){
-                        float d = get(device, output, bi * spatial_channels + i) - mean;
-                        var_sum += d * d;
-                    }
+                    for(TI i = 0; i < spatial_channels; i++){ float d = get(device, output, bi * spatial_channels + i) - mean; var_sum += d * d; }
                     float inv_std = 1.0f / __builtin_sqrtf(var_sum / (float)spatial_channels + epsilon);
-                    for(TI oh = 0; oh < output_height; oh++){
-                        for(TI ow = 0; ow < output_width; ow++){
-                            for(TI oc = 0; oc < layer.output_channels; oc++){
-                                TI idx = ((bi * output_height + oh) * output_width + ow) * layer.output_channels + oc;
-                                float gamma = get(device, layer.gamma, oc);
-                                float beta = get(device, layer.beta, oc);
-                                set(device, output, idx, gamma * (get(device, output, idx) - mean) * inv_std + beta);
-                            }
-                        }
+                    for(TI i = 0; i < spatial_channels; i++){
+                        TI oc = i % layer.output_channels;
+                        set(device, output, bi * spatial_channels + i, get(device, layer.gamma, oc) * (get(device, output, bi * spatial_channels + i) - mean) * inv_std + get(device, layer.beta, oc));
                     }
                 }
             }
-            // Activation
-            if(layer.activation_function != ActivationFunction::IDENTITY){
-                for(TI i = 0; i < output.size; i++){
-                    set(device, output, i, apply_activation(layer.activation_function, get(device, output, i)));
-                }
-            }
+            if(layer.activation_function != ActivationFunction::IDENTITY)
+                for(TI i = 0; i < output.size; i++) set(device, output, i, apply_activation(layer.activation_function, get(device, output, i)));
         }
-
-        // --- MaxPool2d evaluate ---
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_max_pool2d(DEVICE& device, const layers::MaxPool2d<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output){
-            TI input_height = input.shape[input.rank - 3];
-            TI input_width = input.shape[input.rank - 2];
-            TI channels = input.shape[input.rank - 1];
+            TI input_height = input.shape[input.rank - 3], input_width = input.shape[input.rank - 2], channels = input.shape[input.rank - 1];
             TI batch_size = input.size / (input_height * input_width * channels);
             TI output_height = (input_height + 2 * layer.padding_h - layer.kernel_height) / layer.stride_h + 1;
             TI output_width = (input_width + 2 * layer.padding_w - layer.kernel_width) / layer.stride_w + 1;
-            for(TI bi = 0; bi < batch_size; bi++){
-                for(TI oh = 0; oh < output_height; oh++){
-                    for(TI ow = 0; ow < output_width; ow++){
+            for(TI bi = 0; bi < batch_size; bi++)
+                for(TI oh = 0; oh < output_height; oh++)
+                    for(TI ow = 0; ow < output_width; ow++)
                         for(TI c = 0; c < channels; c++){
                             float max_val = -1e30f;
                             for(TI kh = 0; kh < layer.kernel_height; kh++){
@@ -587,81 +383,114 @@ namespace rl_tools{
                             }
                             set(device, output, ((bi * output_height + oh) * output_width + ow) * channels + c, max_val);
                         }
-                    }
+        }
+        template <typename DEVICE, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_sample_and_squash(DEVICE& device, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output){
+            TI last_dim = input.shape[input.rank - 1], half_dim = last_dim / 2, batch_size = input.size / last_dim;
+            for(TI b = 0; b < batch_size; b++)
+                for(TI i = 0; i < half_dim; i++){
+                    float mean = get(device, input, b * last_dim + i);
+                    float t; if(mean > 10.0f) t = 1.0f; else if(mean < -10.0f) t = -1.0f;
+                    else{ float e2x = __builtin_expf(2.0f * mean); t = (e2x - 1.0f) / (e2x + 1.0f); }
+                    set(device, output, b * half_dim + i, t);
                 }
-            }
+        }
+        template <typename DEVICE, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_standardize(DEVICE& device, const layers::Standardize<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output){
+            TI batch_size = input.size / layer.dim;
+            for(TI b = 0; b < batch_size; b++)
+                for(TI i = 0; i < layer.dim; i++)
+                    set(device, output, b * layer.dim + i, (get(device, input, b * layer.dim + i) - get(device, layer.mean, i)) * get(device, layer.precision, i));
         }
     }
 
-    // Forward declarations for mutual recursion
+    // Forward declarations
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer);
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::State<TI>& state, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer);
 
     namespace dyn{
-        // --- Sequential evaluate ---
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_sequential(DEVICE& device, const layers::Sequential<TI>& seq, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             const Tensor<TensorSpecification<TI>>* current_input = &input;
-            Tensor<TensorSpecification<TI>>* current_output;
             bool input_is_external = true;
             for(TI i = 0; i < seq.num_layers; i++){
-                bool is_last = (i == seq.num_layers - 1);
-                if(is_last){
-                    current_output = &output;
-                }
-                else{
-                    current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
-                }
+                Tensor<TensorSpecification<TI>>* current_output;
+                if(i == seq.num_layers - 1) current_output = &output;
+                else current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
                 rl_tools::evaluate(device, seq.layers[i], *current_input, *current_output, buffer);
                 current_input = current_output;
                 input_is_external = false;
             }
         }
-
-        // --- Sequential evaluate_step ---
         template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step_sequential(DEVICE& device, const layers::Sequential<TI>& seq, const Tensor<TensorSpecification<TI>>& input, state::Sequential<TI>& seq_state, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
+        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step_sequential(DEVICE& device, const layers::Sequential<TI>& seq, state::Sequential<TI>& seq_state, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             const Tensor<TensorSpecification<TI>>* current_input = &input;
-            Tensor<TensorSpecification<TI>>* current_output;
             bool input_is_external = true;
             for(TI i = 0; i < seq.num_layers; i++){
-                bool is_last = (i == seq.num_layers - 1);
-                if(is_last){
-                    current_output = &output;
-                }
-                else{
-                    current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
-                }
+                Tensor<TensorSpecification<TI>>* current_output;
+                if(i == seq.num_layers - 1) current_output = &output;
+                else current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
                 rl_tools::evaluate_step(device, seq.layers[i], *current_input, seq_state.layer_states[i], *current_output, buffer);
                 current_input = current_output;
                 input_is_external = false;
             }
         }
-
-        // --- MLP evaluate (delegates to sequential-style chaining) ---
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_mlp(DEVICE& device, const layers::MLP<TI>& mlp, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             TI total_layers = 1 + mlp.num_hidden_layers + 1;
             const Tensor<TensorSpecification<TI>>* current_input = &input;
-            Tensor<TensorSpecification<TI>>* current_output;
             bool input_is_external = true;
             for(TI i = 0; i < total_layers; i++){
                 const Layer<TI>* current_layer;
                 if(i == 0) current_layer = &mlp.input_layer;
                 else if(i <= mlp.num_hidden_layers) current_layer = &mlp.hidden_layers[i - 1];
                 else current_layer = &mlp.output_layer;
-                bool is_last = (i == total_layers - 1);
-                if(is_last){
-                    current_output = &output;
-                }
-                else{
-                    current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
-                }
+                Tensor<TensorSpecification<TI>>* current_output;
+                if(i == total_layers - 1) current_output = &output;
+                else current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
                 rl_tools::evaluate(device, *current_layer, *current_input, *current_output, buffer);
                 current_input = current_output;
                 input_is_external = false;
+            }
+        }
+        template <typename DEVICE, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT void evaluate_gru(DEVICE& device, const layers::GRU<TI>& layer, const Layer<TI>& layer_meta, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
+            TI hidden_dim = layer.hidden_dim;
+            TI batch = (input.rank == 3) ? input.shape[1] : (input.size / layer.input_dim);
+            // Pack hidden state and gate scratch into buffer.scratch
+            // scratch[0..batch*H-1] = hidden state, scratch[batch*H..batch*3H-1] = gates
+            state::GRU<TI> tmp_state;
+            TI state_shape[] = {batch, hidden_dim};
+            set_shape(tmp_state.hidden, (TI)2, state_shape);
+            tmp_state.hidden.type = Type::FLOAT32;
+            tmp_state.hidden.data = buffer.scratch.data;
+            tmp_state.initialized = false;
+            Tensor<TensorSpecification<TI>> gate_scratch;
+            TI gate_shape[] = {batch * 2 * hidden_dim};
+            set_shape(gate_scratch, (TI)1, gate_shape);
+            gate_scratch.type = Type::FLOAT32;
+            gate_scratch.data = reinterpret_cast<char*>(buffer.scratch.data) + batch * hidden_dim * sizeof(float);
+            if(input.rank == 2){
+                evaluate_step_gru(device, layer, input, tmp_state, gate_scratch);
+                for(TI b = 0; b < batch; b++)
+                    for(TI h = 0; h < hidden_dim; h++)
+                        set(device, output, b * hidden_dim + h, get(device, tmp_state.hidden, b * hidden_dim + h));
+            }
+            else{
+                TI seq_len = input.shape[0];
+                Tensor<TensorSpecification<TI>> step_input;
+                TI step_shape[] = {batch, layer.input_dim};
+                set_shape(step_input, (TI)2, step_shape);
+                step_input.type = input.type;
+                for(TI t = 0; t < seq_len; t++){
+                    step_input.data = reinterpret_cast<char*>(const_cast<void*>(input.data)) + t * batch * layer.input_dim * size_of<TI>(input.type);
+                    evaluate_step_gru(device, layer, step_input, tmp_state, gate_scratch);
+                    for(TI b = 0; b < batch; b++)
+                        for(TI h = 0; h < hidden_dim; h++)
+                            set(device, output, (t * batch + b) * hidden_dim + h, get(device, tmp_state.hidden, b * hidden_dim + h));
+                }
             }
         }
     }
@@ -669,42 +498,27 @@ namespace rl_tools{
     // --- Buffer malloc/free ---
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, dyn::Buffer<TI>& buffer){
-        buffer.max_size = dyn::max_intermediate_size(*buffer.layer, buffer.input_shape, buffer.input_rank, buffer.input_size);
-        TI shape[] = {buffer.max_size};
-        dyn::set_shape(buffer.tick, (TI)1, shape);
+        TI tick_tock_size = dyn::max_output_size(*buffer.layer);
+        TI scratch_size = dyn::max_scratch_size(*buffer.layer);
+        TI tt_shape[] = {tick_tock_size};
+        dyn::set_shape(buffer.tick, (TI)1, tt_shape);
         buffer.tick.type = dyn::Type::FLOAT32;
         rl_tools::malloc(device, buffer.tick);
-        dyn::set_shape(buffer.tock, (TI)1, shape);
+        dyn::set_shape(buffer.tock, (TI)1, tt_shape);
         buffer.tock.type = dyn::Type::FLOAT32;
         rl_tools::malloc(device, buffer.tock);
-        // Resnet block scratch (separate from tick/tock to avoid aliasing)
-        TI rs[] = {buffer.max_size};
-        dyn::set_shape(buffer.resnet_intermediate, (TI)1, rs);
-        buffer.resnet_intermediate.type = dyn::Type::FLOAT32;
-        rl_tools::malloc(device, buffer.resnet_intermediate);
-        dyn::set_shape(buffer.resnet_shortcut, (TI)1, rs);
-        buffer.resnet_shortcut.type = dyn::Type::FLOAT32;
-        rl_tools::malloc(device, buffer.resnet_shortcut);
-        TI gru_hidden = dyn::max_gru_hidden_size(*buffer.layer, buffer.batch_size);
-        if(gru_hidden > 0){
-            TI hs[] = {gru_hidden};
-            dyn::set_shape(buffer.gru_state_scratch, (TI)1, hs);
-            buffer.gru_state_scratch.type = dyn::Type::FLOAT32;
-            rl_tools::malloc(device, buffer.gru_state_scratch);
-            TI gs[] = {dyn::max_gru_gate_size(*buffer.layer, buffer.batch_size)};
-            dyn::set_shape(buffer.gru_gate_scratch, (TI)1, gs);
-            buffer.gru_gate_scratch.type = dyn::Type::FLOAT32;
-            rl_tools::malloc(device, buffer.gru_gate_scratch);
+        if(scratch_size > 0){
+            TI s_shape[] = {scratch_size};
+            dyn::set_shape(buffer.scratch, (TI)1, s_shape);
+            buffer.scratch.type = dyn::Type::FLOAT32;
+            rl_tools::malloc(device, buffer.scratch);
         }
     }
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, dyn::Buffer<TI>& buffer){
         rl_tools::free(device, buffer.tick);
         rl_tools::free(device, buffer.tock);
-        rl_tools::free(device, buffer.resnet_intermediate);
-        rl_tools::free(device, buffer.resnet_shortcut);
-        rl_tools::free(device, buffer.gru_state_scratch);
-        rl_tools::free(device, buffer.gru_gate_scratch);
+        rl_tools::free(device, buffer.scratch);
     }
 
     // --- State malloc/free/reset ---
@@ -714,79 +528,45 @@ namespace rl_tools{
         switch(state.type){
             case dyn::LayerType::GRU: {
                 auto* gru_layer = reinterpret_cast<const dyn::layers::GRU<TI>*>(state.layer->data);
-                auto* gru_state = new dyn::state::GRU<TI>();
+                auto* gs = new dyn::state::GRU<TI>();
                 TI shape[] = {state.batch_size, gru_layer->hidden_dim};
-                dyn::set_shape(gru_state->hidden, (TI)2, shape);
-                gru_state->hidden.type = dyn::Type::FLOAT32;
-                rl_tools::malloc(device, gru_state->hidden);
-                gru_state->initialized = false;
-                state.data = gru_state;
+                dyn::set_shape(gs->hidden, (TI)2, shape);
+                gs->hidden.type = dyn::Type::FLOAT32;
+                rl_tools::malloc(device, gs->hidden);
+                gs->initialized = false;
+                state.data = gs;
                 break;
             }
             case dyn::LayerType::SEQUENTIAL: {
-                auto* seq_layer = reinterpret_cast<const dyn::layers::Sequential<TI>*>(state.layer->data);
-                auto* seq_state = new dyn::state::Sequential<TI>();
-                seq_state->num_layers = seq_layer->num_layers;
-                seq_state->layer_states = new dyn::State<TI>[seq_layer->num_layers];
-                for(TI i = 0; i < seq_layer->num_layers; i++){
-                    seq_state->layer_states[i].batch_size = state.batch_size;
-                    seq_state->layer_states[i].layer = &seq_layer->layers[i];
-                    rl_tools::malloc(device, seq_state->layer_states[i]);
+                auto* seq = reinterpret_cast<const dyn::layers::Sequential<TI>*>(state.layer->data);
+                auto* ss = new dyn::state::Sequential<TI>();
+                ss->num_layers = seq->num_layers;
+                ss->layer_states = new dyn::State<TI>[seq->num_layers];
+                for(TI i = 0; i < seq->num_layers; i++){
+                    ss->layer_states[i].batch_size = state.batch_size;
+                    ss->layer_states[i].layer = &seq->layers[i];
+                    rl_tools::malloc(device, ss->layer_states[i]);
                 }
-                state.data = seq_state;
+                state.data = ss;
                 break;
             }
-            case dyn::LayerType::MLP: {
-                auto* mlp_layer = reinterpret_cast<const dyn::layers::MLP<TI>*>(state.layer->data);
-                auto* mlp_state = new dyn::state::MLP<TI>();
-                mlp_state->input_layer_state.batch_size = state.batch_size;
-                mlp_state->input_layer_state.layer = &mlp_layer->input_layer;
-                rl_tools::malloc(device, mlp_state->input_layer_state);
-                mlp_state->num_hidden_layers = mlp_layer->num_hidden_layers;
-                mlp_state->hidden_layer_states = new dyn::State<TI>[mlp_layer->num_hidden_layers];
-                for(TI i = 0; i < mlp_layer->num_hidden_layers; i++){
-                    mlp_state->hidden_layer_states[i].batch_size = state.batch_size;
-                    mlp_state->hidden_layer_states[i].layer = &mlp_layer->hidden_layers[i];
-                    rl_tools::malloc(device, mlp_state->hidden_layer_states[i]);
-                }
-                mlp_state->output_layer_state.batch_size = state.batch_size;
-                mlp_state->output_layer_state.layer = &mlp_layer->output_layer;
-                rl_tools::malloc(device, mlp_state->output_layer_state);
-                state.data = mlp_state;
-                break;
-            }
-            default:
-                state.data = nullptr;
-                break;
+            default: state.data = nullptr; break;
         }
     }
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, dyn::State<TI>& state){
         switch(state.type){
             case dyn::LayerType::GRU: {
-                auto* gru_state = reinterpret_cast<dyn::state::GRU<TI>*>(state.data);
-                rl_tools::free(device, gru_state->hidden);
-                delete gru_state;
+                auto* gs = reinterpret_cast<dyn::state::GRU<TI>*>(state.data);
+                rl_tools::free(device, gs->hidden);
+                delete gs;
                 break;
             }
             case dyn::LayerType::SEQUENTIAL: {
-                auto* seq_state = reinterpret_cast<dyn::state::Sequential<TI>*>(state.data);
-                for(TI i = 0; i < seq_state->num_layers; i++){
-                    rl_tools::free(device, seq_state->layer_states[i]);
-                }
-                delete[] seq_state->layer_states;
-                delete seq_state;
-                break;
-            }
-            case dyn::LayerType::MLP: {
-                auto* mlp_state = reinterpret_cast<dyn::state::MLP<TI>*>(state.data);
-                rl_tools::free(device, mlp_state->input_layer_state);
-                for(TI i = 0; i < mlp_state->num_hidden_layers; i++){
-                    rl_tools::free(device, mlp_state->hidden_layer_states[i]);
-                }
-                delete[] mlp_state->hidden_layer_states;
-                rl_tools::free(device, mlp_state->output_layer_state);
-                delete mlp_state;
+                auto* ss = reinterpret_cast<dyn::state::Sequential<TI>*>(state.data);
+                for(TI i = 0; i < ss->num_layers; i++) rl_tools::free(device, ss->layer_states[i]);
+                delete[] ss->layer_states;
+                delete ss;
                 break;
             }
             default: break;
@@ -796,16 +576,11 @@ namespace rl_tools{
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void reset(DEVICE& device, const dyn::Layer<TI>& layer, dyn::State<TI>& state){
         switch(state.type){
-            case dyn::LayerType::GRU: {
-                reinterpret_cast<dyn::state::GRU<TI>*>(state.data)->initialized = false;
-                break;
-            }
+            case dyn::LayerType::GRU: reinterpret_cast<dyn::state::GRU<TI>*>(state.data)->initialized = false; break;
             case dyn::LayerType::SEQUENTIAL: {
-                auto* seq_state = reinterpret_cast<dyn::state::Sequential<TI>*>(state.data);
-                auto* seq_layer = reinterpret_cast<const dyn::layers::Sequential<TI>*>(layer.data);
-                for(TI i = 0; i < seq_state->num_layers; i++){
-                    reset(device, seq_layer->layers[i], seq_state->layer_states[i]);
-                }
+                auto* ss = reinterpret_cast<dyn::state::Sequential<TI>*>(state.data);
+                auto* seq = reinterpret_cast<const dyn::layers::Sequential<TI>*>(layer.data);
+                for(TI i = 0; i < ss->num_layers; i++) reset(device, seq->layers[i], ss->layer_states[i]);
                 break;
             }
             default: break;
@@ -816,88 +591,16 @@ namespace rl_tools{
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, dyn::Layer<TI>& layer){
         switch(layer.type){
-            case dyn::LayerType::DENSE: {
-                auto* d = reinterpret_cast<dyn::layers::Dense<TI>*>(layer.data);
-                rl_tools::free(device, d->weights);
-                rl_tools::free(device, d->biases);
-                delete d;
-                break;
-            }
-            case dyn::LayerType::GRU: {
-                auto* g = reinterpret_cast<dyn::layers::GRU<TI>*>(layer.data);
-                rl_tools::free(device, g->weights_input);
-                rl_tools::free(device, g->biases_input);
-                rl_tools::free(device, g->weights_hidden);
-                rl_tools::free(device, g->biases_hidden);
-                rl_tools::free(device, g->initial_hidden_state);
-                delete g;
-                break;
-            }
-            case dyn::LayerType::CONV2D: {
-                auto* c = reinterpret_cast<dyn::layers::Conv2d<TI>*>(layer.data);
-                rl_tools::free(device, c->weights);
-                rl_tools::free(device, c->biases);
-                if(c->normalization != dyn::layers::Conv2d<TI>::Normalization::NONE){
-                    rl_tools::free(device, c->gamma);
-                    rl_tools::free(device, c->beta);
-                    if(c->normalization == dyn::layers::Conv2d<TI>::Normalization::BATCH_NORM){
-                        rl_tools::free(device, c->running_mean);
-                        rl_tools::free(device, c->running_var);
-                    }
-                }
-                delete c;
-                break;
-            }
+            case dyn::LayerType::DENSE: { auto* d = reinterpret_cast<dyn::layers::Dense<TI>*>(layer.data); rl_tools::free(device, d->weights); rl_tools::free(device, d->biases); delete d; break; }
+            case dyn::LayerType::GRU: { auto* g = reinterpret_cast<dyn::layers::GRU<TI>*>(layer.data); rl_tools::free(device, g->weights_input); rl_tools::free(device, g->biases_input); rl_tools::free(device, g->weights_hidden); rl_tools::free(device, g->biases_hidden); rl_tools::free(device, g->initial_hidden_state); delete g; break; }
+            case dyn::LayerType::CONV2D: { auto* c = reinterpret_cast<dyn::layers::Conv2d<TI>*>(layer.data); rl_tools::free(device, c->weights); rl_tools::free(device, c->biases); if(c->normalization != dyn::layers::Conv2d<TI>::Normalization::NONE){ rl_tools::free(device, c->gamma); rl_tools::free(device, c->beta); if(c->normalization == dyn::layers::Conv2d<TI>::Normalization::BATCH_NORM){ rl_tools::free(device, c->running_mean); rl_tools::free(device, c->running_var); } } delete c; break; }
             case dyn::LayerType::MAX_POOL2D: delete reinterpret_cast<dyn::layers::MaxPool2d<TI>*>(layer.data); break;
-            case dyn::LayerType::STANDARDIZE: {
-                auto* s = reinterpret_cast<dyn::layers::Standardize<TI>*>(layer.data);
-                rl_tools::free(device, s->mean);
-                rl_tools::free(device, s->precision);
-                delete s;
-                break;
-            }
-            case dyn::LayerType::EMBEDDING: {
-                auto* e = reinterpret_cast<dyn::layers::Embedding<TI>*>(layer.data);
-                rl_tools::free(device, e->weights);
-                delete e;
-                break;
-            }
-            case dyn::LayerType::SEQUENTIAL: {
-                auto* seq = reinterpret_cast<dyn::layers::Sequential<TI>*>(layer.data);
-                for(TI i = 0; i < seq->num_layers; i++){
-                    rl_tools::free(device, seq->layers[i]);
-                }
-                delete[] seq->layers;
-                delete seq;
-                break;
-            }
-            case dyn::LayerType::MLP: {
-                auto* mlp = reinterpret_cast<dyn::layers::MLP<TI>*>(layer.data);
-                rl_tools::free(device, mlp->input_layer);
-                for(TI i = 0; i < mlp->num_hidden_layers; i++){
-                    rl_tools::free(device, mlp->hidden_layers[i]);
-                }
-                delete[] mlp->hidden_layers;
-                rl_tools::free(device, mlp->output_layer);
-                delete mlp;
-                break;
-            }
-            case dyn::LayerType::PARALLEL: {
-                auto* p = reinterpret_cast<dyn::layers::Parallel<TI>*>(layer.data);
-                rl_tools::free(device, *p->pipeline_a); delete p->pipeline_a;
-                rl_tools::free(device, *p->pipeline_b); delete p->pipeline_b;
-                if(p->head){ rl_tools::free(device, *p->head); delete p->head; }
-                delete p;
-                break;
-            }
-            case dyn::LayerType::RESNET_BLOCK: {
-                auto* rb = reinterpret_cast<dyn::layers::ResnetBlock<TI>*>(layer.data);
-                rl_tools::free(device, rb->conv1);
-                rl_tools::free(device, rb->conv2);
-                if(rb->downsample){ rl_tools::free(device, *rb->downsample); delete rb->downsample; }
-                delete rb;
-                break;
-            }
+            case dyn::LayerType::STANDARDIZE: { auto* s = reinterpret_cast<dyn::layers::Standardize<TI>*>(layer.data); rl_tools::free(device, s->mean); rl_tools::free(device, s->precision); delete s; break; }
+            case dyn::LayerType::EMBEDDING: { auto* e = reinterpret_cast<dyn::layers::Embedding<TI>*>(layer.data); rl_tools::free(device, e->weights); delete e; break; }
+            case dyn::LayerType::SEQUENTIAL: { auto* seq = reinterpret_cast<dyn::layers::Sequential<TI>*>(layer.data); for(TI i = 0; i < seq->num_layers; i++) rl_tools::free(device, seq->layers[i]); delete[] seq->layers; delete seq; break; }
+            case dyn::LayerType::MLP: { auto* mlp = reinterpret_cast<dyn::layers::MLP<TI>*>(layer.data); rl_tools::free(device, mlp->input_layer); for(TI i = 0; i < mlp->num_hidden_layers; i++) rl_tools::free(device, mlp->hidden_layers[i]); delete[] mlp->hidden_layers; rl_tools::free(device, mlp->output_layer); delete mlp; break; }
+            case dyn::LayerType::PARALLEL: { auto* p = reinterpret_cast<dyn::layers::Parallel<TI>*>(layer.data); rl_tools::free(device, *p->pipeline_a); delete p->pipeline_a; rl_tools::free(device, *p->pipeline_b); delete p->pipeline_b; if(p->head){ rl_tools::free(device, *p->head); delete p->head; } delete p; break; }
+            case dyn::LayerType::RESNET_BLOCK: { auto* rb = reinterpret_cast<dyn::layers::ResnetBlock<TI>*>(layer.data); rl_tools::free(device, rb->conv1); rl_tools::free(device, rb->conv2); if(rb->downsample){ rl_tools::free(device, *rb->downsample); delete rb->downsample; } delete rb; break; }
             default: break;
         }
         layer.data = nullptr;
@@ -906,70 +609,20 @@ namespace rl_tools{
     // --- Top-level evaluate ---
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer){
+        // Set output shape from cached propagation
+        dyn::set_shape(output, layer.output_rank, layer.output_shape);
+        output.type = dyn::Type::FLOAT32;
         switch(layer.type){
-            case dyn::LayerType::DENSE: {
-                auto* d = reinterpret_cast<const dyn::layers::Dense<TI>*>(layer.data);
-                // Preserve input rank: replace only the last dimension with output_dim
-                TI out_rank = input.rank;
-                TI out_shape[dyn::TensorSpecification<TI>::MAX_RANK];
-                for(TI i = 0; i < input.rank; i++) out_shape[i] = input.shape[i];
-                out_shape[out_rank - 1] = d->output_dim;
-                dyn::set_shape(output, out_rank, out_shape);
-                output.type = dyn::Type::FLOAT32;
-                dyn::evaluate_dense(device, *d, input, output);
-                break;
-            }
-            case dyn::LayerType::GRU: {
-                auto* g = reinterpret_cast<const dyn::layers::GRU<TI>*>(layer.data);
-                if(input.rank == 3){
-                    TI out_shape[] = {input.shape[0], input.shape[1], g->hidden_dim};
-                    dyn::set_shape(output, (TI)3, out_shape);
-                }
-                else{
-                    TI batch_size = input.size / g->input_dim;
-                    TI out_shape[] = {batch_size, g->hidden_dim};
-                    dyn::set_shape(output, (TI)2, out_shape);
-                }
-                output.type = dyn::Type::FLOAT32;
-                dyn::evaluate_gru(device, *g, input, output, buffer);
-                break;
-            }
-            case dyn::LayerType::SAMPLE_AND_SQUASH: {
-                TI last_dim = input.shape[input.rank - 1];
-                TI half_dim = last_dim / 2;
-                TI batch_size = input.size / last_dim;
-                TI out_shape[] = {batch_size, half_dim};
-                dyn::set_shape(output, (TI)2, out_shape);
-                output.type = dyn::Type::FLOAT32;
-                dyn::evaluate_sample_and_squash(device, input, output);
-                break;
-            }
-            case dyn::LayerType::STANDARDIZE: {
-                auto* s = reinterpret_cast<const dyn::layers::Standardize<TI>*>(layer.data);
-                dyn::set_shape(output, input.rank, input.shape);
-                output.type = dyn::Type::FLOAT32;
-                dyn::evaluate_standardize(device, *s, input, output);
-                break;
-            }
-            case dyn::LayerType::SEQUENTIAL: {
-                dyn::evaluate_sequential(device, *reinterpret_cast<const dyn::layers::Sequential<TI>*>(layer.data), input, output, buffer);
-                break;
-            }
-            case dyn::LayerType::MLP: {
-                dyn::evaluate_mlp(device, *reinterpret_cast<const dyn::layers::MLP<TI>*>(layer.data), input, output, buffer);
-                break;
-            }
-            case dyn::LayerType::FLATTEN: {
-                if(input.rank >= 3){
-                    TI flat_dim = 1;
-                    for(TI i = input.rank - 3; i < input.rank; i++) flat_dim *= input.shape[i];
-                    TI batch_size = input.size / flat_dim;
-                    TI out_shape[] = {batch_size, flat_dim};
-                    dyn::set_shape(output, (TI)2, out_shape);
-                }
-                else{
-                    dyn::set_shape(output, input.rank, input.shape);
-                }
+            case dyn::LayerType::DENSE: dyn::evaluate_dense(device, *reinterpret_cast<const dyn::layers::Dense<TI>*>(layer.data), input, output); break;
+            case dyn::LayerType::GRU: dyn::evaluate_gru(device, *reinterpret_cast<const dyn::layers::GRU<TI>*>(layer.data), layer, input, output, buffer); break;
+            case dyn::LayerType::CONV2D: dyn::evaluate_conv2d(device, *reinterpret_cast<const dyn::layers::Conv2d<TI>*>(layer.data), input, output); break;
+            case dyn::LayerType::MAX_POOL2D: dyn::evaluate_max_pool2d(device, *reinterpret_cast<const dyn::layers::MaxPool2d<TI>*>(layer.data), input, output); break;
+            case dyn::LayerType::SAMPLE_AND_SQUASH: dyn::evaluate_sample_and_squash(device, input, output); break;
+            case dyn::LayerType::STANDARDIZE: dyn::evaluate_standardize(device, *reinterpret_cast<const dyn::layers::Standardize<TI>*>(layer.data), input, output); break;
+            case dyn::LayerType::SEQUENTIAL: dyn::evaluate_sequential(device, *reinterpret_cast<const dyn::layers::Sequential<TI>*>(layer.data), input, output, buffer); break;
+            case dyn::LayerType::MLP: dyn::evaluate_mlp(device, *reinterpret_cast<const dyn::layers::MLP<TI>*>(layer.data), input, output, buffer); break;
+            case dyn::LayerType::FLATTEN:
+            case dyn::LayerType::UNFLATTEN: {
                 output.type = input.type;
                 TI element_size = dyn::size_of<TI>(input.type);
                 const char* src = reinterpret_cast<const char*>(input.data);
@@ -978,66 +631,27 @@ namespace rl_tools{
                 break;
             }
             case dyn::LayerType::AVG_POOL2D: {
-                TI channels = input.shape[input.rank - 1];
-                TI width = input.shape[input.rank - 2];
-                TI height = input.shape[input.rank - 3];
+                TI channels = input.shape[input.rank - 1], width = input.shape[input.rank - 2], height = input.shape[input.rank - 3];
                 TI batch_size = input.size / (height * width * channels);
-                TI out_shape[] = {batch_size, channels};
-                dyn::set_shape(output, (TI)2, out_shape);
-                output.type = dyn::Type::FLOAT32;
                 float scale = 1.0f / (float)(height * width);
-                for(TI b = 0; b < batch_size; b++){
+                for(TI b = 0; b < batch_size; b++)
                     for(TI c = 0; c < channels; c++){
                         float sum = 0;
-                        for(TI h = 0; h < height; h++){
-                            for(TI w = 0; w < width; w++){
+                        for(TI h = 0; h < height; h++)
+                            for(TI w = 0; w < width; w++)
                                 sum += dyn::get(device, input, ((b * height + h) * width + w) * channels + c);
-                            }
-                        }
                         dyn::set(device, output, b * channels + c, sum * scale);
                     }
-                }
-                break;
-            }
-            case dyn::LayerType::CONV2D: {
-                auto* c = reinterpret_cast<const dyn::layers::Conv2d<TI>*>(layer.data);
-                TI input_height = input.shape[input.rank - 3];
-                TI input_width = input.shape[input.rank - 2];
-                TI batch_size = input.size / (input_height * input_width * c->input_channels);
-                TI output_height = (input_height + 2 * c->padding_h - c->kernel_height) / c->stride_h + 1;
-                TI output_width = (input_width + 2 * c->padding_w - c->kernel_width) / c->stride_w + 1;
-                TI out_shape[] = {batch_size, output_height, output_width, c->output_channels};
-                dyn::set_shape(output, (TI)4, out_shape);
-                output.type = dyn::Type::FLOAT32;
-                dyn::evaluate_conv2d(device, *c, input, output);
-                break;
-            }
-            case dyn::LayerType::MAX_POOL2D: {
-                auto* mp = reinterpret_cast<const dyn::layers::MaxPool2d<TI>*>(layer.data);
-                TI input_height = input.shape[input.rank - 3];
-                TI input_width = input.shape[input.rank - 2];
-                TI channels = input.shape[input.rank - 1];
-                TI batch_size = input.size / (input_height * input_width * channels);
-                TI output_height = (input_height + 2 * mp->padding_h - mp->kernel_height) / mp->stride_h + 1;
-                TI output_width = (input_width + 2 * mp->padding_w - mp->kernel_width) / mp->stride_w + 1;
-                TI out_shape[] = {batch_size, output_height, output_width, channels};
-                dyn::set_shape(output, (TI)4, out_shape);
-                output.type = dyn::Type::FLOAT32;
-                dyn::evaluate_max_pool2d(device, *mp, input, output);
                 break;
             }
             case dyn::LayerType::RESNET_BLOCK: {
                 auto* rb = reinterpret_cast<const dyn::layers::ResnetBlock<TI>*>(layer.data);
-                // conv1(input) → resnet_intermediate (separate from tick/tock)
-                rl_tools::evaluate(device, rb->conv1, input, buffer.resnet_intermediate, buffer);
-                // conv2(intermediate) → output
-                rl_tools::evaluate(device, rb->conv2, buffer.resnet_intermediate, output, buffer);
-                // shortcut: downsample(input) → resnet_shortcut, or identity
+                rl_tools::evaluate(device, rb->conv1, input, buffer.scratch, buffer);
+                rl_tools::evaluate(device, rb->conv2, buffer.scratch, output, buffer);
                 if(rb->downsample){
-                    rl_tools::evaluate(device, *rb->downsample, input, buffer.resnet_shortcut, buffer);
+                    rl_tools::evaluate(device, *rb->downsample, input, buffer.scratch, buffer);
                 }
-                // output = ReLU(output + shortcut)
-                const dyn::Tensor<dyn::TensorSpecification<TI>>& shortcut = rb->downsample ? buffer.resnet_shortcut : input;
+                const dyn::Tensor<dyn::TensorSpecification<TI>>& shortcut = rb->downsample ? buffer.scratch : input;
                 for(TI i = 0; i < output.size; i++){
                     float val = dyn::get(device, output, i) + dyn::get(device, shortcut, i);
                     dyn::set(device, output, i, val > 0 ? val : 0);
@@ -1055,27 +669,24 @@ namespace rl_tools{
             case dyn::LayerType::GRU: {
                 auto* g = reinterpret_cast<const dyn::layers::GRU<TI>*>(layer.data);
                 auto* gru_state = reinterpret_cast<dyn::state::GRU<TI>*>(state.data);
-                TI batch_size = input.size / g->input_dim;
-                TI out_shape[] = {batch_size, g->hidden_dim};
-                dyn::set_shape(output, (TI)2, out_shape);
+                dyn::set_shape(output, layer.output_rank, layer.output_shape);
                 output.type = dyn::Type::FLOAT32;
-                dyn::Tensor<dyn::TensorSpecification<TI>> scratch;
-                TI scratch_shape[] = {batch_size * 2 * g->hidden_dim};
-                dyn::set_shape(scratch, (TI)1, scratch_shape);
-                scratch.type = dyn::Type::FLOAT32;
-                scratch.data = buffer.gru_gate_scratch.data;
-                dyn::evaluate_step_gru(device, *g, input, *gru_state, scratch);
-                for(TI b = 0; b < batch_size; b++){
-                    for(TI h = 0; h < g->hidden_dim; h++){
+                dyn::Tensor<dyn::TensorSpecification<TI>> gate_scratch;
+                TI batch_size = input.size / g->input_dim;
+                TI gs[] = {batch_size * 2 * g->hidden_dim};
+                dyn::set_shape(gate_scratch, (TI)1, gs);
+                gate_scratch.type = dyn::Type::FLOAT32;
+                gate_scratch.data = buffer.scratch.data;
+                dyn::evaluate_step_gru(device, *g, input, *gru_state, gate_scratch);
+                for(TI b = 0; b < batch_size; b++)
+                    for(TI h = 0; h < g->hidden_dim; h++)
                         dyn::set(device, output, b * g->hidden_dim + h, dyn::get(device, gru_state->hidden, b * g->hidden_dim + h));
-                    }
-                }
                 break;
             }
             case dyn::LayerType::SEQUENTIAL: {
                 auto* seq = reinterpret_cast<const dyn::layers::Sequential<TI>*>(layer.data);
-                auto* seq_state = reinterpret_cast<dyn::state::Sequential<TI>*>(state.data);
-                dyn::evaluate_step_sequential(device, *seq, input, *seq_state, output, buffer);
+                auto* ss = reinterpret_cast<dyn::state::Sequential<TI>*>(state.data);
+                dyn::evaluate_step_sequential(device, *seq, *ss, input, output, buffer);
                 break;
             }
             default:
