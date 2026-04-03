@@ -184,8 +184,8 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 // =========================================================================
 // Frame stacking configuration
 // =========================================================================
-// #define USE_FRAME_STACKING
-#define USE_GRU_TEMPORAL
+#define USE_FRAME_STACKING
+// #define USE_GRU_TEMPORAL
 #if defined(USE_FRAME_STACKING) && defined(USE_GRU_TEMPORAL)
 #error "USE_FRAME_STACKING and USE_GRU_TEMPORAL are mutually exclusive"
 #endif
@@ -279,6 +279,9 @@ namespace imitation_kernels{
 #ifdef USE_GRU_TEMPORAL
         T* student_gru_state_ptr, T* student_gru_initial_hidden_ptr, TI* student_gru_step_ptr,
 #endif
+#ifdef USE_FRAME_STACKING
+        TI* episode_start_step,
+#endif
         RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -309,6 +312,9 @@ namespace imitation_kernels{
                 raptor_gru_state_ptr[env_i * RAPTOR_HIDDEN_DIM + h] = raptor_gru_initial_hidden_ptr[h];
             }
             raptor_gru_step_ptr[env_i] = 0;
+#ifdef USE_FRAME_STACKING
+            episode_start_step[env_i] = step_i;
+#endif
 #ifdef USE_GRU_TEMPORAL
             for(TI h = 0; h < GRU_HIDDEN_DIM; h++){
                 student_gru_state_ptr[env_i * GRU_HIDDEN_DIM + h] = student_gru_initial_hidden_ptr[h];
@@ -395,6 +401,54 @@ namespace imitation_kernels{
         owl::vec3f up(cam_up_world[0], cam_up_world[2], cam_up_world[1]);
         gpu_cameras[env_i] = rl_tools::make_camera_data(position, look_at, up, cos_fov, aspect);
     }
+
+#ifdef USE_FRAME_STACKING
+    template<typename DEVICE>
+    __global__
+    void record_episode_start_kernel(DEVICE device, TI* episode_start_step, TI* episode_start_step_per_row, TI step_i){
+        TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i >= N_ENVIRONMENTS) return;
+        episode_start_step_per_row[step_i * N_ENVIRONMENTS + env_i] = episode_start_step[env_i];
+    }
+
+    __global__
+    void compute_gather_indices_kernel(
+        int* gather_indices,
+        TI* episode_start_step_per_row,
+        TI batch_offset, TI batch_size
+    ){
+        TI s = threadIdx.x + blockIdx.x * blockDim.x;
+        if(s >= batch_size) return;
+        TI row = batch_offset + s;
+        TI env_i = row % N_ENVIRONMENTS;
+        TI step_i_local = row / N_ENVIRONMENTS;
+        TI ep_start = episode_start_step_per_row[row];
+        for(TI f = 0; f < FRAME_STACK_N; f++){
+            TI back = f * FRAME_STACK_STRIDE;
+            TI desired_step = step_i_local >= back ? step_i_local - back : ep_start;
+            if(desired_step < ep_start) desired_step = ep_start;
+            gather_indices[s * FRAME_STACK_N + f] = (int)(desired_step * N_ENVIRONMENTS + env_i);
+        }
+    }
+
+    __global__
+    void compute_gather_indices_rollout_kernel(
+        int* gather_indices,
+        TI* episode_start_step,
+        TI step_i, TI batch_size
+    ){
+        TI s = threadIdx.x + blockIdx.x * blockDim.x;
+        if(s >= batch_size) return;
+        TI env_i = s < N_ENVIRONMENTS ? s : 0;
+        TI ep_start = s < N_ENVIRONMENTS ? episode_start_step[env_i] : episode_start_step[0];
+        for(TI f = 0; f < FRAME_STACK_N; f++){
+            TI back = f * FRAME_STACK_STRIDE;
+            TI desired_step = step_i >= back ? step_i - back : ep_start;
+            if(desired_step < ep_start) desired_step = ep_start;
+            gather_indices[s * FRAME_STACK_N + f] = (int)(desired_step * N_ENVIRONMENTS + env_i);
+        }
+    }
+#endif
 
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename STATE_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE>
     __global__
@@ -829,12 +883,13 @@ int main(int argc, char** argv){
 #ifdef USE_FRAME_STACKING
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, BATCH_SIZE, STACKED_OBS_DIM>>> gpu_stacked_batch;
     rlt::malloc(device_gpu, gpu_stacked_batch);
-    int cpu_gather_indices[BATCH_SIZE * FRAME_STACK_N];
     int* gpu_gather_indices = nullptr;
+    TI* gpu_episode_start_step = nullptr;
+    TI* gpu_episode_start_step_per_row = nullptr;
     cudaMalloc(&gpu_gather_indices, BATCH_SIZE * FRAME_STACK_N * sizeof(int));
-    TI episode_start_step[N_ENVIRONMENTS];
-    TI episode_start_step_per_row[STEPS_TOTAL];
-    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++) episode_start_step[env_i] = 0;
+    cudaMalloc(&gpu_episode_start_step, N_ENVIRONMENTS * sizeof(TI));
+    cudaMalloc(&gpu_episode_start_step_per_row, STEPS_TOTAL * sizeof(TI));
+    cudaMemset(gpu_episode_start_step, 0, N_ENVIRONMENTS * sizeof(TI));
 #endif
 
     // =========================================================================
@@ -987,8 +1042,14 @@ int main(int argc, char** argv){
                     rlt::data(student_gru_layer.initial_hidden_state.parameters),
                     rlt::data(student_gru_state.step),
 #endif
+#ifdef USE_FRAME_STACKING
+                    gpu_episode_start_step,
+#endif
                     rng_gpu, step_i);
                 CUDA_CHECK("prologue_kernel");
+#ifdef USE_FRAME_STACKING
+                imitation_kernels::record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
+#endif
                 imitation_kernels::make_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
                     tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
                     gpu_cameras,
@@ -1058,17 +1119,12 @@ int main(int argc, char** argv){
                     CUDA_CHECK("student eval GRU");
 #else
 #ifdef USE_FRAME_STACKING
-                    for(TI s = 0; s < BATCH_SIZE; s++){
-                        TI env_i = s < N_ENVIRONMENTS ? s : (TI)0;
-                        TI ep_start = s < N_ENVIRONMENTS ? episode_start_step[env_i] : episode_start_step[0];
-                        for(TI f = 0; f < FRAME_STACK_N; f++){
-                            TI back = f * FRAME_STACK_STRIDE;
-                            TI desired_step = step_i >= back ? step_i - back : ep_start;
-                            if(desired_step < ep_start) desired_step = ep_start;
-                            cpu_gather_indices[s * FRAME_STACK_N + f] = (int)(desired_step * N_ENVIRONMENTS + env_i);
-                        }
+                    {
+                        constexpr TI GI_BLOCK = 256;
+                        constexpr TI GI_GRID = (BATCH_SIZE + GI_BLOCK - 1) / GI_BLOCK;
+                        imitation_kernels::compute_gather_indices_rollout_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
+                            gpu_gather_indices, gpu_episode_start_step, step_i, BATCH_SIZE);
                     }
-                    cudaMemcpy(gpu_gather_indices, cpu_gather_indices, BATCH_SIZE * FRAME_STACK_N * sizeof(int), cudaMemcpyHostToDevice);
                     {
                         int total_elements = BATCH_SIZE * STACKED_OBS_DIM;
                         gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
@@ -1094,7 +1150,7 @@ int main(int argc, char** argv){
 #ifdef USE_GRU_TEMPORAL
                     T* student_ptr = rlt::data(gpu_rollout_actions);
 #else
-                    T* student_ptr = rlt::data(gpu_actions_eval);
+                    T* student_ptr = gpu_actions_eval._data;
 #endif
                     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
                         tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
@@ -1211,19 +1267,12 @@ int main(int argc, char** argv){
 
                 // Student forward on GPU
 #ifdef USE_FRAME_STACKING
-                for(TI s = 0; s < BATCH_SIZE; s++){
-                    TI row = batch_offset + s;
-                    TI env_i = row % N_ENVIRONMENTS;
-                    TI step_i_local = row / N_ENVIRONMENTS;
-                    TI ep_start = episode_start_step_per_row[row];
-                    for(TI f = 0; f < FRAME_STACK_N; f++){
-                        TI back = f * FRAME_STACK_STRIDE;
-                        TI desired_step = step_i_local >= back ? step_i_local - back : ep_start;
-                        if(desired_step < ep_start) desired_step = ep_start;
-                        cpu_gather_indices[s * FRAME_STACK_N + f] = (int)(desired_step * N_ENVIRONMENTS + env_i);
-                    }
+                {
+                    constexpr TI GI_BLOCK = 256;
+                    constexpr TI GI_GRID = (BATCH_SIZE + GI_BLOCK - 1) / GI_BLOCK;
+                    imitation_kernels::compute_gather_indices_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
+                        gpu_gather_indices, gpu_episode_start_step_per_row, batch_offset, BATCH_SIZE);
                 }
-                cudaMemcpy(gpu_gather_indices, cpu_gather_indices, BATCH_SIZE * FRAME_STACK_N * sizeof(int), cudaMemcpyHostToDevice);
                 {
                     int total_elements = BATCH_SIZE * STACKED_OBS_DIM;
                     gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
@@ -1387,6 +1436,8 @@ int main(int argc, char** argv){
 #elif defined(USE_FRAME_STACKING)
     rlt::free(device_gpu, gpu_stacked_batch);
     cudaFree(gpu_gather_indices);
+    cudaFree(gpu_episode_start_step);
+    cudaFree(gpu_episode_start_step_per_row);
 #endif
 
     return 0;
