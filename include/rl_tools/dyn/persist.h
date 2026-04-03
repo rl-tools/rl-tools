@@ -69,30 +69,10 @@ namespace rl_tools{
     }
 #endif
 
-    // --- HDF5 backend: Load dyn::Tensor ---
+    // --- HDF5 C API backend: Load dyn::Tensor (raw bytes, no float bottleneck) ---
 #ifdef RL_TOOLS_PERSIST_BACKENDS_HDF5_HDF5
     template <typename DEVICE, typename TI, typename GROUP_SPEC>
-    bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, const persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* name){
-        auto dataset = group.group.getDataSet(name);
-        auto dims = dataset.getDimensions();
-        tensor.rank = dims.size(); tensor.size = 1;
-        for(TI d = 0; d < tensor.rank; d++){ tensor.shape[d] = dims[d]; tensor.size *= dims[d]; }
-        auto dt = dataset.getDataType();
-        auto dtc = dt.getClass(); auto dts = dt.getSize();
-        if(dtc == HighFive::DataTypeClass::Float){ tensor.type = (dts == 8) ? dyn::Type::FLOAT64 : (dts == 2) ? dyn::Type::BF16 : dyn::Type::FLOAT32; }
-        else if(dtc == HighFive::DataTypeClass::Integer && dts == 1){ tensor.type = dyn::Type::INT8; }
-        rl_tools::malloc(device, tensor);
-        if(dtc == HighFive::DataTypeClass::Float && dts == 4){ std::vector<float> buf(tensor.size); dataset.read(buf.data()); for(TI i = 0; i < tensor.size; i++) dyn::set(device, tensor, i, buf[i]); }
-        else if(dtc == HighFive::DataTypeClass::Float && dts == 8){ std::vector<double> buf(tensor.size); dataset.read(buf.data()); for(TI i = 0; i < tensor.size; i++) dyn::set(device, tensor, i, static_cast<float>(buf[i])); }
-        else{ std::vector<float> buf(tensor.size); dataset.read(buf.data()); for(TI i = 0; i < tensor.size; i++) dyn::set(device, tensor, i, buf[i]); }
-        return true;
-    }
-#endif
-
-    // --- H5 C API backend: Load dyn::Tensor (raw bytes, no float bottleneck) ---
-#ifdef RL_TOOLS_PERSIST_BACKENDS_H5_H5
-    template <typename DEVICE, typename TI, typename GROUP_SPEC>
-    bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, persist::backends::h5::Group<GROUP_SPEC>& group, const char* name){
+    bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* name){
         hid_t ds = H5Dopen2(group.id, name, H5P_DEFAULT);
         if(ds < 0) return false;
         hid_t space = H5Dget_space(ds);

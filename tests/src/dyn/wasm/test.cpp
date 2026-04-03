@@ -1,11 +1,10 @@
 #include <rl_tools/operations/cpu.h>
-#include <rl_tools/persist/backends/h5/h5.h>
-#include <rl_tools/persist/backends/h5/operations_generic.h>
+#include <rl_tools/persist/backends/hdf5/hdf5.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/dyn/persist.h>
 
 #include <cstdio>
 #include <cmath>
-#include <hdf5.h>
 
 namespace rlt = rl_tools;
 
@@ -16,14 +15,13 @@ int main(int argc, char** argv){
     using TI = typename DEVICE::index_t;
     DEVICE device;
 
-    // Open HDF5 file
-    hid_t file = H5Fopen(path, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if(file < 0){ printf("ERROR: cannot open %s\n", path); return 1; }
+    // Open HDF5 file using new File API
+    rlt::persist::backends::hdf5::File file(path, rlt::persist::backends::hdf5::Mode::READ);
 
     // Read test metadata
     char input_dim_str[16], batch_size_str[16];
-    rlt::persist::backends::h5::detail::read_string_attribute(file, "input_dim", input_dim_str, sizeof(input_dim_str));
-    rlt::persist::backends::h5::detail::read_string_attribute(file, "batch_size", batch_size_str, sizeof(batch_size_str));
+    rlt::persist::backends::hdf5::detail::read_string_attribute(file.id, "input_dim", input_dim_str, sizeof(input_dim_str));
+    rlt::persist::backends::hdf5::detail::read_string_attribute(file.id, "batch_size", batch_size_str, sizeof(batch_size_str));
     TI input_dim = 0, batch_size = 0;
     for(int i = 0; input_dim_str[i] >= '0' && input_dim_str[i] <= '9'; i++) input_dim = input_dim * 10 + (input_dim_str[i] - '0');
     for(int i = 0; batch_size_str[i] >= '0' && batch_size_str[i] <= '9'; i++) batch_size = batch_size * 10 + (batch_size_str[i] - '0');
@@ -34,7 +32,6 @@ int main(int argc, char** argv){
     rlt::dyn::Layer<TI> model;
     if(!rlt::load(device, model, model_group)){
         printf("ERROR: failed to load model\n");
-        H5Fclose(file);
         return 1;
     }
     printf("Model loaded (type=%d, children=%lu)\n", (int)model.type, (unsigned long)model.num_children);
@@ -48,7 +45,7 @@ int main(int argc, char** argv){
 
     // Read test input directly from HDF5
     {
-        hid_t ds = H5Dopen2(file, "test_input", H5P_DEFAULT);
+        hid_t ds = H5Dopen2(file.id, "test_input", H5P_DEFAULT);
         H5Dread(ds, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, input_tensor.data);
         H5Dclose(ds);
     }
@@ -56,7 +53,7 @@ int main(int argc, char** argv){
     // Read expected output
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> expected;
     {
-        hid_t ds = H5Dopen2(file, "expected_output", H5P_DEFAULT);
+        hid_t ds = H5Dopen2(file.id, "expected_output", H5P_DEFAULT);
         hid_t space = H5Dget_space(ds);
         hsize_t n;
         H5Sget_simple_extent_dims(space, &n, nullptr);
@@ -68,8 +65,6 @@ int main(int argc, char** argv){
         H5Sclose(space);
         H5Dclose(ds);
     }
-
-    H5Fclose(file);
 
     // Propagate shapes and allocate buffer
     rlt::dyn::propagate_shapes(model, input_shape, (TI)2, batch_size * input_dim);
@@ -104,7 +99,6 @@ int main(int argc, char** argv){
         return 0;
     } else {
         printf("FAIL (threshold: 1e-5)\n");
-        // Print first few values for debugging
         TI print_n = output_size < 8 ? output_size : 8;
         for(TI i = 0; i < print_n; i++){
             printf("  [%lu] got=%f expected=%f\n", (unsigned long)i, rlt::dyn::get(device, output, i), rlt::dyn::get(device, expected, i));
