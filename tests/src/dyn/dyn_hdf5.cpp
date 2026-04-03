@@ -68,8 +68,8 @@ TEST(TEST_DYN_HDF5, dense_layer){
     rlt::load(device, dyn_layer, group);
     ASSERT_EQ(dyn_layer.type, rlt::dyn::LayerType::DENSE);
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> dyn_input, dyn_output;
-    TI input_shape[] = {(TI)3, INPUT_DIM};
-    rlt::dyn::set_shape(dyn_input, (TI)2, input_shape);
+    TI in_shape[] = {(TI)3, INPUT_DIM};
+    rlt::dyn::set_shape(dyn_input, (TI)2, in_shape);
     dyn_input.type = rlt::dyn::Type::FLOAT32;
     rlt::malloc(device, dyn_input);
     auto input_mat = rlt::matrix_view(device, input);
@@ -120,10 +120,12 @@ TEST(TEST_DYN_HDF5, sequential_dense_gru_mlp){
     { auto file = HighFive::File(dp, HighFive::File::Overwrite); auto g = rlt::create_group(device, file, "model"); rlt::save(device, model, g); }
     auto file = HighFive::File(dp, HighFive::File::ReadOnly);
     auto g = rlt::get_group(device, file, "model");
-    rlt::dyn::Layer<TI> dm; rlt::load(device, dm, g);
+    rlt::dyn::Layer<TI> dm;
+    rlt::load(device, dm, g);
     ASSERT_EQ(dm.type, rlt::dyn::LayerType::SEQUENTIAL);
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
-    TI dis[] = {SEQ_LEN, BATCH_SIZE, INPUT_DIM}; rlt::dyn::set_shape(di, (TI)3, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
+    TI dis[] = {SEQ_LEN, BATCH_SIZE, INPUT_DIM};
+    rlt::dyn::set_shape(di, (TI)3, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     auto im = rlt::matrix_view(device, in);
     for(TI i = 0; i < SEQ_LEN * BATCH_SIZE; i++) for(TI j = 0; j < INPUT_DIM; j++) rlt::dyn::set(device, di, i * INPUT_DIM + j, rlt::get(im, i, j));
     TI dos[] = {SEQ_LEN, BATCH_SIZE, OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);

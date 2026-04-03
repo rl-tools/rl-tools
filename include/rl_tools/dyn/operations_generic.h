@@ -53,90 +53,78 @@ namespace rl_tools{
         }
 
         // --- Shape propagation ---
+        // Compute leaf output shape from input shape (replace last dim, compute spatial dims, etc.)
         template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void propagate_shapes(Layer<TI>& layer, const TI* in_shape, TI in_rank, TI in_size){
+        RL_TOOLS_FUNCTION_PLACEMENT void compute_leaf_output_shape(Layer<TI>& layer, const TI* in_shape, TI in_rank, TI in_size){
+            auto replace_last_dim = [&](TI new_dim){
+                layer.output_rank = in_rank; layer.output_size = 1;
+                for(TI i = 0; i < in_rank - 1; i++){ layer.output_shape[i] = in_shape[i]; layer.output_size *= in_shape[i]; }
+                layer.output_shape[in_rank - 1] = new_dim; layer.output_size *= new_dim;
+            };
+            auto spatial_output = [&](TI oh, TI ow, TI out_ch, TI batch){
+                layer.output_rank = 4; layer.output_shape[0] = batch; layer.output_shape[1] = oh; layer.output_shape[2] = ow; layer.output_shape[3] = out_ch;
+                layer.output_size = batch * oh * ow * out_ch;
+            };
             switch(layer.type){
-                case LayerType::DENSE: {
-                    auto& d = layer.template as<layers::Dense<TI>>();
-                    layer.output_rank = in_rank; layer.output_size = 1;
-                    for(TI i = 0; i < in_rank - 1; i++){ layer.output_shape[i] = in_shape[i]; layer.output_size *= in_shape[i]; }
-                    layer.output_shape[in_rank - 1] = d.output_dim; layer.output_size *= d.output_dim;
-                    break;
-                }
-                case LayerType::GRU: {
-                    auto& g = layer.template as<layers::GRU<TI>>();
-                    layer.output_rank = in_rank; layer.output_size = 1;
-                    for(TI i = 0; i < in_rank - 1; i++){ layer.output_shape[i] = in_shape[i]; layer.output_size *= in_shape[i]; }
-                    layer.output_shape[in_rank - 1] = g.hidden_dim; layer.output_size *= g.hidden_dim;
-                    break;
-                }
+                case LayerType::DENSE: replace_last_dim(layer.template as<layers::Dense<TI>>().output_dim); break;
+                case LayerType::GRU: replace_last_dim(layer.template as<layers::GRU<TI>>().hidden_dim); break;
                 case LayerType::CONV2D: {
                     auto& c = layer.template as<layers::Conv2d<TI>>();
                     TI ih = in_shape[in_rank-3], iw = in_shape[in_rank-2];
-                    TI oh = (ih + 2*c.padding_h - c.kernel_height) / c.stride_h + 1;
-                    TI ow = (iw + 2*c.padding_w - c.kernel_width) / c.stride_w + 1;
-                    TI batch = in_size / (ih * iw * c.input_channels);
-                    layer.output_rank = 4; layer.output_shape[0] = batch; layer.output_shape[1] = oh; layer.output_shape[2] = ow; layer.output_shape[3] = c.output_channels;
-                    layer.output_size = batch * oh * ow * c.output_channels;
+                    spatial_output((ih+2*c.padding_h-c.kernel_height)/c.stride_h+1, (iw+2*c.padding_w-c.kernel_width)/c.stride_w+1, c.output_channels, in_size/(ih*iw*c.input_channels));
                     break;
                 }
                 case LayerType::MAX_POOL2D: {
                     auto& mp = layer.template as<layers::MaxPool2d<TI>>();
                     TI ih = in_shape[in_rank-3], iw = in_shape[in_rank-2], ch = in_shape[in_rank-1];
-                    TI oh = (ih + 2*mp.padding_h - mp.kernel_height) / mp.stride_h + 1;
-                    TI ow = (iw + 2*mp.padding_w - mp.kernel_width) / mp.stride_w + 1;
-                    TI batch = in_size / (ih * iw * ch);
-                    layer.output_rank = 4; layer.output_shape[0] = batch; layer.output_shape[1] = oh; layer.output_shape[2] = ow; layer.output_shape[3] = ch;
-                    layer.output_size = batch * oh * ow * ch;
+                    spatial_output((ih+2*mp.padding_h-mp.kernel_height)/mp.stride_h+1, (iw+2*mp.padding_w-mp.kernel_width)/mp.stride_w+1, ch, in_size/(ih*iw*ch));
                     break;
                 }
                 case LayerType::AVG_POOL2D: {
-                    TI ch = in_shape[in_rank-1], ih = in_shape[in_rank-3], iw = in_shape[in_rank-2];
-                    TI batch = in_size / (ih * iw * ch);
-                    layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = ch; layer.output_size = batch * ch;
+                    TI ch = in_shape[in_rank-1], batch = in_size / (in_shape[in_rank-3]*in_shape[in_rank-2]*ch);
+                    layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = ch; layer.output_size = batch*ch;
                     break;
                 }
                 case LayerType::FLATTEN: {
-                    if(in_rank >= 3){ TI flat = 1; for(TI i = in_rank-3; i < in_rank; i++) flat *= in_shape[i]; TI batch = in_size / flat; layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = flat; }
+                    if(in_rank >= 3){ TI flat = 1; for(TI i = in_rank-3; i < in_rank; i++) flat *= in_shape[i]; layer.output_rank = 2; layer.output_shape[0] = in_size/flat; layer.output_shape[1] = flat; }
                     else{ layer.output_rank = in_rank; for(TI i = 0; i < in_rank; i++) layer.output_shape[i] = in_shape[i]; }
                     layer.output_size = in_size;
                     break;
                 }
                 case LayerType::SAMPLE_AND_SQUASH: {
-                    TI last = in_shape[in_rank-1], batch = in_size / last;
-                    layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = last/2; layer.output_size = batch * (last/2);
+                    TI last = in_shape[in_rank-1], batch = in_size/last;
+                    layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = last/2; layer.output_size = batch*(last/2);
                     break;
                 }
-                case LayerType::STANDARDIZE:
-                case LayerType::UNFLATTEN:
                 default: {
                     layer.output_rank = in_rank; layer.output_size = in_size;
                     for(TI i = 0; i < in_rank; i++) layer.output_shape[i] = in_shape[i];
                     break;
                 }
-                case LayerType::SEQUENTIAL:
-                case LayerType::MLP:
-                case LayerType::RESNET_BLOCK:
-                case LayerType::PARALLEL: {
-                    // Chain shapes through children
-                    const TI* cur_shape = in_shape; TI cur_rank = in_rank, cur_size = in_size;
-                    for(TI i = 0; i < layer.num_children; i++){
-                        propagate_shapes(layer.children[i], cur_shape, cur_rank, cur_size);
-                        cur_shape = layer.children[i].output_shape;
-                        cur_rank = layer.children[i].output_rank;
-                        cur_size = layer.children[i].output_size;
-                    }
-                    // For ResnetBlock, also propagate downsample (last child) from INPUT not from conv2
-                    if(layer.type == LayerType::RESNET_BLOCK && layer.num_children == 3){
-                        propagate_shapes(layer.children[2], in_shape, in_rank, in_size);
-                    }
-                    // Output = last sequential child's output (conv2 for resnet, last layer for sequential/mlp)
-                    TI last = (layer.type == LayerType::RESNET_BLOCK) ? 1 : layer.num_children - 1;
-                    layer.output_rank = layer.children[last].output_rank;
-                    layer.output_size = layer.children[last].output_size;
-                    for(TI i = 0; i < layer.output_rank; i++) layer.output_shape[i] = layer.children[last].output_shape[i];
-                    break;
+            }
+        }
+
+        // Propagate shapes through the full layer tree
+        template <typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT void propagate_shapes(Layer<TI>& layer, const TI* in_shape, TI in_rank, TI in_size){
+            if(layer.num_children == 0){
+                compute_leaf_output_shape(layer, in_shape, in_rank, in_size);
+            }
+            else{
+                const TI* cur_shape = in_shape; TI cur_rank = in_rank, cur_size = in_size;
+                for(TI i = 0; i < layer.num_children; i++){
+                    propagate_shapes(layer.children[i], cur_shape, cur_rank, cur_size);
+                    cur_shape = layer.children[i].output_shape;
+                    cur_rank = layer.children[i].output_rank;
+                    cur_size = layer.children[i].output_size;
                 }
+                if(layer.type == LayerType::RESNET_BLOCK && layer.num_children == 3){
+                    propagate_shapes(layer.children[2], in_shape, in_rank, in_size);
+                }
+                TI last = (layer.type == LayerType::RESNET_BLOCK) ? 1 : layer.num_children - 1;
+                layer.output_rank = layer.children[last].output_rank;
+                layer.output_size = layer.children[last].output_size;
+                for(TI i = 0; i < layer.output_rank; i++) layer.output_shape[i] = layer.children[last].output_shape[i];
             }
         }
 
@@ -416,6 +404,9 @@ namespace rl_tools{
     // --- Top-level evaluate ---
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::Tensor<dyn::TensorSpecification<TI>>& input, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer){
+        utils::assert_exit(device, layer.output_size > 0, "dyn::evaluate: shapes not propagated (call propagate_shapes or setup_buffer before evaluate)");
+        utils::assert_exit(device, output.size >= layer.output_size, "dyn::evaluate: output tensor too small for layer output");
+        utils::assert_exit(device, buffer.tick.data != nullptr, "dyn::evaluate: buffer not allocated (call malloc on the buffer before evaluate)");
         dyn::set_shape(output, layer.output_rank, layer.output_shape);
         output.type = dyn::Type::FLOAT32;
         switch(layer.type){
