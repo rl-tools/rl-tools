@@ -190,12 +190,34 @@ int main(int argc, char** argv) {
     DEVICE device;
     rlt::init(device);
 
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <scene.glb>" << std::endl;
-        return 1;
+    static constexpr char DEFAULT_CONTA_HASH[] = "7f1c9129532798e0b63bc41edb6b4c09251cf8a0";
+    std::string resolved_scene_path;
+    if (argc >= 2) {
+        const char* scene_arg = argv[1];
+        if (std::strncmp(scene_arg, "conta:", 6) == 0) {
+            const char* hash_str = scene_arg + 6;
+            const char* conta_root = std::getenv("CONTA_ROOT");
+            if (!conta_root) {
+                std::cerr << "CONTA_ROOT environment variable is not set" << std::endl;
+                return 1;
+            }
+            resolved_scene_path = std::string(conta_root) + "/data/" + hash_str;
+        } else {
+            resolved_scene_path = scene_arg;
+        }
+    } else {
+        const char* conta_root = std::getenv("CONTA_ROOT");
+        if (conta_root) {
+            resolved_scene_path = std::string(conta_root) + "/data/" + DEFAULT_CONTA_HASH;
+            std::cout << "No scene argument given, using default: conta:" << DEFAULT_CONTA_HASH << std::endl;
+        } else {
+            std::cerr << "Usage: " << argv[0] << " [conta:HASH | scene.glb]" << std::endl;
+            std::cerr << "  Or set CONTA_ROOT to use the default scene" << std::endl;
+            return 1;
+        }
     }
     rlt::rl::environments::raytracing_example::Environment<SPEC> env;
-    env.scene_path = argv[1];
+    env.scene_path = resolved_scene_path.c_str();
 
     rlt::malloc(device, env);
     rlt::init(device, env);
