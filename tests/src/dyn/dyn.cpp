@@ -47,12 +47,9 @@ using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 #include <gtest/gtest.h>
 
 namespace helpers{
-    void setup_buffer(rlt::dyn::Buffer<TI>& buf, TI batch_size, const rlt::dyn::Layer<TI>& layer, const rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>>& input){
-        buf.batch_size = batch_size;
+    void setup_buffer(rlt::dyn::Buffer<TI>& buf, rlt::dyn::Layer<TI>& layer, const rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>>& input){
+        rlt::dyn::propagate_shapes(layer, input.shape, input.rank, input.size);
         buf.layer = &layer;
-        buf.input_rank = input.rank;
-        buf.input_size = input.size;
-        for(TI i = 0; i < input.rank; i++) buf.input_shape[i] = input.shape[i];
     }
     std::vector<char> load_tar(const std::string& path){
         std::ifstream archive(path, std::ios::binary);
@@ -129,7 +126,7 @@ TEST(TEST_DYN, dense_layer){
     rlt::malloc(device, dyn_output);
 
     rlt::dyn::Buffer<TI> dyn_buffer;
-    helpers::setup_buffer(dyn_buffer, 3, dyn_layer, dyn_input);
+    helpers::setup_buffer(dyn_buffer, dyn_layer, dyn_input);
     rlt::malloc(device, dyn_buffer);
 
     rlt::evaluate(device, dyn_layer, dyn_input, dyn_output, dyn_buffer);
@@ -202,7 +199,7 @@ TEST(TEST_DYN, gru_single_step){
     copy_tensor_1d(layer.biases_hidden, gd->biases_hidden, 3*GH);
     copy_tensor_1d(layer.initial_hidden_state, gd->initial_hidden_state, GH);
     dl.data = gd;
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, GB, dl, dyn_in); rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dl, dyn_in); rlt::malloc(device, db);
     rlt::evaluate(device, dl, dyn_in, dyn_out, db);
     auto om = rlt::matrix_view(device, output_static);
     T md = 0;
@@ -270,7 +267,7 @@ TEST(TEST_DYN, gru_standalone){
     dyn_gru_output.type = rlt::dyn::Type::FLOAT32;
     rlt::malloc(device, dyn_gru_output);
     rlt::dyn::Buffer<TI> dyn_gru_buffer;
-    helpers::setup_buffer(dyn_gru_buffer, GRU_BATCH_SIZE, dyn_gru_layer, dyn_gru_input);
+    helpers::setup_buffer(dyn_gru_buffer, dyn_gru_layer, dyn_gru_input);
     rlt::malloc(device, dyn_gru_buffer);
     rlt::evaluate(device, dyn_gru_layer, dyn_gru_input, dyn_gru_output, dyn_gru_buffer);
     auto gru_output_mat = rlt::matrix_view(device, gru_output_static);
@@ -319,7 +316,7 @@ TEST(TEST_DYN, sequential_dense_dense){
     TI dos[] = {(TI)3, (TI)5}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in);
     for(TI i = 0; i < 3; i++) for(TI j = 0; j < 6; j++) rlt::dyn::set(device, di, i*6+j, rlt::get(im, i, j));
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 3, dm, di); rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, out);
     T md = 0;
@@ -365,7 +362,7 @@ TEST(TEST_DYN, sequential_dense_gru){
     TI dos[] = {SL, BS, (TI)8}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in);
     for(TI i = 0; i < SL*BS; i++) for(TI j = 0; j < ID; j++) rlt::dyn::set(device, di, i*ID+j, rlt::get(im, i, j));
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, SL * BS, dm, di); rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, out);
     T md = 0;
@@ -417,7 +414,7 @@ TEST(TEST_DYN, sequential_dense_gru_dense){
     TI dos[] = {SL2, BS2, OD2}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in2);
     for(TI i = 0; i < SL2*BS2; i++) for(TI j = 0; j < ID2; j++) rlt::dyn::set(device, di, i*ID2+j, rlt::get(im, i, j));
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, SL2 * BS2, dm, di); rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, out2);
     T md = 0;
@@ -468,7 +465,7 @@ TEST(TEST_DYN, mlp_standalone){
     TI dos[] = {(TI)4, MLP_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, mlp_in);
     for(TI i = 0; i < 4; i++) for(TI j = 0; j < 20; j++) rlt::dyn::set(device, di, i*20+j, rlt::get(im, i, j));
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 4, dm, di); rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, mlp_out);
     T md = 0;
@@ -556,7 +553,7 @@ TEST(TEST_DYN, sequential_dense_gru_mlp){
     rlt::malloc(device, dyn_output);
 
     rlt::dyn::Buffer<TI> dyn_buffer;
-    helpers::setup_buffer(dyn_buffer, SEQ_LEN * BATCH_SIZE, dyn_model, dyn_input);
+    helpers::setup_buffer(dyn_buffer, dyn_model, dyn_input);
     rlt::malloc(device, dyn_buffer);
 
     rlt::evaluate(device, dyn_model, dyn_input, dyn_output, dyn_buffer);
@@ -617,7 +614,7 @@ TEST(TEST_DYN, gru_step_only){
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
     TI dis[] = {GB2, GI2}; rlt::dyn::set_shape(di, (TI)2, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     TI dos[] = {GB2, GH2}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, GB2, dl, di); rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dl, di); rlt::malloc(device, db);
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GB2, GI2>>> si;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GB2, GH2>>> s_out;
     rlt::malloc(device, si); rlt::malloc(device, s_out);
@@ -711,7 +708,7 @@ TEST(TEST_DYN, evaluate_step_gru){
     rlt::malloc(device, dyn_step_output);
 
     rlt::dyn::Buffer<TI> dyn_buffer;
-    helpers::setup_buffer(dyn_buffer, BATCH_SIZE, dyn_model, dyn_step_input);
+    helpers::setup_buffer(dyn_buffer, dyn_model, dyn_step_input);
     rlt::malloc(device, dyn_buffer);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, STEP_INPUT_SHAPE>> step_input;
@@ -806,7 +803,7 @@ TEST(TEST_DYN, basic_cnn){
     // Output: (1, 5) from flatten→dense
     constexpr TI CNN_OUTPUT_DIM = 5;
     TI dos[] = {(TI)1, CNN_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 1, dm, di); rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, out);
     T md = 0;
@@ -869,13 +866,7 @@ TEST(TEST_DYN, resnet_block){
     std::cout << "  conv2: in_ch=" << loaded_c2->input_channels << " out_ch=" << loaded_c2->output_channels << std::endl;
     std::cout << "  downsample: " << (loaded_rb->downsample ? "yes" : "no") << std::endl;
 
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 1, dm, di);
-    // Debug: manually compute output shape
-    TI osh[5]; TI orn, osz;
-    rlt::dyn::compute_output_shape(dm, di.shape, di.rank, di.size, osh, orn, osz);
-    std::cout << "  output shape: rank=" << orn << " size=" << osz << std::endl;
-    rlt::malloc(device, db);
-    std::cout << "  Buffer max_size=" << db.max_size << std::endl;
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     T md = 0;
     for(TI i = 0; i < 1*8*8*64; i++){
@@ -923,7 +914,7 @@ TEST(TEST_DYN, resnet18){
     // Output: (1, 1000)
     constexpr TI RESNET_OUTPUT_DIM = 1000;
     TI dos[] = {(TI)1, RESNET_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, 1, dm, di); rlt::malloc(device, db);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     rlt::evaluate(device, dm, di, d_out, db);
     auto om = rlt::matrix_view(device, out);
     T md = 0;
