@@ -50,28 +50,18 @@ namespace rl_tools{
             from_float(ptr, value, tensor.type);
         }
 
-        RL_TOOLS_FUNCTION_PLACEMENT inline float apply_activation(ActivationFunction af, float x){
+        template <typename MATH_DEVICE>
+        RL_TOOLS_FUNCTION_PLACEMENT inline float apply_activation(MATH_DEVICE& math, ActivationFunction af, float x){
             switch(af){
                 case ActivationFunction::IDENTITY: return x;
-                case ActivationFunction::RELU: return x > 0 ? x : 0;
+                case ActivationFunction::RELU: return math::max(math, x, 0.0f);
                 case ActivationFunction::GELU: {
-                    float c = 0.7978845608028654f;
-                    float inner = c * (x + 0.044715f * x * x * x);
-                    float t = inner > 10.0f ? 1.0f : (inner < -10.0f ? -1.0f : ((1.0f - 2.0f / (1.0f + __builtin_expf(2.0f * inner)))));
-                    return 0.5f * x * (1.0f + t);
+                    float a = math::FRAC_2_SQRTPI<float> * math::SQRT1_2<float> * 0.5f;
+                    return 0.5f * (x + x * math::tanh(math, a * (0.044715f * x * x * x + x)));
                 }
-                case ActivationFunction::TANH: {
-                    if(x > 10.0f) return 1.0f;
-                    if(x < -10.0f) return -1.0f;
-                    float e2x = __builtin_expf(2.0f * x);
-                    return (e2x - 1.0f) / (e2x + 1.0f);
-                }
-                case ActivationFunction::FAST_TANH: {
-                    float clamped = x < -3.0f ? -3.0f : (x > 3.0f ? 3.0f : x);
-                    float x_squared = clamped * clamped;
-                    return clamped * (27.0f + x_squared) / (27.0f + 9.0f * x_squared);
-                }
-                case ActivationFunction::SIGMOID: return 1.0f / (1.0f + __builtin_expf(-x));
+                case ActivationFunction::TANH: return math::tanh(math, x);
+                case ActivationFunction::FAST_TANH: return math::fast_tanh(math, x);
+                case ActivationFunction::SIGMOID: return 1.0f / (1.0f + math::exp(math, -x));
                 default: return x;
             }
         }
@@ -239,6 +229,9 @@ namespace rl_tools{
                 case LayerType::RESNET_BLOCK: {
                     auto* rb = reinterpret_cast<const layers::ResnetBlock<TI>*>(layer.data);
                     m = rb->conv1.output_size;
+                    TI child_max = max_scratch_size(rb->conv2);
+                    if(rb->downsample){ TI ds = max_scratch_size(*rb->downsample); if(ds > child_max) child_max = ds; }
+                    m += child_max;
                     break;
                 }
                 case LayerType::SEQUENTIAL: {
@@ -268,7 +261,7 @@ namespace rl_tools{
                     for(TI i = 0; i < layer.input_dim; i++){
                         acc += get(device, layer.weights, o * layer.input_dim + i) * get(device, input, b * layer.input_dim + i);
                     }
-                    set(device, output, b * layer.output_dim + o, apply_activation(layer.activation_function, acc));
+                    set(device, output, b * layer.output_dim + o, apply_activation(device.math, layer.activation_function, acc));
                 }
             }
         }
@@ -288,7 +281,7 @@ namespace rl_tools{
                     for(TI h = 0; h < hidden_dim; h++) wh += get(device, layer.weights_hidden, g * hidden_dim + h) * get(device, gru_state.hidden, b * hidden_dim + h);
                     float wi = get(device, layer.biases_input, g);
                     for(TI i = 0; i < layer.input_dim; i++) wi += get(device, layer.weights_input, g * layer.input_dim + i) * get(device, input, b * layer.input_dim + i);
-                    set(device, scratch, b * 2 * hidden_dim + g, 1.0f / (1.0f + __builtin_expf(-(wh + wi))));
+                    set(device, scratch, b * 2 * hidden_dim + g, 1.0f / (1.0f + math::exp(device.math,-(wh + wi))));
                 }
                 for(TI h = 0; h < hidden_dim; h++){
                     TI g = 2 * hidden_dim + h;
@@ -300,7 +293,7 @@ namespace rl_tools{
                     float n_pre = r * wh_n + wi_n;
                     float n;
                     if(n_pre > 10.0f) n = 1.0f; else if(n_pre < -10.0f) n = -1.0f;
-                    else{ float e2x = __builtin_expf(2.0f * n_pre); n = (e2x - 1.0f) / (e2x + 1.0f); }
+                    else{ float e2x = math::exp(device.math,2.0f * n_pre); n = (e2x - 1.0f) / (e2x + 1.0f); }
                     float z = get(device, scratch, b * 2 * hidden_dim + hidden_dim + h);
                     float new_h = z * get(device, gru_state.hidden, b * hidden_dim + h) + (1.0f - z) * n;
                     set(device, scratch, b * 2 * hidden_dim + h, new_h);
@@ -338,7 +331,7 @@ namespace rl_tools{
                 for(TI i = 0; i < output.size; i++){
                     TI oc = i % layer.output_channels;
                     float x = get(device, output, i);
-                    set(device, output, i, get(device, layer.gamma, oc) * (x - get(device, layer.running_mean, oc)) / __builtin_sqrtf(get(device, layer.running_var, oc) + epsilon) + get(device, layer.beta, oc));
+                    set(device, output, i, get(device, layer.gamma, oc) * (x - get(device, layer.running_mean, oc)) / math::sqrt(device.math,get(device, layer.running_var, oc) + epsilon) + get(device, layer.beta, oc));
                 }
             }
             else if(layer.normalization == layers::Conv2d<TI>::Normalization::LAYER_NORM){
@@ -350,7 +343,7 @@ namespace rl_tools{
                     float mean = sum / (float)spatial_channels;
                     float var_sum = 0;
                     for(TI i = 0; i < spatial_channels; i++){ float d = get(device, output, bi * spatial_channels + i) - mean; var_sum += d * d; }
-                    float inv_std = 1.0f / __builtin_sqrtf(var_sum / (float)spatial_channels + epsilon);
+                    float inv_std = 1.0f / math::sqrt(device.math,var_sum / (float)spatial_channels + epsilon);
                     for(TI i = 0; i < spatial_channels; i++){
                         TI oc = i % layer.output_channels;
                         set(device, output, bi * spatial_channels + i, get(device, layer.gamma, oc) * (get(device, output, bi * spatial_channels + i) - mean) * inv_std + get(device, layer.beta, oc));
@@ -358,7 +351,7 @@ namespace rl_tools{
                 }
             }
             if(layer.activation_function != ActivationFunction::IDENTITY)
-                for(TI i = 0; i < output.size; i++) set(device, output, i, apply_activation(layer.activation_function, get(device, output, i)));
+                for(TI i = 0; i < output.size; i++) set(device, output, i, apply_activation(device.math, layer.activation_function, get(device, output, i)));
         }
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_max_pool2d(DEVICE& device, const layers::MaxPool2d<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output){
@@ -391,7 +384,7 @@ namespace rl_tools{
                 for(TI i = 0; i < half_dim; i++){
                     float mean = get(device, input, b * last_dim + i);
                     float t; if(mean > 10.0f) t = 1.0f; else if(mean < -10.0f) t = -1.0f;
-                    else{ float e2x = __builtin_expf(2.0f * mean); t = (e2x - 1.0f) / (e2x + 1.0f); }
+                    else{ float e2x = math::exp(device.math,2.0f * mean); t = (e2x - 1.0f) / (e2x + 1.0f); }
                     set(device, output, b * half_dim + i, t);
                 }
         }
@@ -414,34 +407,29 @@ namespace rl_tools{
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_sequential(DEVICE& device, const layers::Sequential<TI>& seq, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             const Tensor<TensorSpecification<TI>>* current_input = &input;
-            bool input_is_external = true;
             for(TI i = 0; i < seq.num_layers; i++){
                 Tensor<TensorSpecification<TI>>* current_output;
                 if(i == seq.num_layers - 1) current_output = &output;
-                else current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
+                else current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
                 rl_tools::evaluate(device, seq.layers[i], *current_input, *current_output, buffer);
                 current_input = current_output;
-                input_is_external = false;
             }
         }
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step_sequential(DEVICE& device, const layers::Sequential<TI>& seq, state::Sequential<TI>& seq_state, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             const Tensor<TensorSpecification<TI>>* current_input = &input;
-            bool input_is_external = true;
             for(TI i = 0; i < seq.num_layers; i++){
                 Tensor<TensorSpecification<TI>>* current_output;
                 if(i == seq.num_layers - 1) current_output = &output;
-                else current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
+                else current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
                 rl_tools::evaluate_step(device, seq.layers[i], *current_input, seq_state.layer_states[i], *current_output, buffer);
                 current_input = current_output;
-                input_is_external = false;
             }
         }
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void evaluate_mlp(DEVICE& device, const layers::MLP<TI>& mlp, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
             TI total_layers = 1 + mlp.num_hidden_layers + 1;
             const Tensor<TensorSpecification<TI>>* current_input = &input;
-            bool input_is_external = true;
             for(TI i = 0; i < total_layers; i++){
                 const Layer<TI>* current_layer;
                 if(i == 0) current_layer = &mlp.input_layer;
@@ -449,10 +437,9 @@ namespace rl_tools{
                 else current_layer = &mlp.output_layer;
                 Tensor<TensorSpecification<TI>>* current_output;
                 if(i == total_layers - 1) current_output = &output;
-                else current_output = input_is_external ? &buffer.tick : (current_input == &buffer.tick ? &buffer.tock : &buffer.tick);
+                else current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
                 rl_tools::evaluate(device, *current_layer, *current_input, *current_output, buffer);
                 current_input = current_output;
-                input_is_external = false;
             }
         }
         template <typename DEVICE, typename TI>
@@ -646,10 +633,16 @@ namespace rl_tools{
             }
             case dyn::LayerType::RESNET_BLOCK: {
                 auto* rb = reinterpret_cast<const dyn::layers::ResnetBlock<TI>*>(layer.data);
+                // conv1 output goes to scratch[0..conv1_output_size)
                 rl_tools::evaluate(device, rb->conv1, input, buffer.scratch, buffer);
-                rl_tools::evaluate(device, rb->conv2, buffer.scratch, output, buffer);
+                // conv2/downsample get a sub-buffer with scratch offset past conv1's area
+                dyn::Buffer<TI> sub_buffer = buffer;
+                TI conv1_bytes = rb->conv1.output_size * sizeof(float);
+                sub_buffer.scratch.data = reinterpret_cast<char*>(buffer.scratch.data) + conv1_bytes;
+                sub_buffer.scratch.size = buffer.scratch.size - rb->conv1.output_size;
+                rl_tools::evaluate(device, rb->conv2, buffer.scratch, output, sub_buffer);
                 if(rb->downsample){
-                    rl_tools::evaluate(device, *rb->downsample, input, buffer.scratch, buffer);
+                    rl_tools::evaluate(device, *rb->downsample, input, buffer.scratch, sub_buffer);
                 }
                 const dyn::Tensor<dyn::TensorSpecification<TI>>& shortcut = rb->downsample ? buffer.scratch : input;
                 for(TI i = 0; i < output.size; i++){
