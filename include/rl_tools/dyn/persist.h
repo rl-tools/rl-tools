@@ -89,6 +89,39 @@ namespace rl_tools{
     }
 #endif
 
+    // --- H5 C API backend: Load dyn::Tensor (raw bytes, no float bottleneck) ---
+#ifdef RL_TOOLS_PERSIST_BACKENDS_H5_H5
+    template <typename DEVICE, typename TI, typename GROUP_SPEC>
+    bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, persist::backends::h5::Group<GROUP_SPEC>& group, const char* name){
+        hid_t ds = H5Dopen2(group.id, name, H5P_DEFAULT);
+        if(ds < 0) return false;
+        hid_t space = H5Dget_space(ds);
+        int rank = H5Sget_simple_extent_ndims(space);
+        hsize_t dims[dyn::TensorSpecification<TI>::MAX_RANK];
+        H5Sget_simple_extent_dims(space, dims, nullptr);
+        tensor.rank = rank; tensor.size = 1;
+        for(TI d = 0; d < (TI)rank; d++){ tensor.shape[d] = dims[d]; tensor.size *= dims[d]; }
+        hid_t dtype = H5Dget_type(ds);
+        H5T_class_t cls = H5Tget_class(dtype);
+        size_t dts = H5Tget_size(dtype);
+        tensor.type = dyn::Type::FLOAT32;
+        if(cls == H5T_FLOAT){ tensor.type = (dts == 8) ? dyn::Type::FLOAT64 : (dts == 2) ? dyn::Type::BF16 : dyn::Type::FLOAT32; }
+        else if(cls == H5T_INTEGER && dts == 1){ tensor.type = dyn::Type::INT8; }
+        rl_tools::malloc(device, tensor);
+        hid_t memtype;
+        switch(tensor.type){
+            case dyn::Type::FLOAT32: memtype = H5T_NATIVE_FLOAT; break;
+            case dyn::Type::FLOAT64: memtype = H5T_NATIVE_DOUBLE; break;
+            default: memtype = H5T_NATIVE_FLOAT; break;
+        }
+        H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, tensor.data);
+        H5Tclose(dtype);
+        H5Sclose(space);
+        H5Dclose(ds);
+        return true;
+    }
+#endif
+
     // --- Load a dyn::Layer (backend-agnostic) ---
     template <typename DEVICE, typename TI, typename GROUP>
     RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, dyn::Layer<TI>& layer, GROUP& group){
@@ -96,12 +129,13 @@ namespace rl_tools{
         constexpr TI ATTR_SIZE = 64;
         char type_str[ATTR_SIZE];
         get_attribute<char*>(device, group, "type", type_str, ATTR_SIZE);
+        bool ok = true;
 
         if(utils::string::compare(type_str, "dense", 5)){
             layer.type = LayerType::DENSE;
             auto* d = new layers::Dense<TI>();
-            auto wg = get_group(device, group, "weights"); load(device, d->weights, wg, "parameters");
-            auto bg = get_group(device, group, "biases"); load(device, d->biases, bg, "parameters");
+            auto wg = get_group(device, group, "weights"); ok &= load(device, d->weights, wg, "parameters");
+            auto bg = get_group(device, group, "biases"); ok &= load(device, d->biases, bg, "parameters");
             d->output_dim = d->weights.shape[0]; d->input_dim = d->weights.shape[1];
             char af[ATTR_SIZE]; get_attribute<char*>(device, group, "activation_function", af, ATTR_SIZE);
             d->activation_function = persist_helpers::parse_activation_function(device, af, ATTR_SIZE);
@@ -110,19 +144,19 @@ namespace rl_tools{
         else if(utils::string::compare(type_str, "gru", 3)){
             layer.type = LayerType::GRU;
             auto* g = new layers::GRU<TI>();
-            auto wig = get_group(device, group, "weights_input"); load(device, g->weights_input, wig, "parameters");
-            auto big = get_group(device, group, "biases_input"); load(device, g->biases_input, big, "parameters");
-            auto whg = get_group(device, group, "weights_hidden"); load(device, g->weights_hidden, whg, "parameters");
-            auto bhg = get_group(device, group, "biases_hidden"); load(device, g->biases_hidden, bhg, "parameters");
-            auto ihg = get_group(device, group, "initial_hidden_state"); load(device, g->initial_hidden_state, ihg, "parameters");
+            auto wig = get_group(device, group, "weights_input"); ok &= load(device, g->weights_input, wig, "parameters");
+            auto big = get_group(device, group, "biases_input"); ok &= load(device, g->biases_input, big, "parameters");
+            auto whg = get_group(device, group, "weights_hidden"); ok &= load(device, g->weights_hidden, whg, "parameters");
+            auto bhg = get_group(device, group, "biases_hidden"); ok &= load(device, g->biases_hidden, bhg, "parameters");
+            auto ihg = get_group(device, group, "initial_hidden_state"); ok &= load(device, g->initial_hidden_state, ihg, "parameters");
             g->hidden_dim = g->weights_input.shape[0] / 3; g->input_dim = g->weights_input.shape[1];
             layer.data = g;
         }
         else if(utils::string::compare(type_str, "conv2d", 6)){
             layer.type = LayerType::CONV2D;
             auto* c = new layers::Conv2d<TI>();
-            auto wg = get_group(device, group, "weights"); load(device, c->weights, wg, "parameters");
-            auto bg = get_group(device, group, "biases"); load(device, c->biases, bg, "parameters");
+            auto wg = get_group(device, group, "weights"); ok &= load(device, c->weights, wg, "parameters");
+            auto bg = get_group(device, group, "biases"); ok &= load(device, c->biases, bg, "parameters");
             c->output_channels = get_attribute_int<TI>(device, group, "output_channels");
             c->input_channels = get_attribute_int<TI>(device, group, "input_channels");
             c->kernel_height = get_attribute_int<TI>(device, group, "kernel_height");
@@ -138,11 +172,11 @@ namespace rl_tools{
             else if(utils::string::compare(norm, "LAYER_NORM", 10)) c->normalization = layers::Conv2d<TI>::Normalization::LAYER_NORM;
             else c->normalization = layers::Conv2d<TI>::Normalization::NONE;
             if(c->normalization != layers::Conv2d<TI>::Normalization::NONE){
-                auto gg = get_group(device, group, "gamma"); load(device, c->gamma, gg, "parameters");
-                auto btg = get_group(device, group, "beta"); load(device, c->beta, btg, "parameters");
+                auto gg = get_group(device, group, "gamma"); ok &= load(device, c->gamma, gg, "parameters");
+                auto btg = get_group(device, group, "beta"); ok &= load(device, c->beta, btg, "parameters");
                 if(c->normalization == layers::Conv2d<TI>::Normalization::BATCH_NORM){
-                    load(device, c->running_mean, group, "running_mean");
-                    load(device, c->running_var, group, "running_var");
+                    ok &= load(device, c->running_mean, group, "running_mean");
+                    ok &= load(device, c->running_var, group, "running_var");
                 }
             }
             layer.data = c;
@@ -161,56 +195,55 @@ namespace rl_tools{
         else if(utils::string::compare(type_str, "standardize", 11)){
             layer.type = LayerType::STANDARDIZE;
             auto* s = new layers::Standardize<TI>();
-            auto mg = get_group(device, group, "mean"); load(device, s->mean, mg, "parameters");
-            auto pg = get_group(device, group, "precision"); load(device, s->precision, pg, "parameters");
+            auto mg = get_group(device, group, "mean"); ok &= load(device, s->mean, mg, "parameters");
+            auto pg = get_group(device, group, "precision"); ok &= load(device, s->precision, pg, "parameters");
             s->dim = s->mean.size; layer.data = s;
         }
         else if(utils::string::compare(type_str, "embedding", 9)){
             layer.type = LayerType::EMBEDDING;
             auto* e = new layers::Embedding<TI>();
-            auto wg = get_group(device, group, "weights"); load(device, e->weights, wg, "parameters");
+            auto wg = get_group(device, group, "weights"); ok &= load(device, e->weights, wg, "parameters");
             e->num_classes = e->weights.shape[0]; e->embedding_dim = e->weights.shape[1]; layer.data = e;
         }
         else if(utils::string::compare(type_str, "sample_and_squash", 17)){ layer.type = LayerType::SAMPLE_AND_SQUASH; }
         else if(utils::string::compare(type_str, "flatten", 7)){ layer.type = LayerType::FLATTEN; }
         else if(utils::string::compare(type_str, "unflatten", 9)){ layer.type = LayerType::UNFLATTEN; }
         else if(utils::string::compare(type_str, "avg_pool2d", 10)){ layer.type = LayerType::AVG_POOL2D; }
-        // --- Composites: populate children ---
         else if(utils::string::compare(type_str, "sequential", 10)){
             layer.type = LayerType::SEQUENTIAL;
             auto layers_group = get_group(device, group, "layers");
             TI count = 0;
             for(TI i = 0; i < 100; i++){ char idx[10]; utils::string::int_to_string<long int, TI>(idx, 10, i); if(!group_exists(device, layers_group, idx)) break; count++; }
             layer.num_children = count; layer.children = new Layer<TI>[count];
-            for(TI i = 0; i < count; i++){ char idx[10]; utils::string::int_to_string<long int, TI>(idx, 10, i); auto lg = get_group(device, layers_group, idx); load(device, layer.children[i], lg); }
+            for(TI i = 0; i < count; i++){ char idx[10]; utils::string::int_to_string<long int, TI>(idx, 10, i); auto lg = get_group(device, layers_group, idx); ok &= load(device, layer.children[i], lg); }
         }
         else if(utils::string::compare(type_str, "mlp", 3)){
             layer.type = LayerType::MLP;
             TI num_layers = get_attribute_int<TI>(device, group, "num_layers");
             layer.num_children = num_layers; layer.children = new Layer<TI>[num_layers];
-            auto ig = get_group(device, group, "input_layer"); load(device, layer.children[0], ig);
+            auto ig = get_group(device, group, "input_layer"); ok &= load(device, layer.children[0], ig);
             auto hg = get_group(device, group, "hidden_layers");
-            for(TI i = 0; i < num_layers - 2; i++){ char idx[10]; utils::string::int_to_string<long int, TI>(idx, 10, i); auto hlg = get_group(device, hg, idx); load(device, layer.children[1+i], hlg); }
-            auto og = get_group(device, group, "output_layer"); load(device, layer.children[num_layers-1], og);
+            for(TI i = 0; i < num_layers - 2; i++){ char idx[10]; utils::string::int_to_string<long int, TI>(idx, 10, i); auto hlg = get_group(device, hg, idx); ok &= load(device, layer.children[1+i], hlg); }
+            auto og = get_group(device, group, "output_layer"); ok &= load(device, layer.children[num_layers-1], og);
         }
         else if(utils::string::compare(type_str, "resnet_block", 12)){
             layer.type = LayerType::RESNET_BLOCK;
             bool has_ds = group_exists(device, group, "downsample");
             layer.num_children = has_ds ? 3 : 2; layer.children = new Layer<TI>[layer.num_children];
-            auto c1g = get_group(device, group, "conv1"); load(device, layer.children[0], c1g);
-            auto c2g = get_group(device, group, "conv2"); load(device, layer.children[1], c2g);
-            if(has_ds){ auto dsg = get_group(device, group, "downsample"); load(device, layer.children[2], dsg); }
+            auto c1g = get_group(device, group, "conv1"); ok &= load(device, layer.children[0], c1g);
+            auto c2g = get_group(device, group, "conv2"); ok &= load(device, layer.children[1], c2g);
+            if(has_ds){ auto dsg = get_group(device, group, "downsample"); ok &= load(device, layer.children[2], dsg); }
         }
         else if(utils::string::compare(type_str, "parallel", 8)){
             layer.type = LayerType::PARALLEL;
             bool has_head = group_exists(device, group, "head");
             layer.num_children = has_head ? 3 : 2; layer.children = new Layer<TI>[layer.num_children];
-            auto pag = get_group(device, group, "pipeline_a"); load(device, layer.children[0], pag);
-            auto pbg = get_group(device, group, "pipeline_b"); load(device, layer.children[1], pbg);
-            if(has_head){ auto hg = get_group(device, group, "head"); load(device, layer.children[2], hg); }
+            auto pag = get_group(device, group, "pipeline_a"); ok &= load(device, layer.children[0], pag);
+            auto pbg = get_group(device, group, "pipeline_b"); ok &= load(device, layer.children[1], pbg);
+            if(has_head){ auto hg = get_group(device, group, "head"); ok &= load(device, layer.children[2], hg); }
         }
         else{ return false; }
-        return true;
+        return ok;
     }
 
 }
