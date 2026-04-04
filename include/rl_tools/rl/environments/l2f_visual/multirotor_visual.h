@@ -39,6 +39,13 @@ namespace rl_tools::rl::environments::l2f_visual {
         unsigned char hash[HASH_SIZE] = {0};
     };
 
+    template <typename T>
+    struct CameraMount {
+        T offset_body[3] = {0, 0, 0};
+        T forward_body[3] = {1, 0, 0};
+        T up_body[3] = {0, 0, 1};
+    };
+
     template <typename T_SPEC>
     struct Parameters {
         using SPEC = T_SPEC;
@@ -46,13 +53,9 @@ namespace rl_tools::rl::environments::l2f_visual {
         typename SPEC::DYNAMICS_ENV::Parameters dynamics;
         T scene_translation[3] = {0, 0, 0};
         SceneHash scene_hash;
-    };
-
-    template <typename T>
-    struct CameraMount {
-        T offset_body[3] = {0, 0, 0};
-        T forward_body[3] = {1, 0, 0};
-        T up_body[3] = {0, 0, 1};
+        CameraMount<T> camera_mount;
+        T cos_fov = 0.66;
+        T collision_distance_threshold = 0.15;
     };
 
     template <typename T_SPEC>
@@ -80,13 +83,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         rendering::raytracing::scene::procthor::Scene<typename SPEC::SCENE_SPEC>* scene = nullptr;
         bool owns_renderer = false;
 
-        CameraMount<T> camera_mount;
-        T cos_fov = 0.66;
-
         const char* scene_path = nullptr;
-
-        T collision_distance_threshold = 0.15;
-        T eye_height = 0.3;
 
         bool use_target_mode = false;
         bool renderer_initialized = false;
