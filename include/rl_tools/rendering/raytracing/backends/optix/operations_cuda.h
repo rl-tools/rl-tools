@@ -502,38 +502,38 @@ namespace rl_tools {
 
     namespace rendering::raytracing::vec3{
         template <typename T>
-        void sub(const T a[3], const T b[3], T out[3]){
+        RL_TOOLS_FUNCTION_PLACEMENT void sub(const T a[3], const T b[3], T out[3]){
             out[0] = a[0] - b[0]; out[1] = a[1] - b[1]; out[2] = a[2] - b[2];
         }
         template <typename T>
-        T dot(const T a[3], const T b[3]){
+        RL_TOOLS_FUNCTION_PLACEMENT T dot(const T a[3], const T b[3]){
             return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
         }
         template <typename T>
-        void cross(const T a[3], const T b[3], T out[3]){
+        RL_TOOLS_FUNCTION_PLACEMENT void cross(const T a[3], const T b[3], T out[3]){
             out[0] = a[1]*b[2] - a[2]*b[1];
             out[1] = a[2]*b[0] - a[0]*b[2];
             out[2] = a[0]*b[1] - a[1]*b[0];
         }
         template <typename T>
-        T length(const T v[3]){
+        RL_TOOLS_FUNCTION_PLACEMENT T length(const T v[3]){
             return sqrtf(dot(v, v));
         }
         template <typename T>
-        void normalize(const T v[3], T out[3]){
+        RL_TOOLS_FUNCTION_PLACEMENT void normalize(const T v[3], T out[3]){
             T len = length(v);
             out[0] = v[0]/len; out[1] = v[1]/len; out[2] = v[2]/len;
         }
         template <typename T>
-        void scale(const T v[3], T s, T out[3]){
+        RL_TOOLS_FUNCTION_PLACEMENT void scale(const T v[3], T s, T out[3]){
             out[0] = v[0]*s; out[1] = v[1]*s; out[2] = v[2]*s;
         }
         template <typename T>
-        void add(const T a[3], const T b[3], T out[3]){
+        RL_TOOLS_FUNCTION_PLACEMENT void add(const T a[3], const T b[3], T out[3]){
             out[0] = a[0] + b[0]; out[1] = a[1] + b[1]; out[2] = a[2] + b[2];
         }
         template <typename T>
-        void cross_normalized(const T a[3], const T b[3], T out[3]){
+        RL_TOOLS_FUNCTION_PLACEMENT void cross_normalized(const T a[3], const T b[3], T out[3]){
             T tmp[3];
             cross(a, b, tmp);
             normalize(tmp, out);
@@ -541,7 +541,7 @@ namespace rl_tools {
     }
 
     template <typename T>
-    rendering::raytracing::CameraData<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T cos_fov, T aspect){
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T cos_fov, T aspect){
         namespace v3 = rendering::raytracing::vec3;
         T raw_dir[3], dir[3];
         v3::sub(look_at, position, raw_dir);
