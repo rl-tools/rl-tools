@@ -45,15 +45,15 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     //   p_x: FOV-normalized horizontal projection of camera B's axis in A's frame
     //   p_y: FOV-normalized vertical projection
     //   phi/pi: roll angle normalized by pi
-    // cos_fov_range: [min, max] range for random FOV (cos_fov parameter)
+    // fov_range: [min, max] range for random FOV in radians
     void sample_camera_batch(
         SceneHandle* handle,
         rl_tools::rendering::raytracing::CameraData<float>* cameras_out,
         float* targets_out,
         unsigned long batch_size,
         float max_angle,
-        float cos_fov_min,
-        float cos_fov_max
+        float fov_min,
+        float fov_max
     );
 
     // Set cameras and render (blocking)

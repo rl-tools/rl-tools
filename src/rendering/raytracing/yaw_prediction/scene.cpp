@@ -43,8 +43,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         float* targets_out,
         unsigned long batch_size,
         float max_angle,
-        float cos_fov_min,
-        float cos_fov_max
+        float fov_min,
+        float fov_max
     ) {
         using T = float;
         constexpr T PI = static_cast<T>(3.14159265358979323846);
@@ -52,7 +52,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         std::uniform_real_distribution<T> yaw_dist(0.0f, 2.0f * PI);
         std::uniform_real_distribution<T> unit_dist(-1.0f, 1.0f);
         std::uniform_real_distribution<T> swap_dist(0.0f, 1.0f);
-        std::uniform_real_distribution<T> fov_dist(cos_fov_min, cos_fov_max);
+        std::uniform_real_distribution<T> fov_dist(fov_min, fov_max);
 
         const T aspect = static_cast<T>(SCENE_CAM_WIDTH) / static_cast<T>(SCENE_CAM_HEIGHT);
 
@@ -61,9 +61,9 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
             auto params = handle->default_params;
             rlt::sample_initial_state(handle->device, handle->env, params, state, handle->sampling_rng);
 
-            const T cos_fov = fov_dist(handle->data_rng);
-            const T tan_half_hfov = static_cast<T>(0.5) * cos_fov * aspect;
-            const T tan_half_vfov = static_cast<T>(0.5) * cos_fov;
+            const T fov_rad = fov_dist(handle->data_rng);
+            const T tan_half_hfov = std::tan(fov_rad / T{2});
+            const T tan_half_vfov = std::tan(fov_rad / T{2}) / aspect;
             const T half_hfov = std::atan(tan_half_hfov);
             const T half_vfov = std::atan(tan_half_vfov);
 
@@ -131,7 +131,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
                     position[1] + handle->env.look_ahead * sby,
                     position[2]
                 };
-                return rlt::make_camera_data(position, look_at, world_up, cos_fov, aspect);
+                return rlt::make_camera_data(position, look_at, world_up, fov_rad, aspect);
             };
 
             auto make_rotated_cam = [&]() -> CameraData {
@@ -150,7 +150,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
                     position[1] + handle->env.look_ahead * dir_b[1],
                     position[2] + handle->env.look_ahead * dir_b[2]
                 };
-                return rlt::make_camera_data(position, look_at, up_b, cos_fov, aspect);
+                return rlt::make_camera_data(position, look_at, up_b, fov_rad, aspect);
             };
 
             if (do_swap) {
