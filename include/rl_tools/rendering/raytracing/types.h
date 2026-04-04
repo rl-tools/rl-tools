@@ -12,6 +12,18 @@ namespace rl_tools {
             int hit;
         };
 
+        struct SceneLight {
+            int type; // 0=directional, 1=point, 2=spot
+            float position[3];
+            float direction[3];
+            float color[3];
+            float attenuation_constant;
+            float attenuation_linear;
+            float attenuation_quadratic;
+            float cos_inner_cone;
+            float cos_outer_cone;
+        };
+
         template <typename T_T>
         struct CameraData {
             T_T pos[3];

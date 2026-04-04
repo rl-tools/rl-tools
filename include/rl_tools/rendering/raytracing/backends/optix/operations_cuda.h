@@ -15,6 +15,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/light.h>
 
 #include <vector>
 #include <limits>
@@ -24,6 +25,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <cuda_runtime.h>
 
 #define RL_TOOLS_RENDERING_RAYTRACING_LOG(message)                                            \
@@ -513,6 +515,66 @@ namespace rl_tools {
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << renderer.meshes.size()
               << ", metallic: " << metallic_count << "/" << renderer.meshes.size());
 
+        if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+            renderer.scene_lights.clear();
+            float inv_sqrt2 = 0.70710678f;
+            renderer.scene_lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
+            renderer.scene_lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
+            renderer.scene_lights.push_back({0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0});
+
+            Assimp::Importer light_importer;
+            const aiScene* light_scene = light_importer.ReadFile(filename, 0);
+            if (light_scene) {
+                float template_color[3] = {1.f, 1.f, 1.f};
+                float template_att[3] = {0.f, 0.f, 1.f};
+                if (light_scene->mNumLights > 0) {
+                    const aiLight* tl = light_scene->mLights[0];
+                    template_color[0] = tl->mColorDiffuse.r; template_color[1] = tl->mColorDiffuse.g; template_color[2] = tl->mColorDiffuse.b;
+                    template_att[0] = tl->mAttenuationConstant; template_att[1] = tl->mAttenuationLinear; template_att[2] = tl->mAttenuationQuadratic;
+                }
+                std::function<void(const aiNode*, aiMatrix4x4)> walk_lights;
+                walk_lights = [&](const aiNode* node, aiMatrix4x4 parent_transform) {
+                    aiMatrix4x4 world = parent_transform * node->mTransformation;
+                    bool is_light = false;
+                    if (node->mMetaData) {
+                        for (unsigned int mi = 0; mi < node->mMetaData->mNumProperties; mi++) {
+                            if (std::strstr(node->mMetaData->mKeys[mi].C_Str(), "PBR_Light") != nullptr) {
+                                is_light = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!is_light) {
+                        for (unsigned int li = 0; li < light_scene->mNumLights; li++) {
+                            if (light_scene->mLights[li]->mName == node->mName) { is_light = true; break; }
+                        }
+                    }
+                    if (is_light && node->mNumMeshes == 0) {
+                        aiVector3D world_pos = world * aiVector3D(0.f, 0.f, 0.f);
+                        rendering::raytracing::SceneLight sl{};
+                        sl.type = 1;
+                        sl.position[0] = world_pos.x; sl.position[1] = -world_pos.z; sl.position[2] = world_pos.y;
+                        sl.color[0] = template_color[0]; sl.color[1] = template_color[1]; sl.color[2] = template_color[2];
+                        sl.attenuation_constant = template_att[0]; sl.attenuation_linear = template_att[1]; sl.attenuation_quadratic = template_att[2];
+                        renderer.scene_lights.push_back(sl);
+                    }
+                    for (unsigned int ci = 0; ci < node->mNumChildren; ci++) {
+                        walk_lights(node->mChildren[ci], world);
+                    }
+                };
+                walk_lights(light_scene->mRootNode, aiMatrix4x4());
+
+                int num_point_lights = (int)renderer.scene_lights.size() - 3;
+                RL_TOOLS_RENDERING_RAYTRACING_LOG("Extracted " << num_point_lights << " point lights from model (+ 3 directional fill)");
+                for (int pi = 3; pi < (int)renderer.scene_lights.size(); pi++) {
+                    auto& sl = renderer.scene_lights[pi];
+                    RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << (pi-3) << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
+                        << ") color=(" << sl.color[0] << "," << sl.color[1] << "," << sl.color[2]
+                        << ") att=(" << sl.attenuation_constant << "," << sl.attenuation_linear << "," << sl.attenuation_quadratic << ")");
+                }
+            }
+        }
+
         // Adjust camera based on bounding box
         owl::vec3f center = 0.5f * (bbox_min + bbox_max);
         owl::vec3f size = bbox_max - bbox_min;
@@ -584,12 +646,8 @@ namespace rl_tools {
                 { "occlusion_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, occlusion_map)},
                 { "has_occlusion_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_occlusion_map)},
                 { "opacity",       OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, opacity)},
-                { "light_dir_0",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_0)},
-                { "light_color_0", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_color_0)},
-                { "light_dir_1",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_1)},
-                { "light_color_1", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_color_1)},
-                { "light_dir_2",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_2)},
-                { "light_color_2", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_color_2)},
+                { "scene_lights",  OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, scene_lights)},
+                { "num_scene_lights", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, num_scene_lights)},
                 { "ambient_color", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, ambient_color)},
                 { /* sentinel */ }
             };
@@ -728,14 +786,6 @@ namespace rl_tools {
                 }
 
                 owlGeomSet1f(geom, "opacity", md.opacity);
-
-                float inv_sqrt2 = 0.70710678f;
-                owlGeomSet3f(geom, "light_dir_0", owl3f{-inv_sqrt2, 0.f, inv_sqrt2});
-                owlGeomSet3f(geom, "light_color_0", owl3f{0.4f, 0.4f, 0.4f});
-                owlGeomSet3f(geom, "light_dir_1", owl3f{0.f, -inv_sqrt2, inv_sqrt2});
-                owlGeomSet3f(geom, "light_color_1", owl3f{0.3f, 0.3f, 0.3f});
-                owlGeomSet3f(geom, "light_dir_2", owl3f{0.f, inv_sqrt2, inv_sqrt2});
-                owlGeomSet3f(geom, "light_color_2", owl3f{0.2f, 0.2f, 0.2f});
                 owlGeomSet3f(geom, "ambient_color", owl3f{0.5f, 0.5f, 0.5f});
             }
 
@@ -749,6 +799,15 @@ namespace rl_tools {
 
         for(size_t m = 0; m < geoms.size(); m++){
             owlGeomSetGroup(geoms[m], "world", world);
+        }
+
+        if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+            OWLBuffer light_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(rendering::raytracing::SceneLight),
+                                                            renderer.scene_lights.size(), renderer.scene_lights.data());
+            for (size_t m = 0; m < geoms.size(); m++) {
+                owlGeomSetBuffer(geoms[m], "scene_lights", light_buffer);
+                owlGeomSet1i(geoms[m], "num_scene_lights", (int)renderer.scene_lights.size());
+            }
         }
 
         owlRayGenSetGroup((OWLRayGen)renderer.backend.ray_gen, "world", world);

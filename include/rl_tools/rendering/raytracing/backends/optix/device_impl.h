@@ -201,11 +201,34 @@ namespace rl_tools
     float NdotV = fmaxf(dot(N, V), 1e-4f);
     owl::vec3f F0 = owl::vec3f(0.04f) * (1.f - metallic) + base_color * metallic;
 
+    owl::vec3f hit_point = ray_dir * optixGetRayTmax();
+    hit_point.x += optixGetWorldRayOrigin().x;
+    hit_point.y += optixGetWorldRayOrigin().y;
+    hit_point.z += optixGetWorldRayOrigin().z;
+
     owl::vec3f Lo(0.f);
-    owl::vec3f light_dirs[3] = {self.light_dir_0, self.light_dir_1, self.light_dir_2};
-    owl::vec3f light_colors[3] = {self.light_color_0, self.light_color_1, self.light_color_2};
-    for (int li = 0; li < 3; li++) {
-      owl::vec3f L = light_dirs[li];
+    for (int li = 0; li < self.num_scene_lights; li++) {
+      const rendering::raytracing::SceneLight& light = self.scene_lights[li];
+      owl::vec3f Lc(light.color[0], light.color[1], light.color[2]);
+      owl::vec3f L;
+      float attenuation = 1.f;
+
+      if (light.type == 0) {
+        L = owl::vec3f(light.direction[0], light.direction[1], light.direction[2]);
+      } else {
+        owl::vec3f to_light = owl::vec3f(light.position[0], light.position[1], light.position[2]) - hit_point;
+        float dist = length(to_light);
+        L = to_light * (1.f / fmaxf(dist, 1e-6f));
+        attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
+        if (light.type == 2) {
+          owl::vec3f spot_dir(light.direction[0], light.direction[1], light.direction[2]);
+          float cos_angle = dot(-L, spot_dir);
+          float denom = light.cos_inner_cone - light.cos_outer_cone;
+          float spot_t = (cos_angle - light.cos_outer_cone) / (fabsf(denom) > 1e-6f ? denom : 1e-6f);
+          attenuation *= fmaxf(fminf(spot_t, 1.f), 0.f);
+        }
+      }
+
       float NdotL = fmaxf(dot(N, L), 0.f);
       if (NdotL <= 0.f) continue;
 
@@ -227,7 +250,7 @@ namespace rl_tools
       owl::vec3f kd = (owl::vec3f(1.f) - F) * (1.f - metallic);
       owl::vec3f diffuse = kd * base_color * (1.f / 3.14159265f);
 
-      Lo = Lo + (diffuse + specular) * light_colors[li] * NdotL;
+      Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
     }
 
     float occlusion = 1.f;
@@ -249,10 +272,6 @@ namespace rl_tools
 
     unsigned int depth = optixGetPayload_2();
     if (depth < 1 && metallic > 0.1f) {
-      owl::vec3f hit_point = ray_dir * optixGetRayTmax();
-      hit_point.x += optixGetWorldRayOrigin().x;
-      hit_point.y += optixGetWorldRayOrigin().y;
-      hit_point.z += optixGetWorldRayOrigin().z;
       owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, N) * N;
 
       owl::vec3f reflected_color;
@@ -276,11 +295,6 @@ namespace rl_tools
     }
 
     if (alpha < 0.99f && depth < 1) {
-      owl::vec3f hit_point = ray_dir * optixGetRayTmax();
-      hit_point.x += optixGetWorldRayOrigin().x;
-      hit_point.y += optixGetWorldRayOrigin().y;
-      hit_point.z += optixGetWorldRayOrigin().z;
-
       owl::vec3f behind_color;
       unsigned int tp0 = 0, tp1 = 0;
       owl::packPointer(&behind_color, tp0, tp1);

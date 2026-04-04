@@ -101,6 +101,7 @@ namespace rl_tools {
             T camera_radius = 0;
 
             std::vector<MeshData<SPEC>> meshes;
+            std::vector<rendering::raytracing::SceneLight> scene_lights;
 
             BackendContext<SPEC> backend;
         };
