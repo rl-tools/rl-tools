@@ -40,12 +40,8 @@ namespace rl_tools {
         cudaTextureObject_t occlusion_map;
         int has_occlusion_map;
         float opacity;
-        owl::vec3f light_dir_0;
-        owl::vec3f light_color_0;
-        owl::vec3f light_dir_1;
-        owl::vec3f light_color_1;
-        owl::vec3f light_dir_2;
-        owl::vec3f light_color_2;
+        rendering::raytracing::SceneLight *scene_lights;
+        int num_scene_lights;
         owl::vec3f ambient_color;
     };
 
