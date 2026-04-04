@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_PERSIST_BACKENDS_TAR_OPERATIONS_CPU
 
+#include "../../../rl_tools.h"
 #include "io.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -24,7 +25,6 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #ifdef RL_TOOLS_PERSIST_BACKENDS_TAR_OPERATIONS_GENERIC
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    // File API overloads (require operations_generic.h for WriterGroup/ReaderGroup)
     template<typename DEVICE, typename TI>
     persist::backends::tar::WriterGroup<persist::backends::tar::WriterGroupSpecification<TI, persist::backends::tar::Writer>> create_group(DEVICE& device, persist::backends::tar::File<TI>& file, const char* name){
         using WGS = persist::backends::tar::WriterGroupSpecification<TI, persist::backends::tar::Writer>;

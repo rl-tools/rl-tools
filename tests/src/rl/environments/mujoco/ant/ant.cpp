@@ -135,14 +135,15 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     std::vector<T> rewards;
     std::vector<T> terminated_flags;
     std::vector<T> truncated_flags;
-    data_file.getDataSet("observations").read(observations);
-    data_file.getDataSet("next_observations").read(next_observations);
-    data_file.getDataSet("states").read(states);
-    data_file.getDataSet("next_states").read(next_states);
-    data_file.getDataSet("actions").read(actions);
-    data_file.getDataSet("rewards").read(rewards);
-    data_file.getDataSet("terminated_flags").read(terminated_flags);
-    data_file.getDataSet("truncated_flags").read(truncated_flags);
+    rl_tools::persist::backends::hdf5::Group<> data_file_root{data_file.id};
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "observations", observations);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "next_observations", next_observations);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "states", states);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "next_states", next_states);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "actions", actions);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "rewards", rewards);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "terminated_flags", terminated_flags);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "truncated_flags", truncated_flags);
 
     assert(observations.size() == next_observations.size());
     assert(observations.size() == states.size());
