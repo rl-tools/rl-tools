@@ -9,76 +9,80 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<auto LAYER_I = 0, typename DEVICE, typename SPEC, typename GROUP>
-    void save(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, GROUP& group) {
+    template<auto LAYER_I, typename DEVICE, typename SPEC, typename GROUP>
+    void _save(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, GROUP& layers_group) {
         using TI = typename DEVICE::index_t;
-        GROUP layers_group = group;
-        if constexpr(LAYER_I == 0){
-            set_attribute(device, group, "type", "sequential");
-            write_attributes(device, group);
-            layers_group = create_group(device, group, "layers");
-        }
         static constexpr TI BUFFER_SIZE = 10;
         char layer_index_str[BUFFER_SIZE];
         utils::string::int_to_string<long int, TI>(layer_index_str, BUFFER_SIZE, LAYER_I);
         auto layer_group = create_group(device, layers_group, layer_index_str);
         save(device, get_layer<LAYER_I>(model), layer_group);
         if constexpr (LAYER_I + 1 < SPEC::NUM_LAYERS){
-            save<LAYER_I + 1>(device, model, layers_group);
+            _save<LAYER_I + 1>(device, model, layers_group);
         }
     }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, GROUP& group) {
+        set_attribute(device, group, "type", "sequential");
+        write_attributes(device, group);
+        auto layers_group = create_group(device, group, "layers");
+        _save<0>(device, model, layers_group);
+    }
 
-    template<auto LAYER_I = 0, typename DEVICE, typename SPEC, typename GROUP>
-    bool load(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, GROUP& group) {
+    template<auto LAYER_I, typename DEVICE, typename SPEC, typename GROUP>
+    bool _load(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, GROUP& layers_group) {
         using TI = typename DEVICE::index_t;
-        GROUP layers_group = group;
-        if constexpr(LAYER_I == 0){
-            layers_group = get_group(device, group, "layers");
-        }
         static constexpr TI BUFFER_SIZE = 10;
         char layer_index_str[BUFFER_SIZE];
         utils::string::int_to_string<long int, TI>(layer_index_str, BUFFER_SIZE, LAYER_I);
         auto layer_group = get_group(device, layers_group, layer_index_str);
         bool success = load(device, get_layer<LAYER_I>(model), layer_group);
         if constexpr (LAYER_I + 1 < SPEC::NUM_LAYERS){
-            success &= load<LAYER_I + 1>(device, model, layers_group);
+            success &= _load<LAYER_I + 1>(device, model, layers_group);
         }
         return success;
     }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    bool load(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, GROUP& group) {
+        auto layers_group = get_group(device, group, "layers");
+        return _load<0>(device, model, layers_group);
+    }
 
-    template<auto LAYER_I = 0, typename DEVICE, typename SPEC, typename GROUP>
-    void save(DEVICE& device, nn_models::sequential::ContentState<SPEC>& state, GROUP& group) {
+    template<auto LAYER_I, typename DEVICE, typename SPEC, typename GROUP>
+    void _save(DEVICE& device, nn_models::sequential::ContentState<SPEC>& state, GROUP& layers_group) {
         using TI = typename DEVICE::index_t;
-        GROUP layers_group = group;
-        if constexpr(LAYER_I == 0){
-            layers_group = create_group(device, group, "layers");
-        }
         static constexpr TI BUFFER_SIZE = 10;
         char layer_index_str[BUFFER_SIZE];
         utils::string::int_to_string<long int, TI>(layer_index_str, BUFFER_SIZE, LAYER_I);
         auto layer_group = create_group(device, layers_group, layer_index_str);
         save(device, get<LAYER_I>(state.states), layer_group);
         if constexpr (LAYER_I + 1 < SPEC::SPEC::NUM_LAYERS){
-            save<LAYER_I + 1>(device, state, layers_group);
+            _save<LAYER_I + 1>(device, state, layers_group);
         }
     }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    void save(DEVICE& device, nn_models::sequential::ContentState<SPEC>& state, GROUP& group) {
+        auto layers_group = create_group(device, group, "layers");
+        _save<0>(device, state, layers_group);
+    }
 
-    template<auto LAYER_I = 0, typename DEVICE, typename SPEC, typename GROUP>
-    bool load(DEVICE& device, nn_models::sequential::ContentState<SPEC>& state, GROUP& group) {
+    template<auto LAYER_I, typename DEVICE, typename SPEC, typename GROUP>
+    bool _load(DEVICE& device, nn_models::sequential::ContentState<SPEC>& state, GROUP& layers_group) {
         using TI = typename DEVICE::index_t;
-        GROUP layers_group = group;
-        if constexpr(LAYER_I == 0){
-            layers_group = get_group(device, group, "layers");
-        }
         static constexpr TI BUFFER_SIZE = 10;
         char layer_index_str[BUFFER_SIZE];
         utils::string::int_to_string<long int, TI>(layer_index_str, BUFFER_SIZE, LAYER_I);
         auto layer_group = get_group(device, layers_group, layer_index_str);
         bool success = load(device, get<LAYER_I>(state.states), layer_group);
         if constexpr (LAYER_I + 1 < SPEC::SPEC::NUM_LAYERS){
-            success &= load<LAYER_I + 1>(device, state, layers_group);
+            success &= _load<LAYER_I + 1>(device, state, layers_group);
         }
         return success;
+    }
+    template<typename DEVICE, typename SPEC, typename GROUP>
+    bool load(DEVICE& device, nn_models::sequential::ContentState<SPEC>& state, GROUP& group) {
+        auto layers_group = get_group(device, group, "layers");
+        return _load<0>(device, state, layers_group);
     }
 
     template<typename DEVICE, typename SPEC, typename GROUP>
