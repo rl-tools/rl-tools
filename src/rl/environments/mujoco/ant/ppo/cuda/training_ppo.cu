@@ -44,7 +44,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #endif
 
 #if defined(RL_TOOLS_ENABLE_CLI11) && !defined(RL_TOOLS_DISABLE_CLI11)
@@ -292,11 +292,11 @@ int main(int argc, char** argv){
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
                 try{
-                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
+                    auto actor_file = rl_tools::persist::backends::hdf5::File(actor_output_path.string(), rl_tools::persist::backends::hdf5::Mode::WRITE);
                     rlt::save(device, ppo.actor, actor_file.createGroup("actor"));
                     rlt::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
                 }
-                catch(HighFive::Exception& e){
+                catch(std::exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
                 }
                 next_checkpoint_id++;

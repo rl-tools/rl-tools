@@ -17,27 +17,7 @@ if [ -z "$HDF5_PREFIX" ] || [ ! -d "$HDF5_PREFIX/include" ]; then
 fi
 echo "HDF5: $HDF5_PREFIX"
 
-# --- Find HighFive headers ---
-HIGHFIVE_INCLUDE=""
-for candidate in \
-    "$REPO_ROOT/.dependencies"/*/highfive-src/include \
-    "$REPO_ROOT/build/../.dependencies"/*/highfive-src/include \
-    "$(brew --prefix highfive 2>/dev/null)/include" \
-    ; do
-    if [ -d "$candidate" ] 2>/dev/null; then
-        HIGHFIVE_INCLUDE="$candidate"
-        break
-    fi
-done
-
-if [ -z "$HIGHFIVE_INCLUDE" ]; then
-    echo "Error: HighFive headers not found."
-    echo "Either run a cmake configure first (so HighFive is fetched), or install: brew install highfive"
-    exit 1
-fi
-echo "HighFive: $HIGHFIVE_INCLUDE"
-
-CXX_FLAGS="-std=c++20 -Ofast -I $REPO_ROOT/include -I $HDF5_PREFIX/include -I $HIGHFIVE_INCLUDE -DRL_TOOLS_ENABLE_HDF5"
+CXX_FLAGS="-std=c++20 -Ofast -I $REPO_ROOT/include -I $HDF5_PREFIX/include -DRL_TOOLS_ENABLE_HDF5"
 
 # --- Compile C++ inference library ---
 echo "Compiling inference.cpp..."

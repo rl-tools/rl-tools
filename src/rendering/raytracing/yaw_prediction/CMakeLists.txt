@@ -15,11 +15,14 @@ endif()
 add_executable(rendering_raytracing_yaw_prediction_real_world_eval yaw_prediction_real_world_eval.cpp)
 set_target_properties(rendering_raytracing_yaw_prediction_real_world_eval PROPERTIES CXX_STANDARD 17)
 target_include_directories(rendering_raytracing_yaw_prediction_real_world_eval PRIVATE ${CMAKE_SOURCE_DIR}/include)
+if(RL_TOOLS_ENABLE_HDF5)
+    target_link_libraries(rendering_raytracing_yaw_prediction_real_world_eval PRIVATE HDF5::HDF5)
+    target_include_directories(rendering_raytracing_yaw_prediction_real_world_eval PRIVATE ${HDF5_INCLUDE_DIRS})
+endif()
 target_link_libraries(rendering_raytracing_yaw_prediction_real_world_eval
     PRIVATE
         nlohmann_json::nlohmann_json
         rendering_raytracing_stb
-        HighFive
 )
 
 
@@ -28,10 +31,13 @@ if(OpenCV_FOUND)
 add_executable(rendering_raytracing_yaw_prediction_dataset_overlay yaw_prediction_dataset_overlay.cpp)
 set_target_properties(rendering_raytracing_yaw_prediction_dataset_overlay PROPERTIES CXX_STANDARD 17)
 target_include_directories(rendering_raytracing_yaw_prediction_dataset_overlay PRIVATE ${CMAKE_SOURCE_DIR}/include)
+if(RL_TOOLS_ENABLE_HDF5)
+    target_link_libraries(rendering_raytracing_yaw_prediction_dataset_overlay PRIVATE HDF5::HDF5)
+    target_include_directories(rendering_raytracing_yaw_prediction_dataset_overlay PRIVATE ${HDF5_INCLUDE_DIRS})
+endif()
 target_link_libraries(rendering_raytracing_yaw_prediction_dataset_overlay
     PRIVATE
         nlohmann_json::nlohmann_json
-        HighFive
         ${OpenCV_LIBS}
 )
 endif()

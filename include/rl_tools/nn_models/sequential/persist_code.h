@@ -48,6 +48,7 @@ namespace rl_tools{
             ss << ind << "    " << "    " << "using MODEL = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, layer_0::INPUT_SHAPE>;\n";
             ss << ind << "    " << "}\n";
             ss << ind << "    " << "using TYPE = model_definition::MODEL;\n";
+            ss << ind << "    " << "using TEMPLATE = model_definition::MODULE_CHAIN;\n";
             ss << ind << "    " << (const_declaration ? "constexpr " : "") << "TYPE module = [](){\n";
             ss << ind << "    " << "    TYPE m{};\n";
             for(TI inner_layer_i = 0; inner_layer_i < num_layers(model); inner_layer_i++){

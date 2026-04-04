@@ -91,7 +91,7 @@ namespace rl_tools{
             }
         }
     }
-    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, typename rl_tools::utils::typing::enable_if<!SOURCE_DEV_SPEC::TAG, int>::type = 0>
     void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
@@ -106,7 +106,7 @@ namespace rl_tools{
         containers::cuda::kernels::copy<DEVICE, SOURCE_SPEC, TARGET_SPEC><<<grid, block, 0, source_device.stream>>>(source, target);
         check_status(target_device);
     }
-    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, typename rl_tools::utils::typing::enable_if<!SOURCE_DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
@@ -118,7 +118,7 @@ namespace rl_tools{
             copy_layout_mismatch(source_device, target_device, source, target);
         }
     }
-    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, typename rl_tools::utils::typing::enable_if<!TARGET_DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void copy_layout_mismatch(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
@@ -150,7 +150,7 @@ namespace rl_tools{
             copy(target_device, target_device, temp, target);
         }
     }
-    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, typename rl_tools::utils::typing::enable_if<!TARGET_DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
@@ -164,7 +164,7 @@ namespace rl_tools{
         }
     }
 
-    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, typename rl_tools::utils::typing::enable_if<!SOURCE_DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
@@ -184,7 +184,7 @@ namespace rl_tools{
         copy(target_device, target_device, temp_cpu, target);
         free(target_device, temp_cpu);
     }
-    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, typename rl_tools::utils::typing::enable_if<!SOURCE_DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
@@ -198,7 +198,7 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEV_SPEC, typename SPEC, typename VALUE_T>
+    template<typename DEV_SPEC, typename SPEC, typename VALUE_T, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void set_all(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, VALUE_T value){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
@@ -209,7 +209,7 @@ namespace rl_tools{
         containers::cuda::kernels::set_all<DEVICE, SPEC, VALUE_T><<<grid, block, 0, device.stream>>>(m, value);
         check_status(device);
     }
-    template<typename DEV_SPEC, typename SPEC, typename RNG>
+    template<typename DEV_SPEC, typename SPEC, typename RNG, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void randn(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, typename SPEC::T mean, typename SPEC::T std, RNG& rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
@@ -226,7 +226,7 @@ namespace rl_tools{
         randn(device, m, 0, 1, rng);
     }
     namespace containers::matrix{
-        template<bool ACCUMULATE, typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+        template<bool ACCUMULATE, typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
         RL_TOOLS_FUNCTION_PLACEMENT void multiply_blas(devices::CUDA<DEV_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
@@ -275,11 +275,11 @@ namespace rl_tools{
 #endif
         }
     }
-    template<typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    template<typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void multiply(devices::CUDA<DEV_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
         containers::matrix::multiply_blas<false>(device, A, B, output);
     }
-    template<typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    template<typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void multiply_accumulate(devices::CUDA<DEV_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output){
         containers::matrix::multiply_blas<true>(device, A, B, output);
     }

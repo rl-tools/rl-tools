@@ -30,7 +30,7 @@ namespace rl_tools::nn::layers::gru::helper{
         }
     }
 
-    template<typename DEV_SPEC, typename SPEC_BIAS, typename SPEC_OUT>
+    template<typename DEV_SPEC, typename SPEC_BIAS, typename SPEC_OUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void set_bias_inplace(devices::CUDA<DEV_SPEC>& device, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI     = typename DEVICE::index_t;
@@ -54,7 +54,7 @@ namespace rl_tools::nn::layers::gru::helper{
         nn::layers::gru::kernels::set_bias_inplace_kernel<<<grid, block, 0, device.stream>>>(tag_device, bias, result);
         check_status(device);
     }
-    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void matrix_multiply_transpose_bias(devices::CUDA<DEV_SPEC>& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -115,7 +115,7 @@ namespace rl_tools::nn::layers::gru::helper{
         }
     }
 
-    template<typename DEV_SPEC, typename SPEC_BIAS, typename SPEC_OUT>
+    template<typename DEV_SPEC, typename SPEC_BIAS, typename SPEC_OUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void add_bias_inplace( devices::CUDA<DEV_SPEC>& device, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI     = typename DEVICE::index_t;
@@ -142,7 +142,7 @@ namespace rl_tools::nn::layers::gru::helper{
 
 
 
-    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void matrix_multiply_transpose_bias_accumulate(devices::CUDA<DEV_SPEC>& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -205,7 +205,7 @@ namespace rl_tools::nn::layers::gru::helper{
         }
     }
 
-    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void matrix_multiply_broadcast_transpose_bias(devices::CUDA<DEV_SPEC>& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -238,7 +238,7 @@ namespace rl_tools::nn::layers::gru::helper{
 }
 
 namespace rl_tools::nn::layers::gru::mode{
-    template <typename SPEC, typename DEV_SPEC, typename MODE, typename MODE_SPEC, typename TI>
+    template <typename SPEC, typename DEV_SPEC, typename MODE, typename MODE_SPEC, typename TI, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     bool reset_sample(devices::CUDA<DEV_SPEC>& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, TI step_i, TI sample_i){
         using RTI = typename MODE_SPEC::TI;
         using RESET_SPEC = typename MODE_SPEC::RESET_CONTAINER_TYPE::SPEC;
@@ -269,7 +269,7 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEV_SPEC, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+    template<typename DEV_SPEC, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void multiply_subtract_broadcast(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
@@ -283,7 +283,7 @@ namespace rl_tools{
         check_status(device);
     }
 
-    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void multiply_accumulate_reduce(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
@@ -344,7 +344,7 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void matrix_multiply_broadcast_accumulate(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
@@ -358,7 +358,7 @@ namespace rl_tools{
         check_status(device);
     }
 
-    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void matrix_multiply_accumulate_reduce(devices::CUDA<DEV_SPEC>& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;

@@ -10,7 +10,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <iostream>
 
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 namespace TEST_DEFINITIONS{
     using DEVICE = rlt::devices::DefaultCPU;
@@ -130,19 +130,20 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     std::string DATA_FILE_NAME = "tests_rl_environments_mujoco_ant_data.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
     std::vector<std::vector<T>> observations, next_observations, states, next_states, actions;
     std::vector<T> rewards;
     std::vector<T> terminated_flags;
     std::vector<T> truncated_flags;
-    data_file.getDataSet("observations").read(observations);
-    data_file.getDataSet("next_observations").read(next_observations);
-    data_file.getDataSet("states").read(states);
-    data_file.getDataSet("next_states").read(next_states);
-    data_file.getDataSet("actions").read(actions);
-    data_file.getDataSet("rewards").read(rewards);
-    data_file.getDataSet("terminated_flags").read(terminated_flags);
-    data_file.getDataSet("truncated_flags").read(truncated_flags);
+    rl_tools::persist::backends::hdf5::Group<> data_file_root{data_file.id};
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "observations", observations);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "next_observations", next_observations);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "states", states);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "next_states", next_states);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "actions", actions);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "rewards", rewards);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "terminated_flags", terminated_flags);
+    rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "truncated_flags", truncated_flags);
 
     assert(observations.size() == next_observations.size());
     assert(observations.size() == states.size());

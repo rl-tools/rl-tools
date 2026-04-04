@@ -104,16 +104,16 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     }
     std::string FILE_PATH = "test_rl_components_on_policy_runner_dataset.h5";
     {
-        auto file = HighFive::File(FILE_PATH, HighFive::File::Overwrite);
-        rlt::persist::backends::hdf5::Group<> dataset_group = {file.createGroup("dataset")};
+        auto file = rl_tools::persist::backends::hdf5::File(FILE_PATH, rl_tools::persist::backends::hdf5::Mode::WRITE);
+        auto dataset_group = rlt::create_group(device, file, "dataset");
         rlt::save(device, dataset, dataset_group);
     }
 
     {
-        auto file = HighFive::File(FILE_PATH, HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
         DATASET loaded;
         rlt::malloc(device, loaded);
-        rlt::persist::backends::hdf5::Group<> dataset_group = {file.getGroup("dataset")};
+        auto dataset_group = rlt::get_group(device, file, "dataset");
         rlt::load(device, loaded, dataset_group);
         auto abs_diff = rlt::abs_diff(device, loaded.scalar_data, dataset.scalar_data);
         ASSERT_FLOAT_EQ(0, abs_diff);

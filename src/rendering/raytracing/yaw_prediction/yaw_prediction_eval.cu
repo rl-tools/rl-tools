@@ -337,7 +337,7 @@ int main(int argc, char** argv) {
     CPU_MODEL model_cpu;
     rlt::malloc(device_cpu, model_cpu);
     {
-        auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(checkpoint_path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto mg = rlt::get_group(device_cpu, file, "model");
         const bool success = rlt::load(device_cpu, model_cpu, mg);
         if (!success) {
