@@ -153,28 +153,12 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_gradient_adam)
         rlt::save(device, model, sequential_model_group);
     }
 
-    bool got_expected_error = false;
     {
         auto file = rl_tools::persist::backends::hdf5::File("test_rl_tools_nn_models_sequential_save_forward_gradient_adam.h5", rl_tools::persist::backends::hdf5::Mode::READ);
-        try{
-            auto sequential_model_group = rlt::get_group(device, file, "sequential_model");
-            rlt::load(device, model_loaded, sequential_model_group);
-        }
-        catch(std::exception& e){
-
-            std::cerr << "Error while loading model: " << e.what() << std::endl;
-            const std::string error = e.what();
-            const bool missing_object = error.find("Object not found") != std::string::npos;
-            const bool missing_expected_dataset =
-                error.find("\"gradient\"") != std::string::npos ||
-                error.find("\"gradient_first_order_moment\"") != std::string::npos ||
-                error.find("\"gradient_second_order_moment\"") != std::string::npos;
-            if(missing_object && missing_expected_dataset){
-                got_expected_error = true;
-            }
-        }
+        auto sequential_model_group = rlt::get_group(device, file, "sequential_model");
+        bool load_success = rlt::load(device, model_loaded, sequential_model_group);
+        ASSERT_FALSE(load_success);
     }
-    ASSERT_EQ(got_expected_error, true);
 }
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_gradient_adam_gradient_adam) {
