@@ -155,6 +155,11 @@ namespace rl_tools::dyn{
             TI num_classes;
             TI embedding_dim;
         };
+        template <typename T_TI>
+        struct Parallel{
+            using TI = T_TI;
+            TI input_dim_a, input_dim_b;
+        };
     }
 
     template <typename T_TI>

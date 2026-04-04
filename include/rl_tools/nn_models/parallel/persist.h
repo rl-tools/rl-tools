@@ -11,6 +11,11 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn_models::parallel::ModuleForward<SPEC>& model, GROUP& group) {
         set_attribute(device, group, "type", "parallel");
+        using TI = typename SPEC::TI;
+        constexpr TI INPUT_DIM_A = product(typename SPEC::INPUT_SHAPE_A{}) / (get<0>(typename SPEC::INPUT_SHAPE_A{}) * get<1>(typename SPEC::INPUT_SHAPE_A{}));
+        constexpr TI INPUT_DIM_B = product(typename SPEC::INPUT_SHAPE_B{}) / (get<0>(typename SPEC::INPUT_SHAPE_B{}) * get<1>(typename SPEC::INPUT_SHAPE_B{}));
+        set_attribute(device, group, "input_dim_a", std::to_string(INPUT_DIM_A).c_str());
+        set_attribute(device, group, "input_dim_b", std::to_string(INPUT_DIM_B).c_str());
         write_attributes(device, group);
         auto group_a = create_group(device, group, "pipeline_a");
         save(device, model.pipeline_a, group_a);
