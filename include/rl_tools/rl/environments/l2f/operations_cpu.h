@@ -1550,10 +1550,15 @@ export function render_onboard_pixels(ui_state, state, parameters){
     const w = ui_state.onboard_render_target.width, h = ui_state.onboard_render_target.height
     ui_state.renderer.readRenderTargetPixels(ui_state.onboard_render_target, 0, 0, w, h, ui_state.onboard_pixel_buffer)
     const rgb = new Float32Array(w * h * 3)
-    for(let i = 0; i < w * h; i++){
-        rgb[i*3+0] = ui_state.onboard_pixel_buffer[i*4+0] / 255
-        rgb[i*3+1] = ui_state.onboard_pixel_buffer[i*4+1] / 255
-        rgb[i*3+2] = ui_state.onboard_pixel_buffer[i*4+2] / 255
+    for(let y = 0; y < h; y++){
+        const src_y = h - 1 - y
+        for(let x = 0; x < w; x++){
+            const dst = (y * w + x) * 3
+            const src = (src_y * w + x) * 4
+            rgb[dst + 0] = ui_state.onboard_pixel_buffer[src + 0] / 255
+            rgb[dst + 1] = ui_state.onboard_pixel_buffer[src + 1] / 255
+            rgb[dst + 2] = ui_state.onboard_pixel_buffer[src + 2] / 255
+        }
     }
     return rgb
 }
