@@ -8,6 +8,9 @@ namespace rl_tools {
     template<typename DEVICE, typename SPEC, typename GROUP>
     void save(DEVICE& device, nn::layers::unflatten::LayerForward<SPEC>& layer, GROUP& group) {
         set_attribute(device, group, "type", "unflatten");
+        set_attribute(device, group, "height", std::to_string(SPEC::HEIGHT).c_str());
+        set_attribute(device, group, "width", std::to_string(SPEC::WIDTH).c_str());
+        set_attribute(device, group, "channels", std::to_string(SPEC::CHANNELS).c_str());
         write_attributes(device, group);
     }
     template<typename DEVICE, typename SPEC, typename GROUP>

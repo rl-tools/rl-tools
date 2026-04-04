@@ -143,6 +143,11 @@ namespace rl_tools::dyn{
             TI dim;
         };
         template <typename T_TI>
+        struct Unflatten{
+            using TI = T_TI;
+            TI height, width, channels;
+        };
+        template <typename T_TI>
         struct Embedding{
             using TI = T_TI;
             using TENSOR_SPEC = TensorSpecification<TI>;

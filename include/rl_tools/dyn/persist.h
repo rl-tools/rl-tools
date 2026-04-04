@@ -194,7 +194,17 @@ namespace rl_tools{
         }
         else if(utils::string::compare(type_str, "sample_and_squash", 17)){ layer.type = LayerType::SAMPLE_AND_SQUASH; }
         else if(utils::string::compare(type_str, "flatten", 7)){ layer.type = LayerType::FLATTEN; }
-        else if(utils::string::compare(type_str, "unflatten", 9)){ layer.type = LayerType::UNFLATTEN; }
+        else if(utils::string::compare(type_str, "unflatten", 9)){
+            layer.type = LayerType::UNFLATTEN;
+            auto* u = new layers::Unflatten<TI>();
+            u->height = 0; u->width = 0; u->channels = 0;
+            if(attribute_exists(device, group, "height")){
+                u->height = get_attribute_int<TI>(device, group, "height");
+                u->width = get_attribute_int<TI>(device, group, "width");
+                u->channels = get_attribute_int<TI>(device, group, "channels");
+            }
+            layer.data = u;
+        }
         else if(utils::string::compare(type_str, "avg_pool2d", 10)){ layer.type = LayerType::AVG_POOL2D; }
         else if(utils::string::compare(type_str, "sequential", 10)){
             layer.type = LayerType::SEQUENTIAL;

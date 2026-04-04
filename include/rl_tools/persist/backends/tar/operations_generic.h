@@ -356,6 +356,26 @@ namespace rl_tools{
         TI entry_offset, entry_size;
         return persist::backends::tar::seek(device, group.data, full_path, entry_offset, entry_size);
     }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT bool attribute_exists(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name){
+        using TI = typename DEVICE::index_t;
+        char group_path[SPEC::MAX_PATH_LENGTH];
+        utils::string::copy(group_path, group.path, SPEC::MAX_PATH_LENGTH);
+        TI group_path_length = utils::string::length(group_path, SPEC::MAX_PATH_LENGTH+1);
+        if(group_path_length + sizeof("meta") + 2 >= SPEC::MAX_PATH_LENGTH) return false;
+        TI current_position = group_path_length;
+        if(group_path_length > 0){
+            group_path[group_path_length] = '/';
+            current_position += 1;
+        }
+        utils::string::copy(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
+        constexpr TI METADATA_SIZE = 500;
+        char metadata[METADATA_SIZE];
+        TI read_size = 0;
+        if(!persist::backends::tar::get(device, group.data, group_path, metadata, METADATA_SIZE, read_size)) return false;
+        TI position, value_length = 0;
+        return persist::backends::tar::seek_in_metadata(device, metadata, read_size, name, position, value_length);
+    }
     template<typename TYPE, typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void get_attribute(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name, char* output, typename DEVICE::index_t output_size){
         using TI = typename DEVICE::index_t;
