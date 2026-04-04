@@ -203,12 +203,13 @@ namespace rl_tools {
         using T = typename SPEC::T;
 
         Assimp::Importer importer;
-        const aiScene* scene = importer.ReadFile(filename,
-            aiProcess_Triangulate |
-            aiProcess_GenNormals |
-            aiProcess_JoinIdenticalVertices |
-            aiProcess_PreTransformVertices |
-            aiProcess_ImproveCacheLocality);
+        unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices | aiProcess_ImproveCacheLocality;
+        if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+            import_flags |= aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace;
+        } else {
+            import_flags |= aiProcess_GenNormals;
+        }
+        const aiScene* scene = importer.ReadFile(filename, import_flags);
 
         if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode){
             RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Assimp error: " << importer.GetErrorString());
@@ -246,6 +247,17 @@ namespace rl_tools {
                 owl::vec3f vertex(flu_x, flu_y, flu_z);
                 bbox_min = min(bbox_min, vertex);
                 bbox_max = max(bbox_max, vertex);
+            }
+
+            if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                if (mesh->mNormals) {
+                    for (unsigned int v = 0; v < mesh->mNumVertices; v++) {
+                        const aiVector3D& n = mesh->mNormals[v];
+                        md.normals.push_back(n.x);
+                        md.normals.push_back(-n.z);
+                        md.normals.push_back(n.y);
+                    }
+                }
             }
 
             // indices
@@ -340,6 +352,46 @@ namespace rl_tools {
                 mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor);
                 md.metallic = metallic_factor;
 
+                if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                    float roughness_factor = 0.5f;
+                    mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness_factor);
+                    md.roughness = roughness_factor;
+
+                    if (mat->GetTextureCount(aiTextureType_NORMALS) > 0) {
+                        aiString tex_path;
+                        if (mat->GetTexture(aiTextureType_NORMALS, 0, &tex_path) == AI_SUCCESS) {
+                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                            if (emb_tex) {
+                                int w, h;
+                                std::vector<uint8_t> pixels;
+                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                    md.normal_tex_pixels = std::move(pixels);
+                                    md.normal_tex_width = w;
+                                    md.normal_tex_height = h;
+                                    md.has_normal_map = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if (mat->GetTextureCount(aiTextureType_UNKNOWN) > 0) {
+                        aiString tex_path;
+                        if (mat->GetTexture(aiTextureType_UNKNOWN, 0, &tex_path) == AI_SUCCESS) {
+                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                            if (emb_tex) {
+                                int w, h;
+                                std::vector<uint8_t> pixels;
+                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                    md.metallic_roughness_tex_pixels = std::move(pixels);
+                                    md.mr_tex_width = w;
+                                    md.mr_tex_height = h;
+                                    md.has_metallic_roughness_map = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if(!md.has_texture && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
                     aiString tex_path;
                     if(mat->GetTexture(aiTextureType_BASE_COLOR, 0, &tex_path) == AI_SUCCESS){
@@ -424,21 +476,53 @@ namespace rl_tools {
         OWLContext context = (OWLContext)renderer.backend.context;
         OWLModule module = (OWLModule)renderer.backend.module;
 
-        OWLVarDecl triangles_geom_vars[] = {
-            { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
-            { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
-            { "tex_coord",   OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, tex_coord)},
-            { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
-            { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
-            { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
-            { "metallic",    OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, metallic)},
-            { "world",       OWL_GROUP,   OWL_OFFSETOF(TrianglesGeomData, world)},
-            { /* sentinel */ }
-        };
-        OWLGeomType triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
-                                                             sizeof(TrianglesGeomData),
-                                                             triangles_geom_vars, -1);
-        owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, "TriangleMesh");
+        OWLGeomType triangles_geom_type;
+        if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+            OWLVarDecl triangles_geom_vars[] = {
+                { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
+                { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
+                { "tex_coord",   OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, tex_coord)},
+                { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
+                { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
+                { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
+                { "metallic",    OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, metallic)},
+                { "world",       OWL_GROUP,   OWL_OFFSETOF(TrianglesGeomData, world)},
+                { "normal",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, normal)},
+                { "roughness",   OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, roughness)},
+                { "normal_map",  OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, normal_map)},
+                { "has_normal_map", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, has_normal_map)},
+                { "metallic_roughness_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, metallic_roughness_map)},
+                { "has_metallic_roughness_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_metallic_roughness_map)},
+                { "light_dir_0",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_0)},
+                { "light_color_0", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_color_0)},
+                { "light_dir_1",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_1)},
+                { "light_color_1", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_color_1)},
+                { "light_dir_2",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_2)},
+                { "light_color_2", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_color_2)},
+                { "ambient_color", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, ambient_color)},
+                { /* sentinel */ }
+            };
+            triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
+                                                     sizeof(TrianglesGeomData),
+                                                     triangles_geom_vars, -1);
+            owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, "TriangleMeshPBR");
+        } else {
+            OWLVarDecl triangles_geom_vars[] = {
+                { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
+                { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
+                { "tex_coord",   OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, tex_coord)},
+                { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
+                { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
+                { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
+                { "metallic",    OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, metallic)},
+                { "world",       OWL_GROUP,   OWL_OFFSETOF(TrianglesGeomData, world)},
+                { /* sentinel */ }
+            };
+            triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
+                                                     sizeof(TrianglesGeomData),
+                                                     triangles_geom_vars, -1);
+            owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, "TriangleMesh");
+        }
         owlGeomTypeSetClosestHit(triangles_geom_type, 1, module, "collisionHit");
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << renderer.meshes.size() << " geometries ...");
@@ -481,6 +565,55 @@ namespace rl_tools {
             }
 
             owlGeomSet1f(geom, "metallic", md.metallic);
+
+            if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                if (!md.normals.empty()) {
+                    size_t num_normals = md.normals.size() / 3;
+                    OWLBuffer nb = owlDeviceBufferCreate(context, OWL_FLOAT3, num_normals, md.normals.data());
+                    owlGeomSetBuffer(geom, "normal", nb);
+                }
+
+                owlGeomSet1f(geom, "roughness", md.roughness);
+
+                if (md.has_normal_map && md.normal_tex_width > 0 && md.normal_tex_height > 0) {
+                    OWLTexture nm_tex = owlTexture2DCreate(context,
+                                                           OWL_TEXEL_FORMAT_RGBA8,
+                                                           md.normal_tex_width, md.normal_tex_height,
+                                                           md.normal_tex_pixels.data(),
+                                                           OWL_TEXTURE_LINEAR,
+                                                           OWL_TEXTURE_WRAP,
+                                                           OWL_TEXTURE_WRAP,
+                                                           OWL_COLOR_SPACE_LINEAR);
+                    owlGeomSetTexture(geom, "normal_map", nm_tex);
+                    owlGeomSet1i(geom, "has_normal_map", 1);
+                } else {
+                    owlGeomSet1i(geom, "has_normal_map", 0);
+                }
+
+                if (md.has_metallic_roughness_map && md.mr_tex_width > 0 && md.mr_tex_height > 0) {
+                    OWLTexture mr_tex = owlTexture2DCreate(context,
+                                                           OWL_TEXEL_FORMAT_RGBA8,
+                                                           md.mr_tex_width, md.mr_tex_height,
+                                                           md.metallic_roughness_tex_pixels.data(),
+                                                           OWL_TEXTURE_LINEAR,
+                                                           OWL_TEXTURE_WRAP,
+                                                           OWL_TEXTURE_WRAP,
+                                                           OWL_COLOR_SPACE_LINEAR);
+                    owlGeomSetTexture(geom, "metallic_roughness_map", mr_tex);
+                    owlGeomSet1i(geom, "has_metallic_roughness_map", 1);
+                } else {
+                    owlGeomSet1i(geom, "has_metallic_roughness_map", 0);
+                }
+
+                float inv_sqrt2 = 0.70710678f;
+                owlGeomSet3f(geom, "light_dir_0", owl3f{-inv_sqrt2, 0.f, inv_sqrt2});
+                owlGeomSet3f(geom, "light_color_0", owl3f{0.4f, 0.4f, 0.4f});
+                owlGeomSet3f(geom, "light_dir_1", owl3f{0.f, -inv_sqrt2, inv_sqrt2});
+                owlGeomSet3f(geom, "light_color_1", owl3f{0.3f, 0.3f, 0.3f});
+                owlGeomSet3f(geom, "light_dir_2", owl3f{0.f, inv_sqrt2, inv_sqrt2});
+                owlGeomSet3f(geom, "light_color_2", owl3f{0.2f, 0.2f, 0.2f});
+                owlGeomSet3f(geom, "ambient_color", owl3f{0.5f, 0.5f, 0.5f});
+            }
 
             geoms.push_back(geom);
         }

@@ -122,6 +122,154 @@ namespace rl_tools
     }
   }
 
+  inline __device__ float linear_to_srgb(float x) {
+    if (x <= 0.0031308f) return 12.92f * x;
+    return 1.055f * powf(x, 1.f / 2.4f) - 0.055f;
+  }
+
+  OPTIX_CLOSEST_HIT_PROGRAM(TriangleMeshPBR)()
+  {
+    owl::vec3f &prd = owl::getPRD<owl::vec3f>();
+    const TrianglesGeomData &self = owl::getProgramData<TrianglesGeomData>();
+
+    const int prim_id = optixGetPrimitiveIndex();
+    const owl::vec3i index = self.index[prim_id];
+    const owl::vec3f &vertex_a = self.vertex[index.x];
+    const owl::vec3f &vertex_b = self.vertex[index.y];
+    const owl::vec3f &vertex_c = self.vertex[index.z];
+    const owl::vec2f bary = optixGetTriangleBarycentrics();
+    const float w0 = 1.f - bary.x - bary.y;
+
+    const owl::vec3f edge1 = vertex_b - vertex_a;
+    const owl::vec3f edge2 = vertex_c - vertex_a;
+    const owl::vec3f normal_geometric = normalize(cross(edge1, edge2));
+
+    owl::vec3f N;
+    if (self.normal) {
+      N = normalize(w0 * self.normal[index.x] + bary.x * self.normal[index.y] + bary.y * self.normal[index.z]);
+    } else {
+      N = normal_geometric;
+    }
+
+    const owl::vec3f ray_dir = optixGetWorldRayDirection();
+    if (dot(ray_dir, N) > 0.f) N = -N;
+
+    owl::vec3f base_color;
+    if (self.has_texture && self.tex_coord) {
+      const owl::vec2f tc = w0 * self.tex_coord[index.x] + bary.x * self.tex_coord[index.y] + bary.y * self.tex_coord[index.z];
+      owl::vec4f tex_color = tex2D<float4>(self.texture, tc.x, tc.y);
+      base_color = owl::vec3f(tex_color.x, tex_color.y, tex_color.z);
+    } else {
+      base_color = self.color;
+    }
+
+    float metallic = self.metallic;
+    float roughness = self.roughness;
+    if (self.has_metallic_roughness_map && self.tex_coord) {
+      const owl::vec2f tc = w0 * self.tex_coord[index.x] + bary.x * self.tex_coord[index.y] + bary.y * self.tex_coord[index.z];
+      owl::vec4f mr_sample = tex2D<float4>(self.metallic_roughness_map, tc.x, tc.y);
+      roughness = mr_sample.y;
+      metallic = mr_sample.z;
+    }
+
+    if (self.has_normal_map && self.tex_coord) {
+      const owl::vec2f tc0 = self.tex_coord[index.x];
+      const owl::vec2f tc1 = self.tex_coord[index.y];
+      const owl::vec2f tc2 = self.tex_coord[index.z];
+      const owl::vec2f duv1 = tc1 - tc0;
+      const owl::vec2f duv2 = tc2 - tc0;
+      float det = duv1.x * duv2.y - duv2.x * duv1.y;
+      if (fabsf(det) > 1e-8f) {
+        float inv_det = 1.f / det;
+        owl::vec3f T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+        T = normalize(T - dot(T, N) * N);
+        owl::vec3f B = cross(N, T);
+        owl::vec4f nm_sample = tex2D<float4>(self.normal_map, w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y);
+        owl::vec3f n_tangent = owl::vec3f(nm_sample.x * 2.f - 1.f, nm_sample.y * 2.f - 1.f, nm_sample.z * 2.f - 1.f);
+        N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
+      }
+    }
+
+    roughness = fmaxf(roughness, 0.04f);
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
+    float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
+
+    owl::vec3f V = -ray_dir;
+    float NdotV = fmaxf(dot(N, V), 1e-4f);
+    owl::vec3f F0 = owl::vec3f(0.04f) * (1.f - metallic) + base_color * metallic;
+
+    owl::vec3f Lo(0.f);
+    owl::vec3f light_dirs[3] = {self.light_dir_0, self.light_dir_1, self.light_dir_2};
+    owl::vec3f light_colors[3] = {self.light_color_0, self.light_color_1, self.light_color_2};
+    for (int li = 0; li < 3; li++) {
+      owl::vec3f L = light_dirs[li];
+      float NdotL = fmaxf(dot(N, L), 0.f);
+      if (NdotL <= 0.f) continue;
+
+      owl::vec3f H = normalize(V + L);
+      float NdotH = fmaxf(dot(N, H), 0.f);
+      float VdotH = fmaxf(dot(V, H), 0.f);
+
+      float denom_D = NdotH * NdotH * (alpha2 - 1.f) + 1.f;
+      float D = alpha2 / (3.14159265f * denom_D * denom_D);
+
+      float G1_V = NdotV / (NdotV * (1.f - k) + k);
+      float G1_L = NdotL / (NdotL * (1.f - k) + k);
+      float G = G1_V * G1_L;
+
+      float pow5 = powf(1.f - VdotH, 5.f);
+      owl::vec3f F = F0 + (owl::vec3f(1.f) - F0) * pow5;
+
+      owl::vec3f specular = D * G * F * (1.f / (4.f * NdotV * NdotL + 1e-4f));
+      owl::vec3f kd = (owl::vec3f(1.f) - F) * (1.f - metallic);
+      owl::vec3f diffuse = kd * base_color * (1.f / 3.14159265f);
+
+      Lo = Lo + (diffuse + specular) * light_colors[li] * NdotL;
+    }
+
+    owl::vec3f ambient = self.ambient_color * base_color;
+    owl::vec3f color = ambient + Lo;
+
+    unsigned int depth = optixGetPayload_2();
+    if (depth < 1 && metallic > 0.1f) {
+      owl::vec3f hit_point = ray_dir * optixGetRayTmax();
+      hit_point.x += optixGetWorldRayOrigin().x;
+      hit_point.y += optixGetWorldRayOrigin().y;
+      hit_point.z += optixGetWorldRayOrigin().z;
+      owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, N) * N;
+
+      owl::vec3f reflected_color;
+      unsigned int rp0 = 0, rp1 = 0;
+      owl::packPointer(&reflected_color, rp0, rp1);
+      unsigned int rp2 = depth + 1;
+      optixTrace(self.world,
+                 (const float3&)hit_point,
+                 (const float3&)reflect_dir,
+                 1e-3f,
+                 1e20f,
+                 0.0f,
+                 OptixVisibilityMask(255),
+                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+                 0, NUM_RAY_TYPES, 0,
+                 rp0, rp1, rp2);
+
+      float fresnel_refl = F0.x + (1.f - F0.x) * powf(1.f - fmaxf(dot(V, N), 0.f), 5.f);
+      float reflection_weight = fresnel_refl * (1.f - roughness);
+      color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
+    }
+
+    if (depth == 0) {
+      prd.x = linear_to_srgb(fminf(fmaxf(color.x, 0.f), 1.f));
+      prd.y = linear_to_srgb(fminf(fmaxf(color.y, 0.f), 1.f));
+      prd.z = linear_to_srgb(fminf(fmaxf(color.z, 0.f), 1.f));
+    } else {
+      prd.x = fminf(color.x, 1.f);
+      prd.y = fminf(color.y, 1.f);
+      prd.z = fminf(color.z, 1.f);
+    }
+  }
+
   OPTIX_MISS_PROGRAM(miss)()
   {
     const owl::vec2i pixel_id = owl::getLaunchIndex();
