@@ -171,7 +171,7 @@ TEST(RL_TOOLS_NN_OPTIMIZERS_LAMB, COMPARE_WITH_TIMM){
 
     rlt::reset_optimizer_state(device, optimizer, network);
 
-    HDF5Group file_root{file.id};
+    HDF5Group file_root{H5Gopen2(file.id, ".", H5P_DEFAULT)};
     std::vector<std::vector<T>> input_data_2d;
     rlt::persist::backends::hdf5::read_dataset(file_root, "input", input_data_2d);
     std::vector<std::vector<T>> target_data_2d;

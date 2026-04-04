@@ -135,7 +135,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     std::vector<T> rewards;
     std::vector<T> terminated_flags;
     std::vector<T> truncated_flags;
-    rl_tools::persist::backends::hdf5::Group<> data_file_root{data_file.id};
+    rl_tools::persist::backends::hdf5::Group<> data_file_root{H5Gopen2(data_file.id, ".", H5P_DEFAULT)};
     rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "observations", observations);
     rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "next_observations", next_observations);
     rl_tools::persist::backends::hdf5::read_dataset(data_file_root, "states", states);

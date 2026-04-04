@@ -186,7 +186,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
 
     std::vector<std::vector<T>> outputs;
     {
-        rl_tools::persist::backends::hdf5::Group<> root{data_file.id};
+        rl_tools::persist::backends::hdf5::Group<> root{H5Gopen2(data_file.id, ".", H5P_DEFAULT)};
         rl_tools::persist::backends::hdf5::read_dataset(root, "batch_output", outputs);
     }
 
