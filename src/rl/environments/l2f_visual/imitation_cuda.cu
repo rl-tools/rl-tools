@@ -34,6 +34,10 @@
 #include <rl_tools/utils/zlib/operations_cpu.h>
 
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+#include <rl_tools/persist/backends/hdf5/hdf5.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#endif
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/conv2d/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
@@ -66,6 +70,7 @@
 #include <vector>
 #include <numeric>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <filesystem>
 #include <fstream>
@@ -111,7 +116,7 @@ static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
     0.2, 0.0, 0.3, 0.0, 1.0, true, -1, +1,
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-    true, 0.5, 10, 35, 10000, 50000,
+    true, 1.0, 10, 35, 10000, 50000,
 };
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -1409,17 +1414,101 @@ int main(int argc, char** argv){
             EVAL_TYPE eval_student;
             rlt::malloc(device, eval_student);
             rlt::copy(device_gpu, device, student_gpu, eval_student);
+            char cos_fov_buf[32];
+            std::snprintf(cos_fov_buf, sizeof(cos_fov_buf), "%.6g", (double)env_parameters[0].cos_fov);
+            std::string image_obs_string;
+#ifdef USE_FRAME_STACKING
+            image_obs_string = std::string("CameraRGBStacked(") + cos_fov_buf + ", "
+                + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
+                + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
+#else
+            image_obs_string = std::string("CameraRGB(") + cos_fov_buf + ", "
+                + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ")";
+#endif
+            std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
+            std::string obs_string = image_obs_string + ", " + state_obs_string;
+            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\"}}";
+            static constexpr TI TOTAL_INPUT_DIM = STACKED_OBS_DIM + STATE_OBS_DIM;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, TOTAL_INPUT_DIM>, true>> example_input;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, ACTION_DIM>, true>> example_output;
+            rlt::malloc(device, example_input);
+            rlt::malloc(device, example_output);
+            {
+                rlt::randn(device, example_input, rng);
+                auto example_input_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
+                auto example_input_img_reshaped = rlt::reshape_row_major(device, example_input_img, rlt::tensor::Shape<TI, 1, IMG_H, IMG_W, STACKED_IMG_C>{});
+                auto example_input_state = rlt::view_range(device, example_input, (TI)STACKED_OBS_DIM, rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
+                using BRANCH_A_OUTPUT_SHAPE = typename EVAL_TYPE::SPEC::OUTPUT_SHAPE_A;
+                using BRANCH_B_OUTPUT_SHAPE = typename EVAL_TYPE::SPEC::OUTPUT_SHAPE_B;
+                static constexpr TI BRANCH_A_DIM = rlt::get_last(BRANCH_A_OUTPUT_SHAPE{});
+                static constexpr TI BRANCH_B_DIM = rlt::get_last(BRANCH_B_OUTPUT_SHAPE{});
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_A_DIM>, true>> branch_a_out;
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_B_DIM>, true>> branch_b_out;
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_A_DIM + BRANCH_B_DIM>, true>> concat_out;
+                typename decltype(eval_student.pipeline_a)::template Buffer<true> buffer_a;
+                typename decltype(eval_student.pipeline_b)::template Buffer<true> buffer_b;
+                rlt::malloc(device, branch_a_out);
+                rlt::malloc(device, branch_b_out);
+                rlt::malloc(device, concat_out);
+                rlt::malloc(device, buffer_a);
+                rlt::malloc(device, buffer_b);
+                rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
+                rlt::evaluate(device, eval_student.pipeline_a, example_input_img_reshaped, branch_a_out, buffer_a, rng, eval_mode);
+                rlt::evaluate(device, eval_student.pipeline_b, example_input_state, branch_b_out, buffer_b, rng, eval_mode);
+                auto concat_a = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_A_DIM>{});
+                auto concat_b = rlt::view_range(device, concat_out, (TI)BRANCH_A_DIM, rlt::tensor::ViewSpec<1, BRANCH_B_DIM>{});
+                rlt::copy(device, device, branch_a_out, concat_a);
+                rlt::copy(device, device, branch_b_out, concat_b);
+#ifdef USE_GRU_TEMPORAL
+                typename decltype(eval_student.head)::State<true> head_state;
+                typename decltype(eval_student.head)::template Buffer<true> head_buffer;
+                rlt::malloc(device, head_state);
+                rlt::malloc(device, head_buffer);
+                rlt::reset(device, eval_student.head, head_state, rng);
+                rlt::evaluate_step(device, eval_student.head, concat_out, head_state, example_output, head_buffer, rng, eval_mode);
+                rlt::free(device, head_state);
+                rlt::free(device, head_buffer);
+#else
+                typename decltype(eval_student.head)::template Buffer<true> head_buffer;
+                rlt::malloc(device, head_buffer);
+                rlt::evaluate(device, eval_student.head, concat_out, example_output, head_buffer, rng, eval_mode);
+                rlt::free(device, head_buffer);
+#endif
+                rlt::free(device, branch_a_out);
+                rlt::free(device, branch_b_out);
+                rlt::free(device, concat_out);
+                rlt::free(device, buffer_a);
+                rlt::free(device, buffer_b);
+            }
             { // binary (tar)
                 std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
                 rlt::persist::backends::tar::Writer writer;
                 rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
                 auto actor_group = rlt::create_group(device, root_group, "actor");
                 rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
+                rlt::set_attribute(device, actor_group, "meta", meta.c_str());
                 rlt::save(device, eval_student, actor_group);
+                auto example_group = rlt::create_group(device, root_group, "example");
+                rlt::save(device, example_input, example_group, "input");
+                rlt::save(device, example_output, example_group, "output");
                 rlt::persist::backends::tar::finalize(device, writer);
                 std::ofstream f(checkpoint_path, std::ios::binary);
                 f.write(writer.buffer.data(), writer.buffer.size());
             }
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+            { // binary (hdf5)
+                std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
+                std::filesystem::path checkpoint_path = step_folder / "checkpoint.h5";
+                rlt::persist::backends::hdf5::File root_file(checkpoint_path.string(), rlt::persist::backends::hdf5::Mode::WRITE);
+                auto actor_group = rlt::create_group(device, root_file, "actor");
+                rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
+                rlt::set_attribute(device, actor_group, "meta", meta.c_str());
+                rlt::save(device, eval_student, actor_group);
+                auto example_group = rlt::create_group(device, root_file, "example");
+                rlt::save(device, example_input, example_group, "input");
+                rlt::save(device, example_output, example_group, "output");
+            }
+#endif
             { // code (checkpoint.h)
                 auto actor_weights = rlt::save_code(device, eval_student, std::string("rl_tools::checkpoint::actor"), true);
                 std::stringstream output_ss;
@@ -1427,6 +1516,7 @@ int main(int argc, char** argv){
                 output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
                 output_ss << "\n" << "   " << "char name[] = \"" << step_folder.string() << "\";";
                 output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
+                output_ss << "\n" << "   " << "char observation[] = \"" << obs_string << "\";";
                 output_ss << "\n" << "}";
                 std::string output_string = output_ss.str();
 #ifdef RL_TOOLS_ENABLE_ZLIB
@@ -1444,6 +1534,8 @@ int main(int argc, char** argv){
                     f << output_string;
                 }
             }
+            rlt::free(device, example_input);
+            rlt::free(device, example_output);
             rlt::free(device, eval_student);
             std::cerr << "Checkpoint saved: " << step_folder << std::endl;
         }
