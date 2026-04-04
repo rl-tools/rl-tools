@@ -14,7 +14,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing{
 
-        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES>
+        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, bool T_HIGH_FIDELITY_SHADING = false>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
@@ -22,6 +22,7 @@ namespace rl_tools {
             static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
             static constexpr TI NUM_CAMERAS = T_NUM_CAMERAS;
             static constexpr TI NUM_PROBES = T_NUM_PROBES;
+            static constexpr bool HIGH_FIDELITY_SHADING = T_HIGH_FIDELITY_SHADING;
             static constexpr TI GRID_COLS = [](){
                 TI cols = 1;
                 while(cols * cols < NUM_CAMERAS) cols++;
@@ -47,6 +48,14 @@ namespace rl_tools {
             int tex_width = 0, tex_height = 0;
             bool has_texture = false;
             float metallic = 0.0f;
+            float roughness = 0.5f;
+            std::vector<float> normals;
+            std::vector<uint8_t> normal_tex_pixels;
+            int normal_tex_width = 0, normal_tex_height = 0;
+            bool has_normal_map = false;
+            std::vector<uint8_t> metallic_roughness_tex_pixels;
+            int mr_tex_width = 0, mr_tex_height = 0;
+            bool has_metallic_roughness_map = false;
         };
 
         template <typename T_SPEC>

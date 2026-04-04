@@ -28,6 +28,19 @@ namespace rl_tools {
         int has_texture;
         float metallic;
         OptixTraversableHandle world;
+        owl::vec3f *normal;
+        float roughness;
+        cudaTextureObject_t normal_map;
+        int has_normal_map;
+        cudaTextureObject_t metallic_roughness_map;
+        int has_metallic_roughness_map;
+        owl::vec3f light_dir_0;
+        owl::vec3f light_color_0;
+        owl::vec3f light_dir_1;
+        owl::vec3f light_color_1;
+        owl::vec3f light_dir_2;
+        owl::vec3f light_color_2;
+        owl::vec3f ambient_color;
     };
 
     struct OptixCameraData

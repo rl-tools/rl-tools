@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
     constexpr TI CAM_WIDTH = 640;
     constexpr TI CAM_HEIGHT = 480;
     constexpr TI NUM_ENVS = 1;
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64>;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, true>;
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
     DEVICE device;
