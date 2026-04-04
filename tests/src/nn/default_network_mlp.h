@@ -38,7 +38,7 @@ protected:
         this->DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
         auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
-        rl_tools::persist::backends::hdf5::Group<> file_root{data_file.id};
+        rl_tools::persist::backends::hdf5::Group<> file_root{H5Gopen2(data_file.id, ".", H5P_DEFAULT)};
         rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/X_train", X_train);
         rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/Y_train", Y_train);
         rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/X_val", X_val);

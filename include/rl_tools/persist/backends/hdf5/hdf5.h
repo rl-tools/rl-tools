@@ -20,6 +20,12 @@ namespace rl_tools::persist::backends::hdf5{
     template <typename SPEC = GroupSpecification<>>
     struct Group{
         hid_t id;
+        Group(hid_t id) : id(id){}
+        ~Group(){ if(id >= 0) H5Gclose(id); }
+        Group(Group&& o) noexcept : id(o.id){ o.id = -1; }
+        Group& operator=(Group&& o) noexcept { if(this != &o){ if(id >= 0) H5Gclose(id); id = o.id; o.id = -1; } return *this; }
+        Group(const Group&) = delete;
+        Group& operator=(const Group&) = delete;
     };
     enum class Mode { READ, WRITE };
     struct File{
