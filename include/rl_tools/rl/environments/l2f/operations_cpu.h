@@ -1436,12 +1436,12 @@ export async function episode_init_multi(ui_state, parameters){
 async function setup_onboard_camera(ui_state, parameters){
     const visual = parameters.visual
     if(!visual || !visual.scene_hash || visual.scene_hash === '0000000000000000000000000000000000000000') return
-    const cos_fov = visual.cos_fov || 0.66
-    const fov_rad = Math.acos(cos_fov)
-    const fov_deg = fov_rad * 180 / Math.PI * 2
+    const fov = visual.fov || 1.1132
     const cam_w = visual.cam_width || 64
     const cam_h = visual.cam_height || 64
-    ui_state.onboard_camera = new THREE.PerspectiveCamera(fov_deg, cam_w / cam_h, 0.05, 100)
+    const aspect = cam_w / cam_h
+    const vfov_deg = 2 * Math.atan(Math.tan(fov / 2) / aspect) * 180 / Math.PI
+    ui_state.onboard_camera = new THREE.PerspectiveCamera(vfov_deg, aspect, 0.05, 100)
     ui_state.onboard_scene = new THREE.Scene()
     ui_state.onboard_scene.background = new THREE.Color(0x87CEEB)
     const ambient = new THREE.AmbientLight(0xffffff, 0.6)
@@ -1513,10 +1513,10 @@ function render_onboard_overlay(ui_state){
     ui_state.renderer.autoClear = prev_autoClear
 }
 
-export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, cos_fov){
-    const fov_rad = Math.acos(cos_fov)
-    const fov_deg = fov_rad * 180 / Math.PI * 2
-    ui_state.onboard_camera = new THREE.PerspectiveCamera(fov_deg, cam_w / cam_h, 0.05, 100)
+export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, fov){
+    const aspect = cam_w / cam_h
+    const vfov_deg = 2 * Math.atan(Math.tan(fov / 2) / aspect) * 180 / Math.PI
+    ui_state.onboard_camera = new THREE.PerspectiveCamera(vfov_deg, aspect, 0.05, 100)
     ui_state.onboard_scene = new THREE.Scene()
     ui_state.onboard_scene.background = new THREE.Color(0x87CEEB)
     ui_state.onboard_scene.add(new THREE.AmbientLight(0xffffff, 0.6))

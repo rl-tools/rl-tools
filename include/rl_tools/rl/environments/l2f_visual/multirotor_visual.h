@@ -54,7 +54,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         T scene_translation[3] = {0, 0, 0};
         SceneHash scene_hash;
         CameraMount<T> camera_mount;
-        T cos_fov = 0.66;
+        T fov = 1.1132;
         T collision_distance_threshold = 0.15;
     };
 

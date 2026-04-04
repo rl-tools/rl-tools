@@ -541,19 +541,21 @@ namespace rl_tools {
     }
 
     template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T cos_fov, T aspect){
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T fov, T aspect){
         namespace v3 = rendering::raytracing::vec3;
         T raw_dir[3], dir[3];
         v3::sub(look_at, position, raw_dir);
         v3::normalize(raw_dir, dir);
 
+        T image_plane_scale = T{2} * tanf(fov / T{2});
+
         T du_dir[3], du[3];
         v3::cross_normalized(dir, up, du_dir);
-        v3::scale(du_dir, cos_fov * aspect, du);
+        v3::scale(du_dir, image_plane_scale, du);
 
         T dv_dir[3], dv[3];
         v3::cross_normalized(du, dir, dv_dir);
-        v3::scale(dv_dir, cos_fov, dv);
+        v3::scale(dv_dir, image_plane_scale / aspect, dv);
 
         T half_du[3], half_dv[3], tmp[3];
         v3::scale(du, T{-0.5}, half_du);
@@ -570,7 +572,7 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
-                          const typename SPEC::T up[3], typename SPEC::T cos_fov){
+                          const typename SPEC::T up[3], typename SPEC::T fov){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
@@ -592,7 +594,7 @@ namespace rl_tools {
             if(cam_pos[2] < center[2] - radius * T{0.1})
                 cam_pos[2] = center[2] + radius * T{0.3};
 
-            set(device, renderer.cameras, make_camera_data(cam_pos, center, up, cos_fov, aspect), i);
+            set(device, renderer.cameras, make_camera_data(cam_pos, center, up, fov, aspect), i);
         }
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << SPEC::NUM_CAMERAS << " camera positions");

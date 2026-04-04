@@ -405,7 +405,7 @@ namespace imitation_kernels{
         DEVICE device,
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
         rlt::rendering::raytracing::CameraData<T>* gpu_cameras,
-        T cos_fov, T aspect,
+        T fov, T aspect,
         T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
         T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
         T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
@@ -434,7 +434,7 @@ namespace imitation_kernels{
             position[2] + cam_forward_world[2]
         };
         T up[3] = {cam_up_world[0], cam_up_world[1], cam_up_world[2]};
-        gpu_cameras[env_i] = rlt::make_camera_data(position, look_at, up, cos_fov, aspect);
+        gpu_cameras[env_i] = rlt::make_camera_data(position, look_at, up, fov, aspect);
     }
 
 #ifdef USE_FRAME_STACKING
@@ -1088,7 +1088,7 @@ int main(int argc, char** argv){
                 imitation_kernels::make_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
                     tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
                     gpu_cameras,
-                    env_parameters[0].cos_fov, cam_aspect,
+                    env_parameters[0].fov, cam_aspect,
                     env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
                     env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
                     env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
@@ -1414,15 +1414,15 @@ int main(int argc, char** argv){
             EVAL_TYPE eval_student;
             rlt::malloc(device, eval_student);
             rlt::copy(device_gpu, device, student_gpu, eval_student);
-            char cos_fov_buf[32];
-            std::snprintf(cos_fov_buf, sizeof(cos_fov_buf), "%.6g", (double)env_parameters[0].cos_fov);
+            char fov_buf[32];
+            std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)env_parameters[0].fov);
             std::string image_obs_string;
 #ifdef USE_FRAME_STACKING
-            image_obs_string = std::string("CameraRGBStacked(") + cos_fov_buf + ", "
+            image_obs_string = std::string("CameraRGBStacked(") + fov_buf + ", "
                 + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
                 + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
 #else
-            image_obs_string = std::string("CameraRGB(") + cos_fov_buf + ", "
+            image_obs_string = std::string("CameraRGB(") + fov_buf + ", "
                 + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ")";
 #endif
             std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});

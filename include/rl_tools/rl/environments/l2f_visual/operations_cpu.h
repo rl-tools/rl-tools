@@ -66,11 +66,11 @@ namespace rl_tools {
         {
             typename rl::environments::l2f_visual::Parameters<SPEC> default_params;
             const T up[3] = {0, 0, 1};
-            generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, default_params.cos_fov);
+            generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, default_params.fov);
             generate_probe_directions(device, *env.renderer);
             build_pipeline(device, *env.renderer);
             T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-            rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *env.scene, *env.renderer, default_params.camera_mount.offset_body[2], default_params.cos_fov, aspect);
+            rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *env.scene, *env.renderer, default_params.camera_mount.offset_body[2], default_params.fov, aspect);
         }
 
         env.renderer_initialized = true;
@@ -170,7 +170,7 @@ namespace rl_tools {
             };
 
             const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-            return make_camera_data(position, look_at, up, parameters.cos_fov, aspect);
+            return make_camera_data(position, look_at, up, parameters.fov, aspect);
         }
     }
 
@@ -251,7 +251,7 @@ namespace rl_tools {
         }
         json_string += "\", \"cam_width\": " + std::to_string(SPEC::CAM_WIDTH);
         json_string += ", \"cam_height\": " + std::to_string(SPEC::CAM_HEIGHT);
-        json_string += ", \"cos_fov\": " + std::to_string(parameters.cos_fov);
+        json_string += ", \"fov\": " + std::to_string(parameters.fov);
         json_string += "}}";
         return json_string;
     }

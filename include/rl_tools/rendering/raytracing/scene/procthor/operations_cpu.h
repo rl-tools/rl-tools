@@ -36,7 +36,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
     }
 
     template <typename DEVICE, typename SCENE_SPEC, typename RENDERER_SPEC>
-    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename SCENE_SPEC::T eye_height, typename SCENE_SPEC::T cos_fov, typename SCENE_SPEC::T aspect) {
+    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename SCENE_SPEC::T eye_height, typename SCENE_SPEC::T fov, typename SCENE_SPEC::T aspect) {
         using T = typename SCENE_SPEC::T;
         using TI = typename SCENE_SPEC::TI;
         constexpr TI NUM_CAMERAS = RENDERER_SPEC::NUM_CAMERAS;
@@ -119,7 +119,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                     pos.position[2] + eye_height
                 };
                 const T cam_up[3] = {0, 0, 1};
-                set(device, renderer.cameras, make_camera_data(cam_position, cam_look_at, cam_up, cos_fov, aspect), camera_i);
+                set(device, renderer.cameras, make_camera_data(cam_position, cam_look_at, cam_up, fov, aspect), camera_i);
             }
 
             set_cameras(device, renderer, renderer.cameras);
