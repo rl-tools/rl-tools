@@ -18,7 +18,8 @@ namespace rl_tools::rl::environments::l2f_visual {
         T_TI T_NUM_ENVS,
         T_TI T_CAM_WIDTH = 64,
         T_TI T_CAM_HEIGHT = 64,
-        T_TI T_NUM_PROBES = 64>
+        T_TI T_NUM_PROBES = 64,
+        bool T_HIGH_FIDELITY_SHADING = false>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -27,10 +28,11 @@ namespace rl_tools::rl::environments::l2f_visual {
         static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
         static constexpr TI NUM_PROBES = T_NUM_PROBES;
+        static constexpr bool HIGH_FIDELITY_SHADING = T_HIGH_FIDELITY_SHADING;
 
         using DYNAMICS_SPEC = l2f::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>;
         using DYNAMICS_ENV = Multirotor<DYNAMICS_SPEC>;
-        using RENDERER_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES>;
+        using RENDERER_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, HIGH_FIDELITY_SHADING>;
         using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
     };
 
