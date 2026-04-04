@@ -283,10 +283,12 @@ int main(int argc, char** argv){
     // 5. Pick target position from precomputed indoor positions
     if (env0.scene->num_indoor_positions > 0) {
         auto& target = env0.scene->indoor_positions[0];
+        typename ENVIRONMENT::Parameters default_params;
+        rlt::initial_parameters(device, env0, default_params);
         T target_translation[3] = {
             target.position[0],
             target.position[1],
-            target.position[2] + env0.eye_height
+            target.position[2] + default_params.camera_mount.offset_body[2]
         };
         rlt::log(device, device.logger, "Target scene position: [",
             target_translation[0], ", ", target_translation[1], ", ", target_translation[2], "]");
