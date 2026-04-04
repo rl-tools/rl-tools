@@ -399,7 +399,7 @@ namespace imitation_kernels{
     void make_cameras_kernel(
         DEVICE device,
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
-        rlt::CameraData* gpu_cameras,
+        rlt::rendering::raytracing::CameraData<T>* gpu_cameras,
         T cos_fov, T aspect,
         T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
         T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
@@ -418,13 +418,18 @@ namespace imitation_kernels{
         rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, forward_body, cam_forward_world);
         T cam_up_world[3];
         rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, up_body, cam_up_world);
-        T px = state.position[0] + cam_pos_world[0] + scene_translation_0;
-        T py = state.position[2] + cam_pos_world[2] + scene_translation_1;
-        T pz = state.position[1] + cam_pos_world[1] + scene_translation_2;
-        owl::vec3f position(px, py, pz);
-        owl::vec3f look_at(px + cam_forward_world[0], py + cam_forward_world[2], pz + cam_forward_world[1]);
-        owl::vec3f up(cam_up_world[0], cam_up_world[2], cam_up_world[1]);
-        gpu_cameras[env_i] = rl_tools::make_camera_data(position, look_at, up, cos_fov, aspect);
+        T position[3] = {
+            state.position[0] + cam_pos_world[0] + scene_translation_0,
+            state.position[1] + cam_pos_world[1] + scene_translation_1,
+            state.position[2] + cam_pos_world[2] + scene_translation_2
+        };
+        T look_at[3] = {
+            position[0] + cam_forward_world[0],
+            position[1] + cam_forward_world[1],
+            position[2] + cam_forward_world[2]
+        };
+        T up[3] = {cam_up_world[0], cam_up_world[1], cam_up_world[2]};
+        gpu_cameras[env_i] = rlt::make_camera_data(position, look_at, up, cos_fov, aspect);
     }
 
 #ifdef USE_FRAME_STACKING
@@ -870,8 +875,8 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, gpu_teacher_actions_step);
 
     // GPU cameras
-    rlt::CameraData* gpu_cameras = nullptr;
-    cudaMalloc(&gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::CameraData));
+    rlt::rendering::raytracing::CameraData<float>* gpu_cameras = nullptr;
+    cudaMalloc(&gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
 
     // GPU tensors
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
@@ -1078,36 +1083,39 @@ int main(int argc, char** argv){
                 imitation_kernels::make_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
                     tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
                     gpu_cameras,
-                    env0.cos_fov, cam_aspect,
-                    env0.camera_mount.offset_body[0], env0.camera_mount.offset_body[1], env0.camera_mount.offset_body[2],
-                    env0.camera_mount.forward_body[0], env0.camera_mount.forward_body[1], env0.camera_mount.forward_body[2],
-                    env0.camera_mount.up_body[0], env0.camera_mount.up_body[1], env0.camera_mount.up_body[2],
+                    env_parameters[0].cos_fov, cam_aspect,
+                    env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
+                    env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
+                    env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
                     env_parameters[0].scene_translation[0], env_parameters[0].scene_translation[1], env_parameters[0].scene_translation[2]);
                 CUDA_CHECK("make_cameras_kernel");
                 T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
-                if(env0.renderer->cameras_buffer == nullptr){
-                    std::array<rlt::CameraData, N_ENVIRONMENTS> cpu_cameras_init;
-                    cudaMemcpy(cpu_cameras_init.data(), gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::CameraData), cudaMemcpyDeviceToHost);
+                if(env0.renderer->backend.owl_cameras_buffer == nullptr){
+                    std::array<rlt::rendering::raytracing::CameraData<float>, N_ENVIRONMENTS> cpu_cameras_init;
+                    cudaMemcpy(cpu_cameras_init.data(), gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToHost);
                     CUDA_CHECK("cameras D2H init");
-                    rlt::observe_batch_render_gpu(device, env0, cpu_cameras_init.data(), N_ENVIRONMENTS, obs_ptr);
+                    std::memcpy(rlt::data(env0.renderer->cameras), cpu_cameras_init.data(), N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
+                    rlt::set_cameras(device, *env0.renderer, env0.renderer->cameras);
+                    rlt::render_rgb_only(device, *env0.renderer);
                     CUDA_CHECK("observe_batch_render_gpu init");
                 } else {
-                    void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)env0.renderer->cameras_buffer, 0);
-                    OWLParams rgb_lp = (OWLParams)env0.renderer->rgb_launch_params;
+                    void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)env0.renderer->backend.owl_cameras_buffer, 0);
+                    OWLParams rgb_lp = (OWLParams)env0.renderer->backend.rgb_launch_params;
                     cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-                    cudaMemcpyAsync(owl_cam_ptr, gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::CameraData), cudaMemcpyDeviceToDevice, optix_stream);
+                    cudaMemcpyAsync(owl_cam_ptr, gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToDevice, optix_stream);
                     CUDA_CHECK("cameras D2D copy");
                     rlt::render_rgb_only_launch(device, *env0.renderer);
                     CUDA_CHECK("render_rgb_only_launch");
                 }
                 if(record_video && ffmpeg_pipe){
-                    rlt::read_frame_buffer(device, *env0.renderer, video_pixel_buffer.data(), video_pixel_buffer.size());
+                    rlt::read_frame_buffer(device, *env0.renderer, env0.renderer->frame_buffer);
+                    const uint32_t* video_fb = rlt::data(env0.renderer->frame_buffer);
                     for(TI grid_row = 0; grid_row < GRID_SIDE; grid_row++){
                         for(TI grid_col = 0; grid_col < GRID_SIDE; grid_col++){
                             TI env_i = grid_row * GRID_SIDE + grid_col;
                             for(TI py = 0; py < CAM_HEIGHT; py++){
                                 for(TI px = 0; px < CAM_WIDTH; px++){
-                                    uint32_t rgba = video_pixel_buffer[env_i * CAM_PIXELS + py * CAM_WIDTH + px];
+                                    uint32_t rgba = video_fb[env_i * CAM_PIXELS + py * CAM_WIDTH + px];
                                     TI mosaic_x = grid_col * CAM_WIDTH + px;
                                     TI mosaic_y = grid_row * CAM_HEIGHT + py;
                                     TI out_idx = (mosaic_y * MOSAIC_W + mosaic_x) * 3;
@@ -1122,10 +1130,10 @@ int main(int argc, char** argv){
                 }
                 rlt::evaluate_step(device_gpu, raptor_gpu, gpu_teacher_obs, raptor_state_gpu, gpu_teacher_actions_step, raptor_buffer_gpu, rng_gpu, no_auto_reset_mode);
                 CUDA_CHECK("raptor evaluate_step");
-                if(env0.renderer->cameras_buffer != nullptr){
+                if(env0.renderer->backend.owl_cameras_buffer != nullptr){
                     rlt::render_rgb_only_sync(device, *env0.renderer);
                     CUDA_CHECK("render_rgb_only_sync");
-                    const uint32_t* fb_ptr = (const uint32_t*)owlBufferGetPointer((OWLBuffer)env0.renderer->frame_buffer, 0);
+                    const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, *env0.renderer);
                     constexpr TI TOTAL_PIXELS = N_ENVIRONMENTS * CAM_PIXELS;
                     int pf_block = 256;
                     int pf_grid = (TOTAL_PIXELS + pf_block - 1) / pf_block;
