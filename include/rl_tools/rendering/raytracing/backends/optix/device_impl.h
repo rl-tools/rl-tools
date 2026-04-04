@@ -159,9 +159,11 @@ namespace rl_tools
       : owl::vec2f(0.f);
 
     owl::vec3f base_color = self.color;
+    float alpha = self.opacity;
     if (self.has_texture && self.tex_coord) {
       owl::vec4f tex_color = tex2D<float4>(self.texture, tc.x, tc.y);
       base_color = owl::vec3f(tex_color.x, tex_color.y, tex_color.z) * self.color;
+      alpha *= tex_color.w;
     }
 
     float metallic = self.metallic;
@@ -185,14 +187,14 @@ namespace rl_tools
         T = normalize(T - dot(T, N) * N);
         owl::vec3f B = cross(N, T);
         owl::vec4f nm_sample = tex2D<float4>(self.normal_map, w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y);
-        owl::vec3f n_tangent = owl::vec3f(nm_sample.x * 2.f - 1.f, nm_sample.y * 2.f - 1.f, nm_sample.z * 2.f - 1.f);
+        owl::vec3f n_tangent = owl::vec3f(nm_sample.x * 2.f - 1.f, -(nm_sample.y * 2.f - 1.f), nm_sample.z * 2.f - 1.f);
         N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
       }
     }
 
     roughness = fmaxf(roughness, 0.04f);
-    float alpha = roughness * roughness;
-    float alpha2 = alpha * alpha;
+    float roughness_alpha = roughness * roughness;
+    float alpha2 = roughness_alpha * roughness_alpha;
     float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
 
     owl::vec3f V = -ray_dir;
@@ -271,6 +273,30 @@ namespace rl_tools
       float fresnel_refl = F0.x + (1.f - F0.x) * powf(1.f - fmaxf(dot(V, N), 0.f), 5.f);
       float reflection_weight = fresnel_refl * (1.f - roughness);
       color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
+    }
+
+    if (alpha < 0.99f && depth < 1) {
+      owl::vec3f hit_point = ray_dir * optixGetRayTmax();
+      hit_point.x += optixGetWorldRayOrigin().x;
+      hit_point.y += optixGetWorldRayOrigin().y;
+      hit_point.z += optixGetWorldRayOrigin().z;
+
+      owl::vec3f behind_color;
+      unsigned int tp0 = 0, tp1 = 0;
+      owl::packPointer(&behind_color, tp0, tp1);
+      unsigned int tp2 = depth + 1;
+      optixTrace(self.world,
+                 (const float3&)hit_point,
+                 (const float3&)ray_dir,
+                 1e-3f,
+                 1e20f,
+                 0.0f,
+                 OptixVisibilityMask(255),
+                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+                 0, NUM_RAY_TYPES, 0,
+                 tp0, tp1, tp2);
+
+      color = color * alpha + behind_color * (1.f - alpha);
     }
 
     if (depth == 0) {
