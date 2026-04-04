@@ -84,18 +84,25 @@ namespace rl_tools{
         hid_t dtype = H5Dget_type(ds);
         H5T_class_t cls = H5Tget_class(dtype);
         size_t dts = H5Tget_size(dtype);
-        tensor.type = dyn::Type::FLOAT32;
-        if(cls == H5T_FLOAT){ tensor.type = (dts == 8) ? dyn::Type::FLOAT64 : (dts == 2) ? dyn::Type::BF16 : dyn::Type::FLOAT32; }
-        else if(cls == H5T_INTEGER && dts == 1){ tensor.type = dyn::Type::INT8; }
-        rl_tools::malloc(device, tensor);
-        hid_t memtype;
-        switch(tensor.type){
-            case dyn::Type::FLOAT32: memtype = H5T_NATIVE_FLOAT; break;
-            case dyn::Type::FLOAT64: memtype = H5T_NATIVE_DOUBLE; break;
-            default: memtype = H5T_NATIVE_FLOAT; break;
-        }
-        herr_t err = H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, tensor.data);
         H5Tclose(dtype);
+        hid_t memtype;
+        if(cls == H5T_FLOAT && dts == 8){
+            tensor.type = dyn::Type::FLOAT64;
+            memtype = H5T_NATIVE_DOUBLE;
+        }
+        else if(cls == H5T_FLOAT){
+            tensor.type = dyn::Type::FLOAT32;
+            memtype = H5T_NATIVE_FLOAT;
+        }
+        else if(cls == H5T_INTEGER && dts == 1){
+            tensor.type = dyn::Type::INT8;
+            memtype = H5T_NATIVE_INT8;
+        }
+        else{
+            H5Sclose(space); H5Dclose(ds); return false;
+        }
+        rl_tools::malloc(device, tensor);
+        herr_t err = H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, tensor.data);
         H5Sclose(space);
         H5Dclose(ds);
         return err >= 0;
