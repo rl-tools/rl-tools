@@ -1470,18 +1470,14 @@ async function setup_onboard_camera(ui_state, parameters){
 function update_onboard_camera(ui_state, state, parameters){
     if(!ui_state.onboard_camera || !ui_state.onboard_scene) return
     const st = ui_state.onboard_scene_translation || [0, 0, 0]
-    // L2F (FLU, Z-up) → Scene/GLB (Y-up): scene = (l2f[0], l2f[2], l2f[1])
-    const scene_x = state.position[0] + st[0]
-    const scene_y = state.position[2] + st[1]
-    const scene_z = state.position[1] + st[2]
-    ui_state.onboard_camera.position.set(scene_x, scene_y, scene_z)
-    // L2F quat (w,x,y,z) → Scene quat: axis (ax,ay,az)→(ax,az,ay), so quat (w,x,y,z)→(w,x,z,y)
-    // THREE.Quaternion constructor: (x, y, z, w)
+    // FLU (X-fwd, Y-left, Z-up) → Three.js Y-up: (x,y,z) → (x, z, -y)
+    // st is in FLU coordinates
+    ui_state.onboard_camera.position.set(state.position[0] + st[0], state.position[2] + st[2], -(state.position[1] + st[1]))
+    // FLU quat axis (ax,ay,az) → Three.js axis (ax, az, -ay)
     const qw = state.orientation[0], qx = state.orientation[1], qy = state.orientation[2], qz = state.orientation[3]
-    const scene_quat = new THREE.Quaternion(qx, qz, qy, qw)
-    // Three.js camera looks along -Z. Drone camera looks along body +X (= scene +X).
-    // Rotate +X → -Z: +90° around Y (up)
-    const body_to_cam = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    const scene_quat = new THREE.Quaternion(qx, qz, -qy, qw)
+    // Camera forward = body +X = Three.js +X, Three.js camera looks along -Z
+    const body_to_cam = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2)
     ui_state.onboard_camera.quaternion.copy(scene_quat.multiply(body_to_cam))
 }
 
