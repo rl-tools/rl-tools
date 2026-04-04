@@ -293,7 +293,11 @@ namespace rl_tools {
                 for(unsigned int v = 0; v < mesh->mNumVertices; v++){
                     const aiVector3D& tc = mesh->mTextureCoords[uv_channel][v];
                     md.tex_coords.push_back(tc.x);
-                    md.tex_coords.push_back(tc.y);
+                    if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                        md.tex_coords.push_back(1.0f - tc.y);
+                    } else {
+                        md.tex_coords.push_back(tc.y);
+                    }
                 }
             }
 
@@ -369,6 +373,10 @@ namespace rl_tools {
                 md.metallic = metallic_factor;
 
                 if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                    float metallic_factor_pbr = 1.0f;
+                    mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor_pbr);
+                    md.metallic = metallic_factor_pbr;
+
                     float roughness_factor = 1.0f;
                     mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness_factor);
                     md.roughness = roughness_factor;
@@ -459,6 +467,14 @@ namespace rl_tools {
                             }
                         }
                     }
+                    float opacity_val = 1.0f;
+                    mat->Get(AI_MATKEY_OPACITY, opacity_val);
+                    float transmission_factor = 0.0f;
+                    mat->Get(AI_MATKEY_TRANSMISSION_FACTOR, transmission_factor);
+                    if (transmission_factor > 0.0f) {
+                        opacity_val = fminf(opacity_val, 1.0f - transmission_factor);
+                    }
+                    md.opacity = opacity_val;
                 }
 
                 if(!md.has_texture && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
@@ -567,6 +583,7 @@ namespace rl_tools {
                 { "has_emissive_map", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, has_emissive_map)},
                 { "occlusion_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, occlusion_map)},
                 { "has_occlusion_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_occlusion_map)},
+                { "opacity",       OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, opacity)},
                 { "light_dir_0",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_0)},
                 { "light_color_0", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_color_0)},
                 { "light_dir_1",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_1)},
@@ -709,6 +726,8 @@ namespace rl_tools {
                 } else {
                     owlGeomSet1i(geom, "has_occlusion_map", 0);
                 }
+
+                owlGeomSet1f(geom, "opacity", md.opacity);
 
                 float inv_sqrt2 = 0.70710678f;
                 owlGeomSet3f(geom, "light_dir_0", owl3f{-inv_sqrt2, 0.f, inv_sqrt2});

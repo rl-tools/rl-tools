@@ -63,6 +63,7 @@ namespace rl_tools {
             std::vector<uint8_t> occlusion_tex_pixels;
             int occlusion_tex_width = 0, occlusion_tex_height = 0;
             bool has_occlusion_map = false;
+            float opacity = 1.0f;
         };
 
         template <typename T_SPEC>

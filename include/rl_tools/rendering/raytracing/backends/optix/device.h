@@ -39,6 +39,7 @@ namespace rl_tools {
         int has_emissive_map;
         cudaTextureObject_t occlusion_map;
         int has_occlusion_map;
+        float opacity;
         owl::vec3f light_dir_0;
         owl::vec3f light_color_0;
         owl::vec3f light_dir_1;
