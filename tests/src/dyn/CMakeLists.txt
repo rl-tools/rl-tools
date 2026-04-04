@@ -13,4 +13,8 @@ if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_TEST_DATA_PATH)
     add_executable(test_dyn_wasm_generate dyn_wasm_generate.cpp)
     target_link_libraries(test_dyn_wasm_generate RLtools::RLtools)
     target_compile_definitions(test_dyn_wasm_generate PRIVATE RL_TOOLS_TEST_DATA_PATH=${RL_TOOLS_TEST_DATA_PATH})
+
+    add_executable(test_dyn_wasm_native wasm/test.cpp)
+    target_link_libraries(test_dyn_wasm_native RLtools::RLtools)
+    add_test(NAME test_dyn_wasm_native COMMAND test_dyn_wasm_native ${RL_TOOLS_TEST_DATA_PATH}/test_dyn_wasm_checkpoint.h5)
 endif()

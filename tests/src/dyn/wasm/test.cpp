@@ -15,19 +15,8 @@ int main(int argc, char** argv){
     using TI = typename DEVICE::index_t;
     DEVICE device;
 
-    // Open HDF5 file using new File API
     rlt::persist::backends::hdf5::File file(path, rlt::persist::backends::hdf5::Mode::READ);
 
-    // Read test metadata
-    char input_dim_str[16], batch_size_str[16];
-    rlt::persist::backends::hdf5::detail::read_string_attribute(file.id, "input_dim", input_dim_str, sizeof(input_dim_str));
-    rlt::persist::backends::hdf5::detail::read_string_attribute(file.id, "batch_size", batch_size_str, sizeof(batch_size_str));
-    TI input_dim = 0, batch_size = 0;
-    for(int i = 0; input_dim_str[i] >= '0' && input_dim_str[i] <= '9'; i++) input_dim = input_dim * 10 + (input_dim_str[i] - '0');
-    for(int i = 0; batch_size_str[i] >= '0' && batch_size_str[i] <= '9'; i++) batch_size = batch_size * 10 + (batch_size_str[i] - '0');
-    printf("Input dim: %lu, batch size: %lu\n", (unsigned long)input_dim, (unsigned long)batch_size);
-
-    // Load model
     auto model_group = rlt::get_group(device, file, "model");
     rlt::dyn::Layer<TI> model;
     if(!rlt::load(device, model, model_group)){
@@ -36,21 +25,25 @@ int main(int argc, char** argv){
     }
     printf("Model loaded (type=%d, children=%lu)\n", (int)model.type, (unsigned long)model.num_children);
 
-    // Prepare input tensor
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> input_tensor;
-    TI input_shape[] = {batch_size, input_dim};
-    rlt::dyn::set_shape(input_tensor, (TI)2, input_shape);
-    input_tensor.type = rlt::dyn::Type::FLOAT32;
-    rlt::malloc(device, input_tensor);
-
-    // Read test input directly from HDF5
     {
         hid_t ds = H5Dopen2(file.id, "test_input", H5P_DEFAULT);
+        hid_t space = H5Dget_space(ds);
+        int rank = H5Sget_simple_extent_ndims(space);
+        hsize_t dims[8];
+        H5Sget_simple_extent_dims(space, dims, nullptr);
+        TI input_shape[8] = {};
+        TI input_size = 1;
+        for(int i = 0; i < rank; i++){ input_shape[i] = (TI)dims[i]; input_size *= (TI)dims[i]; }
+        rlt::dyn::set_shape(input_tensor, (TI)rank, input_shape);
+        input_tensor.type = rlt::dyn::Type::FLOAT32;
+        rlt::malloc(device, input_tensor);
         H5Dread(ds, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, input_tensor.data);
+        H5Sclose(space);
         H5Dclose(ds);
+        printf("Input: rank=%d, size=%lu\n", rank, (unsigned long)input_size);
     }
 
-    // Read expected output
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> expected;
     {
         hid_t ds = H5Dopen2(file.id, "expected_output", H5P_DEFAULT);
@@ -66,13 +59,11 @@ int main(int argc, char** argv){
         H5Dclose(ds);
     }
 
-    // Propagate shapes and allocate buffer
-    rlt::dyn::propagate_shapes(model, input_shape, (TI)2, batch_size * input_dim);
+    rlt::dyn::propagate_shapes(model, input_tensor.shape, input_tensor.rank, input_tensor.size);
     rlt::dyn::Buffer<TI> buffer;
     buffer.layer = &model;
     rlt::malloc(device, buffer);
 
-    // Forward pass
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> output;
     TI output_shape[] = {model.output_size};
     rlt::dyn::set_shape(output, (TI)1, output_shape);
@@ -82,10 +73,15 @@ int main(int argc, char** argv){
     bool ok = rlt::evaluate(device, model, input_tensor, output, buffer);
     if(!ok){ printf("ERROR: evaluate failed\n"); return 1; }
 
-    // Compare
     float max_diff = 0;
     TI output_size = expected.size;
     printf("Output size: %lu\n", (unsigned long)output_size);
+    TI print_n = output_size < 10 ? output_size : 10;
+    for(TI i = 0; i < print_n; i++){
+        float got = rlt::dyn::get(device, output, i);
+        float exp = rlt::dyn::get(device, expected, i);
+        printf("  [%lu] got=%e expected=%e\n", (unsigned long)i, got, exp);
+    }
     for(TI i = 0; i < output_size; i++){
         float got = rlt::dyn::get(device, output, i);
         float exp = rlt::dyn::get(device, expected, i);
