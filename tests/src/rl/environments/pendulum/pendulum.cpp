@@ -24,9 +24,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
     rl_tools::persist::backends::hdf5::File file(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
-    auto episodes_group = file.getGroup("episodes");
-    for(typename DEVICE::index_t episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){
-        auto episode_group = episodes_group.getGroup(std::to_string(episode_i));
+    auto episodes_group = rlt::get_group(device, file, "episodes");
+    hsize_t num_episodes; H5Gget_num_objs(episodes_group.id, &num_episodes);
+    for(typename DEVICE::index_t episode_i = 0; episode_i < num_episodes; episode_i++){
+        auto episode_group = rlt::get_group(device, episodes_group, std::to_string(episode_i));
         std::vector<std::vector<DTYPE>> states;
         std::vector<std::vector<DTYPE>> actions;
         std::vector<DTYPE> rewards;
@@ -34,12 +35,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
         std::vector<std::vector<DTYPE>> observations;
         std::vector<std::vector<DTYPE>> next_observations;
 
-        episode_group.getDataSet("states").read(states);
-        episode_group.getDataSet("actions").read(actions);
-        episode_group.getDataSet("rewards").read(rewards);
-        episode_group.getDataSet("next_states").read(next_states);
-        episode_group.getDataSet("observations").read(observations);
-        episode_group.getDataSet("next_observations").read(next_observations);
+        rl_tools::persist::backends::hdf5::read_dataset(episode_group, "states", states);
+        rl_tools::persist::backends::hdf5::read_dataset(episode_group, "actions", actions);
+        rl_tools::persist::backends::hdf5::read_dataset(episode_group, "rewards", rewards);
+        rl_tools::persist::backends::hdf5::read_dataset(episode_group, "next_states", next_states);
+        rl_tools::persist::backends::hdf5::read_dataset(episode_group, "observations", observations);
+        rl_tools::persist::backends::hdf5::read_dataset(episode_group, "next_observations", next_observations);
         std::cout << "episode i: " << episode_i << std::endl;
         ENVIRONMENT env;
         ENVIRONMENT::State state;

@@ -13,10 +13,6 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 #include "base/include/rl_tools/nn/layers/dense/operations_generic.h"
 #include "base/include/rl_tools/nn_models/sequential/operations_generic.h"
 
-#include "base/include/rl_tools/nn/layers/gru/persist.h"
-#include "base/include/rl_tools/nn/layers/dense/persist.h"
-#include "base/include/rl_tools/nn_models/sequential/persist.h"
-
 namespace base{
     namespace rlt = rl_tools;
     using DEVICE = rl_tools::devices::DefaultCPU;

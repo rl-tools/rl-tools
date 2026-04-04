@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_PERSIST_BACKENDS_HDF5_HDF5
 
+#include "../../../rl_tools.h"
 #include <hdf5.h>
 #include <mutex>
 #include <string>

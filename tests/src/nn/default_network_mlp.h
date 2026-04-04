@@ -38,14 +38,15 @@ protected:
         this->DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
         auto data_file = rl_tools::persist::backends::hdf5::File(DATA_FILE_PATH, rl_tools::persist::backends::hdf5::Mode::READ);
-        data_file.getDataSet("data/X_train").read(X_train);
-        data_file.getDataSet("data/Y_train").read(Y_train);
-        data_file.getDataSet("data/X_val").read(X_val);
-        data_file.getDataSet("data/Y_val").read(Y_val);
-        data_file.getDataSet("data/X_mean").read(X_mean);
-        data_file.getDataSet("data/X_std").read(X_std);
-        data_file.getDataSet("data/Y_mean").read(Y_mean);
-        data_file.getDataSet("data/Y_std").read(Y_std);
+        rl_tools::persist::backends::hdf5::Group<> file_root{data_file.id};
+        rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/X_train", X_train);
+        rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/Y_train", Y_train);
+        rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/X_val", X_val);
+        rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/Y_val", Y_val);
+        rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/X_mean", X_mean);
+        rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/X_std", X_std);
+        rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/Y_mean", Y_mean);
+        rl_tools::persist::backends::hdf5::read_dataset(file_root, "data/Y_std", Y_std);
     }
 
     std::vector<std::vector<DTYPE>> X_train;

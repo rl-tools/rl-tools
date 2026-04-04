@@ -1,6 +1,4 @@
 #include <gtest/gtest.h>
-#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
-
 #include <rl_tools/operations/cpu.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
@@ -41,7 +39,7 @@ TEST(RL_TOOLS_NN_PERSIST, Saving) {
     rlt::increment(device, network_1.input_layer.weights.gradient_first_order_moment, 10, 2, 3);
     {
         auto output_file = rl_tools::persist::backends::hdf5::File(std::string("test.hdf5"), rl_tools::persist::backends::hdf5::Mode::WRITE);
-        rlt::persist::backends::hdf5::Group<> group = {output_file.createGroup("three_layer_fc")};
+        auto group = rlt::create_group(device, output_file, "three_layer_fc");
         rlt::save(device, network_1, group);
     }
 

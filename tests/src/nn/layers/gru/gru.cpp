@@ -11,6 +11,7 @@
 
 //#include <rl_tools/nn/layers/gru/layer.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 namespace rlt = rl_tools;
 
@@ -147,13 +148,21 @@ void test_loading(std::string DATA_FILE_NAME){
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
     auto output_file = rl_tools::persist::backends::hdf5::File(std::string(DATA_FILE_PATH), rl_tools::persist::backends::hdf5::Mode::READ);
-    for(auto epoch_group_name : output_file.listObjectNames()){
-        auto epoch_group = output_file.getGroup(epoch_group_name);
-        for(auto batch_group_name: epoch_group.listObjectNames()){
+    hsize_t num_epochs = 0;
+    H5Gget_num_objs(output_file.id, &num_epochs);
+    for(hsize_t epoch_i = 0; epoch_i < num_epochs; epoch_i++){
+        char epoch_group_name[256];
+        H5Lget_name_by_idx(output_file.id, ".", H5_INDEX_NAME, H5_ITER_NATIVE, epoch_i, epoch_group_name, sizeof(epoch_group_name), H5P_DEFAULT);
+        auto epoch_group = rlt::get_group(device, output_file, epoch_group_name);
+        hsize_t num_batches = 0;
+        H5Gget_num_objs(epoch_group.id, &num_batches);
+        for(hsize_t batch_i = 0; batch_i < num_batches; batch_i++){
+            char batch_group_name[256];
+            H5Lget_name_by_idx(epoch_group.id, ".", H5_INDEX_NAME, H5_ITER_NATIVE, batch_i, batch_group_name, sizeof(batch_group_name), H5P_DEFAULT);
             auto batch_group = rlt::get_group(device, epoch_group, batch_group_name);
             rlt::load(device, input, batch_group, "input");
             bool d_input_set = false;
-            if(batch_group.group.exist("d_input")){
+            if(H5Lexists(batch_group.id, "d_input", H5P_DEFAULT) > 0){
                 rlt::load(device, dinput_real, batch_group, "d_input");
                 d_input_set = true;
             }
