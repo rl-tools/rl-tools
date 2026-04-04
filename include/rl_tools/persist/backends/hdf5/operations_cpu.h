@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <type_traits>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -72,6 +73,10 @@ namespace rl_tools{
         template<> inline hid_t native_type<uint32_t>(){ return H5T_NATIVE_UINT32; }
         template<> inline hid_t native_type<bool>(){ return H5T_NATIVE_UINT8; }
 
+        template<typename T> struct hdf5_storage_type { using type = T; };
+#ifdef RL_TOOLS_NUMERIC_TYPES_ENABLE_BF16
+        template<> struct hdf5_storage_type<__bf16> { using type = float; };
+#endif
 
         template<typename SHAPE, int DIM = 0>
         inline void fill_dims(hsize_t* dims){
@@ -92,10 +97,9 @@ namespace rl_tools{
         template<typename SHAPE, int DIM = 0>
         inline void write_dim_attrs(hid_t ds_id){
             if constexpr(DIM < SHAPE::LENGTH){
-                char key[] = "dim_0";
-                key[4] = '0' + DIM;
+                std::string key = "dim_" + std::to_string(DIM);
                 std::string val = std::to_string(SHAPE::template GET<DIM>);
-                write_string_attribute(ds_id, key, val.c_str());
+                write_string_attribute(ds_id, key.c_str(), val.c_str());
                 write_dim_attrs<SHAPE, DIM + 1>(ds_id);
             }
         }
@@ -187,6 +191,7 @@ namespace rl_tools{
     bool load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* dataset_name, bool fallback_to_zero = false){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        using STORAGE_T = typename persist::backends::hdf5::detail::hdf5_storage_type<T>::type;
         if(fallback_to_zero && H5Lexists(group.id, dataset_name, H5P_DEFAULT) <= 0){
             set_all(device, tensor, 0);
             return true;
@@ -203,14 +208,26 @@ namespace rl_tools{
         if(!persist::backends::hdf5::detail::check_dims<typename SPEC::SHAPE>(dims)){
             H5Sclose(space); H5Dclose(ds); return false;
         }
-        hid_t memtype = persist::backends::hdf5::detail::native_type<T>();
-        if constexpr(tensor::dense_row_major_layout<SPEC>()){
+        hid_t memtype = persist::backends::hdf5::detail::native_type<STORAGE_T>();
+        if constexpr(std::is_same_v<T, STORAGE_T> && tensor::dense_row_major_layout<SPEC>()){
             H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor));
         }
-        else{
+        else if constexpr(std::is_same_v<T, STORAGE_T>){
             Tensor<tensor::Specification<T, TI, typename SPEC::SHAPE>> tensor_dense;
             malloc(device, tensor_dense);
             H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor_dense));
+            copy(device, device, tensor_dense, tensor);
+            free(device, tensor_dense);
+        }
+        else{
+            constexpr TI NUMEL = product(typename SPEC::SHAPE{});
+            STORAGE_T* storage = new STORAGE_T[NUMEL];
+            H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, storage);
+            Tensor<tensor::Specification<T, TI, typename SPEC::SHAPE>> tensor_dense;
+            malloc(device, tensor_dense);
+            T* dst = data(tensor_dense);
+            for(TI i = 0; i < NUMEL; i++) dst[i] = static_cast<T>(storage[i]);
+            delete[] storage;
             copy(device, device, tensor_dense, tensor);
             free(device, tensor_dense);
         }
@@ -227,23 +244,33 @@ namespace rl_tools{
     void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* dataset_name){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        using STORAGE_T = typename persist::backends::hdf5::detail::hdf5_storage_type<T>::type;
         constexpr TI RANK = SPEC::SHAPE::LENGTH;
         hsize_t dims[RANK];
         persist::backends::hdf5::detail::fill_dims<typename SPEC::SHAPE>(dims);
         hid_t space = H5Screate_simple(RANK, dims, nullptr);
-        hid_t memtype = persist::backends::hdf5::detail::native_type<T>();
+        hid_t memtype = persist::backends::hdf5::detail::native_type<STORAGE_T>();
         hid_t ds = H5Dcreate2(group.id, dataset_name, memtype, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if constexpr(!tensor::dense_row_major_layout<SPEC>()){
+        if constexpr(std::is_same_v<T, STORAGE_T> && tensor::dense_row_major_layout<SPEC>()){
+            H5Dwrite(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor));
+        }
+        else{
             Tensor<tensor::Specification<T, TI, typename SPEC::SHAPE>> tensor_dense;
             malloc(device, tensor_dense);
             copy(device, device, tensor, tensor_dense);
-            H5Dwrite(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor_dense));
+            if constexpr(std::is_same_v<T, STORAGE_T>){
+                H5Dwrite(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor_dense));
+            }
+            else{
+                constexpr TI NUMEL = product(typename SPEC::SHAPE{});
+                STORAGE_T* storage = new STORAGE_T[NUMEL];
+                T* src = data(tensor_dense);
+                for(TI i = 0; i < NUMEL; i++) storage[i] = static_cast<STORAGE_T>(src[i]);
+                H5Dwrite(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, storage);
+                delete[] storage;
+            }
             free(device, tensor_dense);
         }
-        else{
-            H5Dwrite(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor));
-        }
-
         persist::backends::hdf5::detail::write_string_attribute(ds, "type", "tensor");
         std::string num_dims = std::to_string(RANK);
         persist::backends::hdf5::detail::write_string_attribute(ds, "num_dims", num_dims.c_str());
@@ -354,6 +381,7 @@ namespace rl_tools{
         template<typename T, typename GROUP_SPEC>
         void read_dataset(persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* name, std::vector<T>& output){
             hid_t ds = H5Dopen2(group.id, name, H5P_DEFAULT);
+            if(ds < 0) throw std::runtime_error(std::string("Failed to open HDF5 dataset: ") + name);
             hid_t space = H5Dget_space(ds);
             hsize_t n;
             H5Sget_simple_extent_dims(space, &n, nullptr);
@@ -365,6 +393,7 @@ namespace rl_tools{
         template<typename T, typename GROUP_SPEC>
         void read_dataset(persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* name, std::vector<std::vector<T>>& output){
             hid_t ds = H5Dopen2(group.id, name, H5P_DEFAULT);
+            if(ds < 0) throw std::runtime_error(std::string("Failed to open HDF5 dataset: ") + name);
             hid_t space = H5Dget_space(ds);
             hsize_t dims[2];
             H5Sget_simple_extent_dims(space, dims, nullptr);

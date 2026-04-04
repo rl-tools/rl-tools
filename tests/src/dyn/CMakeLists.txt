@@ -9,4 +9,8 @@ if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_TEST_DATA_PATH)
     target_link_libraries(test_dyn_hdf5 RLtools::RLtools GTest::gtest_main)
     target_compile_definitions(test_dyn_hdf5 PRIVATE RL_TOOLS_TEST_DATA_PATH=${RL_TOOLS_TEST_DATA_PATH})
     gtest_discover_tests(test_dyn_hdf5)
+
+    add_executable(test_dyn_wasm_generate dyn_wasm_generate.cpp)
+    target_link_libraries(test_dyn_wasm_generate RLtools::RLtools)
+    target_compile_definitions(test_dyn_wasm_generate PRIVATE RL_TOOLS_TEST_DATA_PATH=${RL_TOOLS_TEST_DATA_PATH})
 endif()
