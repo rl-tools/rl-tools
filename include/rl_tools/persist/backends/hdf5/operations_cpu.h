@@ -70,7 +70,7 @@ namespace rl_tools{
         template<> inline hid_t native_type<int16_t>(){ return H5T_NATIVE_INT16; }
         template<> inline hid_t native_type<uint16_t>(){ return H5T_NATIVE_UINT16; }
         template<> inline hid_t native_type<uint32_t>(){ return H5T_NATIVE_UINT32; }
-        template<> inline hid_t native_type<bool>(){ return H5T_NATIVE_HBOOL; }
+        template<> inline hid_t native_type<bool>(){ return H5T_NATIVE_UINT8; }
 
 
         template<typename SHAPE, int DIM = 0>
@@ -186,8 +186,9 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     bool load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* dataset_name, bool fallback_to_zero = false){
         using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         if(fallback_to_zero && H5Lexists(group.id, dataset_name, H5P_DEFAULT) <= 0){
-            std::memset(data(tensor), 0, SPEC::SIZE_BYTES);
+            set_all(device, tensor, 0);
             return true;
         }
         hid_t ds = H5Dopen2(group.id, dataset_name, H5P_DEFAULT);
@@ -203,10 +204,19 @@ namespace rl_tools{
             H5Sclose(space); H5Dclose(ds); return false;
         }
         hid_t memtype = persist::backends::hdf5::detail::native_type<T>();
-        herr_t err = H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor));
+        if constexpr(tensor::dense_row_major_layout<SPEC>()){
+            H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor));
+        }
+        else{
+            Tensor<tensor::Specification<T, TI, typename SPEC::SHAPE>> tensor_dense;
+            malloc(device, tensor_dense);
+            H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor_dense));
+            copy(device, device, tensor_dense, tensor);
+            free(device, tensor_dense);
+        }
         H5Sclose(space);
         H5Dclose(ds);
-        return err >= 0;
+        return true;
     }
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
@@ -244,23 +254,59 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     bool load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name, bool fallback_to_zero = false){
-        auto tensor = to_tensor(device, matrix);
-        return load(device, tensor, group, dataset_name, fallback_to_zero);
+        return load(device, matrix, group, dataset_name.c_str(), fallback_to_zero);
     }
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     bool load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* dataset_name, bool fallback_to_zero = false){
-        auto tensor = to_tensor(device, matrix);
-        return load(device, tensor, group, dataset_name, fallback_to_zero);
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        constexpr TI N = SPEC::ROWS * SPEC::COLS;
+        if(fallback_to_zero && H5Lexists(group.id, dataset_name, H5P_DEFAULT) <= 0){
+            for(TI i = 0; i < SPEC::ROWS; i++)
+                for(TI j = 0; j < SPEC::COLS; j++)
+                    set(matrix, i, j, T(0));
+            return true;
+        }
+        hid_t ds = H5Dopen2(group.id, dataset_name, H5P_DEFAULT);
+        if(ds < 0) return false;
+        hid_t space = H5Dget_space(ds);
+        hsize_t dims[2];
+        H5Sget_simple_extent_dims(space, dims, nullptr);
+        if(dims[0] != SPEC::ROWS || dims[1] != SPEC::COLS){ H5Sclose(space); H5Dclose(ds); return false; }
+        T* flat = new T[N];
+        H5Dread(ds, persist::backends::hdf5::detail::native_type<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, flat);
+        H5Sclose(space);
+        H5Dclose(ds);
+        for(TI i = 0; i < SPEC::ROWS; i++)
+            for(TI j = 0; j < SPEC::COLS; j++)
+                set(matrix, i, j, flat[i * SPEC::COLS + j]);
+        delete[] flat;
+        return true;
     }
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     void save(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name){
-        auto tensor = to_tensor(device, matrix);
-        save(device, tensor, group, dataset_name);
+        save(device, matrix, group, dataset_name.c_str());
     }
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     void save(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* dataset_name){
-        auto tensor = to_tensor(device, matrix);
-        save(device, tensor, group, dataset_name);
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        constexpr TI N = SPEC::ROWS * SPEC::COLS;
+        T* flat = new T[N];
+        for(TI i = 0; i < SPEC::ROWS; i++)
+            for(TI j = 0; j < SPEC::COLS; j++)
+                flat[i * SPEC::COLS + j] = get(matrix, i, j);
+        hsize_t dims[2] = {SPEC::ROWS, SPEC::COLS};
+        hid_t space = H5Screate_simple(2, dims, nullptr);
+        hid_t memtype = persist::backends::hdf5::detail::native_type<T>();
+        hid_t ds = H5Dcreate2(group.id, dataset_name, memtype, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        H5Dwrite(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, flat);
+        delete[] flat;
+        persist::backends::hdf5::detail::write_string_attribute(ds, "type", "matrix");
+        persist::backends::hdf5::detail::write_string_attribute(ds, "rows", std::to_string(SPEC::ROWS).c_str());
+        persist::backends::hdf5::detail::write_string_attribute(ds, "cols", std::to_string(SPEC::COLS).c_str());
+        H5Dclose(ds);
+        H5Sclose(space);
     }
 
     template <typename DEVICE, typename STRUCT, typename GROUP_SPEC>
