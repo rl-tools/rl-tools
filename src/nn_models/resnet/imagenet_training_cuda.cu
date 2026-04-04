@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
     rlt::malloc(device_cpu, model_cpu);
     rlt::malloc(device_cpu, model_cpu_inference);
     if (!resume_path.empty()) {
-        auto file = HighFive::File(resume_path, HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(resume_path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto mg = rlt::get_group(device_cpu, file, "model");
         rlt::load(device_cpu, model_cpu, mg);
         rlt::copy(device_cpu, device_cuda, model_cpu, model);
@@ -728,7 +728,7 @@ int main(int argc, char* argv[]) {
             std::string ckpt_dir = logdir + "/checkpoints";
             fs::create_directories(ckpt_dir);
             std::string ckpt = ckpt_dir + "/resnet18_cuda_epoch_" + std::to_string(epoch) + ".h5";
-            auto file = HighFive::File(ckpt, HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+            auto file = rl_tools::persist::backends::hdf5::File(ckpt, rl_tools::persist::backends::hdf5::Mode::WRITE);
             auto mg = rlt::create_group(device_cpu, file, "model");
             rlt::save(device_cpu, model_cpu_inference, mg);
             std::cout << "  Checkpoint: " << ckpt << std::endl;

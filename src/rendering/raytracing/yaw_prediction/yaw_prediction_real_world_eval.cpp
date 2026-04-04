@@ -167,7 +167,7 @@ static bool load_from_tar(ModelHandle& handle, const std::string& path) {
 
 static bool load_from_hdf5(ModelHandle& handle, const std::string& path) {
     try {
-        auto file = HighFive::File(path, HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto model_group = rlt::get_group(handle.device, file, "model");
         return rlt::load(handle.device, handle.model, model_group);
     } catch (const std::exception& e) {

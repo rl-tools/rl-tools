@@ -28,7 +28,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #endif
 
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 
 
 std::string get_data_file_path(){
@@ -110,11 +110,14 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
 
     rlt::rl::environments::DummyUI ui;
 
-    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
-    TI step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
+    auto data_file = rl_tools::persist::backends::hdf5::File(get_data_file_path(), rl_tools::persist::backends::hdf5::Mode::READ);
+    auto full_training_group_0 = rlt::get_group(device, data_file, "full_training");
+    auto steps_group_0 = rlt::get_group(device, full_training_group_0, "steps");
+    hsize_t num_steps_0; H5Gget_num_objs(steps_group_0.id, &num_steps_0);
+    TI step = num_steps_0 - 1;
     // assert(step >= 0);
-    auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
-    rlt::persist::backends::hdf5::Group<> actor_group = {step_group.getGroup("actor")};
+    auto step_group = rlt::get_group(device, steps_group_0, std::to_string(step));
+    auto actor_group = rlt::get_group(device, step_group, "actor");
     rlt::load(device, rlt::get_first_layer(actor_critic.actor), actor_group);
     using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, decltype(env), 100, 200>;
     rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
@@ -219,25 +222,25 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 
 
-    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
+    auto data_file = rl_tools::persist::backends::hdf5::File(get_data_file_path(), rl_tools::persist::backends::hdf5::Mode::READ);
     ACTOR_LOADER_TYPE actor_loader;
     CRITIC_LOADER_TYPE critic_loader;
     rlt::malloc(device, actor_loader);
     rlt::malloc(device, critic_loader);
-    rlt::persist::backends::hdf5::Group<> actor_group = {data_file.getGroup("actor")};
+    auto actor_group = rlt::get_group(device, data_file, "actor");
     rlt::load(device, rlt::get_first_layer(actor_loader), actor_group);
     rlt::copy(device, device, actor_loader, actor_critic.actor);
-    rlt::persist::backends::hdf5::Group<> actor_target_group = {data_file.getGroup("actor_target")};
+    auto actor_target_group = rlt::get_group(device, data_file, "actor_target");
     rlt::load(device, rlt::get_first_layer(actor_critic.actor_target), actor_target_group);
-    rlt::persist::backends::hdf5::Group<> critic_1_group = {data_file.getGroup("critic_1")};
+    auto critic_1_group = rlt::get_group(device, data_file, "critic_1");
     rlt::load(device, rlt::get_first_layer(critic_loader), critic_1_group);
     rlt::copy(device, device, critic_loader, actor_critic.critics[0]);
-    rlt::persist::backends::hdf5::Group<> critic_target_1_group = {data_file.getGroup("critic_target_1")};
+    auto critic_target_1_group = rlt::get_group(device, data_file, "critic_target_1");
     rlt::load(device, rlt::get_first_layer(actor_critic.critics_target[0]), critic_target_1_group);
-    rlt::persist::backends::hdf5::Group<> critic_2_group = {data_file.getGroup("critic_2")};
+    auto critic_2_group = rlt::get_group(device, data_file, "critic_2");
     rlt::load(device, rlt::get_first_layer(critic_loader), critic_2_group);
     rlt::copy(device, device, critic_loader, actor_critic.critics[1]);
-    rlt::persist::backends::hdf5::Group<> critic_target_2_group = {data_file.getGroup("critic_target_2")};
+    auto critic_target_2_group = rlt::get_group(device, data_file, "critic_target_2");
     rlt::load(device, rlt::get_first_layer(actor_critic.critics_target[1]), critic_target_2_group);
     rlt::free(device, actor_loader);
     rlt::free(device, critic_loader);
@@ -255,9 +258,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     T mean_ratio_actor_grad = 0;
     T mean_ratio_actor_adam = 0;
     T mean_ratio_critic_target = 0;
-    auto full_training_group = data_file.getGroup("full_training");
-    auto steps_group = full_training_group.getGroup("steps");
-    TI num_steps = std::min(steps_group.getNumberObjects(), (typename DEVICE::index_t)1000);
+    auto full_training_group = rlt::get_group(device, data_file, "full_training");
+    auto steps_group = rlt::get_group(device, full_training_group, "steps");
+    hsize_t num_steps_count; H5Gget_num_objs(steps_group.id, &num_steps_count);
+    TI num_steps = std::min((typename DEVICE::index_t)num_steps_count, (typename DEVICE::index_t)1000);
     rlt::utils::typing::remove_reference_t<decltype(actor_critic.critics[0])> pre_critic_1, pre_critic_2;
     rlt::malloc(device, pre_critic_1);
     rlt::malloc(device, pre_critic_2);
@@ -292,11 +296,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
         if(verbose){
             std::cout << "step_i: " << step_i << std::endl;
         }
-        auto _step_group = steps_group.getGroup(std::to_string(step_i));
-        rlt::persist::backends::hdf5::Group<> step_group = {_step_group};
-        if(_step_group.exist("critics_batch")){
+        auto step_group = rlt::get_group(device, steps_group, std::to_string(step_i));
+        if(H5Lexists(step_group.id, "critics_batch", H5P_DEFAULT) > 0){
             std::vector<std::vector<T>> batch;
-            _step_group.getDataSet("critics_batch").read(batch);
+            rl_tools::persist::backends::hdf5::read_dataset(step_group, "critics_batch", batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 //            step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
@@ -421,9 +424,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::free(device, post_critic_1);
         }
 
-        if(_step_group.exist("actor_batch")){
+        if(H5Lexists(step_group.id, "actor_batch", H5P_DEFAULT) > 0){
             std::vector<std::vector<T>> batch;
-            _step_group.getDataSet("actor_batch").read(batch);
+            rl_tools::persist::backends::hdf5::read_dataset(step_group, "actor_batch", batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
             auto& replay_buffer = get(off_policy_runner.replay_buffers, 0, 0);
             load(device, replay_buffer, batch);
@@ -535,7 +538,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::free(device, post_actor);
             rlt::free(device, pre_actor_loaded);
         }
-        if(_step_group.exist("critic1_target")){
+        if(H5Lexists(step_group.id, "critic1_target", H5P_DEFAULT) > 0){
             if(verbose){
                 std:: cout << "    target update" << std::endl;
             }

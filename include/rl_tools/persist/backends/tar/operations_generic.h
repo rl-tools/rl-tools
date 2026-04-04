@@ -369,15 +369,16 @@ namespace rl_tools{
             current_position += 1;
         }
         utils::string::copy(group_path + current_position, "meta", SPEC::MAX_PATH_LENGTH - group_path_length - 1);
-        constexpr TI METADATA_SIZE = 100;
+        constexpr TI METADATA_SIZE = 500;
         char metadata[METADATA_SIZE];
         TI read_size = 0;
         utils::assert_exit(device, persist::backends::tar::get(device, group.data, group_path, metadata, METADATA_SIZE, read_size), "persist::backends::tar: Failed to read metadata entry from tar archive");
         TI position;
         TI value_length = 0;
         utils::assert_exit(device, persist::backends::tar::seek_in_metadata(device, metadata, read_size, name, position, value_length), "persist::backends::tar: key not found in metadata");
-        utils::string::memcpy(output, metadata + position, value_length < output_size ? value_length : output_size);
-        output[output_size-1] = '\0';
+        TI copy_len = value_length < output_size - 1 ? value_length : output_size - 1;
+        utils::string::memcpy(output, metadata + position, copy_len);
+        output[copy_len] = '\0';
     }
     template<typename TYPE, typename DEVICE, typename SPEC>
     TYPE get_attribute_int(DEVICE& device, persist::backends::tar::ReaderGroup<SPEC>& group, const char* name){
@@ -461,7 +462,7 @@ namespace rl_tools{
         char metadata[METADATA_SIZE];
         TI metadata_position = 0;
         metadata_position += utils::string::copy(metadata, "type: tensor\n", METADATA_SIZE - metadata_position-1);
-        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double> || utils::typing::is_same_v<typename SPEC::T, bool> || sizeof(typename SPEC::T) == 1 || sizeof(typename SPEC::T) == 4 || sizeof(typename SPEC::T) == 8, "Only float32, float64, bool, uint8, int32 and int64 are supported for now");
+        static_assert(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double> || utils::typing::is_same_v<typename SPEC::T, bool> || sizeof(typename SPEC::T) == 1 || sizeof(typename SPEC::T) == 2 || sizeof(typename SPEC::T) == 4 || sizeof(typename SPEC::T) == 8, "Only float32, float64, bf16, bool, uint8, int32 and int64 are supported for now");
         if constexpr(utils::typing::is_same_v<typename SPEC::T, float>){
             metadata_position += utils::string::copy(metadata+metadata_position, "dtype: float32\n", METADATA_SIZE - metadata_position-1);
         }
@@ -473,6 +474,9 @@ namespace rl_tools{
         }
         else if constexpr(sizeof(typename SPEC::T) == 1){
             metadata_position += utils::string::copy(metadata+metadata_position, "dtype: uint8\n", METADATA_SIZE - metadata_position-1);
+        }
+        else if constexpr(sizeof(typename SPEC::T) == 2){
+            metadata_position += utils::string::copy(metadata+metadata_position, "dtype: bf16\n", METADATA_SIZE - metadata_position-1);
         }
         else if constexpr(sizeof(typename SPEC::T) == 4){
             metadata_position += utils::string::copy(metadata+metadata_position, "dtype: int32\n", METADATA_SIZE - metadata_position-1);

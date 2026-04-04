@@ -81,17 +81,41 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
-    auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadOnly);
-    for(auto epoch_group_name : output_file.listObjectNames()){
-        auto epoch_group = output_file.getGroup(epoch_group_name);
-        for(auto batch_group_name: epoch_group.listObjectNames()){
+    auto output_file = rl_tools::persist::backends::hdf5::File(std::string(DATA_FILE_PATH), rl_tools::persist::backends::hdf5::Mode::READ);
+    hsize_t num_epochs = 0;
+    H5Gget_num_objs(output_file.id, &num_epochs);
+    for(hsize_t epoch_i = 0; epoch_i < num_epochs; epoch_i++){
+        char epoch_group_name[256];
+        H5Lget_name_by_idx(output_file.id, ".", H5_INDEX_NAME, H5_ITER_NATIVE, epoch_i, epoch_group_name, sizeof(epoch_group_name), H5P_DEFAULT);
+        auto epoch_group = rlt::get_group(device, output_file, epoch_group_name);
+        hsize_t num_batches = 0;
+        H5Gget_num_objs(epoch_group.id, &num_batches);
+        for(hsize_t batch_i = 0; batch_i < num_batches; batch_i++){
+            char batch_group_name[256];
+            H5Lget_name_by_idx(epoch_group.id, ".", H5_INDEX_NAME, H5_ITER_NATIVE, batch_i, batch_group_name, sizeof(batch_group_name), H5P_DEFAULT);
             auto batch_group = rlt::get_group(device, epoch_group, batch_group_name);
             rlt::load(device, input, batch_group, "input");
             rlt::load(device, output, batch_group, "output");
             auto input_slice = rlt::view_range(device, input, 0, rlt::tensor::ViewSpec<0, 1>{});
             std::vector<std::vector<std::vector<T>>> input_data;
-            auto input_ds = batch_group.group.getDataSet("input");
-            input_ds.read(input_data);
+            {
+                hid_t ds = H5Dopen2(batch_group.id, "input", H5P_DEFAULT);
+                hid_t space = H5Dget_space(ds);
+                hsize_t dims[3];
+                H5Sget_simple_extent_dims(space, dims, nullptr);
+                std::vector<T> flat(dims[0] * dims[1] * dims[2]);
+                H5Dread(ds, rl_tools::persist::backends::hdf5::detail::native_type<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, flat.data());
+                input_data.resize(dims[0]);
+                for(hsize_t a = 0; a < dims[0]; a++){
+                    input_data[a].resize(dims[1]);
+                    for(hsize_t b = 0; b < dims[1]; b++){
+                        input_data[a][b].resize(dims[2]);
+                        std::memcpy(input_data[a][b].data(), flat.data() + (a * dims[1] + b) * dims[2], dims[2] * sizeof(T));
+                    }
+                }
+                H5Sclose(space);
+                H5Dclose(ds);
+            }
             for(TI i=0; i < SEQUENCE_LENGTH; i++){
                 for(TI j=0; j < BATCH_SIZE; j++){
                     for(TI k=0; k < INPUT_DIM; k++){
@@ -101,8 +125,24 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
                 }
             }
             std::vector<std::vector<std::vector<T>>> output_data;
-            auto output_ds = batch_group.group.getDataSet("output");
-            output_ds.read(output_data);
+            {
+                hid_t ds = H5Dopen2(batch_group.id, "output", H5P_DEFAULT);
+                hid_t space = H5Dget_space(ds);
+                hsize_t dims[3];
+                H5Sget_simple_extent_dims(space, dims, nullptr);
+                std::vector<T> flat(dims[0] * dims[1] * dims[2]);
+                H5Dread(ds, rl_tools::persist::backends::hdf5::detail::native_type<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, flat.data());
+                output_data.resize(dims[0]);
+                for(hsize_t a = 0; a < dims[0]; a++){
+                    output_data[a].resize(dims[1]);
+                    for(hsize_t b = 0; b < dims[1]; b++){
+                        output_data[a][b].resize(dims[2]);
+                        std::memcpy(output_data[a][b].data(), flat.data() + (a * dims[1] + b) * dims[2], dims[2] * sizeof(T));
+                    }
+                }
+                H5Sclose(space);
+                H5Dclose(ds);
+            }
             for(TI i=0; i < SEQUENCE_LENGTH; i++){
                 for(TI j=0; j < BATCH_SIZE; j++){
                     for(TI k=0; k < OUTPUT_DIM; k++){
@@ -115,8 +155,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
             auto gradient_group = rlt::get_group(device, batch_group, "gradient");
             rlt::load(device, W_ir, weight_group, "W_ir");
             std::vector<std::vector<T>> W_ir_data;
-            auto W_ir_ds = weight_group.group.getDataSet("W_ir");
-            W_ir_ds.read(W_ir_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "W_ir", W_ir_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < INPUT_DIM; j++){
                     T diff = rlt::math::abs(device.math, static_cast<T>(W_ir_data[i][j]) - static_cast<T>(rlt::get(device, W_ir, i, j)));
@@ -125,8 +164,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
             }
             rlt::load(device, W_iz, weight_group, "W_iz");
             std::vector<std::vector<T>> W_iz_data;
-            auto W_iz_ds = weight_group.group.getDataSet("W_iz");
-            W_iz_ds.read(W_iz_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "W_iz", W_iz_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < INPUT_DIM; j++){
                     T diff = rlt::math::abs(device.math, static_cast<T>(W_iz_data[i][j]) - static_cast<T>(rlt::get(device, W_iz, i, j)));
@@ -135,8 +173,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
             }
             rlt::load(device, W_in, weight_group, "W_in");
             std::vector<std::vector<T>> W_in_data;
-            auto W_in_ds = weight_group.group.getDataSet("W_in");
-            W_in_ds.read(W_in_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "W_in", W_in_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < INPUT_DIM; j++){
                     T diff = rlt::math::abs(device.math, static_cast<T>(W_in_data[i][j]) - static_cast<T>(rlt::get(device, W_in, i, j)));
@@ -145,8 +182,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
             }
             rlt::load(device, W_hr, weight_group, "W_hr");
             std::vector<std::vector<T>> W_hr_data;
-            auto W_hr_ds = weight_group.group.getDataSet("W_hr");
-            W_hr_ds.read(W_hr_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "W_hr", W_hr_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < HIDDEN_DIM; j++){
                     T diff = rlt::math::abs(device.math, static_cast<T>(W_hr_data[i][j]) - static_cast<T>(rlt::get(device, W_hr, i, j)));
@@ -155,8 +191,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
             }
             rlt::load(device, W_hz, weight_group, "W_hz");
             std::vector<std::vector<T>> W_hz_data;
-            auto W_hz_ds = weight_group.group.getDataSet("W_hz");
-            W_hz_ds.read(W_hz_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "W_hz", W_hz_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < HIDDEN_DIM; j++){
                     T diff = rlt::math::abs(device.math, static_cast<T>(W_hz_data[i][j]) - static_cast<T>(rlt::get(device, W_hz, i, j)));
@@ -165,8 +200,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
             }
             rlt::load(device, W_hn, weight_group, "W_hn");
             std::vector<std::vector<T>> W_hn_data;
-            auto W_hn_ds = weight_group.group.getDataSet("W_hn");
-            W_hn_ds.read(W_hn_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "W_hn", W_hn_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < HIDDEN_DIM; j++){
                     T diff = rlt::math::abs(device.math, static_cast<T>(W_hn_data[i][j]) - static_cast<T>(rlt::get(device, W_hn, i, j)));
@@ -175,56 +209,49 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
             }
             rlt::load(device, b_ir, weight_group, "b_ir");
             std::vector<T> b_ir_data;
-            auto b_ir_ds = weight_group.group.getDataSet("b_ir");
-            b_ir_ds.read(b_ir_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "b_ir", b_ir_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_ir_data[i]) - static_cast<T>(rlt::get(device, b_ir, i)));
                 ASSERT_LT(diff, EPSILON);
             }
             rlt::load(device, b_iz, weight_group, "b_iz");
             std::vector<T> b_iz_data;
-            auto b_iz_ds = weight_group.group.getDataSet("b_iz");
-            b_iz_ds.read(b_iz_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "b_iz", b_iz_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_iz_data[i]) - static_cast<T>(rlt::get(device, b_iz, i)));
                 ASSERT_LT(diff, EPSILON);
             }
             rlt::load(device, b_in, weight_group, "b_in");
             std::vector<T> b_in_data;
-            auto b_in_ds = weight_group.group.getDataSet("b_in");
-            b_in_ds.read(b_in_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "b_in", b_in_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_in_data[i]) - static_cast<T>(rlt::get(device, b_in, i)));
                 ASSERT_LT(diff, EPSILON);
             }
             rlt::load(device, b_hr, weight_group, "b_hr");
             std::vector<T> b_hr_data;
-            auto b_hr_ds = weight_group.group.getDataSet("b_hr");
-            b_hr_ds.read(b_hr_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "b_hr", b_hr_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_hr_data[i]) - static_cast<T>(rlt::get(device, b_hr, i)));
                 ASSERT_LT(diff, EPSILON);
             }
             rlt::load(device, b_hz, weight_group, "b_hz");
             std::vector<T> b_hz_data;
-            auto b_hz_ds = weight_group.group.getDataSet("b_hz");
-            b_hz_ds.read(b_hz_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "b_hz", b_hz_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_hz_data[i]) - static_cast<T>(rlt::get(device, b_hz, i)));
                 ASSERT_LT(diff, EPSILON);
             }
-            auto b_hn_ds = weight_group.group.getDataSet("b_hn");
             rlt::load(device, b_hn, weight_group, "b_hn");
             std::vector<T> b_hn_data;
-            b_hn_ds.read(b_hn_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "b_hn", b_hn_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_hn_data[i]) - static_cast<T>(rlt::get(device, b_hn, i)));
                 ASSERT_LT(diff, EPSILON);
             }
             rlt::load(device, W_out, weight_group, "W_out");
             std::vector<std::vector<T>> W_out_data;
-            auto W_out_ds = weight_group.group.getDataSet("W_out");
-            W_out_ds.read(W_out_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "W_out", W_out_data);
             for(TI i=0; i < OUTPUT_DIM; i++){
                 for(TI j=0; j < HIDDEN_DIM; j++){
                     T diff = rlt::math::abs(device.math, static_cast<T>(W_out_data[i][j]) - static_cast<T>(rlt::get(device, W_out, i, j)));
@@ -233,8 +260,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_HDF5){
             }
             rlt::load(device, b_out, weight_group, "b_out");
             std::vector<T> b_out_data;
-            auto b_out_ds = weight_group.group.getDataSet("b_out");
-            b_out_ds.read(b_out_data);
+            rl_tools::persist::backends::hdf5::read_dataset(weight_group, "b_out", b_out_data);
             for(TI i=0; i < OUTPUT_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_out_data[i]) - static_cast<T>(rlt::get(device, b_out, i)));
                 ASSERT_LT(diff, EPSILON);
@@ -255,8 +281,7 @@ bool serialize(DEVICE& device){
     rlt::malloc(device, tensor2);
     rlt::malloc(device, diff);
     rlt::randn(device, tensor, rng);
-    auto vector_data = rlt::to_vector(device, tensor);
-    rlt::from_vector(device, vector_data, tensor2);
+    rlt::copy(device, device, tensor, tensor2);
     rlt::subtract(device, tensor, tensor2, diff);
     rlt::abs(device, diff);
     T abs_diff = rlt::sum(device, diff);
@@ -299,16 +324,14 @@ bool serialize_view(DEVICE& device){
     rlt::malloc(device, generator);
     rlt::malloc(device, tensor);
     rlt::randn(device, generator, rng);
-    auto vector_data = rlt::to_vector(device, generator);
-    rlt::from_vector(device, vector_data, tensor);
+    rlt::copy(device, device, generator, tensor);
     auto view = rlt::view_range(device, tensor, VIEW_START, rlt::tensor::ViewSpec<VIEW_DIM, VIEW_SIZE>{});
-    auto vector_data_view = rlt::to_vector(device, view);
 
     for(TI i=(VIEW_DIM == 0 ? VIEW_START : 0); i < (VIEW_DIM == 0 ? VIEW_START + VIEW_SIZE : rlt::get<0>(SHAPE{})); i++){
         for(TI j=(VIEW_DIM == 1 ? VIEW_START : 0); j < (VIEW_DIM == 1 ? VIEW_START + VIEW_SIZE : rlt::get<1>(SHAPE{})); j++){
             for(TI k=(VIEW_DIM == 2 ? VIEW_START : 0); k < (VIEW_DIM == 2 ? VIEW_START + VIEW_SIZE : rlt::get<2>(SHAPE{})); k++){
-                T data_value = vector_data[i][j][k];
-                T view_value = vector_data_view[i - (VIEW_DIM==0 ? VIEW_START : 0)][j - (VIEW_DIM==1 ? VIEW_START : 0)][k - (VIEW_DIM==2 ? VIEW_START : 0)];
+                T data_value = rlt::get(device, tensor, i, j, k);
+                T view_value = rlt::get(device, view, i - (VIEW_DIM==0 ? VIEW_START : 0), j - (VIEW_DIM==1 ? VIEW_START : 0), k - (VIEW_DIM==2 ? VIEW_START : 0));
                 T diff = data_value - view_value;
                 if(rlt::math::abs(device.math, diff) > EPSILON){
                     return false;
@@ -394,7 +417,7 @@ bool save_and_load_one_way(DEVICE& device){
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
-    auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
+    auto output_file = rl_tools::persist::backends::hdf5::File(std::string(DATA_FILE_PATH), rl_tools::persist::backends::hdf5::Mode::WRITE);
     auto group = rlt::create_group(device, output_file, "test");
     rlt::save(device, tensor, group, "tensor");
     rlt::Tensor<rlt::tensor::Specification<T2, TI, SHAPE>> tensor_loaded, diff;

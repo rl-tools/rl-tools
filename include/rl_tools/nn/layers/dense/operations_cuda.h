@@ -50,7 +50,7 @@ namespace rl_tools{
         }
     }
     
-    template<typename DEV_SPEC, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
+    template<typename DEV_SPEC, typename SPEC, typename INITIALIZER_SPEC, typename RNG, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void init_weights(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
@@ -61,7 +61,7 @@ namespace rl_tools{
         nn::dense::kernels::init_weights_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, typename SPEC::CONFIG::INITIALIZER{}, rng);
         check_status(device);
     }
-    template<typename DEV_SPEC, typename SPEC, typename RNG>
+    template<typename DEV_SPEC, typename SPEC, typename RNG, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void init_weights(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
         init_weights(device, layer, typename SPEC::INITIALIZER{}, rng);
     }
@@ -83,7 +83,7 @@ namespace rl_tools{
                 }
             }
         }
-        template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC>
+        template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
         void set_biases(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<SPEC>& layer, Matrix<OUTPUT_SPEC>& output) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_BIAS = 32;
@@ -110,7 +110,7 @@ namespace rl_tools{
                 set(output, output_pos_y, output_pos_x, rl_tools::activation<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, output_pos_y, output_pos_x)));
             }
         }
-        template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC>
+        template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
         void activation(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<SPEC>& layer, Matrix<PRE_ACTIVATIONS_SPEC>& pre_activations, Matrix<OUTPUT_SPEC>& output){
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using TI = typename DEVICE::index_t;
@@ -146,7 +146,7 @@ namespace rl_tools{
                 }
             }
         }
-        template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
+        template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_PRE_ACTIVATIONS_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
         void d_activation(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<SPEC>& layer, Matrix<PRE_ACTIVATIONS_SPEC>& pre_activations, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activations) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
@@ -180,7 +180,7 @@ namespace rl_tools{
                 increment(device, d_biases, acc, output_i);
             }
         }
-        template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
+        template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
         void d_activation_accumulate_bias_gradient(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<SPEC>& layer, Matrix<PRE_ACTIVATIONS_SPEC>& pre_activations, Matrix<D_OUTPUT_SPEC>& d_output, Tensor<D_BIASES_SPEC>& d_biases, Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activations) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
@@ -234,7 +234,7 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer&, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -273,7 +273,7 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = mode::Default<>, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -314,7 +314,7 @@ namespace rl_tools{
         nn::dense::kernels::activation(device, layer, output, output);
     }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void backward_input_additional(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(D_OUTPUT_SPEC::COL_PITCH == 1);
@@ -353,7 +353,7 @@ namespace rl_tools{
             check_cublas_call(device, stat, "cublas?gemm backward_input");
         }
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = mode::Default<>, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::dense::Buffer&, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         // Warning do not reuse d_output as d_output is used as a temporary buffer
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
@@ -398,25 +398,25 @@ namespace rl_tools{
             check_cublas_call(device, stat, "cublas?gemm backward_weight");
         }
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     RL_TOOLS_FUNCTION_PLACEMENT void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         backward(device, layer, input, d_output, buffer, mode);
         backward_input_additional(device, layer, d_output, d_input);
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>>
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = mode::Default<>, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void backward_input(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         nn::dense::kernels::d_activation(device, layer, layer.pre_activations, d_output, d_output);
         backward_input_additional(device, layer, d_output, d_input);
     }
 
-    template<typename DEV_SPEC, typename SPEC>
+    template<typename DEV_SPEC, typename SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
         check_cuda_call(device, cudaMemsetAsync(layer.weights.gradient._data, 0, decltype(layer.weights.gradient)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense weights.gradient");
         check_status(device);
         check_cuda_call(device, cudaMemsetAsync(layer.biases.gradient._data, 0, decltype(layer.biases.gradient)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense biases.gradient");
         check_status(device);
     }
-    template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
+    template<typename DEV_SPEC, typename SPEC, typename PARAMETERS, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void _reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         check_cuda_call(device, cudaMemsetAsync(layer.weights.gradient_first_order_moment._data, 0, decltype(layer.weights.gradient_first_order_moment)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense weights.m1");
         check_status(device);
@@ -428,7 +428,7 @@ namespace rl_tools{
         check_status(device);
     }
 
-    template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
+    template<typename DEV_SPEC, typename SPEC, typename PARAMETERS, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void update(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;

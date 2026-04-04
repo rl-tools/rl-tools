@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
 
 #include <rl_tools/operations/cpu_mux.h>
 
@@ -50,12 +49,12 @@ TEST(RL_TOOLS_NN_OPTIMIZERS_MASTER_PARAMETERS_PERSIST_HDF5, SGD_LOAD_FALLBACK_FR
 
     const std::string path = "test_nn_optimizers_master_parameters_sgd_fallback.h5";
     {
-        auto output_file = HighFive::File(path, HighFive::File::Overwrite);
-        rlt::persist::backends::hdf5::Group<> group = {output_file.createGroup("sgd")};
+        auto output_file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::WRITE);
+        auto group = rlt::create_group(device, output_file, "sgd");
         rlt::save(device, saved_no_master, group);
     }
     {
-        auto input_file = HighFive::File(path, HighFive::File::ReadOnly);
+        auto input_file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto group = rlt::get_group(device, input_file, "sgd");
         ASSERT_TRUE(rlt::load(device, loaded_with_master, group));
     }
@@ -88,12 +87,12 @@ TEST(RL_TOOLS_NN_OPTIMIZERS_MASTER_PARAMETERS_PERSIST_HDF5, SGD_ROUNDTRIP_WITH_M
 
     const std::string path = "test_nn_optimizers_master_parameters_sgd_roundtrip.h5";
     {
-        auto output_file = HighFive::File(path, HighFive::File::Overwrite);
-        rlt::persist::backends::hdf5::Group<> group = {output_file.createGroup("sgd")};
+        auto output_file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::WRITE);
+        auto group = rlt::create_group(device, output_file, "sgd");
         rlt::save(device, saved_with_master, group);
     }
     {
-        auto input_file = HighFive::File(path, HighFive::File::ReadOnly);
+        auto input_file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto group = rlt::get_group(device, input_file, "sgd");
         ASSERT_TRUE(rlt::load(device, loaded_with_master, group));
     }
@@ -124,12 +123,12 @@ TEST(RL_TOOLS_NN_OPTIMIZERS_MASTER_PARAMETERS_PERSIST_HDF5, ADAM_LOAD_FALLBACK_F
 
     const std::string path = "test_nn_optimizers_master_parameters_adam_fallback.h5";
     {
-        auto output_file = HighFive::File(path, HighFive::File::Overwrite);
-        rlt::persist::backends::hdf5::Group<> group = {output_file.createGroup("adam")};
+        auto output_file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::WRITE);
+        auto group = rlt::create_group(device, output_file, "adam");
         rlt::save(device, saved_no_master, group);
     }
     {
-        auto input_file = HighFive::File(path, HighFive::File::ReadOnly);
+        auto input_file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto group = rlt::get_group(device, input_file, "adam");
         ASSERT_TRUE(rlt::load(device, loaded_with_master, group));
     }
@@ -165,12 +164,12 @@ TEST(RL_TOOLS_NN_OPTIMIZERS_MASTER_PARAMETERS_PERSIST_HDF5, ADAM_ROUNDTRIP_WITH_
 
     const std::string path = "test_nn_optimizers_master_parameters_adam_roundtrip.h5";
     {
-        auto output_file = HighFive::File(path, HighFive::File::Overwrite);
-        rlt::persist::backends::hdf5::Group<> group = {output_file.createGroup("adam")};
+        auto output_file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::WRITE);
+        auto group = rlt::create_group(device, output_file, "adam");
         rlt::save(device, saved_with_master, group);
     }
     {
-        auto input_file = HighFive::File(path, HighFive::File::ReadOnly);
+        auto input_file = rl_tools::persist::backends::hdf5::File(path, rl_tools::persist::backends::hdf5::Mode::READ);
         auto group = rlt::get_group(device, input_file, "adam");
         ASSERT_TRUE(rlt::load(device, loaded_with_master, group));
     }

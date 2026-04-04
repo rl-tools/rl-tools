@@ -67,7 +67,7 @@ int main() {
     std::filesystem::path FILE_PATH = run.checkpoint_path;
 
     {
-        auto file = HighFive::File(FILE_PATH.string(), HighFive::File::ReadOnly);
+        auto file = rl_tools::persist::backends::hdf5::File(FILE_PATH.string(), rl_tools::persist::backends::hdf5::Mode::READ);
         auto checkpoint_group = rlt::get_group(device, file, "checkpoint");
         rlt::load(device, model, checkpoint_group);
     }
