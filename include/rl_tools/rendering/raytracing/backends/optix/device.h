@@ -34,6 +34,11 @@ namespace rl_tools {
         int has_normal_map;
         cudaTextureObject_t metallic_roughness_map;
         int has_metallic_roughness_map;
+        owl::vec3f emissive;
+        cudaTextureObject_t emissive_map;
+        int has_emissive_map;
+        cudaTextureObject_t occlusion_map;
+        int has_occlusion_map;
         owl::vec3f light_dir_0;
         owl::vec3f light_color_0;
         owl::vec3f light_dir_1;

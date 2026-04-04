@@ -48,7 +48,7 @@ namespace rl_tools {
             int tex_width = 0, tex_height = 0;
             bool has_texture = false;
             float metallic = 0.0f;
-            float roughness = 0.5f;
+            float roughness = 1.0f;
             std::vector<float> normals;
             std::vector<uint8_t> normal_tex_pixels;
             int normal_tex_width = 0, normal_tex_height = 0;
@@ -56,6 +56,13 @@ namespace rl_tools {
             std::vector<uint8_t> metallic_roughness_tex_pixels;
             int mr_tex_width = 0, mr_tex_height = 0;
             bool has_metallic_roughness_map = false;
+            float emissive[3] = {0, 0, 0};
+            std::vector<uint8_t> emissive_tex_pixels;
+            int emissive_tex_width = 0, emissive_tex_height = 0;
+            bool has_emissive_map = false;
+            std::vector<uint8_t> occlusion_tex_pixels;
+            int occlusion_tex_width = 0, occlusion_tex_height = 0;
+            bool has_occlusion_map = false;
         };
 
         template <typename T_SPEC>
