@@ -145,6 +145,10 @@ namespace rl_tools{
         return group_exists(device, group, name.c_str());
     }
     template<typename DEVICE, typename SPEC>
+    bool attribute_exists(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, const char* name){
+        return H5Aexists(group.id, name) > 0;
+    }
+    template<typename DEVICE, typename SPEC>
     persist::backends::hdf5::Group<SPEC> create_group(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name){
         return create_group(device, group, name.c_str());
     }
