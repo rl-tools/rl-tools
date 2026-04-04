@@ -8,9 +8,12 @@
 #include <rl_tools/nn/layers/max_pool2d/operations_generic.h>
 #include <rl_tools/nn/layers/avg_pool2d/operations_generic.h>
 #include <rl_tools/nn/layers/flatten/operations_generic.h>
+#include <rl_tools/nn/layers/unflatten/operations_generic.h>
+#include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/resnet_block/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/parallel/operations_generic.h>
 #include <rl_tools/nn_models/resnet/resnet.h>
 
 #include <rl_tools/nn/parameters/persist.h>
@@ -20,8 +23,11 @@
 #include <rl_tools/nn/layers/max_pool2d/persist.h>
 #include <rl_tools/nn/layers/avg_pool2d/persist.h>
 #include <rl_tools/nn/layers/flatten/persist.h>
+#include <rl_tools/nn/layers/unflatten/persist.h>
+#include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn/layers/resnet_block/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/parallel/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 
 #include <rl_tools/dyn/persist.h>
@@ -913,4 +919,129 @@ TEST(TEST_DYN, resnet18){
     ASSERT_NEAR(md, 0, 1e-3);
     rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
     rlt::free(device, model); rlt::free(device, buf); rlt::free(device, in); rlt::free(device, out);
+}
+
+TEST(TEST_DYN, unflatten_sequential_flatten_unflatten){
+    DEVICE device; RNG rng; rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, 42);
+    constexpr TI BATCH = 2, IMG_H = 8, IMG_W = 8, IMG_C = 3, FLAT_DIM = IMG_H * IMG_W * IMG_C;
+    using FLATTEN = rlt::nn::layers::flatten::BindConfiguration<rlt::nn::layers::flatten::Configuration<TYPE_POLICY, TI>>;
+    using UNFLATTEN = rlt::nn::layers::unflatten::BindConfiguration<rlt::nn::layers::unflatten::Configuration<TYPE_POLICY, TI, IMG_H, IMG_W, IMG_C>>;
+    using MODEL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, rlt::nn_models::sequential::Module<FLATTEN, UNFLATTEN>, rlt::tensor::Shape<TI, 1, BATCH, IMG_H, IMG_W, IMG_C>>;
+    MODEL model; rlt::malloc(device, model); rlt::init_weights(device, model, rng);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::INPUT_SHAPE>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::OUTPUT_SHAPE>> output_static;
+    rlt::malloc(device, input); rlt::malloc(device, output_static); rlt::randn(device, input, rng);
+    typename MODEL::Buffer<true> buffer_static; rlt::malloc(device, buffer_static);
+    rlt::evaluate(device, model, input, output_static, buffer_static, rng);
+    for(TI b = 0; b < BATCH; b++) for(TI h = 0; h < IMG_H; h++) for(TI w = 0; w < IMG_W; w++) for(TI c = 0; c < IMG_C; c++) ASSERT_EQ(rlt::get(device, input, 0, b, h, w, c), rlt::get(device, output_static, 0, b, h, w, c));
+    std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_unflatten.tar";
+    rlt::persist::backends::tar::Writer writer;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> wg{"", &writer};
+    auto mg = rlt::create_group(device, wg, "model"); rlt::save(device, model, mg);
+    rlt::persist::backends::tar::finalize(device, writer);
+    std::ofstream archive(dp, std::ios::binary); archive.write(writer.buffer.data(), writer.buffer.size()); archive.close();
+    auto tar_data = helpers::load_tar(dp);
+    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> rg{"", tar_data.data(), static_cast<TI>(tar_data.size())};
+    auto dmg = rlt::get_group(device, rg, "model");
+    rlt::dyn::Layer<TI> dm; ASSERT_TRUE(rlt::load(device, dm, dmg));
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
+    TI is[] = {BATCH, FLAT_DIM}; rlt::dyn::set_shape(di, (TI)2, is); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
+    for(TI i = 0; i < BATCH * FLAT_DIM; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, input, i));
+    TI os[] = {BATCH, FLAT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, os); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
+    ASSERT_EQ(dm.children[1].output_rank, (TI)4);
+    ASSERT_EQ(dm.children[1].output_shape[1], IMG_H);
+    ASSERT_EQ(dm.children[1].output_shape[2], IMG_W);
+    ASSERT_EQ(dm.children[1].output_shape[3], IMG_C);
+    ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
+    T md = 0; for(TI i = 0; i < BATCH * FLAT_DIM; i++){ T d = std::abs(rlt::dyn::get(device, di, i) - rlt::dyn::get(device, d_out, i)); if(d > md) md = d; }
+    std::cout << "Unflatten identity max diff: " << md << std::endl; ASSERT_EQ(md, 0);
+    rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
+    rlt::free(device, model); rlt::free(device, buffer_static); rlt::free(device, input); rlt::free(device, output_static);
+}
+
+TEST(TEST_DYN, unflatten_conv_pipeline){
+    DEVICE device; RNG rng; rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, 42);
+    constexpr TI BATCH = 2, IMG_H = 16, IMG_W = 16, IMG_C = 3, FLAT_DIM = IMG_H * IMG_W * IMG_C, OUT_CH = 8;
+    using FLATTEN = rlt::nn::layers::flatten::BindConfiguration<rlt::nn::layers::flatten::Configuration<TYPE_POLICY, TI>>;
+    using UNFLATTEN = rlt::nn::layers::unflatten::BindConfiguration<rlt::nn::layers::unflatten::Configuration<TYPE_POLICY, TI, IMG_H, IMG_W, IMG_C>>;
+    using CONV = rlt::nn::layers::conv2d::BindConfiguration<rlt::nn::layers::conv2d::Configuration<TYPE_POLICY, TI, OUT_CH, 3, 3, 1, 1, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>>;
+    using OUT_FLATTEN = rlt::nn::layers::flatten::BindConfiguration<rlt::nn::layers::flatten::Configuration<TYPE_POLICY, TI>>;
+    using MODEL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<>, rlt::nn_models::sequential::Module<FLATTEN, UNFLATTEN, CONV, OUT_FLATTEN>, rlt::tensor::Shape<TI, 1, BATCH, IMG_H, IMG_W, IMG_C>>;
+    MODEL model; rlt::malloc(device, model); rlt::init_weights(device, model, rng);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::INPUT_SHAPE>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::OUTPUT_SHAPE>> output_static;
+    rlt::malloc(device, input); rlt::malloc(device, output_static); rlt::randn(device, input, rng);
+    typename MODEL::Buffer<true> buf; rlt::malloc(device, buf);
+    rlt::evaluate(device, model, input, output_static, buf, rng);
+    std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_unflatten_conv.tar";
+    rlt::persist::backends::tar::Writer writer;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> wg{"", &writer};
+    auto mg = rlt::create_group(device, wg, "model"); rlt::save(device, model, mg);
+    rlt::persist::backends::tar::finalize(device, writer);
+    std::ofstream archive(dp, std::ios::binary); archive.write(writer.buffer.data(), writer.buffer.size()); archive.close();
+    auto tar_data = helpers::load_tar(dp);
+    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> rg{"", tar_data.data(), static_cast<TI>(tar_data.size())};
+    auto dmg = rlt::get_group(device, rg, "model");
+    rlt::dyn::Layer<TI> dm; ASSERT_TRUE(rlt::load(device, dm, dmg));
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
+    TI is[] = {BATCH, FLAT_DIM}; rlt::dyn::set_shape(di, (TI)2, is); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
+    for(TI i = 0; i < BATCH * FLAT_DIM; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, input, i));
+    constexpr TI OUT_FLAT = IMG_H * IMG_W * OUT_CH;
+    TI os[] = {BATCH, OUT_FLAT}; rlt::dyn::set_shape(d_out, (TI)2, os); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
+    ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
+    T md = 0; for(TI i = 0; i < BATCH * OUT_FLAT; i++){ T d = std::abs(rlt::get_flat(device, output_static, i) - rlt::dyn::get(device, d_out, i)); if(d > md) md = d; }
+    std::cout << "Unflatten conv pipeline max diff: " << md << std::endl; ASSERT_NEAR(md, 0, 1e-5);
+    rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
+    rlt::free(device, model); rlt::free(device, buf); rlt::free(device, input); rlt::free(device, output_static);
+}
+
+TEST(TEST_DYN, parallel_cnn_state){
+    DEVICE device; RNG rng; rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, 42);
+    constexpr TI BATCH = 2, IMG_H = 8, IMG_W = 8, IMG_C = 3, STATE_DIM = 12, EMBED_DIM = 16;
+    constexpr TI IMG_FLAT = IMG_H * IMG_W * IMG_C, TOTAL_INPUT = IMG_FLAT + STATE_DIM, OUTPUT_DIM = 4;
+    using FLATTEN = rlt::nn::layers::flatten::BindConfiguration<rlt::nn::layers::flatten::Configuration<TYPE_POLICY, TI>>;
+    using UNFLATTEN = rlt::nn::layers::unflatten::BindConfiguration<rlt::nn::layers::unflatten::Configuration<TYPE_POLICY, TI, IMG_H, IMG_W, IMG_C>>;
+    using CONV = rlt::nn::layers::conv2d::BindConfiguration<rlt::nn::layers::conv2d::Configuration<TYPE_POLICY, TI, 16, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>>;
+    using OUT_FLATTEN = rlt::nn::layers::flatten::BindConfiguration<rlt::nn::layers::flatten::Configuration<TYPE_POLICY, TI>>;
+    using IMG_DENSE = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, EMBED_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>>;
+    using IMAGE_BRANCH = rlt::nn_models::sequential::Module<FLATTEN, UNFLATTEN, CONV, OUT_FLATTEN, IMG_DENSE>;
+    using STATE_DENSE = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, EMBED_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>>;
+    using STATE_BRANCH = rlt::nn_models::sequential::Module<STATE_DENSE>;
+    using HEAD_DENSE = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>>;
+    using HEAD = rlt::nn_models::sequential::Module<HEAD_DENSE>;
+    using MODEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, IMAGE_BRANCH, STATE_BRANCH, rlt::tensor::Shape<TI, 1, BATCH, IMG_H, IMG_W, IMG_C>, rlt::tensor::Shape<TI, 1, BATCH, STATE_DIM>, HEAD>;
+    MODEL model; rlt::malloc(device, model); rlt::init_weights(device, model, rng);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BATCH, IMG_H, IMG_W, IMG_C>>> input_img;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BATCH, STATE_DIM>>> input_state;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, typename MODEL::OUTPUT_SHAPE>> output_static;
+    rlt::malloc(device, input_img); rlt::malloc(device, input_state); rlt::malloc(device, output_static);
+    rlt::randn(device, input_img, rng); rlt::randn(device, input_state, rng);
+    typename MODEL::Buffer<true> buf; rlt::malloc(device, buf);
+    rlt::evaluate(device, model, input_img, input_state, output_static, buf, rng);
+    std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_parallel_cnn.tar";
+    rlt::persist::backends::tar::Writer writer;
+    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> wg{"", &writer};
+    auto mg = rlt::create_group(device, wg, "model"); rlt::save(device, model, mg);
+    rlt::persist::backends::tar::finalize(device, writer);
+    std::ofstream archive(dp, std::ios::binary); archive.write(writer.buffer.data(), writer.buffer.size()); archive.close();
+    auto tar_data = helpers::load_tar(dp);
+    rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> rg{"", tar_data.data(), static_cast<TI>(tar_data.size())};
+    auto dmg = rlt::get_group(device, rg, "model");
+    rlt::dyn::Layer<TI> dm; ASSERT_TRUE(rlt::load(device, dm, dmg)); ASSERT_EQ(dm.type, rlt::dyn::LayerType::PARALLEL);
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
+    TI is[] = {BATCH, TOTAL_INPUT}; rlt::dyn::set_shape(di, (TI)2, is); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
+    for(TI b = 0; b < BATCH; b++){
+        for(TI i = 0; i < IMG_FLAT; i++) rlt::dyn::set(device, di, b * TOTAL_INPUT + i, rlt::get_flat(device, input_img, b * IMG_FLAT + i));
+        for(TI i = 0; i < STATE_DIM; i++) rlt::dyn::set(device, di, b * TOTAL_INPUT + IMG_FLAT + i, rlt::get_flat(device, input_state, b * STATE_DIM + i));
+    }
+    TI os[] = {BATCH, OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, os); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
+    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
+    ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
+    T md = 0;
+    for(TI b = 0; b < BATCH; b++) for(TI j = 0; j < OUTPUT_DIM; j++){ T d = std::abs(rlt::get_flat(device, output_static, b * OUTPUT_DIM + j) - rlt::dyn::get(device, d_out, b * OUTPUT_DIM + j)); if(d > md) md = d; }
+    std::cout << "Parallel CNN+State max diff: " << md << std::endl; ASSERT_NEAR(md, 0, 1e-4);
+    rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
+    rlt::free(device, model); rlt::free(device, buf); rlt::free(device, input_img); rlt::free(device, input_state); rlt::free(device, output_static);
 }

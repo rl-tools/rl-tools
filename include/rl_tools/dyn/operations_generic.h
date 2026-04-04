@@ -139,8 +139,15 @@ namespace rl_tools{
                 compute_leaf_output_shape(layer, in_shape, in_rank, in_size);
             }
             else if(layer.type == LayerType::PARALLEL){
-                TI dim_a = infer_flat_input_dim(layer.children[0]);
-                TI dim_b = infer_flat_input_dim(layer.children[1]);
+                TI dim_a = 0, dim_b = 0;
+                if(layer.data != nullptr){
+                    auto& p = layer.template as<layers::Parallel<TI>>();
+                    dim_a = p.input_dim_a; dim_b = p.input_dim_b;
+                }
+                if(dim_a == 0 || dim_b == 0){
+                    dim_a = infer_flat_input_dim(layer.children[0]);
+                    dim_b = infer_flat_input_dim(layer.children[1]);
+                }
                 TI total_dim = in_shape[in_rank - 1];
                 if(dim_a > 0 && dim_b > 0 && dim_a + dim_b == total_dim){
                     TI shape_a[TensorSpecification<TI>::MAX_RANK], shape_b[TensorSpecification<TI>::MAX_RANK];
@@ -347,11 +354,15 @@ namespace rl_tools{
     namespace dyn{
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT bool evaluate_chain(DEVICE& device, const Layer<TI>& layer, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
+            TI tick_capacity = buffer.tick.size, tock_capacity = buffer.tock.size;
             const Tensor<TensorSpecification<TI>>* current_input = &input;
             for(TI i = 0; i < layer.num_children; i++){
                 Tensor<TensorSpecification<TI>>* current_output;
                 if(i == layer.num_children - 1) current_output = &output;
-                else current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
+                else{
+                    current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
+                    current_output->size = (current_output == &buffer.tick) ? tick_capacity : tock_capacity;
+                }
                 if(!rl_tools::evaluate(device, layer.children[i], *current_input, *current_output, buffer)) return false;
                 current_input = current_output;
             }
@@ -359,11 +370,15 @@ namespace rl_tools{
         }
         template <typename DEVICE, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT bool evaluate_step_chain(DEVICE& device, const Layer<TI>& layer, state::Composite<TI>& comp_state, const Tensor<TensorSpecification<TI>>& input, Tensor<TensorSpecification<TI>>& output, Buffer<TI>& buffer){
+            TI tick_capacity = buffer.tick.size, tock_capacity = buffer.tock.size;
             const Tensor<TensorSpecification<TI>>* current_input = &input;
             for(TI i = 0; i < layer.num_children; i++){
                 Tensor<TensorSpecification<TI>>* current_output;
                 if(i == layer.num_children - 1) current_output = &output;
-                else current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
+                else{
+                    current_output = (current_input == &buffer.tick) ? &buffer.tock : &buffer.tick;
+                    current_output->size = (current_output == &buffer.tick) ? tick_capacity : tock_capacity;
+                }
                 if(!rl_tools::evaluate_step(device, layer.children[i], *current_input, comp_state.child_states[i], *current_output, buffer)) return false;
                 current_input = current_output;
             }
@@ -478,7 +493,8 @@ namespace rl_tools{
             case dyn::LayerType::MAX_POOL2D: delete reinterpret_cast<dyn::layers::MaxPool2d<TI>*>(layer.data); break;
             case dyn::LayerType::STANDARDIZE: { auto& s = layer.template as<dyn::layers::Standardize<TI>>(); rl_tools::free(device, s.mean); rl_tools::free(device, s.precision); delete &s; break; }
             case dyn::LayerType::EMBEDDING: { auto& e = layer.template as<dyn::layers::Embedding<TI>>(); rl_tools::free(device, e.weights); delete &e; break; }
-            default: break; // composites have no data, parameterless layers have nullptr
+            case dyn::LayerType::PARALLEL: delete reinterpret_cast<dyn::layers::Parallel<TI>*>(layer.data); break;
+            default: break;
         }
         layer.data = nullptr;
     }
@@ -537,8 +553,15 @@ namespace rl_tools{
                 inter_a.type = dyn::Type::FLOAT32; inter_a.data = buffer.scratch.data;
                 dyn::set_shape(inter_b, child_b.output_rank, child_b.output_shape);
                 inter_b.type = dyn::Type::FLOAT32; inter_b.data = reinterpret_cast<char*>(buffer.scratch.data) + size_a * sizeof(float);
-                TI dim_a = dyn::infer_flat_input_dim(child_a);
-                TI dim_b = dyn::infer_flat_input_dim(child_b);
+                TI dim_a = 0, dim_b = 0;
+                if(layer.data != nullptr){
+                    auto& p = layer.template as<const dyn::layers::Parallel<TI>>();
+                    dim_a = p.input_dim_a; dim_b = p.input_dim_b;
+                }
+                if(dim_a == 0 || dim_b == 0){
+                    dim_a = dyn::infer_flat_input_dim(child_a);
+                    dim_b = dyn::infer_flat_input_dim(child_b);
+                }
                 TI total_dim = input.shape[input.rank - 1];
                 if(dim_a > 0 && dim_b > 0 && dim_a + dim_b == total_dim){
                     TI batch = input.size / total_dim;
