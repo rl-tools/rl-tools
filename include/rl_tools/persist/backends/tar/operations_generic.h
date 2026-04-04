@@ -594,33 +594,6 @@ namespace rl_tools{
         return true;
     }
 
-    template<typename DEVICE, typename TI>
-    persist::backends::tar::WriterGroup<persist::backends::tar::WriterGroupSpecification<TI, persist::backends::tar::Writer>> create_group(DEVICE& device, persist::backends::tar::File<TI>& file, const char* name){
-        using WGS = persist::backends::tar::WriterGroupSpecification<TI, persist::backends::tar::Writer>;
-        persist::backends::tar::WriterGroup<WGS> root;
-        root.path[0] = '\0';
-        root.writer = &file.writer;
-        root.meta[0] = '\0';
-        root.meta_position = 0;
-        return create_group(device, root, name);
-    }
-    template<typename DEVICE, typename TI>
-    persist::backends::tar::WriterGroup<persist::backends::tar::WriterGroupSpecification<TI, persist::backends::tar::Writer>> create_group(DEVICE& device, persist::backends::tar::File<TI>& file, std::string name){
-        return create_group(device, file, name.c_str());
-    }
-    template<typename DEVICE, typename TI>
-    persist::backends::tar::ReaderGroup<persist::backends::tar::ReaderGroupSpecification<TI>> get_group(DEVICE& device, persist::backends::tar::File<TI>& file, const char* name){
-        using RGS = persist::backends::tar::ReaderGroupSpecification<TI>;
-        persist::backends::tar::ReaderGroup<RGS> root;
-        root.path[0] = '\0';
-        root.data = {file.read_buffer.data(), (TI)file.read_buffer.size()};
-        return get_group(device, root, name);
-    }
-    template<typename DEVICE, typename TI>
-    persist::backends::tar::ReaderGroup<persist::backends::tar::ReaderGroupSpecification<TI>> get_group(DEVICE& device, persist::backends::tar::File<TI>& file, std::string name){
-        return get_group(device, file, name.c_str());
-    }
-
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

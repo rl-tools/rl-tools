@@ -68,6 +68,11 @@ namespace rl_tools{
         template<> inline hid_t native_type<int8_t>(){ return H5T_NATIVE_INT8; }
         template<> inline hid_t native_type<int32_t>(){ return H5T_NATIVE_INT32; }
         template<> inline hid_t native_type<int64_t>(){ return H5T_NATIVE_INT64; }
+        template<> inline hid_t native_type<unsigned long>(){ return H5T_NATIVE_ULONG; }
+        template<> inline hid_t native_type<unsigned long long>(){ return H5T_NATIVE_ULLONG; }
+        template<> inline hid_t native_type<int16_t>(){ return H5T_NATIVE_INT16; }
+        template<> inline hid_t native_type<uint16_t>(){ return H5T_NATIVE_UINT16; }
+        template<> inline hid_t native_type<uint32_t>(){ return H5T_NATIVE_UINT32; }
         template<> inline hid_t native_type<bool>(){ return H5T_NATIVE_HBOOL; }
 
         // Fill hsize_t dims array from compile-time SHAPE
@@ -202,35 +207,26 @@ namespace rl_tools{
     bool load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* dataset_name, bool fallback_to_zero = false){
         using T = typename SPEC::T;
         if(fallback_to_zero && H5Lexists(group.id, dataset_name, H5P_DEFAULT) <= 0){
-            set_all(device, tensor, 0);
+            std::memset(data(tensor), 0, SPEC::SIZE_BYTES);
             return true;
         }
         hid_t ds = H5Dopen2(group.id, dataset_name, H5P_DEFAULT);
         if(ds < 0) return false;
         hid_t space = H5Dget_space(ds);
         int rank = H5Sget_simple_extent_ndims(space);
-        if(!utils::assert_exit(device, (int)SPEC::SHAPE::LENGTH == rank, "persist::backends::hdf5::load(Tensor) rank mismatch")){
+        if((int)SPEC::SHAPE::LENGTH != rank){
             H5Sclose(space); H5Dclose(ds); return false;
         }
         hsize_t dims[SPEC::SHAPE::LENGTH];
         H5Sget_simple_extent_dims(space, dims, nullptr);
-        if(!utils::assert_exit(device, persist::backends::hdf5::detail::check_dims<typename SPEC::SHAPE>(dims), "persist::backends::hdf5::load(Tensor) dimension mismatch")){
+        if(!persist::backends::hdf5::detail::check_dims<typename SPEC::SHAPE>(dims)){
             H5Sclose(space); H5Dclose(ds); return false;
         }
-        // Detect file data type
-        hid_t ftype = H5Dget_type(ds);
-        H5T_class_t cls = H5Tget_class(ftype);
-        size_t fsize = H5Tget_size(ftype);
-        H5Tclose(ftype);
-
-        // Read with HDF5 type conversion: specify memory type matching SPEC::T
         hid_t memtype = persist::backends::hdf5::detail::native_type<T>();
-        // For type mismatch (e.g., file is float64 but T is float32), HDF5 converts automatically
         herr_t err = H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor));
         H5Sclose(space);
         H5Dclose(ds);
-        if(!utils::assert_exit(device, err >= 0, "persist::backends::hdf5::load(Tensor) H5Dread failed")) return false;
-        return true;
+        return err >= 0;
     }
 
     // =====================================================================
