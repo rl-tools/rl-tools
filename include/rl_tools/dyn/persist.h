@@ -94,11 +94,11 @@ namespace rl_tools{
             case dyn::Type::FLOAT64: memtype = H5T_NATIVE_DOUBLE; break;
             default: memtype = H5T_NATIVE_FLOAT; break;
         }
-        H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, tensor.data);
+        herr_t err = H5Dread(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, tensor.data);
         H5Tclose(dtype);
         H5Sclose(space);
         H5Dclose(ds);
-        return true;
+        return err >= 0;
     }
 #endif
 

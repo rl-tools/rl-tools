@@ -57,7 +57,7 @@ using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, test_l2f_visual::STATIC_PARAMETERS, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES>;
 using ENV = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 
-TEST(RlEnvironmentsL2fVisual, Lifecycle) {
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, LIFECYCLE) {
     DEVICE device;
     ENV env;
     env.scene_path = nullptr;
@@ -75,7 +75,7 @@ TEST(RlEnvironmentsL2fVisual, Lifecycle) {
     EXPECT_EQ(env.scene, nullptr);
 }
 
-TEST(RlEnvironmentsL2fVisual, SampleInitialState) {
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_STATE) {
     DEVICE device;
     ENV env;
     env.scene_path = nullptr;
@@ -102,7 +102,7 @@ TEST(RlEnvironmentsL2fVisual, SampleInitialState) {
     rlt::free(device, env);
 }
 
-TEST(RlEnvironmentsL2fVisual, StepAndReward) {
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, STEP_AND_REWARD) {
     DEVICE device;
     ENV env;
     env.scene_path = nullptr;
@@ -134,7 +134,7 @@ TEST(RlEnvironmentsL2fVisual, StepAndReward) {
     rlt::free(device, env);
 }
 
-TEST(RlEnvironmentsL2fVisual, ObserveImage) {
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, OBSERVE_IMAGE) {
     DEVICE device;
     ENV env;
     env.scene_path = nullptr;
