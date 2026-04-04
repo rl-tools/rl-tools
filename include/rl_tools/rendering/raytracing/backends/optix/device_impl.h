@@ -154,22 +154,22 @@ namespace rl_tools
     const owl::vec3f ray_dir = optixGetWorldRayDirection();
     if (dot(ray_dir, N) > 0.f) N = -N;
 
-    owl::vec3f base_color;
+    const owl::vec2f tc = (self.tex_coord)
+      ? w0 * self.tex_coord[index.x] + bary.x * self.tex_coord[index.y] + bary.y * self.tex_coord[index.z]
+      : owl::vec2f(0.f);
+
+    owl::vec3f base_color = self.color;
     if (self.has_texture && self.tex_coord) {
-      const owl::vec2f tc = w0 * self.tex_coord[index.x] + bary.x * self.tex_coord[index.y] + bary.y * self.tex_coord[index.z];
       owl::vec4f tex_color = tex2D<float4>(self.texture, tc.x, tc.y);
-      base_color = owl::vec3f(tex_color.x, tex_color.y, tex_color.z);
-    } else {
-      base_color = self.color;
+      base_color = owl::vec3f(tex_color.x, tex_color.y, tex_color.z) * self.color;
     }
 
     float metallic = self.metallic;
     float roughness = self.roughness;
     if (self.has_metallic_roughness_map && self.tex_coord) {
-      const owl::vec2f tc = w0 * self.tex_coord[index.x] + bary.x * self.tex_coord[index.y] + bary.y * self.tex_coord[index.z];
       owl::vec4f mr_sample = tex2D<float4>(self.metallic_roughness_map, tc.x, tc.y);
-      roughness = mr_sample.y;
-      metallic = mr_sample.z;
+      roughness = mr_sample.y * self.roughness;
+      metallic = mr_sample.z * self.metallic;
     }
 
     if (self.has_normal_map && self.tex_coord) {
@@ -228,8 +228,22 @@ namespace rl_tools
       Lo = Lo + (diffuse + specular) * light_colors[li] * NdotL;
     }
 
-    owl::vec3f ambient = self.ambient_color * base_color;
-    owl::vec3f color = ambient + Lo;
+    float occlusion = 1.f;
+    if (self.has_occlusion_map && self.tex_coord) {
+      owl::vec4f ao_sample = tex2D<float4>(self.occlusion_map, tc.x, tc.y);
+      occlusion = ao_sample.x;
+    }
+
+    owl::vec3f emissive_color(0.f);
+    if (self.has_emissive_map && self.tex_coord) {
+      owl::vec4f em_sample = tex2D<float4>(self.emissive_map, tc.x, tc.y);
+      emissive_color = owl::vec3f(em_sample.x, em_sample.y, em_sample.z) * self.emissive;
+    } else {
+      emissive_color = self.emissive;
+    }
+
+    owl::vec3f ambient = self.ambient_color * base_color * occlusion;
+    owl::vec3f color = ambient + Lo + emissive_color;
 
     unsigned int depth = optixGetPayload_2();
     if (depth < 1 && metallic > 0.1f) {

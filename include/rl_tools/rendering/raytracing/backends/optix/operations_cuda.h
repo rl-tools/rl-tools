@@ -298,12 +298,28 @@ namespace rl_tools {
             }
 
             // material / texture
-            md.color[0] = 0.8f; md.color[1] = 0.8f; md.color[2] = 0.8f;
+            if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                md.color[0] = 1.0f; md.color[1] = 1.0f; md.color[2] = 1.0f;
+            } else {
+                md.color[0] = 0.8f; md.color[1] = 0.8f; md.color[2] = 0.8f;
+            }
             if(mat != nullptr){
 
-                aiColor4D diffuse;
-                if(aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS){
-                    md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
+                if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                    aiColor4D base_color(1.0f, 1.0f, 1.0f, 1.0f);
+                    if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
+                        md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
+                    } else {
+                        aiColor4D diffuse;
+                        if (aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS) {
+                            md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
+                        }
+                    }
+                } else {
+                    aiColor4D diffuse;
+                    if(aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS){
+                        md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
+                    }
                 }
 
                 if(mat->GetTextureCount(aiTextureType_DIFFUSE) > 0){
@@ -353,7 +369,7 @@ namespace rl_tools {
                 md.metallic = metallic_factor;
 
                 if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
-                    float roughness_factor = 0.5f;
+                    float roughness_factor = 1.0f;
                     mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness_factor);
                     md.roughness = roughness_factor;
 
@@ -386,6 +402,59 @@ namespace rl_tools {
                                     md.mr_tex_width = w;
                                     md.mr_tex_height = h;
                                     md.has_metallic_roughness_map = true;
+                                }
+                            }
+                        }
+                    }
+
+                    aiColor3D emissive_color(0.f, 0.f, 0.f);
+                    mat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive_color);
+                    md.emissive[0] = emissive_color.r; md.emissive[1] = emissive_color.g; md.emissive[2] = emissive_color.b;
+
+                    if (mat->GetTextureCount(aiTextureType_EMISSIVE) > 0) {
+                        aiString tex_path;
+                        if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &tex_path) == AI_SUCCESS) {
+                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                            if (emb_tex) {
+                                int w, h;
+                                std::vector<uint8_t> pixels;
+                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                    md.emissive_tex_pixels = std::move(pixels);
+                                    md.emissive_tex_width = w;
+                                    md.emissive_tex_height = h;
+                                    md.has_emissive_map = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if (mat->GetTextureCount(aiTextureType_AMBIENT_OCCLUSION) > 0) {
+                        aiString tex_path;
+                        if (mat->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0, &tex_path) == AI_SUCCESS) {
+                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                            if (emb_tex) {
+                                int w, h;
+                                std::vector<uint8_t> pixels;
+                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                    md.occlusion_tex_pixels = std::move(pixels);
+                                    md.occlusion_tex_width = w;
+                                    md.occlusion_tex_height = h;
+                                    md.has_occlusion_map = true;
+                                }
+                            }
+                        }
+                    } else if (mat->GetTextureCount(aiTextureType_LIGHTMAP) > 0) {
+                        aiString tex_path;
+                        if (mat->GetTexture(aiTextureType_LIGHTMAP, 0, &tex_path) == AI_SUCCESS) {
+                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                            if (emb_tex) {
+                                int w, h;
+                                std::vector<uint8_t> pixels;
+                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                    md.occlusion_tex_pixels = std::move(pixels);
+                                    md.occlusion_tex_width = w;
+                                    md.occlusion_tex_height = h;
+                                    md.has_occlusion_map = true;
                                 }
                             }
                         }
@@ -493,6 +562,11 @@ namespace rl_tools {
                 { "has_normal_map", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, has_normal_map)},
                 { "metallic_roughness_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, metallic_roughness_map)},
                 { "has_metallic_roughness_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_metallic_roughness_map)},
+                { "emissive",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, emissive)},
+                { "emissive_map",  OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, emissive_map)},
+                { "has_emissive_map", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, has_emissive_map)},
+                { "occlusion_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, occlusion_map)},
+                { "has_occlusion_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_occlusion_map)},
                 { "light_dir_0",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_0)},
                 { "light_color_0", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_color_0)},
                 { "light_dir_1",   OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, light_dir_1)},
@@ -603,6 +677,37 @@ namespace rl_tools {
                     owlGeomSet1i(geom, "has_metallic_roughness_map", 1);
                 } else {
                     owlGeomSet1i(geom, "has_metallic_roughness_map", 0);
+                }
+
+                owlGeomSet3f(geom, "emissive", owl3f{md.emissive[0], md.emissive[1], md.emissive[2]});
+                if (md.has_emissive_map && md.emissive_tex_width > 0 && md.emissive_tex_height > 0) {
+                    OWLTexture em_tex = owlTexture2DCreate(context,
+                                                           OWL_TEXEL_FORMAT_RGBA8,
+                                                           md.emissive_tex_width, md.emissive_tex_height,
+                                                           md.emissive_tex_pixels.data(),
+                                                           OWL_TEXTURE_LINEAR,
+                                                           OWL_TEXTURE_WRAP,
+                                                           OWL_TEXTURE_WRAP,
+                                                           OWL_COLOR_SPACE_SRGB);
+                    owlGeomSetTexture(geom, "emissive_map", em_tex);
+                    owlGeomSet1i(geom, "has_emissive_map", 1);
+                } else {
+                    owlGeomSet1i(geom, "has_emissive_map", 0);
+                }
+
+                if (md.has_occlusion_map && md.occlusion_tex_width > 0 && md.occlusion_tex_height > 0) {
+                    OWLTexture ao_tex = owlTexture2DCreate(context,
+                                                           OWL_TEXEL_FORMAT_RGBA8,
+                                                           md.occlusion_tex_width, md.occlusion_tex_height,
+                                                           md.occlusion_tex_pixels.data(),
+                                                           OWL_TEXTURE_LINEAR,
+                                                           OWL_TEXTURE_WRAP,
+                                                           OWL_TEXTURE_WRAP,
+                                                           OWL_COLOR_SPACE_LINEAR);
+                    owlGeomSetTexture(geom, "occlusion_map", ao_tex);
+                    owlGeomSet1i(geom, "has_occlusion_map", 1);
+                } else {
+                    owlGeomSet1i(geom, "has_occlusion_map", 0);
                 }
 
                 float inv_sqrt2 = 0.70710678f;
