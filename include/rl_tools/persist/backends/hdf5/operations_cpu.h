@@ -11,9 +11,6 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 
-    // =====================================================================
-    // Detail helpers
-    // =====================================================================
     namespace persist::backends::hdf5::detail{
         inline bool read_string_attribute(hid_t loc_id, const char* attr_name, char* output, size_t output_size){
             hid_t attr = H5Aopen(loc_id, attr_name, H5P_DEFAULT);
@@ -60,7 +57,7 @@ namespace rl_tools{
             H5Tclose(atype);
             H5Sclose(space);
         }
-        // Map C++ type to HDF5 native type
+
         template<typename T> inline hid_t native_type();
         template<> inline hid_t native_type<float>(){ return H5T_NATIVE_FLOAT; }
         template<> inline hid_t native_type<double>(){ return H5T_NATIVE_DOUBLE; }
@@ -75,7 +72,7 @@ namespace rl_tools{
         template<> inline hid_t native_type<uint32_t>(){ return H5T_NATIVE_UINT32; }
         template<> inline hid_t native_type<bool>(){ return H5T_NATIVE_HBOOL; }
 
-        // Fill hsize_t dims array from compile-time SHAPE
+
         template<typename SHAPE, int DIM = 0>
         inline void fill_dims(hsize_t* dims){
             if constexpr(DIM < SHAPE::LENGTH){
@@ -83,7 +80,7 @@ namespace rl_tools{
                 fill_dims<SHAPE, DIM + 1>(dims);
             }
         }
-        // Check dims match compile-time SHAPE
+
         template<typename SHAPE, int DIM = 0>
         inline bool check_dims(const hsize_t* dims){
             if constexpr(DIM < SHAPE::LENGTH){
@@ -91,7 +88,7 @@ namespace rl_tools{
             }
             else{ return true; }
         }
-        // Write dim_0, dim_1, ... attributes on a dataset
+
         template<typename SHAPE, int DIM = 0>
         inline void write_dim_attrs(hid_t ds_id){
             if constexpr(DIM < SHAPE::LENGTH){
@@ -104,9 +101,6 @@ namespace rl_tools{
         }
     }
 
-    // =====================================================================
-    // Group operations (const char*)
-    // =====================================================================
     template<typename DEVICE, typename SPEC>
     persist::backends::hdf5::Group<SPEC> get_group(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, const char* name){
         return {H5Gopen2(group.id, name, H5P_DEFAULT)};
@@ -120,9 +114,6 @@ namespace rl_tools{
         return {H5Gcreate2(group.id, name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)};
     }
 
-    // =====================================================================
-    // File operations (get_group / create_group from File)
-    // =====================================================================
     template<typename DEVICE>
     persist::backends::hdf5::Group<> get_group(DEVICE& device, persist::backends::hdf5::File& file, const char* name){
         return {H5Gopen2(file.id, name, H5P_DEFAULT)};
@@ -140,9 +131,7 @@ namespace rl_tools{
         return create_group(device, file, name.c_str());
     }
 
-    // =====================================================================
-    // std::string overloads for Group operations
-    // =====================================================================
+
     template<typename DEVICE, typename SPEC>
     persist::backends::hdf5::Group<SPEC> get_group(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, std::string name){
         return get_group(device, group, name.c_str());
@@ -156,9 +145,6 @@ namespace rl_tools{
         return create_group(device, group, name.c_str());
     }
 
-    // =====================================================================
-    // Attribute read (const char* and std::string)
-    // =====================================================================
     template<typename TYPE, typename DEVICE, typename SPEC>
     void get_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, const char* name, char* output, typename DEVICE::index_t output_size){
         persist::backends::hdf5::detail::read_string_attribute(group.id, name, output, output_size);
@@ -186,9 +172,6 @@ namespace rl_tools{
         return get_attribute_int<TYPE>(device, group, name.c_str());
     }
 
-    // =====================================================================
-    // Attribute write
-    // =====================================================================
     template<typename DEVICE, typename SPEC>
     void set_attribute(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group, const char* name, const char* value){
         persist::backends::hdf5::detail::write_string_attribute(group.id, name, value);
@@ -196,9 +179,6 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void write_attributes(DEVICE& device, persist::backends::hdf5::Group<SPEC>& group){}
 
-    // =====================================================================
-    // Static Tensor<SPEC> load
-    // =====================================================================
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     bool load(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name, bool fallback_to_zero = false){
         return load(device, tensor, group, dataset_name.c_str(), fallback_to_zero);
@@ -229,9 +209,6 @@ namespace rl_tools{
         return err >= 0;
     }
 
-    // =====================================================================
-    // Static Tensor<SPEC> save
-    // =====================================================================
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     void save(DEVICE& device, Tensor<SPEC>& tensor, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name){
         save(device, tensor, group, dataset_name.c_str());
@@ -246,7 +223,6 @@ namespace rl_tools{
         hid_t space = H5Screate_simple(RANK, dims, nullptr);
         hid_t memtype = persist::backends::hdf5::detail::native_type<T>();
         hid_t ds = H5Dcreate2(group.id, dataset_name, memtype, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        // For non-dense layouts, copy to dense temp
         if constexpr(!tensor::dense_row_major_layout<SPEC>()){
             Tensor<tensor::Specification<T, TI, typename SPEC::SHAPE>> tensor_dense;
             malloc(device, tensor_dense);
@@ -257,7 +233,7 @@ namespace rl_tools{
         else{
             H5Dwrite(ds, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data(tensor));
         }
-        // Write metadata attributes on the dataset
+
         persist::backends::hdf5::detail::write_string_attribute(ds, "type", "tensor");
         std::string num_dims = std::to_string(RANK);
         persist::backends::hdf5::detail::write_string_attribute(ds, "num_dims", num_dims.c_str());
@@ -266,9 +242,6 @@ namespace rl_tools{
         H5Sclose(space);
     }
 
-    // =====================================================================
-    // Static Matrix<SPEC> load/save (delegate to Tensor via to_tensor)
-    // =====================================================================
     template<typename DEVICE, typename SPEC, typename GROUP_SPEC>
     bool load(DEVICE& device, Matrix<SPEC>& matrix, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string dataset_name, bool fallback_to_zero = false){
         auto tensor = to_tensor(device, matrix);
@@ -290,9 +263,6 @@ namespace rl_tools{
         save(device, tensor, group, dataset_name);
     }
 
-    // =====================================================================
-    // Binary persistence
-    // =====================================================================
     template <typename DEVICE, typename STRUCT, typename GROUP_SPEC>
     void save_binary(DEVICE& device, const STRUCT* structs, typename DEVICE::index_t count, persist::backends::hdf5::Group<GROUP_SPEC>& group, std::string name){
         save_binary(device, structs, count, group, name.c_str());
@@ -325,7 +295,7 @@ namespace rl_tools{
         hid_t space = H5Dget_space(ds);
         hsize_t n;
         H5Sget_simple_extent_dims(space, &n, nullptr);
-        if(!utils::assert_exit(device, n == (hsize_t)(STRUCT_SIZE * count), "persist::backends::hdf5::load_binary: Size mismatch")){
+        if(n != (hsize_t)(STRUCT_SIZE * count)){
             H5Sclose(space); H5Dclose(ds); return false;
         }
         H5Dread(ds, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, reinterpret_cast<uint8_t*>(structs));
@@ -334,9 +304,6 @@ namespace rl_tools{
         return true;
     }
 
-    // =====================================================================
-    // Convenience: read_dataset (for test code that used HighFive directly)
-    // =====================================================================
     namespace persist::backends::hdf5{
         template<typename T, typename GROUP_SPEC>
         void read_dataset(persist::backends::hdf5::Group<GROUP_SPEC>& group, const char* name, std::vector<T>& output){
