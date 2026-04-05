@@ -294,7 +294,8 @@ namespace rl_tools
       color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
     }
 
-    if (alpha < 0.99f && depth < 1) {
+    bool transparent = (self.alpha_mode == 2 && alpha < 0.99f) || (self.alpha_mode == 1 && alpha < self.alpha_cutoff);
+    if (transparent && depth < 1) {
       owl::vec3f behind_color;
       unsigned int tp0 = 0, tp1 = 0;
       owl::packPointer(&behind_color, tp0, tp1);
@@ -310,7 +311,11 @@ namespace rl_tools
                  0, NUM_RAY_TYPES, 0,
                  tp0, tp1, tp2);
 
-      color = color * alpha + behind_color * (1.f - alpha);
+      if (self.alpha_mode == 1) {
+        color = behind_color;
+      } else {
+        color = color * alpha + behind_color * (1.f - alpha);
+      }
     }
 
     if (depth == 0) {

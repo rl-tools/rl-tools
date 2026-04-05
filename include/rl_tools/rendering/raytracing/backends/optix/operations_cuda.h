@@ -15,7 +15,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#include <assimp/light.h>
+#include <nlohmann/json.hpp>
 
 #include <vector>
 #include <limits>
@@ -25,7 +25,6 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
-#include <functional>
 #include <cuda_runtime.h>
 
 #define RL_TOOLS_RENDERING_RAYTRACING_LOG(message)                                            \
@@ -103,6 +102,141 @@ namespace rl_tools {
                 stbi_image_free(data);
                 return true;
             }
+        }
+    }
+
+    namespace rendering::raytracing::glb{
+        struct MaterialMeta {
+            int alpha_mode = 0;
+            float alpha_cutoff = 0.5f;
+            float base_color_factor_alpha = 1.0f;
+        };
+
+        struct ParsedMetadata {
+            std::vector<rendering::raytracing::SceneLight> lights;
+            std::vector<MaterialMeta> materials;
+        };
+
+        static void node_world_transform(const nlohmann::json& nodes, int node_idx, const std::vector<int>& parent_map, float out[16]) {
+            float identity[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+            std::memcpy(out, identity, sizeof(identity));
+
+            std::vector<int> chain;
+            for (int cur = node_idx; cur >= 0; cur = parent_map[cur]) chain.push_back(cur);
+
+            for (int i = (int)chain.size() - 1; i >= 0; i--) {
+                const auto& node = nodes[chain[i]];
+                float local[16];
+                if (node.contains("matrix")) {
+                    auto& m = node["matrix"];
+                    for (int j = 0; j < 16; j++) local[j] = m[j].get<float>();
+                } else {
+                    float tx = 0, ty = 0, tz = 0;
+                    float qx = 0, qy = 0, qz = 0, qw = 1;
+                    float sx = 1, sy = 1, sz = 1;
+                    if (node.contains("translation")) { auto& t = node["translation"]; tx = t[0]; ty = t[1]; tz = t[2]; }
+                    if (node.contains("rotation")) { auto& r = node["rotation"]; qx = r[0]; qy = r[1]; qz = r[2]; qw = r[3]; }
+                    if (node.contains("scale")) { auto& s = node["scale"]; sx = s[0]; sy = s[1]; sz = s[2]; }
+                    float r00 = (1 - 2*(qy*qy + qz*qz)) * sx, r01 = 2*(qx*qy - qw*qz) * sy, r02 = 2*(qx*qz + qw*qy) * sz;
+                    float r10 = 2*(qx*qy + qw*qz) * sx, r11 = (1 - 2*(qx*qx + qz*qz)) * sy, r12 = 2*(qy*qz - qw*qx) * sz;
+                    float r20 = 2*(qx*qz - qw*qy) * sx, r21 = 2*(qy*qz + qw*qx) * sy, r22 = (1 - 2*(qx*qx + qy*qy)) * sz;
+                    local[0]=r00; local[4]=r01; local[8]=r02;  local[12]=tx;
+                    local[1]=r10; local[5]=r11; local[9]=r12;  local[13]=ty;
+                    local[2]=r20; local[6]=r21; local[10]=r22; local[14]=tz;
+                    local[3]=0;   local[7]=0;   local[11]=0;   local[15]=1;
+                }
+                float tmp[16];
+                for (int r = 0; r < 4; r++)
+                    for (int c = 0; c < 4; c++)
+                        tmp[r + c*4] = out[r]*local[c*4] + out[r+4]*local[c*4+1] + out[r+8]*local[c*4+2] + out[r+12]*local[c*4+3];
+                std::memcpy(out, tmp, sizeof(tmp));
+            }
+        }
+
+        static ParsedMetadata parse(const std::string& filename) {
+            ParsedMetadata result;
+            FILE* f = fopen(filename.c_str(), "rb");
+            if (!f) return result;
+
+            uint32_t header[3];
+            if (fread(header, 4, 3, f) != 3 || header[0] != 0x46546C67u) { fclose(f); return result; }
+
+            uint32_t chunk_header[2];
+            if (fread(chunk_header, 4, 2, f) != 2) { fclose(f); return result; }
+            uint32_t json_len = chunk_header[0];
+
+            std::string json_str(json_len, '\0');
+            if (fread(&json_str[0], 1, json_len, f) != json_len) { fclose(f); return result; }
+            fclose(f);
+
+            nlohmann::json gltf = nlohmann::json::parse(json_str, nullptr, false);
+            if (gltf.is_discarded()) return result;
+
+            auto& nodes = gltf["nodes"];
+            std::vector<int> parent_map(nodes.size(), -1);
+            for (int i = 0; i < (int)nodes.size(); i++) {
+                if (nodes[i].contains("children")) {
+                    for (auto& child : nodes[i]["children"]) parent_map[child.get<int>()] = i;
+                }
+            }
+
+            if (gltf.contains("extensions") && gltf["extensions"].contains("KHR_lights_punctual")) {
+                auto& light_defs = gltf["extensions"]["KHR_lights_punctual"]["lights"];
+                for (int ni = 0; ni < (int)nodes.size(); ni++) {
+                    auto& node = nodes[ni];
+                    if (!node.contains("extensions") || !node["extensions"].contains("KHR_lights_punctual")) continue;
+                    int light_idx = node["extensions"]["KHR_lights_punctual"]["light"].get<int>();
+                    auto& ldef = light_defs[light_idx];
+
+                    float intensity = ldef.value("intensity", 1.0f);
+                    std::string type_str = ldef.value("type", "point");
+                    float color_r = 1, color_g = 1, color_b = 1;
+                    if (ldef.contains("color")) { color_r = ldef["color"][0]; color_g = ldef["color"][1]; color_b = ldef["color"][2]; }
+
+                    float world[16];
+                    node_world_transform(nodes, ni, parent_map, world);
+                    float px = world[12], py = world[13], pz = world[14];
+
+                    rendering::raytracing::SceneLight sl{};
+                    if (type_str == "directional") sl.type = 0;
+                    else if (type_str == "spot") sl.type = 2;
+                    else sl.type = 1;
+
+                    sl.position[0] = px; sl.position[1] = -pz; sl.position[2] = py;
+                    sl.color[0] = color_r * intensity; sl.color[1] = color_g * intensity; sl.color[2] = color_b * intensity;
+                    sl.attenuation_constant = 0.f; sl.attenuation_linear = 0.f; sl.attenuation_quadratic = 1.f;
+
+                    if (type_str == "spot" && ldef.contains("spot")) {
+                        float inner = ldef["spot"].value("innerConeAngle", 0.0f);
+                        float outer = ldef["spot"].value("outerConeAngle", 0.7854f);
+                        sl.cos_inner_cone = cosf(inner);
+                        sl.cos_outer_cone = cosf(outer);
+                        float dx = world[8], dy = world[9], dz = world[10];
+                        float len = sqrtf(dx*dx + dy*dy + dz*dz);
+                        if (len > 1e-6f) { dx /= len; dy /= len; dz /= len; }
+                        sl.direction[0] = dx; sl.direction[1] = -dz; sl.direction[2] = dy;
+                    }
+
+                    result.lights.push_back(sl);
+                }
+            }
+
+            if (gltf.contains("materials")) {
+                for (auto& mat : gltf["materials"]) {
+                    MaterialMeta mm;
+                    std::string am = mat.value("alphaMode", "OPAQUE");
+                    if (am == "MASK") mm.alpha_mode = 1;
+                    else if (am == "BLEND") mm.alpha_mode = 2;
+                    mm.alpha_cutoff = mat.value("alphaCutoff", 0.5f);
+                    if (mat.contains("pbrMetallicRoughness") && mat["pbrMetallicRoughness"].contains("baseColorFactor")) {
+                        auto& bcf = mat["pbrMetallicRoughness"]["baseColorFactor"];
+                        if (bcf.size() >= 4) mm.base_color_factor_alpha = bcf[3].get<float>();
+                    }
+                    result.materials.push_back(mm);
+                }
+            }
+
+            return result;
         }
     }
 
@@ -522,55 +656,27 @@ namespace rl_tools {
             renderer.scene_lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
             renderer.scene_lights.push_back({0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0});
 
-            Assimp::Importer light_importer;
-            const aiScene* light_scene = light_importer.ReadFile(filename, 0);
-            if (light_scene) {
-                float template_color[3] = {1.f, 1.f, 1.f};
-                float template_att[3] = {0.f, 0.f, 1.f};
-                if (light_scene->mNumLights > 0) {
-                    const aiLight* tl = light_scene->mLights[0];
-                    template_color[0] = tl->mColorDiffuse.r; template_color[1] = tl->mColorDiffuse.g; template_color[2] = tl->mColorDiffuse.b;
-                    template_att[0] = tl->mAttenuationConstant; template_att[1] = tl->mAttenuationLinear; template_att[2] = tl->mAttenuationQuadratic;
-                }
-                std::function<void(const aiNode*, aiMatrix4x4)> walk_lights;
-                walk_lights = [&](const aiNode* node, aiMatrix4x4 parent_transform) {
-                    aiMatrix4x4 world = parent_transform * node->mTransformation;
-                    bool is_light = false;
-                    if (node->mMetaData) {
-                        for (unsigned int mi = 0; mi < node->mMetaData->mNumProperties; mi++) {
-                            if (std::strstr(node->mMetaData->mKeys[mi].C_Str(), "PBR_Light") != nullptr) {
-                                is_light = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!is_light) {
-                        for (unsigned int li = 0; li < light_scene->mNumLights; li++) {
-                            if (light_scene->mLights[li]->mName == node->mName) { is_light = true; break; }
-                        }
-                    }
-                    if (is_light && node->mNumMeshes == 0) {
-                        aiVector3D world_pos = world * aiVector3D(0.f, 0.f, 0.f);
-                        rendering::raytracing::SceneLight sl{};
-                        sl.type = 1;
-                        sl.position[0] = world_pos.x; sl.position[1] = -world_pos.z; sl.position[2] = world_pos.y;
-                        sl.color[0] = template_color[0]; sl.color[1] = template_color[1]; sl.color[2] = template_color[2];
-                        sl.attenuation_constant = template_att[0]; sl.attenuation_linear = template_att[1]; sl.attenuation_quadratic = template_att[2];
-                        renderer.scene_lights.push_back(sl);
-                    }
-                    for (unsigned int ci = 0; ci < node->mNumChildren; ci++) {
-                        walk_lights(node->mChildren[ci], world);
-                    }
-                };
-                walk_lights(light_scene->mRootNode, aiMatrix4x4());
+            auto glb_meta = rendering::raytracing::glb::parse(filename);
+            for (auto& sl : glb_meta.lights) {
+                renderer.scene_lights.push_back(sl);
+            }
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << glb_meta.lights.size() << " from GLB + 3 directional fill");
+            for (size_t li = 0; li < glb_meta.lights.size(); li++) {
+                auto& sl = glb_meta.lights[li];
+                RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << li << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
+                    << ") color=(" << sl.color[0] << "," << sl.color[1] << "," << sl.color[2] << ")");
+            }
 
-                int num_point_lights = (int)renderer.scene_lights.size() - 3;
-                RL_TOOLS_RENDERING_RAYTRACING_LOG("Extracted " << num_point_lights << " point lights from model (+ 3 directional fill)");
-                for (int pi = 3; pi < (int)renderer.scene_lights.size(); pi++) {
-                    auto& sl = renderer.scene_lights[pi];
-                    RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << (pi-3) << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
-                        << ") color=(" << sl.color[0] << "," << sl.color[1] << "," << sl.color[2]
-                        << ") att=(" << sl.attenuation_constant << "," << sl.attenuation_linear << "," << sl.attenuation_quadratic << ")");
+            for (size_t mi = 0; mi < renderer.meshes.size(); mi++) {
+                auto& md = renderer.meshes[mi];
+                unsigned int mat_idx = scene->mMeshes[mi]->mMaterialIndex;
+                if (mat_idx < glb_meta.materials.size()) {
+                    auto& mm = glb_meta.materials[mat_idx];
+                    md.alpha_mode = mm.alpha_mode;
+                    md.alpha_cutoff = mm.alpha_cutoff;
+                    if (mm.alpha_mode == 2) {
+                        md.opacity = fminf(md.opacity, mm.base_color_factor_alpha);
+                    }
                 }
             }
         }
@@ -646,6 +752,8 @@ namespace rl_tools {
                 { "occlusion_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, occlusion_map)},
                 { "has_occlusion_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_occlusion_map)},
                 { "opacity",       OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, opacity)},
+                { "alpha_mode",    OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, alpha_mode)},
+                { "alpha_cutoff",  OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, alpha_cutoff)},
                 { "scene_lights",  OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, scene_lights)},
                 { "num_scene_lights", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, num_scene_lights)},
                 { "ambient_color", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, ambient_color)},
@@ -786,6 +894,8 @@ namespace rl_tools {
                 }
 
                 owlGeomSet1f(geom, "opacity", md.opacity);
+                owlGeomSet1i(geom, "alpha_mode", md.alpha_mode);
+                owlGeomSet1f(geom, "alpha_cutoff", md.alpha_cutoff);
                 owlGeomSet3f(geom, "ambient_color", owl3f{0.5f, 0.5f, 0.5f});
             }
 

@@ -9,10 +9,12 @@
 #include <cuda_runtime.h>
 
 #include <iostream>
+#include <fstream>
 #include <cmath>
 #include <cstring>
 #include <chrono>
 #include <cstdio>
+#include <sys/stat.h>
 
 namespace rlt = rl_tools;
 
@@ -130,6 +132,38 @@ struct InputState {
 
 static InputState g_input;
 
+static std::string camera_cache_path(const std::string& scene_path) {
+    const char* home = std::getenv("HOME");
+    if (!home) return "";
+    std::string cache_dir = std::string(home) + "/.cache/rl_tools_viewer";
+    mkdir(cache_dir.c_str(), 0755);
+    std::string key;
+    for (char c : scene_path) key += (c == '/' || c == '\\') ? '_' : c;
+    return cache_dir + "/" + key + ".cam";
+}
+
+static void save_camera_state(const std::string& path, float x, float y, float z, float yaw, float pitch) {
+    if (path.empty()) return;
+    std::ofstream f(path, std::ios::binary);
+    if (f) f.write(reinterpret_cast<const char*>(&x), 4)
+            .write(reinterpret_cast<const char*>(&y), 4)
+            .write(reinterpret_cast<const char*>(&z), 4)
+            .write(reinterpret_cast<const char*>(&yaw), 4)
+            .write(reinterpret_cast<const char*>(&pitch), 4);
+}
+
+static bool load_camera_state(const std::string& path, float& x, float& y, float& z, float& yaw, float& pitch) {
+    if (path.empty()) return false;
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return false;
+    return f.read(reinterpret_cast<char*>(&x), 4)
+            .read(reinterpret_cast<char*>(&y), 4)
+            .read(reinterpret_cast<char*>(&z), 4)
+            .read(reinterpret_cast<char*>(&yaw), 4)
+            .read(reinterpret_cast<char*>(&pitch), 4)
+            .good();
+}
+
 static void key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -227,6 +261,12 @@ int main(int argc, char** argv) {
         state = env.indoor_initial_states[0];
     }
 
+    std::string cam_cache = camera_cache_path(resolved_scene_path);
+    float cached_yaw = state.yaw, cached_pitch = 0;
+    if (load_camera_state(cam_cache, state.position[0], state.position[1], state.position[2], cached_yaw, cached_pitch)) {
+        std::cout << "Restored camera from " << cam_cache << std::endl;
+    }
+
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return 1;
@@ -245,7 +285,8 @@ int main(int argc, char** argv) {
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    g_input.yaw = state.yaw;
+    g_input.yaw = cached_yaw;
+    g_input.pitch = cached_pitch;
 
     GLuint texture;
     glGenTextures(1, &texture);
@@ -337,6 +378,8 @@ int main(int argc, char** argv) {
 
         glfwSwapBuffers(window);
     }
+
+    save_camera_state(cam_cache, state.position[0], state.position[1], state.position[2], g_input.yaw, g_input.pitch);
 
     glDeleteTextures(1, &texture);
     glfwDestroyWindow(window);
