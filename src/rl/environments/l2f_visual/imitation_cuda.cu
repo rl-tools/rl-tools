@@ -883,6 +883,14 @@ int main(int argc, char** argv){
     rlt::rendering::raytracing::CameraData<float>* gpu_cameras = nullptr;
     cudaMalloc(&gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
 
+    // Event for cross-stream synchronization (make_cameras on device_gpu.stream → optix_stream)
+    cudaEvent_t cameras_ready_event;
+    cudaEventCreateWithFlags(&cameras_ready_event, cudaEventDisableTiming);
+    // Events for measuring rendering time
+    cudaEvent_t render_start_event, render_stop_event;
+    cudaEventCreate(&render_start_event);
+    cudaEventCreate(&render_stop_event);
+
     // GPU tensors
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, OBSERVATION_DIM>>> gpu_all_observations;
@@ -1045,6 +1053,7 @@ int main(int argc, char** argv){
         // =================================================================
         // Data collection (GPU-resident)
         // =================================================================
+        float epoch_render_time_ms = 0;
         {
             constexpr TI BLOCKSIZE = 32;
             constexpr TI N_BLOCKS = (N_ENVIRONMENTS + BLOCKSIZE - 1) / BLOCKSIZE;
@@ -1104,11 +1113,16 @@ int main(int argc, char** argv){
                     rlt::render_rgb_only(device, *env0.renderer);
                     CUDA_CHECK("observe_batch_render_gpu init");
                 } else {
+                    // make_cameras_kernel wrote gpu_cameras on device_gpu.stream;
+                    // record an event so the optix stream waits for it before reading
+                    cudaEventRecord(cameras_ready_event, device_gpu.stream);
                     void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)env0.renderer->backend.owl_cameras_buffer, 0);
                     OWLParams rgb_lp = (OWLParams)env0.renderer->backend.rgb_launch_params;
                     cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+                    cudaStreamWaitEvent(optix_stream, cameras_ready_event, 0);
                     cudaMemcpyAsync(owl_cam_ptr, gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToDevice, optix_stream);
                     CUDA_CHECK("cameras D2D copy");
+                    cudaEventRecord(render_start_event, optix_stream);
                     rlt::render_rgb_only_launch(device, *env0.renderer);
                     CUDA_CHECK("render_rgb_only_launch");
                 }
@@ -1137,6 +1151,15 @@ int main(int argc, char** argv){
                 CUDA_CHECK("raptor evaluate_step");
                 if(env0.renderer->backend.owl_cameras_buffer != nullptr){
                     rlt::render_rgb_only_sync(device, *env0.renderer);
+                    {
+                        OWLParams rgb_lp = (OWLParams)env0.renderer->backend.rgb_launch_params;
+                        cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+                        cudaEventRecord(render_stop_event, optix_stream);
+                        float step_render_ms = 0;
+                        cudaEventSynchronize(render_stop_event);
+                        cudaEventElapsedTime(&step_render_ms, render_start_event, render_stop_event);
+                        epoch_render_time_ms += step_render_ms;
+                    }
                     CUDA_CHECK("render_rgb_only_sync");
                     const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, *env0.renderer);
                     constexpr TI TOTAL_PIXELS = N_ENVIRONMENTS * CAM_PIXELS;
@@ -1379,6 +1402,9 @@ int main(int argc, char** argv){
         TI episode_count = episode_count_tf + episode_count_student;
         T mean_episode_length = episode_count_student > 0 ? mean_episode_length_student : mean_episode_length_tf;
         T fps = epoch_elapsed.count() > 0 ? static_cast<T>(STEPS_TOTAL) / epoch_elapsed.count() : 0;
+        T render_time_s = static_cast<T>(epoch_render_time_ms) / static_cast<T>(1000);
+        T render_fps = render_time_s > 0 ? static_cast<T>(STEPS_PER_ENV * N_ENVIRONMENTS) / render_time_s : 0;
+        T render_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * render_time_s / epoch_elapsed.count() : 0;
 
         std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(TEACHER_FORCING_FRACTION * 100)) + "%] ")
                   << "Epoch: " << std::setw(5) << epoch_i
@@ -1386,6 +1412,9 @@ int main(int argc, char** argv){
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
                   << " episodes: " << std::setw(5) << episode_count
                   << " fps: " << std::setw(7) << std::setprecision(0) << fps
+                  << " render: " << std::setw(5) << std::setprecision(1) << render_time_s << "s"
+                  << " (" << std::setw(4) << std::setprecision(1) << render_pct << "%"
+                  << " " << std::setw(7) << std::setprecision(0) << render_fps << " fps)"
                   << " epoch_time: " << std::setw(6) << std::setprecision(1) << epoch_elapsed.count() << "s"
                   << " total: " << std::setw(8) << std::setprecision(1) << training_elapsed.count() << "s"
                   << std::endl;
@@ -1402,6 +1431,9 @@ int main(int argc, char** argv){
             rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
         }
         rlt::add_scalar(device, device.logger, "training/fps", fps);
+        rlt::add_scalar(device, device.logger, "training/render_time_s", render_time_s);
+        rlt::add_scalar(device, device.logger, "training/render_fps", render_fps);
+        rlt::add_scalar(device, device.logger, "training/render_pct", render_pct);
         rlt::add_scalar(device, device.logger, "training/epoch_time_s", epoch_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/total_time_s", training_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : TEACHER_FORCING_FRACTION);
@@ -1576,6 +1608,9 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, rng_gpu);
     rlt::free(device_gpu, gpu_teacher_actions_step);
     cudaFree(gpu_cameras);
+    cudaEventDestroy(cameras_ready_event);
+    cudaEventDestroy(render_start_event);
+    cudaEventDestroy(render_stop_event);
     rlt::free(device_gpu, student_gpu);
     rlt::free(device_gpu, raptor_gpu);
     rlt::free(device_gpu, raptor_buffer_gpu);
