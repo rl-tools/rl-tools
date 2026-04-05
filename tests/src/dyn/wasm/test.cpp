@@ -17,7 +17,8 @@ int main(int argc, char** argv){
 
     rlt::persist::backends::hdf5::File file(path, rlt::persist::backends::hdf5::Mode::READ);
 
-    auto model_group = rlt::get_group(device, file, "model");
+    bool has_actor = H5Lexists(file.id, "actor", H5P_DEFAULT) > 0;
+    auto model_group = rlt::get_group(device, file, has_actor ? "actor" : "model");
     rlt::dyn::Layer<TI> model;
     if(!rlt::load(device, model, model_group)){
         printf("ERROR: failed to load model\n");
@@ -25,9 +26,13 @@ int main(int argc, char** argv){
     }
     printf("Model loaded (type=%d, children=%lu)\n", (int)model.type, (unsigned long)model.num_children);
 
+    bool has_example = H5Lexists(file.id, "example", H5P_DEFAULT) > 0;
+    const char* input_name = has_example ? "example/input" : "test_input";
+    const char* output_name = has_example ? "example/output" : "expected_output";
+
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> input_tensor;
     {
-        hid_t ds = H5Dopen2(file.id, "test_input", H5P_DEFAULT);
+        hid_t ds = H5Dopen2(file.id, input_name, H5P_DEFAULT);
         hid_t space = H5Dget_space(ds);
         int rank = H5Sget_simple_extent_ndims(space);
         hsize_t dims[8];
@@ -46,11 +51,14 @@ int main(int argc, char** argv){
 
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> expected;
     {
-        hid_t ds = H5Dopen2(file.id, "expected_output", H5P_DEFAULT);
+        hid_t ds = H5Dopen2(file.id, output_name, H5P_DEFAULT);
         hid_t space = H5Dget_space(ds);
-        hsize_t n;
-        H5Sget_simple_extent_dims(space, &n, nullptr);
-        TI expected_shape[] = {(TI)n};
+        int out_rank = H5Sget_simple_extent_ndims(space);
+        hsize_t out_dims[8];
+        H5Sget_simple_extent_dims(space, out_dims, nullptr);
+        TI n_total = 1;
+        for(int d = 0; d < out_rank; d++) n_total *= (TI)out_dims[d];
+        TI expected_shape[] = {n_total};
         rlt::dyn::set_shape(expected, (TI)1, expected_shape);
         expected.type = rlt::dyn::Type::FLOAT32;
         rlt::malloc(device, expected);
