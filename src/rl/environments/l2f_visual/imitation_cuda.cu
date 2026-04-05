@@ -223,7 +223,7 @@ static constexpr T TEACHER_FORCING_FRACTION = 0.0;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 100;
-static constexpr T OBSERVATION_NOISE_STD = 0.05;
+static constexpr T OBSERVATION_NOISE_STD = 0.00;
 static constexpr TI GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS)
 static_assert(GRID_SIDE * GRID_SIDE == N_ENVIRONMENTS, "N_ENVIRONMENTS must be a perfect square for video mosaic");
 
