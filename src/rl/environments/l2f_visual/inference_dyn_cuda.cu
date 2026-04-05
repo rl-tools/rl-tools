@@ -250,7 +250,7 @@ int main(int argc, char** argv){
         rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> example_output;
         bool have_example = rlt::load(device, example_input, example_group, "input") && rlt::load(device, example_output, example_group, "output");
         if(have_example){
-            rlt::dyn::propagate_shapes(model, example_input.shape, example_input.rank, example_input.size);
+            rlt::dyn::propagate_shapes(model, example_input.shape, example_input.rank);
             rlt::dyn::Buffer<TI> verify_buffer;
             verify_buffer.layer = &model;
             rlt::malloc(device, verify_buffer);
@@ -261,7 +261,7 @@ int main(int argc, char** argv){
             rlt::malloc(device, verify_output);
             if(rlt::evaluate(device, model, example_input, verify_output, verify_buffer)){
                 float max_diff = 0;
-                for(TI i = 0; i < example_output.size; i++){
+                for(TI i = 0; i < example_output.size(); i++){
                     float diff = std::fabs(rlt::dyn::get(device, verify_output, i) - rlt::dyn::get(device, example_output, i));
                     if(diff > max_diff) max_diff = diff;
                 }
@@ -278,7 +278,7 @@ int main(int argc, char** argv){
 
     // Propagate shapes for inference input
     TI input_shape[] = {(TI)1, (TI)TOTAL_INPUT_DIM};
-    rlt::dyn::propagate_shapes(model, input_shape, (TI)2, (TI)TOTAL_INPUT_DIM);
+    rlt::dyn::propagate_shapes(model, input_shape, (TI)2);
 
     // Allocate dyn buffers
     rlt::dyn::Buffer<TI> buffer;
@@ -295,10 +295,6 @@ int main(int argc, char** argv){
     rlt::dyn::set_shape(dyn_output, (TI)1, output_shape);
     dyn_output.type = rlt::dyn::Type::FLOAT32;
     rlt::malloc(device, dyn_output);
-
-    TI buffer_tick_capacity = buffer.tick.size;
-    TI buffer_tock_capacity = buffer.tock.size;
-    TI buffer_scratch_capacity = buffer.scratch.size;
 
     // =====================================================================
     // Environment setup
@@ -461,11 +457,6 @@ int main(int argc, char** argv){
             std::memcpy(input_data, stacked_obs.data(), STACKED_OBS_DIM * sizeof(float));
             std::memcpy(input_data + STACKED_OBS_DIM, state_obs_data, STATE_OBS_DIM * sizeof(float));
 
-            // Forward pass (restore buffer sizes since evaluate modifies them)
-            buffer.tick.size = buffer_tick_capacity;
-            buffer.tock.size = buffer_tock_capacity;
-            buffer.scratch.size = buffer_scratch_capacity;
-            dyn_output.size = model.output_size;
             if(!rlt::evaluate(device, model, dyn_input, dyn_output, buffer)){
                 std::cerr << "dyn::evaluate failed at episode " << episode_i << " step " << step_i << std::endl;
                 return 1;

@@ -78,7 +78,7 @@ TEST(TEST_DYN_HDF5, dense_layer){
     rlt::dyn::set_shape(dyn_output, (TI)2, output_shape);
     dyn_output.type = rlt::dyn::Type::FLOAT32;
     rlt::malloc(device, dyn_output);
-    rlt::dyn::propagate_shapes(dyn_layer, dyn_input.shape, dyn_input.rank, dyn_input.size);
+    rlt::dyn::propagate_shapes(dyn_layer, dyn_input.shape, dyn_input.rank);
     rlt::dyn::Buffer<TI> dyn_buffer;
     dyn_buffer.layer = &dyn_layer;
     rlt::malloc(device, dyn_buffer);
@@ -129,7 +129,7 @@ TEST(TEST_DYN_HDF5, sequential_dense_gru_mlp){
     auto im = rlt::matrix_view(device, in);
     for(TI i = 0; i < SEQ_LEN * BATCH_SIZE; i++) for(TI j = 0; j < INPUT_DIM; j++) rlt::dyn::set(device, di, i * INPUT_DIM + j, rlt::get(im, i, j));
     TI dos[] = {SEQ_LEN, BATCH_SIZE, OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
-    rlt::dyn::propagate_shapes(dm, di.shape, di.rank, di.size);
+    rlt::dyn::propagate_shapes(dm, di.shape, di.rank);
     rlt::dyn::Buffer<TI> db; db.layer = &dm; rlt::malloc(device, db);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
     auto om = rlt::matrix_view(device, out);

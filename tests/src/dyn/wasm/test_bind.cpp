@@ -38,7 +38,7 @@ bool load_model(const std::string& path, emscripten::val js_input_shape){
     }
     input_rank = (TI)rank;
 
-    rlt::dyn::propagate_shapes(model, input_shape, (TI)rank, total);
+    rlt::dyn::propagate_shapes(model, input_shape, (TI)rank);
     output_dim = model.output_size;
     output_cache.resize(output_dim);
     buffer.layer = &model;

@@ -36,7 +36,7 @@ int main(int argc, char** argv){
         printf("ERROR: failed to load example/input\n");
         return 1;
     }
-    printf("Input: rank=%u, size=%lu, shape=[", (unsigned)input.rank, (unsigned long)input.size);
+    printf("Input: rank=%u, size=%lu, shape=[", (unsigned)input.rank, (unsigned long)input.size());
     for(TI d = 0; d < input.rank; d++) printf("%s%lu", d ? "," : "", (unsigned long)input.shape[d]);
     printf("]\n");
 
@@ -45,9 +45,9 @@ int main(int argc, char** argv){
         printf("ERROR: failed to load example/output\n");
         return 1;
     }
-    printf("Expected output: rank=%u, size=%lu\n", (unsigned)expected.rank, (unsigned long)expected.size);
+    printf("Expected output: rank=%u, size=%lu\n", (unsigned)expected.rank, (unsigned long)expected.size());
 
-    rlt::dyn::propagate_shapes(model, input.shape, input.rank, input.size);
+    rlt::dyn::propagate_shapes(model, input.shape, input.rank);
 
     rlt::dyn::Buffer<TI> buffer;
     buffer.layer = &model;
@@ -65,7 +65,7 @@ int main(int argc, char** argv){
     }
 
     float max_diff = 0;
-    TI output_size = expected.size;
+    TI output_size = expected.size();
     printf("Output size: %lu\n", (unsigned long)output_size);
     TI print_n = output_size < 10 ? output_size : 10;
     for(TI i = 0; i < print_n; i++){

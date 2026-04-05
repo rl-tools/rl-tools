@@ -54,7 +54,7 @@ using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
 namespace helpers{
     void setup_buffer(rlt::dyn::Buffer<TI>& buf, rlt::dyn::Layer<TI>& layer, const rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>>& input){
-        rlt::dyn::propagate_shapes(layer, input.shape, input.rank, input.size);
+        rlt::dyn::propagate_shapes(layer, input.shape, input.rank);
         buf.layer = &layer;
     }
     std::vector<char> load_tar(const std::string& path){

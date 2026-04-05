@@ -9,7 +9,7 @@
 namespace rlt = rl_tools;
 
 int main(int argc, char** argv){
-    const char* path = (argc > 1) ? argv[1] : "test_checkpoint.h5";
+    const char* path = (argc > 1) ? argv[1] : "tests/data/test_dyn_wasm_checkpoint.h5";
 
     using DEVICE = rlt::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
@@ -67,7 +67,7 @@ int main(int argc, char** argv){
         H5Dclose(ds);
     }
 
-    rlt::dyn::propagate_shapes(model, input_tensor.shape, input_tensor.rank, input_tensor.size);
+    rlt::dyn::propagate_shapes(model, input_tensor.shape, input_tensor.rank);
     rlt::dyn::Buffer<TI> buffer;
     buffer.layer = &model;
     rlt::malloc(device, buffer);
@@ -82,7 +82,7 @@ int main(int argc, char** argv){
     if(!ok){ printf("ERROR: evaluate failed\n"); return 1; }
 
     float max_diff = 0;
-    TI output_size = expected.size;
+    TI output_size = expected.size();
     printf("Output size: %lu\n", (unsigned long)output_size);
     TI print_n = output_size < 10 ? output_size : 10;
     for(TI i = 0; i < print_n; i++){
