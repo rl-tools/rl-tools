@@ -77,6 +77,12 @@
 
 namespace rlt = rl_tools;
 
+#define USE_FRAME_STACKING
+// #define USE_GRU_TEMPORAL
+#if defined(USE_FRAME_STACKING) && defined(USE_GRU_TEMPORAL)
+#error "USE_FRAME_STACKING and USE_GRU_TEMPORAL are mutually exclusive"
+#endif
+
 // =========================================================================
 // Device types
 // =========================================================================
@@ -126,10 +132,15 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}
 static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, 0}, {0, 0} };
 static constexpr PARAMETERS_TYPE nominal_parameters = { {dynamics, integration, mdp}, disturbances };
 
+
 // =========================================================================
 // Environment static parameters
 // =========================================================================
-static constexpr TI ACTION_HISTORY_LENGTH = 1;
+#ifdef USE_FRAME_STACKING
+static constexpr TI ACTION_HISTORY_LENGTH = 4;
+#else
+static constexpr TI ACTION_HISTORY_LENGTH = 1; // for GRU / Markovian
+#endif
 
 struct STATIC_PARAMETERS {
     static constexpr TI N_SUBSTEPS = 1;
@@ -155,7 +166,7 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
-using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
+using ACTOR_STATE_OBS = obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>;
 // using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
@@ -168,7 +179,8 @@ static constexpr TI CAM_WIDTH = 64;
 static constexpr TI CAM_HEIGHT = 64;
 static constexpr TI NUM_PROBES = 64;
 
-using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, true>;
+constexpr bool HIGH_FIDELITY_SHADING = false;
+using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 
 // =========================================================================
@@ -214,11 +226,6 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 // =========================================================================
 // Frame stacking configuration
 // =========================================================================
-#define USE_FRAME_STACKING
-// #define USE_GRU_TEMPORAL
-#if defined(USE_FRAME_STACKING) && defined(USE_GRU_TEMPORAL)
-#error "USE_FRAME_STACKING and USE_GRU_TEMPORAL are mutually exclusive"
-#endif
 #ifdef USE_FRAME_STACKING
 static constexpr TI FRAME_STACK_N = 5;
 static constexpr TI FRAME_STACK_STRIDE = 20; // 100Hz / 20 = 5Hz
