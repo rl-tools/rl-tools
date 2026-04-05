@@ -23,7 +23,8 @@ static bool ready = false;
 bool load_model(const std::string& path, emscripten::val js_input_shape){
     rlt::persist::backends::hdf5::File file(path.c_str(), rlt::persist::backends::hdf5::Mode::READ);
     if(file.id < 0) return false;
-    auto model_group = rlt::get_group(device, file, "model");
+    bool has_actor = H5Lexists(file.id, "actor", H5P_DEFAULT) > 0;
+    auto model_group = rlt::get_group(device, file, has_actor ? "actor" : "model");
     if(!rlt::load(device, model, model_group)) return false;
 
     unsigned int rank = js_input_shape["length"].as<unsigned int>();
