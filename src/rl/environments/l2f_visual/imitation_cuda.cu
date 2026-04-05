@@ -166,7 +166,7 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
-using ACTOR_STATE_OBS = obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>;
+using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
 // using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
@@ -187,7 +187,12 @@ using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_
 // RAPTOR teacher (CPU only)
 // =========================================================================
 static constexpr TI RAPTOR_HIDDEN_DIM = 16;
-static constexpr TI RAPTOR_OBS_DIM = 22; // Position(3) + RotMat(9) + LinVel(3) + AngVel(3) + ActionHistory(4)
+using RAPTOR_OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
+        obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
+        obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
+        obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI,
+        obs::ActionHistory<obs::ActionHistorySpecification<T, TI, 1>>>>>>>>>>;
+static constexpr TI RAPTOR_OBS_DIM = RAPTOR_OBSERVATION_TYPE::DIM;
 
 using RAPTOR_DENSE1_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, RAPTOR_HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
 using RAPTOR_DENSE1 = rlt::nn::layers::dense::BindConfiguration<RAPTOR_DENSE1_CONFIG>;
@@ -366,7 +371,7 @@ namespace imitation_kernels{
         {
             rlt::Matrix<rlt::matrix::Specification<T, TI, 1, RAPTOR_OBS_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> obs_mat;
             obs_mat._data = teacher_obs_ptr + env_i * RAPTOR_OBS_DIM;
-            rl_tools::observe(device, env, params, state, typename STATIC_PARAMETERS::OBSERVATION_TYPE{}, obs_mat, rng_state);
+            rl_tools::observe(device, env, params, state, RAPTOR_OBSERVATION_TYPE{}, obs_mat, rng_state);
         }
         {
             rlt::Matrix<rlt::matrix::Specification<T, TI, 1, STATE_OBS_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> obs_mat;

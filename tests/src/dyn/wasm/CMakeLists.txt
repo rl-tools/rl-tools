@@ -28,4 +28,18 @@ if(EMSCRIPTEN)
         "SHELL:-s ALLOW_MEMORY_GROWTH=1"
         "SHELL:-s STACK_SIZE=2097152"
     )
+
+    add_executable(test_dyn_h5_bind test_bind.cpp)
+    target_include_directories(test_dyn_h5_bind PRIVATE ${RL_TOOLS_INCLUDE_DIR})
+    target_link_libraries(test_dyn_h5_bind hdf5::hdf5-static)
+    target_link_options(test_dyn_h5_bind PRIVATE
+        "SHELL:-s MODULARIZE=1"
+        "SHELL:-s EXPORT_ES6=0"
+        "SHELL:-s ENVIRONMENT=node"
+        "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+        "SHELL:-s STACK_SIZE=2097152"
+        "SHELL:-s FORCE_FILESYSTEM=1"
+        "SHELL:-s EXPORTED_RUNTIME_METHODS=[\"FS\"]"
+        --bind
+    )
 endif()
